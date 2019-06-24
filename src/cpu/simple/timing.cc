@@ -164,6 +164,13 @@ TimingSimpleCPU::MeshInPort::recvFunctional(PacketPtr pkt) {
   assert(0);
 }
 
+// might want to do bsg_manycore eva treament here for addressing
+AddrRangeList 
+TimingSimpleCPU::MeshInPort::getAddrRanges() const {
+  //return cpu->getAddrRanges();
+  return std::list<AddrRange>();
+}
+
 /*----------------------------------------------------------------------
  * Define processor behavior
  *--------------------------------------------------------------------*/ 
@@ -171,7 +178,14 @@ TimingSimpleCPU::MeshInPort::recvFunctional(PacketPtr pkt) {
 TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
     : BaseSimpleCPU(p), fetchTranslation(this), icachePort(this),
       dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0),
+      
+      // begin additions (needs to be in order declared in .hh)
+      meshOutPort(this), meshInPort(this),
+      // end additions
+      
       fetchEvent([this]{ fetch(); }, name())
+      
+      
 {
     _status = Idle;
 }

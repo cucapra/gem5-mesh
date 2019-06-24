@@ -264,6 +264,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
     // pbb implement mesh ports
     // port that goes out over the mesh
     class MeshOutPort : public TimingCPUPort {
+      public:
         MeshOutPort(TimingSimpleCPU *_cpu)
             : TimingCPUPort(_cpu->name() + ".mesh_out_port", _cpu),
               tickEvent(_cpu)
@@ -320,12 +321,13 @@ class TimingSimpleCPU : public BaseSimpleCPU
     };
     
     class MeshInPort : public TimingCPUSlavePort {
-      MeshInPort(TimingSimpleCPU *_cpu)
+      public:
+        MeshInPort(TimingSimpleCPU *_cpu)
             : TimingCPUSlavePort(_cpu->name() + ".mesh_in_port", _cpu),
               tickEvent(_cpu)
         { }
 
-        //virtual AddrRangeList getAddrRanges() const = {AllMemory};
+        virtual AddrRangeList getAddrRanges() const;
 
       protected:
 
@@ -348,7 +350,9 @@ class TimingSimpleCPU : public BaseSimpleCPU
         MITickEvent tickEvent;
     };
     
-    //MeshOutPort meshOutPort;
+    // define the ports we're going to use for to access the mesh net
+    MeshOutPort meshOutPort;
+    MeshInPort meshInPort;
 
   protected:
 
