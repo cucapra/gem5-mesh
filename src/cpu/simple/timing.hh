@@ -260,6 +260,34 @@ class TimingSimpleCPU : public BaseSimpleCPU
     PacketPtr dcache_pkt;
 
     Cycles previousCycle;
+    
+    // pbb implement mesh ports
+    // port that goes out over the mesh
+    class MeshOutPort : public TimingCPUPort {
+        MeshOutPort(TimingSimpleCPU *_cpu)
+            : TimingCPUPort(_cpu->name() + ".mesh_out_port", _cpu),
+              tickEvent(_cpu)
+        { }
+
+      protected:
+
+        // important to implemnt these
+        virtual bool recvTimingResp(PacketPtr pkt);
+        virtual void recvReqRetry();
+
+        struct MOTickEvent : public TickEvent
+        {
+
+            MOTickEvent(TimingSimpleCPU *_cpu)
+                : TickEvent(_cpu) {}
+            void process();
+            const char *description() const { return "Timing CPU to mesh tick"; }
+        };
+
+        MOTickEvent tickEvent;
+    };
+    
+    //MeshOutPort meshOutPort;
 
   protected:
 

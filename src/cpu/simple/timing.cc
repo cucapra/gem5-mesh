@@ -69,12 +69,63 @@ TimingSimpleCPU::init()
     BaseSimpleCPU::init();
 }
 
+/*----------------------------------------------------------------------
+ * Implement base port behavior
+ *--------------------------------------------------------------------*/ 
+
 void
 TimingSimpleCPU::TimingCPUPort::TickEvent::schedule(PacketPtr _pkt, Tick t)
 {
     pkt = _pkt;
     cpu->schedule(this, t);
 }
+
+/*----------------------------------------------------------------------
+ * Define mesh port behavior
+ *--------------------------------------------------------------------*/ 
+
+// if you want to send a packet, used <MasterPort_Inst>.sendTimingReq(pkt);
+
+// after waiting for some delay, we finally do something with the recv
+// packet response
+void
+TimingSimpleCPU::MeshOutPort::MOTickEvent::process()
+{
+    //cpu->completeIfetch(pkt);
+}
+
+// override what should happen when the packet we sent on this port has returned
+bool
+TimingSimpleCPU::MeshOutPort::recvTimingResp(PacketPtr pkt)
+{
+    DPRINTF(SimpleCPU, "Received mesh out response %#x\n", pkt->getAddr());
+    // we should only ever see one response per cycle since we only
+    // issue a new request once this response is sunk
+    assert(!tickEvent.scheduled());
+    // delay processing of returned data until next CPU clock edge
+    tickEvent.schedule(pkt, cpu->clockEdge());
+
+    return true;
+}
+
+// override what should happen when the packet we sent on this port failed to send
+void
+TimingSimpleCPU::MeshOutPort::recvReqRetry()
+{
+    // we shouldn't get a retry unless we have a packet that we're
+    // waiting to transmit
+    /*assert(cpu->ifetch_pkt != NULL);
+    assert(cpu->_status == IcacheRetry);
+    PacketPtr tmp = cpu->ifetch_pkt;
+    if (sendTimingReq(tmp)) {
+        cpu->_status = IcacheWaitResponse;
+        cpu->ifetch_pkt = NULL;
+    }*/
+}
+
+/*----------------------------------------------------------------------
+ * Define processor behavior
+ *--------------------------------------------------------------------*/ 
 
 TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
     : BaseSimpleCPU(p), fetchTranslation(this), icachePort(this),
@@ -828,6 +879,10 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
     }
 }
 
+/*----------------------------------------------------------------------
+ * Define icache port behavior
+ *--------------------------------------------------------------------*/ 
+
 void
 TimingSimpleCPU::IcachePort::ITickEvent::process()
 {
@@ -929,6 +984,10 @@ TimingSimpleCPU::updateCycleCounts()
 
     previousCycle = curCycle();
 }
+
+/*----------------------------------------------------------------------
+ * Define dcache port behavior
+ *--------------------------------------------------------------------*/
 
 void
 TimingSimpleCPU::DcachePort::recvTimingSnoopReq(PacketPtr pkt)
