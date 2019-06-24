@@ -271,10 +271,11 @@ class TimingSimpleCPU : public BaseSimpleCPU
 
       protected:
 
-        // important to implemnt these
+        // important to implement/override these from MasterPort class
         virtual bool recvTimingResp(PacketPtr pkt);
         virtual void recvReqRetry();
 
+        // the event to put on the event queue when a resp is received
         struct MOTickEvent : public TickEvent
         {
 
@@ -285,6 +286,66 @@ class TimingSimpleCPU : public BaseSimpleCPU
         };
 
         MOTickEvent tickEvent;
+    };
+    
+    // similar purpose as TimingCPUPort (derived from master port)
+    class TimingCPUSlavePort : public SlavePort {
+      public:
+
+        TimingCPUSlavePort(const std::string& _name, TimingSimpleCPU* _cpu)
+            : SlavePort(_name, _cpu), cpu(_cpu)
+             //, retryRespEvent([this]{ sendRetryResp(); }, name())
+        { }
+
+      protected:
+
+        // cpu reference, so we can do things in it on response
+        TimingSimpleCPU* cpu;
+
+        // base for delayed events like processing a request
+        struct TickEvent : public Event
+        {
+            PacketPtr pkt;
+            TimingSimpleCPU *cpu;
+
+            TickEvent(TimingSimpleCPU *_cpu) : pkt(NULL), cpu(_cpu) {}
+            const char *description() const { return "Timing CPU slave tick"; }
+            void schedule(PacketPtr _pkt, Tick t);
+        };
+
+        // potentially want to schedule a retry event in the case that
+        // two things arrive? in the same cycle ??
+        // not sure if would also sched retry in the slave?
+        //EventFunctionWrapper retryRespEvent;
+    };
+    
+    class MeshInPort : public TimingCPUSlavePort {
+      MeshInPort(TimingSimpleCPU *_cpu)
+            : TimingCPUSlavePort(_cpu->name() + ".mesh_in_port", _cpu),
+              tickEvent(_cpu)
+        { }
+
+        //virtual AddrRangeList getAddrRanges() const = {AllMemory};
+
+      protected:
+
+        // important to implement/override these from slave port
+        virtual bool recvTimingReq(PacketPtr pkt);
+        virtual void recvRespRetry();
+        virtual Tick recvAtomic(PacketPtr pkt) { panic("recvAtomic unimpl"); };
+        virtual void recvFunctional(PacketPtr pkt);
+
+        // the event to put on the event queue when a resp is received
+        struct MITickEvent : public TickEvent
+        {
+
+            MITickEvent(TimingSimpleCPU *_cpu)
+                : TickEvent(_cpu) {}
+            void process();
+            const char *description() const { return "Mesh to timing CPU tick"; }
+        };
+
+        MITickEvent tickEvent;
     };
     
     //MeshOutPort meshOutPort;

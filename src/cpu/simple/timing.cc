@@ -80,8 +80,15 @@ TimingSimpleCPU::TimingCPUPort::TickEvent::schedule(PacketPtr _pkt, Tick t)
     cpu->schedule(this, t);
 }
 
+void
+TimingSimpleCPU::TimingCPUSlavePort::TickEvent::schedule(PacketPtr _pkt, Tick t)
+{
+    pkt = _pkt;
+    cpu->schedule(this, t);
+}
+
 /*----------------------------------------------------------------------
- * Define mesh port behavior
+ * Define mesh master port behavior
  *--------------------------------------------------------------------*/ 
 
 // if you want to send a packet, used <MasterPort_Inst>.sendTimingReq(pkt);
@@ -121,6 +128,40 @@ TimingSimpleCPU::MeshOutPort::recvReqRetry()
         cpu->_status = IcacheWaitResponse;
         cpu->ifetch_pkt = NULL;
     }*/
+}
+
+/*----------------------------------------------------------------------
+ * Define mesh slave port behavior
+ *--------------------------------------------------------------------*/ 
+
+// how to handle a request after waiting for some delay
+void
+TimingSimpleCPU::MeshInPort::MITickEvent::process(){
+  // cpu->dostuff();
+}
+
+bool 
+TimingSimpleCPU::MeshInPort::recvTimingReq(PacketPtr pkt) {
+  DPRINTF(SimpleCPU, "Received mesh request %#x\n", pkt->getAddr());
+    // we should only ever see one response per cycle since we only
+    // issue a new request once this response is sunk
+    assert(!tickEvent.scheduled());
+    // delay processing of returned data until next CPU clock edge
+    tickEvent.schedule(pkt, cpu->clockEdge());
+
+    return true;
+}
+
+void
+TimingSimpleCPU::MeshInPort::recvRespRetry() {
+  // ?
+  assert(0);
+}
+
+void
+TimingSimpleCPU::MeshInPort::recvFunctional(PacketPtr pkt) {
+  // ? just call MITickEvent::proccess?
+  assert(0);
 }
 
 /*----------------------------------------------------------------------
