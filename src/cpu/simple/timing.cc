@@ -172,6 +172,30 @@ TimingSimpleCPU::MeshInPort::getAddrRanges() const {
 }
 
 /*----------------------------------------------------------------------
+ * Ports: C++ object to python name mappings
+ *--------------------------------------------------------------------*/ 
+
+Port &
+TimingSimpleCPU::getPort(const string &if_name, PortID idx)
+{
+    // Get the right port based on name. This applies to all the
+    // subclasses of the base CPU and relies on their implementation
+    // of getDataPort and getInstPort.
+    if (if_name == "dcache_port")
+        return getDataPort();
+    else if (if_name == "icache_port")
+        return getInstPort();
+    else if (if_name == "mesh_out_port")
+        return meshOutPort;
+    else if (if_name == "mesh_in_port")
+        return meshInPort;
+    else
+        return ClockedObject::getPort(if_name, idx);
+}
+
+
+
+/*----------------------------------------------------------------------
  * Define processor behavior
  *--------------------------------------------------------------------*/ 
 
