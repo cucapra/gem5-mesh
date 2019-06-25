@@ -20,6 +20,8 @@ Harness::Harness(HarnessParams *params) :
     for (int i = 0; i < params->port_to_cpu_connection_count; ++i) {
         masterPorts.emplace_back(name() + csprintf(".to_cpu[%d]", i), i, this);
     }
+    
+    DPRINTF(Harness, "Construct harness\n");
 }
 
 Port &
@@ -166,11 +168,12 @@ Harness::CPUSideMasterPort::recvRangeChange()
 bool
 Harness::handleRequest(PacketPtr pkt, int port_id)
 {
+  /*
     if (blocked) {
         // There is currently an outstanding request so we can't respond. Stall
         return false;
     }
-
+*/
     DPRINTF(Harness, "Got request for addr %#x\n", pkt->getAddr());
 
 /*

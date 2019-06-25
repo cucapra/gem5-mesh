@@ -821,6 +821,9 @@ TimingSimpleCPU::sendFetch(const Fault &fault, const RequestPtr &req,
         ifetch_pkt->dataStatic(&inst);
         DPRINTF(SimpleCPU, " -- pkt addr: %#x\n", ifetch_pkt->getAddr());
 
+        // pbb test the new port 
+        toMeshPort.sendTimingReq(ifetch_pkt);
+
         if (!icachePort.sendTimingReq(ifetch_pkt)) {
             // Need to wait for retry
             _status = IcacheRetry;
