@@ -96,14 +96,14 @@ TimingSimpleCPU::TimingCPUSlavePort::TickEvent::schedule(PacketPtr _pkt, Tick t)
 // after waiting for some delay, we finally do something with the recv
 // packet response
 void
-TimingSimpleCPU::MeshOutPort::MOTickEvent::process()
+TimingSimpleCPU::ToMeshPort::MOTickEvent::process()
 {
     //cpu->completeIfetch(pkt);
 }
 
 // override what should happen when the packet we sent on this port has returned
 bool
-TimingSimpleCPU::MeshOutPort::recvTimingResp(PacketPtr pkt)
+TimingSimpleCPU::ToMeshPort::recvTimingResp(PacketPtr pkt)
 {
     DPRINTF(SimpleCPU, "Received mesh out response %#x\n", pkt->getAddr());
     // we should only ever see one response per cycle since we only
@@ -117,7 +117,7 @@ TimingSimpleCPU::MeshOutPort::recvTimingResp(PacketPtr pkt)
 
 // override what should happen when the packet we sent on this port failed to send
 void
-TimingSimpleCPU::MeshOutPort::recvReqRetry()
+TimingSimpleCPU::ToMeshPort::recvReqRetry()
 {
     // we shouldn't get a retry unless we have a packet that we're
     // waiting to transmit
@@ -136,12 +136,12 @@ TimingSimpleCPU::MeshOutPort::recvReqRetry()
 
 // how to handle a request after waiting for some delay
 void
-TimingSimpleCPU::MeshInPort::MITickEvent::process(){
+TimingSimpleCPU::FromMeshPort::MITickEvent::process(){
   // cpu->dostuff();
 }
 
 bool 
-TimingSimpleCPU::MeshInPort::recvTimingReq(PacketPtr pkt) {
+TimingSimpleCPU::FromMeshPort::recvTimingReq(PacketPtr pkt) {
   DPRINTF(SimpleCPU, "Received mesh request %#x\n", pkt->getAddr());
     // we should only ever see one response per cycle since we only
     // issue a new request once this response is sunk
@@ -153,20 +153,20 @@ TimingSimpleCPU::MeshInPort::recvTimingReq(PacketPtr pkt) {
 }
 
 void
-TimingSimpleCPU::MeshInPort::recvRespRetry() {
+TimingSimpleCPU::FromMeshPort::recvRespRetry() {
   // ?
   assert(0);
 }
 
 void
-TimingSimpleCPU::MeshInPort::recvFunctional(PacketPtr pkt) {
+TimingSimpleCPU::FromMeshPort::recvFunctional(PacketPtr pkt) {
   // ? just call MITickEvent::proccess?
   assert(0);
 }
 
 // might want to do bsg_manycore eva treament here for addressing
 AddrRangeList 
-TimingSimpleCPU::MeshInPort::getAddrRanges() const {
+TimingSimpleCPU::FromMeshPort::getAddrRanges() const {
   //return cpu->getAddrRanges();
   return std::list<AddrRange>();
 }
@@ -185,10 +185,10 @@ TimingSimpleCPU::getPort(const string &if_name, PortID idx)
         return getDataPort();
     else if (if_name == "icache_port")
         return getInstPort();
-    else if (if_name == "mesh_out_port")
-        return meshOutPort;
-    else if (if_name == "mesh_in_port")
-        return meshInPort;
+    else if (if_name == "to_mesh_port")
+        return toMeshPort;
+    else if (if_name == "from_mesh_port")
+        return fromMeshPort;
     else
         return ClockedObject::getPort(if_name, idx);
 }
@@ -204,7 +204,7 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0),
       
       // begin additions (needs to be in order declared in .hh)
-      meshOutPort(this), meshInPort(this),
+      toMeshPort(this), fromMeshPort(this),
       // end additions
       
       fetchEvent([this]{ fetch(); }, name())
