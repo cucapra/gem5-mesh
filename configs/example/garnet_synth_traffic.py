@@ -123,6 +123,9 @@ system.voltage_domain = VoltageDomain(voltage = options.sys_voltage)
 system.clk_domain = SrcClockDomain(clock = options.sys_clock,
                                    voltage_domain = system.voltage_domain)
 
+# need to define CPU clock (not done in addNoISAOptions)
+options.cpu_clock = '2GHz'
+
 Ruby.create_system(options, False, system)
 
 # Create a seperate clock domain for Ruby
