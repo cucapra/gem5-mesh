@@ -254,6 +254,10 @@ enum MiscRegIndex {
     MISCREG_FFLAGS,
     MISCREG_FRM,
 
+
+    // pbb custom regs that can be accessed by insructions
+    MISCREG_MESHOUT,
+
     NUM_MISCREGS
 };
 const int NumMiscRegs = NUM_MISCREGS;
@@ -420,6 +424,11 @@ enum CSRIndex {
     CSR_DCSR = 0x7B0,
     CSR_DPC = 0x7B1,
     CSR_DSCRATCH = 0x7B2
+    
+    // pbb custom reg codes
+    ,
+    CSR_MESHOUT = 0x400
+    
 };
 
 struct CSRMetadata
@@ -588,6 +597,10 @@ const std::map<int, CSRMetadata> CSRData = {
     {CSR_DCSR, {"dcsr", MISCREG_DCSR}},
     {CSR_DPC, {"dpc", MISCREG_DPC}},
     {CSR_DSCRATCH, {"dscratch", MISCREG_DSCRATCH}}
+    
+    // PBB 
+    ,
+    {CSR_MESHOUT, {"meshout", MISCREG_MESHOUT}}
 };
 
 /**

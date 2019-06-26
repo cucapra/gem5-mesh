@@ -958,8 +958,12 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
         advanceInst(NoFault);
     }
     
-    // pbb test bind flag
-    if (curStaticInst && curStaticInst->isBind()) { 
+    // pbb lets check if the mesh csr is written as it will effect 
+    // processor behavior
+    SimpleThread* thread = t_info.thread;
+    uint64_t val = thread->readMiscRegNoEffect(MISCREG_MESHOUT);
+    if (curStaticInst && pkt && val == 2) {
+    //if (curStaticInst && curStaticInst->isBind()) { 
       int size = 64;
       RequestPtr req = (RequestPtr)new Request(pkt->getAddr(), size, 0, 0);
       PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
