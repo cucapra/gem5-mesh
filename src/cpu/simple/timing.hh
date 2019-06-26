@@ -262,12 +262,42 @@ class TimingSimpleCPU : public BaseSimpleCPU
     Cycles previousCycle;
     
     // pbb implement mesh ports
-    // port that goes out over the mesh
-    class ToMeshPort : public TimingCPUPort {
+    class TimingCPUMasterPort : public MasterPort
+    {
       public:
-        ToMeshPort(TimingSimpleCPU *_cpu)
-            : TimingCPUPort(_cpu->name() + ".mesh_out_port", _cpu),
-              tickEvent(_cpu)
+
+        TimingCPUMasterPort(const std::string& _name, int idx, TimingSimpleCPU* _cpu)
+            : MasterPort(_name, _cpu), idx(idx), cpu(_cpu),
+              retryRespEvent([this]{ sendRetryResp(); }, name())
+        { }
+
+      protected:
+      
+        int idx;
+
+        TimingSimpleCPU* cpu;
+
+        struct TickEvent : public Event
+        {
+            PacketPtr pkt;
+            TimingSimpleCPU *cpu;
+
+            TickEvent(TimingSimpleCPU *_cpu) : pkt(NULL), cpu(_cpu) {}
+            const char *description() const { return "Timing CPU tick"; }
+            void schedule(PacketPtr _pkt, Tick t);
+        };
+
+        EventFunctionWrapper retryRespEvent;
+    };
+    
+    
+    // port that goes out over the mesh
+    class ToMeshPort : public TimingCPUMasterPort {
+      public:
+        ToMeshPort(TimingSimpleCPU *_cpu, int idx)
+            : TimingCPUMasterPort(
+              _cpu->name() + ".mesh_out_port" + csprintf("[%d]", idx), 
+              idx, _cpu), tickEvent(_cpu)
         { }
 
       protected:
@@ -293,12 +323,15 @@ class TimingSimpleCPU : public BaseSimpleCPU
     class TimingCPUSlavePort : public SlavePort {
       public:
 
-        TimingCPUSlavePort(const std::string& _name, TimingSimpleCPU* _cpu)
-            : SlavePort(_name, _cpu), cpu(_cpu)
+        TimingCPUSlavePort(const std::string& _name, int idx, TimingSimpleCPU* _cpu)
+            : SlavePort(_name, _cpu), idx(idx), cpu(_cpu)
              //, retryRespEvent([this]{ sendRetryResp(); }, name())
         { }
 
       protected:
+    
+        // id in vector port
+        int idx;
 
         // cpu reference, so we can do things in it on response
         TimingSimpleCPU* cpu;
@@ -322,9 +355,10 @@ class TimingSimpleCPU : public BaseSimpleCPU
     
     class FromMeshPort : public TimingCPUSlavePort {
       public:
-        FromMeshPort(TimingSimpleCPU *_cpu)
-            : TimingCPUSlavePort(_cpu->name() + ".mesh_in_port", _cpu),
-              tickEvent(_cpu)
+        FromMeshPort(TimingSimpleCPU *_cpu, int idx)
+            : TimingCPUSlavePort(
+              _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), 
+              idx, _cpu), tickEvent(_cpu)
         { }
 
         virtual AddrRangeList getAddrRanges() const;
@@ -351,8 +385,8 @@ class TimingSimpleCPU : public BaseSimpleCPU
     };
     
     // define the ports we're going to use for to access the mesh net
-    ToMeshPort toMeshPort;
-    FromMeshPort fromMeshPort;
+    std::vector<ToMeshPort> toMeshPort;
+    std::vector<FromMeshPort> fromMeshPort;
 
   protected:
     // pbb override function that maps ports declared and connected in 

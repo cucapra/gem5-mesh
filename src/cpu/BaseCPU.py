@@ -232,8 +232,8 @@ class BaseCPU(ClockedObject):
     # pbb
     # ports for the software scheduled mesh network
     # need to connect these in the python setup/config
-    to_mesh_port = MasterPort("To the mesh network")
-    from_mesh_port = SlavePort("From the mesh network")
+    to_mesh_port = VectorMasterPort("To the mesh network")
+    from_mesh_port = VectorSlavePort("From the mesh network")
 
     if buildEnv['TARGET_ISA'] in ['x86', 'arm']:
         _cached_ports += ["itb.walker.port", "dtb.walker.port"]

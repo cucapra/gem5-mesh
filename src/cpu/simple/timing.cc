@@ -87,6 +87,13 @@ TimingSimpleCPU::TimingCPUSlavePort::TickEvent::schedule(PacketPtr _pkt, Tick t)
     cpu->schedule(this, t);
 }
 
+void
+TimingSimpleCPU::TimingCPUMasterPort::TickEvent::schedule(PacketPtr _pkt, Tick t)
+{
+    pkt = _pkt;
+    cpu->schedule(this, t);
+}
+
 /*----------------------------------------------------------------------
  * Define mesh master port behavior
  *--------------------------------------------------------------------*/ 
@@ -185,10 +192,10 @@ TimingSimpleCPU::getPort(const string &if_name, PortID idx)
         return getDataPort();
     else if (if_name == "icache_port")
         return getInstPort();
-    else if (if_name == "to_mesh_port")
-        return toMeshPort;
-    else if (if_name == "from_mesh_port")
-        return fromMeshPort;
+    else if (if_name == "to_mesh_port"  && idx < toMeshPort.size())
+        return toMeshPort[idx];
+    else if (if_name == "from_mesh_port" && idx < fromMeshPort.size())
+        return fromMeshPort[idx];
     else
         return ClockedObject::getPort(if_name, idx);
 }
@@ -204,7 +211,7 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0),
       
       // begin additions (needs to be in order declared in .hh)
-      toMeshPort(this), fromMeshPort(this),
+      //toMeshPort(this), fromMeshPort(this),
       // end additions
       
       fetchEvent([this]{ fetch(); }, name())
@@ -212,6 +219,16 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       
 {
     _status = Idle;
+    
+    // declare vector ports
+    for (int i = 0; i < p->port_to_mesh_port_connection_count; ++i) {
+        toMeshPort.emplace_back(this, i);
+    }
+    
+    for (int i = 0; i < p->port_from_mesh_port_connection_count; ++i) {
+        fromMeshPort.emplace_back(this, i);
+    }
+    
 }
 
 
@@ -968,7 +985,7 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
       RequestPtr req = (RequestPtr)new Request(pkt->getAddr(), size, 0, 0);
       PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
       //new_pkt->dataDynamic(block->second)
-      toMeshPort.sendTimingReq(new_pkt);
+      toMeshPort[0].sendTimingReq(new_pkt);
     }
 
     if (pkt) {
