@@ -646,7 +646,7 @@ decode QUADRANT default Unknown::unknown() {
                 0x0: decode FUNCT7 {
                     0x0: add({{
                         Rd = Rs1_sd + Rs2_sd;
-                    }});
+                    }}, IsBind);
                     0x1: mul({{
                         Rd = Rs1_sd*Rs2_sd;
                     }}, IntMultOp);

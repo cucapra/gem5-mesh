@@ -201,6 +201,9 @@ class StaticInst : public RefCounted, public StaticInstFlags
     //This flag doesn't do anything yet
     bool isMicroBranch() const { return flags[IsMicroBranch]; }
     //@}
+    
+    // pbb add some new flags!!
+    bool isBind() const { return flags[IsBind]; }
 
     void setFirstMicroop() { flags[IsFirstMicroop] = true; }
     void setLastMicroop() { flags[IsLastMicroop] = true; }

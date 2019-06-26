@@ -821,9 +821,6 @@ TimingSimpleCPU::sendFetch(const Fault &fault, const RequestPtr &req,
         ifetch_pkt->dataStatic(&inst);
         DPRINTF(SimpleCPU, " -- pkt addr: %#x\n", ifetch_pkt->getAddr());
 
-        // pbb test the new port 
-        toMeshPort.sendTimingReq(ifetch_pkt);
-
         if (!icachePort.sendTimingReq(ifetch_pkt)) {
             // Need to wait for retry
             _status = IcacheRetry;
@@ -934,7 +931,12 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
                 instCnt++;
             advanceInst(fault);
         }
+    // pbb new instruction handling?
+    /*} else if (curStaticInst && curStaticInst->isBind()) {
+        DPRINTF(SimpleCPU, "Found bind inst\n");
+        toMeshPort.sendTimingReq(pkt);*/
     } else if (curStaticInst) {
+      
         // non-memory instruction: execute completely now
         Fault fault = curStaticInst->execute(&t_info, traceData);
 
@@ -954,6 +956,15 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
         advanceInst(fault);
     } else {
         advanceInst(NoFault);
+    }
+    
+    // pbb test bind flag
+    if (curStaticInst && curStaticInst->isBind()) { 
+      int size = 64;
+      RequestPtr req = (RequestPtr)new Request(pkt->getAddr(), size, 0, 0);
+      PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
+      //new_pkt->dataDynamic(block->second)
+      toMeshPort.sendTimingReq(new_pkt);
     }
 
     if (pkt) {

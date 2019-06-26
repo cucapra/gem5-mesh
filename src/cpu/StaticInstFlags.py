@@ -112,4 +112,9 @@ class StaticInstFlags(Enum):
                             # a macroop
         'IsDspOp',
         'IsSquashAfter'     # Squash all uncommitted state after executed
+
+
+        # PBB add some new flags for new instructions!
+        , 'IsBind'
+
         ]
