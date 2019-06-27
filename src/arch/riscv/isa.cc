@@ -57,6 +57,8 @@ ISA::params() const
     return dynamic_cast<const Params *>(_params);
 }
 
+// pbb set initial values of csr's
+
 void ISA::clear()
 {
     std::fill(miscRegFile.begin(), miscRegFile.end(), 0);
@@ -70,6 +72,10 @@ void ISA::clear()
                                   (1ULL << FS_OFFSET);
     miscRegFile[MISCREG_MCOUNTEREN] = 0x7;
     miscRegFile[MISCREG_SCOUNTEREN] = 0x7;
+    
+    // custom csrs
+    miscRegFile[MISCREG_MESHOUT] = 0;
+    
 }
 
 bool
