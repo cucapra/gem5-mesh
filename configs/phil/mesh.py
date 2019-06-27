@@ -279,6 +279,7 @@ else:
 # otherwise must be declared beforehand, see params in src/sim/System.py
 # http://gem5.org/Configuration_/_Simulation_Scripts
 
+'''
 # create the harnesses up front because we have to (appending to empty list not allowed)
 system.harness = [Harness() for i in range(np)]
 
@@ -288,8 +289,70 @@ for i in range(np):
   # a vector port automatically adds a new port each time its assigned
   # assign the full duplex connections
   system.cpu[i].to_mesh_port = system.harness[i].from_cpu
-  system.cpu[i].from_mesh_port = system.harness[i].to_cpu
   
+  system.cpu[i].from_mesh_port = system.harness[i].to_cpu
+'''
+
+# get cpus that will be involved in the mesh (all but cpu 0)
+
+# make into a grid
+num_mcpus = np - 1
+num_mcpus_x = (int)(num_mcpus**(0.5))
+num_mcpus_y = num_mcpus / num_mcpus_x
+
+print('dim: {0} x {1}'.format(num_mcpus_x, num_mcpus_y))
+
+assert ( num_mcpus_x * num_mcpus_y <= num_mcpus )
+
+mesh_cpus = [system.cpu[i] for i in range(1, np)]
+
+# edges harnesses
+system.harness = [Harness() for i in range(2 * num_mcpus_x + 2 * num_mcpus_y)]
+harness_idx = 0
+
+print ('harnesses: {0}'.format(len(system.harness)))
+
+for y in range(num_mcpus_y):
+  for x in range(num_mcpus_x):
+    # do all mesh connections
+    # it's important that these are done a particular order
+    # so that vector idx are consistent
+    # edges need to be connected to something! will do harness for now!
+    idx   = x     + y         * num_mcpus_x
+    idx_r = x + 1 + y         * num_mcpus_x
+    idx_l = x - 1 + y         * num_mcpus_x
+    idx_u = x     + ( y - 1 ) * num_mcpus_x
+    idx_d = x     + ( y + 1 ) * num_mcpus_x
+    
+    print('Connecting ({0}, {1}) = {2}'.format(x, y, idx))
+    
+    # connect to the right!
+    if (x + 1 < num_mcpus_x):
+      mesh_cpus[idx].to_mesh_port = mesh_cpus[idx_r].from_mesh_port
+    else:
+      mesh_cpus[idx].to_mesh_port = system.harness[harness_idx].from_cpu
+      harness_idx += 1
+      
+    # connect to below
+    if (y + 1 < num_mcpus_y):
+      mesh_cpus[idx].to_mesh_port = mesh_cpus[idx_d].from_mesh_port
+    else:
+      mesh_cpus[idx].to_mesh_port = system.harness[harness_idx].from_cpu
+      harness_idx += 1
+      
+    # connect to the left 
+    if (x - 1 >= 0):
+      mesh_cpus[idx].to_mesh_port = mesh_cpus[idx_l].from_mesh_port
+    else:
+      mesh_cpus[idx].to_mesh_port = system.harness[harness_idx].from_cpu
+      harness_idx += 1
+      
+    # connect to above
+    if (y - 1 >= 0):
+      mesh_cpus[idx].to_mesh_port = mesh_cpus[idx_u].from_mesh_port
+    else:
+      mesh_cpus[idx].to_mesh_port = system.harness[harness_idx].from_cpu
+      harness_idx += 1
   
 
 

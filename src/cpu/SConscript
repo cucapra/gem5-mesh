@@ -60,6 +60,9 @@ DebugFlag('PCEvent')
 DebugFlag('Quiesce')
 DebugFlag('Mwait')
 
+# add custom cpu flags 
+DebugFlag('Mesh')
+
 CompoundFlag('ExecAll', [ 'ExecEnable', 'ExecCPSeq', 'ExecEffAddr',
     'ExecFaulting', 'ExecFetchSeq', 'ExecOpClass', 'ExecRegDelta',
     'ExecResult', 'ExecSymbol', 'ExecThread',

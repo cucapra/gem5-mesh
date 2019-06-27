@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
   unsigned deviceCpus = totalCpus - 1;
 
 #ifdef DEBUG
-  cout << deviceCpus << " device cores exist. " << endl;
+  cout << totalCpus << " device cores exist. " << endl;
 #endif
 
   int m = num_values;

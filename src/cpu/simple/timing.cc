@@ -53,6 +53,7 @@
 #include "debug/ExecFaulting.hh"
 #include "debug/Mwait.hh"
 #include "debug/SimpleCPU.hh"
+#include "debug/Mesh.hh"
 #include "mem/packet.hh"
 #include "mem/packet_access.hh"
 #include "params/TimingSimpleCPU.hh"
@@ -112,7 +113,7 @@ TimingSimpleCPU::ToMeshPort::MOTickEvent::process()
 bool
 TimingSimpleCPU::ToMeshPort::recvTimingResp(PacketPtr pkt)
 {
-    DPRINTF(SimpleCPU, "Received mesh out response %#x\n", pkt->getAddr());
+    DPRINTF(Mesh, "Received mesh out response %#x\n", pkt->getAddr());
     // we should only ever see one response per cycle since we only
     // issue a new request once this response is sunk
     assert(!tickEvent.scheduled());
@@ -149,7 +150,7 @@ TimingSimpleCPU::FromMeshPort::MITickEvent::process(){
 
 bool 
 TimingSimpleCPU::FromMeshPort::recvTimingReq(PacketPtr pkt) {
-  DPRINTF(SimpleCPU, "Received mesh request %#x\n", pkt->getAddr());
+  DPRINTF(Mesh, "Received mesh request %#x\n", pkt->getAddr());
     // we should only ever see one response per cycle since we only
     // issue a new request once this response is sunk
     assert(!tickEvent.scheduled());
@@ -985,6 +986,7 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
       RequestPtr req = (RequestPtr)new Request(pkt->getAddr(), size, 0, 0);
       PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
       //new_pkt->dataDynamic(block->second)
+      DPRINTF(Mesh, "Sending mesh request %#x\n", pkt->getAddr());
       toMeshPort[0].sendTimingReq(new_pkt);
     }
 
