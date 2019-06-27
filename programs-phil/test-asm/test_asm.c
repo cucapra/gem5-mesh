@@ -4,7 +4,11 @@
 #include <math.h>
 #include <sys/sysinfo.h>
 
-#define MESH_UP 0x2
+#define NO_MESH 0
+#define MESH_RIGHT 1
+#define MESH_DOWN 2
+#define MESH_LEFT 3
+#define MESH_UP 4
 
 // https://forums.sifive.com/t/confusion-regarding-freedom-e-sdk-inline-asm/383
 // # is stringify, 'reg' must be explictliy written out
@@ -41,6 +45,9 @@ void *kernel(void* args) {
   
   
   WRITE_MESH_CSR(MESH_UP);
+  
+  // do an instruction
+  //volatile int c = a + b;
   
 }
 

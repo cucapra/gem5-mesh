@@ -328,30 +328,30 @@ for y in range(num_mcpus_y):
     
     # connect to the right!
     if (x + 1 < num_mcpus_x):
-      mesh_cpus[idx].to_mesh_port = mesh_cpus[idx_r].from_mesh_port
+      mesh_cpus[idx].to_mesh_port[0] = mesh_cpus[idx_r].from_mesh_port[0]
     else:
-      mesh_cpus[idx].to_mesh_port = system.harness[harness_idx].from_cpu
+      mesh_cpus[idx].to_mesh_port[0] = system.harness[harness_idx].from_cpu
       harness_idx += 1
       
     # connect to below
     if (y + 1 < num_mcpus_y):
-      mesh_cpus[idx].to_mesh_port = mesh_cpus[idx_d].from_mesh_port
+      mesh_cpus[idx].to_mesh_port[1] = mesh_cpus[idx_d].from_mesh_port[1]
     else:
-      mesh_cpus[idx].to_mesh_port = system.harness[harness_idx].from_cpu
+      mesh_cpus[idx].to_mesh_port[1] = system.harness[harness_idx].from_cpu
       harness_idx += 1
       
     # connect to the left 
     if (x - 1 >= 0):
-      mesh_cpus[idx].to_mesh_port = mesh_cpus[idx_l].from_mesh_port
+      mesh_cpus[idx].to_mesh_port[2] = mesh_cpus[idx_l].from_mesh_port[2]
     else:
-      mesh_cpus[idx].to_mesh_port = system.harness[harness_idx].from_cpu
+      mesh_cpus[idx].to_mesh_port[2] = system.harness[harness_idx].from_cpu
       harness_idx += 1
       
     # connect to above
     if (y - 1 >= 0):
-      mesh_cpus[idx].to_mesh_port = mesh_cpus[idx_u].from_mesh_port
+      mesh_cpus[idx].to_mesh_port[3] = mesh_cpus[idx_u].from_mesh_port[3]
     else:
-      mesh_cpus[idx].to_mesh_port = system.harness[harness_idx].from_cpu
+      mesh_cpus[idx].to_mesh_port[3] = system.harness[harness_idx].from_cpu
       harness_idx += 1
   
 

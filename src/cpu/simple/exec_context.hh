@@ -191,6 +191,12 @@ class SimpleExecContext : public ExecContext {
         const RegId& reg = si->destRegIdx(idx);
         assert(reg.isIntReg());
         thread->setIntReg(reg.index(), val);
+        
+        // pbb override this when csr is setup in a particular way
+        // for some reason couldn't do csr lookup here due to compiler error
+        // this abstraction might be better anyway
+        cpu->trySendMeshRequest(24);
+        
     }
 
     /** Reads a floating point register in its binary format, instead

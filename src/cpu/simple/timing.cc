@@ -61,6 +61,8 @@
 #include "sim/full_system.hh"
 #include "sim/system.hh"
 
+#include "custom/mesh_helper.hh"
+
 using namespace std;
 using namespace TheISA;
 
@@ -136,6 +138,42 @@ TimingSimpleCPU::ToMeshPort::recvReqRetry()
         cpu->_status = IcacheWaitResponse;
         cpu->ifetch_pkt = NULL;
     }*/
+}
+
+Fault
+TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
+  // get direction from the appropriate csr
+  SimpleExecContext &t_info = *threadInfo[curThread];
+  SimpleThread* thread = t_info.thread;
+  uint64_t val = thread->readMiscRegNoEffect(MISCREG_MESHOUT);
+  
+  // if in default behavior then don't send a mesh packet
+  if (MeshHelper::isCSRDefault(val)) return NoFault;
+  
+  Mesh_Dir dir = MeshHelper::csrToMeshDir(val);
+  
+  // create a packet to send
+  // size is numbytes?
+  int size = sizeof(payload);
+  
+  // need to break up payload into bytes
+  // assume big endian?
+  uint8_t *data = new uint8_t[size];
+  for (int i = 0; i < size; i++) {
+    // shift and truncate
+    data[i] = (uint8_t)(payload >> i);
+  }
+  
+  // create a packet to send
+  Addr addr = dir;
+  RequestPtr req = std::make_shared<Request>(addr, size, 0, 0);
+  PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
+  new_pkt->dataDynamic(data);
+  DPRINTF(Mesh, "Sending mesh request %#x\n", addr);
+  
+  toMeshPort[dir].sendTimingReq(new_pkt);
+  
+  return NoFault;
 }
 
 /*----------------------------------------------------------------------
@@ -978,17 +1016,16 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
     
     // pbb lets check if the mesh csr is written as it will effect 
     // processor behavior
-    SimpleThread* thread = t_info.thread;
+    /*SimpleThread* thread = t_info.thread;
     uint64_t val = thread->readMiscRegNoEffect(MISCREG_MESHOUT);
     if (curStaticInst && pkt && val == 2) {
     //if (curStaticInst && curStaticInst->isBind()) { 
       int size = 64;
       RequestPtr req = (RequestPtr)new Request(pkt->getAddr(), size, 0, 0);
       PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
-      //new_pkt->dataDynamic(block->second)
       DPRINTF(Mesh, "Sending mesh request %#x\n", pkt->getAddr());
       toMeshPort[0].sendTimingReq(new_pkt);
-    }
+    }*/
 
     if (pkt) {
         delete pkt;

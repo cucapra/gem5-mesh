@@ -170,6 +170,10 @@ class BaseSimpleCPU : public BaseCPU
 
     void serializeThread(CheckpointOut &cp, ThreadID tid) const override;
     void unserializeThread(CheckpointIn &cp, ThreadID tid) override;
+    
+    // pbb new things instructions can do in the core
+    virtual Fault trySendMeshRequest(uint64_t payload)
+      { panic("trySendMeshRequest() is not implemented\n"); }
 
 };
 

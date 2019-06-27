@@ -402,6 +402,9 @@ class TimingSimpleCPU : public BaseSimpleCPU
 
   public:
 
+    // pbb access mesh ports from cpu
+    Fault trySendMeshRequest(uint64_t payload) override;
+
     DrainState drain() override;
     void drainResume() override;
 
