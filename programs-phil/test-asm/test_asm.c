@@ -132,7 +132,8 @@ void *kernel(void* args) {
     int b = 2;
     BINDED_SECTION(RS1_UP | RS2_RIGHT, ALL_NORM, 
       "add %[x], %[y], %[z]\n\t", 
-      [x] "=r" (c), COMMA [y] "r" (a) COMMA [z] "r" (b));
+      [x] "=r" (c), 
+      COMMA [y] "r" (a) COMMA [z] "r" (b));
       
     
     printf("%d\n", c);

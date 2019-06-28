@@ -297,8 +297,14 @@ class TimingSimpleCPU : public BaseSimpleCPU
         ToMeshPort(TimingSimpleCPU *_cpu, int idx)
             : TimingCPUMasterPort(
               _cpu->name() + ".mesh_out_port" + csprintf("[%d]", idx), 
-              idx, _cpu), tickEvent(_cpu)
+              idx, _cpu), tickEvent(_cpu), val(0)
         { }
+
+        void setVal(bool val);
+        bool getVal() const { return val; }
+        
+        // check if this port is rdy and the slave port is valid
+        bool checkHandsake();
 
       protected:
 
@@ -317,6 +323,9 @@ class TimingSimpleCPU : public BaseSimpleCPU
         };
 
         MOTickEvent tickEvent;
+        
+        // whether this signal is valid over the mesh net
+        bool val;
     };
     
     // similar purpose as TimingCPUPort (derived from master port)
@@ -358,7 +367,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
         FromMeshPort(TimingSimpleCPU *_cpu, int idx)
             : TimingCPUSlavePort(
               _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), 
-              idx, _cpu), tickEvent(_cpu)
+              idx, _cpu), tickEvent(_cpu), rdy(0)
         { }
 
         virtual AddrRangeList getAddrRanges() const;
@@ -366,6 +375,12 @@ class TimingSimpleCPU : public BaseSimpleCPU
         // get the packet from the port
         PacketPtr getPacket();
 
+        void setRdy(bool val);
+        bool getRdy() const { return rdy; }
+        
+        // check val rdy interface
+        bool checkHandsake();
+        
       protected:
 
         // important to implement/override these from slave port
@@ -392,6 +407,9 @@ class TimingSimpleCPU : public BaseSimpleCPU
         // setter, if there is an unused packet already present
         // we should drop and inform of the lost packet
         void setPacket(PacketPtr pkt);
+        
+        // whether this port is rdy to recv from the mesh net
+        bool rdy;
     };
     
     // define the ports we're going to use for to access the mesh net

@@ -140,6 +140,24 @@ TimingSimpleCPU::ToMeshPort::recvReqRetry()
     }*/
 }
 
+void
+TimingSimpleCPU::ToMeshPort::setVal(bool val) {
+  this->val = val;
+}
+
+bool
+TimingSimpleCPU::ToMeshPort::checkHandsake(){
+  BaseSlavePort *slavePort = &(getSlavePort());
+  if (FromMeshPort *slaveMeshPort = dynamic_cast<FromMeshPort*>(slavePort)) {
+    bool rdy = slaveMeshPort->getRdy();
+    if (val && rdy) return true;
+    else return false;
+  }
+  else {
+    return false;
+  }
+}
+
 Fault
 TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
   // get direction from the appropriate csr
@@ -233,6 +251,32 @@ TimingSimpleCPU::FromMeshPort::setPacket(PacketPtr pkt) {
   
   recvPkt = pkt;
 }
+
+void
+TimingSimpleCPU::FromMeshPort::setRdy(bool rdy) {
+  this->rdy = rdy;
+}
+
+bool
+TimingSimpleCPU::FromMeshPort::checkHandsake(){
+  BaseMasterPort *masterPort = &(getMasterPort());
+  if (ToMeshPort *masterMeshPort = dynamic_cast<ToMeshPort*>(masterPort)) {
+    bool val = masterMeshPort->getVal();
+    if (val && rdy) return true;
+    else return false;
+  }
+  else {
+    return false;
+  }
+}
+
+// when a bind is created you need to assert val, rdy and then check that
+// others are also val, rdy. Until then cpu status will be !running.
+// we'll keep scheduling this to check each time the attach port updates its value
+// when all relevant point handshake we'll call advanceInst with _status = running
+// to get the next instruction
+// TimingSimpleCPU::tryUnblock
+
 
 /*----------------------------------------------------------------------
  * Ports: C++ object to python name mappings
@@ -950,6 +994,12 @@ TimingSimpleCPU::advanceInst(const Fault &fault)
 
     if (tryCompleteDrain())
         return;
+
+    // pbb we're only going to fetch the next instruction if status
+    // is 'running'. Otherwise, we might be in 'IcacheWaitResponse'
+    // where we won't try to fetch again.
+    
+    // 
 
     if (_status == BaseSimpleCPU::Running) {
         // kick off fetch of next instruction... callback from icache

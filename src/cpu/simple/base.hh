@@ -120,6 +120,9 @@ class BaseSimpleCPU : public BaseCPU
         DcacheRetry,
         DcacheWaitResponse,
         DcacheWaitSwitch,
+        
+        // pbb add status for bind blocking
+        BindSync,
     };
 
     Status _status;
