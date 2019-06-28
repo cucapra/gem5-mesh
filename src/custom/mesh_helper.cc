@@ -25,7 +25,7 @@ MeshHelper::csrToOp1(uint64_t csrVal, Mesh_Dir &dir) {
 
 bool
 MeshHelper::csrToOp2(uint64_t csrVal, Mesh_Dir &dir) {
-  return rangeToMeshDir(csrVal, RD_HI, RD_LO, dir);
+  return rangeToMeshDir(csrVal, OP2_HI, OP2_LO, dir);
 }
 
 bool

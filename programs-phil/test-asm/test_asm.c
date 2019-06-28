@@ -4,11 +4,33 @@
 #include <math.h>
 #include <sys/sysinfo.h>
 
-#define NO_MESH 0
-#define MESH_RIGHT 1
-#define MESH_DOWN 2
-#define MESH_LEFT 3
-#define MESH_UP 4
+// 20 bit / 5 hex
+#define ALL_NORM  0x00000
+
+#define BITS_RD   3
+#define RD_NORM   0x0
+#define RD_RIGHT  0x1
+#define RD_DOWN   0x2
+#define RD_LEFT   0x3
+#define RD_UP     0x4
+
+#define BITS_RS1  3
+#define SHAMT_RS1 BITS_RD
+#define RS1_NORM  0x0 << SHAMT_RS1
+#define RS1_RIGHT 0x1 << SHAMT_RS1
+#define RS1_DOWN  0x2 << SHAMT_RS1
+#define RS1_LEFT  0x3 << SHAMT_RS1
+#define RS1_UP    0x4 << SHAMT_RS1
+
+#define BITS_RS2  3
+#define SHAMT_RS2 SHAMT_RS1 + BITS_RS1
+#define RS2_NORM  0x0 << SHAMT_RS2
+#define RS2_RIGHT 0x1 << SHAMT_RS2
+#define RS2_DOWN  0x2 << SHAMT_RS2
+#define RS2_LEFT  0x3 << SHAMT_RS2
+#define RS2_UP    0x4 << SHAMT_RS2
+
+#define COMMA ,
 
 // https://forums.sifive.com/t/confusion-regarding-freedom-e-sdk-inline-asm/383
 // # is stringify, 'reg' must be explictliy written out
@@ -21,10 +43,21 @@
 // 0x400 is the csr specified in gem5 in src/arch/riscv/register.hh
 #define WRITE_MESH_CSR(val) \
   WRITE_CSR(0x400, val)
-  
-  
+
 #define BIND_EXE(val) \
   asm volatile (".insn u 0x6b, x0, %[x]\n\t" :: [x] "i" (val))
+
+// to ensure that the compiler doesn't place unwanted instructions
+// within the binds we enforce with a single asm volatile
+#define BINDED_SECTION(sbind, ebind, code, wr, rd)  \
+  asm volatile (                                    \
+    ".insn u 0x6b, x0, %[b0]\n\t"                 \
+    code                                            \
+    ".insn u 0x6b, x0, %[b1]\n\t"                 \
+    : wr                                            \
+    : [b0] "i" (sbind), [b1] "i" (ebind) rd        \
+  )
+
 
 pthread_barrier_t start_barrier;
 
@@ -56,7 +89,7 @@ void *kernel(void* args) {
     
     volatile int a;
     
-    BIND_EXE(MESH_RIGHT);
+    BIND_EXE(RD_RIGHT);
     
     asm volatile (
       "addi %[x], x0, %[y]\n\t"
@@ -64,7 +97,7 @@ void *kernel(void* args) {
       : [y] "i" (2)
     );
     
-    BIND_EXE(NO_MESH);
+    BIND_EXE(RD_NORM);
     
     
   }
@@ -73,30 +106,34 @@ void *kernel(void* args) {
     volatile int b;
     
     //WRITE_MESH_CSR(MESH_UP);
-    BIND_EXE(MESH_UP);
+    BIND_EXE(RD_UP);
     asm volatile (
       "addi %[x], x0, %[y]\n\t" 
       : [x] "=r" (b)
       : [y] "i" (2)
     );
     //WRITE_MESH_CSR(NO_MESH);
-    BIND_EXE(NO_MESH);
+    BIND_EXE(RD_NORM);
   }
   else if (cid == 1) {
-    //WRITE_MESH_CSR(MESH_RIGHT);
-    //BIND_EXE(7);
+    /*BIND_EXE(RS1_UP | RS2_RIGHT);
     volatile int c;
-    
-    // not sure what happens to variables in these regs
-    // maybe save to the stack? (put the whole regfile on the stack and then return)
-    
-    // actually shouldn't even use the registers when in this mode
     asm volatile (
       "add %[x], x1, x2\n\t" 
       : [x] "=r" (c)
       : 
     );
-    //WRITE_MESH_CSR(NO_MESH);
+    
+    // an instrcution is being put between here!
+    BIND_EXE(ALL_NORM);*/
+    
+    int c;
+    int a = 2;
+    int b = 2;
+    BINDED_SECTION(RS1_UP | RS2_RIGHT, ALL_NORM, 
+      "add %[x], %[y], %[z]\n\t", 
+      [x] "=r" (c), COMMA [y] "r" (a) COMMA [z] "r" (b));
+      
     
     printf("%d\n", c);
   }

@@ -57,6 +57,7 @@
 #include "mem/request.hh"
 
 #include "custom/mesh_helper.hh"
+#include "debug/Mesh.hh"
 
 class BaseSimpleCPU;
 
@@ -179,10 +180,26 @@ class SimpleExecContext : public ExecContext {
     RegVal
     readIntRegOperand(const StaticInst *si, int idx) override
     {
-        numIntRegReads++;
-        const RegId& reg = si->srcRegIdx(idx);
-        assert(reg.isIntReg());
-        return thread->readIntReg(reg.index());
+        // check where the source should be coming from
+        // idx is the op (0 or 1) not the regfile idx
+        uint64_t csrVal = cpu->getExeCSR();
+        Mesh_Dir dir[2];
+        if ((idx == 0 && MeshHelper::csrToOp1(csrVal, dir[0])) ||
+            (idx == 1 && MeshHelper::csrToOp2(csrVal, dir[1]))) {
+            DPRINTF(Mesh, "Shouldnt be here!\n");
+            
+            // need to do a port lookup here to get the right value
+            //return cpu->
+            return 0;
+        }
+        // normal behavior
+        else {
+        
+            numIntRegReads++;
+            const RegId& reg = si->srcRegIdx(idx);
+            assert(reg.isIntReg());
+            return thread->readIntReg(reg.index());
+        }
     }
 
     /** Sets an integer register to a value. */
