@@ -84,6 +84,13 @@
 using namespace std;
 using namespace TheISA;
 
+uint64_t
+BaseSimpleCPU::getMeshOutCSR(){
+  SimpleExecContext &t_info = *threadInfo[curThread];
+  SimpleThread* thread = t_info.thread;
+  return thread->readMiscRegNoEffect(MISCREG_MESHOUT);
+}
+
 BaseSimpleCPU::BaseSimpleCPU(BaseSimpleCPUParams *p)
     : BaseCPU(p),
       curThread(0),

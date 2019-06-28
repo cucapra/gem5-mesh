@@ -148,9 +148,10 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
   uint64_t val = thread->readMiscRegNoEffect(MISCREG_MESHOUT);
   
   // if in default behavior then don't send a mesh packet
-  if (MeshHelper::isCSRDefault(val)) return NoFault;
+  assert (!MeshHelper::isCSRDefault(val));
   
-  Mesh_Dir dir = MeshHelper::csrToMeshDir(val);
+  Mesh_Dir dir;
+  assert(MeshHelper::csrToRd(val, dir));
   
   // create a packet to send
   // size is numbytes?
@@ -188,7 +189,7 @@ TimingSimpleCPU::FromMeshPort::MITickEvent::process(){
 
 bool 
 TimingSimpleCPU::FromMeshPort::recvTimingReq(PacketPtr pkt) {
-  DPRINTF(Mesh, "Received mesh request %#x\n", pkt->getAddr());
+  DPRINTF(Mesh, "Received mesh request %#x with data \n", pkt->getAddr());
     // we should only ever see one response per cycle since we only
     // issue a new request once this response is sunk
     assert(!tickEvent.scheduled());
@@ -215,6 +216,22 @@ AddrRangeList
 TimingSimpleCPU::FromMeshPort::getAddrRanges() const {
   //return cpu->getAddrRanges();
   return std::list<AddrRange>();
+}
+
+PacketPtr
+TimingSimpleCPU::FromMeshPort::getPacket() {
+  PacketPtr ret = recvPkt;
+  recvPkt = nullptr;
+  return ret;
+}
+
+void
+TimingSimpleCPU::FromMeshPort::setPacket(PacketPtr pkt) {
+  if (recvPkt != nullptr) {
+    DPRINTF(Mesh, "Overwrite packet %#x in port %d\n", recvPkt->getAddr(), idx);
+  }
+  
+  recvPkt = pkt;
 }
 
 /*----------------------------------------------------------------------

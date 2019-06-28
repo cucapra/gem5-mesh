@@ -363,6 +363,9 @@ class TimingSimpleCPU : public BaseSimpleCPU
 
         virtual AddrRangeList getAddrRanges() const;
 
+        // get the packet from the port
+        PacketPtr getPacket();
+
       protected:
 
         // important to implement/override these from slave port
@@ -382,6 +385,13 @@ class TimingSimpleCPU : public BaseSimpleCPU
         };
 
         MITickEvent tickEvent;
+        
+        // store the most recently received packet (in a single register)
+        PacketPtr recvPkt;
+        
+        // setter, if there is an unused packet already present
+        // we should drop and inform of the lost packet
+        void setPacket(PacketPtr pkt);
     };
     
     // define the ports we're going to use for to access the mesh net

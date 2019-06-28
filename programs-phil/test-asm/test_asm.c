@@ -37,6 +37,7 @@ void *kernel(void* args) {
   int cid_y = ka->cid_y;
   int cores_x = ka->cores_x;
   int cores_y = ka->cores_y;
+  int cid = cid_x + cid_y * cores_x;
   
   // guarentee one thread goes to each core, by preventing any threads
   // from finishing early
@@ -44,10 +45,54 @@ void *kernel(void* args) {
   
   
   
-  WRITE_MESH_CSR(MESH_UP);
   
-  // do an instruction
-  //volatile int c = a + b;
+  
+  // do a specific instruction on each core
+  if (cid == 0) {
+    
+    volatile int a;
+    
+    //WRITE_MESH_CSR(MESH_RIGHT);
+    asm volatile (
+      "csrrwi x0, 0x400, %[m0]\n\t"
+      "addi %[x], x0, %[y]\n\t" 
+      "csrrwi x0, 0x400, %[m1]\n\t"
+      : [x] "=r" (a)
+      : [y] "i" (3), [m0] "i" (MESH_RIGHT), [m1] "i" (NO_MESH)
+    );
+    // the second csr is causing the second mesh send, need to avoid that
+    // check a flag in the instruction
+    //WRITE_MESH_CSR(NO_MESH);
+  }
+  else if (cid == 3) {
+    
+    volatile int b;
+    
+    WRITE_MESH_CSR(MESH_UP);
+    asm volatile (
+      "addi %[x], x0, %[y]\n\t" 
+      : [x] "=r" (b)
+      : [y] "i" (2)
+    );
+    WRITE_MESH_CSR(NO_MESH);
+  }
+  else if (cid == 1) {
+    //WRITE_MESH_CSR(MESH_RIGHT);
+    volatile int c;
+    
+    // not sure what happens to variables in these regs
+    // maybe save to the stack? (put the whole regfile on the stack and then return)
+    
+    // actually shouldn't even use the registers when in this mode
+    asm volatile (
+      "add %[x], x1, x2\n\t" 
+      : [x] "=r" (c)
+      : 
+    );
+    //WRITE_MESH_CSR(NO_MESH);
+    
+    printf("%d\n", c);
+  }
   
 }
 

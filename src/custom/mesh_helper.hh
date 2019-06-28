@@ -15,10 +15,16 @@ typedef enum Mesh_Dir {
 class MeshHelper {
   
   public:
-    static Mesh_Dir csrToMeshDir(uint64_t csrVal);
+    static bool csrToRd(uint64_t csrVal, Mesh_Dir &dir);
+    
+    static bool csrToOp1(uint64_t csrVal, Mesh_Dir &dir);
+    static bool csrToOp2(uint64_t csrVal, Mesh_Dir &dir);
   
     // the config in the csr means that no special behvaior should occur
     static bool isCSRDefault(uint64_t csrVal);
+    
+  private:
+    static bool rangeToMeshDir(uint64_t csrVal, int hi, int lo, Mesh_Dir &dir);
 };
 
 

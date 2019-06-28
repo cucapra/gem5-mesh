@@ -174,6 +174,9 @@ class BaseSimpleCPU : public BaseCPU
     // pbb new things instructions can do in the core
     virtual Fault trySendMeshRequest(uint64_t payload)
       { panic("trySendMeshRequest() is not implemented\n"); }
+    
+    // function to get access to the csrs for maninpulation
+    uint64_t getMeshOutCSR();
 
 };
 

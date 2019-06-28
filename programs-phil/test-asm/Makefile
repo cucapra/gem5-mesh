@@ -6,10 +6,13 @@ RV_CC=/home/pbb59/hammerblade/riscv-docker/riscv-build/bin/riscv64-unknown-linux
 # need to compile with static in system emulation mode!
 CFLAGS=-static -lpthread -lm
 
-default: asm-riscv
+default: asm-riscv asm-dump
 
 asm-riscv:
 	$(RV_CC) test_asm.c $(CFLAGS) -o test_asm_riscv
 
+asm-dump:
+	$(RV_CC) test_asm.c -lpthread -lm -S -o test_asm_rv_dump
+
 clean:
-	rm -rf test_asm_riscv
+	rm -rf test_asm_riscv test_asm_rv_dump

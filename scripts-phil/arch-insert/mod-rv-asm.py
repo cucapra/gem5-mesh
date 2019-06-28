@@ -3,11 +3,15 @@
 # in a riscv gem5 simulation
 
 # specify instruction type (from prexisting types for now)
-# specify fields of instruction (op-codes / immediates)
-# specify gem5 functionality (.isa code)
+# specify fields of instruction (op-codes / immediates) -- optional
+# (TODO/never impl) specify gem5 functionality (.isa code)
 
-# give location of riscv-gnu-toolchain, riscv-tools, and gem5 and should
-# recompile all with the changes
+# give location of gem5 and an instruction format and this script
+# will insert the new instruction with a spot
+
+# you need to manually go into decoder.isa and add the specific gem5 
+# functionality that you want, this just gets you started and won't
+# worry you about opcodes
 
 import os, re, argparse
 from enum import Enum
@@ -159,9 +163,26 @@ class Inst:
       ins_strs.append((funct3, 4, 'decode FUNCT7 {', '}'))
       ins_strs.append((funct7, 5, 'mod({{', 'Rd = Rs1_sd % Rs2_sd;\n}});'))
     
+    elif (self.inst_from == INST_FORM.i):
+      funct3 = self.find_in_bitfields(FT.funct3)
+      
+      ins_strs.append((opcode, 2, 'decode FUNCT3 {', '}'))
+      ins_strs.append(('format IOp', 3, '{', '}'))
+      ins_strs.append((funct3, 4, 'mod({{', 'Rd = Rs1_sd % Rs2_sd;\n}});'))
+
+
     return ins_strs
   
 
+  '''
+  #define MOD(c, a, b)                        \
+  asm volatile                              \
+  (                                         \
+    ".insn r 0x6b, 0, 1, %[z], %[x], %[y]\n\t" \
+    : [z] "=r" (c)                          \
+    : [x] "r" (a), [y] "r" (b)              \
+  )
+  '''
   def gen_c_macro(self):
     inst_name = self.inst_name
     opcode    = self.find_in_bitfields(FT.opcode)
@@ -169,7 +190,8 @@ class Inst:
     
     macro_str = '#define __' + inst_name + '(' 
     
-    # TODO only support r type parsing right now
+    # TODO only support r and i type emit right now
+    # https://gcc.gnu.org/onlinedocs/gcc/Simple-Constraints.html
     if (self.inst_form == INST_FORM.r):
       funct3    = self.find_in_bitfields(FT.funct3)
       funct7    = self.find_in_bitfields(FT.funct7)
@@ -182,6 +204,17 @@ class Inst:
       macro_str += '  : [x] "r" (a), [y] "r" (b)              \\\n'
       macro_str += ')'
       
+    elif (self.inst_form == INST_FORM.i):
+      funct3 = self.find_in_bitfields(FT.funct3)
+      
+      macro_str += 'c, a, b)                                  \\\n'
+      macro_str += 'asm volatile                              \\\n'
+      macro_str += '(                                         \\\n'
+      macro_str += '  \".insn i ' + hex(opcode) + ', ' + str(funct3) + ', %[z], %[x], %[y]\\n\\t\" \\\n'
+      macro_str += '  : [z] "=r" (c)                          \\\n'
+      macro_str += '  : [x] "r" (a), [y] "i" (b)              \\\n'
+      macro_str += ')'
+    
     return macro_str
  
  
@@ -394,8 +427,6 @@ class FileInsert:
     
     desired_val, desired_nest, ins_str_pre, ins_str_post = desired_tuple[0]
     
-    
-    
     # skip if we're not at the right level
     if (desired_nest > node.nest_level):
       #print('pass it')
@@ -447,16 +478,52 @@ class FileInsert:
     regex = re.compile('(' + rmv_name + ')')
     self.rmv_from_lvl(self.root_node, regex)
     
+  '''
+  def new_path_in_tree(self, node, desired_tuple, path, bit_range):
+    #print ('tuple size: ' + str(len(desired_tuple)))
     
+    desired_val, desired_nest, ins_str_pre, ins_str_post = desired_tuple[0]
+    
+    # check if this is the correct level
+    if (desired_nest == node.nest_level):
+      if (desired_val == -1):
+        new_path = path + [self.find_free_code(node, bit_range)]
+        
+        
+    # otherwise try on the lower levels
+    else:
+      ret = -1
+      for child_node in node.children:
+        if (child_node
+        if (ret != self.emit_node(child_node, fout)
+      return ret
   '''
-  #define MOD(c, a, b)                        \
-  asm volatile                              \
-  (                                         \
-    ".insn r 0x6b, 0, 1, %[z], %[x], %[y]\n\t" \
-    : [z] "=r" (c)                          \
-    : [x] "r" (a), [y] "r" (b)              \
-  )
-  '''
+
+  
+  # find an open opcode at the current node
+  def find_free_code(self, node, bit_range):
+    
+    # get all of the values
+    codes = []
+    
+    for child_node in node.children:
+      if (hasattr(child_node, 'value')):
+        code = child_node.value
+        codes.append(code)
+      else:
+        return -1
+      
+    # ret the first free value
+    for ret in range(0, bit_range):
+      exists = False
+      for i in range(len(codes)):
+        if (codes[i] == ret):
+          exists = True
+          
+      if (not exists):
+        return ret
+    
+    return -1
     
   # generate macro we can call in compile riscv code
   def gen_c_macro(self, inst):
@@ -479,36 +546,29 @@ def add_instruction():
 
   # go through each relevant field and ask about what value the field should be
   inst = rv_formats[chosen_format]
-  inst.req_inputs()
-
-  # print out .insn macros for the instruction
-
-  '''
-  fio = FileInsert(toolchain_opcode_path, toolchain_opcode_file)
-  regex_strs_and_insert = [
-  # regex --- what to replace if not found --- should cont after replacement
-    ( '(const struct riscv_opcode riscv_opcodes\[\] =)', '', False ),
-    ( '({)' , '', False ),
-    ( '(' + inst_str + ')', inst_str, True ),
-  ]
-  fio.insert_after_regex(regex_strs_and_insert)
-  '''
   
-  # insert the op and its functionality into gem5
+  # give the option of automatically finding a free instruction code
+  auto_str = input('Automatic spec [y/n]?: ')
+  if (auto_str == 'y' || auto_str == 'Y' || auto_str == 'yes' || auto_str == 'Yes'):
+    auto = True
+  elif (auto_str == 'n' || auto_str == 'N' || auto_str == 'no' || auto_str == 'No'):
+    auto = False
+  else:
+    print('Invalid response')
+  
+  if (auto):
+    pass
+  else:
+    inst.req_inputs()
+  
+  # insert the op and into gem5
   fio = FileInsert(gem5_rv_decoder_path, gem5_rv_decoder_file)
-  '''
-  # need to match two in a row
-  regex_strs = inst.gem5_decoder_regex()
-  # TODO on this
-  inst_lambda = 'mod' + '({{\n' + 'Rd = Rs1_sd % Rs2_sd;\n' + '}});\n'
-  regex_strs.append(('(' + inst_lambda + ')', inst_lambda, -1))
-  fio.insert_after_regex(regex_strs)
-  '''
   
   fio.parse_isa_tree()
   fio.add_to_isa_tree(inst)
   fio.emit_isa_tree()
   
+  # print out .insn macros for the instruction
   fio.gen_c_macro(inst)
   
 
