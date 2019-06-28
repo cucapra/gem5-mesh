@@ -145,13 +145,13 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
   // get direction from the appropriate csr
   SimpleExecContext &t_info = *threadInfo[curThread];
   SimpleThread* thread = t_info.thread;
-  uint64_t val = thread->readMiscRegNoEffect(MISCREG_MESHOUT);
+  uint64_t val = thread->readMiscRegNoEffect(MISCREG_EXE);
   
   // if in default behavior then don't send a mesh packet
-  assert (!MeshHelper::isCSRDefault(val));
+  if (MeshHelper::isCSRDefault(val)) return NoFault;
   
   Mesh_Dir dir;
-  assert(MeshHelper::csrToRd(val, dir));
+  if (!MeshHelper::csrToRd(val, dir)) return NoFault;
   
   // create a packet to send
   // size is numbytes?

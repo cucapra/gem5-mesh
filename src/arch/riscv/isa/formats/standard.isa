@@ -349,6 +349,17 @@ def format UOp(code, *opt_flags) {{
     exec_output = ImmExecute.subst(iop)
 }};
 
+def format BUOp(code, *opt_flags) {{
+    regs = ['_destRegIdx[0]']
+    iop = InstObjParams(name, Name, 'ImmOp<int64_t>',
+        {'code': code, 'imm_code': 'imm = sext<20>(IMM20);',
+         'regs': ','.join(regs)}, opt_flags)
+    header_output = ImmDeclare.subst(iop)
+    decoder_output = ImmConstructor.subst(iop)
+    decode_block = BasicDecode.subst(iop)
+    exec_output = ImmExecute.subst(iop)
+}};
+
 def format JOp(code, *opt_flags) {{
     imm_code = """
                 imm = UJIMMBITS10TO1 << 1   |

@@ -1822,5 +1822,13 @@ decode QUADRANT default Unknown::unknown() {
                 }}, IsNonSpeculative, No_OpClass);
             }
         }
+        
+        0x1a: BUOp::csrexe({{
+            // add a new instruction that takes a 20bit immediate
+            // and writes it to a specific csr
+            // imm is defined in BUOP format
+            //printf("imm val: %ld\n", imm);
+            xc->setMiscReg(MISCREG_EXE, imm);
+        }}, IsNonSpeculative, IsBind, No_OpClass);
     }
 }

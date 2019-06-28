@@ -21,6 +21,10 @@
 // 0x400 is the csr specified in gem5 in src/arch/riscv/register.hh
 #define WRITE_MESH_CSR(val) \
   WRITE_CSR(0x400, val)
+  
+  
+#define BIND_EXE(val) \
+  asm volatile (".insn u 0x6b, x0, %[x]\n\t" :: [x] "i" (val))
 
 pthread_barrier_t start_barrier;
 
@@ -52,32 +56,35 @@ void *kernel(void* args) {
     
     volatile int a;
     
-    //WRITE_MESH_CSR(MESH_RIGHT);
+    BIND_EXE(MESH_RIGHT);
+    
     asm volatile (
-      "csrrwi x0, 0x400, %[m0]\n\t"
-      "addi %[x], x0, %[y]\n\t" 
-      "csrrwi x0, 0x400, %[m1]\n\t"
+      "addi %[x], x0, %[y]\n\t"
       : [x] "=r" (a)
-      : [y] "i" (3), [m0] "i" (MESH_RIGHT), [m1] "i" (NO_MESH)
+      : [y] "i" (2)
     );
-    // the second csr is causing the second mesh send, need to avoid that
-    // check a flag in the instruction
-    //WRITE_MESH_CSR(NO_MESH);
+    
+    BIND_EXE(NO_MESH);
+    
+    
   }
   else if (cid == 3) {
     
     volatile int b;
     
-    WRITE_MESH_CSR(MESH_UP);
+    //WRITE_MESH_CSR(MESH_UP);
+    BIND_EXE(MESH_UP);
     asm volatile (
       "addi %[x], x0, %[y]\n\t" 
       : [x] "=r" (b)
       : [y] "i" (2)
     );
-    WRITE_MESH_CSR(NO_MESH);
+    //WRITE_MESH_CSR(NO_MESH);
+    BIND_EXE(NO_MESH);
   }
   else if (cid == 1) {
     //WRITE_MESH_CSR(MESH_RIGHT);
+    //BIND_EXE(7);
     volatile int c;
     
     // not sure what happens to variables in these regs

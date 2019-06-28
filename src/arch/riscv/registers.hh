@@ -256,7 +256,7 @@ enum MiscRegIndex {
 
 
     // pbb custom regs that can be accessed by insructions
-    MISCREG_MESHOUT,
+    MISCREG_EXE,
 
     NUM_MISCREGS
 };
@@ -427,7 +427,7 @@ enum CSRIndex {
     
     // pbb custom reg codes
     ,
-    CSR_MESHOUT = 0x400
+    CSR_EXE = 0x400
     
 };
 
@@ -600,7 +600,7 @@ const std::map<int, CSRMetadata> CSRData = {
     
     // PBB 
     ,
-    {CSR_MESHOUT, {"meshout", MISCREG_MESHOUT}}
+    {CSR_EXE, {"meshout", MISCREG_EXE}}
 };
 
 /**

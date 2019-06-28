@@ -176,7 +176,7 @@ class BaseSimpleCPU : public BaseCPU
       { panic("trySendMeshRequest() is not implemented\n"); }
     
     // function to get access to the csrs for maninpulation
-    uint64_t getMeshOutCSR();
+    uint64_t getExeCSR();
 
 };
 

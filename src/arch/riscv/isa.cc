@@ -74,7 +74,7 @@ void ISA::clear()
     miscRegFile[MISCREG_SCOUNTEREN] = 0x7;
     
     // custom csrs
-    miscRegFile[MISCREG_MESHOUT] = 0;
+    miscRegFile[MISCREG_EXE] = 0;
     
 }
 

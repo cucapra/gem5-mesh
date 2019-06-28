@@ -197,9 +197,9 @@ class SimpleExecContext : public ExecContext {
         // pbb override this when csr is setup in a particular way
         // for some reason couldn't do csr lookup here due to compiler error
         // this abstraction might be better anyway
-        if (!MeshHelper::isCSRDefault(cpu->getMeshOutCSR())) {
-          cpu->trySendMeshRequest(24);
-        }
+        //if (!MeshHelper::isCSRDefault(cpu->getMeshOutCSR())) {
+        cpu->trySendMeshRequest(24);
+        //}
         
     }
 
