@@ -47,6 +47,7 @@
 #include "cpu/simple/exec_context.hh"
 #include "cpu/translation.hh"
 #include "params/TimingSimpleCPU.hh"
+#include "custom/mesh_machine.hh"
 
 class TimingSimpleCPU : public BaseSimpleCPU
 {
@@ -297,14 +298,29 @@ class TimingSimpleCPU : public BaseSimpleCPU
         ToMeshPort(TimingSimpleCPU *_cpu, int idx)
             : TimingCPUMasterPort(
               _cpu->name() + ".mesh_out_port" + csprintf("[%d]", idx), 
-              idx, _cpu), tickEvent(_cpu), val(0)
+              idx, _cpu), tickEvent(_cpu), val(false), active(false), 
+              stalledPkt(nullptr)
         { }
 
         void setVal(bool val);
         bool getVal() const { return val; }
         
+        void setActive (bool active) { this->active = active; }
+        bool getActive() const { return active; }
+        
+        void setValIfActive() { if (active) setVal(true); }
+        
         // check if this port is rdy and the slave port is valid
-        bool checkHandsake();
+        bool checkHandshake();
+        
+        // call tryUnblock() in cpu attach to slave port of this
+        void tryUnblockNeighbor();
+        
+        // buffer pkt and inform we're not ready
+        void failToSend(PacketPtr pkt);
+        
+        // release the pkt and inform we are now ready
+        void beginToSend();
 
       protected:
 
@@ -326,6 +342,15 @@ class TimingSimpleCPU : public BaseSimpleCPU
         
         // whether this signal is valid over the mesh net
         bool val;
+        
+        // whether this port is used and should assert val when packet 
+        // available
+        bool active;
+        
+        // packet stored in register that can't be sent yet due to val/rdy
+        // requires additional enable reg and 2-1 mux
+        PacketPtr stalledPkt;
+        
     };
     
     // similar purpose as TimingCPUPort (derived from master port)
@@ -367,7 +392,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
         FromMeshPort(TimingSimpleCPU *_cpu, int idx)
             : TimingCPUSlavePort(
               _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), 
-              idx, _cpu), tickEvent(_cpu), rdy(0)
+              idx, _cpu), tickEvent(_cpu), rdy(false), active(false)
         { }
 
         virtual AddrRangeList getAddrRanges() const;
@@ -378,8 +403,16 @@ class TimingSimpleCPU : public BaseSimpleCPU
         void setRdy(bool val);
         bool getRdy() const { return rdy; }
         
+        void setActive(bool active) { this->active = active; }
+        bool getActive() const { return active; }
+        
+        void setRdyIfActive() { if (active) setRdy(true); }
+        
         // check val rdy interface
-        bool checkHandsake();
+        bool checkHandshake();
+        
+        // call tryUnblock in the cpu
+        void tryUnblockCPU() { cpu->tryUnblock(); }
         
       protected:
 
@@ -410,11 +443,17 @@ class TimingSimpleCPU : public BaseSimpleCPU
         
         // whether this port is rdy to recv from the mesh net
         bool rdy;
+        
+        // this should go high when the core is rdy
+        bool active;
     };
     
     // define the ports we're going to use for to access the mesh net
     std::vector<ToMeshPort> toMeshPort;
     std::vector<FromMeshPort> fromMeshPort;
+    
+    // state machine for sends
+    MeshMachine machine;
 
   protected:
     // pbb override function that maps ports declared and connected in 
@@ -432,6 +471,15 @@ class TimingSimpleCPU : public BaseSimpleCPU
 
     // pbb access mesh ports from cpu
     Fault trySendMeshRequest(uint64_t payload) override;
+    Fault setupAndHandshake() override;
+    void setupHandshake();
+    Fault tryUnblock();
+    void handshakeNeighbors();
+    Fault setValRdy();
+    Fault setVal();
+    Fault setRdy();
+    Fault resetVal();
+    Fault resetRdy();
 
     DrainState drain() override;
     void drainResume() override;

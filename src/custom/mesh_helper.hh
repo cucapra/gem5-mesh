@@ -2,6 +2,7 @@
 #define __CUSTOM_MESH_HELPER_HH__
 
 #include <cstdint>
+#include <vector>
 
 // order from mesh.py reproduced here
 typedef enum Mesh_Dir {
@@ -19,6 +20,12 @@ class MeshHelper {
     
     static bool csrToOp1(uint64_t csrVal, Mesh_Dir &dir);
     static bool csrToOp2(uint64_t csrVal, Mesh_Dir &dir);
+    
+    // the csr idx is to a bind one
+    static bool isBindCSR(int csrIdx);
+    
+    // get all bindcsr idx
+    static std::vector<int> getCSRCodes();
   
     // the config in the csr means that no special behvaior should occur
     static bool isCSRDefault(uint64_t csrVal);

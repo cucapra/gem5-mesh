@@ -145,12 +145,15 @@ TimingSimpleCPU::ToMeshPort::setVal(bool val) {
   this->val = val;
 }
 
+// val/rdy, but also if we don't care about the connection we expect
+// both to be not val/rdy
 bool
-TimingSimpleCPU::ToMeshPort::checkHandsake(){
+TimingSimpleCPU::ToMeshPort::checkHandshake(){
   BaseSlavePort *slavePort = &(getSlavePort());
   if (FromMeshPort *slaveMeshPort = dynamic_cast<FromMeshPort*>(slavePort)) {
     bool rdy = slaveMeshPort->getRdy();
-    if (val && rdy) return true;
+    // xnor
+    if ((val && rdy) || (!val && !rdy)) return true;
     else return false;
   }
   else {
@@ -158,41 +161,34 @@ TimingSimpleCPU::ToMeshPort::checkHandsake(){
   }
 }
 
-Fault
-TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
-  // get direction from the appropriate csr
-  SimpleExecContext &t_info = *threadInfo[curThread];
-  SimpleThread* thread = t_info.thread;
-  uint64_t val = thread->readMiscRegNoEffect(MISCREG_EXE);
+void
+TimingSimpleCPU::ToMeshPort::tryUnblockNeighbor() {
+  BaseSlavePort *slavePort = &(getSlavePort());
+  if (FromMeshPort *slaveMeshPort = dynamic_cast<FromMeshPort*>(slavePort)) {
+    slaveMeshPort->tryUnblockCPU();
+  }
+}
+
+void
+TimingSimpleCPU::ToMeshPort::failToSend(PacketPtr pkt) {
+  // assert not rdy
+  cpu->resetRdy();
   
-  // if in default behavior then don't send a mesh packet
-  if (MeshHelper::isCSRDefault(val)) return NoFault;
-  
-  Mesh_Dir dir;
-  if (!MeshHelper::csrToRd(val, dir)) return NoFault;
-  
-  // create a packet to send
-  // size is numbytes?
-  int size = sizeof(payload);
-  
-  // need to break up payload into bytes
-  // assume big endian?
-  uint8_t *data = new uint8_t[size];
-  for (int i = 0; i < size; i++) {
-    // shift and truncate
-    data[i] = (uint8_t)(payload >> i);
+  // store this packet to be used later
+  stalledPkt = pkt;
+}
+
+void
+TimingSimpleCPU::ToMeshPort::beginToSend() {
+  // if there is a stalled packet lets send that now
+  if (stalledPkt) {
+    sendTimingReq(stalledPkt);
+    stalledPkt = nullptr;
   }
   
-  // create a packet to send
-  Addr addr = dir;
-  RequestPtr req = std::make_shared<Request>(addr, size, 0, 0);
-  PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
-  new_pkt->dataDynamic(data);
-  DPRINTF(Mesh, "Sending mesh request %#x\n", addr);
+  cpu->setValRdy();
   
-  toMeshPort[dir].sendTimingReq(new_pkt);
   
-  return NoFault;
 }
 
 /*----------------------------------------------------------------------
@@ -257,26 +253,21 @@ TimingSimpleCPU::FromMeshPort::setRdy(bool rdy) {
   this->rdy = rdy;
 }
 
+// val/rdy, but also if we don't care about the connection we expect
+// both to be not val/rdy
 bool
-TimingSimpleCPU::FromMeshPort::checkHandsake(){
+TimingSimpleCPU::FromMeshPort::checkHandshake(){
   BaseMasterPort *masterPort = &(getMasterPort());
   if (ToMeshPort *masterMeshPort = dynamic_cast<ToMeshPort*>(masterPort)) {
     bool val = masterMeshPort->getVal();
-    if (val && rdy) return true;
+    // xnor
+    if ((val && rdy) || (!val && !rdy)) return true;
     else return false;
   }
   else {
     return false;
   }
 }
-
-// when a bind is created you need to assert val, rdy and then check that
-// others are also val, rdy. Until then cpu status will be !running.
-// we'll keep scheduling this to check each time the attach port updates its value
-// when all relevant point handshake we'll call advanceInst with _status = running
-// to get the next instruction
-// TimingSimpleCPU::tryUnblock
-
 
 /*----------------------------------------------------------------------
  * Ports: C++ object to python name mappings
@@ -300,7 +291,211 @@ TimingSimpleCPU::getPort(const string &if_name, PortID idx)
         return ClockedObject::getPort(if_name, idx);
 }
 
+/*----------------------------------------------------------------------
+ * Arch support for binds
+ *--------------------------------------------------------------------*/
 
+Fault
+TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
+  // get direction from the appropriate csr
+  SimpleExecContext &t_info = *threadInfo[curThread];
+  SimpleThread* thread = t_info.thread;
+  uint64_t val = thread->readMiscRegNoEffect(MISCREG_EXE);
+  
+  // if in default behavior then don't send a mesh packet
+  if (MeshHelper::isCSRDefault(val)) return NoFault;
+  
+  Mesh_Dir dir;
+  if (!MeshHelper::csrToRd(val, dir)) return NoFault;
+  
+  // create a packet to send
+  // size is numbytes?
+  int size = sizeof(payload);
+  
+  // need to break up payload into bytes
+  // assume big endian?
+  uint8_t *data = new uint8_t[size];
+  for (int i = 0; i < size; i++) {
+    // shift and truncate
+    data[i] = (uint8_t)(payload >> i);
+  }
+  
+  // create a packet to send
+  Addr addr = dir;
+  RequestPtr req = std::make_shared<Request>(addr, size, 0, 0);
+  PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
+  new_pkt->dataDynamic(data);
+  
+  // check that the port we're going to send to is rdy
+  // if it's not rdy then we need to inform sender that we're not rdy
+  // and save this packet until the port becomes ready
+  /*if (toMeshPort[dir].checkHandshake()) {
+    DPRINTF(Mesh, "Port not ready so buffering packet %#x\n", addr);
+    toMeshPort[dir].failToSend(new_pkt);
+  }
+  else {
+    DPRINTF(Mesh, "Sending mesh request %#x\n", addr);
+    toMeshPort[dir].sendTimingReq(new_pkt);
+  }*/
+  
+  DPRINTF(Mesh, "Sending mesh request %#x\n", addr);
+  toMeshPort[dir].sendTimingReq(new_pkt);
+  
+  return NoFault;
+}
+
+// when a bind is created you need to assert val, rdy and then check that
+// others are also val, rdy. Until then cpu status will be !running.
+// we'll keep scheduling this to check each time the attach port updates its value
+// when all relevant point handshake we'll call advanceInst with _status = running
+// to get the next instruction
+
+// TODO only want to do this if sync flag in csr is asserted?
+// imagine getting signal from and'ed bind csrs to determine what ports
+// are relevant in the handshake protocol
+
+// 1) set val rdy for appropriate ports
+// 2) these ports need to be met with response from pair port for handshake
+//  -- if val or rdy not assert locally then don't need to check
+// foreach port (need (val && rdy) || (!val && !rdy)) --> xnor
+Fault
+TimingSimpleCPU::setupAndHandshake() {
+  return NoFault;
+  //setup required handshake ports
+  setupHandshake();
+  
+  // set valid and ready locally
+  setValRdy();
+  
+  // checkHandshake/try unblock locally
+  tryUnblock();
+  
+  // call checkHandshake in the external cores now that here's been an upadte
+  handshakeNeighbors();
+  
+  return NoFault;
+}
+
+void
+TimingSimpleCPU::setupHandshake() {
+  // get each bind csr
+  std::vector<int> csrs = MeshHelper::getCSRCodes();
+  
+  // use the current thread to get the csr values we need
+  SimpleExecContext &t_info = *threadInfo[curThread];
+  SimpleThread* thread = t_info.thread;
+  uint64_t regVal;
+  
+  // foreach bind csr set val or rdy in the apprpriate port
+  for (int i = 0; i < csrs.size(); i++) {
+    regVal = thread->readMiscRegNoEffect(csrs[i]);
+    
+    // assert valid on each port we're sending to
+    // TODO only one port supported now
+    Mesh_Dir outDir;
+    if (MeshHelper::csrToRd(regVal, outDir)) {
+      toMeshPort[outDir].setActive(true);
+    }
+    
+    // try to handshake with recv ports
+    Mesh_Dir op1Dir;
+    if (MeshHelper::csrToOp1(regVal, op1Dir)) {
+      fromMeshPort[op1Dir].setActive(true);
+    }
+    
+    Mesh_Dir op2Dir;
+    if (MeshHelper::csrToOp2(regVal, op2Dir)) {
+      fromMeshPort[op2Dir].setActive(true);
+    }
+  }
+}
+
+// rdy to go!
+Fault
+TimingSimpleCPU::setValRdy() {
+  // foreach port set val or rdy depending on if the ports are used
+  setRdy();
+  
+  setVal();
+  
+  return NoFault;
+}
+
+Fault
+TimingSimpleCPU::setRdy() {
+  for (int i = 0; i < fromMeshPort.size(); i++) {
+    fromMeshPort[i].setRdyIfActive();
+  }
+  
+  return NoFault;
+}
+
+Fault
+TimingSimpleCPU::setVal() {
+  for (int i = 0; i < toMeshPort.size(); i++) {
+    toMeshPort[i].setValIfActive();
+  }
+  
+  return NoFault;
+}
+
+Fault
+TimingSimpleCPU::resetRdy() {
+  for (int i = 0; i < fromMeshPort.size(); i++) {
+    fromMeshPort[i].setRdy(false);
+  }
+  return NoFault;
+}
+
+Fault
+TimingSimpleCPU::resetVal() {
+  for (int i = 0; i < toMeshPort.size(); i++) {
+    toMeshPort[i].setValIfActive();
+  }
+  return NoFault;
+}
+
+/*Fault
+TimingSimpleCPU::resetActive() {
+  for (int i = 0; i < fromMeshPort.size(); i++) {
+    fromMeshPort[i].setActive(false);
+  }
+  
+  for (int i = 0; i < toMeshPort.size(); i++) {
+    toMeshPort[i].setActive(false);
+  }
+}*/
+
+Fault
+TimingSimpleCPU::tryUnblock() {
+  
+  bool handshake = true;
+  
+  // foreach in port make sure that its handshake requirements are met
+  for (int i = 0; i < fromMeshPort.size(); i++) {
+    bool ok = fromMeshPort[i].checkHandshake();
+    if (!ok) handshake = false;
+  }
+  
+  // foreach out port make sure handshake requirements are met
+  for (int i = 0; i < toMeshPort.size(); i++) {
+    bool ok = fromMeshPort[i].checkHandshake();
+    if (!ok) handshake = false;
+  }
+  
+  if (handshake) _status = Running;
+  else _status = BindSync;
+  
+  return NoFault;
+}
+
+void
+TimingSimpleCPU::handshakeNeighbors() {
+  // go through mesh ports to get tryUnblock function called in neighbor cores
+  for (int i = 0; i < toMeshPort.size(); i++) {
+    toMeshPort[i].tryUnblockNeighbor();
+  }
+}
 
 /*----------------------------------------------------------------------
  * Define processor behavior
@@ -308,14 +503,13 @@ TimingSimpleCPU::getPort(const string &if_name, PortID idx)
 
 TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
     : BaseSimpleCPU(p), fetchTranslation(this), icachePort(this),
-      dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0),
+      dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0)
       
       // begin additions (needs to be in order declared in .hh)
-      //toMeshPort(this), fromMeshPort(this),
+      , machine(this), 
       // end additions
       
       fetchEvent([this]{ fetch(); }, name())
-      
       
 {
     _status = Idle;

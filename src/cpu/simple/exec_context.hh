@@ -186,7 +186,6 @@ class SimpleExecContext : public ExecContext {
         Mesh_Dir dir[2];
         if ((idx == 0 && MeshHelper::csrToOp1(csrVal, dir[0])) ||
             (idx == 1 && MeshHelper::csrToOp2(csrVal, dir[1]))) {
-            DPRINTF(Mesh, "Shouldnt be here!\n");
             
             // need to do a port lookup here to get the right value
             //return cpu->
@@ -447,6 +446,10 @@ class SimpleExecContext : public ExecContext {
     {
         numIntRegWrites++;
         thread->setMiscReg(misc_reg, val);
+        
+        // pbb potentially need to halt cpu here, if operation is blocking
+        cpu->setupAndHandshake();
+        
     }
 
     PCState
