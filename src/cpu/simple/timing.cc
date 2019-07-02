@@ -211,17 +211,20 @@ TimingSimpleCPU::setupHandshake() {
     Mesh_Dir outDir;
     if (MeshHelper::csrToRd(regVal, outDir)) {
       toMeshPort[outDir].setActive(true);
+      numPortsActive++;
     }
     
     // try to handshake with recv ports
     Mesh_Dir op1Dir;
     if (MeshHelper::csrToOp1(regVal, op1Dir)) {
       fromMeshPort[op1Dir].setActive(true);
+      numPortsActive++;
     }
     
     Mesh_Dir op2Dir;
     if (MeshHelper::csrToOp2(regVal, op2Dir)) {
       fromMeshPort[op2Dir].setActive(true);
+      numPortsActive++;
     }
   }
 }
@@ -250,6 +253,11 @@ TimingSimpleCPU::getInVal() {
   }
   
   return allVal;
+}
+
+int
+TimingSimpleCPU::getNumPortsActive() const {
+  return numPortsActive;
 }
 
 Fault
@@ -299,6 +307,7 @@ TimingSimpleCPU::resetActive() {
 
 Fault
 TimingSimpleCPU::tryUnblock() {
+  if (numPortsActive == 0) return NoFault;
   
   // update state machine here?
   MeshMachine::MeshStateOutputs outputs = 
@@ -329,7 +338,7 @@ TimingSimpleCPU::tryUnblock() {
   
   // foreach out port make sure handshake requirements are met
   for (int i = 0; i < toMeshPort.size(); i++) {
-    bool ok = fromMeshPort[i].checkHandshake();
+    bool ok = toMeshPort[i].checkHandshake();
     if (!ok) handshake = false;
   }
   
@@ -363,7 +372,7 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0)
       
       // begin additions (needs to be in order declared in .hh)
-      , machine(this), 
+      , machine(this), numPortsActive(0),
       // end additions
       
       fetchEvent([this]{ fetch(); }, name())

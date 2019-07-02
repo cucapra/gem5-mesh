@@ -269,6 +269,8 @@ class TimingSimpleCPU : public BaseSimpleCPU
     
     // state machine for sends
     MeshMachine machine;
+    
+    int numPortsActive;
 
   protected:
     // pbb override function that maps ports declared and connected in 
@@ -296,6 +298,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
     Fault setRdy();
     Fault resetVal();
     Fault resetRdy();
+    int getNumPortsActive() const;
 
     DrainState drain() override;
     void drainResume() override;

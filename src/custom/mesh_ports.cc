@@ -1,6 +1,8 @@
 #include "custom/mesh_ports.hh"
 #include "cpu/simple/timing.hh"
 
+#define PROTOCOL(active, val, rdy) \
+  (active && val && rdy) || (!active)
 
 /*----------------------------------------------------------------------
  * Implement base port behavior
@@ -87,13 +89,11 @@ ToMeshPort::setVal(bool val) {
   this->val = val;
 }
 
-// val/rdy, but also if we don't care about the connection we expect
-// both to be not val/rdy
+// if active we want val/rdy, otherwise we don't care
 bool
 ToMeshPort::checkHandshake(){
   bool rdy = getPairRdy();
-  // xnor
-  return ((val && rdy) || (!val && !rdy));
+  return (PROTOCOL(active, val, rdy));
 }
 
 bool
@@ -204,13 +204,11 @@ FromMeshPort::setRdy(bool rdy) {
   this->rdy = rdy;
 }
 
-// val/rdy, but also if we don't care about the connection we expect
-// both to be not val/rdy
+// if active we want val/rdy, otherwise we don't care
 bool
 FromMeshPort::checkHandshake(){
   bool val = getPairVal();
-  // xnor
-  return ((val && rdy) || (!val && !rdy));
+  return (PROTOCOL(active, val, rdy));
 }
 
 bool
