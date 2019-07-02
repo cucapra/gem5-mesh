@@ -56,6 +56,8 @@ class ToMeshPort : public TimingCPUMasterPort {
     void setVal(bool val);
     bool getVal() const { return val; }
     
+    bool getPairRdy();
+    
     void setActive (bool active) { this->active = active; }
     bool getActive() const { return active; }
     
@@ -153,6 +155,8 @@ class FromMeshPort : public TimingCPUSlavePort {
 
     void setRdy(bool val);
     bool getRdy() const { return rdy; }
+    
+    bool getPairVal();
     
     void setActive(bool active) { this->active = active; }
     bool getActive() const { return active; }

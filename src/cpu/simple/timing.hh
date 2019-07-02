@@ -290,7 +290,8 @@ class TimingSimpleCPU : public BaseSimpleCPU
     void setupHandshake();
     Fault tryUnblock();
     void handshakeNeighbors();
-    Fault setValRdy();
+    bool getOutRdy();
+    bool getInVal();
     Fault setVal();
     Fault setRdy();
     Fault resetVal();

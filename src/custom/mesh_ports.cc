@@ -91,12 +91,16 @@ ToMeshPort::setVal(bool val) {
 // both to be not val/rdy
 bool
 ToMeshPort::checkHandshake(){
+  bool rdy = getPairRdy();
+  // xnor
+  return ((val && rdy) || (!val && !rdy));
+}
+
+bool
+ToMeshPort::getPairRdy() {
   BaseSlavePort *slavePort = &(getSlavePort());
   if (FromMeshPort *slaveMeshPort = dynamic_cast<FromMeshPort*>(slavePort)) {
-    bool rdy = slaveMeshPort->getRdy();
-    // xnor
-    if ((val && rdy) || (!val && !rdy)) return true;
-    else return false;
+    return slaveMeshPort->getRdy();
   }
   else {
     return false;
@@ -128,9 +132,8 @@ ToMeshPort::beginToSend() {
     stalledPkt = nullptr;
   }
   
-  cpu->setValRdy();
-  
-  
+  cpu->setVal();
+  cpu->setRdy();
 }
 
 /*----------------------------------------------------------------------
@@ -205,12 +208,16 @@ FromMeshPort::setRdy(bool rdy) {
 // both to be not val/rdy
 bool
 FromMeshPort::checkHandshake(){
+  bool val = getPairVal();
+  // xnor
+  return ((val && rdy) || (!val && !rdy));
+}
+
+bool
+FromMeshPort::getPairVal() {
   BaseMasterPort *masterPort = &(getMasterPort());
   if (ToMeshPort *masterMeshPort = dynamic_cast<ToMeshPort*>(masterPort)) {
-    bool val = masterMeshPort->getVal();
-    // xnor
-    if ((val && rdy) || (!val && !rdy)) return true;
-    else return false;
+    return masterMeshPort->getVal();
   }
   else {
     return false;

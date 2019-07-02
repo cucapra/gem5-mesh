@@ -3,7 +3,7 @@
 
 
 void
-MeshMachine::TickEvent::schedule(StateInputs in_, Tick t)
+MeshMachine::TickEvent::schedule(MeshStateInputs in_, Tick t)
 {
     inputs = in_;
     
@@ -13,10 +13,11 @@ MeshMachine::TickEvent::schedule(StateInputs in_, Tick t)
 
 void
 MeshMachine::TickEvent::process() {
-  machine->update(inputs);
+  // update that state
+  machine->stateTransition();
 }
 
-void
+/*void
 MeshMachine::update(StateInputs inputs) {
   // transition on clock edge
   stateTransition();
@@ -24,7 +25,7 @@ MeshMachine::update(StateInputs inputs) {
   // get next state and do any state output stuff
   computeNextState(inputs);
   computeStateOutput(inputs);
-}
+}*/
 
 void
 MeshMachine::stateTransition() {
@@ -32,7 +33,7 @@ MeshMachine::stateTransition() {
 }
 
 void
-MeshMachine::computeNextState(StateInputs inputs) {
+MeshMachine::computeNextState(MeshStateInputs inputs) {
   switch(state) {
     case Not_Sending:
       if (inputs.outRdy && inputs.inVal) {
@@ -56,39 +57,50 @@ MeshMachine::computeNextState(StateInputs inputs) {
   }
 }
 
-void
-MeshMachine::computeStateOutput(StateInputs inputs) {
+MeshMachine::MeshStateOutputs
+MeshMachine::computeStateOutput(MeshStateInputs inputs) {
+  MeshStateOutputs out;
+  
   switch(state) {
     case Not_Sending:
       // if we have a pkt stored we can't accept another one
       if (inputs.storedPkt) {
-        cpu->setVal();
-        cpu->resetRdy();
+        out.selfVal = true;
+        out.selfRdy = false;
       }
       // if we don't have a packet we can accept one
       else {
-        cpu->resetVal();
-        cpu->setRdy();
+        out.selfVal = false;
+        out.selfRdy = true;
       }
       break;
     case Sending:
-      cpu->setVal();
-      cpu->setRdy();
+      out.selfVal = true;
+      out.selfRdy = true;
       break;
     default:
-      cpu->resetVal();
-      cpu->resetRdy();
+      out.selfVal = false;
+      out.selfRdy = false;
       break;
   }
+  
+  return out;
 }
 
-void
-MeshMachine::setInputs(bool outRdy, bool inVal, bool storedPkt) {
-  StateInputs inputs = StateInputs(outRdy, inVal, storedPkt);
+MeshMachine::MeshStateOutputs
+MeshMachine::updateMachine(MeshStateInputs inputs) {
   
+  // remove the old state transition b/c inputs this cycle changed again
   if (machineTick.scheduled()) {
     machineTick.squash();
   }
   
+  // get next state and do any state output stuff
+  computeNextState(inputs);
+  MeshStateOutputs out = computeStateOutput(inputs);
+  
+  // schedule state to update based on these inputs in the next cycle
   machineTick.schedule(inputs, cpu->clockEdge());
+  
+  return out;
 }

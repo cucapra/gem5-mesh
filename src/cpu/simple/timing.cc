@@ -174,15 +174,17 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
 // foreach port (need (val && rdy) || (!val && !rdy)) --> xnor
 Fault
 TimingSimpleCPU::setupAndHandshake() {
-  return NoFault;
+  DPRINTF(Mesh, "setup handshake and try unblock\n");
+  
   //setup required handshake ports
   setupHandshake();
   
   // set valid and ready locally
-  setValRdy();
+  // actually this will be done by the statemachine
+  //setValRdy();
   
   // checkHandshake/try unblock locally
-  tryUnblock();
+  tryUnblock(); // this should be called every cycle
   
   // call checkHandshake in the external cores now that here's been an upadte
   handshakeNeighbors();
@@ -203,7 +205,7 @@ TimingSimpleCPU::setupHandshake() {
   // foreach bind csr set val or rdy in the apprpriate port
   for (int i = 0; i < csrs.size(); i++) {
     regVal = thread->readMiscRegNoEffect(csrs[i]);
-    
+    DPRINTF(Mesh, "regval %d from csr %#x\n", regVal, csrs[i]);
     // assert valid on each port we're sending to
     // TODO only one port supported now
     Mesh_Dir outDir;
@@ -224,15 +226,30 @@ TimingSimpleCPU::setupHandshake() {
   }
 }
 
-// rdy to go!
-Fault
-TimingSimpleCPU::setValRdy() {
-  // foreach port set val or rdy depending on if the ports are used
-  setRdy();
+bool
+TimingSimpleCPU::getOutRdy() {
+  bool allRdy = true;
   
-  setVal();
+  for (int i = 0; i < toMeshPort.size(); i++) {
+    if (!toMeshPort[i].getPairRdy() && toMeshPort[i].getActive()) {
+      allRdy = false;
+    }
+  }
   
-  return NoFault;
+  return allRdy;
+}
+
+bool
+TimingSimpleCPU::getInVal() {
+   bool allVal = true;
+  
+  for (int i = 0; i < fromMeshPort.size(); i++) {
+    if (!fromMeshPort[i].getPairVal() && fromMeshPort[i].getActive()) {
+      allVal = false;
+    }
+  }
+  
+  return allVal;
 }
 
 Fault
@@ -283,6 +300,25 @@ TimingSimpleCPU::resetActive() {
 Fault
 TimingSimpleCPU::tryUnblock() {
   
+  // update state machine here?
+  MeshMachine::MeshStateOutputs outputs = 
+    machine.updateMachine(MeshMachine::MeshStateInputs(getOutRdy(), getInVal(), false));
+  
+  
+  // change things in the core based on statemachine outputs
+  if (outputs.selfRdy) {
+    DPRINTF(Mesh, "set self rdy\n");
+    setRdy();
+  }
+  else resetRdy();
+  
+  if (outputs.selfVal) {
+    DPRINTF(Mesh, "set self val\n");
+    setVal();
+  }
+  else resetVal();
+  
+  
   bool handshake = true;
   
   // foreach in port make sure that its handshake requirements are met
@@ -297,14 +333,21 @@ TimingSimpleCPU::tryUnblock() {
     if (!ok) handshake = false;
   }
   
-  if (handshake) _status = Running;
-  else _status = BindSync;
+  if (handshake) {
+    DPRINTF(Mesh, "Handshake!\n");
+  }
+  else {
+    DPRINTF(Mesh, "Failed handshake\n");
+  }
+  //if (handshake) _status = Running;
+  //else _status = BindSync;
   
   return NoFault;
 }
 
 void
 TimingSimpleCPU::handshakeNeighbors() {
+  DPRINTF(Mesh, "update neighbors\n");
   // go through mesh ports to get tryUnblock function called in neighbor cores
   for (int i = 0; i < toMeshPort.size(); i++) {
     toMeshPort[i].tryUnblockNeighbor();
@@ -312,7 +355,7 @@ TimingSimpleCPU::handshakeNeighbors() {
 }
 
 /*----------------------------------------------------------------------
- * Define processor behavior
+ * Define normal processor behavior
  *--------------------------------------------------------------------*/ 
 
 TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
