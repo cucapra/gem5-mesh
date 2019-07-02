@@ -130,7 +130,7 @@ void *kernel(void* args) {
     int c;
     int a = 2;
     int b = 2;
-    BINDED_SECTION(RS1_UP | RS2_RIGHT, ALL_NORM, 
+    BINDED_SECTION(RS1_DOWN | RS2_LEFT, ALL_NORM, 
       "add %[x], %[y], %[z]\n\t", 
       [x] "=r" (c), 
       COMMA [y] "r" (a) COMMA [z] "r" (b));

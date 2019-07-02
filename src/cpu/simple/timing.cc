@@ -307,8 +307,17 @@ TimingSimpleCPU::resetActive() {
 
 Fault
 TimingSimpleCPU::tryUnblock() {
+  // TODO integrate into the statemachine instead ... lazy!
   if (numPortsActive == 0) return NoFault;
   
+  DPRINTF(Mesh, "out:\nactive %d %d %d %d\npair rdy %d %d %d %d\n\n",
+    toMeshPort[0].getActive(), toMeshPort[1].getActive(), toMeshPort[2].getActive(), toMeshPort[3].getActive(),
+    toMeshPort[0].getPairRdy(), toMeshPort[1].getPairRdy(), toMeshPort[2].getPairRdy(), toMeshPort[3].getPairRdy());
+
+  DPRINTF(Mesh, "in:\nactive %d %d %d %d\npair val %d %d %d %d\n\n",
+    fromMeshPort[0].getActive(), fromMeshPort[1].getActive(), fromMeshPort[2].getActive(), fromMeshPort[3].getActive(),
+    fromMeshPort[0].getPairVal(), fromMeshPort[1].getPairVal(), fromMeshPort[2].getPairVal(), fromMeshPort[3].getPairVal());
+    
   // update state machine here?
   MeshMachine::MeshStateOutputs outputs = 
     machine.updateMachine(MeshMachine::MeshStateInputs(getOutRdy(), getInVal(), false));
@@ -348,15 +357,17 @@ TimingSimpleCPU::tryUnblock() {
   else {
     DPRINTF(Mesh, "Failed handshake\n");
   }
-  //if (handshake) _status = Running;
-  //else _status = BindSync;
+  
+  // stall processor until ready
+  if (handshake) _status = Running;
+  else _status = BindSync;
   
   return NoFault;
 }
 
 void
 TimingSimpleCPU::handshakeNeighbors() {
-  DPRINTF(Mesh, "update neighbors\n");
+  DPRINTF(Mesh, "notify neighbors\n");
   // go through mesh ports to get tryUnblock function called in neighbor cores
   for (int i = 0; i < toMeshPort.size(); i++) {
     toMeshPort[i].tryUnblockNeighbor();

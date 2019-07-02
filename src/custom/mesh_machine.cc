@@ -1,6 +1,8 @@
 #include "custom/mesh_machine.hh"
 #include "cpu/simple/timing.hh"
 
+#include "debug/Mesh.hh"
+
 
 void
 MeshMachine::TickEvent::schedule(MeshStateInputs in_, Tick t)
@@ -29,6 +31,7 @@ MeshMachine::update(StateInputs inputs) {
 
 void
 MeshMachine::stateTransition() {
+  DPRINTF(Mesh, "transtion from state %d to state %d\n", state, nextState);
   state = nextState;
 }
 
@@ -100,7 +103,8 @@ MeshMachine::updateMachine(MeshStateInputs inputs) {
   MeshStateOutputs out = computeStateOutput(inputs);
   
   // schedule state to update based on these inputs in the next cycle
-  machineTick.schedule(inputs, cpu->clockEdge());
+  // NEEDS TO BE THE FIRST THING TO HAPPEN NEXT CYCLE
+  machineTick.schedule(inputs, cpu->clockEdge(Cycles(1)));
   
   return out;
 }
