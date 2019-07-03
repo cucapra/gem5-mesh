@@ -87,9 +87,9 @@ void *kernel(void* args) {
   // do a specific instruction on each core
   if (cid == 0) {
     
-    volatile int a;
+    int a;
     
-    BIND_EXE(RD_RIGHT);
+    /*BIND_EXE(RD_RIGHT);
     
     asm volatile (
       "addi %[x], x0, %[y]\n\t"
@@ -97,15 +97,20 @@ void *kernel(void* args) {
       : [y] "i" (2)
     );
     
-    BIND_EXE(RD_NORM);
+    BIND_EXE(RD_NORM);*/
+    
+    BINDED_SECTION(RD_RIGHT, ALL_NORM, 
+      "addi %[x], x0, %[y]\n\t", 
+      [x] "=r" (a), 
+      COMMA [y] "i" (2));
     
     
   }
   else if (cid == 3) {
     
-    volatile int b;
+    int b;
     
-    //WRITE_MESH_CSR(MESH_UP);
+    /*//WRITE_MESH_CSR(MESH_UP);
     BIND_EXE(RD_UP);
     asm volatile (
       "addi %[x], x0, %[y]\n\t" 
@@ -113,7 +118,13 @@ void *kernel(void* args) {
       : [y] "i" (2)
     );
     //WRITE_MESH_CSR(NO_MESH);
-    BIND_EXE(RD_NORM);
+    BIND_EXE(RD_NORM);*/
+    
+    BINDED_SECTION(RD_UP, ALL_NORM, 
+      "addi %[x], x0, %[y]\n\t", 
+      [x] "=r" (b), 
+      COMMA [y] "i" (2));
+    
   }
   else if (cid == 1) {
     /*BIND_EXE(RS1_UP | RS2_RIGHT);

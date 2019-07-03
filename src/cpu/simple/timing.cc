@@ -182,6 +182,7 @@ TimingSimpleCPU::setupAndHandshake() {
   // set valid and ready locally
   // actually this will be done by the statemachine
   //setValRdy();
+  _status = BindSync;
   
   // checkHandshake/try unblock locally
   tryUnblock(); // this should be called every cycle
@@ -201,6 +202,8 @@ TimingSimpleCPU::setupHandshake() {
   SimpleExecContext &t_info = *threadInfo[curThread];
   SimpleThread* thread = t_info.thread;
   uint64_t regVal;
+  
+  numPortsActive = 0;
   
   // foreach bind csr set val or rdy in the apprpriate port
   for (int i = 0; i < csrs.size(); i++) {
@@ -255,11 +258,6 @@ TimingSimpleCPU::getInVal() {
   return allVal;
 }
 
-int
-TimingSimpleCPU::getNumPortsActive() const {
-  return numPortsActive;
-}
-
 Fault
 TimingSimpleCPU::setRdy() {
   for (int i = 0; i < fromMeshPort.size(); i++) {
@@ -308,8 +306,8 @@ TimingSimpleCPU::resetActive() {
 Fault
 TimingSimpleCPU::tryUnblock() {
   // TODO integrate into the statemachine instead ... lazy!
-  if (numPortsActive == 0) return NoFault;
-  
+
+  if (numPortsActive > 0) {
   DPRINTF(Mesh, "out:\nactive %d %d %d %d\npair rdy %d %d %d %d\n\n",
     toMeshPort[0].getActive(), toMeshPort[1].getActive(), toMeshPort[2].getActive(), toMeshPort[3].getActive(),
     toMeshPort[0].getPairRdy(), toMeshPort[1].getPairRdy(), toMeshPort[2].getPairRdy(), toMeshPort[3].getPairRdy());
@@ -317,10 +315,10 @@ TimingSimpleCPU::tryUnblock() {
   DPRINTF(Mesh, "in:\nactive %d %d %d %d\npair val %d %d %d %d\n\n",
     fromMeshPort[0].getActive(), fromMeshPort[1].getActive(), fromMeshPort[2].getActive(), fromMeshPort[3].getActive(),
     fromMeshPort[0].getPairVal(), fromMeshPort[1].getPairVal(), fromMeshPort[2].getPairVal(), fromMeshPort[3].getPairVal());
-    
+  }
   // update state machine here?
   MeshMachine::MeshStateOutputs outputs = 
-    machine.updateMachine(MeshMachine::MeshStateInputs(getOutRdy(), getInVal(), false));
+    machine.updateMachine(MeshMachine::MeshStateInputs(getOutRdy(), getInVal(), false, (numPortsActive > 0)));
   
   
   // change things in the core based on statemachine outputs
@@ -358,9 +356,34 @@ TimingSimpleCPU::tryUnblock() {
     DPRINTF(Mesh, "Failed handshake\n");
   }
   
-  // stall processor until ready
-  if (handshake) _status = Running;
-  else _status = BindSync;
+  
+  /*if (_status != Running && _status != BindSync) {
+    DPRINTF(Mesh, "Got status %d\n", _status);
+    assert(0);
+  }*/
+  
+  // the processor could be doing something else when this update is requested
+  // only change the cpu state if in BindSync state (i.e. waiting for sync)
+  
+  // unstall the processor (stalled when first call bind)
+  if (_status == BindSync && handshake) {
+    _status = Running;
+    
+    // unblock the instruction and count it
+    Fault fault = NoFault;
+    
+    // keep an instruction count
+    if (fault == NoFault)
+        countInst();
+    else if (traceData) {
+        // If there was a fault, we shouldn't trace this instruction.
+        delete traceData;
+        traceData = NULL;
+    }
+
+    postExecute();
+    advanceInst(fault);
+  }
   
   return NoFault;
 }
@@ -1102,8 +1125,9 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
     if (pkt)
         pkt->req->setAccessLatency();
 
-
+    // setup curStaticInst based on the received instruction packet
     preExecute();
+    
     if (curStaticInst && curStaticInst->isMemRef()) {
         // load or store: just send to dcache
         Fault fault = curStaticInst->initiateAcc(&t_info, traceData);
@@ -1112,6 +1136,7 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
         // response callback or the instruction faulted and has started an
         // ifetch
         if (_status == BaseSimpleCPU::Running) {
+          DPRINTF(SimpleCPU, "no block on dcache load\n");
             if (fault != NoFault && traceData) {
                 // If there was a fault, we shouldn't trace this instruction.
                 delete traceData;
@@ -1125,12 +1150,16 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
                 instCnt++;
             advanceInst(fault);
         }
-    // pbb new instruction handling?
-    /*} else if (curStaticInst && curStaticInst->isBind()) {
-        DPRINTF(SimpleCPU, "Found bind inst\n");
-        toMeshPort.sendTimingReq(pkt);*/
+        else {
+          // always blocks!
+          DPRINTF(SimpleCPU, "Block on dcache load\n");
+        }
+    // pbb handle a bind instruction, advanceInst will be called
+    // from within bind
+    } else if (curStaticInst && curStaticInst->isBind()) {
+        Fault fault = curStaticInst->execute(&t_info, traceData);
     } else if (curStaticInst) {
-      
+      DPRINTF(SimpleCPU, "advance inst on fetch\n");
         // non-memory instruction: execute completely now
         Fault fault = curStaticInst->execute(&t_info, traceData);
 
@@ -1149,6 +1178,7 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
             instCnt++;
         advanceInst(fault);
     } else {
+      DPRINTF(SimpleCPU, "advance inst on fetch null\n");
         advanceInst(NoFault);
     }
     

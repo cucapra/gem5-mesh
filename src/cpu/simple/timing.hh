@@ -298,7 +298,6 @@ class TimingSimpleCPU : public BaseSimpleCPU
     Fault setRdy();
     Fault resetVal();
     Fault resetRdy();
-    int getNumPortsActive() const;
 
     DrainState drain() override;
     void drainResume() override;

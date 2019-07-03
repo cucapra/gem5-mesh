@@ -448,7 +448,9 @@ class SimpleExecContext : public ExecContext {
         thread->setMiscReg(misc_reg, val);
         
         // pbb potentially need to halt cpu here, if operation is blocking
-        cpu->setupAndHandshake();
+        if (MeshHelper::isBindCSR(misc_reg)) {
+          cpu->setupAndHandshake();
+        }
         
     }
 

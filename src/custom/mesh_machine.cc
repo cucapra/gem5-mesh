@@ -39,7 +39,7 @@ void
 MeshMachine::computeNextState(MeshStateInputs inputs) {
   switch(state) {
     case Not_Sending:
-      if (inputs.outRdy && inputs.inVal) {
+      if (inputs.outRdy && inputs.inVal && inputs.anyActive) {
         nextState = Sending;
       }
       else {
@@ -66,8 +66,13 @@ MeshMachine::computeStateOutput(MeshStateInputs inputs) {
   
   switch(state) {
     case Not_Sending:
+      // if none active don't do anything
+      if (!inputs.anyActive) {
+        out.selfVal = false;
+        out.selfRdy = false;
+      }
       // if we have a pkt stored we can't accept another one
-      if (inputs.storedPkt) {
+      else if (inputs.storedPkt) {
         out.selfVal = true;
         out.selfRdy = false;
       }
@@ -104,7 +109,7 @@ MeshMachine::updateMachine(MeshStateInputs inputs) {
   
   // schedule state to update based on these inputs in the next cycle
   // NEEDS TO BE THE FIRST THING TO HAPPEN NEXT CYCLE
-  machineTick.schedule(inputs, cpu->clockEdge(Cycles(1)));
+  machineTick.schedule(inputs, cpu->clockEdge(/*Cycles(1)*/));
   
   return out;
 }

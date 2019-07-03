@@ -19,9 +19,13 @@ class MeshMachine {
       bool outRdy;
       bool inVal;
       bool storedPkt;
+      bool anyActive;
       
-      MeshStateInputs(bool outRdy, bool inVal, bool storedPkt) : 
-        outRdy(outRdy), inVal(inVal), storedPkt(storedPkt) {}
+      MeshStateInputs() :
+        outRdy(0), inVal(0), storedPkt(0), anyActive(0) {}
+      
+      MeshStateInputs(bool outRdy, bool inVal, bool storedPkt, bool anyActive) : 
+        outRdy(outRdy), inVal(inVal), storedPkt(storedPkt), anyActive(anyActive) {}
     };
   
     struct MeshStateOutputs {
@@ -54,7 +58,7 @@ class MeshMachine {
       TimingSimpleCPU *cpu;
       MeshMachine *machine;
 
-      TickEvent(TimingSimpleCPU *_cpu, MeshMachine *_mach) : inputs(MeshStateInputs(0, 0, 0)), cpu(_cpu), machine(_mach) {}
+      TickEvent(TimingSimpleCPU *_cpu, MeshMachine *_mach) : inputs(MeshStateInputs()), cpu(_cpu), machine(_mach) {}
       const char *description() const { return "Timing CPU tick"; }
       void schedule(MeshStateInputs in_, Tick t);
       
