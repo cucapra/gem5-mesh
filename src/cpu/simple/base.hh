@@ -61,6 +61,8 @@
 #include "sim/full_system.hh"
 #include "sim/system.hh"
 
+#include "custom/mesh_helper.hh"
+
 // forward declarations
 class Checkpoint;
 class Process;
@@ -181,6 +183,9 @@ class BaseSimpleCPU : public BaseCPU
     // block on binds if val/rdy isn't asserted
     virtual Fault setupAndHandshake()
       { panic("setupAndHandshake() is not implemented\n"); }
+    
+    virtual uint64_t getMeshPortData(Mesh_Dir dir)
+      { panic("getMeshPortData() is not implemented\n"); }
     
     // function to get access to the csrs for maninpulation
     uint64_t getExeCSR();

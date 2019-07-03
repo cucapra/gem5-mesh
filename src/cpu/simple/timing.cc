@@ -397,6 +397,16 @@ TimingSimpleCPU::handshakeNeighbors() {
   }
 }
 
+uint64_t
+TimingSimpleCPU::getMeshPortData(Mesh_Dir dir) {
+  return fromMeshPort[dir].getPacketData();
+}
+
+/*void
+TimingSimpleCPU::setPortPacket(PacketPtr pkt, Mesh_Dir dir) {
+  fromMeshPort[dir].setPacket(pkt);
+}*/
+
 /*----------------------------------------------------------------------
  * Define normal processor behavior
  *--------------------------------------------------------------------*/ 
@@ -423,6 +433,10 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
         fromMeshPort.emplace_back(this, i);
     }
     
+    // keep in mind that you shouldn't use 'this' within objects that are declared as vec?
+    /*for (int i = 0; i < 4; i++) {
+      DPRINTF(Mesh, "ptrs %ld\n", (uint64_t)(&(fromMeshPort[i])));
+    }*/
 }
 
 

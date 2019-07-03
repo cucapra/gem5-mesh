@@ -106,6 +106,8 @@ class ToMeshPort : public TimingCPUMasterPort {
     
 };
 
+class FromMeshPort;
+
 // similar purpose as TimingCPUPort (derived from master port)
 class TimingCPUSlavePort : public SlavePort {
   public:
@@ -151,7 +153,7 @@ class FromMeshPort : public TimingCPUSlavePort {
     virtual AddrRangeList getAddrRanges() const;
 
     // get the packet from the port
-    PacketPtr getPacket();
+    uint64_t getPacketData();
 
     void setRdy(bool val);
     bool getRdy() const { return rdy; }
@@ -177,17 +179,26 @@ class FromMeshPort : public TimingCPUSlavePort {
     virtual Tick recvAtomic(PacketPtr pkt) { panic("recvAtomic unimpl"); };
     virtual void recvFunctional(PacketPtr pkt);
 
+  /*
     // the event to put on the event queue when a resp is received
     struct MITickEvent : public TickEvent
     {
+      // for some reason the port is changing its base addr after
+      // being initialized, so this pointer is instantly bad
+        FromMeshPort *port;
 
         MITickEvent(TimingSimpleCPU *_cpu)
             : TickEvent(_cpu) {}
-        void process();
+        void process() override;
         const char *description() const { return "Mesh to timing CPU tick"; }
     };
 
     MITickEvent tickEvent;
+  */
+  // packet to be received after clk edge
+    PacketPtr recvPkt_d;
+    EventFunctionWrapper recvEvent;
+    void process();
     
     // store the most recently received packet (in a single register)
     PacketPtr recvPkt;

@@ -188,8 +188,8 @@ class SimpleExecContext : public ExecContext {
             (idx == 1 && MeshHelper::csrToOp2(csrVal, dir[1]))) {
             
             // need to do a port lookup here to get the right value
-            //return cpu->
-            return 0;
+            return cpu->getMeshPortData(dir[idx]);
+            //return 0;
         }
         // normal behavior
         else {

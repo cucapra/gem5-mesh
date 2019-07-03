@@ -298,6 +298,9 @@ class TimingSimpleCPU : public BaseSimpleCPU
     Fault setRdy();
     Fault resetVal();
     Fault resetRdy();
+    uint64_t getMeshPortData(Mesh_Dir dir) override;
+    // set transient (maybe reged?) port packet
+    //void setPortPacket(Mesh_Dir dir);
 
     DrainState drain() override;
     void drainResume() override;

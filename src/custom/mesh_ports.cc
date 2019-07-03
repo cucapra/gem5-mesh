@@ -143,23 +143,33 @@ ToMeshPort::beginToSend() {
 FromMeshPort::FromMeshPort(TimingSimpleCPU *_cpu, int idx)
         : TimingCPUSlavePort(
           _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), 
-          idx, _cpu), tickEvent(_cpu), rdy(false), active(false)
-    { }
+          idx, _cpu), recvPkt_d(nullptr), recvEvent([this] { process(); }, name()), 
+          recvPkt(nullptr), rdy(false), active(false)
+    { 
+      //DPRINTF(Mesh, "init %d %d %ld %ld\n", rdy, active, (uint64_t)recvPkt, (uint64_t)this);
+      }
 
 // how to handle a request after waiting for some delay
 void
-FromMeshPort::MITickEvent::process(){
-  // cpu->dostuff();
+FromMeshPort::process(){
+  //DPRINTF(Mesh, "this %ld\n", (uint64_t)port);
+  // save the received packet
+  setPacket(recvPkt_d);
 }
 
 bool 
 FromMeshPort::recvTimingReq(PacketPtr pkt) {
+  //DPRINTF(Mesh, "recvresp packet %ld %ld\n", (uint64_t)recvPkt, (uint64_t)this);
   DPRINTF(Mesh, "Received mesh request %#x with data \n", pkt->getAddr());
     // we should only ever see one response per cycle since we only
     // issue a new request once this response is sunk
-    assert(!tickEvent.scheduled());
+    //assert(!tickEvent.scheduled());
+    assert(!recvEvent.scheduled());
     // delay processing of returned data until next CPU clock edge
-    tickEvent.schedule(pkt, cpu->clockEdge());
+    //tickEvent.schedule(pkt, cpu->clockEdge());
+    recvPkt_d = pkt;
+    //recvEvent.schedule(cpu->clockEdge());
+    cpu->schedule(recvEvent, cpu->clockEdge());
 
     return true;
 }
@@ -183,11 +193,17 @@ FromMeshPort::getAddrRanges() const {
   return std::list<AddrRange>();
 }
 
-PacketPtr
-FromMeshPort::getPacket() {
-  PacketPtr ret = recvPkt;
+uint64_t
+FromMeshPort::getPacketData() {
+  if (recvPkt == nullptr) {
+    DPRINTF(Mesh, "Did not recv packet\n");
+    return 0;
+  }
+  
+  uint64_t data = recvPkt->getUintX(BigEndianByteOrder);
+  
   recvPkt = nullptr;
-  return ret;
+  return data;
 }
 
 void
@@ -223,6 +239,6 @@ FromMeshPort::getPairVal() {
 }
 
 void
-FromMeshPort::tryUnblockCPU() { 
+FromMeshPort::tryUnblockCPU() {
   cpu->tryUnblock(); 
 }
