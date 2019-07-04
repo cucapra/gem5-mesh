@@ -361,7 +361,7 @@ TimingSimpleCPU::tryUnblock() {
   // don't do machine update here?
   // b/c implies send? need another state otherwise
   //meshMachineTick();
-  setRdy();
+  /*setRdy();
   
   bool handshake = true;
   
@@ -383,7 +383,7 @@ TimingSimpleCPU::tryUnblock() {
   else {
     DPRINTF(Mesh, "Failed handshake\n");
   }
-  
+  */
   
   /*if (_status != Running && _status != BindSync) {
     DPRINTF(Mesh, "Got status %d\n", _status);
@@ -394,23 +394,8 @@ TimingSimpleCPU::tryUnblock() {
   // only change the cpu state if in BindSync state (i.e. waiting for sync)
   
   // unstall the processor (stalled when first call bind)
-  if (_status == BindSync && handshake) {
-    _status = Running;
-    
-    // unblock the instruction and count it
-    Fault fault = NoFault;
-    
-    // keep an instruction count
-    if (fault == NoFault)
-        countInst();
-    else if (traceData) {
-        // If there was a fault, we shouldn't trace this instruction.
-        delete traceData;
-        traceData = NULL;
-    }
-
-    postExecute();
-    advanceInst(fault);
+  if (_status == BindSync) {
+    tryInstruction();
   }
   
   return NoFault;
@@ -516,12 +501,16 @@ TimingSimpleCPU::tryInstruction() {
     } else if (curStaticInst) {
       DPRINTF(SimpleCPU, "advance inst on fetch\n");
       // check if the src and dests are rdy (otherwise block)
-      /*bool ok = checkOpsValRdy();
+      bool ok = checkOpsValRdy();
       if (ok) _status = Running;
-      else _status = BindSync;*/
+      else _status = BindSync;
       
+      if (numPortsActive > 0) {
+        setRdy();
+      }
       // temp
-      _status = Running;
+      //_status = Running;
+      
       if (_status == Running) {
       
         // set self as rdy if passed val/rdy check
