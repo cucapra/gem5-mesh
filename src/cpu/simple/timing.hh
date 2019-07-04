@@ -271,6 +271,14 @@ class TimingSimpleCPU : public BaseSimpleCPU
     MeshMachine machine;
     
     int numPortsActive;
+    
+    // need to update the machine when blocked
+    EventFunctionWrapper machineTickEvent;
+    
+    // update state on the next cycle
+    bool nextVal;
+    bool nextRdy;
+    EventFunctionWrapper setValRdyEvent;
 
   protected:
     // pbb override function that maps ports declared and connected in 
@@ -292,15 +300,25 @@ class TimingSimpleCPU : public BaseSimpleCPU
     void setupHandshake();
     Fault tryUnblock();
     void handshakeNeighbors();
+    void informNeighbors();
+    
     bool getOutRdy();
     bool getInVal();
+    bool checkOpsValRdy();
+    
     Fault setVal();
     Fault setRdy();
     Fault resetVal();
     Fault resetRdy();
+    void setNextValRdy();
+    void tryInstruction();
+    
+    
+    
     uint64_t getMeshPortData(Mesh_Dir dir) override;
     // set transient (maybe reged?) port packet
     //void setPortPacket(Mesh_Dir dir);
+    void meshMachineTick();
 
     DrainState drain() override;
     void drainResume() override;

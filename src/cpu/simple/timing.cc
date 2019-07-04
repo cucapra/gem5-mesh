@@ -140,20 +140,29 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
   PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
   new_pkt->dataDynamic(data);
   
-  // check that the port we're going to send to is rdy
-  // if it's not rdy then we need to inform sender that we're not rdy
-  // and save this packet until the port becomes ready
-  /*if (toMeshPort[dir].checkHandshake()) {
+  //if (toMeshPort[dir].checkHandshake()) {
+  if (getOutRdy()) {
     DPRINTF(Mesh, "Port not ready so buffering packet %#x\n", addr);
     toMeshPort[dir].failToSend(new_pkt);
+    
+    nextVal = true;
+    nextRdy = true;
+    schedule(setValRdyEvent, clockEdge());
   }
   else {
     DPRINTF(Mesh, "Sending mesh request %#x\n", addr);
     toMeshPort[dir].sendTimingReq(new_pkt);
-  }*/
+    
+    nextVal = true;
+    nextRdy = false;
+    schedule(setValRdyEvent, clockEdge());
+  }
   
-  DPRINTF(Mesh, "Sending mesh request %#x\n", addr);
-  toMeshPort[dir].sendTimingReq(new_pkt);
+  // schedule machinetick for the next cycle? if failed to send.
+  // then need to remove valid
+  // if sucessfully send then need to assert valid next cycle
+  //meshMachineTick();
+  //schedule(machineTickEvent, clockEdge());
   
   return NoFault;
 }
@@ -179,6 +188,7 @@ TimingSimpleCPU::setupAndHandshake() {
   //setup required handshake ports
   setupHandshake();
   
+  /*
   // set valid and ready locally
   // actually this will be done by the statemachine
   //setValRdy();
@@ -189,7 +199,7 @@ TimingSimpleCPU::setupAndHandshake() {
   
   // call checkHandshake in the external cores now that here's been an upadte
   handshakeNeighbors();
-  
+  */
   return NoFault;
 }
 
@@ -264,6 +274,9 @@ TimingSimpleCPU::setRdy() {
     fromMeshPort[i].setRdyIfActive();
   }
   
+  // inform neighbors of state update so they can potentially unblock
+  informNeighbors();
+  
   return NoFault;
 }
 
@@ -273,6 +286,8 @@ TimingSimpleCPU::setVal() {
     toMeshPort[i].setValIfActive();
   }
   
+  informNeighbors();
+  
   return NoFault;
 }
 
@@ -281,14 +296,20 @@ TimingSimpleCPU::resetRdy() {
   for (int i = 0; i < fromMeshPort.size(); i++) {
     fromMeshPort[i].setRdy(false);
   }
+  
+  informNeighbors();
+  
   return NoFault;
 }
 
 Fault
 TimingSimpleCPU::resetVal() {
   for (int i = 0; i < toMeshPort.size(); i++) {
-    toMeshPort[i].setValIfActive();
+    toMeshPort[i].setVal(false);
   }
+  
+  informNeighbors();
+  
   return NoFault;
 }
 
@@ -303,23 +324,11 @@ TimingSimpleCPU::resetActive() {
   }
 }*/
 
-Fault
-TimingSimpleCPU::tryUnblock() {
-  // TODO integrate into the statemachine instead ... lazy!
-
-  if (numPortsActive > 0) {
-  DPRINTF(Mesh, "out:\nactive %d %d %d %d\npair rdy %d %d %d %d\n\n",
-    toMeshPort[0].getActive(), toMeshPort[1].getActive(), toMeshPort[2].getActive(), toMeshPort[3].getActive(),
-    toMeshPort[0].getPairRdy(), toMeshPort[1].getPairRdy(), toMeshPort[2].getPairRdy(), toMeshPort[3].getPairRdy());
-
-  DPRINTF(Mesh, "in:\nactive %d %d %d %d\npair val %d %d %d %d\n\n",
-    fromMeshPort[0].getActive(), fromMeshPort[1].getActive(), fromMeshPort[2].getActive(), fromMeshPort[3].getActive(),
-    fromMeshPort[0].getPairVal(), fromMeshPort[1].getPairVal(), fromMeshPort[2].getPairVal(), fromMeshPort[3].getPairVal());
-  }
+void
+TimingSimpleCPU::meshMachineTick() {
   // update state machine here?
   MeshMachine::MeshStateOutputs outputs = 
     machine.updateMachine(MeshMachine::MeshStateInputs(getOutRdy(), getInVal(), false, (numPortsActive > 0)));
-  
   
   // change things in the core based on statemachine outputs
   if (outputs.selfRdy) {
@@ -333,7 +342,26 @@ TimingSimpleCPU::tryUnblock() {
     setVal();
   }
   else resetVal();
+}
+
+Fault
+TimingSimpleCPU::tryUnblock() {
+  // TODO integrate into the statemachine instead ... lazy!
+
+  if (numPortsActive > 0) {
+  DPRINTF(Mesh, "out:\nactive %d %d %d %d\npair rdy %d %d %d %d\n\n",
+    toMeshPort[0].getActive(), toMeshPort[1].getActive(), toMeshPort[2].getActive(), toMeshPort[3].getActive(),
+    toMeshPort[0].getPairRdy(), toMeshPort[1].getPairRdy(), toMeshPort[2].getPairRdy(), toMeshPort[3].getPairRdy());
+
+  DPRINTF(Mesh, "in:\nactive %d %d %d %d\npair val %d %d %d %d\n\n",
+    fromMeshPort[0].getActive(), fromMeshPort[1].getActive(), fromMeshPort[2].getActive(), fromMeshPort[3].getActive(),
+    fromMeshPort[0].getPairVal(), fromMeshPort[1].getPairVal(), fromMeshPort[2].getPairVal(), fromMeshPort[3].getPairVal());
+  }
   
+  // don't do machine update here?
+  // b/c implies send? need another state otherwise
+  //meshMachineTick();
+  setRdy();
   
   bool handshake = true;
   
@@ -388,6 +416,7 @@ TimingSimpleCPU::tryUnblock() {
   return NoFault;
 }
 
+// flag deletion
 void
 TimingSimpleCPU::handshakeNeighbors() {
   DPRINTF(Mesh, "notify neighbors\n");
@@ -396,6 +425,16 @@ TimingSimpleCPU::handshakeNeighbors() {
     toMeshPort[i].tryUnblockNeighbor();
   }
 }
+
+void
+TimingSimpleCPU::informNeighbors() {
+  DPRINTF(Mesh, "notify neighbors\n");
+  // go through mesh ports to get tryUnblock function called in neighbor cores
+  for (int i = 0; i < toMeshPort.size(); i++) {
+    toMeshPort[i].tryUnblockNeighbor();
+  }
+}
+
 
 uint64_t
 TimingSimpleCPU::getMeshPortData(Mesh_Dir dir) {
@@ -407,6 +446,117 @@ TimingSimpleCPU::setPortPacket(PacketPtr pkt, Mesh_Dir dir) {
   fromMeshPort[dir].setPacket(pkt);
 }*/
 
+
+// check whether val/rdy for src/dest needed by instruction
+// ret and the caller should block if not true
+
+// will be 0 if don't care, TODO implement don't cares
+
+bool
+TimingSimpleCPU::checkOpsValRdy() {
+  //curStaticInst->destRegIdx(0);
+  //curStaticInst->srcRegIdx(0);
+  
+  // figure out which operands matter TODO addi where one taken from outside
+  //DPRINTF(Mesh, "%d %d %d\n", curStaticInst->destRegIdx(0), 
+  //  curStaticInst->srcRegIdx(0), curStaticInst->srcRegIdx(1));
+    
+  // see if the ports associated are ready
+  bool outRdy = getOutRdy();
+  bool inVal = getInVal();
+  
+  return (outRdy && inVal);
+  
+}
+
+void
+TimingSimpleCPU::setNextValRdy() {
+  if (nextVal) setVal();
+  else resetVal();
+  
+  if (nextRdy) setRdy();
+  else resetRdy();
+}
+
+void
+TimingSimpleCPU::tryInstruction() {
+  
+  SimpleExecContext& t_info = *threadInfo[curThread];
+  
+  if (curStaticInst && curStaticInst->isMemRef()) {
+        // load or store: just send to dcache
+        Fault fault = curStaticInst->initiateAcc(&t_info, traceData);
+
+        // If we're not running now the instruction will complete in a dcache
+        // response callback or the instruction faulted and has started an
+        // ifetch
+        if (_status == BaseSimpleCPU::Running) {
+          DPRINTF(SimpleCPU, "no block on dcache load\n");
+            if (fault != NoFault && traceData) {
+                // If there was a fault, we shouldn't trace this instruction.
+                delete traceData;
+                traceData = NULL;
+            }
+
+            postExecute();
+            // @todo remove me after debugging with legion done
+            if (curStaticInst && (!curStaticInst->isMicroop() ||
+                        curStaticInst->isFirstMicroop()))
+                instCnt++;
+            advanceInst(fault);
+        }
+        else {
+          // always blocks!
+          DPRINTF(SimpleCPU, "Block on dcache load\n");
+        }
+    // pbb handle a bind instruction, advanceInst will be called
+    // from within bind
+    /*} else if (curStaticInst && curStaticInst->isBind()) {
+        Fault fault = curStaticInst->execute(&t_info, traceData);*/
+    } else if (curStaticInst) {
+      DPRINTF(SimpleCPU, "advance inst on fetch\n");
+      // check if the src and dests are rdy (otherwise block)
+      /*bool ok = checkOpsValRdy();
+      if (ok) _status = Running;
+      else _status = BindSync;*/
+      
+      // temp
+      _status = Running;
+      if (_status == Running) {
+      
+        // set self as rdy if passed val/rdy check
+        //setRdy();
+      
+        // non-memory instruction: execute completely now
+        Fault fault = curStaticInst->execute(&t_info, traceData);
+
+        // keep an instruction count
+        if (fault == NoFault)
+            countInst();
+        else if (traceData && !DTRACE(ExecFaulting)) {
+            delete traceData;
+            traceData = NULL;
+        }
+
+        postExecute();
+        // @todo remove me after debugging with legion done
+        if (curStaticInst && (!curStaticInst->isMicroop() ||
+                curStaticInst->isFirstMicroop()))
+            instCnt++;
+        advanceInst(fault);
+      }
+      else {
+        // not rdy or val if blocking?
+        //setRdy();
+        DPRINTF(Mesh, "Mesh blocking\n");
+      }
+    } else {
+      DPRINTF(SimpleCPU, "advance inst on fetch null\n");
+        advanceInst(NoFault);
+    }
+  
+}
+
 /*----------------------------------------------------------------------
  * Define normal processor behavior
  *--------------------------------------------------------------------*/ 
@@ -416,7 +566,11 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0)
       
       // begin additions (needs to be in order declared in .hh)
-      , machine(this), numPortsActive(0),
+      , machine(this), numPortsActive(0), 
+      machineTickEvent([this] { meshMachineTick(); }, name()),
+      
+      nextVal(0), nextRdy(0), setValRdyEvent([this] { setNextValRdy(); }, name()),
+      
       // end additions
       
       fetchEvent([this]{ fetch(); }, name())
@@ -1121,7 +1275,7 @@ TimingSimpleCPU::advanceInst(const Fault &fault)
 void
 TimingSimpleCPU::completeIfetch(PacketPtr pkt)
 {
-    SimpleExecContext& t_info = *threadInfo[curThread];
+    //SimpleExecContext& t_info = *threadInfo[curThread];
 
     DPRINTF(SimpleCPU, "Complete ICache Fetch for addr %#x\n", pkt ?
             pkt->getAddr() : 0);
@@ -1142,7 +1296,9 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
     // setup curStaticInst based on the received instruction packet
     preExecute();
     
-    if (curStaticInst && curStaticInst->isMemRef()) {
+    tryInstruction();
+    
+    /*if (curStaticInst && curStaticInst->isMemRef()) {
         // load or store: just send to dcache
         Fault fault = curStaticInst->initiateAcc(&t_info, traceData);
 
@@ -1168,12 +1324,18 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
           // always blocks!
           DPRINTF(SimpleCPU, "Block on dcache load\n");
         }
-    // pbb handle a bind instruction, advanceInst will be called
-    // from within bind
-    } else if (curStaticInst && curStaticInst->isBind()) {
-        Fault fault = curStaticInst->execute(&t_info, traceData);
     } else if (curStaticInst) {
       DPRINTF(SimpleCPU, "advance inst on fetch\n");
+      // check if the src and dests are rdy (otherwise block)
+      bool ok = checkOpsValRdy();
+      if (ok) _status = Running;
+      else _status = BindSync;
+      
+      if (_status == Running) {
+      
+        // set self as rdy if passed val/rdy check
+        setRdy();
+      
         // non-memory instruction: execute completely now
         Fault fault = curStaticInst->execute(&t_info, traceData);
 
@@ -1191,10 +1353,17 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
                 curStaticInst->isFirstMicroop()))
             instCnt++;
         advanceInst(fault);
+      }
+      else {
+        // not rdy or val if blocking?
+        resetRdy();
+        resetVal();
+        DPRINTF(Mesh, "Mesh blocking\n");
+      }
     } else {
       DPRINTF(SimpleCPU, "advance inst on fetch null\n");
         advanceInst(NoFault);
-    }
+    }*/
     
     // pbb lets check if the mesh csr is written as it will effect 
     // processor behavior

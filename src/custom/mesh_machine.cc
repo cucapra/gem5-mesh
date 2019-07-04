@@ -3,20 +3,33 @@
 
 #include "debug/Mesh.hh"
 
+MeshMachine::MeshMachine(TimingSimpleCPU *_cpu)
+        : cpu(_cpu),  machineTick([this] { process(); }, cpu->name()),
+            state(Not_Sending), nextState(Not_Sending)
+        { }
 
-void
+/*void
 MeshMachine::TickEvent::schedule(MeshStateInputs in_, Tick t)
 {
     inputs = in_;
     
     // schedule process
     cpu->schedule(this, t); 
-}
+}*/
 
 void
-MeshMachine::TickEvent::process() {
+MeshMachine::process() {
   // update that state
-  machine->stateTransition();
+  stateTransition();
+  
+  /*
+  computeNextState(inputs);
+  MeshStateOutputs out = computeStateOutput(inputs);
+  
+  // schedule state to update based on these inputs in the next cycle
+  // NEEDS TO BE THE FIRST THING TO HAPPEN NEXT CYCLE
+  machineTick.schedule(inputs, cpu->clockEdge());
+  */
 }
 
 /*void
@@ -99,9 +112,9 @@ MeshMachine::MeshStateOutputs
 MeshMachine::updateMachine(MeshStateInputs inputs) {
   
   // remove the old state transition b/c inputs this cycle changed again
-  if (machineTick.scheduled()) {
+  /*if (machineTick.scheduled()) {
     machineTick.squash();
-  }
+  }*/
   
   // get next state and do any state output stuff
   computeNextState(inputs);
@@ -109,7 +122,9 @@ MeshMachine::updateMachine(MeshStateInputs inputs) {
   
   // schedule state to update based on these inputs in the next cycle
   // NEEDS TO BE THE FIRST THING TO HAPPEN NEXT CYCLE
-  machineTick.schedule(inputs, cpu->clockEdge(/*Cycles(1)*/));
+  if (!machineTick.scheduled()) {
+    cpu->schedule(machineTick, cpu->clockEdge(/*Cycles(1)*/));
+  }
   
   return out;
 }

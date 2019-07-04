@@ -240,5 +240,5 @@ FromMeshPort::getPairVal() {
 
 void
 FromMeshPort::tryUnblockCPU() {
-  cpu->tryUnblock(); 
+  cpu->tryInstruction(); 
 }

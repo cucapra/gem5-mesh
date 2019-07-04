@@ -51,7 +51,7 @@ class MeshMachine {
   
     TimingSimpleCPU *cpu;
     
-    struct TickEvent : public Event
+    /*struct TickEvent : public Event
     {
       MeshStateInputs inputs;
       
@@ -64,9 +64,15 @@ class MeshMachine {
       
       // overriden
       void process();
-    };
+    };*/
     
-    TickEvent machineTick;
+    //TickEvent machineTick;
+    
+    //MeshStateInputs inputs;
+    
+    void process();
+    void tick();
+    EventFunctionWrapper machineTick;
     
     enum State {
       Not_Sending = 0,
@@ -84,10 +90,10 @@ class MeshMachine {
   
   
   public:
-    MeshMachine(TimingSimpleCPU *_cpu)
-            : cpu(_cpu), machineTick(_cpu, this),
+    MeshMachine(TimingSimpleCPU *_cpu);
+        /*    : cpu(_cpu),  machineTick([this] { process(); }, cpu->name()),
             state(Not_Sending), nextState(Not_Sending)
-        { }
+        { }*/
   
   
   
