@@ -227,7 +227,7 @@ TimingSimpleCPU::setupHandshake() {
   SimpleThread* thread = t_info.thread;
   uint64_t regVal;
   
-  numPortsActive = 0;
+  resetActive();
   
   // foreach bind csr set val or rdy in the apprpriate port
   for (int i = 0; i < csrs.size(); i++) {
@@ -269,13 +269,18 @@ TimingSimpleCPU::getOutRdy() {
   return allRdy;
 }
 
+// check if input packets are valid
+// in RTL this wuold be a valid signal that is updated every cycle
+// however in cycle level simulators, NULL exists so if there's
+// a new packet then its valid otherwise its invalid
 bool
 TimingSimpleCPU::getInVal() {
    bool allVal = true;
   
   for (int i = 0; i < fromMeshPort.size(); i++) {
     if (fromMeshPort[i].getActive()) {
-      if (!fromMeshPort[i].getPairVal()) allVal = false;
+      //if (!fromMeshPort[i].getPairVal()) allVal = false;
+      if (!fromMeshPort[i].pktExists()) allVal = false;
     }
   }
   
@@ -340,8 +345,10 @@ TimingSimpleCPU::resetVal() {
   return NoFault;
 }
 
-/*Fault
+Fault
 TimingSimpleCPU::resetActive() {
+  numPortsActive = 0;
+  
   for (int i = 0; i < fromMeshPort.size(); i++) {
     fromMeshPort[i].setActive(false);
   }
@@ -349,7 +356,9 @@ TimingSimpleCPU::resetActive() {
   for (int i = 0; i < toMeshPort.size(); i++) {
     toMeshPort[i].setActive(false);
   }
-}*/
+  
+  return NoFault;
+}
 
 Fault
 TimingSimpleCPU::tryUnblock() {
@@ -492,17 +501,16 @@ TimingSimpleCPU::tryInstruction() {
       DPRINTF(SimpleCPU, "advance inst on fetch\n");
       // check if the src and dests are rdy (otherwise block)
       
-      bool ok = checkOpsValRdy();
-      if (curStaticInst->isBind()) {
-        DPRINTF(Mesh, "Encounter bind instruction %d\n", ok);
-      }
+      if (!curStaticInst->isBind()) {
       
+      bool ok = checkOpsValRdy();
       if (ok) _status = Running;
       else _status = BindSync;
       
       if (numPortsActive > 0) {
         setRdy();
       }
+    }
       
       if (_status == Running) {
       

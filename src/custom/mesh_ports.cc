@@ -183,6 +183,9 @@ FromMeshPort::recvTimingReq(PacketPtr pkt) {
     // temp
     setPacket(pkt);
 
+    // try to unblock when recv a packet
+    cpu->tryUnblock();
+
     return true;
 }
 
@@ -212,9 +215,12 @@ FromMeshPort::getPacketData() {
     return 0;
   }
   
+  // get data from packet
   uint64_t data = recvPkt->getUintX(LittleEndianByteOrder);
   
+  // destructive read on packet
   recvPkt = nullptr;
+  
   return data;
 }
 

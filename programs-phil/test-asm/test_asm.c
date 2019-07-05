@@ -51,11 +51,11 @@
 // within the binds we enforce with a single asm volatile
 #define BINDED_SECTION(sbind, ebind, code, wr, rd)  \
   asm volatile (                                    \
-    ".insn u 0x6b, x0, %[b0]\n\t"                 \
+    ".insn u 0x6b, x0, %[bind0]\n\t"                 \
     code                                            \
-    ".insn u 0x6b, x0, %[b1]\n\t"                 \
+    ".insn u 0x6b, x0, %[bind1]\n\t"                 \
     : wr                                            \
-    : [b0] "i" (sbind), [b1] "i" (ebind) rd        \
+    : [bind0] "i" (sbind), [bind1] "i" (ebind) rd        \
   )
 
 
@@ -80,74 +80,46 @@ void *kernel(void* args) {
   // from finishing early
   pthread_barrier_wait(&start_barrier);
   
-  
-  
-  
-  
   // do a specific instruction on each core
   if (cid == 0) {
     
-    int a;
-    
-    /*BIND_EXE(RD_RIGHT);
-    
-    asm volatile (
-      "addi %[x], x0, %[y]\n\t"
-      : [x] "=r" (a)
-      : [y] "i" (2)
-    );
-    
-    BIND_EXE(RD_NORM);*/
+    int a0, a1;
     
     BINDED_SECTION(RD_RIGHT, ALL_NORM, 
-      "addi %[x], x0, %[y]\n\t", 
-      [x] "=r" (a), 
-      COMMA [y] "i" (2));
+      "addi %[a0], x0, %[i0]\n\t"
+      "addi %[a1], x0, %[i1]\n\t"
+      ,
+      [a0] "=r" (a0) COMMA [a1] "=r" (a1),
+      COMMA [i0] "i" (2) COMMA [i1] "i" (27));
     
     
   }
   else if (cid == 3) {
     
-    int b;
-    
-    /*//WRITE_MESH_CSR(MESH_UP);
-    BIND_EXE(RD_UP);
-    asm volatile (
-      "addi %[x], x0, %[y]\n\t" 
-      : [x] "=r" (b)
-      : [y] "i" (2)
-    );
-    //WRITE_MESH_CSR(NO_MESH);
-    BIND_EXE(RD_NORM);*/
+    int b0, b1;
     
     BINDED_SECTION(RD_UP, ALL_NORM, 
-      "addi %[x], x0, %[y]\n\t", 
-      [x] "=r" (b), 
-      COMMA [y] "i" (10));
+      "addi %[b0], x0, %[i0]\n\t"
+      "addi %[b1], x0, %[i1]\n\t"
+      ,
+      [b0] "=r" (b0) COMMA [b1] "=r" (b1),
+      COMMA [i0] "i" (10) COMMA [i1] "i" (7));
     
   }
   else if (cid == 1) {
-    /*BIND_EXE(RS1_UP | RS2_RIGHT);
-    volatile int c;
-    asm volatile (
-      "add %[x], x1, x2\n\t" 
-      : [x] "=r" (c)
-      : 
-    );
     
-    // an instrcution is being put between here!
-    BIND_EXE(ALL_NORM);*/
-    
-    int c;
+    int c0, c1;
     int a = 2;
     int b = 2;
     BINDED_SECTION(RS1_DOWN | RS2_LEFT, ALL_NORM, 
-      "add %[x], %[y], %[z]\n\t", 
-      [x] "=r" (c), 
-      COMMA [y] "r" (a) COMMA [z] "r" (b));
+      "add %[c0], %[a], %[b]\n\t"
+      "add %[c1], %[a], %[b]\n\t"
+      , 
+      [c0] "=r" (c0) COMMA [c1] "=r" (c1), 
+      COMMA [a] "r" (a) COMMA [b] "r" (b));
       
     
-    printf("%d\n", c);
+    printf("%d %d\n", c0, c1);
   }
   
 }

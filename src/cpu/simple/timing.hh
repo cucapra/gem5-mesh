@@ -323,6 +323,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
     Fault setRdy();
     Fault resetVal();
     Fault resetRdy();
+    Fault resetActive();
     void setNextValRdy();
     void sendNextPkt();
     void tryInstruction();
