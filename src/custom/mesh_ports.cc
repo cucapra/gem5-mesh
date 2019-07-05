@@ -147,12 +147,14 @@ FromMeshPort::FromMeshPort(TimingSimpleCPU *_cpu, int idx)
           recvPkt(nullptr), rdy(false), active(false)
     { 
       //DPRINTF(Mesh, "init %d %d %ld %ld\n", rdy, active, (uint64_t)recvPkt, (uint64_t)this);
+      DPRINTF(Mesh, "init idx %d\n", idx);
       }
 
 // how to handle a request after waiting for some delay
 void
 FromMeshPort::process(){
   //DPRINTF(Mesh, "this %ld\n", (uint64_t)port);
+  //DPRINTF(Mesh, "process idx %d\n", idx);
   // save the received packet
   setPacket(recvPkt_d);
 }
@@ -160,7 +162,7 @@ FromMeshPort::process(){
 bool 
 FromMeshPort::recvTimingReq(PacketPtr pkt) {
   //DPRINTF(Mesh, "recvresp packet %ld %ld\n", (uint64_t)recvPkt, (uint64_t)this);
-  DPRINTF(Mesh, "Received mesh request %#x with data \n", pkt->getAddr());
+  DPRINTF(Mesh, "Received mesh request %#x for idx %d\n", pkt->getAddr(), idx);
     // we should only ever see one response per cycle since we only
     // issue a new request once this response is sunk
     //assert(!tickEvent.scheduled());

@@ -142,16 +142,16 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
   
   //if (toMeshPort[dir].checkHandshake()) {
   if (getOutRdy()) {
-    DPRINTF(Mesh, "Port not ready so buffering packet %#x\n", addr);
-    toMeshPort[dir].failToSend(new_pkt);
+    DPRINTF(Mesh, "Sending mesh request %#x\n", addr);
+    toMeshPort[dir].sendTimingReq(new_pkt);
     
     nextVal = true;
     nextRdy = true;
-    schedule(setValRdyEvent, clockEdge());
+    schedule(setValRdyEvent, clockEdge(Cycles(1)));
   }
   else {
-    DPRINTF(Mesh, "Sending mesh request %#x\n", addr);
-    toMeshPort[dir].sendTimingReq(new_pkt);
+    DPRINTF(Mesh, "Port not ready so buffering packet %#x\n", addr);
+    toMeshPort[dir].failToSend(new_pkt);
     
     nextVal = true;
     nextRdy = false;
@@ -247,8 +247,8 @@ TimingSimpleCPU::getOutRdy() {
   bool allRdy = true;
   
   for (int i = 0; i < toMeshPort.size(); i++) {
-    if (!toMeshPort[i].getPairRdy() && toMeshPort[i].getActive()) {
-      allRdy = false;
+    if (toMeshPort[i].getActive()) {
+      if (!toMeshPort[i].getPairRdy()) allRdy = false;
     }
   }
   
@@ -260,8 +260,8 @@ TimingSimpleCPU::getInVal() {
    bool allVal = true;
   
   for (int i = 0; i < fromMeshPort.size(); i++) {
-    if (!fromMeshPort[i].getPairVal() && fromMeshPort[i].getActive()) {
-      allVal = false;
+    if (fromMeshPort[i].getActive()) {
+      if (!fromMeshPort[i].getPairVal()) allVal = false;
     }
   }
   
@@ -270,6 +270,9 @@ TimingSimpleCPU::getInVal() {
 
 Fault
 TimingSimpleCPU::setRdy() {
+  if (rdy) return NoFault;
+  rdy = true;
+  
   for (int i = 0; i < fromMeshPort.size(); i++) {
     fromMeshPort[i].setRdyIfActive();
   }
@@ -282,6 +285,9 @@ TimingSimpleCPU::setRdy() {
 
 Fault
 TimingSimpleCPU::setVal() {
+  if (val) return NoFault;
+  val = true;
+  
   for (int i = 0; i < toMeshPort.size(); i++) {
     toMeshPort[i].setValIfActive();
   }
@@ -293,6 +299,9 @@ TimingSimpleCPU::setVal() {
 
 Fault
 TimingSimpleCPU::resetRdy() {
+  if (!rdy) return NoFault;
+  rdy = false;
+  
   for (int i = 0; i < fromMeshPort.size(); i++) {
     fromMeshPort[i].setRdy(false);
   }
@@ -304,6 +313,10 @@ TimingSimpleCPU::resetRdy() {
 
 Fault
 TimingSimpleCPU::resetVal() {
+  
+  if (!val) return NoFault;
+  val = false;
+  
   for (int i = 0; i < toMeshPort.size(); i++) {
     toMeshPort[i].setVal(false);
   }
@@ -501,7 +514,12 @@ TimingSimpleCPU::tryInstruction() {
     } else if (curStaticInst) {
       DPRINTF(SimpleCPU, "advance inst on fetch\n");
       // check if the src and dests are rdy (otherwise block)
+      
       bool ok = checkOpsValRdy();
+      if (curStaticInst->isBind()) {
+        DPRINTF(Mesh, "Encounter bind instruction %d\n", ok);
+      }
+      
       if (ok) _status = Running;
       else _status = BindSync;
       
@@ -559,7 +577,7 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       machineTickEvent([this] { meshMachineTick(); }, name()),
       
       nextVal(0), nextRdy(0), setValRdyEvent([this] { setNextValRdy(); }, name()),
-      
+      val(0), rdy(0),
       // end additions
       
       fetchEvent([this]{ fetch(); }, name())

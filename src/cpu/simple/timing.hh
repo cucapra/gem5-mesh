@@ -279,6 +279,8 @@ class TimingSimpleCPU : public BaseSimpleCPU
     bool nextVal;
     bool nextRdy;
     EventFunctionWrapper setValRdyEvent;
+    bool val;
+    bool rdy;
 
   protected:
     // pbb override function that maps ports declared and connected in 
