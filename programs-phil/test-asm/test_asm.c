@@ -123,7 +123,7 @@ void *kernel(void* args) {
     BINDED_SECTION(RD_UP, ALL_NORM, 
       "addi %[x], x0, %[y]\n\t", 
       [x] "=r" (b), 
-      COMMA [y] "i" (2));
+      COMMA [y] "i" (10));
     
   }
   else if (cid == 1) {

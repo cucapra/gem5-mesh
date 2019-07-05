@@ -205,16 +205,26 @@ class SimpleExecContext : public ExecContext {
     void
     setIntRegOperand(const StaticInst *si, int idx, RegVal val) override
     {
+      // determine if should go to reg or not
+      uint64_t csrVal = cpu->getExeCSR();
+      Mesh_Dir dir;
+      if (!MeshHelper::csrToRd(csrVal, dir)) {
+      
         numIntRegWrites++;
         const RegId& reg = si->destRegIdx(idx);
         assert(reg.isIntReg());
         thread->setIntReg(reg.index(), val);
+      }
+      else {  
+        cpu->trySendMeshRequest(val);
+      }
+        
         
         // pbb override this when csr is setup in a particular way
         // for some reason couldn't do csr lookup here due to compiler error
         // this abstraction might be better anyway
         //if (!MeshHelper::isCSRDefault(cpu->getMeshOutCSR())) {
-        cpu->trySendMeshRequest(24);
+        //cpu->trySendMeshRequest(24);
         //}
         
     }
