@@ -153,8 +153,10 @@ FromMeshPort::FromMeshPort(TimingSimpleCPU *_cpu, int idx)
 // how to handle a request after waiting for some delay
 void
 FromMeshPort::process(){
-  //DPRINTF(Mesh, "this %ld\n", (uint64_t)port);
+  
+  // crashes the session :(
   //DPRINTF(Mesh, "process idx %d\n", idx);
+  
   // save the received packet
   setPacket(recvPkt_d);
 }
@@ -171,7 +173,10 @@ FromMeshPort::recvTimingReq(PacketPtr pkt) {
     //tickEvent.schedule(pkt, cpu->clockEdge());
     recvPkt_d = pkt;
     //recvEvent.schedule(cpu->clockEdge());
-    cpu->schedule(recvEvent, cpu->clockEdge());
+    
+    //cpu->schedule(recvEvent, cpu->clockEdge());
+    // temp
+    setPacket(recvPkt_d);
 
     return true;
 }
@@ -202,7 +207,7 @@ FromMeshPort::getPacketData() {
     return 0;
   }
   
-  uint64_t data = recvPkt->getUintX(BigEndianByteOrder);
+  uint64_t data = recvPkt->getUintX(LittleEndianByteOrder);
   
   recvPkt = nullptr;
   return data;

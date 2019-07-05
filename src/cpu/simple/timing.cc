@@ -126,12 +126,16 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
   // size is numbytes?
   int size = sizeof(payload);
   
+  // TODO getting wrong data from instruction 
+  // bypass issue for now
+  payload = 2;
+  
   // need to break up payload into bytes
   // assume big endian?
   uint8_t *data = new uint8_t[size];
   for (int i = 0; i < size; i++) {
-    // shift and truncate
-    data[i] = (uint8_t)(payload >> i);
+    // shift off byte at a time and truncate
+    data[i] = (uint8_t)(payload >> (i * 8));
   }
   
   // create a packet to send
