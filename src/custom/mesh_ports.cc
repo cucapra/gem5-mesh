@@ -150,13 +150,18 @@ FromMeshPort::FromMeshPort(TimingSimpleCPU *_cpu, int idx)
       DPRINTF(Mesh, "init idx %d\n", idx);
       }
 
+// This isn't working when multiple FromMesh ports schedule this event!!!!
 // how to handle a request after waiting for some delay
 void
 FromMeshPort::process(){
   
   // crashes the session :(
-  //DPRINTF(Mesh, "process idx %d\n", idx);
-  
+  if (idx < 4){
+    DPRINTF(Mesh, "process idx %d\n", idx);
+  }
+  else {
+    assert(0);
+  }
   // save the received packet
   setPacket(recvPkt_d);
 }
@@ -171,12 +176,12 @@ FromMeshPort::recvTimingReq(PacketPtr pkt) {
     assert(!recvEvent.scheduled());
     // delay processing of returned data until next CPU clock edge
     //tickEvent.schedule(pkt, cpu->clockEdge());
-    recvPkt_d = pkt;
+    //recvPkt_d = pkt;
     //recvEvent.schedule(cpu->clockEdge());
     
     //cpu->schedule(recvEvent, cpu->clockEdge());
     // temp
-    setPacket(recvPkt_d);
+    setPacket(pkt);
 
     return true;
 }

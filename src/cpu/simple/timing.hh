@@ -268,19 +268,30 @@ class TimingSimpleCPU : public BaseSimpleCPU
     std::vector<FromMeshPort> fromMeshPort;
     
     // state machine for sends
-    MeshMachine machine;
+    //MeshMachine machine;
     
     int numPortsActive;
     
     // need to update the machine when blocked
-    EventFunctionWrapper machineTickEvent;
+    //EventFunctionWrapper machineTickEvent;
     
     // update state on the next cycle
     bool nextVal;
     bool nextRdy;
+    
+    // hopefully this isn't updated before send on the next cycle
+    // ok assuming send at the beginning of the clockedge
+    PacketPtr nextPkt;
+    Mesh_Dir nextDir;
+    
     EventFunctionWrapper setValRdyEvent;
+    EventFunctionWrapper sendNextPktEvent;
     bool val;
     bool rdy;
+    
+    
+    
+    void scheduleMeshUpdate(bool nextVal, bool nextRdy, PacketPtr nextPkt, Mesh_Dir nextDir);
 
   protected:
     // pbb override function that maps ports declared and connected in 
@@ -301,7 +312,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
     Fault setupAndHandshake() override;
     void setupHandshake();
     Fault tryUnblock();
-    void handshakeNeighbors();
+    //void handshakeNeighbors();
     void informNeighbors();
     
     bool getOutRdy();
@@ -313,6 +324,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
     Fault resetVal();
     Fault resetRdy();
     void setNextValRdy();
+    void sendNextPkt();
     void tryInstruction();
     
     
@@ -320,7 +332,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
     uint64_t getMeshPortData(Mesh_Dir dir) override;
     // set transient (maybe reged?) port packet
     //void setPortPacket(Mesh_Dir dir);
-    void meshMachineTick();
+    //void meshMachineTick();
 
     DrainState drain() override;
     void drainResume() override;

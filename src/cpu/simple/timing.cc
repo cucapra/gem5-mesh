@@ -147,19 +147,23 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
   //if (toMeshPort[dir].checkHandshake()) {
   if (getOutRdy()) {
     DPRINTF(Mesh, "Sending mesh request %#x\n", addr);
-    toMeshPort[dir].sendTimingReq(new_pkt);
-    
-    nextVal = true;
+    //toMeshPort[dir].sendTimingReq(new_pkt);
+    // send packet a cycle later
+    /*nextVal = true;
     nextRdy = true;
-    schedule(setValRdyEvent, clockEdge(Cycles(1)));
+    schedule(setValRdyEvent, clockEdge(Cycles(1)));*/
+    
+    scheduleMeshUpdate(true, true, new_pkt, dir);
+    
   }
   else {
     DPRINTF(Mesh, "Port not ready so buffering packet %#x\n", addr);
-    toMeshPort[dir].failToSend(new_pkt);
+    //toMeshPort[dir].failToSend(new_pkt);
     
-    nextVal = true;
+    /*nextVal = true;
     nextRdy = false;
-    schedule(setValRdyEvent, clockEdge());
+    schedule(setValRdyEvent, clockEdge());*/
+    scheduleMeshUpdate(true, false, new_pkt, dir);
   }
   
   // schedule machinetick for the next cycle? if failed to send.
@@ -170,6 +174,28 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
   
   return NoFault;
 }
+
+void
+TimingSimpleCPU::scheduleMeshUpdate(bool nextVal, bool nextRdy, 
+    PacketPtr nextPkt, Mesh_Dir nextDir) {
+  
+  assert(!setValRdyEvent.scheduled());
+      
+  // set variable to use on the next event
+  this->nextVal = nextVal;
+  this->nextRdy = nextRdy; // might want to set this immedietly? like actual rtl would
+  this->nextPkt = nextPkt;
+  this->nextDir = nextDir;
+  
+  // schedule the update of these on the next cycle
+  // can't fire in the current cycle b/c will tryInstruction in this cycle
+  schedule(setValRdyEvent, clockEdge(Cycles(1)));
+  
+  // schedule at the end of this cycle which effectively is a cycle
+  // but guarenteed to be present before any events fire on the next cycle
+  schedule(sendNextPktEvent, clockEdge());
+}
+
 
 // when a bind is created you need to assert val, rdy and then check that
 // others are also val, rdy. Until then cpu status will be !running.
@@ -192,18 +218,6 @@ TimingSimpleCPU::setupAndHandshake() {
   //setup required handshake ports
   setupHandshake();
   
-  /*
-  // set valid and ready locally
-  // actually this will be done by the statemachine
-  //setValRdy();
-  _status = BindSync;
-  
-  // checkHandshake/try unblock locally
-  tryUnblock(); // this should be called every cycle
-  
-  // call checkHandshake in the external cores now that here's been an upadte
-  handshakeNeighbors();
-  */
   return NoFault;
 }
 
@@ -341,26 +355,6 @@ TimingSimpleCPU::resetActive() {
   }
 }*/
 
-void
-TimingSimpleCPU::meshMachineTick() {
-  // update state machine here?
-  MeshMachine::MeshStateOutputs outputs = 
-    machine.updateMachine(MeshMachine::MeshStateInputs(getOutRdy(), getInVal(), false, (numPortsActive > 0)));
-  
-  // change things in the core based on statemachine outputs
-  if (outputs.selfRdy) {
-    DPRINTF(Mesh, "set self rdy\n");
-    setRdy();
-  }
-  else resetRdy();
-  
-  if (outputs.selfVal) {
-    DPRINTF(Mesh, "set self val\n");
-    setVal();
-  }
-  else resetVal();
-}
-
 Fault
 TimingSimpleCPU::tryUnblock() {
   // TODO integrate into the statemachine instead ... lazy!
@@ -375,38 +369,6 @@ TimingSimpleCPU::tryUnblock() {
     fromMeshPort[0].getPairVal(), fromMeshPort[1].getPairVal(), fromMeshPort[2].getPairVal(), fromMeshPort[3].getPairVal());
   }
   
-  // don't do machine update here?
-  // b/c implies send? need another state otherwise
-  //meshMachineTick();
-  /*setRdy();
-  
-  bool handshake = true;
-  
-  // foreach in port make sure that its handshake requirements are met
-  for (int i = 0; i < fromMeshPort.size(); i++) {
-    bool ok = fromMeshPort[i].checkHandshake();
-    if (!ok) handshake = false;
-  }
-  
-  // foreach out port make sure handshake requirements are met
-  for (int i = 0; i < toMeshPort.size(); i++) {
-    bool ok = toMeshPort[i].checkHandshake();
-    if (!ok) handshake = false;
-  }
-  
-  if (handshake) {
-    DPRINTF(Mesh, "Handshake!\n");
-  }
-  else {
-    DPRINTF(Mesh, "Failed handshake\n");
-  }
-  */
-  
-  /*if (_status != Running && _status != BindSync) {
-    DPRINTF(Mesh, "Got status %d\n", _status);
-    assert(0);
-  }*/
-  
   // the processor could be doing something else when this update is requested
   // only change the cpu state if in BindSync state (i.e. waiting for sync)
   
@@ -416,16 +378,6 @@ TimingSimpleCPU::tryUnblock() {
   }
   
   return NoFault;
-}
-
-// flag deletion
-void
-TimingSimpleCPU::handshakeNeighbors() {
-  DPRINTF(Mesh, "notify neighbors\n");
-  // go through mesh ports to get tryUnblock function called in neighbor cores
-  for (int i = 0; i < toMeshPort.size(); i++) {
-    toMeshPort[i].tryUnblockNeighbor();
-  }
 }
 
 void
@@ -471,13 +423,38 @@ TimingSimpleCPU::checkOpsValRdy() {
   
 }
 
+/*----------------------------------------------------------------------
+ * Event handlers
+ *--------------------------------------------------------------------*/
+
 void
 TimingSimpleCPU::setNextValRdy() {
+  // update sync signals
   if (nextVal) setVal();
   else resetVal();
   
   if (nextRdy) setRdy();
   else resetRdy();
+  
+  /*// send packet if any
+  if (nextPkt != nullptr) {
+    DPRINTF(Mesh, "actually send mesh request\n");
+    toMeshPort[nextDir].sendTimingReq(nextPkt);
+    nextPkt = nullptr;
+  }*/
+  
+}
+
+// needs to be sent at the end of the this cycle, to be present before
+// any events that use it occur (really present after a cycle though)
+void
+TimingSimpleCPU::sendNextPkt() {
+  // send packet if any
+  if (nextPkt != nullptr) {
+    DPRINTF(Mesh, "actually send mesh request\n");
+    toMeshPort[nextDir].sendTimingReq(nextPkt);
+    nextPkt = nullptr;
+  }
 }
 
 void
@@ -530,8 +507,6 @@ TimingSimpleCPU::tryInstruction() {
       if (numPortsActive > 0) {
         setRdy();
       }
-      // temp
-      //_status = Running;
       
       if (_status == Running) {
       
@@ -577,11 +552,13 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0)
       
       // begin additions (needs to be in order declared in .hh)
-      , machine(this), numPortsActive(0), 
-      machineTickEvent([this] { meshMachineTick(); }, name()),
+      , /*machine(this),*/ numPortsActive(0), 
+      /*machineTickEvent([this] { meshMachineTick(); }, name()),*/
       
-      nextVal(0), nextRdy(0), setValRdyEvent([this] { setNextValRdy(); }, name()),
-      val(0), rdy(0),
+      nextVal(0), nextRdy(0), nextPkt(nullptr), nextDir((Mesh_Dir)0), 
+      setValRdyEvent([this] { setNextValRdy(); }, name()),
+      sendNextPktEvent([this] { sendNextPkt(); }, name()),
+      val(0), rdy(0), 
       // end additions
       
       fetchEvent([this]{ fetch(); }, name())
