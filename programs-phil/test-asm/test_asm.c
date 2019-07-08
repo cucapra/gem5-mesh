@@ -89,13 +89,22 @@ void *kernel(void* args) {
     
     int *virtualMemAddr = &(mem[0]);
     
-    BINDED_SECTION(RD_RIGHT, ALL_NORM, 
+    /*BINDED_SECTION(RD_RIGHT, ALL_NORM, 
       "addi %[a0], x0, %[i0]\n\t"
       "ld   %[a1], 0(%[m0])\n\t"
       "addi %[a2], x0, %[i1]\n\t"
       ,
-      [a0] "=r" (a0) COMMA [a2] "=r" (a2) COMMA [a3] "=r" (a3),
+      [a0] "=r" (a0) COMMA [a1] "=r" (a1) COMMA [a2] "=r" (a2),
       COMMA [i0] "i" (2) COMMA [i1] "i" (27) COMMA [m0] "r" (virtualMemAddr)
+      
+      );*/
+      
+      BINDED_SECTION(RD_RIGHT, ALL_NORM, 
+      "addi %[a0], x0, %[i0]\n\t"
+      "addi %[a2], x0, %[i1]\n\t"
+      ,
+      [a0] "=r" (a0) COMMA [a2] "=r" (a2),
+      COMMA [i0] "i" (2) COMMA [i1] "i" (27)
       
       );
     
@@ -105,12 +114,20 @@ void *kernel(void* args) {
     
     int b0, b1, b2;
     
-    BINDED_SECTION(RD_UP, ALL_NORM, 
+    /*BINDED_SECTION(RD_UP, ALL_NORM, 
       "addi %[b0], x0, %[i0]\n\t"
       "ld   %[b1], 0(%[m0])\n\t"
       "addi %[b2], x0, %[i1]\n\t"
       ,
-      [b0] "=r" (b0) COMMA [b1] "=r" (b1) COMMA [b1] "=r" (b1),
+      [b0] "=r" (b0) COMMA [b1] "=r" (b1) COMMA [b2] "=r" (b2),
+      COMMA [i0] "i" (10) COMMA [i1] "i" (7));
+      */
+    
+    BINDED_SECTION(RD_UP, ALL_NORM, 
+      "addi %[b0], x0, %[i0]\n\t"
+      "addi %[b2], x0, %[i1]\n\t"
+      ,
+      [b0] "=r" (b0) COMMA [b2] "=r" (b2),
       COMMA [i0] "i" (10) COMMA [i1] "i" (7));
     
   }
