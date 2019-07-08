@@ -360,8 +360,8 @@ TimingSimpleCPU::resetActive() {
   return NoFault;
 }
 
-Fault
-TimingSimpleCPU::tryUnblock() {
+void
+TimingSimpleCPU::tryUnblock(bool currCycle) {
   // TODO integrate into the statemachine instead ... lazy!
 
   if (numPortsActive > 0) {
@@ -377,12 +377,29 @@ TimingSimpleCPU::tryUnblock() {
   // the processor could be doing something else when this update is requested
   // only change the cpu state if in BindSync state (i.e. waiting for sync)
   
-  // unstall the processor (stalled when first call bind)
-  if (_status == BindSync) {
-    tryInstruction();
+  // if no wait then try now
+  if (currCycle) {
+    // unstall the processor (stalled when first call bind)
+    if (_status == BindSync) {
+      tryInstruction();
+    }
   }
-  
-  return NoFault;
+  // otherwise schedule an event in the next cycle (if not already scheduled)
+  else {
+    // if a check event is scheduled for this cycle deschedule it and run check now
+    if (tryUnblockEvent.scheduled()) {
+      if (schedCycle == clockEdge()) {
+        deschedule(tryUnblockEvent);
+        tryUnblock(true);
+        schedCycle = nextCycle();
+        schedule(tryUnblockEvent, schedCycle);
+      }
+    }
+    else {
+      schedCycle = nextCycle();
+      schedule(tryUnblockEvent, schedCycle);
+    }
+  }
 }
 
 void
@@ -563,6 +580,10 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       setValRdyEvent([this] { setNextValRdy(); }, name()),
       sendNextPktEvent([this] { sendNextPkt(); }, name()),
       val(0), rdy(0), 
+      
+      schedCycle(0),
+      tryUnblockEvent([this] { tryUnblock(true); }, name()),
+      
       // end additions
       
       fetchEvent([this]{ fetch(); }, name())

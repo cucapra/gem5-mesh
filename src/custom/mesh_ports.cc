@@ -144,7 +144,7 @@ FromMeshPort::FromMeshPort(TimingSimpleCPU *_cpu, int idx)
         : TimingCPUSlavePort(
           _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), 
           idx, _cpu), recvPkt_d(nullptr), recvEvent([this] { process(); }, name()), 
-          recvPkt(nullptr), rdy(false), active(false)
+          recvPkt(nullptr), cyclePktRecv(0), rdy(false), active(false)
     { 
       //DPRINTF(Mesh, "init %d %d %ld %ld\n", rdy, active, (uint64_t)recvPkt, (uint64_t)this);
       DPRINTF(Mesh, "init idx %d\n", idx);
@@ -183,8 +183,9 @@ FromMeshPort::recvTimingReq(PacketPtr pkt) {
     // temp
     setPacket(pkt);
 
+    // TODO ERROR wrong need to do this on the next cycle!
     // try to unblock when recv a packet
-    cpu->tryUnblock();
+    cpu->tryUnblock(false);
 
     return true;
 }
@@ -211,7 +212,12 @@ FromMeshPort::getAddrRanges() const {
 uint64_t
 FromMeshPort::getPacketData() {
   if (recvPkt == nullptr) {
-    DPRINTF(Mesh, "Did not recv packet\n");
+    DPRINTF(Mesh, "[[WARNING]] Did not recv packet\n");
+    return 0;
+  }
+  
+  if (cyclePktRecv >= cpu->clockEdge()) {
+    DPRINTF(Mesh, "[[WARNING]] Packet not ready for use\n");
     return 0;
   }
   
@@ -227,10 +233,13 @@ FromMeshPort::getPacketData() {
 void
 FromMeshPort::setPacket(PacketPtr pkt) {
   if (recvPkt != nullptr) {
-    DPRINTF(Mesh, "Overwrite packet %#x in port %d\n", recvPkt->getAddr(), idx);
+    DPRINTF(Mesh, "[[WARNING]] Overwrite packet %#x in port %d\n", recvPkt->getAddr(), idx);
   }
   
   recvPkt = pkt;
+  
+  // remember the time we recv the packet
+  cyclePktRecv = cpu->clockEdge();
 }
 
 void
@@ -258,5 +267,5 @@ FromMeshPort::getPairVal() {
 
 void
 FromMeshPort::tryUnblockCPU() {
-  cpu->tryUnblock(); 
+  cpu->tryUnblock(false); 
 }

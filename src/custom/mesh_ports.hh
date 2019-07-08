@@ -205,6 +205,12 @@ class FromMeshPort : public TimingCPUSlavePort {
     // store the most recently received packet (in a single register)
     PacketPtr recvPkt;
     
+    // the packet can't be used until the cycle after its received
+    // but can't communicate this with 1 cycle delay event b/c have
+    // to send at the end of the previous clock cycle to be available
+    // to every event on the next cycle
+    uint64_t cyclePktRecv;
+    
     // setter, if there is an unused packet already present
     // we should drop and inform of the lost packet
     void setPacket(PacketPtr pkt);

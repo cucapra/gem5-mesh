@@ -289,6 +289,9 @@ class TimingSimpleCPU : public BaseSimpleCPU
     bool val;
     bool rdy;
     
+    //int nextWait;
+    uint64_t schedCycle;
+    EventFunctionWrapper tryUnblockEvent;
     
     
     void scheduleMeshUpdate(bool nextVal, bool nextRdy, PacketPtr nextPkt, Mesh_Dir nextDir);
@@ -311,7 +314,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
     Fault trySendMeshRequest(uint64_t payload) override;
     Fault setupAndHandshake() override;
     void setupHandshake();
-    Fault tryUnblock();
+    void tryUnblock(bool currCycle);
     //void handshakeNeighbors();
     void informNeighbors();
     
