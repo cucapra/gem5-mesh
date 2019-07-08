@@ -171,7 +171,7 @@ class FromMeshPort : public TimingCPUSlavePort {
     // call tryUnblock in the cpu
     void tryUnblockCPU();
     
-    bool pktExists() { return recvPkt != nullptr; }
+    bool pktExists();
     
   protected:
 

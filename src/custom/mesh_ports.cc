@@ -242,6 +242,11 @@ FromMeshPort::setPacket(PacketPtr pkt) {
   cyclePktRecv = cpu->clockEdge();
 }
 
+bool
+FromMeshPort::pktExists() { 
+  return ((recvPkt != nullptr) && (cyclePktRecv < cpu->clockEdge()));
+}
+
 void
 FromMeshPort::setRdy(bool rdy) {
   this->rdy = rdy;
