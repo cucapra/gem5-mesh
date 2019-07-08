@@ -364,7 +364,7 @@ void
 TimingSimpleCPU::tryUnblock(bool currCycle) {
   // TODO integrate into the statemachine instead ... lazy!
 
-  if (numPortsActive > 0) {
+  /*if (numPortsActive > 0) {
   DPRINTF(Mesh, "out:\nactive %d %d %d %d\npair rdy %d %d %d %d\n\n",
     toMeshPort[0].getActive(), toMeshPort[1].getActive(), toMeshPort[2].getActive(), toMeshPort[3].getActive(),
     toMeshPort[0].getPairRdy(), toMeshPort[1].getPairRdy(), toMeshPort[2].getPairRdy(), toMeshPort[3].getPairRdy());
@@ -372,7 +372,7 @@ TimingSimpleCPU::tryUnblock(bool currCycle) {
   DPRINTF(Mesh, "in:\nactive %d %d %d %d\npair val %d %d %d %d\n\n",
     fromMeshPort[0].getActive(), fromMeshPort[1].getActive(), fromMeshPort[2].getActive(), fromMeshPort[3].getActive(),
     fromMeshPort[0].getPairVal(), fromMeshPort[1].getPairVal(), fromMeshPort[2].getPairVal(), fromMeshPort[3].getPairVal());
-  }
+  }*/
   
   // the processor could be doing something else when this update is requested
   // only change the cpu state if in BindSync state (i.e. waiting for sync)
@@ -404,7 +404,7 @@ TimingSimpleCPU::tryUnblock(bool currCycle) {
 
 void
 TimingSimpleCPU::informNeighbors() {
-  DPRINTF(Mesh, "notify neighbors\n");
+  //DPRINTF(Mesh, "notify neighbors\n");
   // go through mesh ports to get tryUnblock function called in neighbor cores
   for (int i = 0; i < toMeshPort.size(); i++) {
     toMeshPort[i].tryUnblockNeighbor();
@@ -473,7 +473,7 @@ void
 TimingSimpleCPU::sendNextPkt() {
   // send packet if any
   if (nextPkt != nullptr) {
-    DPRINTF(Mesh, "actually send mesh request\n");
+    //DPRINTF(Mesh, "actually send mesh request\n");
     toMeshPort[nextDir].sendTimingReq(nextPkt);
     nextPkt = nullptr;
   }
@@ -515,19 +515,24 @@ TimingSimpleCPU::tryInstruction() {
     /*} else if (curStaticInst && curStaticInst->isBind()) {
         Fault fault = curStaticInst->execute(&t_info, traceData);*/
     } else if (curStaticInst) {
-      DPRINTF(SimpleCPU, "advance inst on fetch\n");
-      // check if the src and dests are rdy (otherwise block)
       
+      if (numPortsActive > 0 && !curStaticInst->isBind()) {
+        DPRINTF(Mesh, "Running instruction while binded\n");
+      }
+      
+      
+      // for ordinary instructions check if the src and dests are rdy 
+      // otherwise block
       if (!curStaticInst->isBind()) {
       
-      bool ok = checkOpsValRdy();
-      if (ok) _status = Running;
-      else _status = BindSync;
+        bool ok = checkOpsValRdy();
+        if (ok) _status = Running;
+        else _status = BindSync;
       
-      if (numPortsActive > 0) {
-        setRdy();
+        if (numPortsActive > 0) {
+          setRdy(); //?
+        }
       }
-    }
       
       if (_status == Running) {
       
