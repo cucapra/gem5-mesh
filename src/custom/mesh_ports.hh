@@ -156,7 +156,7 @@ class FromMeshPort : public TimingCPUSlavePort {
     uint64_t getPacketData();
 
     void setRdy(bool val);
-    bool getRdy() const { return rdy; }
+    bool getRdy();
     
     bool getPairVal();
     
@@ -197,6 +197,7 @@ class FromMeshPort : public TimingCPUSlavePort {
 
     MITickEvent tickEvent;
   */
+  
   // packet to be received after clk edge
     PacketPtr recvPkt_d;
     EventFunctionWrapper recvEvent;
@@ -220,6 +221,8 @@ class FromMeshPort : public TimingCPUSlavePort {
     
     // this should go high when the core is rdy
     bool active;
+    
+    //std::queue<PacketPtr> _pktQueue;
 };
 
 

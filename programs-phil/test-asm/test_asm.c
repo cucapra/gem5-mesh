@@ -67,7 +67,7 @@ typedef struct kern_args_t {
 } kern_args_t;
 
 // declare some global mem to use in program
-int mem[100];
+int mem[10] = { 4, 5, 4, 5, 4, 5, 4, 5, 4, 5 };
 
 void *kernel(void* args) {
   // unpack args
@@ -89,22 +89,15 @@ void *kernel(void* args) {
     
     int *virtualMemAddr = &(mem[0]);
     
-    /*BINDED_SECTION(RD_RIGHT, ALL_NORM, 
+    BINDED_SECTION(RD_RIGHT, ALL_NORM, 
       "addi %[a0], x0, %[i0]\n\t"
       "ld   %[a1], 0(%[m0])\n\t"
       "addi %[a2], x0, %[i1]\n\t"
       ,
-      [a0] "=r" (a0) COMMA [a1] "=r" (a1) COMMA [a2] "=r" (a2),
-      COMMA [i0] "i" (2) COMMA [i1] "i" (27) COMMA [m0] "r" (virtualMemAddr)
-      
-      );*/
-      
-      BINDED_SECTION(RD_RIGHT, ALL_NORM, 
-      "addi %[a0], x0, %[i0]\n\t"
-      "addi %[a2], x0, %[i1]\n\t"
+      [a0] "=r" (a0) COMMA [a1] "=r" (a1) COMMA [a2] "=r" (a2)
       ,
-      [a0] "=r" (a0) COMMA [a2] "=r" (a2),
-      COMMA [i0] "i" (2) COMMA [i1] "i" (27)
+      COMMA [i0] "i" (2) COMMA [i1] "i" (27) 
+      COMMA [m0] "r" (virtualMemAddr)
       
       );
     
@@ -114,37 +107,37 @@ void *kernel(void* args) {
     
     int b0, b1, b2;
     
-    /*BINDED_SECTION(RD_UP, ALL_NORM, 
-      "addi %[b0], x0, %[i0]\n\t"
-      "ld   %[b1], 0(%[m0])\n\t"
-      "addi %[b2], x0, %[i1]\n\t"
-      ,
-      [b0] "=r" (b0) COMMA [b1] "=r" (b1) COMMA [b2] "=r" (b2),
-      COMMA [i0] "i" (10) COMMA [i1] "i" (7));
-      */
+    int *virtualMemAddr = &(mem[1]);
     
     BINDED_SECTION(RD_UP, ALL_NORM, 
       "addi %[b0], x0, %[i0]\n\t"
-      "addi %[b2], x0, %[i1]\n\t"
+      "addi %[b1], x0, %[i1]\n\t"
+      "ld   %[b2], 0(%[m0])\n\t"
       ,
-      [b0] "=r" (b0) COMMA [b2] "=r" (b2),
-      COMMA [i0] "i" (10) COMMA [i1] "i" (7));
+      [b0] "=r" (b0) COMMA [b1] "=r" (b1) COMMA [b2] "=r" (b2)
+      ,
+      COMMA [i0] "i" (10) COMMA [i1] "i" (7)
+      COMMA [m0] "r" (virtualMemAddr)
+      
+      );
+      
     
   }
   else if (cid == 1) {
     
-    int c0, c1;
+    int c0, c1, c2;
     int a = 2;
     int b = 2;
     BINDED_SECTION(RS1_DOWN | RS2_LEFT, ALL_NORM, 
       "add %[c0], %[a], %[b]\n\t"
       "add %[c1], %[a], %[b]\n\t"
+      "add %[c2], %[a], %[b]\n\t"
       , 
-      [c0] "=r" (c0) COMMA [c1] "=r" (c1), 
+      [c0] "=r" (c0) COMMA [c1] "=r" (c1) COMMA [c2] "=r" (c2), 
       COMMA [a] "r" (a) COMMA [b] "r" (b));
       
     
-    printf("%d %d\n", c0, c1);
+    printf("%d %d %d\n", c0, c1, c2);
   }
   
 }

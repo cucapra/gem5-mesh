@@ -227,6 +227,9 @@ FromMeshPort::getPacketData() {
   // destructive read on packet
   recvPkt = nullptr;
   
+  // this might update val/rdy interface
+  cpu->informNeighbors();
+  
   return data;
 }
 
@@ -261,16 +264,31 @@ FromMeshPort::checkHandshake(){
 
 bool
 FromMeshPort::getPairVal() {
-  BaseMasterPort *masterPort = &(getMasterPort());
+  return pktExists();
+  /*BaseMasterPort *masterPort = &(getMasterPort());
   if (ToMeshPort *masterMeshPort = dynamic_cast<ToMeshPort*>(masterPort)) {
     return masterMeshPort->getVal();
   }
   else {
     return false;
-  }
+  }*/
 }
 
 void
 FromMeshPort::tryUnblockCPU() {
   cpu->tryUnblock(true); 
+}
+
+bool
+FromMeshPort::getRdy() {
+  if (rdy) {
+    // if we have a packet but don't have a packet in other ports
+    // then we can't accept anymore packets on this port b/c we can't tick
+    if (getPairVal() && cpu->getInVal()) return true;
+    else if (getPairVal() && !cpu->getInVal()) return false;
+    else return true;
+  }
+  else {
+    return false;
+  }
 }

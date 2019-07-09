@@ -156,6 +156,9 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
     DPRINTF(Mesh, "Port not ready so buffering packet %#x\n", addr);
     //toMeshPort[dir].failToSend(new_pkt);
     
+    // need to stall the core here! and assert !rdy immediatly
+    _status = BindSync;
+    
     /*nextVal = true;
     nextRdy = false;
     schedule(setValRdyEvent, clockEdge());*/
@@ -457,14 +460,6 @@ TimingSimpleCPU::setNextValRdy() {
   
   if (nextRdy) setRdy();
   else resetRdy();
-  
-  /*// send packet if any
-  if (nextPkt != nullptr) {
-    DPRINTF(Mesh, "actually send mesh request\n");
-    toMeshPort[nextDir].sendTimingReq(nextPkt);
-    nextPkt = nullptr;
-  }*/
-  
 }
 
 // needs to be sent at the end of the this cycle, to be present before
@@ -541,6 +536,10 @@ TimingSimpleCPU::tryInstruction() {
       
         // non-memory instruction: execute completely now
         Fault fault = curStaticInst->execute(&t_info, traceData);
+
+        // if we encountered a congested systolic port, then we can't
+        // send and need to return
+        if (_status != Running) return;
 
         // keep an instruction count
         if (fault == NoFault)
