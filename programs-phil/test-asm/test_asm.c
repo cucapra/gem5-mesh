@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 #include <math.h>
+#include <assert.h>
 #include <sys/sysinfo.h>
 
 // 20 bit / 5 hex
@@ -67,7 +68,7 @@ typedef struct kern_args_t {
 } kern_args_t;
 
 // declare some global mem to use in program
-int mem[10] = { 4, 5, 4, 5, 4, 5, 4, 5, 4, 5 };
+int mem[10] = { 4, 5, 40, 50, 40, 50, 40, 50, 40, 50 };
 
 void *kernel(void* args) {
   // unpack args
@@ -92,7 +93,7 @@ void *kernel(void* args) {
     BINDED_SECTION(RD_RIGHT, ALL_NORM, 
       "addi %[a0], x0, %[i0]\n\t"
       "ld   %[a1], 0(%[m0])\n\t"
-      "addi %[a2], x0, %[i1]\n\t"
+      "addi %[a2], x0, %[i1]\n\t" 
       ,
       [a0] "=r" (a0) COMMA [a1] "=r" (a1) COMMA [a2] "=r" (a2)
       ,
@@ -125,6 +126,8 @@ void *kernel(void* args) {
   }
   else if (cid == 1) {
     
+    //int *virtualMemAddr = &(mem[2]);
+    
     int c0, c1, c2;
     int a = 2;
     int b = 2;
@@ -133,11 +136,14 @@ void *kernel(void* args) {
       "add %[c1], %[a], %[b]\n\t"
       "add %[c2], %[a], %[b]\n\t"
       , 
-      [c0] "=r" (c0) COMMA [c1] "=r" (c1) COMMA [c2] "=r" (c2), 
-      COMMA [a] "r" (a) COMMA [b] "r" (b));
+      [c0] "=r" (c0) COMMA [c1] "=r" (c1) COMMA [c2] "=r" (c2)
+      , 
+      COMMA [a] "r" (a) COMMA [b] "r" (b)
+      );
       
     
     printf("%d %d %d\n", c0, c1, c2);
+    assert(c0 == 12 && c1 == 11 && c2 == 32);
   }
   
 }

@@ -153,7 +153,8 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
     
   }
   else {
-    DPRINTF(Mesh, "Port not ready so buffering packet %#x\n", addr);
+    // shouldn't get here
+    DPRINTF(Mesh, "[[WARNING]] Port not ready so buffering packet %#x\n", addr);
     //toMeshPort[dir].failToSend(new_pkt);
     
     // need to stall the core here! and assert !rdy immediatly
@@ -539,7 +540,7 @@ TimingSimpleCPU::tryInstruction() {
 
         // if we encountered a congested systolic port, then we can't
         // send and need to return
-        if (_status != Running) return;
+        //if (_status != Running) return;
 
         // keep an instruction count
         if (fault == NoFault)
