@@ -199,12 +199,18 @@ class SimpleExecContext : public ExecContext {
             ret = thread->readIntReg(reg.index());
         }
         
+        // save ops b/c might use later to send out on mesh
+        // can't send immediates this way, but why would you want to?
+        // just have an immediate instruction in the core you care
+        // about
+        cpu->saveOp(idx, ret);
+        
         // potentially want to forward this value
         // prob could do a better check here, but the try function
         // will filter out anything invalid
         //if (cpu->getNumOutPortsActive() > 0) {
-          Mesh_Out_Src src = (idx == 0) ? RS1 : RS2;
-          cpu->trySendMeshRequest(ret, src);
+          //Mesh_Out_Src src = (idx == 0) ? RS1 : RS2;
+          //cpu->trySendMeshRequest(ret, src);
         //}
         
         
@@ -229,7 +235,7 @@ class SimpleExecContext : public ExecContext {
         thread->setIntReg(reg.index(), val);
       //}
       //else {  
-        cpu->trySendMeshRequest(val, RD);
+        cpu->trySendMeshRequest(val);
       //}
         
         

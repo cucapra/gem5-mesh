@@ -177,7 +177,7 @@ class BaseSimpleCPU : public BaseCPU
     void unserializeThread(CheckpointIn &cp, ThreadID tid) override;
     
     // pbb new things instructions can do in the core
-    virtual Fault trySendMeshRequest(uint64_t payload, Mesh_Out_Src src)
+    virtual Fault trySendMeshRequest(uint64_t payload)
       { panic("trySendMeshRequest() is not implemented\n"); }
       
     // block on binds if val/rdy isn't asserted
@@ -186,6 +186,10 @@ class BaseSimpleCPU : public BaseCPU
     
     virtual uint64_t getMeshPortData(Mesh_Dir dir)
       { panic("getMeshPortData() is not implemented\n"); }
+      
+    virtual void saveOp(int idx, RegVal val)
+      { panic("saveOp() is not implemented\n"); }
+    
     
     // function to get access to the csrs for maninpulation
     uint64_t getExeCSR();

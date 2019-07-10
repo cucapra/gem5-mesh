@@ -294,6 +294,8 @@ class TimingSimpleCPU : public BaseSimpleCPU
     uint64_t schedCycle;
     EventFunctionWrapper tryUnblockEvent;
     
+    RegVal savedOps[2];
+    
     
     void scheduleMeshUpdate(bool nextVal, bool nextRdy, PacketPtr nextPkt, Mesh_Dir nextDir);
 
@@ -316,8 +318,9 @@ class TimingSimpleCPU : public BaseSimpleCPU
     int getNumPortsActive() const { return numOutPortsActive + numInPortsActive; }
 
     // pbb access mesh ports from cpu
-    Fault trySendMeshRequest(uint64_t payload, Mesh_Out_Src src) override;
+    Fault trySendMeshRequest(uint64_t payload) override;
     Fault setupAndHandshake() override;
+    void saveOp(int idx, RegVal val) override;
     void setupHandshake();
     void tryUnblock(bool currCycle);
     //void handshakeNeighbors();

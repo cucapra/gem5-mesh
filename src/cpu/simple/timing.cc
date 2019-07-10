@@ -109,20 +109,7 @@ TimingSimpleCPU::getPort(const string &if_name, PortID idx)
  * Arch support for binds
  *--------------------------------------------------------------------*/
 
-Fault
-TimingSimpleCPU::trySendMeshRequest(uint64_t payload, Mesh_Out_Src src) {
-  // get direction from the appropriate csr
-  SimpleExecContext &t_info = *threadInfo[curThread];
-  SimpleThread* thread = t_info.thread;
-  uint64_t csrVal = thread->readMiscRegNoEffect(MISCREG_EXE);
-  
-  // if in default behavior then don't send a mesh packet
-  if (MeshHelper::isCSRDefault(csrVal)) return NoFault;
-  
-  //Mesh_Dir dir;
-  //if (!MeshHelper::csrToRd(val, dir)) return NoFault;
-  if (getNumOutPortsActive() == 0) return NoFault;
-  
+PacketPtr createPacket(RegVal payload) {
   // create a packet to send
   // size is numbytes?
   int size = sizeof(payload);
@@ -141,9 +128,30 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload, Mesh_Out_Src src) {
   PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
   new_pkt->dataDynamic(data);
   
+  return new_pkt;
+}
+
+
+Fault
+TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
+  // get direction from the appropriate csr
+  SimpleExecContext &t_info = *threadInfo[curThread];
+  SimpleThread* thread = t_info.thread;
+  uint64_t csrVal = thread->readMiscRegNoEffect(MISCREG_EXE);
+  
+  
+  
+  // if in default behavior then don't send a mesh packet
+  if (MeshHelper::isCSRDefault(csrVal)) return NoFault;
+  
+  //Mesh_Dir dir;
+  //if (!MeshHelper::csrToRd(val, dir)) return NoFault;
+  if (getNumOutPortsActive() == 0) return NoFault;
+  
+
   //if (toMeshPort[dir].checkHandshake()) {
   if (getOutRdy()) {
-    DPRINTF(Mesh, "Sending mesh request %#x\n", addr);
+    
     //toMeshPort[dir].sendTimingReq(new_pkt);
     // send packet a cycle later
     /*nextVal = true;
@@ -154,18 +162,36 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload, Mesh_Out_Src src) {
     // TODO for now src only goes to one dir
     for (int i = 0; i < NUM_DIR; i++) {
       Mesh_Dir dir = (Mesh_Dir)i;
-      Mesh_Out_Src expSrc;
-      if (MeshHelper::csrToOutSrcs(csrVal, dir, expSrc)) {
-        if (expSrc == src) {
-          scheduleMeshUpdate(true, true, new_pkt, dir);
+      Mesh_Out_Src src;
+      if (MeshHelper::csrToOutSrcs(csrVal, dir, src)) {
+        
+        
+        
+        // src -> value
+        RegVal val = 0;
+        if (src == RD) {
+          val = payload;
         }
+        else if (src == RS1) {
+          val = savedOps[0];
+        }
+        else if (src == RS2) {
+          val = savedOps[1];
+        }
+        
+        DPRINTF(Mesh, "Sending mesh request %d from %d with val %ld\n", dir, src, val);
+        
+        PacketPtr new_pkt = createPacket(val);
+        
+        scheduleMeshUpdate(true, true, new_pkt, dir);
+        
       }
     }
     
   }
   else {
     // shouldn't get here
-    DPRINTF(Mesh, "[[WARNING]] Port not ready so buffering packet %#x\n", addr);
+    DPRINTF(Mesh, "[[WARNING]] Port not ready so buffering packet\n");
     //toMeshPort[dir].failToSend(new_pkt);
     
     // need to stall the core here! and assert !rdy immediatly
@@ -174,7 +200,7 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload, Mesh_Out_Src src) {
     /*nextVal = true;
     nextRdy = false;
     schedule(setValRdyEvent, clockEdge());*/
-    scheduleMeshUpdate(true, false, new_pkt, RIGHT);
+    scheduleMeshUpdate(true, false, nullptr, RIGHT);
   }
   
   // schedule machinetick for the next cycle? if failed to send.
@@ -462,6 +488,15 @@ TimingSimpleCPU::checkOpsValRdy() {
   
 }
 
+void
+TimingSimpleCPU::saveOp(int idx, RegVal val) {
+  assert (idx < 2);
+  if (numOutPortsActive > 0) {
+    DPRINTF(Mesh, "saved %d val: %ld\n", idx, val);
+  }
+ savedOps[idx] = val; 
+}
+
 /*----------------------------------------------------------------------
  * Event handlers
  *--------------------------------------------------------------------*/
@@ -601,6 +636,8 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       
       schedCycle(0),
       tryUnblockEvent([this] { tryUnblock(true); }, name()),
+      
+      //savedOps({0, 0}),
       
       // end additions
       
