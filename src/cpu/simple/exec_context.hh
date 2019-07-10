@@ -180,16 +180,15 @@ class SimpleExecContext : public ExecContext {
     RegVal
     readIntRegOperand(const StaticInst *si, int idx) override
     {
+        RegVal ret;
+      
         // check where the source should be coming from
         // idx is the op (0 or 1) not the regfile idx
         uint64_t csrVal = cpu->getExeCSR();
-        Mesh_Dir dir[2];
-        if ((idx == 0 && MeshHelper::csrToOp1(csrVal, dir[0])) ||
-            (idx == 1 && MeshHelper::csrToOp2(csrVal, dir[1]))) {
-            
+        Mesh_Dir dir;
+        if (MeshHelper::csrToOp(csrVal, idx, dir)) {
             // need to do a port lookup here to get the right value
-            return cpu->getMeshPortData(dir[idx]);
-            //return 0;
+            ret = cpu->getMeshPortData(dir);
         }
         // normal behavior
         else {
@@ -197,8 +196,21 @@ class SimpleExecContext : public ExecContext {
             numIntRegReads++;
             const RegId& reg = si->srcRegIdx(idx);
             assert(reg.isIntReg());
-            return thread->readIntReg(reg.index());
+            ret = thread->readIntReg(reg.index());
         }
+        
+        // potentially want to forward this value
+        // prob could do a better check here, but the try function
+        // will filter out anything invalid
+        //if (cpu->getNumOutPortsActive() > 0) {
+          Mesh_Out_Src src = (idx == 0) ? RS1 : RS2;
+          cpu->trySendMeshRequest(ret, src);
+        //}
+        
+        
+        return ret;
+        
+        
     }
 
     /** Sets an integer register to a value. */
@@ -206,18 +218,19 @@ class SimpleExecContext : public ExecContext {
     setIntRegOperand(const StaticInst *si, int idx, RegVal val) override
     {
       // determine if should go to reg or not
-      uint64_t csrVal = cpu->getExeCSR();
-      Mesh_Dir dir;
-      if (!MeshHelper::csrToRd(csrVal, dir)) {
+      //uint64_t csrVal = cpu->getExeCSR();
+      //Mesh_Dir dir;
+      //if (!MeshHelper::csrToRd(csrVal, dir)) {
+      //if (cpu->getNumOutPortsActive()) {
       
         numIntRegWrites++;
         const RegId& reg = si->destRegIdx(idx);
         assert(reg.isIntReg());
         thread->setIntReg(reg.index(), val);
-      }
-      else {  
-        cpu->trySendMeshRequest(val);
-      }
+      //}
+      //else {  
+        cpu->trySendMeshRequest(val, RD);
+      //}
         
         
         // pbb override this when csr is setup in a particular way

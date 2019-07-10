@@ -110,17 +110,18 @@ TimingSimpleCPU::getPort(const string &if_name, PortID idx)
  *--------------------------------------------------------------------*/
 
 Fault
-TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
+TimingSimpleCPU::trySendMeshRequest(uint64_t payload, Mesh_Out_Src src) {
   // get direction from the appropriate csr
   SimpleExecContext &t_info = *threadInfo[curThread];
   SimpleThread* thread = t_info.thread;
-  uint64_t val = thread->readMiscRegNoEffect(MISCREG_EXE);
+  uint64_t csrVal = thread->readMiscRegNoEffect(MISCREG_EXE);
   
   // if in default behavior then don't send a mesh packet
-  if (MeshHelper::isCSRDefault(val)) return NoFault;
+  if (MeshHelper::isCSRDefault(csrVal)) return NoFault;
   
-  Mesh_Dir dir;
-  if (!MeshHelper::csrToRd(val, dir)) return NoFault;
+  //Mesh_Dir dir;
+  //if (!MeshHelper::csrToRd(val, dir)) return NoFault;
+  if (getNumOutPortsActive() == 0) return NoFault;
   
   // create a packet to send
   // size is numbytes?
@@ -135,7 +136,7 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
   }
   
   // create a packet to send
-  Addr addr = dir;
+  Addr addr = 0;
   RequestPtr req = std::make_shared<Request>(addr, size, 0, 0);
   PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
   new_pkt->dataDynamic(data);
@@ -149,7 +150,17 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
     nextRdy = true;
     schedule(setValRdyEvent, clockEdge(Cycles(1)));*/
     
-    scheduleMeshUpdate(true, true, new_pkt, dir);
+    // for each dir we need to send a packet
+    // TODO for now src only goes to one dir
+    for (int i = 0; i < NUM_DIR; i++) {
+      Mesh_Dir dir = (Mesh_Dir)i;
+      Mesh_Out_Src expSrc;
+      if (MeshHelper::csrToOutSrcs(csrVal, dir, expSrc)) {
+        if (expSrc == src) {
+          scheduleMeshUpdate(true, true, new_pkt, dir);
+        }
+      }
+    }
     
   }
   else {
@@ -163,7 +174,7 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
     /*nextVal = true;
     nextRdy = false;
     schedule(setValRdyEvent, clockEdge());*/
-    scheduleMeshUpdate(true, false, new_pkt, dir);
+    scheduleMeshUpdate(true, false, new_pkt, RIGHT);
   }
   
   // schedule machinetick for the next cycle? if failed to send.
@@ -237,25 +248,26 @@ TimingSimpleCPU::setupHandshake() {
   for (int i = 0; i < csrs.size(); i++) {
     regVal = thread->readMiscRegNoEffect(csrs[i]);
     DPRINTF(Mesh, "regval %d from csr %#x\n", regVal, csrs[i]);
-    // assert valid on each port we're sending to
-    // TODO only one port supported now
-    Mesh_Dir outDir;
-    if (MeshHelper::csrToRd(regVal, outDir)) {
-      toMeshPort[outDir].setActive(true);
-      numPortsActive++;
+    // get the internal src to be send of each of the output ports
+    for (int j = 0; j < NUM_DIR; j++) {
+      Mesh_Dir dir = (Mesh_Dir)j;
+      Mesh_Out_Src src;
+      if (MeshHelper::csrToOutSrcs(regVal, dir, src)) {
+        
+        // TODO save the src?
+        toMeshPort[dir].setActive(true);
+        numOutPortsActive++;     
+      }
     }
     
     // try to handshake with recv ports
-    Mesh_Dir op1Dir;
-    if (MeshHelper::csrToOp1(regVal, op1Dir)) {
-      fromMeshPort[op1Dir].setActive(true);
-      numPortsActive++;
-    }
-    
-    Mesh_Dir op2Dir;
-    if (MeshHelper::csrToOp2(regVal, op2Dir)) {
-      fromMeshPort[op2Dir].setActive(true);
-      numPortsActive++;
+    #define NUM_OPS 2
+    for (int j = 0; j < NUM_OPS; j++) {
+      Mesh_Dir dir;
+      if (MeshHelper::csrToOp(regVal, j, dir)) {
+        fromMeshPort[dir].setActive(true);
+        numInPortsActive++;
+      }
     }
   }
 }
@@ -351,7 +363,8 @@ TimingSimpleCPU::resetVal() {
 
 Fault
 TimingSimpleCPU::resetActive() {
-  numPortsActive = 0;
+  numInPortsActive = 0;
+  numOutPortsActive = 0;
   
   for (int i = 0; i < fromMeshPort.size(); i++) {
     fromMeshPort[i].setActive(false);
@@ -512,7 +525,7 @@ TimingSimpleCPU::tryInstruction() {
         Fault fault = curStaticInst->execute(&t_info, traceData);*/
     } else if (curStaticInst) {
       
-      if (numPortsActive > 0 && !curStaticInst->isBind()) {
+      if (getNumPortsActive() > 0 && !curStaticInst->isBind()) {
         DPRINTF(Mesh, "Running instruction while binded\n");
       }
       
@@ -525,7 +538,7 @@ TimingSimpleCPU::tryInstruction() {
         if (ok) _status = Running;
         else _status = BindSync;
       
-        if (numPortsActive > 0) {
+        if (getNumPortsActive() > 0) {
           setRdy(); //?
         }
       }
@@ -578,7 +591,7 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0)
       
       // begin additions (needs to be in order declared in .hh)
-      , /*machine(this),*/ numPortsActive(0), 
+      , /*machine(this),*/ numOutPortsActive(0), numInPortsActive(0),
       /*machineTickEvent([this] { meshMachineTick(); }, name()),*/
       
       nextVal(0), nextRdy(0), nextPkt(nullptr), nextDir((Mesh_Dir)0), 

@@ -177,7 +177,7 @@ class BaseSimpleCPU : public BaseCPU
     void unserializeThread(CheckpointIn &cp, ThreadID tid) override;
     
     // pbb new things instructions can do in the core
-    virtual Fault trySendMeshRequest(uint64_t payload)
+    virtual Fault trySendMeshRequest(uint64_t payload, Mesh_Out_Src src)
       { panic("trySendMeshRequest() is not implemented\n"); }
       
     // block on binds if val/rdy isn't asserted

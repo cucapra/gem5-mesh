@@ -270,7 +270,8 @@ class TimingSimpleCPU : public BaseSimpleCPU
     // state machine for sends
     //MeshMachine machine;
     
-    int numPortsActive;
+    int numOutPortsActive;
+    int numInPortsActive;
     
     // need to update the machine when blocked
     //EventFunctionWrapper machineTickEvent;
@@ -310,8 +311,12 @@ class TimingSimpleCPU : public BaseSimpleCPU
 
   public:
 
+    int getNumOutPortsActive() const { return numOutPortsActive; }
+    int getNumInPortsActive() const { return numInPortsActive; }
+    int getNumPortsActive() const { return numOutPortsActive + numInPortsActive; }
+
     // pbb access mesh ports from cpu
-    Fault trySendMeshRequest(uint64_t payload) override;
+    Fault trySendMeshRequest(uint64_t payload, Mesh_Out_Src src) override;
     Fault setupAndHandshake() override;
     void setupHandshake();
     void tryUnblock(bool currCycle);

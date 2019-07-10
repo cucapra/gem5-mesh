@@ -37,7 +37,7 @@ void *kernel(void* args) {
     
     int *virtualMemAddr = &(mem[0]);
     
-    BINDED_SECTION(RD_RIGHT, ALL_NORM, 
+    BINDED_SECTION(O_RIGHT_RD, ALL_NORM, 
       "addi %[a0], x0, %[i0]\n\t"
       "ld   %[a1], 0(%[m0])\n\t"
       "addi %[a2], x0, %[i1]\n\t" 
@@ -57,7 +57,7 @@ void *kernel(void* args) {
     
     int *virtualMemAddr = &(mem[1]);
     
-    BINDED_SECTION(RD_UP, ALL_NORM, 
+    BINDED_SECTION(O_UP_RD, ALL_NORM, 
       "addi %[b0], x0, %[i0]\n\t"
       "addi %[b1], x0, %[i1]\n\t"
       "ld   %[b2], 0(%[m0])\n\t"
@@ -78,7 +78,7 @@ void *kernel(void* args) {
     int c0, c1, c2;
     int a = 2;
     int b = 2;
-    BINDED_SECTION(RS1_DOWN | RS2_LEFT, ALL_NORM, 
+    BINDED_SECTION(I_RS1_DOWN | I_RS2_LEFT, ALL_NORM, 
       "add %[c0], %[a], %[b]\n\t"
       "add %[c1], %[a], %[b]\n\t"
       "add %[c2], %[a], %[b]\n\t"
