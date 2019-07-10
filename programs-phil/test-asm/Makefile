@@ -4,7 +4,7 @@ X86_CC=gcc
 RV_CC=/home/pbb59/hammerblade/riscv-docker/riscv-build/bin/riscv64-unknown-linux-gnu-gcc
 
 # need to compile with static in system emulation mode!
-CFLAGS=-static -lpthread -lm
+CFLAGS=-static -lpthread -lm -I../
 
 default: asm-riscv asm-dump
 
@@ -12,7 +12,7 @@ asm-riscv:
 	$(RV_CC) test_asm.c $(CFLAGS) -o test_asm_riscv
 
 asm-dump:
-	$(RV_CC) test_asm.c -lpthread -lm -S -o test_asm_rv_dump
+	$(RV_CC) test_asm.c -lpthread -lm -I../ -S -o test_asm_rv_dump
 
 clean:
 	rm -rf test_asm_riscv test_asm_rv_dump
