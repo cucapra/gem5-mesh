@@ -36,6 +36,25 @@ int main(int argc, char *argv[]) {
   int *b = (int*)malloc(t * n);
   int *c = (int*)malloc(m * n);
   
+  // init data in matrices
+  for (int j = 0; j < m; j++) {
+    for (int k = 0; k < t; k++) {
+      a[j * m + k] = 1;
+    }
+  }
+  
+  for (int k = 0; k < t; k++) {
+    for (int i = 0; i < n; i++) {
+      b[k * t + i] = 1;
+    }
+  }
+  
+  for (int j = 0; j < m; j++) {
+    for (int i = 0; i < n; i++) {
+      c[j * m + i] = 0;
+    }
+  }
+  
   /*--------------------------------------------------------------------
   * create package to pass to spmd kernel
   *-------------------------------------------------------------------*/

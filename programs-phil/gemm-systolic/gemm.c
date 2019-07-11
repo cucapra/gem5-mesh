@@ -21,6 +21,8 @@ void *gemm_pthread(void *args) {
   int *b    = ka->b;
   int *c    = ka->c;
   
+  printf("%d %d\n", tid_x, tid_y);
+  
   // guarentee one thread goes to each core, by preventing any threads
   // from finishing early
   pthread_barrier_wait(&start_barrier);
@@ -69,7 +71,7 @@ void top_kernel(int col, int *b, int t) {
 
 void center_kernel(int pos_x, int pos_y, int *c, int n, int t) {
   int op0, op1, rd;
-  
+  printf("start center kernel\n");
   int c_idx = pos_x + pos_y * n;
   
   for (int i = 0; i < t; i++) {
@@ -98,8 +100,6 @@ void center_kernel(int pos_x, int pos_y, int *c, int n, int t) {
 
 void gemm(int tid_x, int tid_y, int dim_x, int dim_y, int *a,
       int *b, int *c, int m, int n, int t) {
-        
-  
   
   // if the core is on the edge its responsible for loading
   // left edge gets rows of 'a' matrix (depending on row of grid)

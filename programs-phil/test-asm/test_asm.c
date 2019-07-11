@@ -38,8 +38,8 @@ void *kernel(void* args) {
     int *virtualMemAddr = &(mem[0]);
     
     BINDED_SECTION(O_RIGHT_RD, ALL_NORM, 
-      "addi %[a0], x0, %[i0]\n\t"
       "ld   %[a1], 0(%[m0])\n\t"
+      "addi %[a0], x0, %[i0]\n\t"
       "addi %[a2], x0, %[i1]\n\t" 
       ,
       [a0] "=r" (a0) COMMA [a1] "=r" (a1) COMMA [a2] "=r" (a2)
@@ -90,7 +90,7 @@ void *kernel(void* args) {
       
     
     printf("%d %d %d\n", c0, c1, c2);
-    assert(c0 == 12 && c1 == 11 && c2 == 32);
+    assert(c0 == 14 && c1 == 9 && c2 == 32);
   }
   
 }
