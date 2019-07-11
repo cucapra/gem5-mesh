@@ -296,8 +296,9 @@ class TimingSimpleCPU : public BaseSimpleCPU
     
     RegVal savedOps[2];
     
-    
+    void checkStallOnMesh();
     void scheduleMeshUpdate(bool nextVal, bool nextRdy, PacketPtr nextPkt, Mesh_Dir nextDir);
+
 
   protected:
     // pbb override function that maps ports declared and connected in 

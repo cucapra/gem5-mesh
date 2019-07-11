@@ -524,13 +524,39 @@ TimingSimpleCPU::sendNextPkt() {
 }
 
 void
+TimingSimpleCPU::checkStallOnMesh() {
+  // for ordinary instructions check if the src and dests are rdy 
+  // otherwise block
+  if (!curStaticInst->isBind()) {
+      
+    bool ok = checkOpsValRdy();
+    if (ok) _status = Running;
+    else _status = BindSync;
+     
+    if (getNumPortsActive() > 0) {
+      setRdy(); //?
+    }
+  }
+}
+
+void
 TimingSimpleCPU::tryInstruction() {
   
   SimpleExecContext& t_info = *threadInfo[curThread];
   
   if (curStaticInst && curStaticInst->isMemRef()) {
-        // load or store: just send to dcache
-        Fault fault = curStaticInst->initiateAcc(&t_info, traceData);
+        // Since now buffering we can't risk issuing the load and 
+        // finishing before the mesh net is rdy for a new pkt b/c then
+        // we have to store the packet somewhere
+        // TODO add buffering?
+        // could stall due to mesh not being ready
+        checkStallOnMesh();
+    
+        Fault fault = NoFault;
+        if (_status == Running) {
+          // load or store: just send to dcache
+          fault = curStaticInst->initiateAcc(&t_info, traceData);
+        }
 
         // If we're not running now the instruction will complete in a dcache
         // response callback or the instruction faulted and has started an
@@ -564,19 +590,7 @@ TimingSimpleCPU::tryInstruction() {
         DPRINTF(Mesh, "Running instruction while binded\n");
       }
       
-      
-      // for ordinary instructions check if the src and dests are rdy 
-      // otherwise block
-      if (!curStaticInst->isBind()) {
-      
-        bool ok = checkOpsValRdy();
-        if (ok) _status = Running;
-        else _status = BindSync;
-      
-        if (getNumPortsActive() > 0) {
-          setRdy(); //?
-        }
-      }
+      checkStallOnMesh();
       
       if (_status == Running) {
       
