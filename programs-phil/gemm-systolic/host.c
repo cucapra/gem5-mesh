@@ -2,17 +2,19 @@
  * Host code
  */ 
 
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <assert.h>
-
 
 #include "pthread_launch.h"
 #include "gemm.h"
 
 int main(int argc, char *argv[]) {
-  // get dimensions of device manycore
+  
+  /*--------------------------------------------------------------------
+  * Get the dimensions of the manycore
+  *-------------------------------------------------------------------*/
+  
   int cores_x, cores_y;
   get_dimensions(&cores_x, &cores_y);
   int num_cores = cores_x * cores_y;
@@ -20,14 +22,23 @@ int main(int argc, char *argv[]) {
   
   printf("Hello world! %d cores in device\n", num_cores);
   
-  // initialize args
-  int *a;
-  int *b;
-  int *c;
-  int m;
-  int n;
-  int t;
+  /*--------------------------------------------------------------------
+  * initialize args
+  *-------------------------------------------------------------------*/
   
+  // dimensions
+  int m = 2;
+  int n = 2;
+  int t = 2;
+  
+  // declared y by x dimensions
+  int *a = (int*)malloc(m * t);
+  int *b = (int*)malloc(t * n);
+  int *c = (int*)malloc(m * n);
+  
+  /*--------------------------------------------------------------------
+  * create package to pass to spmd kernel
+  *-------------------------------------------------------------------*/
   
   // initialize the arguments to send to each device core
   gemm_args_t **kern_args = (gemm_args_t**)malloc(sizeof(gemm_args_t*) * num_cores);
@@ -53,8 +64,19 @@ int main(int argc, char *argv[]) {
     }  
   }
   
-  // run the kernel to completion
+  /*--------------------------------------------------------------------
+  * run the kernel on specified cores
+  *-------------------------------------------------------------------*/
+  
   launch_kernel(gemm_pthread, (void**)kern_args, cores_x, cores_y);
+  
+  /*--------------------------------------------------------------------
+  * cleanup
+  *-------------------------------------------------------------------*/
+  
+  free(a);
+  free(b);
+  free(c);
   
   return 0;
 }
