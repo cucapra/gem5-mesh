@@ -140,10 +140,12 @@ ToMeshPort::beginToSend() {
  * Define mesh slave port behavior
  *--------------------------------------------------------------------*/ 
 
+// NEVER give THIS pointer 
 FromMeshPort::FromMeshPort(TimingSimpleCPU *_cpu, int idx)
         : TimingCPUSlavePort(
           _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), 
           idx, _cpu), recvPkt_d(nullptr), recvEvent([this] { process(); }, name()), 
+          wakeupCPUEvent([this] { tryUnblockCPU(); }, name()), 
           recvPkt(nullptr), cyclePktRecv(0), rdy(false), active(false)
     { 
       //DPRINTF(Mesh, "init %d %d %ld %ld\n", rdy, active, (uint64_t)recvPkt, (uint64_t)this);
@@ -155,6 +157,7 @@ FromMeshPort::FromMeshPort(TimingSimpleCPU *_cpu, int idx)
 void
 FromMeshPort::process(){
   
+  assert(cpu != nullptr);
   // crashes the session :(
   if (idx < 4){
     DPRINTF(Mesh, "process idx %d\n", idx);
@@ -172,20 +175,21 @@ FromMeshPort::recvTimingReq(PacketPtr pkt) {
   DPRINTF(Mesh, "Received mesh request %#x for idx %d\n", pkt->getAddr(), idx);
     // we should only ever see one response per cycle since we only
     // issue a new request once this response is sunk
+    
     //assert(!tickEvent.scheduled());
     assert(!recvEvent.scheduled());
     // delay processing of returned data until next CPU clock edge
     //tickEvent.schedule(pkt, cpu->clockEdge());
     //recvPkt_d = pkt;
     //recvEvent.schedule(cpu->clockEdge());
-    
-    //cpu->schedule(recvEvent, cpu->clockEdge());
+    recvPkt_d = pkt;
+    cpu->schedule(recvEvent, cpu->clockEdge());
     // temp
-    setPacket(pkt);
+    //setPacket(pkt);
 
     // TODO ERROR wrong need to do this on the next cycle!
     // try to unblock when recv a packet
-    cpu->tryUnblock(false);
+    //cpu->tryUnblock(false);
 
     return true;
 }
@@ -194,6 +198,14 @@ void
 FromMeshPort::recvRespRetry() {
   // ?
   assert(0);
+}
+
+// the this pointer changes after constructing due to being transfered
+// to vector mem management
+void
+FromMeshPort::setupEvents() {
+  recvEvent = EventFunctionWrapper([this] { process(); }, name());
+  wakeupCPUEvent = EventFunctionWrapper([this] { tryUnblockCPU(); }, name());
 }
 
 void
@@ -243,6 +255,10 @@ FromMeshPort::setPacket(PacketPtr pkt) {
   
   // remember the time we recv the packet
   cyclePktRecv = cpu->clockEdge();
+  
+  // schedule a wakeup event on the next cycle to try to run with this
+  // pkt
+  cpu->schedule(wakeupCPUEvent, cpu->clockEdge(Cycles(1)));
 }
 
 bool

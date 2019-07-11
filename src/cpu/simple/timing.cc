@@ -183,7 +183,9 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
         
         PacketPtr new_pkt = createPacket(val);
         
-        scheduleMeshUpdate(true, true, new_pkt, dir);
+        //scheduleMeshUpdate(true, true, new_pkt, dir);
+        
+        toMeshPort[dir].sendTimingReq(new_pkt);
         
       }
     }
@@ -200,7 +202,7 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
     /*nextVal = true;
     nextRdy = false;
     schedule(setValRdyEvent, clockEdge());*/
-    scheduleMeshUpdate(true, false, nullptr, RIGHT);
+    //scheduleMeshUpdate(true, false, nullptr, RIGHT);
   }
   
   // schedule machinetick for the next cycle? if failed to send.
@@ -216,6 +218,13 @@ void
 TimingSimpleCPU::scheduleMeshUpdate(bool nextVal, bool nextRdy, 
     PacketPtr nextPkt, Mesh_Dir nextDir) {
   
+  /*//assert(!setValRdyEvent.scheduled());
+   
+  // if the event was schedule we need to resolve it now
+  if (setValRdyEvent.scheduled()) {
+    deschedule(setValRdyEvent);
+    setNextValRdy();
+  }
   assert(!setValRdyEvent.scheduled());
       
   // set variable to use on the next event
@@ -224,13 +233,19 @@ TimingSimpleCPU::scheduleMeshUpdate(bool nextVal, bool nextRdy,
   this->nextPkt = nextPkt;
   this->nextDir = nextDir;
   
+
+  
   // schedule the update of these on the next cycle
   // can't fire in the current cycle b/c will tryInstruction in this cycle
   schedule(setValRdyEvent, clockEdge(Cycles(1)));
   
+  assert(!sendNextPktEvent.scheduled());
+  
   // schedule at the end of this cycle which effectively is a cycle
   // but guarenteed to be present before any events fire on the next cycle
   schedule(sendNextPktEvent, clockEdge());
+  */
+  
 }
 
 
@@ -667,6 +682,12 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
     
     for (int i = 0; i < p->port_from_mesh_port_connection_count; ++i) {
         fromMeshPort.emplace_back(this, i);
+    }
+    
+    for (int i = 0; i < p->port_from_mesh_port_connection_count; i++) {
+      // need to setup anything involving the 'this' pointer in the port
+      // class after have moved into vector memory
+      fromMeshPort[i].setupEvents();
     }
     
     // keep in mind that you shouldn't use 'this' within objects that are declared as vec?

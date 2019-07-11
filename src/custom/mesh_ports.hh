@@ -173,6 +173,8 @@ class FromMeshPort : public TimingCPUSlavePort {
     
     bool pktExists();
     
+    void setupEvents();
+    
   protected:
 
     // important to implement/override these from slave port
@@ -201,6 +203,7 @@ class FromMeshPort : public TimingCPUSlavePort {
   // packet to be received after clk edge
     PacketPtr recvPkt_d;
     EventFunctionWrapper recvEvent;
+    EventFunctionWrapper wakeupCPUEvent;
     void process();
     
     // store the most recently received packet (in a single register)
