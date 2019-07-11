@@ -51,7 +51,7 @@ void *kernel(void* args) {
     
     
   }
-  else if (cid == 3) {
+  else if (cid == cores_x + 1) {
     
     int b0, b1, b2;
     
