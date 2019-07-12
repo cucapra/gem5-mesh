@@ -102,8 +102,10 @@ ToMeshPort::getPairRdy() {
   if (FromMeshPort *slaveMeshPort = dynamic_cast<FromMeshPort*>(slavePort)) {
     return slaveMeshPort->getRdy();
   }
+  // if not connected to a mesh port, then probably an edge harness
+  // in this case, its always rdy!
   else {
-    return false;
+    return true;
   }
 }
 
