@@ -298,10 +298,11 @@ FromMeshPort::tryUnblockCPU() {
 bool
 FromMeshPort::getRdy() {
   if (rdy) {
-    // if we have a packet but don't have a packet in other ports
+    // if we have a packet but don't have a packet in other ports or
+    // we have packets but can't send them anywhere b/c output not rdy
     // then we can't accept anymore packets on this port b/c we can't tick
-    if (getPairVal() && cpu->getInVal()) return true;
-    else if (getPairVal() && !cpu->getInVal()) return false;
+    if (getPairVal() && cpu->getInVal() && cpu->getOutRdy()) return true;
+    else if (getPairVal() && (!cpu->getInVal() || !cpu->getOutRdy())) return false;
     else return true;
   }
   else {
