@@ -45,6 +45,10 @@ void left_kernel(int row, int *a, int t) {
       ,
       COMMA [m0] "r" (vAddr)
     );
+    
+    // since this is still written to reg (for debug)
+    // we can printout
+    //printf("ld -> %d .. x %d , y %d\n", rd, i, row);
   }
 }
 
@@ -64,6 +68,8 @@ void top_kernel(int col, int *b, int t) {
       ,
       COMMA [m0] "r" (vAddr)
     );
+    
+    //printf("ld v %d .. x %d, y %d\n", rd, col, i);
   }
 }
 
@@ -91,6 +97,7 @@ void center_kernel(int pos_x, int pos_y, int *c, int n, int t) {
     // potentially can do this work if stalled in the sytolic part?
     // also maybe can do this in batch when all registers full?
     // TODO psums for better caching locality
+    //printf("idx %d += rd %d\n", c_idx, rd);
     c[c_idx] += rd;
   }
 }
@@ -112,7 +119,7 @@ void gemm(int tid_x, int tid_y, int dim_x, int dim_y, int *a,
   if (tid_y == 0) {
     for (int x = 1; x < dim_x; x++) {
       if (tid_x == x) {
-        top_kernel(x, b, t);
+        top_kernel(x - 1, b, t);
       }
     }
   }
@@ -121,7 +128,7 @@ void gemm(int tid_x, int tid_y, int dim_x, int dim_y, int *a,
   if (tid_x == 0) {
     for (int y = 1; y < dim_y; y++) {
       if (tid_y == y) {
-        left_kernel(y, a, t);
+        left_kernel(y - 1, a, t);
       }
     }
   }

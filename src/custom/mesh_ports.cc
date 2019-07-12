@@ -117,6 +117,7 @@ ToMeshPort::tryUnblockNeighbor() {
   }
 }
 
+// deprecated
 void
 ToMeshPort::failToSend(PacketPtr pkt) {
   // assert not rdy
@@ -126,6 +127,7 @@ ToMeshPort::failToSend(PacketPtr pkt) {
   stalledPkt = pkt;
 }
 
+// deprecated
 void
 ToMeshPort::beginToSend() {
   // if there is a stalled packet lets send that now

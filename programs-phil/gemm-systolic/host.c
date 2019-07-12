@@ -90,6 +90,26 @@ int main(int argc, char *argv[]) {
   launch_kernel(gemm_pthread, (void**)kern_args, cores_x, cores_y);
   
   /*--------------------------------------------------------------------
+  * inspect the output
+  *-------------------------------------------------------------------*/
+  
+  printf("Output matrix c\n");
+  
+  int correct = 1;
+  
+  for (int j = 0; j < m; j++) {
+    for (int i = 0; i < n; i++) {
+      int idx = j * m + i;
+      printf("%d\t", c[idx]);
+      if (c[idx] != t) correct = 0; 
+    }
+    printf("\n");
+  }
+  
+  if (correct == 1) printf("[[SUCCESS]]\n");
+  else printf("[[FAIL]]\n");
+  
+  /*--------------------------------------------------------------------
   * cleanup
   *-------------------------------------------------------------------*/
   
