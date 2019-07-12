@@ -4,20 +4,7 @@
 #include <cstdint>
 #include <vector>
 
-// order from mesh.py reproduced here (and should agree with software bind_defs.h
-typedef enum Mesh_Dir {
-  RIGHT = 0,
-  DOWN = 1,
-  LEFT = 2,
-  UP = 3,
-  NUM_DIR
-} Mesh_Dir;
-
-typedef enum Mesh_Out_Src {
-  RD = 0,
-  RS1 = 1,
-  RS2 = 2
-} Mesh_Out_Src;
+#include "custom/bind_spec.hh"
 
 class MeshHelper {
   

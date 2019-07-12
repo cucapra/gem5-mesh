@@ -4,26 +4,6 @@
 #include "custom/mesh_helper.hh"
 #include "base/bitfield.hh"
 
-// needs to agree with bind_defs.h
-// TODO create a unified file
-
-#define UP_HI 1
-#define UP_LO 0
-
-#define RIGHT_HI 3
-#define RIGHT_LO 2
-
-#define DOWN_HI 5
-#define DOWN_LO 4
-
-#define LEFT_HI 7
-#define LEFT_LO 6
-
-#define OP1_HI 10
-#define OP1_LO 8
-
-#define OP2_HI 13
-#define OP2_LO 11
 
 // need this to get reg names
 using namespace RiscvISA;
