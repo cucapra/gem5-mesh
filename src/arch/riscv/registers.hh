@@ -257,6 +257,7 @@ enum MiscRegIndex {
 
     // pbb custom regs that can be accessed by insructions
     MISCREG_EXE,
+    MISCREG_FETCH,
 
     NUM_MISCREGS
 };
@@ -427,7 +428,8 @@ enum CSRIndex {
     
     // pbb custom reg codes
     ,
-    CSR_EXE = 0x400
+    CSR_EXE = 0x400,
+    CSR_FETCH = 0x401
     
 };
 
@@ -600,7 +602,8 @@ const std::map<int, CSRMetadata> CSRData = {
     
     // PBB 
     ,
-    {CSR_EXE, {"meshout", MISCREG_EXE}}
+    {CSR_EXE, {"executemesh", MISCREG_EXE}},
+    {CSR_FETCH, {"fetchmesh", MISCREG_FETCH}}
 };
 
 /**

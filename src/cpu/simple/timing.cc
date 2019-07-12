@@ -604,7 +604,8 @@ TimingSimpleCPU::tryInstruction() {
     } else if (curStaticInst) {
       
       if (getNumPortsActive() > 0 && !curStaticInst->isBind()) {
-        DPRINTF(Mesh, "Running instruction while binded\n");
+        DPRINTF(Mesh, "Running instruction while binded %lx\n", 
+          curStaticInst->machInst);
       }
       
       checkStallOnMesh();

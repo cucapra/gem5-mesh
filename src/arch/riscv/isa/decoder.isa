@@ -1830,5 +1830,9 @@ decode QUADRANT default Unknown::unknown() {
             //printf("imm val: %ld\n", imm);
             xc->setMiscReg(MISCREG_EXE, imm);
         }}, IsNonSpeculative, IsBind, No_OpClass);
+        
+        0x1d: BUOp::csrfet({{
+            xc->setMiscReg(MISCREG_FETCH, imm);
+        }}, IsNonSpeculative, IsBind, No_OpClass);
     }
 }

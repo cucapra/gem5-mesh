@@ -11,16 +11,16 @@ using namespace RiscvISA;
 bool
 MeshHelper::csrToOutSrcs(uint64_t csrVal, Mesh_Dir dir, Mesh_Out_Src &src) {
   if (dir == UP) {
-    return rangeToMeshOutSrc(csrVal, UP_HI, UP_LO, src);
+    return rangeToMeshOutSrc(csrVal, EXE_UP_HI, EXE_UP_LO, src);
   }
   else if (dir == RIGHT) {
-    return rangeToMeshOutSrc(csrVal, RIGHT_HI, RIGHT_LO, src);
+    return rangeToMeshOutSrc(csrVal, EXE_RIGHT_HI, EXE_RIGHT_LO, src);
   }
   else if (dir == DOWN) {
-    return rangeToMeshOutSrc(csrVal, DOWN_HI, DOWN_LO, src);
+    return rangeToMeshOutSrc(csrVal, EXE_DOWN_HI, EXE_DOWN_LO, src);
   }
   else if (dir == LEFT) {
-    return rangeToMeshOutSrc(csrVal, LEFT_HI, LEFT_LO, src);
+    return rangeToMeshOutSrc(csrVal, EXE_LEFT_HI, EXE_LEFT_LO, src);
   }
   else {
     assert(0);
@@ -32,10 +32,10 @@ bool
 MeshHelper::csrToOp(uint64_t csrVal, int opIdx, Mesh_Dir &dir) {
   assert(opIdx < 2);
   if (opIdx == 0) {
-    return rangeToMeshDir(csrVal, OP1_HI, OP1_LO, dir);
+    return rangeToMeshDir(csrVal, EXE_OP1_HI, EXE_OP1_LO, dir);
   }
   else {
-    return rangeToMeshDir(csrVal, OP2_HI, OP2_LO, dir); 
+    return rangeToMeshDir(csrVal, EXE_OP2_HI, EXE_OP2_LO, dir); 
   }
 }
 
@@ -88,3 +88,25 @@ bool
 MeshHelper::isCSRDefault(uint64_t csrVal) {
   return (csrVal == 0);
 }
+
+
+// reproduce the isa file here, b/c not sure how to get the info from the
+// weirdo isa language
+/*
+StaticInstPtr
+MeshHelper::nameToStaticInst(Locked_Insts inst) {
+  switch(inst) {
+    case ADD:
+      MachInst mach = 0b00000000000000000000000000110011;
+      return new StaticInst("add", mach, IntALUOp);
+    case MUL:
+      MachInst mach = 0b00000010000000000000000000110011
+      return new StaticInst("mul", mach, IntMultOp);
+    case SUB:
+      MachInst mach = 0b01000000000000000000000000110011
+      return new StaticInst("sub", mach, IntALUOp);
+    case LW:
+      
+  }
+}
+*/

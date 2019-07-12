@@ -40,6 +40,8 @@ class MeshHelper {
   private:
     static bool rangeToMeshDir(uint64_t csrVal, int hi, int lo, Mesh_Dir &dir);
     static bool rangeToMeshOutSrc(uint64_t csrVal, int hi, int lo, Mesh_Out_Src &src);
+    
+    //static StaticInst lockedToStaticInst(Locked_Insts inst);
 };
 
 
