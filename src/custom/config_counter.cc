@@ -23,3 +23,13 @@ ConfigCounter::isComplete() {
   if (currentCount == requiredCount) return true;
   else return false;
 }
+
+void
+ConfigCounter::deactivate() {
+  requiredCount = 0;
+}
+
+bool
+ConfigCounter::isActive() {
+  return (requiredCount > 0);
+}

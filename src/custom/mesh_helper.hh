@@ -11,12 +11,12 @@ class MeshHelper {
   public:
     //static bool csrToRd(uint64_t csrVal, Mesh_Dir &dir);
     
-    static bool csrToOutSrcs(uint64_t csrVal, Mesh_Dir dir, Mesh_Out_Src &src);
+    static bool exeCsrToOutSrcs(uint64_t csrVal, Mesh_Dir dir, Mesh_Out_Src &src);
     //static bool csrSrcActive(uint64_t csrVal, Mesh_Dir dir, Mesh_Out_Src src);
     
     //static int csrSrcSends(uint64_t csrVal, Mesh_Out_Src src);
     
-    static bool csrToOp(uint64_t csrVal, int opIdx, Mesh_Dir &dir);
+    static bool exeCsrToOp(uint64_t csrVal, int opIdx, Mesh_Dir &dir);
     //static bool csrToOp1(uint64_t csrVal, Mesh_Dir &dir);
     //static bool csrToOp2(uint64_t csrVal, Mesh_Dir &dir);
     
@@ -36,6 +36,11 @@ class MeshHelper {
   
     // the config in the csr means that no special behvaior should occur
     static bool isCSRDefault(uint64_t csrVal);
+    
+    static bool fetCsrToInSrc(uint64_t csrVal, Mesh_Dir &dir);
+    static bool fetCsrToOutSrcs(uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
+    static bool fetCsrToCount(uint64_t csrVal, int &count);
+    static bool fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst);
     
   private:
     static bool rangeToMeshDir(uint64_t csrVal, int hi, int lo, Mesh_Dir &dir);

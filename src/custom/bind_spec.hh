@@ -154,15 +154,18 @@ typedef enum Locked_Insts {
 
 // in dir --> 3 bits
 #define FET_I_INST_BITS     3
-#define FET_I_INST_SHAMT    FET_LOCKED_SHAMT + FET_LOCKED_INST_BITS
+#define FET_I_INST_SHAMT    (FET_LOCKED_SHAMT + FET_LOCKED_INST_BITS)
 #define FET_I_INST_NORM     0x0
-#define FET_I_INST_RIGHT    (RIGHT + 1) << FET_I_INST_SHAMT
-#define FET_I_INST_DOWN     (DOWN + 1)  << FET_I_INST_SHAMT
-#define FET_I_INST_LEFT     (LEFT + 1)  << FET_I_INST_SHAMT
-#define FET_I_INST_UP       (UP + 1)    << FET_I_INST_SHAMT
-#define FET_I_INST_LOCK     (NUM_DIR + 1) << FET_I_INST_SHAMT
+#define FET_I_INST_RIGHT    ((RIGHT + 1) << FET_I_INST_SHAMT)
+#define FET_I_INST_DOWN     ((DOWN + 1)  << FET_I_INST_SHAMT)
+#define FET_I_INST_LEFT     ((LEFT + 1)  << FET_I_INST_SHAMT)
+#define FET_I_INST_UP       ((UP + 1)    << FET_I_INST_SHAMT)
+#define FET_I_INST_LOCK     ((NUM_DIR + 1) << FET_I_INST_SHAMT)
 
 // out dir --> 4 bits
+// these should be consecutive and ordered the same as mesh_dir enum! 
+// to make decoding easier
+
 #define FET_O_INST_RIGHT_BITS 1
 #define FET_O_INST_RIGHT_SHAMT FET_I_INST_SHAMT + FET_I_INST_BITS
 #define FET_O_INST_RIGHT_NORM 0 << FET_O_INST_RIGHT_SHAMT
@@ -186,6 +189,21 @@ typedef enum Locked_Insts {
 // remaining bits goes to the count amt (7 bits)
 #define FET_COUNT_BITS     7
 #define FET_COUNT_SHAMT    FET_O_INST_UP_SHAMT + FET_O_INST_UP_BITS
+
+
+// explicilty determine bitranges for decoding
+
+#define FET_IN_SRC_HI FET_I_INST_SHAMT + FET_I_INST_BITS - 1
+#define FET_IN_SRC_LO FET_I_INST_SHAMT
+
+#define FET_OUT_HI FET_O_INST_RIGHT_SHAMT + FET_O_INST_RIGHT_BITS - 1
+#define FET_OUT_LO FET_O_INST_RIGHT_SHAMT
+
+#define FET_COUNT_HI FET_COUNT_SHAMT + FET_COUNT_BITS - 1
+#define FET_COUNT_LO FET_COUNT_SHAMT
+
+#define FET_INST_HI FET_LOCKED_SHAMT + FET_LOCKED_INST_BITS - 1
+#define FET_INST_LO FET_LOCKED_SHAMT
 
 
 #endif

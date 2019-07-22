@@ -186,7 +186,7 @@ class SimpleExecContext : public ExecContext {
         // idx is the op (0 or 1) not the regfile idx
         uint64_t csrVal = cpu->getExeCSR();
         Mesh_Dir dir;
-        if (MeshHelper::csrToOp(csrVal, idx, dir)) {
+        if (MeshHelper::exeCsrToOp(csrVal, idx, dir)) {
             // need to do a port lookup here to get the right value
             ret = cpu->getMeshPortData(dir);
         }

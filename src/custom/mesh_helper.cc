@@ -12,7 +12,7 @@ using namespace RiscvISA;
 static std::vector<int> csrs = { MISCREG_EXE, MISCREG_FETCH };
 
 bool
-MeshHelper::csrToOutSrcs(uint64_t csrVal, Mesh_Dir dir, Mesh_Out_Src &src) {
+MeshHelper::exeCsrToOutSrcs(uint64_t csrVal, Mesh_Dir dir, Mesh_Out_Src &src) {
   if (dir == UP) {
     return rangeToMeshOutSrc(csrVal, EXE_UP_HI, EXE_UP_LO, src);
   }
@@ -32,7 +32,7 @@ MeshHelper::csrToOutSrcs(uint64_t csrVal, Mesh_Dir dir, Mesh_Out_Src &src) {
 
 
 bool
-MeshHelper::csrToOp(uint64_t csrVal, int opIdx, Mesh_Dir &dir) {
+MeshHelper::exeCsrToOp(uint64_t csrVal, int opIdx, Mesh_Dir &dir) {
   assert(opIdx < 2);
   if (opIdx == 0) {
     return rangeToMeshDir(csrVal, EXE_OP1_HI, EXE_OP1_LO, dir);
@@ -41,8 +41,6 @@ MeshHelper::csrToOp(uint64_t csrVal, int opIdx, Mesh_Dir &dir) {
     return rangeToMeshDir(csrVal, EXE_OP2_HI, EXE_OP2_LO, dir); 
   }
 }
-
-
 
 bool
 MeshHelper::isBindCSR(int csrIdx) {
@@ -90,6 +88,37 @@ MeshHelper::rangeToMeshOutSrc(uint64_t csrVal, int hi, int lo, Mesh_Out_Src &src
 bool
 MeshHelper::isCSRDefault(uint64_t csrVal) {
   return (csrVal == 0);
+}
+
+bool
+MeshHelper::fetCsrToInSrc(uint64_t csrVal, Mesh_Dir &dir) { 
+  return rangeToMeshDir(csrVal, FET_IN_SRC_HI, FET_IN_SRC_LO, dir);
+}
+
+bool
+MeshHelper::fetCsrToOutSrcs(uint64_t csrVal, std::vector<Mesh_Dir> &dirs) {
+  // check each bit region to see if we should send
+  for (int i = 0; i < NUM_DIR; i++) {
+    if (bits(csrVal, FET_OUT_HI + i, FET_OUT_LO + i) == 1) {
+      dirs.push_back((Mesh_Dir)i);
+    }
+  }
+  
+  return (dirs.size() > 0);
+}
+
+bool
+MeshHelper::fetCsrToCount(uint64_t csrVal, int &count) {
+  count = bits(csrVal, FET_COUNT_HI, FET_COUNT_LO);
+  return (count > 0);
+}
+
+bool
+MeshHelper::fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst) {
+  // only does anything if dir set to lock
+  inst = (Locked_Insts)bits(csrVal, FET_INST_HI, FET_INST_LO);
+  int lockedInt = bits(csrVal, FET_IN_SRC_HI, FET_IN_SRC_LO);
+  return (lockedInt == (FET_I_INST_LOCK >> FET_I_INST_SHAMT));
 }
 
 

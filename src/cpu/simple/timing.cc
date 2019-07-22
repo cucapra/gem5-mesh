@@ -163,7 +163,7 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
     for (int i = 0; i < NUM_DIR; i++) {
       Mesh_Dir dir = (Mesh_Dir)i;
       Mesh_Out_Src src;
-      if (MeshHelper::csrToOutSrcs(csrVal, dir, src)) {
+      if (MeshHelper::exeCsrToOutSrcs(csrVal, dir, src)) {
         
         
         
@@ -298,7 +298,7 @@ TimingSimpleCPU::setupHandshake() {
     for (int j = 0; j < NUM_DIR; j++) {
       Mesh_Dir dir = (Mesh_Dir)j;
       Mesh_Out_Src src;
-      if (MeshHelper::csrToOutSrcs(regVal, dir, src)) {
+      if (MeshHelper::exeCsrToOutSrcs(regVal, dir, src)) {
         
         // TODO save the src?
         toMeshPort[dir].setActive(true);
@@ -310,7 +310,7 @@ TimingSimpleCPU::setupHandshake() {
     #define NUM_OPS 2
     for (int j = 0; j < NUM_OPS; j++) {
       Mesh_Dir dir;
-      if (MeshHelper::csrToOp(regVal, j, dir)) {
+      if (MeshHelper::exeCsrToOp(regVal, j, dir)) {
         fromMeshPort[dir].setActive(true);
         numInPortsActive++;
       }
@@ -640,7 +640,15 @@ TimingSimpleCPU::tryInstruction() {
         if (curStaticInst && (!curStaticInst->isMicroop() ||
                 curStaticInst->isFirstMicroop()))
             instCnt++;
+            
+            
+        // register op done to counter
+        //configCntr.incrCount();
+        
+        
+        // fetch the next instruction
         advanceInst(fault);
+        
       }
       else {
         // not rdy or val if blocking?
