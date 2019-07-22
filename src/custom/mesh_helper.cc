@@ -8,6 +8,7 @@
 // need this to get reg names
 using namespace RiscvISA;
 
+#define NUM_OPERANDS 2
 
 static std::vector<int> csrs = { MISCREG_EXE, MISCREG_FETCH };
 
@@ -33,13 +34,40 @@ MeshHelper::exeCsrToOutSrcs(uint64_t csrVal, Mesh_Dir dir, Mesh_Out_Src &src) {
 
 bool
 MeshHelper::exeCsrToOp(uint64_t csrVal, int opIdx, Mesh_Dir &dir) {
-  assert(opIdx < 2);
+  assert(opIdx < NUM_OPERANDS);
   if (opIdx == 0) {
     return rangeToMeshDir(csrVal, EXE_OP1_HI, EXE_OP1_LO, dir);
   }
   else {
     return rangeToMeshDir(csrVal, EXE_OP2_HI, EXE_OP2_LO, dir); 
   }
+}
+
+// TODO might want to make a unified parent class and overload this method
+// also for out src
+bool
+MeshHelper::exeCsrToInSrc(uint64_t csrVal, std::vector<Mesh_Dir> &dirs) {
+  Mesh_Dir dir;
+  for (int i = 0 ; i < NUM_OPERANDS; i++) {
+    if (exeCsrToOp(csrVal, i, dir)) {
+      dirs.push_back(dir);
+    }
+  }
+  
+  return (dirs.size() > 0);
+}
+
+bool
+MeshHelper::exeCsrToOutDests(uint64_t csrVal, std::vector<Mesh_Dir> &dirs) {
+  for (int j = 0; j < NUM_DIR; j++) {
+    Mesh_Dir dir = (Mesh_Dir)j;
+    Mesh_Out_Src src;
+    if (exeCsrToOutSrcs(csrVal, dir, src)) {
+      dirs.push_back(dir);
+    }
+  }
+  
+  return (dirs.size() > 0);
 }
 
 bool
@@ -96,7 +124,7 @@ MeshHelper::fetCsrToInSrc(uint64_t csrVal, Mesh_Dir &dir) {
 }
 
 bool
-MeshHelper::fetCsrToOutSrcs(uint64_t csrVal, std::vector<Mesh_Dir> &dirs) {
+MeshHelper::fetCsrToOutDests(uint64_t csrVal, std::vector<Mesh_Dir> &dirs) {
   // check each bit region to see if we should send
   for (int i = 0; i < NUM_DIR; i++) {
     if (bits(csrVal, FET_OUT_HI + i, FET_OUT_LO + i) == 1) {
@@ -121,6 +149,36 @@ MeshHelper::fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst) {
   return (lockedInt == (FET_I_INST_LOCK >> FET_I_INST_SHAMT));
 }
 
+
+bool
+MeshHelper::csrToInSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs) {
+  if (csr == MISCREG_EXE) {
+    return exeCsrToInSrc(csrVal, dirs);
+  }
+  else if (csr == MISCREG_FETCH) {
+    Mesh_Dir singleDir;
+    bool ret = fetCsrToInSrc(csrVal, singleDir);
+    if (ret) dirs.push_back(singleDir);
+    return ret;
+  }
+  else {
+    assert(0);
+  }
+}
+
+// parent class -- noob!
+bool
+MeshHelper::csrToOutDests(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs) {
+  if (csr == MISCREG_EXE) {
+    return exeCsrToOutDests(csrVal, dirs);
+  }
+  else if (csr == MISCREG_FETCH) {
+    return fetCsrToOutDests(csrVal, dirs);
+  }
+  else {
+    assert(0);
+  }
+}
 
 // reproduce the isa file here, b/c not sure how to get the info from the
 // weirdo isa language

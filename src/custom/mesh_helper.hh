@@ -20,6 +20,10 @@ class MeshHelper {
     //static bool csrToOp1(uint64_t csrVal, Mesh_Dir &dir);
     //static bool csrToOp2(uint64_t csrVal, Mesh_Dir &dir);
     
+    
+    static bool exeCsrToInSrc(uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
+    static bool exeCsrToOutDests(uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
+    
     // the csr idx is to a bind one
     static bool isBindCSR(int csrIdx);
     
@@ -38,9 +42,12 @@ class MeshHelper {
     static bool isCSRDefault(uint64_t csrVal);
     
     static bool fetCsrToInSrc(uint64_t csrVal, Mesh_Dir &dir);
-    static bool fetCsrToOutSrcs(uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
+    static bool fetCsrToOutDests(uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
     static bool fetCsrToCount(uint64_t csrVal, int &count);
     static bool fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst);
+    
+    static bool csrToInSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
+    static bool csrToOutDests(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
     
   private:
     static bool rangeToMeshDir(uint64_t csrVal, int hi, int lo, Mesh_Dir &dir);

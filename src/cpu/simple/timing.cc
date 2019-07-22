@@ -292,28 +292,22 @@ TimingSimpleCPU::setupHandshake() {
   
   // foreach bind csr set val or rdy in the apprpriate port
   for (int i = 0; i < csrs.size(); i++) {
-    regVal = thread->readMiscRegNoEffect(csrs[i]);
+    int csrId = csrs[i];
+    regVal = thread->readMiscRegNoEffect(csrId);
     DPRINTF(Mesh, "regval %d from csr %#x\n", regVal, csrs[i]);
     // get the internal src to be send of each of the output ports
-    for (int j = 0; j < NUM_DIR; j++) {
-      Mesh_Dir dir = (Mesh_Dir)j;
-      Mesh_Out_Src src;
-      if (MeshHelper::exeCsrToOutSrcs(regVal, dir, src)) {
-        
-        // TODO save the src?
-        toMeshPort[dir].setActive(true);
-        numOutPortsActive++;     
-      }
+    std::vector<Mesh_Dir> outDirs;
+    MeshHelper::csrToOutDests(csrId, regVal, outDirs);
+    for (int j = 0; j < outDirs.size(); j++) {
+      toMeshPort[outDirs[j]].setActive(true);
+      numOutPortsActive++;
     }
     
-    // try to handshake with recv ports
-    #define NUM_OPS 2
-    for (int j = 0; j < NUM_OPS; j++) {
-      Mesh_Dir dir;
-      if (MeshHelper::exeCsrToOp(regVal, j, dir)) {
-        fromMeshPort[dir].setActive(true);
-        numInPortsActive++;
-      }
+    std::vector<Mesh_Dir> inDirs;
+    MeshHelper::csrToInSrcs(csrId, regVal, inDirs);
+    for (int j = 0; j < inDirs.size(); j++) {
+      fromMeshPort[inDirs[j]].setActive(true);
+      numInPortsActive++;
     }
   }
 }
