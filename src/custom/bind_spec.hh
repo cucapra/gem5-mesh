@@ -129,7 +129,8 @@ typedef enum Locked_Insts {
 } Locked_Insts;
 
 // don't need to encode every instruction, just a subset that's useful
-// TODO how am I going to get this static instruction
+// these don't include operands --> need to do operand binds beforehand
+
 #define FET_LOCKED_INST_BITS  6
 #define FET_LOCKED_SHAMT 0
 #define FET_LOCK_ADD    ADD
