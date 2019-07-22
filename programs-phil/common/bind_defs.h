@@ -47,17 +47,17 @@
 // fetch goes back to normal after specified number of executes
 // so no need to unbind
 // should exe also do this? no neccessary but will reduce instruction count
-#define BINDED_FET_SECTION(sbind, timer, code, wr, rd)      \
+/*#define BINDED_FET_SECTION(sbind, timer, code, wr, rd)      \
   asm volatile (                                            \
     ".insn u 0x77, x0, %[bind0]\n\t"                        \
     code                                                    \
     : wr                                                    \
     : [bind0] "i" (sbind | (timer << FET_COUNT_SHAMT)), rd  \
   )
-
+*/
   
 // bind both exe and fetch
-#define BINDED_SECTION(ebind0, ebind1, fbind0, timer, code, wr, rd)  \
+#define BINDED_TIMED_SECTION(ebind0, ebind1, fbind0, timer, code, wr, rd)  \
   asm volatile (                                            \
     ".insn u 0x6b, x0, %[ebind0]\n\t"                       \
     ".insn u 0x77, x0, %[fbind0]\n\t"                       \
@@ -66,6 +66,18 @@
     : wr                                                    \
     : [ebind0] "i" (ebind0), [ebind1] "i" (ebind1),         \
       [fbind0] "i" (fbind0 | (timer << FET_COUNT_SHAMT)) rd \
+  )
+
+#define BINDED_SECTION(ebind0, ebind1, fbind0, fbind1, code, wr, rd)  \
+  asm volatile (                                            \
+    ".insn u 0x6b, x0, %[ebind0]\n\t"                       \
+    ".insn u 0x77, x0, %[fbind0]\n\t"                       \
+    code                                                    \
+    ".insn u 0x77, x0, %[fbind1]\n\t"                       \
+    ".insn u 0x6b, x0, %[ebind1]\n\t"                       \
+    : wr                                                    \
+    : [ebind0] "i" (ebind0), [ebind1] "i" (ebind1),         \
+      [fbind0] "i" (fbind0), [fbind1] "i" (fbind1), rd      \
   )
 
 #endif

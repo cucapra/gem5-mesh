@@ -38,7 +38,7 @@ void left_kernel(int row, int *a, int t) {
     int *vAddr = &(a[mem_idx]);
     
     // TODO unroll and/or bind fetch + counter
-    BINDED_SECTION(EXE_O_RIGHT_RD, ALL_NORM,
+    BINDED_EXE_SECTION(EXE_O_RIGHT_RD, ALL_NORM,
       "ld   %[a0], 0(%[m0])\n\t"
       ,
       [a0] "=r" (rd)
@@ -61,7 +61,7 @@ void top_kernel(int col, int *b, int t) {
     int *vAddr = &(b[mem_idx]);
     
     // TODO unroll and/or bind fetch + counter
-    BINDED_SECTION(EXE_O_DOWN_RD, ALL_NORM,
+    BINDED_EXE_SECTION(EXE_O_DOWN_RD, ALL_NORM,
       "ld   %[a0], 0(%[m0])\n\t"
       ,
       [a0] "=r" (rd)
@@ -82,7 +82,7 @@ void center_kernel(int pos_x, int pos_y, int *c, int n, int t) {
     
     // we don't have the madd instruction (TODO?)
     // so we need to multiply, then add
-    BINDED_SECTION(
+    BINDED_EXE_SECTION(
       EXE_I_RS1_LEFT  | EXE_I_RS2_UP | 
       EXE_O_RIGHT_RS1 | EXE_O_DOWN_RS2, 
       ALL_NORM,
