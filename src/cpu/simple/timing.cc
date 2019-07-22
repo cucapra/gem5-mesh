@@ -265,10 +265,15 @@ TimingSimpleCPU::scheduleMeshUpdate(bool nextVal, bool nextRdy,
 // foreach port (need (val && rdy) || (!val && !rdy)) --> xnor
 Fault
 TimingSimpleCPU::setupAndHandshake() {
-  DPRINTF(Mesh, "setup handshake and try unblock\n");
+  DPRINTF(Mesh, "setup handshake\n");
   
   //setup required handshake ports
   setupHandshake();
+  
+  // setup the config timer
+  configCntr.setCount(0);
+  
+  // setup the locked instruction?
   
   return NoFault;
 }
@@ -668,6 +673,7 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       
       schedCycle(0),
       tryUnblockEvent([this] { tryUnblock(true); }, name()),
+      configCntr(this),
       
       //savedOps({0, 0}),
       

@@ -49,6 +49,7 @@
 #include "params/TimingSimpleCPU.hh"
 #include "custom/mesh_machine.hh"
 #include "custom/mesh_ports.hh"
+#include "custom/config_counter.hh"
 
 class TimingSimpleCPU : public BaseSimpleCPU
 {
@@ -293,6 +294,8 @@ class TimingSimpleCPU : public BaseSimpleCPU
     //int nextWait;
     uint64_t schedCycle;
     EventFunctionWrapper tryUnblockEvent;
+    
+    ConfigCounter configCntr;
     
     RegVal savedOps[2];
     

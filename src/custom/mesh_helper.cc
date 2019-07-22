@@ -8,6 +8,9 @@
 // need this to get reg names
 using namespace RiscvISA;
 
+
+static std::vector<int> csrs = { MISCREG_EXE, MISCREG_FETCH };
+
 bool
 MeshHelper::csrToOutSrcs(uint64_t csrVal, Mesh_Dir dir, Mesh_Out_Src &src) {
   if (dir == UP) {
@@ -39,19 +42,19 @@ MeshHelper::csrToOp(uint64_t csrVal, int opIdx, Mesh_Dir &dir) {
   }
 }
 
+
+
 bool
 MeshHelper::isBindCSR(int csrIdx) {
-  if (csrIdx == MISCREG_EXE) {
-    return true;
+  for (int i = 0; i < csrs.size(); i++) {
+    if (csrs[i] == csrIdx) return true;
   }
-  else {
-    return false;
-  }
+  
+  return false;
 }
 
 std::vector<int>
 MeshHelper::getCSRCodes() {
-  std::vector<int> csrs = { MISCREG_EXE };
   return csrs;
 }
 
