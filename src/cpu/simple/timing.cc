@@ -147,7 +147,6 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
   //Mesh_Dir dir;
   //if (!MeshHelper::csrToRd(val, dir)) return NoFault;
   if (getNumOutPortsActive() == 0) return NoFault;
-  
 
   //if (toMeshPort[dir].checkHandshake()) {
   if (getOutRdy()) {
@@ -298,6 +297,7 @@ TimingSimpleCPU::setupHandshake() {
     // get the internal src to be send of each of the output ports
     std::vector<Mesh_Dir> outDirs;
     MeshHelper::csrToOutDests(csrId, regVal, outDirs);
+    
     for (int j = 0; j < outDirs.size(); j++) {
       toMeshPort[outDirs[j]].setActive(true);
       numOutPortsActive++;
@@ -305,6 +305,7 @@ TimingSimpleCPU::setupHandshake() {
     
     std::vector<Mesh_Dir> inDirs;
     MeshHelper::csrToInSrcs(csrId, regVal, inDirs);
+    
     for (int j = 0; j < inDirs.size(); j++) {
       fromMeshPort[inDirs[j]].setActive(true);
       numInPortsActive++;

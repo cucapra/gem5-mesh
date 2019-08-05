@@ -70,14 +70,14 @@
 
 #define BINDED_SECTION(ebind0, ebind1, fbind0, fbind1, code, wr, rd)  \
   asm volatile (                                            \
-    ".insn u 0x6b, x0, %[ebind0]\n\t"                       \
-    ".insn u 0x77, x0, %[fbind0]\n\t"                       \
+    ".insn u 0x6b, x0, %[eb0]\n\t"                          \
+    ".insn u 0x77, x0, %[fb0]\n\t"                          \
     code                                                    \
-    ".insn u 0x77, x0, %[fbind1]\n\t"                       \
-    ".insn u 0x6b, x0, %[ebind1]\n\t"                       \
+    ".insn u 0x77, x0, %[fb1]\n\t"                          \
+    ".insn u 0x6b, x0, %[eb1]\n\t"                          \
     : wr                                                    \
-    : [ebind0] "i" (ebind0), [ebind1] "i" (ebind1),         \
-      [fbind0] "i" (fbind0), [fbind1] "i" (fbind1), rd      \
+    : [eb0] "i" (ebind0), [eb1] "i" (ebind1),               \
+      [fb0] "i" (fbind0), [fb1] "i" (fbind1) rd             \
   )
 
 #endif
