@@ -225,17 +225,26 @@ FromMeshPort::getAddrRanges() const {
   return std::list<AddrRange>();
 }
 
-uint64_t
-FromMeshPort::getPacketData() {
+// get recv pkts
+PacketPtr
+FromMeshPort::getPacket() {
   if (recvPkt == nullptr) {
     DPRINTF(Mesh, "[[WARNING]] Did not recv packet\n");
-    return 0;
+    return nullptr;
   }
   
   if (cyclePktRecv >= cpu->clockEdge()) {
     DPRINTF(Mesh, "[[WARNING]] Packet not ready for use\n");
-    return 0;
+    return nullptr;
   }
+  
+  return recvPkt;
+}
+
+
+uint64_t
+FromMeshPort::getPacketData() {
+  if (getPacket() == nullptr) return 0;
   
   // get data from packet
   uint64_t data = recvPkt->getUintX(LittleEndianByteOrder);

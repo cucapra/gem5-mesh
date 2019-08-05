@@ -342,13 +342,10 @@ class TimingSimpleCPU : public BaseSimpleCPU
     void setNextValRdy();
     void sendNextPkt();
     void tryInstruction();
+    void tryFetch();
     
-    
-    
+    PacketPtr getMeshPortPkt(Mesh_Dir dir);
     uint64_t getMeshPortData(Mesh_Dir dir) override;
-    // set transient (maybe reged?) port packet
-    //void setPortPacket(Mesh_Dir dir);
-    //void meshMachineTick();
 
     DrainState drain() override;
     void drainResume() override;

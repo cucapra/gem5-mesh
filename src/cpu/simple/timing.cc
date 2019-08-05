@@ -477,6 +477,11 @@ TimingSimpleCPU::getMeshPortData(Mesh_Dir dir) {
   return fromMeshPort[dir].getPacketData();
 }
 
+PacketPtr
+TimingSimpleCPU::getMeshPortPkt(Mesh_Dir dir) {
+  return fromMeshPort[dir].getPacket();
+}
+
 /*void
 TimingSimpleCPU::setPortPacket(PacketPtr pkt, Mesh_Dir dir) {
   fromMeshPort[dir].setPacket(pkt);
@@ -657,6 +662,30 @@ TimingSimpleCPU::tryInstruction() {
   
 }
 
+// either do normal fetch or wait to recv from mesh
+void TimingSimpleCPU::tryFetch() {
+  SimpleExecContext &t_info = *threadInfo[curThread];
+  SimpleThread* thread = t_info.thread;
+  
+  uint64_t csrVal = thread->readMiscReg(MISCREG_FETCH);
+  Mesh_Dir recvDir;
+  if (MeshHelper::fetCsrToInSrc(csrVal, recvDir)) {
+    
+    // try to get packet from mesh network
+    PacketPtr meshPkt = getMeshPortPkt(recvDir);
+    
+    // do instruction processing + execute
+    if (meshPkt) {
+      completeIfetch(meshPkt);
+    }
+    
+  }
+  else {
+    // normal fetch
+    fetch();
+  }
+}
+
 /*----------------------------------------------------------------------
  * Define normal processor behavior
  *--------------------------------------------------------------------*/ 
@@ -682,7 +711,7 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       
       // end additions
       
-      fetchEvent([this]{ fetch(); }, name())
+      fetchEvent([this]{ tryFetch(); }, name())
       
 {
     _status = Idle;
@@ -1411,87 +1440,8 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
     // setup curStaticInst based on the received instruction packet
     preExecute();
     
+    // try to execute the instruction if deps are met
     tryInstruction();
-    
-    /*if (curStaticInst && curStaticInst->isMemRef()) {
-        // load or store: just send to dcache
-        Fault fault = curStaticInst->initiateAcc(&t_info, traceData);
-
-        // If we're not running now the instruction will complete in a dcache
-        // response callback or the instruction faulted and has started an
-        // ifetch
-        if (_status == BaseSimpleCPU::Running) {
-          DPRINTF(SimpleCPU, "no block on dcache load\n");
-            if (fault != NoFault && traceData) {
-                // If there was a fault, we shouldn't trace this instruction.
-                delete traceData;
-                traceData = NULL;
-            }
-
-            postExecute();
-            // @todo remove me after debugging with legion done
-            if (curStaticInst && (!curStaticInst->isMicroop() ||
-                        curStaticInst->isFirstMicroop()))
-                instCnt++;
-            advanceInst(fault);
-        }
-        else {
-          // always blocks!
-          DPRINTF(SimpleCPU, "Block on dcache load\n");
-        }
-    } else if (curStaticInst) {
-      DPRINTF(SimpleCPU, "advance inst on fetch\n");
-      // check if the src and dests are rdy (otherwise block)
-      bool ok = checkOpsValRdy();
-      if (ok) _status = Running;
-      else _status = BindSync;
-      
-      if (_status == Running) {
-      
-        // set self as rdy if passed val/rdy check
-        setRdy();
-      
-        // non-memory instruction: execute completely now
-        Fault fault = curStaticInst->execute(&t_info, traceData);
-
-        // keep an instruction count
-        if (fault == NoFault)
-            countInst();
-        else if (traceData && !DTRACE(ExecFaulting)) {
-            delete traceData;
-            traceData = NULL;
-        }
-
-        postExecute();
-        // @todo remove me after debugging with legion done
-        if (curStaticInst && (!curStaticInst->isMicroop() ||
-                curStaticInst->isFirstMicroop()))
-            instCnt++;
-        advanceInst(fault);
-      }
-      else {
-        // not rdy or val if blocking?
-        resetRdy();
-        resetVal();
-        DPRINTF(Mesh, "Mesh blocking\n");
-      }
-    } else {
-      DPRINTF(SimpleCPU, "advance inst on fetch null\n");
-        advanceInst(NoFault);
-    }*/
-    
-    // pbb lets check if the mesh csr is written as it will effect 
-    // processor behavior
-    /*SimpleThread* thread = t_info.thread;
-    uint64_t val = thread->readMiscRegNoEffect(MISCREG_MESHOUT);
-    if (curStaticInst && pkt && val == 2) {
-    //if (curStaticInst && curStaticInst->isBind()) { 
-      int size = 64;
-      RequestPtr req = (RequestPtr)new Request(pkt->getAddr(), size, 0, 0);
-      PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
-      DPRINTF(Mesh, "Sending mesh request %#x\n", pkt->getAddr());
-      toMeshPort[0].sendTimingReq(new_pkt);
-    }*/
 
     if (pkt) {
         delete pkt;
