@@ -156,7 +156,7 @@ class FromMeshPort : public TimingCPUSlavePort {
 
     // get the packet from the port
     PacketPtr getPacket();
-    uint64_t getPacketData();
+    static uint64_t getPacketData(PacketPtr pkt);
 
     void setRdy(bool val);
     bool getRdy();

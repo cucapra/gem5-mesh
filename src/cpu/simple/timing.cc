@@ -187,7 +187,7 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload, SensitiveStage stage) {
       }
       else if (src == INST) {
         // save 64 bit machinst?
-        val = inst;
+        val = payload;
       }
         
       DPRINTF(Mesh, "Sending mesh request %d from %d with val %ld\n", dir, src, val);
@@ -452,7 +452,9 @@ TimingSimpleCPU::informNeighbors() {
 
 uint64_t
 TimingSimpleCPU::getMeshPortData(Mesh_Dir dir) {
-  return fromMeshPort[dir].getPacketData();
+  PacketPtr pkt = getMeshPortPkt(dir);
+  return FromMeshPort::getPacketData(pkt);
+  //return fromMeshPort[dir].getPacketData();
 }
 
 PacketPtr
@@ -642,9 +644,12 @@ TimingSimpleCPU::tryInstruction() {
 }
 
 // either do normal fetch or wait to recv from mesh
-void TimingSimpleCPU::tryFetch() {
+void
+TimingSimpleCPU::tryFetch() {
   SimpleExecContext &t_info = *threadInfo[curThread];
   SimpleThread* thread = t_info.thread;
+  
+  //ExtMachInst fwdInst;
   
   uint64_t csrVal = thread->readMiscReg(MISCREG_FETCH);
   Mesh_Dir recvDir;
@@ -657,6 +662,7 @@ void TimingSimpleCPU::tryFetch() {
     
       // try to get packet from mesh network
       PacketPtr meshPkt = getMeshPortPkt(recvDir);
+      //fwdInst = getMeshPortData(recvDir);
     
       // do instruction processing + execute
       completeIfetch(meshPkt);
@@ -667,6 +673,9 @@ void TimingSimpleCPU::tryFetch() {
     // normal fetch
     fetch();
   }
+  
+  // try to foward the instruction to anyone else who might want it
+  //trySendMeshRequest(fwdInst, FETCH);
 }
 
 /*----------------------------------------------------------------------
@@ -1419,6 +1428,11 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
 
     if (pkt)
         pkt->req->setAccessLatency();
+
+
+    // try to foward the instruction to anyone else who might want it
+    if (pkt)
+      trySendMeshRequest(FromMeshPort::getPacketData(pkt), FETCH);
 
     // inst field already set because req_pkt->dataStatic(&inst);
     // setup curStaticInst based on the received instruction packet

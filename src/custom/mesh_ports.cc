@@ -238,16 +238,31 @@ FromMeshPort::getPacket() {
     return nullptr;
   }
   
-  return recvPkt;
+  PacketPtr curPacket = recvPkt;
+  
+  // destructive read on packet
+  recvPkt = nullptr;
+  
+  // this might update val/rdy interface
+  cpu->informNeighbors();
+  
+  return curPacket;
 }
 
 
+// extract data from packet
 uint64_t
+FromMeshPort::getPacketData(PacketPtr pkt) {
+  return pkt->getUintX(LittleEndianByteOrder);
+}
+
+/*uint64_t
 FromMeshPort::getPacketData() {
-  if (getPacket() == nullptr) return 0;
+  PacketPtr curPacket = getPacket();
+  if (curPacket == nullptr) return 0;
   
   // get data from packet
-  uint64_t data = recvPkt->getUintX(LittleEndianByteOrder);
+  uint64_t data = curPacket->getUintX(LittleEndianByteOrder);
   
   // destructive read on packet
   recvPkt = nullptr;
@@ -256,7 +271,7 @@ FromMeshPort::getPacketData() {
   cpu->informNeighbors();
   
   return data;
-}
+}*/
 
 void
 FromMeshPort::setPacket(PacketPtr pkt) {
