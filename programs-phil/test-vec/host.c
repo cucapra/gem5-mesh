@@ -19,6 +19,7 @@ int main(int argc, char *argv[]) {
   get_dimensions(&cores_x, &cores_y);
   int num_cores = cores_x * cores_y;
   
+  assert(cores_x == 2 && cores_y == 2);
   
   printf("Hello world! %d cores in device\n", num_cores);
   

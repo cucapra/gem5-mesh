@@ -267,7 +267,7 @@ TimingSimpleCPU::setupHandshake() {
   for (int i = 0; i < csrs.size(); i++) {
     int csrId = csrs[i];
     regVal = thread->readMiscRegNoEffect(csrId);
-    DPRINTF(Mesh, "regval %d from csr %#x\n", regVal, csrs[i]);
+    DPRINTF(Mesh, "set regval %d from csr %#x\n", regVal, csrs[i]);
     // get the internal src to be send of each of the output ports
     std::vector<Mesh_Dir> outDirs;
     MeshHelper::csrToOutDests(csrId, regVal, outDirs);
@@ -285,6 +285,8 @@ TimingSimpleCPU::setupHandshake() {
       numInPortsActive++;
     }
   }
+  
+  DPRINTF(Mesh, "inports active %d, outports active %d\n", numInPortsActive, numOutPortsActive);
 }
 
 bool
@@ -421,6 +423,8 @@ TimingSimpleCPU::tryUnblock(bool currCycle) {
     else if (_status == WaitMeshData) {
       tryInstruction();
     }
+    
+    // if running, then inform neighbors?
   }
   // otherwise schedule an event in the next cycle (if not already scheduled)
   else {
@@ -442,7 +446,7 @@ TimingSimpleCPU::tryUnblock(bool currCycle) {
 
 void
 TimingSimpleCPU::informNeighbors() {
-  //DPRINTF(Mesh, "notify neighbors\n");
+  DPRINTF(Mesh, "notify neighbors\n");
   // go through mesh ports to get tryUnblock function called in neighbor cores
   for (int i = 0; i < toMeshPort.size(); i++) {
     toMeshPort[i].tryUnblockNeighbor();
@@ -529,16 +533,18 @@ void
 TimingSimpleCPU::checkStallOnMesh(SensitiveStage stage) {
   // for ordinary instructions check if the src and dests are rdy 
   // otherwise block
-  if (!curStaticInst->isBind()) {
+  
+  // for fetch there is no instruction!
+  if ((stage != EXECUTE) || !curStaticInst->isBind()) {
       
     bool ok = checkOpsValRdy(stage);
     if (ok) _status = Running;
     else if (stage == FETCH) _status = WaitMeshInst;
     else _status = WaitMeshData;
      
-    if (getNumPortsActive() > 0) {
+    /*if (getNumPortsActive() > 0) {
       setRdy(stage); //?
-    }
+    }*/
   }
 }
 
@@ -649,17 +655,26 @@ TimingSimpleCPU::tryFetch() {
   SimpleExecContext &t_info = *threadInfo[curThread];
   SimpleThread* thread = t_info.thread;
   
-  //ExtMachInst fwdInst;
+  // check if all send, recv conditions met
+  checkStallOnMesh(FETCH);
   
   uint64_t csrVal = thread->readMiscReg(MISCREG_FETCH);
   Mesh_Dir recvDir;
+  
+  /*if (_status != Running) {
+    DPRINTF(Mesh, "fetch stalled\n");
+  }
+  else if ((_status == Running) && !MeshHelper::isCSRDefault(csrVal)) {
+    DPRINTF(Mesh, "fetch not stalled\n");
+  }
+  else {
+    DPRINTF(Mesh, "here\n");
+  }*/
+  
   if (MeshHelper::fetCsrToInSrc(csrVal, recvDir)) {
     
-    // check if all send, recv conditions met
-    checkStallOnMesh(FETCH);
-    
     if (_status == Running) {
-    
+      DPRINTF(Mesh, "Inst not stalled, so proceed\n");
       // try to get packet from mesh network
       PacketPtr meshPkt = getMeshPortPkt(recvDir);
       //fwdInst = getMeshPortData(recvDir);
@@ -670,8 +685,10 @@ TimingSimpleCPU::tryFetch() {
     
   }
   else {
-    // normal fetch
-    fetch();
+    if (_status == Running) {
+      // normal fetch
+      fetch();
+    }
   }
   
   // try to foward the instruction to anyone else who might want it
@@ -1403,7 +1420,8 @@ TimingSimpleCPU::advanceInst(const Fault &fault)
         // kick off fetch of next instruction... callback from icache
         // response will cause that instruction to be executed,
         // keeping the CPU running.
-        fetch();
+        //fetch();
+        tryFetch();
     }
 }
 
