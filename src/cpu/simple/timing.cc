@@ -133,23 +133,23 @@ PacketPtr createPacket(RegVal payload) {
 
 
 Fault
-TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
+TimingSimpleCPU::trySendMeshRequest(uint64_t payload, SensitiveStage stage) {
   // get direction from the appropriate csr
   SimpleExecContext &t_info = *threadInfo[curThread];
   SimpleThread* thread = t_info.thread;
-  uint64_t csrVal = thread->readMiscRegNoEffect(MISCREG_EXE);
+  //uint64_t csrVal = thread->readMiscRegNoEffect(MISCREG_EXE);
   
   
   
   // if in default behavior then don't send a mesh packet
-  if (MeshHelper::isCSRDefault(csrVal)) return NoFault;
+  //if (MeshHelper::isCSRDefault(csrVal)) return NoFault;
   
   //Mesh_Dir dir;
   //if (!MeshHelper::csrToRd(val, dir)) return NoFault;
   if (getNumOutPortsActive() == 0) return NoFault;
 
   //if (toMeshPort[dir].checkHandshake()) {
-  if (getOutRdy()) {
+  if (getOutRdy(stage)) {
     
     //toMeshPort[dir].sendTimingReq(new_pkt);
     // send packet a cycle later
@@ -158,35 +158,43 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
     schedule(setValRdyEvent, clockEdge(Cycles(1)));*/
     
     // for each dir we need to send a packet
+    std::vector<Mesh_DS_t> out;
+    if (stage == EXECUTE) {
+      uint64_t csrVal = thread->readMiscRegNoEffect(MISCREG_EXE);
+      MeshHelper::csrToOutSrcs(MISCREG_EXE, csrVal, out);
+    }
+    else if (stage == FETCH) {
+      uint64_t csrVal = thread->readMiscRegNoEffect(MISCREG_FETCH);
+      MeshHelper::csrToOutSrcs(MISCREG_FETCH, csrVal, out);
+    }
+    
+    
     // TODO for now src only goes to one dir
-    for (int i = 0; i < NUM_DIR; i++) {
-      Mesh_Dir dir = (Mesh_Dir)i;
-      Mesh_Out_Src src;
-      if (MeshHelper::exeCsrToOutSrcs(csrVal, dir, src)) {
+    for (int i = 0; i < out.size(); i++) {
+      Mesh_Dir dir = out[i].outDir;
+      Mesh_Out_Src src = out[i].src;
         
-        
-        
-        // src -> value
-        RegVal val = 0;
-        if (src == RD) {
-          val = payload;
-        }
-        else if (src == RS1) {
-          val = savedOps[0];
-        }
-        else if (src == RS2) {
-          val = savedOps[1];
-        }
-        
-        DPRINTF(Mesh, "Sending mesh request %d from %d with val %ld\n", dir, src, val);
-        
-        PacketPtr new_pkt = createPacket(val);
-        
-        //scheduleMeshUpdate(true, true, new_pkt, dir);
-        
-        toMeshPort[dir].sendTimingReq(new_pkt);
-        
+      // src -> value
+      RegVal val = 0;
+      if (src == RD) {
+        val = payload;
       }
+      else if (src == RS1) {
+        val = savedOps[0];
+      }
+      else if (src == RS2) {
+        val = savedOps[1];
+      }
+      else if (src == INST) {
+        // save 64 bit machinst?
+        val = inst;
+      }
+        
+      DPRINTF(Mesh, "Sending mesh request %d from %d with val %ld\n", dir, src, val);
+        
+      PacketPtr new_pkt = createPacket(val);
+      toMeshPort[dir].sendTimingReq(new_pkt);
+      
     }
     
   }
@@ -196,7 +204,7 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
     //toMeshPort[dir].failToSend(new_pkt);
     
     // need to stall the core here! and assert !rdy immediatly
-    _status = BindSync;
+    //_status = BindSync;
     
     /*nextVal = true;
     nextRdy = false;
@@ -211,40 +219,6 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload) {
   //schedule(machineTickEvent, clockEdge());
   
   return NoFault;
-}
-
-void
-TimingSimpleCPU::scheduleMeshUpdate(bool nextVal, bool nextRdy, 
-    PacketPtr nextPkt, Mesh_Dir nextDir) {
-  
-  /*//assert(!setValRdyEvent.scheduled());
-   
-  // if the event was schedule we need to resolve it now
-  if (setValRdyEvent.scheduled()) {
-    deschedule(setValRdyEvent);
-    setNextValRdy();
-  }
-  assert(!setValRdyEvent.scheduled());
-      
-  // set variable to use on the next event
-  this->nextVal = nextVal;
-  this->nextRdy = nextRdy; // might want to set this immedietly? like actual rtl would
-  this->nextPkt = nextPkt;
-  this->nextDir = nextDir;
-  
-
-  
-  // schedule the update of these on the next cycle
-  // can't fire in the current cycle b/c will tryInstruction in this cycle
-  schedule(setValRdyEvent, clockEdge(Cycles(1)));
-  
-  assert(!sendNextPktEvent.scheduled());
-  
-  // schedule at the end of this cycle which effectively is a cycle
-  // but guarenteed to be present before any events fire on the next cycle
-  schedule(sendNextPktEvent, clockEdge());
-  */
-  
 }
 
 
@@ -299,7 +273,7 @@ TimingSimpleCPU::setupHandshake() {
     MeshHelper::csrToOutDests(csrId, regVal, outDirs);
     
     for (int j = 0; j < outDirs.size(); j++) {
-      toMeshPort[outDirs[j]].setActive(true);
+      toMeshPort[outDirs[j]].setActive(MeshHelper::csrToStage(csrId));
       numOutPortsActive++;
     }
     
@@ -307,18 +281,18 @@ TimingSimpleCPU::setupHandshake() {
     MeshHelper::csrToInSrcs(csrId, regVal, inDirs);
     
     for (int j = 0; j < inDirs.size(); j++) {
-      fromMeshPort[inDirs[j]].setActive(true);
+      fromMeshPort[inDirs[j]].setActive(MeshHelper::csrToStage(csrId));
       numInPortsActive++;
     }
   }
 }
 
 bool
-TimingSimpleCPU::getOutRdy() {
+TimingSimpleCPU::getOutRdy(SensitiveStage stage) {
   bool allRdy = true;
   
   for (int i = 0; i < toMeshPort.size(); i++) {
-    if (toMeshPort[i].getActive()) {
+    if (toMeshPort[i].getActive() == stage) {
       if (!toMeshPort[i].getPairRdy()) allRdy = false;
     }
   }
@@ -331,11 +305,11 @@ TimingSimpleCPU::getOutRdy() {
 // however in cycle level simulators, NULL exists so if there's
 // a new packet then its valid otherwise its invalid
 bool
-TimingSimpleCPU::getInVal() {
+TimingSimpleCPU::getInVal(SensitiveStage stage) {
    bool allVal = true;
   
   for (int i = 0; i < fromMeshPort.size(); i++) {
-    if (fromMeshPort[i].getActive()) {
+    if (fromMeshPort[i].getActive() == stage) {
       //if (!fromMeshPort[i].getPairVal()) allVal = false;
       if (!fromMeshPort[i].pktExists()) allVal = false;
     }
@@ -345,12 +319,12 @@ TimingSimpleCPU::getInVal() {
 }
 
 Fault
-TimingSimpleCPU::setRdy() {
+TimingSimpleCPU::setRdy(SensitiveStage stage) {
   if (rdy) return NoFault;
   rdy = true;
   
   for (int i = 0; i < fromMeshPort.size(); i++) {
-    fromMeshPort[i].setRdyIfActive();
+    fromMeshPort[i].setRdyIfActive(stage);
   }
   
   // inform neighbors of state update so they can potentially unblock
@@ -360,12 +334,12 @@ TimingSimpleCPU::setRdy() {
 }
 
 Fault
-TimingSimpleCPU::setVal() {
+TimingSimpleCPU::setVal(SensitiveStage stage) {
   if (val) return NoFault;
   val = true;
   
   for (int i = 0; i < toMeshPort.size(); i++) {
-    toMeshPort[i].setValIfActive();
+    toMeshPort[i].setValIfActive(stage);
   }
   
   informNeighbors();
@@ -408,20 +382,20 @@ TimingSimpleCPU::resetActive() {
   numOutPortsActive = 0;
   
   for (int i = 0; i < fromMeshPort.size(); i++) {
-    fromMeshPort[i].setActive(false);
+    fromMeshPort[i].setActive(NONE);
   }
   
   for (int i = 0; i < toMeshPort.size(); i++) {
-    toMeshPort[i].setActive(false);
+    toMeshPort[i].setActive(NONE);
   }
   
   return NoFault;
 }
 
+// TODO turn this into a state machine whose state is updated 
+// either on the next cycle or when recv a packet
 void
 TimingSimpleCPU::tryUnblock(bool currCycle) {
-  // TODO integrate into the statemachine instead ... lazy!
-
   if (getNumPortsActive() > 0) {
   
   DPRINTF(Mesh, "to_mesh:\nactive   %d %d %d %d\nself val %d %d %d %d\npair rdy %d %d %d %d\n",
@@ -440,7 +414,11 @@ TimingSimpleCPU::tryUnblock(bool currCycle) {
   // if no wait then try now
   if (currCycle) {
     // unstall the processor (stalled when first call bind)
-    if (_status == BindSync) {
+    if (_status == WaitMeshInst) {
+      tryFetch();
+    }
+    
+    else if (_status == WaitMeshData) {
       tryInstruction();
     }
   }
@@ -494,7 +472,7 @@ TimingSimpleCPU::setPortPacket(PacketPtr pkt, Mesh_Dir dir) {
 // will be 0 if don't care, TODO implement don't cares
 
 bool
-TimingSimpleCPU::checkOpsValRdy() {
+TimingSimpleCPU::checkOpsValRdy(SensitiveStage stage) {
   //curStaticInst->destRegIdx(0);
   //curStaticInst->srcRegIdx(0);
   
@@ -503,8 +481,8 @@ TimingSimpleCPU::checkOpsValRdy() {
   //  curStaticInst->srcRegIdx(0), curStaticInst->srcRegIdx(1));
     
   // see if the ports associated are ready
-  bool outRdy = getOutRdy();
-  bool inVal = getInVal();
+  bool outRdy = getOutRdy(stage);
+  bool inVal = getInVal(stage);
   
   return (outRdy && inVal);
   
@@ -523,7 +501,7 @@ TimingSimpleCPU::saveOp(int idx, RegVal val) {
  * Event handlers
  *--------------------------------------------------------------------*/
 
-void
+/*void
 TimingSimpleCPU::setNextValRdy() {
   // update sync signals
   if (nextVal) setVal();
@@ -531,11 +509,11 @@ TimingSimpleCPU::setNextValRdy() {
   
   if (nextRdy) setRdy();
   else resetRdy();
-}
+}*/
 
 // needs to be sent at the end of the this cycle, to be present before
 // any events that use it occur (really present after a cycle though)
-void
+/*void
 TimingSimpleCPU::sendNextPkt() {
   // send packet if any
   if (nextPkt != nullptr) {
@@ -543,20 +521,21 @@ TimingSimpleCPU::sendNextPkt() {
     toMeshPort[nextDir].sendTimingReq(nextPkt);
     nextPkt = nullptr;
   }
-}
+}*/
 
 void
-TimingSimpleCPU::checkStallOnMesh() {
+TimingSimpleCPU::checkStallOnMesh(SensitiveStage stage) {
   // for ordinary instructions check if the src and dests are rdy 
   // otherwise block
   if (!curStaticInst->isBind()) {
       
-    bool ok = checkOpsValRdy();
+    bool ok = checkOpsValRdy(stage);
     if (ok) _status = Running;
-    else _status = BindSync;
+    else if (stage == FETCH) _status = WaitMeshInst;
+    else _status = WaitMeshData;
      
     if (getNumPortsActive() > 0) {
-      setRdy(); //?
+      setRdy(stage); //?
     }
   }
 }
@@ -572,7 +551,7 @@ TimingSimpleCPU::tryInstruction() {
         // we have to store the packet somewhere
         // TODO add buffering?
         // could stall due to mesh not being ready
-        checkStallOnMesh();
+        checkStallOnMesh(EXECUTE);
     
         Fault fault = NoFault;
         if (_status == Running) {
@@ -613,7 +592,7 @@ TimingSimpleCPU::tryInstruction() {
           curStaticInst->machInst);
       }
       
-      checkStallOnMesh();
+      checkStallOnMesh(EXECUTE);
       
       if (_status == Running) {
       
@@ -671,11 +650,15 @@ void TimingSimpleCPU::tryFetch() {
   Mesh_Dir recvDir;
   if (MeshHelper::fetCsrToInSrc(csrVal, recvDir)) {
     
-    // try to get packet from mesh network
-    PacketPtr meshPkt = getMeshPortPkt(recvDir);
+    // check if all send, recv conditions met
+    checkStallOnMesh(FETCH);
     
-    // do instruction processing + execute
-    if (meshPkt) {
+    if (_status == Running) {
+    
+      // try to get packet from mesh network
+      PacketPtr meshPkt = getMeshPortPkt(recvDir);
+    
+      // do instruction processing + execute
       completeIfetch(meshPkt);
     }
     
@@ -698,9 +681,9 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       , /*machine(this),*/ numOutPortsActive(0), numInPortsActive(0),
       /*machineTickEvent([this] { meshMachineTick(); }, name()),*/
       
-      nextVal(0), nextRdy(0), nextPkt(nullptr), nextDir((Mesh_Dir)0), 
-      setValRdyEvent([this] { setNextValRdy(); }, name()),
-      sendNextPktEvent([this] { sendNextPkt(); }, name()),
+      /*nextVal(0), nextRdy(0), nextPkt(nullptr), nextDir((Mesh_Dir)0), */
+      /*setValRdyEvent([this] { setNextValRdy(); }, name()),*/
+      /*sendNextPktEvent([this] { sendNextPkt(); }, name()),*/
       val(0), rdy(0), 
       
       schedCycle(0),
@@ -1437,6 +1420,7 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
     if (pkt)
         pkt->req->setAccessLatency();
 
+    // inst field already set because req_pkt->dataStatic(&inst);
     // setup curStaticInst based on the received instruction packet
     preExecute();
     

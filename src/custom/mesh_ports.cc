@@ -41,7 +41,7 @@ TimingCPUMasterPort::TickEvent::schedule(PacketPtr _pkt, Tick t)
 ToMeshPort::ToMeshPort(TimingSimpleCPU *_cpu, int idx)
         : TimingCPUMasterPort(
           _cpu->name() + ".mesh_out_port" + csprintf("[%d]", idx), 
-          idx, _cpu), tickEvent(_cpu), val(false), active(false), 
+          idx, _cpu), tickEvent(_cpu), val(false), active(NONE), 
           stalledPkt(nullptr)
     { }
 
@@ -90,11 +90,11 @@ ToMeshPort::setVal(bool val) {
 }
 
 // if active we want val/rdy, otherwise we don't care
-bool
+/*bool
 ToMeshPort::checkHandshake(){
   bool rdy = getPairRdy();
   return (PROTOCOL(active, val, rdy));
-}
+}*/
 
 bool
 ToMeshPort::getPairRdy() {
@@ -118,7 +118,7 @@ ToMeshPort::tryUnblockNeighbor() {
 }
 
 // deprecated
-void
+/*void
 ToMeshPort::failToSend(PacketPtr pkt) {
   // assert not rdy
   cpu->resetRdy();
@@ -138,7 +138,7 @@ ToMeshPort::beginToSend() {
   
   cpu->setVal();
   cpu->setRdy();
-}
+}*/
 
 /*----------------------------------------------------------------------
  * Define mesh slave port behavior
@@ -150,7 +150,7 @@ FromMeshPort::FromMeshPort(TimingSimpleCPU *_cpu, int idx)
           _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), 
           idx, _cpu), recvPkt_d(nullptr), recvEvent([this] { process(); }, name()), 
           wakeupCPUEvent([this] { tryUnblockCPU(); }, name()), 
-          recvPkt(nullptr), cyclePktRecv(0), rdy(false), active(false)
+          recvPkt(nullptr), cyclePktRecv(0), rdy(false), active(NONE)
     { 
       //DPRINTF(Mesh, "init %d %d %ld %ld\n", rdy, active, (uint64_t)recvPkt, (uint64_t)this);
       DPRINTF(Mesh, "init idx %d\n", idx);
@@ -285,11 +285,11 @@ FromMeshPort::setRdy(bool rdy) {
 }
 
 // if active we want val/rdy, otherwise we don't care
-bool
+/*bool
 FromMeshPort::checkHandshake(){
   bool val = getPairVal();
   return (PROTOCOL(active, val, rdy));
-}
+}*/
 
 bool
 FromMeshPort::getPairVal() {
@@ -314,8 +314,8 @@ FromMeshPort::getRdy() {
     // if we have a packet but don't have a packet in other ports or
     // we have packets but can't send them anywhere b/c output not rdy
     // then we can't accept anymore packets on this port b/c we can't tick
-    if (getPairVal() && cpu->getInVal() && cpu->getOutRdy()) return true;
-    else if (getPairVal() && (!cpu->getInVal() || !cpu->getOutRdy())) return false;
+    if (getPairVal() && cpu->getInVal(active) && cpu->getOutRdy(active)) return true;
+    else if (getPairVal() && (!cpu->getInVal(active) || !cpu->getOutRdy(active))) return false;
     else return true;
   }
   else {

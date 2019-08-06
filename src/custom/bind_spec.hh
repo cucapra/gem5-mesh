@@ -18,8 +18,14 @@ typedef enum Mesh_Dir {
 typedef enum Mesh_Out_Src {
   RD = 0,
   RS1 = 1,
-  RS2 = 2
+  RS2 = 2,
+  INST = 3
 } Mesh_Out_Src;
+
+typedef struct Mesh_DS_t {
+  Mesh_Dir outDir;
+  Mesh_Out_Src src;
+} Mesh_DS_t;
 
 // define possible sources for output directions
 // 8 / 20 bits

@@ -9,6 +9,7 @@
 #include "mem/port.hh"
 #include "mem/packet.hh"
 #include "sim/clocked_object.hh"
+#include "custom/mesh_helper.hh"
 
 //resolve circular deps
 class TimingSimpleCPU;
@@ -58,22 +59,23 @@ class ToMeshPort : public TimingCPUMasterPort {
     
     bool getPairRdy();
     
-    void setActive (bool active) { this->active = active; }
-    bool getActive() const { return active; }
+    void setActive (SensitiveStage active) { this->active = active; }
+    SensitiveStage getActive() const { return active; }
+    bool isActive() const { return (active != NONE); }
     
-    void setValIfActive() { if (active) setVal(true); }
+    void setValIfActive(SensitiveStage stage) { if (active == stage) setVal(true); }
     
     // check if this port is rdy and the slave port is valid
-    bool checkHandshake();
+    //bool checkHandshake();
     
     // call tryUnblock() in cpu attach to slave port of this
     void tryUnblockNeighbor();
     
     // buffer pkt and inform we're not ready
-    void failToSend(PacketPtr pkt);
+    //void failToSend(PacketPtr pkt);
     
     // release the pkt and inform we are now ready
-    void beginToSend();
+    //void beginToSend();
 
   protected:
 
@@ -98,7 +100,7 @@ class ToMeshPort : public TimingCPUMasterPort {
     
     // whether this port is used and should assert val when packet 
     // available
-    bool active;
+    SensitiveStage active;
     
     // packet stored in register that can't be sent yet due to val/rdy
     // requires additional enable reg and 2-1 mux
@@ -161,13 +163,14 @@ class FromMeshPort : public TimingCPUSlavePort {
     
     bool getPairVal();
     
-    void setActive(bool active) { this->active = active; }
-    bool getActive() const { return active; }
+    void setActive (SensitiveStage active) { this->active = active; }
+    SensitiveStage getActive() const { return active; }
+    bool isActive() const { return (active != NONE); }
     
-    void setRdyIfActive() { if (active) setRdy(true); }
+    void setRdyIfActive(SensitiveStage stage) { if (active == stage) setRdy(true); }
     
     // check val rdy interface
-    bool checkHandshake();
+    //bool checkHandshake();
     
     // call tryUnblock in the cpu
     void tryUnblockCPU();
@@ -224,7 +227,7 @@ class FromMeshPort : public TimingCPUSlavePort {
     bool rdy;
     
     // this should go high when the core is rdy
-    bool active;
+    SensitiveStage active;
     
     //std::queue<PacketPtr> _pktQueue;
 };

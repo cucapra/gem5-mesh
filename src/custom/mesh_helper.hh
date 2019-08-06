@@ -6,12 +6,18 @@
 
 #include "custom/bind_spec.hh"
 
+typedef enum SensitiveStage {
+  NONE = 0,
+  EXECUTE,
+  FETCH
+} SensitiveStage;
+
 class MeshHelper {
   
   public:
     //static bool csrToRd(uint64_t csrVal, Mesh_Dir &dir);
     
-    static bool exeCsrToOutSrcs(uint64_t csrVal, Mesh_Dir dir, Mesh_Out_Src &src);
+    static bool exeCsrToOutSrcs(uint64_t csrVal, std::vector<Mesh_DS_t> &out);
     //static bool csrSrcActive(uint64_t csrVal, Mesh_Dir dir, Mesh_Out_Src src);
     
     //static int csrSrcSends(uint64_t csrVal, Mesh_Out_Src src);
@@ -48,6 +54,10 @@ class MeshHelper {
     
     static bool csrToInSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
     static bool csrToOutDests(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
+    static bool csrToOutSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_DS_t> &out);
+
+  
+    static SensitiveStage csrToStage(uint64_t csr);
     
   private:
     static bool rangeToMeshDir(uint64_t csrVal, int hi, int lo, Mesh_Dir &dir);

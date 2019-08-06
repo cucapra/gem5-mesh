@@ -235,7 +235,7 @@ class SimpleExecContext : public ExecContext {
         thread->setIntReg(reg.index(), val);
       //}
       //else {  
-        cpu->trySendMeshRequest(val);
+        cpu->trySendMeshRequest(val, EXECUTE);
       //}
         
         

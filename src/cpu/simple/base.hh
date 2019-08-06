@@ -124,7 +124,8 @@ class BaseSimpleCPU : public BaseCPU
         DcacheWaitSwitch,
         
         // pbb add status for bind blocking
-        BindSync,
+        WaitMeshData,
+        WaitMeshInst
     };
 
     Status _status;
@@ -177,7 +178,7 @@ class BaseSimpleCPU : public BaseCPU
     void unserializeThread(CheckpointIn &cp, ThreadID tid) override;
     
     // pbb new things instructions can do in the core
-    virtual Fault trySendMeshRequest(uint64_t payload)
+    virtual Fault trySendMeshRequest(uint64_t payload, SensitiveStage stage)
       { panic("trySendMeshRequest() is not implemented\n"); }
       
     // block on binds if val/rdy isn't asserted

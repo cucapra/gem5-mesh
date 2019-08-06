@@ -278,16 +278,16 @@ class TimingSimpleCPU : public BaseSimpleCPU
     //EventFunctionWrapper machineTickEvent;
     
     // update state on the next cycle
-    bool nextVal;
-    bool nextRdy;
+    //bool nextVal;
+    //bool nextRdy;
     
     // hopefully this isn't updated before send on the next cycle
     // ok assuming send at the beginning of the clockedge
     PacketPtr nextPkt;
     Mesh_Dir nextDir;
     
-    EventFunctionWrapper setValRdyEvent;
-    EventFunctionWrapper sendNextPktEvent;
+    //EventFunctionWrapper setValRdyEvent;
+    //EventFunctionWrapper sendNextPktEvent;
     bool val;
     bool rdy;
     
@@ -299,8 +299,8 @@ class TimingSimpleCPU : public BaseSimpleCPU
     
     RegVal savedOps[2];
     
-    void checkStallOnMesh();
-    void scheduleMeshUpdate(bool nextVal, bool nextRdy, PacketPtr nextPkt, Mesh_Dir nextDir);
+    void checkStallOnMesh(SensitiveStage stage);
+    //void scheduleMeshUpdate(bool nextVal, bool nextRdy, PacketPtr nextPkt, Mesh_Dir nextDir);
 
 
   protected:
@@ -322,7 +322,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
     int getNumPortsActive() const { return numOutPortsActive + numInPortsActive; }
 
     // pbb access mesh ports from cpu
-    Fault trySendMeshRequest(uint64_t payload) override;
+    Fault trySendMeshRequest(uint64_t payload, SensitiveStage stage) override;
     Fault setupAndHandshake() override;
     void saveOp(int idx, RegVal val) override;
     void setupHandshake();
@@ -330,12 +330,12 @@ class TimingSimpleCPU : public BaseSimpleCPU
     //void handshakeNeighbors();
     void informNeighbors();
     
-    bool getOutRdy();
-    bool getInVal();
-    bool checkOpsValRdy();
+    bool getOutRdy(SensitiveStage stage);
+    bool getInVal(SensitiveStage stage);
+    bool checkOpsValRdy(SensitiveStage stage);
     
-    Fault setVal();
-    Fault setRdy();
+    Fault setVal(SensitiveStage stage);
+    Fault setRdy(SensitiveStage stage);
     Fault resetVal();
     Fault resetRdy();
     Fault resetActive();

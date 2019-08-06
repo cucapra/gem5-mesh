@@ -13,22 +13,33 @@ using namespace RiscvISA;
 static std::vector<int> csrs = { MISCREG_EXE, MISCREG_FETCH };
 
 bool
-MeshHelper::exeCsrToOutSrcs(uint64_t csrVal, Mesh_Dir dir, Mesh_Out_Src &src) {
-  if (dir == UP) {
-    return rangeToMeshOutSrc(csrVal, EXE_UP_HI, EXE_UP_LO, src);
+MeshHelper::exeCsrToOutSrcs(uint64_t csrVal, std::vector<Mesh_DS_t> &out) {
+  Mesh_DS_t ds;
+  for (int i = 0; i < NUM_DIR; i++) {
+    ds.outDir = (Mesh_Dir)i;
+    if (ds.outDir == UP) {
+      if (rangeToMeshOutSrc(csrVal, EXE_UP_HI, EXE_UP_LO, ds.src)) {
+        out.push_back(ds);
+      }
+    }
+    else if (ds.outDir == RIGHT) {
+      if (rangeToMeshOutSrc(csrVal, EXE_RIGHT_HI, EXE_RIGHT_LO, ds.src)) {
+        out.push_back(ds);
+      }
+    }
+    else if (ds.outDir == DOWN) {
+      if (rangeToMeshOutSrc(csrVal, EXE_DOWN_HI, EXE_DOWN_LO, ds.src)) {
+        out.push_back(ds);
+      }
+    }
+    else if (ds.outDir == LEFT) {
+      if (rangeToMeshOutSrc(csrVal, EXE_LEFT_HI, EXE_LEFT_LO, ds.src)) {
+        out.push_back(ds);
+      }
+    }
   }
-  else if (dir == RIGHT) {
-    return rangeToMeshOutSrc(csrVal, EXE_RIGHT_HI, EXE_RIGHT_LO, src);
-  }
-  else if (dir == DOWN) {
-    return rangeToMeshOutSrc(csrVal, EXE_DOWN_HI, EXE_DOWN_LO, src);
-  }
-  else if (dir == LEFT) {
-    return rangeToMeshOutSrc(csrVal, EXE_LEFT_HI, EXE_LEFT_LO, src);
-  }
-  else {
-    assert(0);
-  }
+  
+  return (out.size() > 0);
 }
 
 
@@ -59,12 +70,11 @@ MeshHelper::exeCsrToInSrc(uint64_t csrVal, std::vector<Mesh_Dir> &dirs) {
 
 bool
 MeshHelper::exeCsrToOutDests(uint64_t csrVal, std::vector<Mesh_Dir> &dirs) {
-  for (int j = 0; j < NUM_DIR; j++) {
-    Mesh_Dir dir = (Mesh_Dir)j;
-    Mesh_Out_Src src;
-    if (exeCsrToOutSrcs(csrVal, dir, src)) {
-      dirs.push_back(dir);
-    }
+  std::vector<Mesh_DS_t> ds;
+  exeCsrToOutSrcs(csrVal, ds);
+  
+  for (int i = 0; i < ds.size(); i++) {
+    dirs.push_back(ds[i].outDir);
   }
   
   return (dirs.size() > 0);
@@ -177,6 +187,41 @@ MeshHelper::csrToOutDests(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &
   }
   else {
     assert(0);
+  }
+}
+
+bool
+MeshHelper::csrToOutSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_DS_t> &out) {
+  if (csr == MISCREG_EXE) {
+    return exeCsrToOutSrcs(csrVal, out);
+  }
+  else if (csr == MISCREG_FETCH) {
+    std::vector<Mesh_Dir> dirs;
+    fetCsrToOutDests(csrVal, dirs);
+    for (int i = 0; i < dirs.size(); i++) {
+      Mesh_DS_t ds;
+      ds.outDir = dirs[i];
+      ds.src = INST;
+      out.push_back(ds);
+    }
+    
+    return (out.size() > 0);
+  }
+  else {
+    return false;
+  }
+}
+
+SensitiveStage
+MeshHelper::csrToStage(uint64_t csr) {
+  if (csr == MISCREG_EXE) {
+    return EXECUTE;
+  }
+  else if (csr == MISCREG_FETCH) {
+    return FETCH;
+  }
+  else {
+    return NONE;
   }
 }
 
