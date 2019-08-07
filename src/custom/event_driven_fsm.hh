@@ -33,13 +33,16 @@ class EventDrivenFSM {
   private:
     typedef enum State {
       IDLE,
-      RUNNING_UNBD,
+      /*RUNNING_UNBD,
       RUNNING_BIND,
       WAIT_INST_MEM_UNBD,
       WAIT_DATA_MEM_UNBD,
       WAIT_INST_MEM_BIND,
-      WAIT_DATA_MEM_BIND,
-      WAIT_MESH
+      WAIT_DATA_MEM_BIND,*/
+      RUNNING_BIND,
+      WAIT_ALL,
+      WAIT_VAL,
+      WAIT_RDY
     } State;
     
     // update statemachine, if pkt != null, then exists and can use

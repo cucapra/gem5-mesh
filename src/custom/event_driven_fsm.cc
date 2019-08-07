@@ -17,11 +17,11 @@ EventDrivenFSM::EventDrivenFSM(TimingSimpleCPU *cpu, SensitiveStage stage) :
  * This state machine is sensitive to the following events
  *--------------------------------------------------------------------*/
 void
-EventDrivenFSM::neighborValRdy() {
+EventDrivenFSM::neighborEvent() {
   tickEvent();
 }
 
-void
+/*void
 EventDrivenFSM::instResp() {
   tickEvent();
 }
@@ -29,7 +29,7 @@ EventDrivenFSM::instResp() {
 void
 EventDrivenFSM::dataResp() {
   tickEvent();
-}
+}*/
 
 void
 EventDrivenFSM::tickEvent() {
@@ -72,17 +72,13 @@ EventDrivenFSM::stateOutput() {
       setVal(false);
       break;
     }
-    case RUNNING_UNBD: {
-      
-      break;
-    }
     case RUNNING_BIND: {
       setRdy(true);
       setVal(true);
       // need to have sent a packet on the last cycle!
       break;
     }
-    case WAIT_MESH: {
+    case WAIT_ALL: {
       setRdy(false);
       setVal(false);
       
@@ -140,7 +136,7 @@ EventDrivenFSM::updateState() {
     }
     default: {
       if (!configured) return IDLE;
-      else if (inVal && outRdy) return SENDING;
+      else if (inVal && outRdy) return RUNNING_BIND;
       else if (inVal) return WAIT_RDY;
       else if (outRdy) return WAIT_VAL;
       else return WAIT_ALL;
@@ -211,8 +207,8 @@ EventDrivenFSM::stateToStr(State state) {
     case WAIT_VAL: {
       return "WAIT_VAL";
     }
-    case SENDING: {
-      return "SENDING";
+    case RUNNING_BIND: {
+      return "RUNNING_BIND";
     }
     default: {
       return "NONE";
