@@ -9,7 +9,8 @@
 typedef enum SensitiveStage {
   NONE = 0,
   EXECUTE,
-  FETCH
+  FETCH,
+  NUM_STAGES
 } SensitiveStage;
 
 class MeshHelper {

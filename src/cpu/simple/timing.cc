@@ -320,36 +320,32 @@ TimingSimpleCPU::getInVal(SensitiveStage stage) {
   return allVal;
 }
 
-Fault
-TimingSimpleCPU::setRdy(SensitiveStage stage) {
-  if (rdy) return NoFault;
-  rdy = true;
+void
+TimingSimpleCPU::setRdy(bool rdy, SensitiveStage stage) {
+  //if (rdy) return NoFault;
+  //rdy = true;
   
   for (int i = 0; i < fromMeshPort.size(); i++) {
-    fromMeshPort[i].setRdyIfActive(stage);
+    fromMeshPort[i].setRdyIfActive(rdy, stage);
   }
   
   // inform neighbors of state update so they can potentially unblock
-  informNeighbors();
-  
-  return NoFault;
+  //informNeighbors();
 }
 
-Fault
-TimingSimpleCPU::setVal(SensitiveStage stage) {
-  if (val) return NoFault;
-  val = true;
+void
+TimingSimpleCPU::setVal(bool val, SensitiveStage stage) {
+  //if (val) return NoFault;
+  //val = true;
   
   for (int i = 0; i < toMeshPort.size(); i++) {
-    toMeshPort[i].setValIfActive(stage);
+    toMeshPort[i].setValIfActive(val, stage);
   }
   
-  informNeighbors();
-  
-  return NoFault;
+  //informNeighbors();
 }
 
-Fault
+/*Fault
 TimingSimpleCPU::resetRdy() {
   if (!rdy) return NoFault;
   rdy = false;
@@ -376,7 +372,7 @@ TimingSimpleCPU::resetVal() {
   informNeighbors();
   
   return NoFault;
-}
+}*/
 
 Fault
 TimingSimpleCPU::resetActive() {
@@ -410,11 +406,18 @@ TimingSimpleCPU::tryUnblock(bool currCycle) {
     fromMeshPort[0].getRdy(), fromMeshPort[1].getRdy(), fromMeshPort[2].getRdy(), fromMeshPort[3].getRdy(),
     fromMeshPort[0].getPairVal(), fromMeshPort[1].getPairVal(), fromMeshPort[2].getPairVal(), fromMeshPort[3].getPairVal());
   }
+  
+  // update the statemachines
+  for (int i = 1; i < NUM_STAGES; i++) {
+    _fsms[i]->neighborEvent();
+  }
+  
+  
   // the processor could be doing something else when this update is requested
   // only change the cpu state if in BindSync state (i.e. waiting for sync)
   
   // if no wait then try now
-  if (currCycle) {
+  /*if (currCycle) {
     // unstall the processor (stalled when first call bind)
     if (_status == WaitMeshInst) {
       tryFetch();
@@ -442,6 +445,9 @@ TimingSimpleCPU::tryUnblock(bool currCycle) {
       schedule(tryUnblockEvent, schedCycle);
     }
   }
+  */
+  
+  
 }
 
 void
@@ -529,6 +535,8 @@ TimingSimpleCPU::sendNextPkt() {
   }
 }*/
 
+// if we stall on the mesh, the respective fsm should take
+// control of the execution flow
 void
 TimingSimpleCPU::checkStallOnMesh(SensitiveStage stage) {
   // for ordinary instructions check if the src and dests are rdy 
@@ -539,13 +547,16 @@ TimingSimpleCPU::checkStallOnMesh(SensitiveStage stage) {
       
     bool ok = checkOpsValRdy(stage);
     if (ok) _status = Running;
-    else if (stage == FETCH) _status = WaitMeshInst;
-    else _status = WaitMeshData;
-     
-    /*if (getNumPortsActive() > 0) {
-      setRdy(stage); //?
-    }*/
+    else {
+      if (stage == FETCH) _status = WaitMeshInst;
+      else _status = WaitMeshData;
+      
+      // if we stalled, lets update the state machine?
+      _fsms[stage]->tickEvent();
+    }
   }
+  
+  
 }
 
 void
@@ -710,7 +721,7 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       /*nextVal(0), nextRdy(0), nextPkt(nullptr), nextDir((Mesh_Dir)0), */
       /*setValRdyEvent([this] { setNextValRdy(); }, name()),*/
       /*sendNextPktEvent([this] { sendNextPkt(); }, name()),*/
-      val(0), rdy(0), 
+      /*val(0), rdy(0), */
       
       schedCycle(0),
       tryUnblockEvent([this] { tryUnblock(true); }, name()),
@@ -739,6 +750,15 @@ TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
       // class after have moved into vector memory
       fromMeshPort[i].setupEvents();
     }
+    
+    
+    // create fsms
+    auto fetch_fsm = std::make_shared<EventDrivenFSM>(this, FETCH);
+    auto exe_fsm = std::make_shared<EventDrivenFSM>(this, EXECUTE);
+    
+    _fsms.push_back(nullptr);
+    _fsms.push_back(exe_fsm);
+    _fsms.push_back(fetch_fsm);
     
     // keep in mind that you shouldn't use 'this' within objects that are declared as vec?
     /*for (int i = 0; i < 4; i++) {

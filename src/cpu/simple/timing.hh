@@ -50,6 +50,7 @@
 #include "custom/mesh_machine.hh"
 #include "custom/mesh_ports.hh"
 #include "custom/config_counter.hh"
+#include "custom/event_driven_fsm.hh"
 
 class TimingSimpleCPU : public BaseSimpleCPU
 {
@@ -274,6 +275,9 @@ class TimingSimpleCPU : public BaseSimpleCPU
     int numOutPortsActive;
     int numInPortsActive;
     
+    // whether finished binded or not
+    //bool configured;
+    
     // need to update the machine when blocked
     //EventFunctionWrapper machineTickEvent;
     
@@ -283,13 +287,16 @@ class TimingSimpleCPU : public BaseSimpleCPU
     
     // hopefully this isn't updated before send on the next cycle
     // ok assuming send at the beginning of the clockedge
-    PacketPtr nextPkt;
-    Mesh_Dir nextDir;
+    //PacketPtr nextPkt;
+    //Mesh_Dir nextDir;
     
     //EventFunctionWrapper setValRdyEvent;
     //EventFunctionWrapper sendNextPktEvent;
-    bool val;
-    bool rdy;
+    //bool val;
+    //bool rdy;
+    
+    std::vector<std::shared_ptr<EventDrivenFSM>> _fsms;
+    
     
     //int nextWait;
     uint64_t schedCycle;
@@ -334,10 +341,10 @@ class TimingSimpleCPU : public BaseSimpleCPU
     bool getInVal(SensitiveStage stage);
     bool checkOpsValRdy(SensitiveStage stage);
     
-    Fault setVal(SensitiveStage stage);
-    Fault setRdy(SensitiveStage stage);
-    Fault resetVal();
-    Fault resetRdy();
+    void setVal(bool val, SensitiveStage stage);
+    void setRdy(bool rdy, SensitiveStage stage);
+    //Fault resetVal();
+    //Fault resetRdy();
     Fault resetActive();
     void setNextValRdy();
     void sendNextPkt();

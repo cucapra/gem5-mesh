@@ -63,7 +63,7 @@ class ToMeshPort : public TimingCPUMasterPort {
     SensitiveStage getActive() const { return active; }
     bool isActive() const { return (active != NONE); }
     
-    void setValIfActive(SensitiveStage stage) { if (active == stage) setVal(true); }
+    void setValIfActive(bool val, SensitiveStage stage) { if (active == stage) setVal(val); }
     
     // check if this port is rdy and the slave port is valid
     //bool checkHandshake();
@@ -167,7 +167,7 @@ class FromMeshPort : public TimingCPUSlavePort {
     SensitiveStage getActive() const { return active; }
     bool isActive() const { return (active != NONE); }
     
-    void setRdyIfActive(SensitiveStage stage) { if (active == stage) setRdy(true); }
+    void setRdyIfActive(bool rdy, SensitiveStage stage) { if (active == stage) setRdy(rdy); }
     
     // check val rdy interface
     //bool checkHandshake();
