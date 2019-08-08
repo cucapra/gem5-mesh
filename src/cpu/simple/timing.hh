@@ -272,8 +272,8 @@ class TimingSimpleCPU : public BaseSimpleCPU
     // state machine for sends
     //MeshMachine machine;
     
-    int numOutPortsActive;
-    int numInPortsActive;
+    int numOutPortsActive[NUM_STAGES];
+    int numInPortsActive[NUM_STAGES];
     
     // whether finished binded or not
     //bool configured;
@@ -324,9 +324,9 @@ class TimingSimpleCPU : public BaseSimpleCPU
 
   public:
 
-    int getNumOutPortsActive() const { return numOutPortsActive; }
-    int getNumInPortsActive() const { return numInPortsActive; }
-    int getNumPortsActive() const { return numOutPortsActive + numInPortsActive; }
+    int getNumOutPortsActive(SensitiveStage stage) const { return numOutPortsActive[stage]; }
+    int getNumInPortsActive(SensitiveStage stage) const { return numInPortsActive[stage]; }
+    int getNumPortsActive(SensitiveStage stage) const { return numOutPortsActive[stage] + numInPortsActive[stage]; }
 
     // pbb access mesh ports from cpu
     Fault trySendMeshRequest(uint64_t payload, SensitiveStage stage) override;
@@ -345,7 +345,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
     void setRdy(bool rdy, SensitiveStage stage);
     //Fault resetVal();
     //Fault resetRdy();
-    Fault resetActive();
+    void resetActive();
     void setNextValRdy();
     void sendNextPkt();
     void tryInstruction();

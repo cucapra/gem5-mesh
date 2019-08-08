@@ -7,10 +7,10 @@
 #include "custom/bind_spec.hh"
 
 typedef enum SensitiveStage {
-  NONE = 0,
-  EXECUTE,
+  EXECUTE = 0,
   FETCH,
-  NUM_STAGES
+  NUM_STAGES,
+  NONE
 } SensitiveStage;
 
 class MeshHelper {
