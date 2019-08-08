@@ -83,7 +83,10 @@ EventDrivenFSM::dataResp() {
  
 bool
 EventDrivenFSM::isRunning() {
-  return (_state == RUNNING_BIND) || (_state == IDLE);
+  return 
+    (_state == RUNNING_BIND) || 
+    (_state == BEGIN_SEND) ||
+    (_state == IDLE);
 }
 
 // allowed to be ticked multiple times per cycle

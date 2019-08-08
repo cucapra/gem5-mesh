@@ -287,7 +287,11 @@ TimingSimpleCPU::setupHandshake() {
     }
   }
   
-  DPRINTF(Mesh, "inports active %d, outports active %d\n", numInPortsActive, numOutPortsActive);
+  for (int i = 0; i < NUM_STAGES; i++) {
+    DPRINTF(Mesh, "%d inports active %d, outports active %d\n", i, 
+      getNumInPortsActive((SensitiveStage)i), 
+      getNumOutPortsActive((SensitiveStage)i));
+  }
 }
 
 bool
@@ -323,57 +327,17 @@ TimingSimpleCPU::getInVal(SensitiveStage stage) {
 
 void
 TimingSimpleCPU::setRdy(bool rdy, SensitiveStage stage) {
-  //if (rdy) return NoFault;
-  //rdy = true;
-  
   for (int i = 0; i < fromMeshPort.size(); i++) {
     fromMeshPort[i].setRdyIfActive(rdy, stage);
   }
-  
-  // inform neighbors of state update so they can potentially unblock
-  //informNeighbors();
 }
 
 void
 TimingSimpleCPU::setVal(bool val, SensitiveStage stage) {
-  //if (val) return NoFault;
-  //val = true;
-  
   for (int i = 0; i < toMeshPort.size(); i++) {
     toMeshPort[i].setValIfActive(val, stage);
   }
-  
-  //informNeighbors();
 }
-
-/*Fault
-TimingSimpleCPU::resetRdy() {
-  if (!rdy) return NoFault;
-  rdy = false;
-  
-  for (int i = 0; i < fromMeshPort.size(); i++) {
-    fromMeshPort[i].setRdy(false);
-  }
-  
-  informNeighbors();
-  
-  return NoFault;
-}
-
-Fault
-TimingSimpleCPU::resetVal() {
-  
-  if (!val) return NoFault;
-  val = false;
-  
-  for (int i = 0; i < toMeshPort.size(); i++) {
-    toMeshPort[i].setVal(false);
-  }
-  
-  informNeighbors();
-  
-  return NoFault;
-}*/
 
 void
 TimingSimpleCPU::resetActive() {
@@ -412,43 +376,6 @@ TimingSimpleCPU::tryUnblock(bool currCycle) {
   for (int i = 0; i < _fsms.size(); i++) {
     _fsms[i]->neighborEvent();
   }
-  
-  
-  // the processor could be doing something else when this update is requested
-  // only change the cpu state if in BindSync state (i.e. waiting for sync)
-  
-  // if no wait then try now
-  /*if (currCycle) {
-    // unstall the processor (stalled when first call bind)
-    if (_status == WaitMeshInst) {
-      tryFetch();
-    }
-    
-    else if (_status == WaitMeshData) {
-      tryInstruction();
-    }
-    
-    // if running, then inform neighbors?
-  }
-  // otherwise schedule an event in the next cycle (if not already scheduled)
-  else {
-    // if a check event is scheduled for this cycle deschedule it and run check now
-    if (tryUnblockEvent.scheduled()) {
-      if (schedCycle == clockEdge()) {
-        deschedule(tryUnblockEvent);
-        tryUnblock(true);
-        schedCycle = nextCycle();
-        schedule(tryUnblockEvent, schedCycle);
-      }
-    }
-    else {
-      schedCycle = nextCycle();
-      schedule(tryUnblockEvent, schedCycle);
-    }
-  }
-  */
-  
-  
 }
 
 void
@@ -514,28 +441,6 @@ TimingSimpleCPU::saveOp(int idx, RegVal val) {
  * Event handlers
  *--------------------------------------------------------------------*/
 
-/*void
-TimingSimpleCPU::setNextValRdy() {
-  // update sync signals
-  if (nextVal) setVal();
-  else resetVal();
-  
-  if (nextRdy) setRdy();
-  else resetRdy();
-}*/
-
-// needs to be sent at the end of the this cycle, to be present before
-// any events that use it occur (really present after a cycle though)
-/*void
-TimingSimpleCPU::sendNextPkt() {
-  // send packet if any
-  if (nextPkt != nullptr) {
-    //DPRINTF(Mesh, "actually send mesh request\n");
-    toMeshPort[nextDir].sendTimingReq(nextPkt);
-    nextPkt = nullptr;
-  }
-}*/
-
 // if we stall on the mesh, the respective fsm should take
 // control of the execution flow
 void
@@ -546,7 +451,7 @@ TimingSimpleCPU::checkStallOnMesh(SensitiveStage stage) {
   // for fetch there is no instruction!
   //if ((stage != EXECUTE) || !curStaticInst->isBind()) {
     // check if state machine is in running
-    bool ok = _fsms[stage]->isRunning();
+    bool ok = _fsms[stage]->isRunning() || curStaticInst->isBind();
     
     //bool ok = checkOpsValRdy(stage);
     if (ok) _status = Running;
@@ -558,6 +463,10 @@ TimingSimpleCPU::checkStallOnMesh(SensitiveStage stage) {
       //S_fsms[stage]->update();
     }
   //}
+  
+  if (getNumPortsActive(stage) > 0) {
+    DPRINTF(Mesh, "can go? %d\n", ok);
+  }
   
   
 }
@@ -579,6 +488,10 @@ TimingSimpleCPU::tryInstruction() {
         if (_status == Running) {
           // load or store: just send to dcache
           fault = curStaticInst->initiateAcc(&t_info, traceData);
+          
+          for (int i = 0; i < NUM_STAGES; i++) {
+            _fsms[i]->dataReq();
+          }
         }
 
         // If we're not running now the instruction will complete in a dcache
@@ -602,9 +515,7 @@ TimingSimpleCPU::tryInstruction() {
         else {
           // always blocks!
           DPRINTF(SimpleCPU, "Block on dcache load\n");
-          for (int i = 0; i < NUM_STAGES; i++) {
-            _fsms[i]->dataReq();
-          }
+          
         }
     // pbb handle a bind instruction, advanceInst will be called
     // from within bind
