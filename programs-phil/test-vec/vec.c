@@ -46,6 +46,8 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       COMMA [a] "r" (op0) COMMA [b] "r" (op1)
     );
   }
+  // the pc still ticks on these?
+  // either replicate instructions or need to not advanceInst()
   else if (tid_x == 1 && tid_y == 0) {
     BINDED_SECTION(
       ALL_NORM,
@@ -54,8 +56,11 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       FET_O_INST_DOWN_SEND | FET_I_INST_RIGHT,
       ALL_NORM,
       
+      "add %[a0], %[a], %[b]\n\t"
       ,
+      [a0] "=r" (rd)
       ,
+      COMMA [a] "r" (op0) COMMA [b] "r" (op1)
     );
   }
   else if (tid_x == 0 && tid_y == 1) {
@@ -66,8 +71,11 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       FET_I_INST_UP,
       ALL_NORM,
       
+      "add %[a0], %[a], %[b]\n\t"
       ,
+      [a0] "=r" (rd)
       ,
+      COMMA [a] "r" (op0) COMMA [b] "r" (op1)
     );
   }
   else if (tid_x == 1 && tid_y == 1) {
@@ -78,8 +86,11 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       FET_I_INST_UP,
       ALL_NORM,
       
+      "add %[a0], %[a], %[b]\n\t"
       ,
+      [a0] "=r" (rd)
       ,
+      COMMA [a] "r" (op0) COMMA [b] "r" (op1)
     );
   }
   

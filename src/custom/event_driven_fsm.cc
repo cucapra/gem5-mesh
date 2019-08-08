@@ -86,7 +86,7 @@ EventDrivenFSM::isRunning() {
   return 
     (_state == RUNNING_BIND) || 
     (_state == BEGIN_SEND) ||
-    (_state == IDLE);
+    (_state == IDLE || _nextState == IDLE); // this line could problematic, b/c not setup for mealy machine!
 }
 
 // allowed to be ticked multiple times per cycle
