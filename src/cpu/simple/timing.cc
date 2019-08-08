@@ -380,7 +380,7 @@ TimingSimpleCPU::tryUnblock(bool currCycle) {
 
 void
 TimingSimpleCPU::informNeighbors() {
-  DPRINTF(Mesh, "notify neighbors\n");
+  //DPRINTF(Mesh, "notify neighbors\n");
   // go through mesh ports to get tryUnblock function called in neighbor cores
   for (int i = 0; i < toMeshPort.size(); i++) {
     toMeshPort[i].tryUnblockNeighbor();
@@ -431,9 +431,9 @@ TimingSimpleCPU::checkOpsValRdy(SensitiveStage stage) {
 void
 TimingSimpleCPU::saveOp(int idx, RegVal val) {
   assert (idx < 2);
-  if (getNumOutPortsActive(EXECUTE) > 0) {
+  /*if (getNumOutPortsActive(EXECUTE) > 0) {
     DPRINTF(Mesh, "saved %d val: %ld\n", idx, val);
-  }
+  }*/
  savedOps[idx] = val; 
 }
 
@@ -454,7 +454,10 @@ TimingSimpleCPU::checkStallOnMesh(SensitiveStage stage) {
     bool ok = _fsms[stage]->isRunning() || curStaticInst->isBind();
     
     //bool ok = checkOpsValRdy(stage);
-    if (ok) _status = Running;
+    if (ok) {
+      if (_status != IcacheWaitResponse)
+        _status = Running;
+    }
     else {
       if (stage == FETCH) _status = WaitMeshInst;
       else _status = WaitMeshData;
@@ -465,7 +468,7 @@ TimingSimpleCPU::checkStallOnMesh(SensitiveStage stage) {
   //}
   
   if (getNumPortsActive(stage) > 0) {
-    DPRINTF(Mesh, "can go? %d\n", ok);
+    DPRINTF(Mesh, "can go? %d isBind? %d\n", ok, curStaticInst->isBind());
   }
   
   

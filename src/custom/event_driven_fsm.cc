@@ -25,14 +25,14 @@ EventDrivenFSM::EventDrivenFSM(TimingSimpleCPU *cpu, SensitiveStage stage) :
  *--------------------------------------------------------------------*/
 void
 EventDrivenFSM::neighborEvent() {
-  DPRINTF(Mesh, "%s neighbor update\n", _cpu->name());
+  //DPRINTF(Mesh, "%s neighbor update\n", _cpu->name());
   
   update();
 }
 
 void
 EventDrivenFSM::configEvent() {
-  DPRINTF(Mesh, "%s config update\n", _cpu->name());
+  //DPRINTF(Mesh, "%s config update\n", _cpu->name());
   
   update();
 }
@@ -86,7 +86,7 @@ EventDrivenFSM::isRunning() {
   return 
     (_state == RUNNING_BIND) || 
     (_state == BEGIN_SEND) ||
-    (_state == IDLE || _nextState == IDLE); // this line could problematic, b/c not setup for mealy machine!
+    (_state == IDLE && _nextState == IDLE); // this line could problematic, b/c not setup for mealy machine!
 }
 
 // allowed to be ticked multiple times per cycle
@@ -153,7 +153,7 @@ void
 EventDrivenFSM::stateOutput() {
   //bool inVal = getInVal();
   //bool outRdy = getOutRdy();
-  DPRINTF(Mesh, "%s state output\n", _cpu->name());
+  //DPRINTF(Mesh, "%s state output\n", _cpu->name());
   switch(_state) {
     case IDLE: {
       setRdy(false);
@@ -214,8 +214,8 @@ EventDrivenFSM::stateOutput() {
 
 EventDrivenFSM::State
 EventDrivenFSM::meshState(State onValRdy, bool inVal, bool outRdy) {
-  if (_inputs.dataReq == true) return WAIT_DATA_RESP;
-  else if (_inputs.instReq == true) return WAIT_INST_RESP;
+  if (_stage == EXECUTE && _inputs.dataReq == true) return WAIT_DATA_RESP;
+  else if (_stage == FETCH && _inputs.instReq == true) return WAIT_INST_RESP;
   else if (inVal && outRdy) return onValRdy;
   else if (inVal) return WAIT_MESH_RDY;
   else if (outRdy) return WAIT_MESH_VAL;

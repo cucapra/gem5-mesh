@@ -244,7 +244,7 @@ FromMeshPort::getPacket() {
   recvPkt = nullptr;
   
   // this might update val/rdy interface
-  cpu->informNeighbors();
+  //cpu->informNeighbors();
   
   return curPacket;
 }
@@ -329,8 +329,14 @@ FromMeshPort::getRdy() {
     // if we have a packet but don't have a packet in other ports or
     // we have packets but can't send them anywhere b/c output not rdy
     // then we can't accept anymore packets on this port b/c we can't tick
-    if (getPairVal() && cpu->getInVal(active) && cpu->getOutRdy(active)) return true;
-    else if (getPairVal() && (!cpu->getInVal(active) || !cpu->getOutRdy(active))) return false;
+    
+    // should look at next_val?
+    // if (next_pairval && !next_pairval, then not rdy?)
+    
+    if (getPairVal() && 
+      cpu->getInVal(active) && cpu->getOutRdy(active)) return true;
+    else if (getPairVal() && 
+      (!cpu->getInVal(active) || !cpu->getOutRdy(active))) return false;
     else return true;
   }
   else {

@@ -50,6 +50,8 @@ class EventDrivenFSM {
       WAIT_MESH_VALRDY,
       WAIT_MESH_VAL,
       WAIT_MESH_RDY,
+      
+      //WAIT_ON_REQ
       WAIT_INST_RESP,
       WAIT_DATA_RESP
     } State;
