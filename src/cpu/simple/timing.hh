@@ -349,6 +349,7 @@ class TimingSimpleCPU : public BaseSimpleCPU
     void tryInstruction();
     void tryFetch();
     void decodeAndRunInst(PacketPtr pkt);
+    void tryAdvanceInst(const Fault &fault);
     
     PacketPtr getMeshPortPkt(Mesh_Dir dir);
     uint64_t getMeshPortData(Mesh_Dir dir) override;

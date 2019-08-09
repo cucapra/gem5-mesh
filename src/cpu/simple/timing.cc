@@ -518,7 +518,7 @@ TimingSimpleCPU::tryInstruction() {
             if (curStaticInst && (!curStaticInst->isMicroop() ||
                         curStaticInst->isFirstMicroop()))
                 instCnt++;
-            advanceInst(fault);
+            tryAdvanceInst(fault);
         }
         else {
           // always blocks!
@@ -578,7 +578,7 @@ TimingSimpleCPU::tryInstruction() {
         
         
         // fetch the next instruction
-        advanceInst(fault);
+        tryAdvanceInst(fault);
         
       }
       else {
@@ -588,7 +588,7 @@ TimingSimpleCPU::tryInstruction() {
       }
     } else {
       DPRINTF(SimpleCPU, "advance inst on fetch null\n");
-        advanceInst(NoFault);
+        tryAdvanceInst(NoFault);
     }
   
 }
@@ -641,6 +641,25 @@ TimingSimpleCPU::tryFetch() {
   
   // try to foward the instruction to anyone else who might want it
   //trySendMeshRequest(fwdInst, FETCH);
+}
+
+// in the case of vector slave shouldnt update pc by self?
+// what about divergence? would be useful to have? but can't efficiently
+// track when have branches (i.e. all threads went the same way)
+
+// at the very least shouldn't try to send fetch
+void
+TimingSimpleCPU::tryAdvanceInst(const Fault &fault) {
+  SimpleExecContext &t_info = *threadInfo[curThread];
+  SimpleThread* thread = t_info.thread;
+  uint64_t csrVal = thread->readMiscReg(MISCREG_FETCH);
+  Mesh_Dir recvDir;
+  if (MeshHelper::fetCsrToInSrc(csrVal, recvDir)) {
+    // nothing!
+  }
+  else {
+    advanceInst(fault);
+  }
 }
 
 /*----------------------------------------------------------------------
@@ -1341,6 +1360,7 @@ TimingSimpleCPU::sendFetch(const Fault &fault, const RequestPtr &req,
 void
 TimingSimpleCPU::advanceInst(const Fault &fault)
 {
+  
     SimpleExecContext &t_info = *threadInfo[curThread];
 
     if (_status == Faulting)
@@ -1539,7 +1559,7 @@ TimingSimpleCPU::completeDataAccess(PacketPtr pkt)
 
     postExecute();
 
-    advanceInst(fault);
+    tryAdvanceInst(fault);
 }
 
 void

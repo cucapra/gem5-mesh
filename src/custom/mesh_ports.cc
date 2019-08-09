@@ -160,7 +160,7 @@ FromMeshPort::FromMeshPort(TimingSimpleCPU *_cpu, int idx)
           recvPkt(nullptr), cyclePktRecv(0), rdy(false), active(NONE)
     { 
       //DPRINTF(Mesh, "init %d %d %ld %ld\n", rdy, active, (uint64_t)recvPkt, (uint64_t)this);
-      DPRINTF(Mesh, "init idx %d\n", idx);
+      //DPRINTF(Mesh, "init idx %d\n", idx);
       }
 
 // This isn't working when multiple FromMesh ports schedule this event!!!!
