@@ -343,13 +343,12 @@ class TimingSimpleCPU : public BaseSimpleCPU
     
     void setVal(bool val, SensitiveStage stage);
     void setRdy(bool rdy, SensitiveStage stage);
-    //Fault resetVal();
-    //Fault resetRdy();
     void resetActive();
-    void setNextValRdy();
-    void sendNextPkt();
+    //void setNextValRdy();
+    //void sendNextPkt();
     void tryInstruction();
     void tryFetch();
+    void decodeAndRunInst(PacketPtr pkt);
     
     PacketPtr getMeshPortPkt(Mesh_Dir dir);
     uint64_t getMeshPortData(Mesh_Dir dir) override;

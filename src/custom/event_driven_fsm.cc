@@ -197,7 +197,7 @@ EventDrivenFSM::stateOutput() {
     case WAIT_MESH_VAL: {
       setRdy(true);
       setVal(false);
-        break;
+      break;
       /*if (inVal && outRdy) {
         startLink();
       }*/

@@ -624,7 +624,11 @@ TimingSimpleCPU::tryFetch() {
       //fwdInst = getMeshPortData(recvDir);
     
       // do instruction processing + execute
-      completeIfetch(meshPkt);
+      
+      // this has some check for the recv packet so don't do the full thing
+      //completeIfetch(meshPkt); 
+      
+      decodeAndRunInst(meshPkt);
     }
     
   }
@@ -1415,21 +1419,27 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
       }
     }
 
-
-    // try to foward the instruction to anyone else who might want it
-    if (pkt)
-      trySendMeshRequest(FromMeshPort::getPacketData(pkt), FETCH);
-
-    // inst field already set because req_pkt->dataStatic(&inst);
-    // setup curStaticInst based on the received instruction packet
-    preExecute();
     
-    // try to execute the instruction if deps are met
-    tryInstruction();
+    // actually do stuff with the recv instruction packet
+    decodeAndRunInst(pkt);
+}
 
-    if (pkt) {
-        delete pkt;
-    }
+void
+TimingSimpleCPU::decodeAndRunInst(PacketPtr pkt) {
+  // try to foward the instruction to anyone else who might want it
+  if (pkt)
+    trySendMeshRequest(FromMeshPort::getPacketData(pkt), FETCH);
+
+  // inst field already set because req_pkt->dataStatic(&inst);
+  // setup curStaticInst based on the received instruction packet
+  preExecute();
+    
+  // try to execute the instruction if deps are met
+  tryInstruction();
+
+  if (pkt) {
+    delete pkt;
+  }
 }
 
 /*----------------------------------------------------------------------

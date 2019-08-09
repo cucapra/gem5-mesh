@@ -117,6 +117,13 @@ ToMeshPort::tryUnblockNeighbor() {
   }
 }
 
+void
+ToMeshPort::setValIfActive(bool val, SensitiveStage stage) {
+  if (active == stage) { 
+    setVal(val);
+  }
+}
+
 // deprecated
 /*void
 ToMeshPort::failToSend(PacketPtr pkt) {
@@ -341,5 +348,12 @@ FromMeshPort::getRdy() {
   }
   else {
     return false;
+  }
+}
+
+void
+FromMeshPort::setRdyIfActive(bool rdy, SensitiveStage stage) {
+  if (active == stage) {
+    setRdy(rdy);
   }
 }
