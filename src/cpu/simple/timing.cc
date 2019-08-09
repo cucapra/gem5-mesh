@@ -1452,8 +1452,8 @@ TimingSimpleCPU::decodeAndRunInst(PacketPtr pkt) {
     trySendMeshRequest(FromMeshPort::getPacketData(pkt), FETCH);
 
     //if (getNumPortsActive(FETCH) > 0) {
-    if (pkt)
-      DPRINTF(Mesh, "run instruction %#x\n", FromMeshPort::getPacketData(pkt));
+    //if (pkt)
+    //  DPRINTF(Mesh, "run instruction %#x\n", FromMeshPort::getPacketData(pkt));
     //}
 
   // inst field already set because req_pkt->dataStatic(&inst);
