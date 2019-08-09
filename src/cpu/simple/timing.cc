@@ -451,7 +451,12 @@ TimingSimpleCPU::checkStallOnMesh(SensitiveStage stage) {
   // for fetch there is no instruction!
   //if ((stage != EXECUTE) || !curStaticInst->isBind()) {
     // check if state machine is in running
-    bool ok = _fsms[stage]->isRunning() || curStaticInst->isBind();
+    
+    bool ok = _fsms[stage]->isRunning() || 
+    // don't like the weird checks here
+    // but in exe bind can't go off unless forcefully without checking config
+    // in fetch need sync for bind though
+      (stage != FETCH && curStaticInst->isBind());
     
     //bool ok = checkOpsValRdy(stage);
     if (ok) {
@@ -1404,11 +1409,11 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
 
       
     if (pkt)
-      { 
-        for (int i = 0; i < _fsms.size(); i++) {
-      _fsms[i]->instResp();
-    }
+    { 
+      for (int i = 0; i < _fsms.size(); i++) {
+        _fsms[i]->instResp();
       }
+    }
 
 
     // try to foward the instruction to anyone else who might want it
