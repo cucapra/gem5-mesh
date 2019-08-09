@@ -359,7 +359,7 @@ TimingSimpleCPU::resetActive() {
 // either on the next cycle or when recv a packet
 void
 TimingSimpleCPU::tryUnblock(bool currCycle) {
-  if ((getNumPortsActive(EXECUTE) > 0) || (getNumPortsActive(FETCH) > 0)) {
+  /*if ((getNumPortsActive(EXECUTE) > 0) || (getNumPortsActive(FETCH) > 0)) {
   
   DPRINTF(Mesh, "to_mesh:\nactive   %d %d %d %d\nself val %d %d %d %d\npair rdy %d %d %d %d\n",
     toMeshPort[0].getActive(), toMeshPort[1].getActive(), toMeshPort[2].getActive(), toMeshPort[3].getActive(),
@@ -370,7 +370,7 @@ TimingSimpleCPU::tryUnblock(bool currCycle) {
     fromMeshPort[0].getActive(), fromMeshPort[1].getActive(), fromMeshPort[2].getActive(), fromMeshPort[3].getActive(),
     fromMeshPort[0].getRdy(), fromMeshPort[1].getRdy(), fromMeshPort[2].getRdy(), fromMeshPort[3].getRdy(),
     fromMeshPort[0].getPairVal(), fromMeshPort[1].getPairVal(), fromMeshPort[2].getPairVal(), fromMeshPort[3].getPairVal());
-  }
+  }*/
   
   // update the statemachines
   for (int i = 0; i < _fsms.size(); i++) {
@@ -473,7 +473,8 @@ TimingSimpleCPU::checkStallOnMesh(SensitiveStage stage) {
   //}
   
   if (getNumPortsActive(stage) > 0) {
-    DPRINTF(Mesh, "can go? %d isBind? %d\n", ok, curStaticInst->isBind());
+    DPRINTF(Mesh, "%d can go? %d\n", stage, ok);
+    //DPRINTF(Mesh, "can go? %d isBind? %d\n", ok, curStaticInst->isBind());
   }
   
   
@@ -655,7 +656,8 @@ TimingSimpleCPU::tryAdvanceInst(const Fault &fault) {
   uint64_t csrVal = thread->readMiscReg(MISCREG_FETCH);
   Mesh_Dir recvDir;
   if (MeshHelper::fetCsrToInSrc(csrVal, recvDir)) {
-    // nothing!
+    // ???
+    advancePC(fault);
   }
   else {
     advanceInst(fault);
@@ -1438,7 +1440,6 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
         _fsms[i]->instResp();
       }
     }
-
     
     // actually do stuff with the recv instruction packet
     decodeAndRunInst(pkt);
@@ -1449,6 +1450,11 @@ TimingSimpleCPU::decodeAndRunInst(PacketPtr pkt) {
   // try to foward the instruction to anyone else who might want it
   if (pkt)
     trySendMeshRequest(FromMeshPort::getPacketData(pkt), FETCH);
+
+    //if (getNumPortsActive(FETCH) > 0) {
+    if (pkt)
+      DPRINTF(Mesh, "run instruction %#x\n", FromMeshPort::getPacketData(pkt));
+    //}
 
   // inst field already set because req_pkt->dataStatic(&inst);
   // setup curStaticInst based on the received instruction packet

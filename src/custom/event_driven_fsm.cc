@@ -261,7 +261,7 @@ EventDrivenFSM::updateState() {
     // do again here
     case WAIT_INST_RESP: {
       if (_inputs.instResp) {
-        return meshState(RUNNING_BIND, inVal, outRdy);
+        return meshState(WAIT_MESH_RDY, inVal, outRdy);
       }
       else {
         return WAIT_INST_RESP;

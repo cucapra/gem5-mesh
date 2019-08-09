@@ -168,14 +168,14 @@ FromMeshPort::FromMeshPort(TimingSimpleCPU *_cpu, int idx)
 void
 FromMeshPort::process(){
   
-  assert(cpu != nullptr);
+  /*assert(cpu != nullptr);
   // crashes the session :(
   if (idx < 4){
     DPRINTF(Mesh, "process idx %d\n", idx);
   }
   else {
     assert(0);
-  }
+  }*/
   // save the received packet
   setPacket(recvPkt_d);
 }

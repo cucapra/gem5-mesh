@@ -10,13 +10,16 @@ CC=/home/pbb59/hammerblade/riscv-docker/riscv-build/bin/riscv64-unknown-linux-gn
 # need to compile with static in system emulation mode!
 CFLAGS=-static -lpthread -lm -I../common/
 
-default: vec-riscv
+default: vec-riscv asm-dump
 
 vec-riscv: $(OBJS) 
 	$(CC) $(LOCAL_OBJS) $(CFLAGS) -o test_vec
+
+asm-dump: 
+	$(CC) -c vec.c $(CFLAGS) -S -o test_vec_dump
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $(notdir $@) $<
 
 clean:
-	rm -rf test_vec *.o
+	rm -rf test_vec test_vec_dump *.o

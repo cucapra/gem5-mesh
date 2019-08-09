@@ -31,12 +31,15 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
   int op1 = tid_y + 1;
   int rd = 0;
   
-  if (tid_x == 0 && tid_y == 0) {
+  printf("tid_x %d tid_y %d\n", tid_x, tid_y);
+  
+  // FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND,
+  /*if (tid_x == 0 && tid_y == 0) {
     BINDED_SECTION(
       ALL_NORM,
       ALL_NORM,
       
-      /*FET_O_INST_DOWN_SEND |*/ FET_O_INST_RIGHT_SEND,
+      ALL_NORM,
       ALL_NORM,
       
       "add %[a0], %[a], %[b]\n\t"
@@ -48,12 +51,16 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
   }
   // the pc still ticks on these?
   // either replicate instructions or need to not advanceInst()
+  
+  // I think need to replicate so compiler fills in the supporting code
+  // before and after
+  //FET_O_INST_DOWN_SEND | FET_I_INST_LEFT,
   else if (tid_x == 1 && tid_y == 0) {
     BINDED_SECTION(
       ALL_NORM,
       ALL_NORM,
-      
-      /*FET_O_INST_DOWN_SEND |*/ FET_I_INST_LEFT,
+    
+      ALL_NORM,
       ALL_NORM,
       
       "add %[a0], %[a], %[b]\n\t"
@@ -62,7 +69,7 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       ,
       COMMA [a] "r" (op0) COMMA [b] "r" (op1)
     );
-  }
+  }*/
   /*else if (tid_x == 0 && tid_y == 1) {
     BINDED_SECTION(
       ALL_NORM,
