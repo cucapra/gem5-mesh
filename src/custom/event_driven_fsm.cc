@@ -260,7 +260,10 @@ EventDrivenFSM::updateState() {
     // this one needs work, on resp tries the send, so shouldnt
     // do again here
     case WAIT_INST_RESP: {
-      if (_inputs.instResp) {
+      if (_inputs.instResp && outRdy) {
+        return meshState(BEGIN_SEND, inVal, outRdy);
+      }
+      else if (_inputs.instResp) {
         return meshState(WAIT_MESH_RDY, inVal, outRdy);
       }
       else {

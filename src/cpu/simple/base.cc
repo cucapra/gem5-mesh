@@ -488,9 +488,13 @@ BaseSimpleCPU::setupFetchRequest(const RequestPtr &req)
                  instMasterId(), instAddr);
 }
 
+void
+BaseSimpleCPU::preExecute() {
+  preExecute(inst);
+}
 
 void
-BaseSimpleCPU::preExecute()
+BaseSimpleCPU::preExecute(MachInst givenInst)
 {
     SimpleExecContext &t_info = *threadInfo[curThread];
     SimpleThread* thread = t_info.thread;
@@ -506,7 +510,7 @@ BaseSimpleCPU::preExecute()
     system->instEventQueue.serviceEvents(system->totalNumInsts);
 
     // decode the instruction
-    inst = gtoh(inst);
+    givenInst = gtoh(givenInst);
 
     TheISA::PCState pcState = thread->pcState();
 
@@ -524,7 +528,7 @@ BaseSimpleCPU::preExecute()
         //If more fetch data is needed, pass it in.
         Addr fetchPC = (pcState.instAddr() & PCMask) + t_info.fetchOffset;
         //if (decoder->needMoreBytes())
-            decoder->moreBytes(pcState, fetchPC, inst);
+            decoder->moreBytes(pcState, fetchPC, givenInst);
         //else
         //    decoder->process();
 

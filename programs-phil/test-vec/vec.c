@@ -34,12 +34,12 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
   printf("tid_x %d tid_y %d\n", tid_x, tid_y);
   
   // FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND,
-  /*if (tid_x == 0 && tid_y == 0) {
+  if (tid_x == 0 && tid_y == 0) {
     BINDED_SECTION(
       ALL_NORM,
       ALL_NORM,
       
-      ALL_NORM,
+      FET_O_INST_RIGHT_SEND,
       ALL_NORM,
       
       "add %[a0], %[a], %[b]\n\t"
@@ -60,7 +60,7 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       ALL_NORM,
       ALL_NORM,
     
-      ALL_NORM,
+      FET_I_INST_LEFT,
       ALL_NORM,
       
       "add %[a0], %[a], %[b]\n\t"
@@ -69,7 +69,7 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       ,
       COMMA [a] "r" (op0) COMMA [b] "r" (op1)
     );
-  }*/
+  }
   /*else if (tid_x == 0 && tid_y == 1) {
     BINDED_SECTION(
       ALL_NORM,

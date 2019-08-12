@@ -137,6 +137,7 @@ class BaseSimpleCPU : public BaseCPU
     void checkForInterrupts();
     void setupFetchRequest(const RequestPtr &req);
     void preExecute();
+    void preExecute(TheISA::MachInst givenInst);
     void postExecute();
     void advancePC(const Fault &fault);
 

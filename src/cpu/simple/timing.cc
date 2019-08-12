@@ -190,7 +190,7 @@ TimingSimpleCPU::trySendMeshRequest(uint64_t payload, SensitiveStage stage) {
         val = payload;
       }
         
-      DPRINTF(Mesh, "Sending mesh request %d from %d with val %ld\n", dir, src, val);
+      DPRINTF(Mesh, "Sending mesh request %d from %d with val %#x\n", dir, src, val);
         
       PacketPtr new_pkt = createPacket(val);
       toMeshPort[dir].sendTimingReq(new_pkt);
@@ -542,7 +542,7 @@ TimingSimpleCPU::tryInstruction() {
       checkStallOnMesh(EXECUTE);
       
       if (_status == Running) {
-      
+        
         // set self as rdy if passed val/rdy check
         //setRdy();
       
@@ -550,6 +550,7 @@ TimingSimpleCPU::tryInstruction() {
         Fault fault = curStaticInst->execute(&t_info, traceData);
 
         if (curStaticInst->isBind()) {
+          DPRINTF(Mesh, "running binds\n");
           for (int i = 0; i < _fsms.size(); i++) {
             _fsms[i]->configEvent();
           }
@@ -619,7 +620,7 @@ TimingSimpleCPU::tryFetch() {
   if (MeshHelper::fetCsrToInSrc(csrVal, recvDir)) {
     
     if (_status == Running) {
-      DPRINTF(Mesh, "Inst not stalled, so proceed\n");
+      //DPRINTF(Mesh, "Inst not stalled, so proceed\n");
       // try to get packet from mesh network
       PacketPtr meshPkt = getMeshPortPkt(recvDir);
       //fwdInst = getMeshPortData(recvDir);
@@ -1447,22 +1448,39 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
 
 void
 TimingSimpleCPU::decodeAndRunInst(PacketPtr pkt) {
-  // try to foward the instruction to anyone else who might want it
-  if (pkt)
-    trySendMeshRequest(FromMeshPort::getPacketData(pkt), FETCH);
-
     //if (getNumPortsActive(FETCH) > 0) {
-    //if (pkt)
+    //if ((getNumPortsActive(FETCH) > 0) && _fsms[FETCH]->isRunning() && pkt)
     //  DPRINTF(Mesh, "run instruction %#x\n", FromMeshPort::getPacketData(pkt));
     //}
 
+  
+  // Get correct instruction sequence if put exactly here??
+  // try to foward the instruction to anyone else who might want it
+  if (pkt)
+    trySendMeshRequest(FromMeshPort::getPacketData(pkt), FETCH);
+    
+    if ((pkt && (getNumPortsActive(FETCH) > 0) && _fsms[FETCH]->isRunning()) ||
+      (curStaticInst && curStaticInst->isBind()))
+      DPRINTF(Mesh, "run instruction %#x\n", FromMeshPort::getPacketData(pkt));
+  
+
   // inst field already set because req_pkt->dataStatic(&inst);
   // setup curStaticInst based on the received instruction packet
-  preExecute();
-    
+  
+  // Are we sure this is getting the right data?
+  if (getNumInPortsActive(FETCH) > 0) {
+    preExecute(FromMeshPort::getPacketData(pkt));
+  }
+  else {
+    preExecute();
+  }
+
+  
+  
   // try to execute the instruction if deps are met
   tryInstruction();
 
+  
   if (pkt) {
     delete pkt;
   }
