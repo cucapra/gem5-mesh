@@ -578,69 +578,14 @@ Fetch1::evaluate()
 
     assert(line_out.isBubble());
 
+    // pbb, this should not be hyperthreaded?
+    assert(cpu.numThreads == 1);
+    
     for (ThreadID tid = 0; tid < cpu.numThreads; tid++)
         fetchInfo[tid].blocked = !nextStageReserve[tid].canReserve();
 
-    /** Are both branches from later stages valid and for the same thread? */
-    if (execute_branch.threadId != InvalidThreadID &&
-        execute_branch.threadId == fetch2_branch.threadId) {
-
-        Fetch1ThreadInfo &thread = fetchInfo[execute_branch.threadId];
-
-        /* Are we changing stream?  Look to the Execute branches first, then
-         * to predicted changes of stream from Fetch2 */
-        if (execute_branch.isStreamChange()) {
-            if (thread.state == FetchHalted) {
-                DPRINTF(Fetch, "Halted, ignoring branch: %s\n", execute_branch);
-            } else {
-                changeStream(execute_branch);
-            }
-
-            if (!fetch2_branch.isBubble()) {
-                DPRINTF(Fetch, "Ignoring simultaneous prediction: %s\n",
-                    fetch2_branch);
-            }
-
-            /* The streamSeqNum tagging in request/response ->req should handle
-             *  discarding those requests when we get to them. */
-        } else if (thread.state != FetchHalted && fetch2_branch.isStreamChange()) {
-            /* Handle branch predictions by changing the instruction source
-             * if we're still processing the same stream (as set by streamSeqNum)
-             * as the one of the prediction.
-             */
-            if (fetch2_branch.newStreamSeqNum != thread.streamSeqNum) {
-                DPRINTF(Fetch, "Not changing stream on prediction: %s,"
-                    " streamSeqNum mismatch\n",
-                    fetch2_branch);
-            } else {
-                changeStream(fetch2_branch);
-            }
-        }
-    } else {
-        /* Fetch2 and Execute branches are for different threads */
-        if (execute_branch.threadId != InvalidThreadID &&
-            execute_branch.isStreamChange()) {
-
-            if (fetchInfo[execute_branch.threadId].state == FetchHalted) {
-                DPRINTF(Fetch, "Halted, ignoring branch: %s\n", execute_branch);
-            } else {
-                changeStream(execute_branch);
-            }
-        }
-
-        if (fetch2_branch.threadId != InvalidThreadID &&
-            fetch2_branch.isStreamChange()) {
-
-            if (fetchInfo[fetch2_branch.threadId].state == FetchHalted) {
-                DPRINTF(Fetch, "Halted, ignoring branch: %s\n", fetch2_branch);
-            } else if (fetch2_branch.newStreamSeqNum != fetchInfo[fetch2_branch.threadId].streamSeqNum) {
-                DPRINTF(Fetch, "Not changing stream on prediction: %s,"
-                    " streamSeqNum mismatch\n", fetch2_branch);
-            } else {
-                changeStream(fetch2_branch);
-            }
-        }
-    }
+    // change the next pc from the expected one if there has been a branch
+    handleBranch(execute_branch, fetch2_branch);
 
     if (numInFlightFetches() < fetchLimit) {
         ThreadID fetch_tid = getScheduledThread();
@@ -707,6 +652,71 @@ Fetch1::evaluate()
 
     for (auto& thread : fetchInfo) {
         thread.wakeupGuard = false;
+    }
+}
+
+void
+Fetch1::handleBranch(const BranchData &execute_branch,
+    const BranchData &fetch2_branch) {
+    /** Are both branches from later stages valid and for the same thread? */
+    if (execute_branch.threadId != InvalidThreadID &&
+        execute_branch.threadId == fetch2_branch.threadId) {
+
+        Fetch1ThreadInfo &thread = fetchInfo[execute_branch.threadId];
+
+        /* Are we changing stream?  Look to the Execute branches first, then
+         * to predicted changes of stream from Fetch2 */
+        if (execute_branch.isStreamChange()) {
+            if (thread.state == FetchHalted) {
+                DPRINTF(Fetch, "Halted, ignoring branch: %s\n", execute_branch);
+            } else {
+                changeStream(execute_branch);
+            }
+
+            if (!fetch2_branch.isBubble()) {
+                DPRINTF(Fetch, "Ignoring simultaneous prediction: %s\n",
+                    fetch2_branch);
+            }
+
+            /* The streamSeqNum tagging in request/response ->req should handle
+             *  discarding those requests when we get to them. */
+        } else if (thread.state != FetchHalted && fetch2_branch.isStreamChange()) {
+            /* Handle branch predictions by changing the instruction source
+             * if we're still processing the same stream (as set by streamSeqNum)
+             * as the one of the prediction.
+             */
+            if (fetch2_branch.newStreamSeqNum != thread.streamSeqNum) {
+                DPRINTF(Fetch, "Not changing stream on prediction: %s,"
+                    " streamSeqNum mismatch\n",
+                    fetch2_branch);
+            } else {
+                changeStream(fetch2_branch);
+            }
+        }
+    } else {
+        /* Fetch2 and Execute branches are for different threads */
+        if (execute_branch.threadId != InvalidThreadID &&
+            execute_branch.isStreamChange()) {
+
+            if (fetchInfo[execute_branch.threadId].state == FetchHalted) {
+                DPRINTF(Fetch, "Halted, ignoring branch: %s\n", execute_branch);
+            } else {
+                changeStream(execute_branch);
+            }
+        }
+
+        if (fetch2_branch.threadId != InvalidThreadID &&
+            fetch2_branch.isStreamChange()) {
+
+            if (fetchInfo[fetch2_branch.threadId].state == FetchHalted) {
+                DPRINTF(Fetch, "Halted, ignoring branch: %s\n", fetch2_branch);
+            } else if (fetch2_branch.newStreamSeqNum != fetchInfo[fetch2_branch.threadId].streamSeqNum) {
+                DPRINTF(Fetch, "Not changing stream on prediction: %s,"
+                    " streamSeqNum mismatch\n", fetch2_branch);
+            } else {
+                changeStream(fetch2_branch);
+            }
+        }
     }
 }
 

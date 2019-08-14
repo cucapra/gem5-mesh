@@ -19,7 +19,7 @@ int main(int argc, char *argv[])
 {
   unsigned num_values;
   if (argc == 1) {
-      num_values = 64; // leads to 32*32*4bytes*3 mats = ~12kB
+      num_values = 4; // 32;// leads to 32*32*4bytes*3 mats = ~12kB
   } else if (argc == 2) {
       num_values = atoi(argv[1]);
       if (num_values <= 0) {

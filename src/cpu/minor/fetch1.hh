@@ -380,6 +380,13 @@ class Fetch1 : public Named
     /** Memory interface */
     virtual bool recvTimingResp(PacketPtr pkt);
     virtual void recvReqRetry();
+    
+    
+    /** new methods */
+    
+    /** change the pc if there was a branch detected later in the pipe */
+    void handleBranch(const BranchData &execute_branch, const BranchData &fetch2_branch);
+    
 
   public:
     Fetch1(const std::string &name_,
