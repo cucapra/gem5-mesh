@@ -247,26 +247,26 @@ Fetch2::evaluate()
     BranchData prediction;
     BranchData &branch_inp = *branchInp.outputWire;
 
-
+    // handle a branch that was detected later on in the pipe
     handleBranch(branch_inp);
 
     assert(insts_out.isBubble());
-
-    
-
-    // ^ handling branch?
-    
-    
 
     ThreadID tid = getScheduledThread();
     DPRINTF(Fetch, "Scheduled Thread: %d\n", tid);
 
     assert(insts_out.isBubble());
+    
+    
+    // extract instructions from fetch lines
     if (tid != InvalidThreadID) {
         Fetch2ThreadInfo &fetch_info = fetchInfo[tid];
 
+        // get the cache line from fetch1
         const ForwardLineData *line_in = getInput(tid);
 
+        // since this proc supports >=1 way, we try extract multiple in
+        // a cycle
         unsigned int output_index = 0;
 
         /* Pack instructions into the output while we can.  This may involve
@@ -531,6 +531,7 @@ Fetch2::createDynInstFromFetchedLine(const ForwardLineData *line_in,
     
 }
 
+// most of these fields don't matter for non-macro-op inst (i.e. riscv)
 MinorDynInstPtr
 Fetch2::createDynInst(InstId fetch_line_id, InstSeqNum fetch_seq_num, 
         InstSeqNum pred_seq_num, TheISA::PCState pc, StaticInstPtr decoded_inst) {
