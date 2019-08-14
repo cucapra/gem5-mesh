@@ -572,13 +572,12 @@ Fetch1::processResponse(Fetch1::FetchRequestPtr response,
 void
 Fetch1::evaluate()
 {
+    // initially there's no input data in the next stage
     ForwardLineData &line_out = *out.inputWire;
-
     assert(line_out.isBubble());
 
-    // pbb, this should not be hyperthreaded?
+    // always select tid 0
     assert(cpu.numThreads == 1);
-    
     for (ThreadID tid = 0; tid < cpu.numThreads; tid++)
         fetchInfo[tid].blocked = !nextStageReserve[tid].canReserve();
 
@@ -588,9 +587,15 @@ Fetch1::evaluate()
     // issue a fetch for the next pc
     fetchRequest();
     
-    // update any inflight fetches and procress if reponse received
+    // update any inflight fetches and process if response received
+    // this will setup data to be send to fetch2 stage
     handleFetch(line_out);
 
+    // processor might go to idle mode if we don't inform that we expect
+    // something to happen in next cycle
+    // this sleep is implemented in pipeline.cc where it ticks
+    // each stage and then decide if it should idle
+    
     /* If we generated output, and mark the stage as being active
      *  to encourage that output on to the next stage */
     if (!line_out.isBubble())
