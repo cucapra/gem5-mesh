@@ -384,8 +384,14 @@ class Fetch1 : public Named
     
     /** new methods */
     
+    /** try to issue a new fetch request */
+    void fetchRequest();
+    
+    /** process any inflight/recv fetch responses */
+    void handleFetch(ForwardLineData &line_out);
+    
     /** change the pc if there was a branch detected later in the pipe */
-    void handleBranch(const BranchData &execute_branch, const BranchData &fetch2_branch);
+    void handleBranch();
     
 
   public:

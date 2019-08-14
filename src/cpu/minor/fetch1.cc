@@ -572,8 +572,6 @@ Fetch1::processResponse(Fetch1::FetchRequestPtr response,
 void
 Fetch1::evaluate()
 {
-    const BranchData &execute_branch = *inp.outputWire;
-    const BranchData &fetch2_branch = *prediction.outputWire;
     ForwardLineData &line_out = *out.inputWire;
 
     assert(line_out.isBubble());
@@ -585,53 +583,13 @@ Fetch1::evaluate()
         fetchInfo[tid].blocked = !nextStageReserve[tid].canReserve();
 
     // change the next pc from the expected one if there has been a branch
-    handleBranch(execute_branch, fetch2_branch);
+    handleBranch();
 
-    if (numInFlightFetches() < fetchLimit) {
-        ThreadID fetch_tid = getScheduledThread();
-
-        if (fetch_tid != InvalidThreadID) {
-            DPRINTF(Fetch, "Fetching from thread %d\n", fetch_tid);
-
-            /* Generate fetch to selected thread */
-            fetchLine(fetch_tid);
-            /* Take up a slot in the fetch queue */
-            nextStageReserve[fetch_tid].reserve();
-        } else {
-            DPRINTF(Fetch, "No active threads available to fetch from\n");
-        }
-    }
-
-
-    /* Halting shouldn't prevent fetches in flight from being processed */
-    /* Step fetches through the icachePort queues and memory system */
-    stepQueues();
-
-    /* As we've thrown away early lines, if there is a line, it must
-     *  be from the right stream */
-    if (!transfers.empty() &&
-        transfers.front()->isComplete())
-    {
-        Fetch1::FetchRequestPtr response = transfers.front();
-
-        if (response->isDiscardable()) {
-            nextStageReserve[response->id.threadId].freeReservation();
-
-            DPRINTF(Fetch, "Discarding translated fetch as it's for"
-                " an old stream\n");
-
-            /* Wake up next cycle just in case there was some other
-             *  action to do */
-            cpu.wakeupOnEvent(Pipeline::Fetch1StageId);
-        } else {
-            DPRINTF(Fetch, "Processing fetched line: %s\n",
-                response->id);
-
-            processResponse(response, line_out);
-        }
-
-        popAndDiscard(transfers);
-    }
+    // issue a fetch for the next pc
+    fetchRequest();
+    
+    // update any inflight fetches and procress if reponse received
+    handleFetch(line_out);
 
     /* If we generated output, and mark the stage as being active
      *  to encourage that output on to the next stage */
@@ -656,8 +614,68 @@ Fetch1::evaluate()
 }
 
 void
-Fetch1::handleBranch(const BranchData &execute_branch,
-    const BranchData &fetch2_branch) {
+Fetch1::fetchRequest() {
+    // send a new fetch
+    if (numInFlightFetches() < fetchLimit) {
+        ThreadID fetch_tid = getScheduledThread();
+
+        if (fetch_tid != InvalidThreadID) {
+            DPRINTF(Fetch, "Fetching from thread %d\n", fetch_tid);
+
+            /* Generate fetch to selected thread */
+            fetchLine(fetch_tid);
+            /* Take up a slot in the fetch queue */
+            nextStageReserve[fetch_tid].reserve();
+        } else {
+            DPRINTF(Fetch, "No active threads available to fetch from\n");
+        }
+    }
+}
+
+void
+Fetch1::handleFetch(ForwardLineData &line_out) {
+    // update any inflight fetches
+
+    /* Halting shouldn't prevent fetches in flight from being processed */
+    /* Step fetches through the icachePort queues and memory system */
+    stepQueues();
+
+    // process any completed requests
+
+    /* As we've thrown away early lines, if there is a line, it must
+     *  be from the right stream */
+    if (!transfers.empty() &&
+        transfers.front()->isComplete())
+    {
+        Fetch1::FetchRequestPtr response = transfers.front();
+
+        if (response->isDiscardable()) {
+            nextStageReserve[response->id.threadId].freeReservation();
+
+            DPRINTF(Fetch, "Discarding translated fetch as it's for"
+                " an old stream\n");
+
+            /* Wake up next cycle just in case there was some other
+             *  action to do */
+            cpu.wakeupOnEvent(Pipeline::Fetch1StageId);
+        } else {
+            DPRINTF(Fetch, "Processing fetched line: %s\n",
+                response->id);
+                
+            // got request so send to output (line_out)
+
+            processResponse(response, line_out);
+        }
+
+        popAndDiscard(transfers);
+    }
+}
+
+void
+Fetch1::handleBranch() {
+    const BranchData &execute_branch = *inp.outputWire;
+    const BranchData &fetch2_branch = *prediction.outputWire;  
+        
     /** Are both branches from later stages valid and for the same thread? */
     if (execute_branch.threadId != InvalidThreadID &&
         execute_branch.threadId == fetch2_branch.threadId) {
