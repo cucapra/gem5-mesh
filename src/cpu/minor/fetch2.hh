@@ -207,6 +207,11 @@ class Fetch2 : public Named
     MinorDynInstPtr createDynInst(InstId fetch_line_id, 
         InstSeqNum fetch_seq_num, InstSeqNum pred_seq_num, TheISA::PCState pc, 
         StaticInstPtr decoded_inst);
+        
+    /** Extract the next dynamic instruction from the fetch line*/
+    MinorDynInstPtr createDynInstFromFetchedLine(const ForwardLineData *line_in, 
+        Fetch2ThreadInfo &fetch_info, BranchData &prediction, 
+        unsigned int output_index);
 
   public:
     Fetch2(const std::string &name,
