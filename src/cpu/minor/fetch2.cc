@@ -247,51 +247,12 @@ Fetch2::evaluate()
     BranchData prediction;
     BranchData &branch_inp = *branchInp.outputWire;
 
-    assert(insts_out.isBubble());
 
-    /* React to branches from Execute to update local branch prediction
-     *  structures */
-    updateBranchPrediction(branch_inp);
-
-    /* If a branch arrives, don't try and do anything about it.  Only
-     *  react to your own predictions */
-    if (branch_inp.isStreamChange()) {
-        DPRINTF(Fetch, "Dumping all input as a stream changing branch"
-            " has arrived\n");
-        dumpAllInput(branch_inp.threadId);
-        fetchInfo[branch_inp.threadId].havePC = false;
-    }
+    handleBranch(branch_inp);
 
     assert(insts_out.isBubble());
-    /* Even when blocked, clear out input lines with the wrong
-     *  prediction sequence number */
-    for (ThreadID tid = 0; tid < cpu.numThreads; tid++) {
-        Fetch2ThreadInfo &thread = fetchInfo[tid];
 
-        thread.blocked = !nextStageReserve[tid].canReserve();
-
-        const ForwardLineData *line_in = getInput(tid);
-
-        while (line_in &&
-            thread.expectedStreamSeqNum == line_in->id.streamSeqNum &&
-            thread.predictionSeqNum != line_in->id.predictionSeqNum)
-        {
-            DPRINTF(Fetch, "Discarding line %s"
-                " due to predictionSeqNum mismatch (expected: %d)\n",
-                line_in->id, thread.predictionSeqNum);
-
-            popInput(tid);
-            fetchInfo[tid].havePC = false;
-
-            if (processMoreThanOneInput) {
-                DPRINTF(Fetch, "Wrapping\n");
-                line_in = getInput(tid);
-            } else {
-                line_in = NULL;
-            }
-        }
-    }
-
+    
 
     // ^ handling branch?
     
@@ -441,6 +402,8 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
         dyn_inst->minorTraceInst(*this);
     }
 }
+
+
 
 MinorDynInstPtr
 Fetch2::createDynInstFromFetchedLine(const ForwardLineData *line_in, 
@@ -610,6 +573,54 @@ Fetch2::createDynInst(InstId fetch_line_id, InstSeqNum fetch_seq_num,
     }
         
     return dyn_inst;
+}
+
+
+void
+Fetch2::handleBranch(BranchData &branch_inp) {
+    /* React to branches from Execute to update local branch prediction
+     *  structures */
+    updateBranchPrediction(branch_inp);
+
+    /* If a branch arrives, don't try and do anything about it.  Only
+     *  react to your own predictions */
+    if (branch_inp.isStreamChange()) {
+        DPRINTF(Fetch, "Dumping all input as a stream changing branch"
+            " has arrived\n");
+        dumpAllInput(branch_inp.threadId);
+        fetchInfo[branch_inp.threadId].havePC = false;
+    }
+
+    //assert(insts_out.isBubble());
+    /* Even when blocked, clear out input lines with the wrong
+     *  prediction sequence number */
+    for (ThreadID tid = 0; tid < cpu.numThreads; tid++) {
+        Fetch2ThreadInfo &thread = fetchInfo[tid];
+
+        thread.blocked = !nextStageReserve[tid].canReserve();
+
+        const ForwardLineData *line_in = getInput(tid);
+
+        while (line_in &&
+            thread.expectedStreamSeqNum == line_in->id.streamSeqNum &&
+            thread.predictionSeqNum != line_in->id.predictionSeqNum)
+        {
+            DPRINTF(Fetch, "Discarding line %s"
+                " due to predictionSeqNum mismatch (expected: %d)\n",
+                line_in->id, thread.predictionSeqNum);
+
+            popInput(tid);
+            fetchInfo[tid].havePC = false;
+
+            if (processMoreThanOneInput) {
+                DPRINTF(Fetch, "Wrapping\n");
+                line_in = getInput(tid);
+            } else {
+                line_in = NULL;
+            }
+        }
+    }
+
 }
 
 inline ThreadID

@@ -212,6 +212,9 @@ class Fetch2 : public Named
     MinorDynInstPtr createDynInstFromFetchedLine(const ForwardLineData *line_in, 
         Fetch2ThreadInfo &fetch_info, BranchData &prediction, 
         unsigned int output_index);
+    
+    /** Take appropriate actions if detect a branch from an earlier inst */    
+    void handleBranch(BranchData &branch_inp);
 
   public:
     Fetch2(const std::string &name,
