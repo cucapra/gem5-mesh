@@ -201,6 +201,12 @@ class Fetch2 : public Named
     
     /** Send the new dynamic instruction to the next stage */
     void pushDynInst(MinorDynInstPtr dyn_inst, int output_index);
+    
+    /** Create a dynamic instruction from a static one with the intention
+     *  to send it */
+    MinorDynInstPtr createDynInst(InstId fetch_line_id, 
+        InstSeqNum fetch_seq_num, InstSeqNum pred_seq_num, TheISA::PCState pc, 
+        StaticInstPtr decoded_inst);
 
   public:
     Fetch2(const std::string &name,

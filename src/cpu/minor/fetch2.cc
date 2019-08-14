@@ -364,19 +364,9 @@ Fetch2::evaluate()
                     fetch_info.predictionSeqNum);
             } else if (line_in->isFault()) {
                 /* Pack a fault as a MinorDynInst with ->fault set */
-
-                /* Make a new instruction and pick up the line, stream,
-                 *  prediction, thread ids from the incoming line */
-                dyn_inst = new MinorDynInst(line_in->id);
-
-                /* Fetch and prediction sequence numbers originate here */
-                dyn_inst->id.fetchSeqNum = fetch_info.fetchSeqNum;
-                dyn_inst->id.predictionSeqNum = fetch_info.predictionSeqNum;
-                /* To complete the set, test that exec sequence number has
-                 *  not been set */
-                assert(dyn_inst->id.execSeqNum == 0);
-
-                dyn_inst->pc = fetch_info.pc;
+                
+                dyn_inst = createDynInst(line_in->id, fetch_info.fetchSeqNum,
+                    fetch_info.predictionSeqNum, fetch_info.pc, nullptr);
 
                 /* Pack a faulting instruction but allow other
                  *  instructions to be generated. (Fetch2 makes no
@@ -406,39 +396,12 @@ Fetch2::evaluate()
                  *  instructions longer than sizeof(MachInst) */
 
                 if (decoder->instReady()) {
-                    /* Make a new instruction and pick up the line, stream,
-                     *  prediction, thread ids from the incoming line */
-                    dyn_inst = new MinorDynInst(line_in->id);
-
-                    /* Fetch and prediction sequence numbers originate here */
-                    dyn_inst->id.fetchSeqNum = fetch_info.fetchSeqNum;
-                    dyn_inst->id.predictionSeqNum = fetch_info.predictionSeqNum;
-                    /* To complete the set, test that exec sequence number
-                     *  has not been set */
-                    assert(dyn_inst->id.execSeqNum == 0);
-
-                    /* Note that the decoder can update the given PC.
-                     *  Remember not to assign it until *after* calling
-                     *  decode */
+                    // create a new dynamic instruction
                     StaticInstPtr decoded_inst = decoder->decode(fetch_info.pc);
-                    dyn_inst->staticInst = decoded_inst;
-
-                    dyn_inst->pc = fetch_info.pc;
-                    DPRINTF(Fetch, "decoder inst %s\n", *dyn_inst);
-
-                    // Collect some basic inst class stats
-                    if (decoded_inst->isLoad())
-                        loadInstructions++;
-                    else if (decoded_inst->isStore())
-                        storeInstructions++;
-                    else if (decoded_inst->isAtomic())
-                        amoInstructions++;
-                    else if (decoded_inst->isVector())
-                        vecInstructions++;
-                    else if (decoded_inst->isFloating())
-                        fpInstructions++;
-                    else if (decoded_inst->isInteger())
-                        intInstructions++;
+                    
+                    dyn_inst = createDynInst(line_in->id, fetch_info.fetchSeqNum, 
+                        fetch_info.predictionSeqNum, fetch_info.pc, decoded_inst);
+                        
 
                     DPRINTF(Fetch, "Instruction extracted from line %s"
                         " lineWidth: %d output_index: %d inputIndex: %d"
@@ -587,6 +550,50 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
     {
         dyn_inst->minorTraceInst(*this);
     }
+}
+
+MinorDynInstPtr
+Fetch2::createDynInst(InstId fetch_line_id, InstSeqNum fetch_seq_num, 
+        InstSeqNum pred_seq_num, TheISA::PCState pc, StaticInstPtr decoded_inst) {
+    /* Make a new instruction and pick up the line, stream,
+    *  prediction, thread ids from the incoming line */
+    MinorDynInstPtr dyn_inst = new MinorDynInst(fetch_line_id);
+
+    /* Fetch and prediction sequence numbers originate here */
+    dyn_inst->id.fetchSeqNum = fetch_seq_num;
+    dyn_inst->id.predictionSeqNum = pred_seq_num;
+    /* To complete the set, test that exec sequence number
+    *  has not been set */
+    assert(dyn_inst->id.execSeqNum == 0);
+
+    /* Note that the decoder can update the given PC.
+    *  Remember not to assign it until *after* calling
+    *  decode */
+    //StaticInstPtr decoded_inst = decoder->decode(fetch_info.pc);
+    //dyn_inst->staticInst = decoded_inst;
+
+    dyn_inst->pc = pc;
+    DPRINTF(Fetch, "decoder inst %s\n", *dyn_inst);
+
+
+    if (decoded_inst) {
+        dyn_inst->staticInst = decoded_inst;
+        // Collect some basic inst class stats
+        if (decoded_inst->isLoad())
+            loadInstructions++;
+        else if (decoded_inst->isStore())
+            storeInstructions++;
+        else if (decoded_inst->isAtomic())
+            amoInstructions++;
+        else if (decoded_inst->isVector())
+            vecInstructions++;
+        else if (decoded_inst->isFloating())
+            fpInstructions++;
+        else if (decoded_inst->isInteger())
+            intInstructions++;
+    }
+        
+    return dyn_inst;
 }
 
 inline ThreadID
