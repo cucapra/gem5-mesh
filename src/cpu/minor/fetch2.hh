@@ -198,6 +198,9 @@ class Fetch2 : public Named
     /** Use the current threading policy to determine the next thread to
      *  fetch from. */
     ThreadID getScheduledThread();
+    
+    /** Send the new dynamic instruction to the next stage */
+    void pushDynInst(MinorDynInstPtr dyn_inst, int output_index);
 
   public:
     Fetch2(const std::string &name,

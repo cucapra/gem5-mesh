@@ -292,6 +292,11 @@ Fetch2::evaluate()
         }
     }
 
+
+    // ^ handling branch?
+    
+    
+
     ThreadID tid = getScheduledThread();
     DPRINTF(Fetch, "Scheduled Thread: %d\n", tid);
 
@@ -340,6 +345,11 @@ Fetch2::evaluate()
                 fetch_info.havePC = true;
                 decoder->reset();
             }
+
+
+//
+//
+//
 
             /* The generated instruction.  Leave as NULL if no instruction
              *  is to be packed into the output */
@@ -478,26 +488,18 @@ Fetch2::evaluate()
                 }
             }
 
+            
+            // output dynamic instruction to the next stage
             if (dyn_inst) {
                 /* Step to next sequence number */
                 fetch_info.fetchSeqNum++;
-
-                /* Correctly size the output before writing */
-                if (output_index == 0) {
-                    insts_out.resize(outputWidth);
-                }
-                /* Pack the generated dynamic instruction into the output */
-                insts_out.insts[output_index] = dyn_inst;
+                pushDynInst(dyn_inst, output_index);
                 output_index++;
-
-                /* Output MinorTrace instruction info for
-                 *  pre-microop decomposition macroops */
-                if (DTRACE(MinorTrace) && !dyn_inst->isFault() &&
-                    dyn_inst->staticInst->isMacroop())
-                {
-                    dyn_inst->minorTraceInst(*this);
-                }
             }
+            
+//
+//
+//
 
             /* Remember the streamSeqNum of this line so we can tell when
              *  we change stream */
@@ -563,6 +565,28 @@ Fetch2::evaluate()
     /* Make sure the input (if any left) is pushed */
     if (!inp.outputWire->isBubble())
         inputBuffer[inp.outputWire->id.threadId].pushTail();
+}
+
+
+void
+Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
+    ForwardInstData &insts_out = *out.inputWire;
+
+    /* Correctly size the output before writing */
+    if (output_index == 0) {
+        insts_out.resize(outputWidth);
+    }
+    /* Pack the generated dynamic instruction into the output */
+    insts_out.insts[output_index] = dyn_inst;
+    //output_index++;
+
+    /* Output MinorTrace instruction info for
+    *  pre-microop decomposition macroops */
+    if (DTRACE(MinorTrace) && !dyn_inst->isFault() &&
+        dyn_inst->staticInst->isMacroop())
+    {
+        dyn_inst->minorTraceInst(*this);
+    }
 }
 
 inline ThreadID
