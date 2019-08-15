@@ -56,6 +56,8 @@
 #include "params/MinorCPU.hh"
 #include "sim/ticked_object.hh"
 
+#include "custom/vector_forward.hh"
+
 namespace Minor
 {
 
@@ -81,11 +83,17 @@ class Pipeline : public Ticked
     Latch<ForwardInstData> f2ToD;
     Latch<ForwardInstData> dToE;
     Latch<BranchData> eToF1;
+    
+    // vector unit to decode
+    Latch<ForwardInstData> vfToD;
 
     Execute execute;
     Decode decode;
     Fetch2 fetch2;
     Fetch1 fetch1;
+    
+    // vec
+    VectorForward vector;
 
     /** Activity recording for the pipeline.  This is access through the CPU
      *  by the pipeline stages but belongs to the Pipeline as it is the

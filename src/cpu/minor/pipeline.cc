@@ -67,6 +67,10 @@ Pipeline::Pipeline(MinorCPU &cpu_, MinorCPUParams &params) :
         params.decodeToExecuteForwardDelay),
     eToF1(cpu.name() + ".eToF1", "branch",
         params.executeBranchDelay),
+        
+    vfToD(cpu.name() + ".vfToD", "insts",
+        params.fetch2ToDecodeForwardDelay),
+        
     execute(cpu.name() + ".execute", cpu, params,
         dToE.output(), eToF1.input()),
     decode(cpu.name() + ".decode", cpu, params,
@@ -76,6 +80,10 @@ Pipeline::Pipeline(MinorCPU &cpu_, MinorCPUParams &params) :
         decode.inputBuffer),
     fetch1(cpu.name() + ".fetch1", cpu, params,
         eToF1.output(), f1ToF2.input(), f2ToF1.output(), fetch2.inputBuffer),
+        
+    vector(cpu.name() + ".vector", cpu, params, 
+        vfToD.input(), decode.inputBuffer),
+        
     activityRecorder(cpu.name() + ".activity", Num_StageId,
         /* The max depth of inter-stage FIFOs */
         std::max(params.fetch1ToFetch2ForwardDelay,
