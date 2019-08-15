@@ -35,11 +35,11 @@ class VectorForward : public Named {
     // I think should be called from fetch2 and inject into decode
     
     // master calls this to broadcast to neighbors
-    void pushInstruction(const TheISA::MachInst inst);
+    void forwardInstruction(const TheISA::MachInst inst);
     
-    // slave calls this to get an instruction from the mesh
-    // the instruction must be decoded internally
-    StaticInstPtr pullInstruction();
+    // like a pipeline stage, tick this and pass stuff on to the next stage
+    // if possible. this should mimic fetch2 somewhat
+    void evaluate();
     
     // setup which mesh ports are active
     void setupConfig(RegVal csrVal);
@@ -78,8 +78,25 @@ class VectorForward : public Named {
     void setVal(bool val);
   
   protected:
+    
     // give the instruction to a slave core once at local node
-    //void giveInstruction(const TheISA::ExtMachInst inst);
+    // we will write to the input latch between this unit and decode
+    // decode will take the instruction in the exact same way as it would
+    // from the regular fetch2
+    // 
+    // the instruction must be decoded internally
+    
+    // create a dynamic instruction
+    Minor::MinorDynInstPtr createInstruction(const TheISA::MachInst instWord);
+    
+    // push output to the next stage
+    void pushToNextStage(const Minor::MinorDynInstPtr);
+    
+    // call the two things above to make a dynamic instruction then push it
+    void pushInstToNextStage(const TheISA::MachInst instWord);
+    
+    // pull an instruction from the mesh network (figure out the right dir)
+    TheISA::MachInst pullInstruction();
     
     // extract (functional decode) the machinst to ExtMachInst
     StaticInstPtr extractInstruction(const TheISA::MachInst inst);

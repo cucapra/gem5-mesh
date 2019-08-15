@@ -37,6 +37,18 @@ VectorForward::VectorForward(const std::string &name,
   }
 }
 
+void
+VectorForward::evaluate() {
+  
+  // check for instruction from mesh
+  
+  // pull instruction from the mesh
+  TheISA::MachInst instWord = pullInstruction();
+  
+  // give instruction to the local decode stage if present
+  pushInstToNextStage(instWord);
+  
+}
 
 // tells the cpu whether it needs to stall or not
 bool
@@ -47,7 +59,7 @@ VectorForward::isMeshSynced() {
 
 
 void
-VectorForward::pushInstruction(const TheISA::MachInst inst) {
+VectorForward::forwardInstruction(const TheISA::MachInst inst) {
   
   // find each direction to send a packet to
   std::vector<Mesh_DS_t> out;
@@ -66,18 +78,50 @@ VectorForward::pushInstruction(const TheISA::MachInst inst) {
   }
 }
 
-StaticInstPtr
+TheISA::MachInst
 VectorForward::pullInstruction() {
   
   Mesh_Dir recvDir;
   if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir)) {
     uint64_t meshData = getMeshPortData(recvDir);
     TheISA::MachInst instWord = (TheISA::MachInst) meshData;
-    return extractInstruction(instWord);
+    return instWord;
   }
   else {
-    return nullptr;
+    return 0;
   }
+}
+
+Minor::MinorDynInstPtr
+VectorForward::createInstruction(const TheISA::MachInst instWord) {
+  // make a minor dynamic instruction to pass to the decode stage
+  // bs most of the fields because the slave wouldn't be keeping track
+  // of this
+  Minor::MinorDynInstPtr dyn_inst = new Minor::MinorDynInst(0);
+  //dyn_inst->id.fetchSeqNum = 0;
+  //dyn_inst->id.predictionSeqNum = 0;
+  //assert(dyn_inst->id.execSeqNum == 0);
+  //dyn_inst->pc = 0;
+  dyn_inst->staticInst = extractInstruction(instWord);
+  
+  DPRINTF(Mesh, "decoder inst %s\n", *dyn_inst);
+
+  return dyn_inst;
+}
+
+void
+VectorForward::pushInstToNextStage(const TheISA::MachInst instWord) {
+  Minor::MinorDynInstPtr dynInst = createInstruction(instWord);
+  pushToNextStage(dynInst);
+}
+
+void
+VectorForward::pushToNextStage(const Minor::MinorDynInstPtr dynInst) {
+  Minor::ForwardInstData &insts_out = *_out.inputWire;
+  insts_out.resize(1);
+  
+  // Pack the generated dynamic instruction into the output
+  insts_out.insts[0] = dynInst;
 }
 
 void
