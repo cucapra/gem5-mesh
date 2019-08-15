@@ -1,14 +1,268 @@
-#include "custom/vector_foward.hh"
+#include "arch/registers.hh"
 
+#include "custom/vector_forward.hh"
+
+#include "debug/Mesh.hh"
 
 VectorForward::VectorForward(const std::string &name,
-  MinorCPU &cpu_,
+  MinorCPU &cpu,
   MinorCPUParams &params,
-  Latch<ForwardInstData>::Input out_) : 
+  Minor::Latch<Minor::ForwardInstData>::Input out) : 
         
-  Named(name),
-  cpu(cpu_),
-  out(out_) {
-    
+    Named(name),
+    _cpu(cpu),
+    _out(out)
+{
+  // 
     
 }
+
+
+// tells the cpu whether it needs to stall or not
+bool
+VectorForward::isMeshSynced() {
+  bool ok = _fsm->isRunning();
+  return ok;
+}
+
+
+void
+VectorForward::pushInstruction(const TheISA::MachInst inst) {
+  
+  // find each direction to send a packet to
+  std::vector<Mesh_DS_t> out;
+  MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
+  
+  // send a packet in each direction
+  for (int i = 0; i < out.size(); i++) {
+    Mesh_Dir dir = out[i].outDir;
+    Mesh_Out_Src src = out[i].src;
+    
+    DPRINTF(Mesh, "Sending mesh request %d from %d with val %#x\n", dir, src, inst);
+  
+    PacketPtr new_pkt = createMeshPacket((uint64_t)inst);
+    _toMeshPort[dir].sendTimingReq(new_pkt);
+    
+  }
+}
+
+StaticInstPtr
+VectorForward::pullInstruction() {
+  
+  Mesh_Dir recvDir;
+  if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir)) {
+    uint64_t meshData = getMeshPortData(recvDir);
+    TheISA::MachInst instWord = (TheISA::MachInst) meshData;
+    return extractInstruction(instWord);
+  }
+  else {
+    return nullptr;
+  }
+}
+
+void
+VectorForward::setupConfig(RegVal csrVal) {
+  // clear all ports associated with this csr
+  
+  resetActive();
+  
+  DPRINTF(Mesh, "csrVal %d\n", csrVal);
+  
+  int csrId = MeshHelper::stageToCsr(_stage);
+  
+  // get the internal src to be send of each of the output ports
+  std::vector<Mesh_Dir> outDirs;
+  MeshHelper::csrToOutDests(csrId, csrVal, outDirs);
+    
+  for (int j = 0; j < outDirs.size(); j++) {
+    _toMeshPort[outDirs[j]].setActive(_stage);
+    _numOutPortsActive++;
+  }
+  
+  std::vector<Mesh_Dir> inDirs;
+  MeshHelper::csrToInSrcs(csrId, csrVal, inDirs);
+    
+  for (int j = 0; j < inDirs.size(); j++) {
+    _fromMeshPort[inDirs[j]].setActive(_stage);
+    _numInPortsActive++;
+  }
+  
+  // cache the csr val for easy lookup later
+  _curCsrVal = csrVal;
+  
+}
+
+StaticInstPtr
+VectorForward::extractInstruction(const TheISA::MachInst inst) {
+  //TheISA::Decoder *decoder = thread->getDecoderPtr();
+  // decoder->reset() sometimes?
+  /*TheISA::MachInst inst_word;
+  inst_word = TheISA::gtoh(
+    *(reinterpret_cast<TheISA::MachInst *>
+      (line + fetch_info.inputIndex)));
+
+  if (!decoder->instReady()) {
+      decoder->moreBytes(fetch_info.pc,
+          line_in->lineBaseAddr + fetch_info.inputIndex,
+          inst_word);
+        DPRINTF(Fetch, "Offering MachInst to decoder addr: 0x%x\n",
+            line_in->lineBaseAddr + fetch_info.inputIndex);
+        }
+
+        if (decoder->instReady()) {
+         StaticInstPtr decoded_inst = decoder->decode(fetch_info.pc);
+        */
+        
+  // can we just totally fake the actual decoding? probably
+  // the fetchPc and addr stuff is generally just used for printouts
+  // really only need machInst
+  
+  // For RISCV decoder, ExtMachInst = MachInst
+  // has a decode(ExtMachInst) function
+  
+  
+  // but may also need to provide moreBytes to check alignment
+  // this just seems to be when don't have an aligned instruction
+  // seems only important for compressed instruction, which we don't care about?
+  
+  // bool aligned = pc.pc() % sizeof(MachInst) == 0;?
+  
+  // TODO might need to call decoder.moreBytes() to align MachInst (32 bits)
+  // onto ExtMachInst (64 bits). although I thought all RV instructions
+  // were 32 bits? Would need to get the PC from master core to do this
+  // occasionally instructions can be 16bits (compressed) or more?
+  RiscvISA::Decoder decoder;
+  StaticInstPtr ret = decoder.decode(inst, 0x0);
+  return ret;
+  
+}
+
+
+
+PacketPtr
+VectorForward::createMeshPacket(RegVal payload) {
+  // create a packet to send
+  // size is numbytes?
+  int size = sizeof(payload);
+  
+  // need to break up payload into bytes
+  // assume big endian?
+  uint8_t *data = new uint8_t[size];
+  for (int i = 0; i < size; i++) {
+    // shift off byte at a time and truncate
+    data[i] = (uint8_t)(payload >> (i * 8));
+  }
+  
+  // create a packet to send
+  Addr addr = 0;
+  RequestPtr req = std::make_shared<Request>(addr, size, 0, 0);
+  PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
+  new_pkt->dataDynamic(data);
+  
+  return new_pkt;
+}
+
+
+bool
+VectorForward::getOutRdy() {
+  bool allRdy = true;
+  
+  for (int i = 0; i < _toMeshPort.size(); i++) {
+    if (_toMeshPort[i].getActive() == _stage) {
+      if (!_toMeshPort[i].getPairRdy()) allRdy = false;
+    }
+  }
+  
+  return allRdy;
+}
+
+// check if input packets are valid
+// in RTL this wuold be a valid signal that is updated every cycle
+// however in cycle level simulators, NULL exists so if there's
+// a new packet then its valid otherwise its invalid
+bool
+VectorForward::getInVal() {
+  bool allVal = true;
+  
+  for (int i = 0; i < _fromMeshPort.size(); i++) {
+    if (_fromMeshPort[i].getActive() == _stage) {
+      //if (!_fromMeshPort[i].getPairVal()) allVal = false;
+      if (!_fromMeshPort[i].pktExists()) allVal = false;
+    }
+  }
+  
+  return allVal;
+}
+
+void
+VectorForward::setRdy(bool rdy) {
+  for (int i = 0; i < _fromMeshPort.size(); i++) {
+    _fromMeshPort[i].setRdyIfActive(rdy, _stage);
+  }
+}
+
+void
+VectorForward::setVal(bool val) {
+  for (int i = 0; i < _toMeshPort.size(); i++) {
+    _toMeshPort[i].setValIfActive(val, _stage);
+  }
+}
+
+void
+VectorForward::resetActive() {
+  _numInPortsActive = 0;
+  _numOutPortsActive = 0;
+  
+  for (int i = 0; i < _fromMeshPort.size(); i++) {
+    _fromMeshPort[i].setActive(NONE);
+  }
+  
+  for (int i = 0; i < _toMeshPort.size(); i++) {
+    _toMeshPort[i].setActive(NONE);
+  }
+}
+
+// inform that there has been an update
+void
+VectorForward::neighborUpdate() {
+  /*if ((getNumPortsActive(EXECUTE) > 0) || (getNumPortsActive(FETCH) > 0)) {
+  
+  DPRINTF(Mesh, "to_mesh:\nactive   %d %d %d %d\nself val %d %d %d %d\npair rdy %d %d %d %d\n",
+    toMeshPort[0].getActive(), toMeshPort[1].getActive(), toMeshPort[2].getActive(), toMeshPort[3].getActive(),
+    toMeshPort[0].getVal(), toMeshPort[1].getVal(), toMeshPort[2].getVal(), toMeshPort[3].getVal(),
+    toMeshPort[0].getPairRdy(), toMeshPort[1].getPairRdy(), toMeshPort[2].getPairRdy(), toMeshPort[3].getPairRdy());
+    
+  DPRINTF(Mesh, "from_mesh:\nactive   %d %d %d %d\nself rdy %d %d %d %d\npair val %d %d %d %d\n",
+    fromMeshPort[0].getActive(), fromMeshPort[1].getActive(), fromMeshPort[2].getActive(), fromMeshPort[3].getActive(),
+    fromMeshPort[0].getRdy(), fromMeshPort[1].getRdy(), fromMeshPort[2].getRdy(), fromMeshPort[3].getRdy(),
+    fromMeshPort[0].getPairVal(), fromMeshPort[1].getPairVal(), fromMeshPort[2].getPairVal(), fromMeshPort[3].getPairVal());
+  }*/
+  
+  // update the statemachines
+  _fsm->neighborEvent();
+  
+}
+
+
+void
+VectorForward::informNeighbors() {
+  //DPRINTF(Mesh, "notify neighbors\n");
+  // go through mesh ports to get tryUnblock function called in neighbor cores
+  for (int i = 0; i < _toMeshPort.size(); i++) {
+    _toMeshPort[i].tryUnblockNeighbor();
+  }
+}
+
+uint64_t
+VectorForward::getMeshPortData(Mesh_Dir dir) {
+  PacketPtr pkt = getMeshPortPkt(dir);
+  return FromMeshPort::getPacketData(pkt);
+  //return fromMeshPort[dir].getPacketData();
+}
+
+PacketPtr
+VectorForward::getMeshPortPkt(Mesh_Dir dir) {
+  return _fromMeshPort[dir].getPacket();
+}
+
+

@@ -59,6 +59,7 @@ class MeshHelper {
 
   
     static SensitiveStage csrToStage(uint64_t csr);
+    static uint64_t stageToCsr(SensitiveStage stage);
     
   private:
     static bool rangeToMeshDir(uint64_t csrVal, int hi, int lo, Mesh_Dir &dir);

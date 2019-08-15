@@ -225,6 +225,19 @@ MeshHelper::csrToStage(uint64_t csr) {
   }
 }
 
+uint64_t
+MeshHelper::stageToCsr(SensitiveStage stage) {
+  if (stage == EXECUTE) {
+    return MISCREG_EXE;
+  }
+  else if (stage == FETCH) {
+    return MISCREG_FETCH;
+  }
+  else {
+    return 0;
+  }
+}
+
 // reproduce the isa file here, b/c not sure how to get the info from the
 // weirdo isa language
 /*
