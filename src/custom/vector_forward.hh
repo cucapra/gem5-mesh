@@ -26,7 +26,9 @@ class VectorForward : public Named {
     VectorForward(const std::string &name,
         MinorCPU &cpu,
         MinorCPUParams &params,
-        Minor::Latch<Minor::ForwardInstData>::Input out);
+        Minor::Latch<Minor::ForwardInstData>::Input out,
+        std::vector<Minor::InputBuffer<Minor::ForwardInstData>> &nextStageReserve)
+      ;
   
     // MinorDynInstPtr from Fetch2?
       // MachInst only exists in Fetch2
@@ -120,6 +122,9 @@ class VectorForward : public Named {
   
     // Output port carrying instructions into Decode
     Minor::Latch<Minor::ForwardInstData>::Input _out;
+    
+    // Interface to reserve space in the next stage // ?
+    std::vector<Minor::InputBuffer<Minor::ForwardInstData>> &_nextStageReserve;
     
     // define the ports we're going to use for to access the mesh net
     std::vector<ToMeshPort> _toMeshPort;

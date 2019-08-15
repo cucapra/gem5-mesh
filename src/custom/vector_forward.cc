@@ -7,11 +7,13 @@
 VectorForward::VectorForward(const std::string &name,
   MinorCPU &cpu,
   MinorCPUParams &p,
-  Minor::Latch<Minor::ForwardInstData>::Input out) : 
+  Minor::Latch<Minor::ForwardInstData>::Input out,
+  std::vector<Minor::InputBuffer<Minor::ForwardInstData>> &nextStageReserve) : 
         
     Named(name),
     _cpu(cpu),
     _out(out),
+    _nextStageReserve(nextStageReserve),
     _numInPortsActive(0),
     _numOutPortsActive(0),
     _stage(FETCH),
@@ -41,12 +43,31 @@ void
 VectorForward::evaluate() {
   
   // check for instruction from mesh
+  bool canGo = true;
   
-  // pull instruction from the mesh
-  TheISA::MachInst instWord = pullInstruction();
+  if (canGo) {
+    // pull instruction from the mesh
+    TheISA::MachInst instWord = pullInstruction();
   
-  // give instruction to the local decode stage if present
-  pushInstToNextStage(instWord);
+    // give instruction to the local decode stage if present
+    pushInstToNextStage(instWord);
+    
+    // forward instruction to other neighbors potentially
+    forwardInstruction(instWord);
+    
+    // If we generated output, reserve space for the result in the next stage
+    // and mark the stage as being active this cycle
+    Minor::ForwardInstData &insts_out = *_out.inputWire;
+  
+    // Note activity of following buffer 
+    _cpu.activityRecorder->activity();
+    
+    // tid is always 0 when no smt
+    int tid = 0;
+    
+    insts_out.threadId = tid;
+    _nextStageReserve[tid].reserve();
+  }
   
 }
 
