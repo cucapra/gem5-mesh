@@ -84,13 +84,6 @@
 using namespace std;
 using namespace TheISA;
 
-uint64_t
-BaseSimpleCPU::getExeCSR(){
-  SimpleExecContext &t_info = *threadInfo[curThread];
-  SimpleThread* thread = t_info.thread;
-  return thread->readMiscRegNoEffect(MISCREG_EXE);
-}
-
 BaseSimpleCPU::BaseSimpleCPU(BaseSimpleCPUParams *p)
     : BaseCPU(p),
       curThread(0),
@@ -488,13 +481,9 @@ BaseSimpleCPU::setupFetchRequest(const RequestPtr &req)
                  instMasterId(), instAddr);
 }
 
-void
-BaseSimpleCPU::preExecute() {
-  preExecute(inst);
-}
 
 void
-BaseSimpleCPU::preExecute(MachInst givenInst)
+BaseSimpleCPU::preExecute()
 {
     SimpleExecContext &t_info = *threadInfo[curThread];
     SimpleThread* thread = t_info.thread;
@@ -510,7 +499,7 @@ BaseSimpleCPU::preExecute(MachInst givenInst)
     system->instEventQueue.serviceEvents(system->totalNumInsts);
 
     // decode the instruction
-    givenInst = gtoh(givenInst);
+    inst = gtoh(inst);
 
     TheISA::PCState pcState = thread->pcState();
 
@@ -528,7 +517,7 @@ BaseSimpleCPU::preExecute(MachInst givenInst)
         //If more fetch data is needed, pass it in.
         Addr fetchPC = (pcState.instAddr() & PCMask) + t_info.fetchOffset;
         //if (decoder->needMoreBytes())
-            decoder->moreBytes(pcState, fetchPC, givenInst);
+            decoder->moreBytes(pcState, fetchPC, inst);
         //else
         //    decoder->process();
 

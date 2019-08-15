@@ -56,9 +56,6 @@
 #include "cpu/translation.hh"
 #include "mem/request.hh"
 
-#include "custom/mesh_helper.hh"
-#include "debug/Mesh.hh"
-
 class BaseSimpleCPU;
 
 class SimpleExecContext : public ExecContext {
@@ -180,72 +177,20 @@ class SimpleExecContext : public ExecContext {
     RegVal
     readIntRegOperand(const StaticInst *si, int idx) override
     {
-        RegVal ret;
-      
-        // check where the source should be coming from
-        // idx is the op (0 or 1) not the regfile idx
-        uint64_t csrVal = cpu->getExeCSR();
-        Mesh_Dir dir;
-        if (MeshHelper::exeCsrToOp(csrVal, idx, dir)) {
-            // need to do a port lookup here to get the right value
-            ret = cpu->getMeshPortData(dir);
-        }
-        // normal behavior
-        else {
-        
-            numIntRegReads++;
-            const RegId& reg = si->srcRegIdx(idx);
-            assert(reg.isIntReg());
-            ret = thread->readIntReg(reg.index());
-        }
-        
-        // save ops b/c might use later to send out on mesh
-        // can't send immediates this way, but why would you want to?
-        // just have an immediate instruction in the core you care
-        // about
-        cpu->saveOp(idx, ret);
-        
-        // potentially want to forward this value
-        // prob could do a better check here, but the try function
-        // will filter out anything invalid
-        //if (cpu->getNumOutPortsActive() > 0) {
-          //Mesh_Out_Src src = (idx == 0) ? RS1 : RS2;
-          //cpu->trySendMeshRequest(ret, src);
-        //}
-        
-        
-        return ret;
-        
-        
+        numIntRegReads++;
+        const RegId& reg = si->srcRegIdx(idx);
+        assert(reg.isIntReg());
+        return thread->readIntReg(reg.index());
     }
 
     /** Sets an integer register to a value. */
     void
     setIntRegOperand(const StaticInst *si, int idx, RegVal val) override
     {
-      // determine if should go to reg or not
-      //uint64_t csrVal = cpu->getExeCSR();
-      //Mesh_Dir dir;
-      //if (!MeshHelper::csrToRd(csrVal, dir)) {
-      //if (cpu->getNumOutPortsActive()) {
-      
         numIntRegWrites++;
         const RegId& reg = si->destRegIdx(idx);
         assert(reg.isIntReg());
         thread->setIntReg(reg.index(), val);
-      //}
-      //else {  
-        cpu->trySendMeshRequest(val, EXECUTE);
-      //}
-        
-        
-        // pbb override this when csr is setup in a particular way
-        // for some reason couldn't do csr lookup here due to compiler error
-        // this abstraction might be better anyway
-        //if (!MeshHelper::isCSRDefault(cpu->getMeshOutCSR())) {
-        //cpu->trySendMeshRequest(24);
-        //}
-        
     }
 
     /** Reads a floating point register in its binary format, instead
@@ -475,12 +420,6 @@ class SimpleExecContext : public ExecContext {
     {
         numIntRegWrites++;
         thread->setMiscReg(misc_reg, val);
-        
-        // pbb potentially need to halt cpu here, if operation is blocking
-        if (MeshHelper::isBindCSR(misc_reg)) {
-          cpu->setupAndHandshake();
-        }
-        
     }
 
     PCState

@@ -47,10 +47,6 @@
 #include "cpu/simple/exec_context.hh"
 #include "cpu/translation.hh"
 #include "params/TimingSimpleCPU.hh"
-#include "custom/mesh_machine.hh"
-#include "custom/mesh_ports.hh"
-#include "custom/config_counter.hh"
-#include "custom/event_driven_fsm.hh"
 
 class TimingSimpleCPU : public BaseSimpleCPU
 {
@@ -264,57 +260,8 @@ class TimingSimpleCPU : public BaseSimpleCPU
     PacketPtr dcache_pkt;
 
     Cycles previousCycle;
-    
-    // define the ports we're going to use for to access the mesh net
-    std::vector<ToMeshPort> toMeshPort;
-    std::vector<FromMeshPort> fromMeshPort;
-    
-    // state machine for sends
-    //MeshMachine machine;
-    
-    int numOutPortsActive[NUM_STAGES];
-    int numInPortsActive[NUM_STAGES];
-    
-    // whether finished binded or not
-    //bool configured;
-    
-    // need to update the machine when blocked
-    //EventFunctionWrapper machineTickEvent;
-    
-    // update state on the next cycle
-    //bool nextVal;
-    //bool nextRdy;
-    
-    // hopefully this isn't updated before send on the next cycle
-    // ok assuming send at the beginning of the clockedge
-    //PacketPtr nextPkt;
-    //Mesh_Dir nextDir;
-    
-    //EventFunctionWrapper setValRdyEvent;
-    //EventFunctionWrapper sendNextPktEvent;
-    //bool val;
-    //bool rdy;
-    
-    std::vector<std::shared_ptr<EventDrivenFSM>> _fsms;
-    
-    
-    //int nextWait;
-    uint64_t schedCycle;
-    EventFunctionWrapper tryUnblockEvent;
-    
-    ConfigCounter configCntr;
-    
-    RegVal savedOps[2];
-    
-    void checkStallOnMesh(SensitiveStage stage);
-    //void scheduleMeshUpdate(bool nextVal, bool nextRdy, PacketPtr nextPkt, Mesh_Dir nextDir);
-
 
   protected:
-    // pbb override function that maps ports declared and connected in 
-    // the python config to c port objects
-    Port &getPort(const std::string &if_name,
-                  PortID idx=InvalidPortID) override;
 
      /** Return a reference to the data port. */
     MasterPort &getDataPort() override { return dcachePort; }
@@ -323,36 +270,6 @@ class TimingSimpleCPU : public BaseSimpleCPU
     MasterPort &getInstPort() override { return icachePort; }
 
   public:
-
-    int getNumOutPortsActive(SensitiveStage stage) const { return numOutPortsActive[stage]; }
-    int getNumInPortsActive(SensitiveStage stage) const { return numInPortsActive[stage]; }
-    int getNumPortsActive(SensitiveStage stage) const { return numOutPortsActive[stage] + numInPortsActive[stage]; }
-
-    // pbb access mesh ports from cpu
-    Fault trySendMeshRequest(uint64_t payload, SensitiveStage stage) override;
-    Fault setupAndHandshake() override;
-    void saveOp(int idx, RegVal val) override;
-    void setupHandshake();
-    void tryUnblock(bool currCycle);
-    //void handshakeNeighbors();
-    void informNeighbors();
-    
-    bool getOutRdy(SensitiveStage stage);
-    bool getInVal(SensitiveStage stage);
-    bool checkOpsValRdy(SensitiveStage stage);
-    
-    void setVal(bool val, SensitiveStage stage);
-    void setRdy(bool rdy, SensitiveStage stage);
-    void resetActive();
-    //void setNextValRdy();
-    //void sendNextPkt();
-    void tryInstruction();
-    void tryFetch();
-    void decodeAndRunInst(PacketPtr pkt);
-    void tryAdvanceInst(const Fault &fault);
-    
-    PacketPtr getMeshPortPkt(Mesh_Dir dir);
-    uint64_t getMeshPortData(Mesh_Dir dir) override;
 
     DrainState drain() override;
     void drainResume() override;

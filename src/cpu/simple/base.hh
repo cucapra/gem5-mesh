@@ -61,8 +61,6 @@
 #include "sim/full_system.hh"
 #include "sim/system.hh"
 
-#include "custom/mesh_helper.hh"
-
 // forward declarations
 class Checkpoint;
 class Process;
@@ -122,10 +120,6 @@ class BaseSimpleCPU : public BaseCPU
         DcacheRetry,
         DcacheWaitResponse,
         DcacheWaitSwitch,
-        
-        // pbb add status for bind blocking
-        WaitMeshData,
-        WaitMeshInst
     };
 
     Status _status;
@@ -137,7 +131,6 @@ class BaseSimpleCPU : public BaseCPU
     void checkForInterrupts();
     void setupFetchRequest(const RequestPtr &req);
     void preExecute();
-    void preExecute(TheISA::MachInst givenInst);
     void postExecute();
     void advancePC(const Fault &fault);
 
@@ -177,24 +170,6 @@ class BaseSimpleCPU : public BaseCPU
 
     void serializeThread(CheckpointOut &cp, ThreadID tid) const override;
     void unserializeThread(CheckpointIn &cp, ThreadID tid) override;
-    
-    // pbb new things instructions can do in the core
-    virtual Fault trySendMeshRequest(uint64_t payload, SensitiveStage stage)
-      { panic("trySendMeshRequest() is not implemented\n"); }
-      
-    // block on binds if val/rdy isn't asserted
-    virtual Fault setupAndHandshake()
-      { panic("setupAndHandshake() is not implemented\n"); }
-    
-    virtual uint64_t getMeshPortData(Mesh_Dir dir)
-      { panic("getMeshPortData() is not implemented\n"); }
-      
-    virtual void saveOp(int idx, RegVal val)
-      { panic("saveOp() is not implemented\n"); }
-    
-    
-    // function to get access to the csrs for maninpulation
-    uint64_t getExeCSR();
 
 };
 

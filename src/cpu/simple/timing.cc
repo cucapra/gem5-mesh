@@ -53,15 +53,12 @@
 #include "debug/ExecFaulting.hh"
 #include "debug/Mwait.hh"
 #include "debug/SimpleCPU.hh"
-#include "debug/Mesh.hh"
 #include "mem/packet.hh"
 #include "mem/packet_access.hh"
 #include "params/TimingSimpleCPU.hh"
 #include "sim/faults.hh"
 #include "sim/full_system.hh"
 #include "sim/system.hh"
-
-#include "custom/mesh_helper.hh"
 
 using namespace std;
 using namespace TheISA;
@@ -72,10 +69,6 @@ TimingSimpleCPU::init()
     BaseSimpleCPU::init();
 }
 
-/*----------------------------------------------------------------------
- * Implement base port behavior
- *--------------------------------------------------------------------*/ 
-
 void
 TimingSimpleCPU::TimingCPUPort::TickEvent::schedule(PacketPtr _pkt, Tick t)
 {
@@ -83,649 +76,12 @@ TimingSimpleCPU::TimingCPUPort::TickEvent::schedule(PacketPtr _pkt, Tick t)
     cpu->schedule(this, t);
 }
 
-/*----------------------------------------------------------------------
- * Ports: C++ object to python name mappings
- *--------------------------------------------------------------------*/ 
-
-Port &
-TimingSimpleCPU::getPort(const string &if_name, PortID idx)
-{
-    // Get the right port based on name. This applies to all the
-    // subclasses of the base CPU and relies on their implementation
-    // of getDataPort and getInstPort.
-    if (if_name == "dcache_port")
-        return getDataPort();
-    else if (if_name == "icache_port")
-        return getInstPort();
-    else if (if_name == "to_mesh_port"  && idx < toMeshPort.size())
-        return toMeshPort[idx];
-    else if (if_name == "from_mesh_port" && idx < fromMeshPort.size())
-        return fromMeshPort[idx];
-    else
-        return ClockedObject::getPort(if_name, idx);
-}
-
-/*----------------------------------------------------------------------
- * Arch support for binds
- *--------------------------------------------------------------------*/
-
-PacketPtr createPacket(RegVal payload) {
-  // create a packet to send
-  // size is numbytes?
-  int size = sizeof(payload);
-  
-  // need to break up payload into bytes
-  // assume big endian?
-  uint8_t *data = new uint8_t[size];
-  for (int i = 0; i < size; i++) {
-    // shift off byte at a time and truncate
-    data[i] = (uint8_t)(payload >> (i * 8));
-  }
-  
-  // create a packet to send
-  Addr addr = 0;
-  RequestPtr req = std::make_shared<Request>(addr, size, 0, 0);
-  PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
-  new_pkt->dataDynamic(data);
-  
-  return new_pkt;
-}
-
-
-Fault
-TimingSimpleCPU::trySendMeshRequest(uint64_t payload, SensitiveStage stage) {
-  // get direction from the appropriate csr
-  SimpleExecContext &t_info = *threadInfo[curThread];
-  SimpleThread* thread = t_info.thread;
-  //uint64_t csrVal = thread->readMiscRegNoEffect(MISCREG_EXE);
-  
-  
-  
-  // if in default behavior then don't send a mesh packet
-  //if (MeshHelper::isCSRDefault(csrVal)) return NoFault;
-  
-  //Mesh_Dir dir;
-  //if (!MeshHelper::csrToRd(val, dir)) return NoFault;
-  if (getNumOutPortsActive(stage) == 0) return NoFault;
-
-  //if (toMeshPort[dir].checkHandshake()) {
-  if (getOutRdy(stage)) {
-    
-    //toMeshPort[dir].sendTimingReq(new_pkt);
-    // send packet a cycle later
-    /*nextVal = true;
-    nextRdy = true;
-    schedule(setValRdyEvent, clockEdge(Cycles(1)));*/
-    
-    // for each dir we need to send a packet
-    std::vector<Mesh_DS_t> out;
-    if (stage == EXECUTE) {
-      uint64_t csrVal = thread->readMiscRegNoEffect(MISCREG_EXE);
-      MeshHelper::csrToOutSrcs(MISCREG_EXE, csrVal, out);
-    }
-    else if (stage == FETCH) {
-      uint64_t csrVal = thread->readMiscRegNoEffect(MISCREG_FETCH);
-      MeshHelper::csrToOutSrcs(MISCREG_FETCH, csrVal, out);
-    }
-    
-    
-    // TODO for now src only goes to one dir
-    for (int i = 0; i < out.size(); i++) {
-      Mesh_Dir dir = out[i].outDir;
-      Mesh_Out_Src src = out[i].src;
-        
-      // src -> value
-      RegVal val = 0;
-      if (src == RD) {
-        val = payload;
-      }
-      else if (src == RS1) {
-        val = savedOps[0];
-      }
-      else if (src == RS2) {
-        val = savedOps[1];
-      }
-      else if (src == INST) {
-        // save 64 bit machinst?
-        val = payload;
-      }
-        
-      DPRINTF(Mesh, "Sending mesh request %d from %d with val %#x\n", dir, src, val);
-        
-      PacketPtr new_pkt = createPacket(val);
-      toMeshPort[dir].sendTimingReq(new_pkt);
-      
-    }
-    
-  }
-  else {
-    // shouldn't get here
-    DPRINTF(Mesh, "[[WARNING]] Port not ready so buffering packet\n");
-    //toMeshPort[dir].failToSend(new_pkt);
-    
-    // need to stall the core here! and assert !rdy immediatly
-    //_status = BindSync;
-    
-    /*nextVal = true;
-    nextRdy = false;
-    schedule(setValRdyEvent, clockEdge());*/
-    //scheduleMeshUpdate(true, false, nullptr, RIGHT);
-  }
-  
-  // schedule machinetick for the next cycle? if failed to send.
-  // then need to remove valid
-  // if sucessfully send then need to assert valid next cycle
-  //meshMachineTick();
-  //schedule(machineTickEvent, clockEdge());
-  
-  return NoFault;
-}
-
-
-// when a bind is created you need to assert val, rdy and then check that
-// others are also val, rdy. Until then cpu status will be !running.
-// we'll keep scheduling this to check each time the attach port updates its value
-// when all relevant point handshake we'll call advanceInst with _status = running
-// to get the next instruction
-
-// TODO only want to do this if sync flag in csr is asserted?
-// imagine getting signal from and'ed bind csrs to determine what ports
-// are relevant in the handshake protocol
-
-// 1) set val rdy for appropriate ports
-// 2) these ports need to be met with response from pair port for handshake
-//  -- if val or rdy not assert locally then don't need to check
-// foreach port (need (val && rdy) || (!val && !rdy)) --> xnor
-Fault
-TimingSimpleCPU::setupAndHandshake() {
-  DPRINTF(Mesh, "setup handshake\n");
-  
-  //setup required handshake ports
-  setupHandshake();
-  
-  // setup the config timer
-  configCntr.setCount(0);
-  
-  // setup the locked instruction?
-  
-  return NoFault;
-}
-
-void
-TimingSimpleCPU::setupHandshake() {
-  // get each bind csr
-  std::vector<int> csrs = MeshHelper::getCSRCodes();
-  
-  // use the current thread to get the csr values we need
-  SimpleExecContext &t_info = *threadInfo[curThread];
-  SimpleThread* thread = t_info.thread;
-  uint64_t regVal;
-  
-  resetActive();
-  
-  // foreach bind csr set val or rdy in the apprpriate port
-  for (int i = 0; i < csrs.size(); i++) {
-    int csrId = csrs[i];
-    SensitiveStage stage = MeshHelper::csrToStage(csrId);
-    regVal = thread->readMiscRegNoEffect(csrId);
-    DPRINTF(Mesh, "set regval %d from csr %#x\n", regVal, csrs[i]);
-    // get the internal src to be send of each of the output ports
-    std::vector<Mesh_Dir> outDirs;
-    MeshHelper::csrToOutDests(csrId, regVal, outDirs);
-    
-    for (int j = 0; j < outDirs.size(); j++) {
-      toMeshPort[outDirs[j]].setActive(MeshHelper::csrToStage(csrId));
-      numOutPortsActive[stage]++;
-    }
-    
-    std::vector<Mesh_Dir> inDirs;
-    MeshHelper::csrToInSrcs(csrId, regVal, inDirs);
-    
-    for (int j = 0; j < inDirs.size(); j++) {
-      fromMeshPort[inDirs[j]].setActive(MeshHelper::csrToStage(csrId));
-      numInPortsActive[stage]++;
-    }
-  }
-  
-  for (int i = 0; i < NUM_STAGES; i++) {
-    DPRINTF(Mesh, "%d inports active %d, outports active %d\n", i, 
-      getNumInPortsActive((SensitiveStage)i), 
-      getNumOutPortsActive((SensitiveStage)i));
-  }
-}
-
-bool
-TimingSimpleCPU::getOutRdy(SensitiveStage stage) {
-  bool allRdy = true;
-  
-  for (int i = 0; i < toMeshPort.size(); i++) {
-    if (toMeshPort[i].getActive() == stage) {
-      if (!toMeshPort[i].getPairRdy()) allRdy = false;
-    }
-  }
-  
-  return allRdy;
-}
-
-// check if input packets are valid
-// in RTL this wuold be a valid signal that is updated every cycle
-// however in cycle level simulators, NULL exists so if there's
-// a new packet then its valid otherwise its invalid
-bool
-TimingSimpleCPU::getInVal(SensitiveStage stage) {
-   bool allVal = true;
-  
-  for (int i = 0; i < fromMeshPort.size(); i++) {
-    if (fromMeshPort[i].getActive() == stage) {
-      //if (!fromMeshPort[i].getPairVal()) allVal = false;
-      if (!fromMeshPort[i].pktExists()) allVal = false;
-    }
-  }
-  
-  return allVal;
-}
-
-void
-TimingSimpleCPU::setRdy(bool rdy, SensitiveStage stage) {
-  for (int i = 0; i < fromMeshPort.size(); i++) {
-    fromMeshPort[i].setRdyIfActive(rdy, stage);
-  }
-}
-
-void
-TimingSimpleCPU::setVal(bool val, SensitiveStage stage) {
-  for (int i = 0; i < toMeshPort.size(); i++) {
-    toMeshPort[i].setValIfActive(val, stage);
-  }
-}
-
-void
-TimingSimpleCPU::resetActive() {
-  for (int i = 0; i < NUM_STAGES; i++) {
-    numInPortsActive[i] = 0;
-    numOutPortsActive[i] = 0;
-  }
-  
-  for (int i = 0; i < fromMeshPort.size(); i++) {
-    fromMeshPort[i].setActive(NONE);
-  }
-  
-  for (int i = 0; i < toMeshPort.size(); i++) {
-    toMeshPort[i].setActive(NONE);
-  }
-}
-
-// TODO turn this into a state machine whose state is updated 
-// either on the next cycle or when recv a packet
-void
-TimingSimpleCPU::tryUnblock(bool currCycle) {
-  /*if ((getNumPortsActive(EXECUTE) > 0) || (getNumPortsActive(FETCH) > 0)) {
-  
-  DPRINTF(Mesh, "to_mesh:\nactive   %d %d %d %d\nself val %d %d %d %d\npair rdy %d %d %d %d\n",
-    toMeshPort[0].getActive(), toMeshPort[1].getActive(), toMeshPort[2].getActive(), toMeshPort[3].getActive(),
-    toMeshPort[0].getVal(), toMeshPort[1].getVal(), toMeshPort[2].getVal(), toMeshPort[3].getVal(),
-    toMeshPort[0].getPairRdy(), toMeshPort[1].getPairRdy(), toMeshPort[2].getPairRdy(), toMeshPort[3].getPairRdy());
-    
-  DPRINTF(Mesh, "from_mesh:\nactive   %d %d %d %d\nself rdy %d %d %d %d\npair val %d %d %d %d\n",
-    fromMeshPort[0].getActive(), fromMeshPort[1].getActive(), fromMeshPort[2].getActive(), fromMeshPort[3].getActive(),
-    fromMeshPort[0].getRdy(), fromMeshPort[1].getRdy(), fromMeshPort[2].getRdy(), fromMeshPort[3].getRdy(),
-    fromMeshPort[0].getPairVal(), fromMeshPort[1].getPairVal(), fromMeshPort[2].getPairVal(), fromMeshPort[3].getPairVal());
-  }*/
-  
-  // update the statemachines
-  for (int i = 0; i < _fsms.size(); i++) {
-    _fsms[i]->neighborEvent();
-  }
-}
-
-void
-TimingSimpleCPU::informNeighbors() {
-  //DPRINTF(Mesh, "notify neighbors\n");
-  // go through mesh ports to get tryUnblock function called in neighbor cores
-  for (int i = 0; i < toMeshPort.size(); i++) {
-    toMeshPort[i].tryUnblockNeighbor();
-  }
-}
-
-
-uint64_t
-TimingSimpleCPU::getMeshPortData(Mesh_Dir dir) {
-  PacketPtr pkt = getMeshPortPkt(dir);
-  return FromMeshPort::getPacketData(pkt);
-  //return fromMeshPort[dir].getPacketData();
-}
-
-PacketPtr
-TimingSimpleCPU::getMeshPortPkt(Mesh_Dir dir) {
-  return fromMeshPort[dir].getPacket();
-}
-
-/*void
-TimingSimpleCPU::setPortPacket(PacketPtr pkt, Mesh_Dir dir) {
-  fromMeshPort[dir].setPacket(pkt);
-}*/
-
-
-// check whether val/rdy for src/dest needed by instruction
-// ret and the caller should block if not true
-
-// will be 0 if don't care, TODO implement don't cares
-
-bool
-TimingSimpleCPU::checkOpsValRdy(SensitiveStage stage) {
-  //curStaticInst->destRegIdx(0);
-  //curStaticInst->srcRegIdx(0);
-  
-  // figure out which operands matter TODO addi where one taken from outside
-  //DPRINTF(Mesh, "%d %d %d\n", curStaticInst->destRegIdx(0), 
-  //  curStaticInst->srcRegIdx(0), curStaticInst->srcRegIdx(1));
-    
-  // see if the ports associated are ready
-  bool outRdy = getOutRdy(stage);
-  bool inVal = getInVal(stage);
-  
-  return (outRdy && inVal);
-  
-}
-
-void
-TimingSimpleCPU::saveOp(int idx, RegVal val) {
-  assert (idx < 2);
-  /*if (getNumOutPortsActive(EXECUTE) > 0) {
-    DPRINTF(Mesh, "saved %d val: %ld\n", idx, val);
-  }*/
- savedOps[idx] = val; 
-}
-
-/*----------------------------------------------------------------------
- * Event handlers
- *--------------------------------------------------------------------*/
-
-// if we stall on the mesh, the respective fsm should take
-// control of the execution flow
-void
-TimingSimpleCPU::checkStallOnMesh(SensitiveStage stage) {
-  // for ordinary instructions check if the src and dests are rdy 
-  // otherwise block
-  
-  // for fetch there is no instruction!
-  //if ((stage != EXECUTE) || !curStaticInst->isBind()) {
-    // check if state machine is in running
-    
-    bool ok = _fsms[stage]->isRunning() || 
-    // don't like the weird checks here
-    // but in exe bind can't go off unless forcefully without checking config
-    // in fetch need sync for bind though
-      (stage != FETCH && curStaticInst->isBind());
-    
-    //bool ok = checkOpsValRdy(stage);
-    if (ok) {
-      if (_status != IcacheWaitResponse)
-        _status = Running;
-    }
-    else {
-      if (stage == FETCH) _status = WaitMeshInst;
-      else _status = WaitMeshData;
-      
-      // if we stalled, lets update the state machine?
-      //S_fsms[stage]->update();
-    }
-  //}
-  
-  if (getNumPortsActive(stage) > 0) {
-    DPRINTF(Mesh, "%d can go? %d\n", stage, ok);
-    //DPRINTF(Mesh, "can go? %d isBind? %d\n", ok, curStaticInst->isBind());
-  }
-  
-  
-}
-
-void
-TimingSimpleCPU::tryInstruction() {
-  
-  SimpleExecContext& t_info = *threadInfo[curThread];
-  
-  if (curStaticInst && curStaticInst->isMemRef()) {
-        // Since now buffering we can't risk issuing the load and 
-        // finishing before the mesh net is rdy for a new pkt b/c then
-        // we have to store the packet somewhere
-        // TODO add buffering?
-        // could stall due to mesh not being ready
-        checkStallOnMesh(EXECUTE);
-    
-        Fault fault = NoFault;
-        if (_status == Running) {
-          // load or store: just send to dcache
-          fault = curStaticInst->initiateAcc(&t_info, traceData);
-          
-          for (int i = 0; i < NUM_STAGES; i++) {
-            _fsms[i]->dataReq();
-          }
-        }
-
-        // If we're not running now the instruction will complete in a dcache
-        // response callback or the instruction faulted and has started an
-        // ifetch
-        if (_status == BaseSimpleCPU::Running) {
-          DPRINTF(SimpleCPU, "no block on dcache load\n");
-            if (fault != NoFault && traceData) {
-                // If there was a fault, we shouldn't trace this instruction.
-                delete traceData;
-                traceData = NULL;
-            }
-
-            postExecute();
-            // @todo remove me after debugging with legion done
-            if (curStaticInst && (!curStaticInst->isMicroop() ||
-                        curStaticInst->isFirstMicroop()))
-                instCnt++;
-            tryAdvanceInst(fault);
-        }
-        else {
-          // always blocks!
-          DPRINTF(SimpleCPU, "Block on dcache load\n");
-          
-        }
-    // pbb handle a bind instruction, advanceInst will be called
-    // from within bind
-    /*} else if (curStaticInst && curStaticInst->isBind()) {
-        Fault fault = curStaticInst->execute(&t_info, traceData);*/
-    } else if (curStaticInst) {
-      
-      /*if (getNumPortsActive() > 0 && !curStaticInst->isBind()) {
-        DPRINTF(Mesh, "Running instruction while binded %lx\n", 
-          curStaticInst->machInst);
-      }*/
-      
-      
-      
-      checkStallOnMesh(EXECUTE);
-      
-      if (_status == Running) {
-        
-        // set self as rdy if passed val/rdy check
-        //setRdy();
-      
-        // non-memory instruction: execute completely now
-        Fault fault = curStaticInst->execute(&t_info, traceData);
-
-        if (curStaticInst->isBind()) {
-          DPRINTF(Mesh, "running binds\n");
-          for (int i = 0; i < _fsms.size(); i++) {
-            _fsms[i]->configEvent();
-          }
-        }
-
-        // if we encountered a congested systolic port, then we can't
-        // send and need to return
-        //if (_status != Running) return;
-
-        // keep an instruction count
-        if (fault == NoFault)
-            countInst();
-        else if (traceData && !DTRACE(ExecFaulting)) {
-            delete traceData;
-            traceData = NULL;
-        }
-
-        postExecute();
-        // @todo remove me after debugging with legion done
-        if (curStaticInst && (!curStaticInst->isMicroop() ||
-                curStaticInst->isFirstMicroop()))
-            instCnt++;
-            
-            
-        // register op done to counter
-        //configCntr.incrCount();
-        
-        
-        // fetch the next instruction
-        tryAdvanceInst(fault);
-        
-      }
-      else {
-        // not rdy or val if blocking?
-        //setRdy();
-        DPRINTF(Mesh, "Mesh blocking\n");
-      }
-    } else {
-      DPRINTF(SimpleCPU, "advance inst on fetch null\n");
-        tryAdvanceInst(NoFault);
-    }
-  
-}
-
-// either do normal fetch or wait to recv from mesh
-void
-TimingSimpleCPU::tryFetch() {
-  SimpleExecContext &t_info = *threadInfo[curThread];
-  SimpleThread* thread = t_info.thread;
-  
-  // check if all send, recv conditions met
-  checkStallOnMesh(FETCH);
-  
-  uint64_t csrVal = thread->readMiscReg(MISCREG_FETCH);
-  Mesh_Dir recvDir;
-  
-  /*if (_status != Running) {
-    DPRINTF(Mesh, "fetch stalled\n");
-  }
-  else if ((_status == Running) && !MeshHelper::isCSRDefault(csrVal)) {
-    DPRINTF(Mesh, "fetch not stalled\n");
-  }
-  else {
-    DPRINTF(Mesh, "here\n");
-  }*/
-  
-  if (MeshHelper::fetCsrToInSrc(csrVal, recvDir)) {
-    
-    if (_status == Running) {
-      //DPRINTF(Mesh, "Inst not stalled, so proceed\n");
-      // try to get packet from mesh network
-      PacketPtr meshPkt = getMeshPortPkt(recvDir);
-      //fwdInst = getMeshPortData(recvDir);
-    
-      // do instruction processing + execute
-      
-      // this has some check for the recv packet so don't do the full thing
-      //completeIfetch(meshPkt); 
-      
-      decodeAndRunInst(meshPkt);
-    }
-    
-  }
-  else {
-    if (_status == Running) {
-      // normal fetch
-      fetch();
-    }
-  }
-  
-  // try to foward the instruction to anyone else who might want it
-  //trySendMeshRequest(fwdInst, FETCH);
-}
-
-// in the case of vector slave shouldnt update pc by self?
-// what about divergence? would be useful to have? but can't efficiently
-// track when have branches (i.e. all threads went the same way)
-
-// at the very least shouldn't try to send fetch
-void
-TimingSimpleCPU::tryAdvanceInst(const Fault &fault) {
-  SimpleExecContext &t_info = *threadInfo[curThread];
-  SimpleThread* thread = t_info.thread;
-  uint64_t csrVal = thread->readMiscReg(MISCREG_FETCH);
-  Mesh_Dir recvDir;
-  if (MeshHelper::fetCsrToInSrc(csrVal, recvDir)) {
-    // ???
-    advancePC(fault);
-  }
-  else {
-    advanceInst(fault);
-  }
-}
-
-/*----------------------------------------------------------------------
- * Define normal processor behavior
- *--------------------------------------------------------------------*/ 
-
 TimingSimpleCPU::TimingSimpleCPU(TimingSimpleCPUParams *p)
     : BaseSimpleCPU(p), fetchTranslation(this), icachePort(this),
-      dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0)
-      
-      // begin additions (needs to be in order declared in .hh)
-      , /*machine(this),*/ /*numOutPortsActive({0, 0}), numInPortsActive({0, 0}),*/
-      /*machineTickEvent([this] { meshMachineTick(); }, name()),*/
-      
-      /*nextVal(0), nextRdy(0), nextPkt(nullptr), nextDir((Mesh_Dir)0), */
-      /*setValRdyEvent([this] { setNextValRdy(); }, name()),*/
-      /*sendNextPktEvent([this] { sendNextPkt(); }, name()),*/
-      /*val(0), rdy(0), */
-      
-      schedCycle(0),
-      tryUnblockEvent([this] { tryUnblock(true); }, name()),
-      configCntr(this),
-      
-      //savedOps({0, 0}),
-      
-      // end additions
-      
-      fetchEvent([this]{ tryFetch(); }, name())
-      
+      dcachePort(this), ifetch_pkt(NULL), dcache_pkt(NULL), previousCycle(0),
+      fetchEvent([this]{ fetch(); }, name())
 {
     _status = Idle;
-    
-    // declare vector ports
-    for (int i = 0; i < p->port_to_mesh_port_connection_count; ++i) {
-        toMeshPort.emplace_back(this, i);
-    }
-    
-    for (int i = 0; i < p->port_from_mesh_port_connection_count; ++i) {
-        fromMeshPort.emplace_back(this, i);
-    }
-    
-    for (int i = 0; i < p->port_from_mesh_port_connection_count; i++) {
-      // need to setup anything involving the 'this' pointer in the port
-      // class after have moved into vector memory
-      fromMeshPort[i].setupEvents();
-    }
-    
-    
-    // keep track of the number of active ports
-    for (int i = 0; i < NUM_STAGES; i++) {
-      numOutPortsActive[i] = 0;
-      numInPortsActive[i] = 0;
-    }
-    
-    // create fsms
-    for (int i = 0; i < NUM_STAGES; i++) {
-      _fsms.push_back(std::make_shared<EventDrivenFSM>(this, (SensitiveStage)i));
-    }
-    
-    // keep in mind that you shouldn't use 'this' within objects that are declared as vec?
-    /*for (int i = 0; i < 4; i++) {
-      DPRINTF(Mesh, "ptrs %ld\n", (uint64_t)(&(fromMeshPort[i])));
-    }*/
 }
 
 
@@ -1343,10 +699,6 @@ TimingSimpleCPU::sendFetch(const Fault &fault, const RequestPtr &req,
             _status = IcacheWaitResponse;
             // ownership of packet transferred to memory system
             ifetch_pkt = NULL;
-            
-            for (int i = 0; i < _fsms.size(); i++) {
-              _fsms[i]->instReq();
-            }
         }
     } else {
         DPRINTF(SimpleCPU, "Translation of addr %#x faulted\n", req->getVaddr());
@@ -1363,7 +715,6 @@ TimingSimpleCPU::sendFetch(const Fault &fault, const RequestPtr &req,
 void
 TimingSimpleCPU::advanceInst(const Fault &fault)
 {
-  
     SimpleExecContext &t_info = *threadInfo[curThread];
 
     if (_status == Faulting)
@@ -1397,18 +748,11 @@ TimingSimpleCPU::advanceInst(const Fault &fault)
     if (tryCompleteDrain())
         return;
 
-    // pbb we're only going to fetch the next instruction if status
-    // is 'running'. Otherwise, we might be in 'IcacheWaitResponse'
-    // where we won't try to fetch again.
-    
-    // 
-
     if (_status == BaseSimpleCPU::Running) {
         // kick off fetch of next instruction... callback from icache
         // response will cause that instruction to be executed,
         // keeping the CPU running.
-        //fetch();
-        tryFetch();
+        fetch();
     }
 }
 
@@ -1416,7 +760,7 @@ TimingSimpleCPU::advanceInst(const Fault &fault)
 void
 TimingSimpleCPU::completeIfetch(PacketPtr pkt)
 {
-    //SimpleExecContext& t_info = *threadInfo[curThread];
+    SimpleExecContext& t_info = *threadInfo[curThread];
 
     DPRINTF(SimpleCPU, "Complete ICache Fetch for addr %#x\n", pkt ?
             pkt->getAddr() : 0);
@@ -1434,61 +778,55 @@ TimingSimpleCPU::completeIfetch(PacketPtr pkt)
     if (pkt)
         pkt->req->setAccessLatency();
 
-      
-    if (pkt)
-    { 
-      for (int i = 0; i < _fsms.size(); i++) {
-        _fsms[i]->instResp();
-      }
-    }
-    
-    // actually do stuff with the recv instruction packet
-    decodeAndRunInst(pkt);
-}
 
-void
-TimingSimpleCPU::decodeAndRunInst(PacketPtr pkt) {
-    //if (getNumPortsActive(FETCH) > 0) {
-    //if ((getNumPortsActive(FETCH) > 0) && _fsms[FETCH]->isRunning() && pkt)
-    //  DPRINTF(Mesh, "run instruction %#x\n", FromMeshPort::getPacketData(pkt));
-    //}
-
-  
-  // Get correct instruction sequence if put exactly here??
-  // try to foward the instruction to anyone else who might want it
-  if (pkt)
-    trySendMeshRequest(FromMeshPort::getPacketData(pkt), FETCH);
-    
-    if ((pkt && (getNumPortsActive(FETCH) > 0) && _fsms[FETCH]->isRunning()) ||
-      (curStaticInst && curStaticInst->isBind()))
-      DPRINTF(Mesh, "run instruction %#x\n", FromMeshPort::getPacketData(pkt));
-  
-
-  // inst field already set because req_pkt->dataStatic(&inst);
-  // setup curStaticInst based on the received instruction packet
-  
-  // Are we sure this is getting the right data?
-  if (getNumInPortsActive(FETCH) > 0) {
-    preExecute(FromMeshPort::getPacketData(pkt));
-  }
-  else {
     preExecute();
-  }
+    if (curStaticInst && curStaticInst->isMemRef()) {
+        // load or store: just send to dcache
+        Fault fault = curStaticInst->initiateAcc(&t_info, traceData);
 
-  
-  
-  // try to execute the instruction if deps are met
-  tryInstruction();
+        // If we're not running now the instruction will complete in a dcache
+        // response callback or the instruction faulted and has started an
+        // ifetch
+        if (_status == BaseSimpleCPU::Running) {
+            if (fault != NoFault && traceData) {
+                // If there was a fault, we shouldn't trace this instruction.
+                delete traceData;
+                traceData = NULL;
+            }
 
-  
-  if (pkt) {
-    delete pkt;
-  }
+            postExecute();
+            // @todo remove me after debugging with legion done
+            if (curStaticInst && (!curStaticInst->isMicroop() ||
+                        curStaticInst->isFirstMicroop()))
+                instCnt++;
+            advanceInst(fault);
+        }
+    } else if (curStaticInst) {
+        // non-memory instruction: execute completely now
+        Fault fault = curStaticInst->execute(&t_info, traceData);
+
+        // keep an instruction count
+        if (fault == NoFault)
+            countInst();
+        else if (traceData && !DTRACE(ExecFaulting)) {
+            delete traceData;
+            traceData = NULL;
+        }
+
+        postExecute();
+        // @todo remove me after debugging with legion done
+        if (curStaticInst && (!curStaticInst->isMicroop() ||
+                curStaticInst->isFirstMicroop()))
+            instCnt++;
+        advanceInst(fault);
+    } else {
+        advanceInst(NoFault);
+    }
+
+    if (pkt) {
+        delete pkt;
+    }
 }
-
-/*----------------------------------------------------------------------
- * Define icache port behavior
- *--------------------------------------------------------------------*/ 
 
 void
 TimingSimpleCPU::IcachePort::ITickEvent::process()
@@ -1566,10 +904,6 @@ TimingSimpleCPU::completeDataAccess(PacketPtr pkt)
     Fault fault = curStaticInst->completeAcc(pkt, threadInfo[curThread],
                                              traceData);
 
-    for (int i = 0; i < _fsms.size(); i++) {
-      _fsms[i]->dataResp();
-    }
-
     // keep an instruction count
     if (fault == NoFault)
         countInst();
@@ -1583,7 +917,7 @@ TimingSimpleCPU::completeDataAccess(PacketPtr pkt)
 
     postExecute();
 
-    tryAdvanceInst(fault);
+    advanceInst(fault);
 }
 
 void
@@ -1595,10 +929,6 @@ TimingSimpleCPU::updateCycleCounts()
 
     previousCycle = curCycle();
 }
-
-/*----------------------------------------------------------------------
- * Define dcache port behavior
- *--------------------------------------------------------------------*/
 
 void
 TimingSimpleCPU::DcachePort::recvTimingSnoopReq(PacketPtr pkt)
