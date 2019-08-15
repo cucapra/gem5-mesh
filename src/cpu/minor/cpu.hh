@@ -120,6 +120,11 @@ class MinorCPU : public BaseCPU
     /** Thread Scheduling Policy (RoundRobin, Random, etc) */
     Enums::ThreadPolicy threadPolicy;
   protected:
+    /** pbb override function that maps ports declared and connected in 
+     the python config to c port objects*/
+    Port &getPort(const std::string &if_name,
+                  PortID idx=InvalidPortID) override;
+  
      /** Return a reference to the data port. */
     MasterPort &getDataPort() override;
 

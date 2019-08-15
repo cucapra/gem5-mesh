@@ -144,6 +144,7 @@ Pipeline::evaluate()
      *  later stages to earlier ones in the same cycle */
     execute.evaluate();
     decode.evaluate();
+    vector.evaluate();
     fetch2.evaluate();
     fetch1.evaluate();
 
@@ -154,6 +155,7 @@ Pipeline::evaluate()
     f1ToF2.evaluate();
     f2ToF1.evaluate();
     f2ToD.evaluate();
+    vfToD.evaluate();
     dToE.evaluate();
     eToF1.evaluate();
 
@@ -201,6 +203,16 @@ MinorCPU::MinorCPUPort &
 Pipeline::getDataPort()
 {
     return execute.getDcachePort();
+}
+
+Port &
+Pipeline::getMeshPort(int idx, bool isOut) {
+    return vector.getMeshPort(idx, isOut);
+}
+
+int
+Pipeline::getNumMeshPorts() {
+    return vector.getNumMeshPorts();
 }
 
 void

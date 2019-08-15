@@ -345,6 +345,24 @@ MinorCPUParams::create()
     return new MinorCPU(this);
 }
 
+Port &
+MinorCPU::getPort(const std::string &if_name, PortID idx)
+{
+    // Get the right port based on name. This applies to all the
+    // subclasses of the base CPU and relies on their implementation
+    // of getDataPort and getInstPort.
+    if (if_name == "dcache_port")
+        return getDataPort();
+    else if (if_name == "icache_port")
+        return getInstPort();
+    else if (if_name == "to_mesh_port"  && idx < pipeline->getNumMeshPorts())
+        return pipeline->getMeshPort(idx, true);
+    else if (if_name == "from_mesh_port" && idx < pipeline->getNumMeshPorts())
+        return pipeline->getMeshPort(idx, false);
+    else
+        return ClockedObject::getPort(if_name, idx);
+}
+
 MasterPort &MinorCPU::getInstPort()
 {
     return pipeline->getInstPort();

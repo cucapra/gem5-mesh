@@ -43,7 +43,7 @@ void
 VectorForward::evaluate() {
   
   // check for instruction from mesh
-  bool canGo = true;
+  bool canGo = false;
   
   if (canGo) {
     // pull instruction from the mesh
