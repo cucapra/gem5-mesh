@@ -172,7 +172,34 @@ if options.smt and options.num_cpus > 1:
     fatal("You cannot use SMT with multiple CPUs!")
 
 np = options.num_cpus
-system = System(cpu = [CPUClass(cpu_id=i) for i in range(np)],
+
+# pbb
+# if using Minor CPU then adjust some settings
+# 1) defaults to 2 way???, would prefer single way CPU
+
+if options.cpu_type == 'MinorCPU':
+    system = System(
+        cpu = [
+            CPUClass(
+                cpu_id=i, 
+                
+                # these were originally 2 (default in MinorCPU.py)
+                
+                fetch2InputBufferSize = 1,
+                decodeInputWidth = 1,
+                executeInputWidth = 1,
+                executeIssueLimit = 1,
+                executeCommitLimit = 1,
+                #executeMaxAccessesInMemory = 1,
+                executeLSQMaxStoreBufferStoresPerCycle = 1,
+                
+                
+            ) for i in range(np)],
+                mem_mode = test_mem_mode,
+                mem_ranges = [AddrRange(options.mem_size)],
+                cache_line_size = options.cacheline_size)
+else:
+    system = System(cpu = [CPUClass(cpu_id=i) for i in range(np)],
                 mem_mode = test_mem_mode,
                 mem_ranges = [AddrRange(options.mem_size)],
                 cache_line_size = options.cacheline_size)
@@ -273,6 +300,7 @@ else:
 
 
 # pbb
+
 # for each cpu let's add the mesh checker!
 
 # gem5 only allows new attributes if they are SimObjects!
