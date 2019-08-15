@@ -1,5 +1,7 @@
 #include "custom/mesh_ports.hh"
-#include "cpu/simple/timing.hh"
+#include "cpu/minor/cpu.hh"
+#include "custom/vector_forward.hh"
+#include "debug/Mesh.hh"
 
 #define PROTOCOL(active, val, rdy) \
   (active && val && rdy) || (!active)
@@ -8,7 +10,8 @@
  * Implement base port behavior
  *--------------------------------------------------------------------*/ 
 
-TimingCPUSlavePort::TimingCPUSlavePort(const std::string& _name, int idx, TimingSimpleCPU* _cpu)
+TimingCPUSlavePort::TimingCPUSlavePort(const std::string& _name, int idx, 
+  MinorCPU* _cpu)
         : SlavePort(_name, _cpu), idx(idx), cpu(_cpu)
          //, retryRespEvent([this]{ sendRetryResp(); }, name())
     { }
@@ -20,8 +23,10 @@ TimingCPUSlavePort::TickEvent::schedule(PacketPtr _pkt, Tick t)
     cpu->schedule(this, t);
 }
 
-TimingCPUMasterPort::TimingCPUMasterPort(const std::string& _name, int idx, TimingSimpleCPU* _cpu) : 
-  MasterPort(_name, _cpu), idx(idx), cpu(_cpu), retryRespEvent([this]{ sendRetryResp(); }, name()) {
+TimingCPUMasterPort::TimingCPUMasterPort(const std::string& _name, int idx, 
+  MinorCPU* _cpu) : 
+  MasterPort(_name, _cpu), idx(idx), cpu(_cpu), 
+  retryRespEvent([this]{ sendRetryResp(); }, name()) {
         
 }
 
@@ -38,11 +43,11 @@ TimingCPUMasterPort::TickEvent::schedule(PacketPtr _pkt, Tick t)
  *--------------------------------------------------------------------*/ 
 
 
-ToMeshPort::ToMeshPort(TimingSimpleCPU *_cpu, int idx)
+ToMeshPort::ToMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx)
         : TimingCPUMasterPort(
           _cpu->name() + ".mesh_out_port" + csprintf("[%d]", idx), 
           idx, _cpu), tickEvent(_cpu), val(false), active(NONE), 
-          stalledPkt(nullptr)
+          stalledPkt(nullptr), vec(vec)
     { }
 
 // if you want to send a packet, used <MasterPort_Inst>.sendTimingReq(pkt);
@@ -152,12 +157,12 @@ ToMeshPort::beginToSend() {
  *--------------------------------------------------------------------*/ 
 
 // NEVER give THIS pointer 
-FromMeshPort::FromMeshPort(TimingSimpleCPU *_cpu, int idx)
+FromMeshPort::FromMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx)
         : TimingCPUSlavePort(
           _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), 
           idx, _cpu), recvPkt_d(nullptr), recvEvent([this] { process(); }, name()), 
           wakeupCPUEvent([this] { tryUnblockCPU(); }, name()), 
-          recvPkt(nullptr), cyclePktRecv(0), rdy(false), active(NONE)
+          recvPkt(nullptr), cyclePktRecv(0), rdy(false), active(NONE), vec(vec)
     { 
       //DPRINTF(Mesh, "init %d %d %ld %ld\n", rdy, active, (uint64_t)recvPkt, (uint64_t)this);
       //DPRINTF(Mesh, "init idx %d\n", idx);
@@ -327,7 +332,7 @@ FromMeshPort::getPairVal() {
 
 void
 FromMeshPort::tryUnblockCPU() {
-  cpu->tryUnblock(true); 
+  vec->neighborUpdate(); 
 }
 
 bool
@@ -341,9 +346,9 @@ FromMeshPort::getRdy() {
     // if (next_pairval && !next_pairval, then not rdy?)
     
     if (getPairVal() && 
-      cpu->getInVal(active) && cpu->getOutRdy(active)) return true;
+      vec->getInVal() && vec->getOutRdy()) return true;
     else if (getPairVal() && 
-      (!cpu->getInVal(active) || !cpu->getOutRdy(active))) return false;
+      (!vec->getInVal() || !vec->getOutRdy())) return false;
     else return true;
   }
   else {

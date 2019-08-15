@@ -6,15 +6,35 @@
 
 VectorForward::VectorForward(const std::string &name,
   MinorCPU &cpu,
-  MinorCPUParams &params,
+  MinorCPUParams &p,
   Minor::Latch<Minor::ForwardInstData>::Input out) : 
         
     Named(name),
     _cpu(cpu),
-    _out(out)
+    _out(out),
+    _numInPortsActive(0),
+    _numOutPortsActive(0),
+    _stage(FETCH),
+    _fsm(std::make_shared<EventDrivenFSM>(this, &_cpu, _stage)),
+    _curCsrVal(0)
 {
   // 
+  // declare vector ports
+  for (int i = 0; i < p.port_to_mesh_port_connection_count; ++i) {
+      _toMeshPort.emplace_back(this, &_cpu, i);
+  }
+   
+  for (int i = 0; i < p.port_from_mesh_port_connection_count; ++i) {
+      _fromMeshPort.emplace_back(this, &_cpu, i);
+  }
     
+  for (int i = 0; i < p.port_from_mesh_port_connection_count; i++) {
+    // need to setup anything involving the 'this' pointer in the port
+    // class after have moved into vector memory
+    
+    // alternatively could declare ports as pointers
+    _fromMeshPort[i].setupEvents();
+  }
 }
 
 
@@ -265,4 +285,23 @@ VectorForward::getMeshPortPkt(Mesh_Dir dir) {
   return _fromMeshPort[dir].getPacket();
 }
 
+Port &
+VectorForward::getMeshPort(int idx, bool isOut) {
+ if (isOut) {
+   return _toMeshPort[idx];
+ } 
+ else {
+   return _fromMeshPort[idx];
+ }
+}
+
+int
+VectorForward::getNumMeshPorts() {
+  return _toMeshPort.size();
+}
+
+int
+VectorForward::getNumPortsActive() {
+  return _numInPortsActive + _numOutPortsActive;
+}
 

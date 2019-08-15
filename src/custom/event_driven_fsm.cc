@@ -1,9 +1,10 @@
 #include "custom/event_driven_fsm.hh"
-#include "cpu/simple/timing.hh"
+#include "cpu/minor/cpu.hh"
 #include "debug/Mesh.hh"
+#include "custom/vector_forward.hh"
 
-EventDrivenFSM::EventDrivenFSM(TimingSimpleCPU *cpu, SensitiveStage stage) :
-  _cpu(cpu), _state(IDLE), _nextState(IDLE), _stage(stage), 
+EventDrivenFSM::EventDrivenFSM(VectorForward *vec, MinorCPU *cpu, SensitiveStage stage) :
+  _vec(vec), _cpu(cpu), _state(IDLE), _nextState(IDLE), _stage(stage), 
   _tickEvent([this] { tickEvent(); }, cpu->name()), 
   _inputs(Inputs_t(false,false,false,false))
 {}
@@ -210,7 +211,7 @@ EventDrivenFSM::stateOutput() {
   }
   
   // inform neighbors about any state change here?
-  _cpu->informNeighbors();
+  _vec->informNeighbors();
 }
 
 EventDrivenFSM::State
@@ -279,38 +280,38 @@ EventDrivenFSM::updateState() {
 
 void
 EventDrivenFSM::startLink() {
-  if (_stage == FETCH) {
-    _cpu->tryFetch();
+  /*if (_stage == FETCH) {
+    _vec->tryFetch();
   }
   else if (_stage == EXECUTE) {
     _cpu->tryInstruction();
-  }
+  }*/
 }
 
 bool
 EventDrivenFSM::getInVal() {
-  return _cpu->getInVal(_stage);
+  return _vec->getInVal();
 }
 
 bool
 EventDrivenFSM::getOutRdy() {
-  return _cpu->getOutRdy(_stage);
+  return _vec->getOutRdy();
 }
 
 bool
 EventDrivenFSM::getConfigured() {
-  return _cpu->getNumPortsActive(_stage) > 0;
+  return _vec->getNumPortsActive() > 0;
 }
 
 // TODO keep these internally?
 void
 EventDrivenFSM::setRdy(bool rdy) {
-  _cpu->setRdy(rdy, _stage);
+  _vec->setRdy(rdy);
 }
 
 void
 EventDrivenFSM::setVal(bool val) {
-  _cpu->setVal(val, _stage);
+  _vec->setVal(val);
 }
 
 bool

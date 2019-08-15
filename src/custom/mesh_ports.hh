@@ -12,14 +12,15 @@
 #include "custom/mesh_helper.hh"
 
 //resolve circular deps
-class TimingSimpleCPU;
+class MinorCPU;
+class VectorForward;
 
 // pbb implement mesh ports
 class TimingCPUMasterPort : public MasterPort
 {
   public:
 
-    TimingCPUMasterPort(const std::string& _name, int idx, TimingSimpleCPU* _cpu);
+    TimingCPUMasterPort(const std::string& _name, int idx, MinorCPU* _cpu);
        /* : MasterPort(_name, _cpu), idx(idx), cpu(_cpu),
           retryRespEvent([this]{ sendRetryResp(); }, name())
     { }*/
@@ -28,14 +29,14 @@ class TimingCPUMasterPort : public MasterPort
   
     int idx;
 
-    TimingSimpleCPU* cpu;
+    MinorCPU* cpu;
 
     struct TickEvent : public Event
     {
         PacketPtr pkt;
-        TimingSimpleCPU *cpu;
+        MinorCPU *cpu;
 
-        TickEvent(TimingSimpleCPU *_cpu) : pkt(NULL), cpu(_cpu) {}
+        TickEvent(MinorCPU *_cpu) : pkt(NULL), cpu(_cpu) {}
         const char *description() const { return "Timing CPU tick"; }
         void schedule(PacketPtr _pkt, Tick t);
     };
@@ -47,7 +48,7 @@ class TimingCPUMasterPort : public MasterPort
 // port that goes out over the mesh
 class ToMeshPort : public TimingCPUMasterPort {
   public:
-    ToMeshPort(TimingSimpleCPU *_cpu, int idx);
+    ToMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx);
         /*: TimingCPUMasterPort(
           _cpu->name() + ".mesh_out_port" + csprintf("[%d]", idx), 
           idx, _cpu), tickEvent(_cpu), val(false), active(false), 
@@ -87,7 +88,7 @@ class ToMeshPort : public TimingCPUMasterPort {
     struct MOTickEvent : public TickEvent
     {
 
-        MOTickEvent(TimingSimpleCPU *_cpu)
+        MOTickEvent(MinorCPU *_cpu)
             : TickEvent(_cpu) {}
         void process();
         const char *description() const { return "Timing CPU to mesh tick"; }
@@ -106,6 +107,8 @@ class ToMeshPort : public TimingCPUMasterPort {
     // requires additional enable reg and 2-1 mux
     PacketPtr stalledPkt;
     
+    VectorForward *vec;
+    
 };
 
 class FromMeshPort;
@@ -114,7 +117,7 @@ class FromMeshPort;
 class TimingCPUSlavePort : public SlavePort {
   public:
 
-    TimingCPUSlavePort(const std::string& _name, int idx, TimingSimpleCPU* _cpu);
+    TimingCPUSlavePort(const std::string& _name, int idx, MinorCPU* _cpu);
         /*: SlavePort(_name, _cpu), idx(idx), cpu(_cpu)
          //, retryRespEvent([this]{ sendRetryResp(); }, name())
     { }*/
@@ -125,15 +128,15 @@ class TimingCPUSlavePort : public SlavePort {
     int idx;
 
     // cpu reference, so we can do things in it on response
-    TimingSimpleCPU* cpu;
+    MinorCPU* cpu;
 
     // base for delayed events like processing a request
     struct TickEvent : public Event
     {
         PacketPtr pkt;
-        TimingSimpleCPU *cpu;
+        MinorCPU *cpu;
 
-        TickEvent(TimingSimpleCPU *_cpu) : pkt(NULL), cpu(_cpu) {}
+        TickEvent(MinorCPU *_cpu) : pkt(NULL), cpu(_cpu) {}
         const char *description() const { return "Timing CPU slave tick"; }
         void schedule(PacketPtr _pkt, Tick t);
     };
@@ -146,7 +149,7 @@ class TimingCPUSlavePort : public SlavePort {
 
 class FromMeshPort : public TimingCPUSlavePort {
   public:
-    FromMeshPort(TimingSimpleCPU *_cpu, int idx);
+    FromMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx);
         /*: TimingCPUSlavePort(
           _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), 
           idx, _cpu), tickEvent(_cpu), rdy(false), active(false)
@@ -230,6 +233,8 @@ class FromMeshPort : public TimingCPUSlavePort {
     SensitiveStage active;
     
     //std::queue<PacketPtr> _pktQueue;
+    
+    VectorForward *vec;
 };
 
 

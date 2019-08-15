@@ -46,6 +46,36 @@ class VectorForward : public Named {
     
     // tells the cpu whether it needs to stall or not
     bool isMeshSynced();
+    
+    // cpu needs to bind ports to names, so expose them via a reference
+    Port &getMeshPort(int idx, bool isOut);
+    int getNumMeshPorts();
+  
+  
+    // used just by mesh ports (TODO friend class??)
+  
+    // check if the output nodes are ready
+    bool getOutRdy();
+    
+    // check if the input nodes are valid
+    bool getInVal();
+    
+    // the fsm is sensitive to status updates in neighboring nodes
+    // update it when neccesary
+    void neighborUpdate();
+    
+    // get num ports being used
+    int getNumPortsActive();
+    
+    // inform neighboring nodes we had a status change and should attempt
+    // a new state for their local fsms
+    void informNeighbors();
+    
+    // set appropriate mesh node as ready
+    void setRdy(bool rdy);
+    
+    // set appropriate mesh node ports as valid
+    void setVal(bool val);
   
   protected:
     // give the instruction to a slave core once at local node
@@ -57,28 +87,8 @@ class VectorForward : public Named {
     // create a packet to send over the mesh network
     PacketPtr createMeshPacket(RegVal payload);
     
-    // check if the output nodes are ready
-    bool getOutRdy();
-    
-    // check if the input nodes are valid
-    bool getInVal();
-    
-    // set appropriate mesh node as ready
-    void setRdy(bool rdy);
-    
-    // set appropriate mesh node ports as valid
-    void setVal(bool val);
-    
     // reset all mesh node port settings
     void resetActive();
-    
-    // the fsm is sensitive to status updates in neighboring nodes
-    // update it when neccesary
-    void neighborUpdate();
-    
-    // inform neighboring nodes we had a status change and should attempt
-    // a new state for their local fsms
-    void informNeighbors();
     
     // get received data from the specified mesh port
     uint64_t getMeshPortData(Mesh_Dir dir);
@@ -88,40 +98,29 @@ class VectorForward : public Named {
      
   protected:
     
-    // define the ports we're going to use for to access the mesh net
-    std::vector<ToMeshPort> _toMeshPort;
-    std::vector<FromMeshPort> _fromMeshPort;
-    
-    // number of ports currently actively communicating
-    int _numOutPortsActive;
-    int _numInPortsActive;
-    
-    // finite state machine to know when to send an receive
-    std::shared_ptr<EventDrivenFSM> _fsm;
-    
-    // the stage this vector unit is representing
-    SensitiveStage _stage;
-    
-    // cache the most recently set csr value
-    RegVal _curCsrVal;
-  
     // Pointer back to the containing CPU
     MinorCPU &_cpu;
   
     // Output port carrying instructions into Decode
     Minor::Latch<Minor::ForwardInstData>::Input _out;
     
+    // define the ports we're going to use for to access the mesh net
+    std::vector<ToMeshPort> _toMeshPort;
+    std::vector<FromMeshPort> _fromMeshPort;
     
+    // number of ports currently actively communicating
+    int _numInPortsActive;
+    int _numOutPortsActive;
+
+    // the stage this vector unit is representing
+    SensitiveStage _stage;
+    
+    // finite state machine to know when to send an receive
+    std::shared_ptr<EventDrivenFSM> _fsm;
+  
+    // cache the most recently set csr value
+    RegVal _curCsrVal;
   
 };
-
-
-
-
-
-
-
-
-
 
 #endif

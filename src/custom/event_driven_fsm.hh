@@ -16,7 +16,8 @@
   bool resetVal;
 } FSM_Out_t;*/
 
-class TimingSimpleCPU;
+class MinorCPU;
+class VectorForward;
 
 class EventDrivenFSM {
   public:
@@ -34,7 +35,7 @@ class EventDrivenFSM {
     bool isRunning();
     
     
-    EventDrivenFSM(TimingSimpleCPU *cpu, SensitiveStage stage);
+    EventDrivenFSM(VectorForward *vec, MinorCPU *cpu, SensitiveStage stage);
   
   private:
     typedef enum State {
@@ -98,8 +99,11 @@ class EventDrivenFSM {
     
     
   private:
+    // pointer to mesh unit this fsm is apart of
+    VectorForward *_vec;
+  
     // reference to cpu this fsm is apart of
-    TimingSimpleCPU *_cpu;
+    MinorCPU *_cpu;
     
     // state of fsm
     State _state;
