@@ -248,8 +248,22 @@ Fetch2::evaluate()
     BranchData &branch_inp = *branchInp.outputWire;
 
     // handle a branch that was detected later on in the pipe
-    // also detect any stalls
     handleBranch(branch_inp);
+
+    // detect stalls in later stages
+    for (ThreadID tid = 0; tid < cpu.numThreads; tid++) {
+        Fetch2ThreadInfo &thread = fetchInfo[tid];
+        
+        // detect any stalls due to the Decode stage
+        bool decodeStall = !nextStageReserve[tid].canReserve();
+        
+        // detect any stalls due to the Vector "stage"
+        bool vectorStall = false; // !canIssue();
+        
+        thread.blocked = decodeStall || vectorStall;
+    }
+    
+    
 
     assert(insts_out.isBubble());
 
@@ -385,6 +399,7 @@ Fetch2::evaluate()
 
 void
 Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
+    
     ForwardInstData &insts_out = *out.inputWire;
 
     /* Correctly size the output before writing */
@@ -599,7 +614,8 @@ Fetch2::handleBranch(BranchData &branch_inp) {
     for (ThreadID tid = 0; tid < cpu.numThreads; tid++) {
         Fetch2ThreadInfo &thread = fetchInfo[tid];
 
-        thread.blocked = !nextStageReserve[tid].canReserve();
+        // pbb move to another function to be clearer
+        //thread.blocked = !nextStageReserve[tid].canReserve();
 
         const ForwardLineData *line_in = getInput(tid);
 
