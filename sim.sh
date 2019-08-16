@@ -1,5 +1,10 @@
 scons -j16 build/RISCV/gem5.opt
 
+./build/RISCV/gem5.opt -d results/test_ configs/phil/mesh.py \
+  --cmd=programs-phil/gemm/basic_riscv --cpu-type=MinorCPU \
+  --num-cpus=5 --caches --l2cache --l1d_size=2kB --l1i_size=2kB \
+  --num-l2caches=1 --l2_size=8kB
+
 
 ./build/RISCV/gem5.opt -d results/test configs/phil/mesh.py \
   --cmd=programs-phil/gemm-systolic/gemm_systolic --cpu-type=TimingSimpleCPU --num-cpus=10 \
