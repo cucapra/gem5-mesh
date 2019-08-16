@@ -56,6 +56,21 @@
   )
 */
   
+// bind certain config
+// run vectorized code
+// devec
+// label magic
+// https://stackoverflow.com/questions/1777990/is-it-possible-to-store-the-address-of-a-label-in-a-variable-and-use-goto-to-jum
+#define BINDED_FET_SECTION(sbind, label_addr, code, wr, rd) \
+  asm volatile (                                            \
+    ".insn u 0x77, x0, %[bind0]\n\t"                        \
+    code                                                    \
+    ".insn u 0x7b, x0, %[jaddr]\n\t"                        \
+    : wr                                                    \
+    : [bind0] "i" (sbind), [jaddr] "i" (label_addr) rd      \
+  )                                                 
+  
+  
 // bind both exe and fetch
 #define BINDED_TIMED_SECTION(ebind0, ebind1, fbind0, timer, code, wr, rd)  \
   asm volatile (                                            \
