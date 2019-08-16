@@ -286,4 +286,57 @@ ForwardInstData::reportData(std::ostream &os) const
     }
 }
 
+/*----------------------------------------------------------------------
+ * Custom types
+ *--------------------------------------------------------------------*/ 
+ForwardVectorData::ForwardVectorData(ThreadID tid) :
+    threadId(tid)
+{
+    machInst = 0;
+    bubbleFill();
+}
+
+ForwardVectorData::ForwardVectorData(const ForwardVectorData &src)
+{
+    *this = src;
+}
+
+bool
+ForwardVectorData::isBubble() const
+{
+    return (machInst == 0);
+}
+
+void
+ForwardVectorData::bubbleFill()
+{
+    machInst = 0;
+}
+
+void
+ForwardVectorData::reportData(std::ostream &os) const
+{
+    if (isBubble()) {
+        os << '-';
+    } else {
+        //unsigned int i = 0;
+
+        os << '(';
+        os << machInst;
+        /*while (i != numInsts) {
+            insts[i]->reportData(os);
+            i++;
+            if (i != numInsts)
+                os << ',';
+        }*/
+        os << ')';
+    }
+}
+ 
+ 
+ 
+
+
+
+
 }

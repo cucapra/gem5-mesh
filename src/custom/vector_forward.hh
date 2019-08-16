@@ -82,7 +82,7 @@ class VectorForward : public Named {
     void setVal(bool val);
   
     // the communication channel between fetch2 and vector
-    std::vector<Minor::InputBuffer<TheISA::MachInst>>& getInputBuf();
+    std::vector<Minor::InputBuffer<Minor::ForwardVectorData>>& getInputBuf();
   protected:
     
     // give the instruction to a slave core once at local node
@@ -154,7 +154,7 @@ class VectorForward : public Named {
     RegVal _curCsrVal;
     
     // communication channel between fetch2 and vector
-    std::vector<Minor::InputBuffer<TheISA::MachInst>> _inputBuffer;
+    std::vector<Minor::InputBuffer<Minor::ForwardVectorData>> _inputBuffer;
   
 };
 

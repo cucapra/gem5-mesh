@@ -41,7 +41,7 @@ VectorForward::VectorForward(const std::string &name,
   // Per-thread input buffers
   for (ThreadID tid = 0; tid < p.numThreads; tid++) {
     _inputBuffer.push_back(
-      Minor::InputBuffer<TheISA::MachInst>(
+      Minor::InputBuffer<Minor::ForwardVectorData>(
         name + ".inputBuffer" + std::to_string(tid), "insts",
         1 /* buf size */));
   }
@@ -400,7 +400,7 @@ VectorForward::getNumPortsActive() {
   return _numInPortsActive + _numOutPortsActive;
 }
 
-std::vector<Minor::InputBuffer<TheISA::MachInst>>&
+std::vector<Minor::InputBuffer<Minor::ForwardVectorData>>&
 VectorForward::getInputBuf() {
   return _inputBuffer;
 }
@@ -409,7 +409,8 @@ TheISA::MachInst
 VectorForward::getFetchInput(ThreadID tid) {
   // Get a line from the inputBuffer to work with
   if (!_inputBuffer[tid].empty()) {
-    return _inputBuffer[tid].front();
+    auto msg = &(_inputBuffer[tid].front());
+    return msg->machInst;
   } else {
     return 0;
   }

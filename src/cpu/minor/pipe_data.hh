@@ -290,6 +290,37 @@ class ForwardInstData /* : public ReportIF, public BubbleIF */
     void reportData(std::ostream &os) const;
 };
 
+// pbb additions
+
+/** Forward flowing data between Fetch2,Vector carrying a machInst */
+class ForwardVectorData /* : public ReportIF, public BubbleIF */
+{
+  public:
+    /** the encoded instruction */
+    TheISA::MachInst machInst;
+
+    /** Thread associated with the instruction */
+    ThreadID threadId;
+
+  public:
+    explicit ForwardVectorData(ThreadID tid = InvalidThreadID);
+
+    ForwardVectorData(const ForwardVectorData &src);
+
+  public:
+
+    /** Fill with bubbles */
+    void bubbleFill();
+
+    /** BubbleIF interface */
+    bool isBubble() const;
+
+    /** ReportIF interface */
+    void reportData(std::ostream &os) const;
+};
+
+
+
 }
 
 #endif /* __CPU_MINOR_PIPE_DATA_HH__ */

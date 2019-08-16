@@ -49,6 +49,8 @@
 #include "debug/Fetch.hh"
 #include "debug/MinorTrace.hh"
 
+#include "debug/Mesh.hh"
+
 namespace Minor
 {
 
@@ -60,7 +62,7 @@ Fetch2::Fetch2(const std::string &name,
     Latch<BranchData>::Input predictionOut_,
     Latch<ForwardInstData>::Input out_,
     std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer,
-    std::vector<InputBuffer<TheISA::MachInst>> &vectorStageReserve) :
+    std::vector<InputBuffer<ForwardVectorData>> &vectorStageReserve) :
     Named(name),
     cpu(cpu_),
     inp(inp_),
@@ -259,7 +261,10 @@ Fetch2::evaluate()
         bool decodeStall = !nextStageReserve[tid].canReserve();
         
         // detect any stalls due to the Vector "stage"
+        // TODO this is not stalling when it should what does canReserve() do?
+        // can try isBubble instead?
         bool vectorStall = !vectorStageReserve[tid].canReserve();
+        DPRINTF(Mesh, "vec stall %d\n", vectorStall);
         
         // thread.blocked will prevent the thread from being selected
         // in the getScheduledThread() call below. in the single-thread
@@ -421,7 +426,16 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, TheISA::MachInst inst_word,
     // if not configured as master, won't send anything on will just clear
     // the buffer
     // TODO needs to be a class, b/c expect NULL possible!
-    //vectorStageReserve[0 /* tid */].setTail(inst_word);
+    ForwardVectorData vecData(0);
+    vecData.machInst = inst_word;
+    
+    ThreadID tid = 0;
+    
+    // stage value to be pushed onto the queue
+    vectorStageReserve[tid].setTail(vecData);
+    
+    // push onto the queue (will be picked up by canReserve())
+    vectorStageReserve[tid].pushTail();
 
     /* Output MinorTrace instruction info for
     *  pre-microop decomposition macroops */

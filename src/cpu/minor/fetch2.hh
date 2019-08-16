@@ -81,7 +81,7 @@ class Fetch2 : public Named
     std::vector<InputBuffer<ForwardInstData>> &nextStageReserve;
     
     /** Interface to reserve space in the vector stage */
-    std::vector<InputBuffer<TheISA::MachInst>> &vectorStageReserve;
+    std::vector<InputBuffer<ForwardVectorData>> &vectorStageReserve;
 
     /** Width of output of this stage/input of next in instructions */
     unsigned int outputWidth;
@@ -229,7 +229,7 @@ class Fetch2 : public Named
         Latch<BranchData>::Input predictionOut_,
         Latch<ForwardInstData>::Input out_,
         std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer,
-        std::vector<InputBuffer<TheISA::MachInst>> &vectorStageReserve);
+        std::vector<InputBuffer<ForwardVectorData>> &vectorStageReserve);
 
   public:
     /** Pass on input/buffer data to the output if you can */
