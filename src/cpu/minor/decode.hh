@@ -67,6 +67,10 @@ class Decode : public Named
 
     /** Input port carrying macro instructions from Fetch2 */
     Latch<ForwardInstData>::Output inp;
+    
+    /** Input port carrying macro instructions from Vector */
+    Latch<ForwardInstData>::Output inp_v;
+    
     /** Output port carrying micro-op decomposed instructions to Execute */
     Latch<ForwardInstData>::Input out;
 
@@ -142,6 +146,7 @@ class Decode : public Named
         MinorCPU &cpu_,
         MinorCPUParams &params,
         Latch<ForwardInstData>::Output inp_,
+        Latch<ForwardInstData>::Output inp_v,
         Latch<ForwardInstData>::Input out_,
         std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer);
 
