@@ -49,7 +49,7 @@ class VectorForward : public Named {
     // tells the cpu in fetch2 or decode(?) whether it needs to stall or not
     // before _effectively_ issuing the current instruction
     // either the mesh is configured and active, or the mesh isn't active
-    bool canIssue();
+    //bool canIssue();
     
     // cpu needs to bind ports to names, so expose them via a reference
     Port &getMeshPort(int idx, bool isOut);

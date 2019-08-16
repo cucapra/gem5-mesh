@@ -96,12 +96,12 @@ VectorForward::evaluate() {
   
 }
 
-// Decprecated using buffers now
+/*// Decprecated using buffers now
 bool
 VectorForward::canIssue() {
   bool ok = _fsm->isMeshActive() || (getNumPortsActive() == 0);
   return ok;
-}
+}*/
 
 
 void
