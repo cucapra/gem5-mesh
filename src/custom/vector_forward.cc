@@ -37,6 +37,16 @@ VectorForward::VectorForward(const std::string &name,
     // alternatively could declare ports as pointers
     _fromMeshPort[i].setupEvents();
   }
+  
+  // Per-thread input buffers
+  for (ThreadID tid = 0; tid < p.numThreads; tid++) {
+    _inputBuffer.push_back(
+      Minor::InputBuffer<TheISA::MachInst>(
+        name + ".inputBuffer" + std::to_string(tid), "insts",
+        1 /* buf size */));
+  }
+  
+  
 }
 
 void
@@ -46,6 +56,9 @@ VectorForward::evaluate() {
   // because minor has cycle by cycle ticks unlike TimingSimpleCPU
   bool update = _fsm->tick();
   if (update) {
+    // inform there is local activity
+    _cpu.activityRecorder->activity();
+    // inform there might be neighbor activity
     informNeighbors();
   }
   
@@ -53,7 +66,8 @@ VectorForward::evaluate() {
   bool canGo = _fsm->isMeshActive();
   
   if (canGo) {
-    // pull instruction from the mesh
+    
+    // pull instruction from the mesh or from the local fetch stage
     TheISA::MachInst instWord = pullInstruction();
   
     // give instruction to the local decode stage if present
@@ -75,12 +89,17 @@ VectorForward::evaluate() {
     _nextStageReserve[tid].reserve();
   }
   
+  // if not configured just pop the input so fetch doesn't stall
+  if (MeshHelper::isCSRDefault(_curCsrVal)) {
+    popFetchInput(0);
+  }
+  
 }
 
-// tells the cpu whether it needs to stall or not
+// Decprecated using buffers now
 bool
-VectorForward::isMeshActive() {
-  bool ok = _fsm->isMeshActive();
+VectorForward::canIssue() {
+  bool ok = _fsm->isMeshActive() || (getNumPortsActive() == 0);
   return ok;
 }
 
@@ -108,14 +127,19 @@ VectorForward::forwardInstruction(const TheISA::MachInst inst) {
 TheISA::MachInst
 VectorForward::pullInstruction() {
   
+  // if slave, pull from the mesh
   Mesh_Dir recvDir;
   if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir)) {
     uint64_t meshData = getMeshPortData(recvDir);
     TheISA::MachInst instWord = (TheISA::MachInst) meshData;
     return instWord;
   }
+  // if master, pull from the local fetch
   else {
-    return 0;
+    TheISA::MachInst instWord = getFetchInput(0);
+    // pop to free up the space
+    popFetchInput(0);
+    return instWord;
   }
 }
 
@@ -375,4 +399,29 @@ int
 VectorForward::getNumPortsActive() {
   return _numInPortsActive + _numOutPortsActive;
 }
+
+std::vector<Minor::InputBuffer<TheISA::MachInst>>&
+VectorForward::getInputBuf() {
+  return _inputBuffer;
+}
+
+TheISA::MachInst
+VectorForward::getFetchInput(ThreadID tid) {
+  // Get a line from the inputBuffer to work with
+  if (!_inputBuffer[tid].empty()) {
+    return _inputBuffer[tid].front();
+  } else {
+    return 0;
+  }
+}
+
+void
+VectorForward::popFetchInput(ThreadID tid) {
+  if (!_inputBuffer[tid].empty()) {
+    //_inputBuffer[tid].front().freeLine();
+    _inputBuffer[tid].pop();
+  }
+}
+
+
 

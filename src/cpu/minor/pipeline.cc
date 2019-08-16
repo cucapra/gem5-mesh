@@ -75,14 +75,15 @@ Pipeline::Pipeline(MinorCPU &cpu_, MinorCPUParams &params) :
         dToE.output(), eToF1.input()),
     decode(cpu.name() + ".decode", cpu, params,
         f2ToD.output(), dToE.input(), execute.inputBuffer),
-    fetch2(cpu.name() + ".fetch2", cpu, params,
-        f1ToF2.output(), eToF1.output(), f2ToF1.input(), f2ToD.input(),
-        decode.inputBuffer),
-    fetch1(cpu.name() + ".fetch1", cpu, params,
-        eToF1.output(), f1ToF2.input(), f2ToF1.output(), fetch2.inputBuffer),
         
     vector(cpu.name() + ".vector", cpu, params, 
         vfToD.input(), decode.inputBuffer),
+        
+    fetch2(cpu.name() + ".fetch2", cpu, params,
+        f1ToF2.output(), eToF1.output(), f2ToF1.input(), f2ToD.input(),
+        decode.inputBuffer, vector.getInputBuf()),
+    fetch1(cpu.name() + ".fetch1", cpu, params,
+        eToF1.output(), f1ToF2.input(), f2ToF1.output(), fetch2.inputBuffer),
         
     activityRecorder(cpu.name() + ".activity", Num_StageId,
         /* The max depth of inter-stage FIFOs */
@@ -144,8 +145,8 @@ Pipeline::evaluate()
      *  later stages to earlier ones in the same cycle */
     execute.evaluate();
     decode.evaluate();
-    vector.evaluate(); // update before fetch2 for state update
     fetch2.evaluate();
+    vector.evaluate(); // vector goes after fetch b/c 0 cycle transmissions
     fetch1.evaluate();
 
     if (DTRACE(MinorTrace))

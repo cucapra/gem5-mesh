@@ -79,6 +79,9 @@ class Fetch2 : public Named
 
     /** Interface to reserve space in the next stage */
     std::vector<InputBuffer<ForwardInstData>> &nextStageReserve;
+    
+    /** Interface to reserve space in the vector stage */
+    std::vector<InputBuffer<TheISA::MachInst>> &vectorStageReserve;
 
     /** Width of output of this stage/input of next in instructions */
     unsigned int outputWidth;
@@ -200,7 +203,8 @@ class Fetch2 : public Named
     ThreadID getScheduledThread();
     
     /** Send the new dynamic instruction to the next stage */
-    void pushDynInst(MinorDynInstPtr dyn_inst, int output_index);
+    void pushDynInst(MinorDynInstPtr dyn_inst, TheISA::MachInst inst_word,
+        int output_index);
     
     /** Create a dynamic instruction from a static one with the intention
      *  to send it */
@@ -211,7 +215,7 @@ class Fetch2 : public Named
     /** Extract the next dynamic instruction from the fetch line*/
     MinorDynInstPtr createDynInstFromFetchedLine(const ForwardLineData *line_in, 
         Fetch2ThreadInfo &fetch_info, BranchData &prediction, 
-        unsigned int output_index);
+        unsigned int output_index, TheISA::MachInst &inst_word);
     
     /** Take appropriate actions if detect a branch from an earlier inst */    
     void handleBranch(BranchData &branch_inp);
@@ -224,7 +228,8 @@ class Fetch2 : public Named
         Latch<BranchData>::Output branchInp_,
         Latch<BranchData>::Input predictionOut_,
         Latch<ForwardInstData>::Input out_,
-        std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer);
+        std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer,
+        std::vector<InputBuffer<TheISA::MachInst>> &vectorStageReserve);
 
   public:
     /** Pass on input/buffer data to the output if you can */

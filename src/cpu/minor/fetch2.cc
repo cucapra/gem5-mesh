@@ -59,7 +59,8 @@ Fetch2::Fetch2(const std::string &name,
     Latch<BranchData>::Output branchInp_,
     Latch<BranchData>::Input predictionOut_,
     Latch<ForwardInstData>::Input out_,
-    std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer) :
+    std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer,
+    std::vector<InputBuffer<TheISA::MachInst>> &vectorStageReserve) :
     Named(name),
     cpu(cpu_),
     inp(inp_),
@@ -67,6 +68,7 @@ Fetch2::Fetch2(const std::string &name,
     predictionOut(predictionOut_),
     out(out_),
     nextStageReserve(next_stage_input_buffer),
+    vectorStageReserve(vectorStageReserve),
     outputWidth(params.decodeInputWidth),
     processMoreThanOneInput(params.fetch2CycleInput),
     branchPredictor(*params.branchPred),
@@ -252,14 +254,17 @@ Fetch2::evaluate()
 
     // detect stalls in later stages
     for (ThreadID tid = 0; tid < cpu.numThreads; tid++) {
-        Fetch2ThreadInfo &thread = fetchInfo[tid];
         
         // detect any stalls due to the Decode stage
         bool decodeStall = !nextStageReserve[tid].canReserve();
         
         // detect any stalls due to the Vector "stage"
-        bool vectorStall = false; // !canIssue();
+        bool vectorStall = !vectorStageReserve[tid].canReserve();
         
+        // thread.blocked will prevent the thread from being selected
+        // in the getScheduledThread() call below. in the single-thread
+        // case this will return an InvalidThreadID and will result in a stall
+        Fetch2ThreadInfo &thread = fetchInfo[tid];
         thread.blocked = decodeStall || vectorStall;
     }
     
@@ -309,13 +314,15 @@ Fetch2::evaluate()
                 fetch_info.predictionSeqNum);
             }
             else {
+                TheISA::MachInst inst_word;
+                
                 MinorDynInstPtr dyn_inst = createDynInstFromFetchedLine(line_in, fetch_info, 
-                    prediction, output_index);
+                    prediction, output_index, inst_word);
                     
                 // output dynamic instruction to the next stage
                 if (dyn_inst) {
                 
-                    pushDynInst(dyn_inst, output_index);
+                    pushDynInst(dyn_inst, inst_word, output_index);
                 
                     /* Step to next sequence number */
                     fetch_info.fetchSeqNum++;
@@ -398,7 +405,8 @@ Fetch2::evaluate()
 
 
 void
-Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
+Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, TheISA::MachInst inst_word,
+        int output_index) {
     
     ForwardInstData &insts_out = *out.inputWire;
 
@@ -408,7 +416,12 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
     }
     /* Pack the generated dynamic instruction into the output */
     insts_out.insts[output_index] = dyn_inst;
-    //output_index++;
+
+    // also write to vector unit
+    // if not configured as master, won't send anything on will just clear
+    // the buffer
+    // TODO needs to be a class, b/c expect NULL possible!
+    //vectorStageReserve[0 /* tid */].setTail(inst_word);
 
     /* Output MinorTrace instruction info for
     *  pre-microop decomposition macroops */
@@ -424,7 +437,7 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
 MinorDynInstPtr
 Fetch2::createDynInstFromFetchedLine(const ForwardLineData *line_in, 
         Fetch2ThreadInfo &fetch_info, BranchData &prediction, 
-        unsigned int output_index) {
+        unsigned int output_index, TheISA::MachInst &inst_word) {
     ThreadContext *thread = cpu.getContext(line_in->id.threadId);
     TheISA::Decoder *decoder = thread->getDecoderPtr();
 
@@ -467,7 +480,7 @@ Fetch2::createDynInstFromFetchedLine(const ForwardLineData *line_in,
     } else {
         uint8_t *line = line_in->line;
 
-        TheISA::MachInst inst_word;
+        //TheISA::MachInst inst_word;
         /* The instruction is wholly in the line, can just
         *  assign */
         inst_word = TheISA::gtoh(

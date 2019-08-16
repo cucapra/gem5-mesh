@@ -46,8 +46,10 @@ class VectorForward : public Named {
     // setup which mesh ports are active
     void setupConfig(RegVal csrVal);
     
-    // tells the cpu whether it needs to stall or not
-    bool isMeshActive();
+    // tells the cpu in fetch2 or decode(?) whether it needs to stall or not
+    // before _effectively_ issuing the current instruction
+    // either the mesh is configured and active, or the mesh isn't active
+    bool canIssue();
     
     // cpu needs to bind ports to names, so expose them via a reference
     Port &getMeshPort(int idx, bool isOut);
@@ -79,6 +81,8 @@ class VectorForward : public Named {
     // set appropriate mesh node ports as valid
     void setVal(bool val);
   
+    // the communication channel between fetch2 and vector
+    std::vector<Minor::InputBuffer<TheISA::MachInst>>& getInputBuf();
   protected:
     
     // give the instruction to a slave core once at local node
@@ -114,6 +118,12 @@ class VectorForward : public Named {
     
     // get the received packet
     PacketPtr getMeshPortPkt(Mesh_Dir dir);
+    
+    // get a machinst from the local fetch2
+    TheISA::MachInst getFetchInput(ThreadID tid);
+    
+    // mark the fetch2 input as processed so that it can push more stuff
+    void popFetchInput(ThreadID tid);
      
   protected:
     
@@ -142,6 +152,9 @@ class VectorForward : public Named {
   
     // cache the most recently set csr value
     RegVal _curCsrVal;
+    
+    // communication channel between fetch2 and vector
+    std::vector<Minor::InputBuffer<TheISA::MachInst>> _inputBuffer;
   
 };
 

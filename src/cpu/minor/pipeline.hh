@@ -89,11 +89,14 @@ class Pipeline : public Ticked
 
     Execute execute;
     Decode decode;
-    Fetch2 fetch2;
-    Fetch1 fetch1;
     
     // vec
     VectorForward vector;
+    
+    Fetch2 fetch2;
+    Fetch1 fetch1;
+    
+    
 
     /** Activity recording for the pipeline.  This is access through the CPU
      *  by the pipeline stages but belongs to the Pipeline as it is the
