@@ -50,7 +50,7 @@ VectorForward::evaluate() {
   }
   
   // check for instruction from mesh
-  bool canGo = false;
+  bool canGo = _fsm->isMeshActive();
   
   if (canGo) {
     // pull instruction from the mesh
@@ -79,8 +79,8 @@ VectorForward::evaluate() {
 
 // tells the cpu whether it needs to stall or not
 bool
-VectorForward::isMeshSynced() {
-  bool ok = _fsm->isRunning();
+VectorForward::isMeshActive() {
+  bool ok = _fsm->isMeshActive();
   return ok;
 }
 

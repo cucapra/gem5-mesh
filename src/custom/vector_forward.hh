@@ -47,7 +47,7 @@ class VectorForward : public Named {
     void setupConfig(RegVal csrVal);
     
     // tells the cpu whether it needs to stall or not
-    bool isMeshSynced();
+    bool isMeshActive();
     
     // cpu needs to bind ports to names, so expose them via a reference
     Port &getMeshPort(int idx, bool isOut);

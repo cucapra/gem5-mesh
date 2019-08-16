@@ -40,14 +40,17 @@ EventDrivenFSM::configEvent() {
 /*----------------------------------------------------------------------
  * 
  *--------------------------------------------------------------------*/
- 
+
+
+// TODO do we even need a state machine or can just check val rdy before sending?
 bool
-EventDrivenFSM::isRunning() {
+EventDrivenFSM::isMeshActive() {
   return 
-    (_state == RUNNING_BIND) || 
-    (_state == BEGIN_SEND) ||
-    //(_state == IDLE && _nextState == IDLE); // this line could problematic, b/c not setup for mealy machine!
-    (!getConfigured());
+    ((getInVal() && getOutRdy()) && 
+    ((_state == RUNNING_BIND) || (_state == BEGIN_SEND))) 
+    
+    //|| (!getConfigured())
+    ;
 }
 
 // allowed to be ticked multiple times per cycle

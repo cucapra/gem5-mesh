@@ -31,7 +31,7 @@ class EventDrivenFSM {
     void configEvent();
     
     // check if can do stuff
-    bool isRunning();
+    bool isMeshActive();
     
     // update to the next state, ret whether new state
     bool tick();
