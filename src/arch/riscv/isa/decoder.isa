@@ -1834,5 +1834,13 @@ decode QUADRANT default Unknown::unknown() {
         0x1d: BUOp::csrfet({{
             xc->setMiscReg(MISCREG_FETCH, imm);
         }}, IsNonSpeculative, IsBind, No_OpClass);
+        
+        0x1e: JOp::devec({{
+            Rd = NPC;
+            NPC = PC + imm;
+            xc->setMiscReg(MISCREG_FETCH, 0x0);
+        }}, IsDirectControl, IsUncondControl, IsCall, IsBind);
+        
+        
     }
 }
