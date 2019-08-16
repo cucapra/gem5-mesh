@@ -52,7 +52,7 @@
     ".insn u 0x77, x0, %[bind0]\n\t"                        \
     code                                                    \
     : wr                                                    \
-    : [bind0] "i" (sbind | (timer << FET_COUNT_SHAMT)), rd  \
+    : [bind0] "i" (sbind | (timer << FET_COUNT_SHAMT)) rd  \
   )
 */
   
@@ -61,13 +61,14 @@
 // devec
 // label magic
 // https://stackoverflow.com/questions/1777990/is-it-possible-to-store-the-address-of-a-label-in-a-variable-and-use-goto-to-jum
-#define BINDED_FET_SECTION(sbind, label_addr, code, wr, rd) \
+#define BINDED_FET_SECTION(sbind, id, code, wr, rd)         \
   asm volatile (                                            \
     ".insn u 0x77, x0, %[bind0]\n\t"                        \
     code                                                    \
-    ".insn u 0x7b, x0, %[jaddr]\n\t"                        \
+    ".insn u 0x7b, x0, devec_label" #id "\n\t"              \
+    "devec_label" #id ":\n\t"                               \
     : wr                                                    \
-    : [bind0] "i" (sbind), [jaddr] "i" (label_addr) rd      \
+    : [bind0] "i" (sbind) rd                                \
   )                                                 
   
   
