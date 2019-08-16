@@ -42,6 +42,13 @@ VectorForward::VectorForward(const std::string &name,
 void
 VectorForward::evaluate() {
   
+  // check the state of the fsm (dont need async updates like before)
+  // because minor has cycle by cycle ticks unlike TimingSimpleCPU
+  bool update = _fsm->tick();
+  if (update) {
+    informNeighbors();
+  }
+  
   // check for instruction from mesh
   bool canGo = false;
   
@@ -55,13 +62,12 @@ VectorForward::evaluate() {
     // forward instruction to other neighbors potentially
     forwardInstruction(instWord);
     
-    // If we generated output, reserve space for the result in the next stage
-    // and mark the stage as being active this cycle
-    Minor::ForwardInstData &insts_out = *_out.inputWire;
-  
-    // Note activity of following buffer 
+    // if any one of the stages calls this, then the processor will tick
+    // on the follwoing cycle
     _cpu.activityRecorder->activity();
     
+    // reserve space in the output buffer?
+    Minor::ForwardInstData &insts_out = *_out.inputWire;
     // tid is always 0 when no smt
     int tid = 0;
     

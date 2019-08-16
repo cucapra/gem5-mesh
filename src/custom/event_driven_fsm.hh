@@ -1,42 +1,45 @@
 #ifndef __CUSTOM_EVENT_DRIVEN_FSM_HH__
 #define __CUSTOM_EVENT_DRIVEN_FSM_HH__
 
-// fsm that updates on the next cycle or when a packet comes in
+// Moore fsm that updates on the next cycle or when a packet comes in
 // "event triggered"
 
 #include "mem/packet.hh"
 #include "custom/mesh_helper.hh"
 #include <string>
 
-// or just call functions in the cpu
-/*typedef struct FSM_Out_t {
-  bool setRdy;
-  bool setVal;
-  bool resetRdy;
-  bool resetVal;
-} FSM_Out_t;*/
-
 class MinorCPU;
 class VectorForward;
 
 class EventDrivenFSM {
   public:
-    
-    //void pktEvent(PacketPtr pkt);
-    
-    // update val or rdy from neighbors
-    void neighborEvent();
-    void configEvent();
-    void instReq();
-    void instResp();
-    void dataReq();
-    void dataResp();
-    
-    bool isRunning();
-    
-    
+    typedef struct Outputs_t {
+      bool rdy;
+      bool val;
+      
+      Outputs_t(bool rdy, bool val)
+        : rdy(rdy), val(val)
+      {}
+    } Outputs_t;
+  
+  public:
+    // constructor
     EventDrivenFSM(VectorForward *vec, MinorCPU *cpu, SensitiveStage stage);
   
+    // sensitivity list
+    void neighborEvent();
+    void configEvent();
+    
+    // check if can do stuff
+    bool isRunning();
+    
+    // update to the next state, ret whether new state
+    bool tick();
+    
+    // get the current output of the moore state machine
+    // TICK should have been called before accessing
+    Outputs_t stateOutput();
+    
   private:
     typedef enum State {
       IDLE,
@@ -57,46 +60,36 @@ class EventDrivenFSM {
       WAIT_DATA_RESP
     } State;
     
-    // sticky for reqs and resps?
-    typedef struct Inputs_t {
-      bool dataReq;
-      bool instReq;
-      bool dataResp;
-      bool instResp;
-      //bool meshVal;
-      //bool meshRdy;
-      
-      Inputs_t(bool drq, bool irq, bool drp, bool irp) 
-        : dataReq(drq), instReq(irq), dataResp(drp), instResp(irp)
-      {}
-      
-      void clear() {
-        dataReq = false;
-        instReq = false;
-        dataResp = false;
-        instResp = false;
-      }
-      
-    } Inputs_t;
+  private:
+    // make sure that the next state was produced from inputs in the last
+    // cycle
+    //typedef struct NextState_t {
+    //  State nextState;
+    //  Cycle cycleUpdated;
+    //} NextState_t;
     
-    void tickEvent();
-    // update statemachine, if pkt != null, then exists and can use
-    State updateState();
-    void stateOutput();
-    void update();
+    // next state updates
+    //State getNextState();
+    //void setNextState(State state);
+    void stateTransition();
     
-    bool isWaitState(State state);
+    // update the pending next state
+    void sensitiveUpdate();
     
+    // try to schedule an update for the end of cycle
+    void tryScheduleUpdate();
     
+    // pool the status of the mesh net
     bool getInVal();
     bool getOutRdy();
     bool getConfigured();
-    void setRdy(bool rdy);
-    void setVal(bool val);
-    void startLink();
-    std::string stateToStr(State state);
+    
+    // find the next state for the given inptus statemachine
+    State pendingNextState();
     State meshState(State onValRdy, bool inVal, bool outRdy);
     
+    // debug helper
+    std::string stateToStr(State state);
     
   private:
     // pointer to mesh unit this fsm is apart of
@@ -107,15 +100,23 @@ class EventDrivenFSM {
     
     // state of fsm
     State _state;
-    State _nextState;
+    // remember debug for the old state
+    State _oldState;
+    
+    // double buffer the next state for weird timing issues
+    //int _nextStateIdx;
+    //NextState_t _nextState[2];
     
     // stage this fsm is associated with
     SensitiveStage _stage;
     
-    // tick of the fsm
+    // update the state at the end of the current cycle, in order to
+    // 1) Use up-to-date inputs from the current cycle to inform next state
+    // 2) Have the state ready and consistent for everybody in the next cycle
+    // This only works if the fsm is a Moore machine
     EventFunctionWrapper _tickEvent;
     
-    Inputs_t _inputs;
+    //Inputs_t _inputs;
     
     
 };

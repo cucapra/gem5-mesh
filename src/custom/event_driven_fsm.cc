@@ -4,9 +4,8 @@
 #include "custom/vector_forward.hh"
 
 EventDrivenFSM::EventDrivenFSM(VectorForward *vec, MinorCPU *cpu, SensitiveStage stage) :
-  _vec(vec), _cpu(cpu), _state(IDLE), _nextState(IDLE), _stage(stage), 
-  _tickEvent([this] { tickEvent(); }, cpu->name()), 
-  _inputs(Inputs_t(false,false,false,false))
+  _vec(vec), _cpu(cpu), _state(IDLE), _oldState(IDLE), _stage(stage), 
+  _tickEvent([this] { sensitiveUpdate(); }, cpu->name()) 
 {}
 
 
@@ -28,54 +27,14 @@ void
 EventDrivenFSM::neighborEvent() {
   //DPRINTF(Mesh, "%s neighbor update\n", _cpu->name());
   
-  update();
+  sensitiveUpdate();
 }
 
 void
 EventDrivenFSM::configEvent() {
   //DPRINTF(Mesh, "%s config update\n", _cpu->name());
   
-  update();
-}
-
-void
-EventDrivenFSM::instReq() {
-  if (_state != IDLE) {
-    DPRINTF(Mesh, "%s inst req\n", _cpu->name());
-  }
-  
-  _inputs.instReq = true;
-  update();
-}
-
-void
-EventDrivenFSM::dataReq() {
-  _inputs.dataReq = true;
-  
-  if (_state != IDLE) {
-    DPRINTF(Mesh, "%s data req\n", _cpu->name());
-  }
-  
-  update();
-}
-
-void
-EventDrivenFSM::instResp() {
-  if (_state != IDLE) {
-    DPRINTF(Mesh, "%s inst resp\n", _cpu->name());
-  }
-  
-  _inputs.instResp = true;
-  update();
-}
-
-void
-EventDrivenFSM::dataResp() {
-  _inputs.dataResp = true;
-  if (_state != IDLE) {
-  DPRINTF(Mesh, "%s data resp\n", _cpu->name());
-}
-  update();
+  sensitiveUpdate();
 }
 
 /*----------------------------------------------------------------------
@@ -94,16 +53,12 @@ EventDrivenFSM::isRunning() {
 // allowed to be ticked multiple times per cycle
 // does not modify the current state, but the potential next state
 void
-EventDrivenFSM::update() {
-  // try to update the state
-  _nextState = updateState();
+EventDrivenFSM::sensitiveUpdate() {
+  // try to update the next state
+  //_nextState = updateState();
+  //setNextState(pendingNextState());
   
-  // do update if there will be a new state
-  if (_state != _nextState) {
-    if (!_tickEvent.scheduled()) {
-      _cpu->schedule(_tickEvent, _cpu->clockEdge(Cycles(1)));
-    }
-  }
+  tryScheduleUpdate();
 }
 
 // TODO needs to transition at the end of this cycle so ready for any
@@ -112,120 +67,107 @@ EventDrivenFSM::update() {
 
 // ticked once per cycle, do state update
 // state outputs only change once per cycle --> moore machine
-void
-EventDrivenFSM::tickEvent() {
+bool
+EventDrivenFSM::tick() {
   //bool updateOut = (_nextState != _state);
   
-  if (_nextState != _state) {
-    DPRINTF(Mesh, "%s %d state %s -> %s\n", _cpu->name(), _stage, stateToStr(_state), stateToStr(_nextState));
-  }
-  
-  _state = _nextState;
-  
-  _inputs.clear();
-  
-  //if (updateOut) {
-    // do any action related to the new state
-    stateOutput();
-  //}
-  
-  // try to update the state
-  _nextState = updateState();
+  // 
+  // _state = _nextState;
 
+  //_state = _nextState;
   
+  //_inputs.clear();
+  
+  // stateOutput();
+
+  // try to update the state
+  //_nextState = updateState();
+
+  // handle the state transition
+  //stateTransition();
+
+  // if there was a state update, inform caller
+  // it will likely want to inform neighbors that something happened
+  if (_oldState != _state) {
+    DPRINTF(Mesh, "%s %d state %s -> %s\n", _cpu->name(), _stage, stateToStr(_oldState), stateToStr(_state));
+    
+    // if there is a state update, going to want to inform neighbors
+    return true;
+  }
+  else {
+    return false;
+  }
   
   
   //DPRINTF(Mesh, "state %s -> %s\n", stateToStr(_state), stateToStr(_nextState));
+  tryScheduleUpdate();
   
+}
+
+
+void 
+EventDrivenFSM::tryScheduleUpdate() {
   // do update if there will be a new state
-  if (_state != _nextState) {
-    
-    // if already schedule, reschedule
-    if (!_tickEvent.scheduled()) {/*
-      _cpu->reschedule(_tickEvent, _cpu->clockEdge(Cycles(1)));
+  /*if (_state != pendingNextState()) {
+    if (!_tickEvent.scheduled()) {
+      _cpu->schedule(_tickEvent, _cpu->clockEdge());
     }
-    else {*/
-      _cpu->schedule(_tickEvent, _cpu->clockEdge(Cycles(1)));
+  }*/
+  
+  // more efficient to reorder branches b/c don't want to waste lookup work?
+  if (!_tickEvent.scheduled()) {
+    if (_state != pendingNextState()) {
+      _cpu->schedule(_tickEvent, _cpu->clockEdge());
     }
   }
 }
 
 
-void
+EventDrivenFSM::Outputs_t
 EventDrivenFSM::stateOutput() {
   //bool inVal = getInVal();
   //bool outRdy = getOutRdy();
   //DPRINTF(Mesh, "%s state output\n", _cpu->name());
   switch(_state) {
     case IDLE: {
-      setRdy(false);
-      setVal(false);
-      break;
+      return Outputs_t(false, false);
     }
     case BEGIN_SEND: {
-      setRdy(true);
-      setVal(false);
-      startLink();
-      break;
+      return Outputs_t(true, false);
     }
     case RUNNING_BIND: {
-      setRdy(true);
-      setVal(true);
-      // need to have sent a packet on the last cycle!
-      break;
+      return Outputs_t(true, true);
     }
     case WAIT_MESH_VALRDY: {
-      setRdy(false);
-      setVal(false);
-      
-      // initiate and start sending on the next cycle
-      /*if (inVal && outRdy) {
-        startLink();
-      }*/
-      
-      break;
+      return Outputs_t(false, false);
     }
     case WAIT_MESH_RDY: {
-      setRdy(false);
-      setVal(false);
-      
-      /*if (inVal && outRdy) {
-        startLink();
-      }*/
-      
-      break;
+      return Outputs_t(false, false);
     }
     case WAIT_MESH_VAL: {
-      setRdy(true);
-      setVal(false);
-      break;
-      /*if (inVal && outRdy) {
-        startLink();
-      }*/
+      return Outputs_t(true, false);
     }
     default: {
-      setRdy(false);
-      setVal(false);
-      break;
+      return Outputs_t(false, false);
     }
   }
   
   // inform neighbors about any state change here?
-  _vec->informNeighbors();
+  //_vec->informNeighbors();
 }
 
 EventDrivenFSM::State
 EventDrivenFSM::meshState(State onValRdy, bool inVal, bool outRdy) {
-  if (_stage == EXECUTE && _inputs.dataReq == true) return WAIT_DATA_RESP;
-  else if (_stage == FETCH && _inputs.instReq == true) return WAIT_INST_RESP;
-  else if (inVal && outRdy) return onValRdy;
+  //if (_stage == EXECUTE && _inputs.dataReq == true) return WAIT_DATA_RESP;
+  //else if (_stage == FETCH && _inputs.instReq == true) return WAIT_INST_RESP;
+  if (inVal && outRdy) return onValRdy;
   else if (inVal) return WAIT_MESH_RDY;
   else if (outRdy) return WAIT_MESH_VAL;
   else return WAIT_MESH_VALRDY;
 }
 
 EventDrivenFSM::State
-EventDrivenFSM::updateState() {
+EventDrivenFSM::pendingNextState() {
   
   bool inVal = getInVal();
   bool outRdy = getOutRdy();
@@ -250,7 +192,7 @@ EventDrivenFSM::updateState() {
     case RUNNING_BIND: {
       return meshState(RUNNING_BIND, inVal, outRdy);
     }
-    case WAIT_DATA_RESP: {
+    /*case WAIT_DATA_RESP: {
       if (_inputs.dataResp) {
         return meshState(BEGIN_SEND, inVal, outRdy);
       }
@@ -270,7 +212,7 @@ EventDrivenFSM::updateState() {
       else {
         return WAIT_INST_RESP;
       }
-    }
+    }*/
     default: {
       return meshState(BEGIN_SEND, inVal, outRdy);
     }
@@ -278,14 +220,26 @@ EventDrivenFSM::updateState() {
   
 }
 
+/*State
+EventDrivenFSM::getNextState() {
+  return _nextState[_nextStateIdx];
+}
+
 void
-EventDrivenFSM::startLink() {
-  /*if (_stage == FETCH) {
-    _vec->tryFetch();
+EventDrivenFSM::setNextState(State state) {
+  // if this update is on a later cycle dont update the current buffer
+  if (_nextState[_nextStateIdx].cycleUpdated < curTick()) {
+    
   }
-  else if (_stage == EXECUTE) {
-    _cpu->tryInstruction();
-  }*/
+  else {
+    _nextState[_nextStateIdx].nextState = state;
+  }
+}*/
+
+void
+EventDrivenFSM::stateTransition() {
+  _oldState = _state;
+  _state = pendingNextState();
 }
 
 bool
@@ -301,22 +255,6 @@ EventDrivenFSM::getOutRdy() {
 bool
 EventDrivenFSM::getConfigured() {
   return _vec->getNumPortsActive() > 0;
-}
-
-// TODO keep these internally?
-void
-EventDrivenFSM::setRdy(bool rdy) {
-  _vec->setRdy(rdy);
-}
-
-void
-EventDrivenFSM::setVal(bool val) {
-  _vec->setVal(val);
-}
-
-bool
-EventDrivenFSM::isWaitState(State state) {
-  return false;
 }
 
 std::string

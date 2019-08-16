@@ -248,6 +248,7 @@ Fetch2::evaluate()
     BranchData &branch_inp = *branchInp.outputWire;
 
     // handle a branch that was detected later on in the pipe
+    // also detect any stalls
     handleBranch(branch_inp);
 
     assert(insts_out.isBubble());

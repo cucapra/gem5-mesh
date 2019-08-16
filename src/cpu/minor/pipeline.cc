@@ -144,7 +144,7 @@ Pipeline::evaluate()
      *  later stages to earlier ones in the same cycle */
     execute.evaluate();
     decode.evaluate();
-    vector.evaluate();
+    vector.evaluate(); // update before fetch2 for state update
     fetch2.evaluate();
     fetch1.evaluate();
 
