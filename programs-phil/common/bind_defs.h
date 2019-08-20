@@ -7,7 +7,8 @@
 // 20 bit / 5 hex
 #define ALL_NORM  0x00000
 
-
+// 32 bit instructions -> 4 bytes
+#define INST_BYTES 4
 
 
 // if you want to include a comma in a macro, need to indirectly do like
@@ -59,16 +60,13 @@
 // bind certain config
 // run vectorized code
 // devec
-// label magic
-// https://stackoverflow.com/questions/1777990/is-it-possible-to-store-the-address-of-a-label-in-a-variable-and-use-goto-to-jum
-#define BINDED_FET_SECTION(sbind, id, code, wr, rd)         \
+#define BINDED_FET_SECTION(sbind, num_insts, code, wr, rd)  \
   asm volatile (                                            \
-    ".insn u 0x77, x0, %[bind0]\n\t"                        \
+    ".insn u 0x77, x1, %[bind0]\n\t"                        \
     code                                                    \
-    ".insn u 0x7b, x0, devec_label" #id "\n\t"              \
-    "devec_label" #id ":\n\t"                               \
+    ".insn u 0x7b, x1, %[offset]\n\t"                       \
     : wr                                                    \
-    : [bind0] "i" (sbind) rd                                \
+    : [bind0] "i" (sbind), [offset] "i" ((2 + num_insts) * INST_BYTES) rd \
   )                                                 
   
   
