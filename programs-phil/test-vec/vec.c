@@ -7,6 +7,9 @@
 #include "bind_defs.h"
 #include <stdio.h>
 
+// 32 bit instructions -> 4 bytes
+#define INST_BYTES 4
+
 void *vec_pthread(void *args) {
   // unpack args
   vec_args_t *ka = (vec_args_t*)args;
@@ -34,7 +37,7 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
   printf("tid_x %d tid_y %d\n", tid_x, tid_y);
   
   // FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND,
-  if (tid_x == 0 && tid_y == 0) {
+  /*if (tid_x == 0 && tid_y == 0) {
     BINDED_FET_SECTION(
       FET_O_INST_RIGHT_SEND,
       0,
@@ -63,7 +66,66 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       ,
       COMMA [a] "r" (op0) COMMA [b] "r" (op1)
     );
+  }*/
+  
+  
+  if (tid_x == 0 && tid_y == 0) {
+    /*BINDED_FET_SECTION(
+      ALL_NORM,
+      0,
+      
+      ,
+      ,
+    );*/
+    int t = 0;
+    
+    asm volatile (
+    // using x1 may create two more instruction in and outside of this loop
+    // to save and restore the stack
+      ".insn u 0x77, x1, 0x0\n\t"
+      
+      //"la %[a0], devec_label\n\t"
+      //"jalr"
+      
+      // if you do '.insn uj' it might work. 
+      // compiler will do the neccessary offset transformation from absolute label addr
+      // but need to do based off the pc at the start of the block, not the 
+      // current pc, need to specify src reg.. but the compiler computes the
+      // diff based on the addr of this instruction and the address
+      
+      //".insn uj 0x7b, x1, devec_label\n\t" 
+      ".insn u 0x7b, x1, %[offset]\n\t"
+      // opcode, funct3, rs1, rs2, target
+      //".insn sb 0x7b, 0, x1, x0, %[offset]\n\t"
+      
+      // works
+      // the compiler or riscv format is def doing something to
+      // convert jal label to PC + addr
+      //"j devec_label\n\t"
+      //"jal x0, devec_label\n\t"
+      
+      //"devec_label:\n\t"
+      
+      :
+      : [offset] "i" (2 * INST_BYTES)
+    );
+    
+    printf("%d\n", t);
+    
   }
+
+  /*else if (tid_x == 1 && tid_y == 0) {
+    BINDED_FET_SECTION(
+      ALL_NORM,
+      1,
+      
+      ,
+      ,
+    );
+  }*/
+  
+  
+  
   /*else if (tid_x == 0 && tid_y == 1) {
     BINDED_SECTION(
       ALL_NORM,

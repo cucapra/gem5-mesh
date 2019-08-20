@@ -264,7 +264,7 @@ Fetch2::evaluate()
         // TODO this is not stalling when it should what does canReserve() do?
         // can try isBubble instead?
         bool vectorStall = !vectorStageReserve[tid].canReserve();
-        DPRINTF(Mesh, "vec stall %d\n", vectorStall);
+        if (vectorStall) DPRINTF(Mesh, "vec stall\n");
         
         // thread.blocked will prevent the thread from being selected
         // in the getScheduledThread() call below. in the single-thread
