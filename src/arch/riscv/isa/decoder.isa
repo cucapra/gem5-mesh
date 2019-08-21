@@ -1823,6 +1823,18 @@ decode QUADRANT default Unknown::unknown() {
             }
         }
         
+        // custom ops for 0b11
+        // free up until 0x1f
+        // 0x02
+        // 0x07
+        // 0x0a
+        // 0x0f
+        // 0x1a
+        // 0x1d
+        // 0x1e
+        // could use a different encoding then 0b11 to start in real impl, 
+        // but then .insn directive wouldn't work (enforces 0b11 start)!
+        
         0x1a: BUOp::csrexe({{
             // add a new instruction that takes a 20bit immediate
             // and writes it to a specific csr
@@ -1834,30 +1846,24 @@ decode QUADRANT default Unknown::unknown() {
         0x1d: BUOp::csrfet({{
             xc->setMiscReg(MISCREG_FETCH, imm);
             
-            // save the pc to the specified register
-            // both a data register and control status register can be written
-            // in the same cycle in riscv. 
-            // for example, there are already instructions (csrrw) that swap a 
-            // data register with a csr register (which requires the two writes)
-            Rd = PC;
             printf("csr set %ld pc %ld\n", imm, PC);
         }}, IsNonSpeculative, IsBind, No_OpClass);
         
-        // can't just give a symbol address (64 bits) to this
-        // how to load saved pc?
+        // this can be made into an itype to get more instructions?
+        // if imm always 0
         0x1e: BUOp::devec({{
-            //Rd = NPC;
-            // NPC = PC + imm;
-            // use the locally save pc to do this
-            // YOU NEED TO HAVE THE SAME INSTRUCTION LIST FOR EACH
-            // THREAD (both to get the right stack and to have the correct
-            // jump here)
-            // looks like some instructions have weird sizings?
-            NPC = Rd + imm;
-            xc->setMiscReg(MISCREG_FETCH, 0x0);
-            printf("devec %ld = %ld + %ld curr pc %ld\n", NPC, Rd, imm, PC);
+            
+            NPC = Rd;
+            xc->setMiscReg(MISCREG_FETCH, imm);
+            printf("devec to %ld from curr pc %ld\n", NPC, PC);
         }}, IsDirectControl, IsUncondControl, IsCall, IsNonSpeculative, IsBind);
         
+        // save the address to jump out of the vector block without tracking
+        // the pc within the block
+        0x02: JOp::savejmp({{
+            Rd = PC + imm;
+            printf("savejmp %ld = %ld + %ld\n", Rd, PC, imm);
+        }});
         
     }
 }
