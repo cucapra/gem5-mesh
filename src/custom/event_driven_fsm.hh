@@ -73,6 +73,10 @@ class EventDrivenFSM {
     //void setNextState(State state);
     void stateTransition();
     
+    // update the next state outputs after all of the states have consumed
+    // the current input
+    void stateOutputTransition();
+    
     // update the pending next state
     void sensitiveUpdate();
     
@@ -117,7 +121,8 @@ class EventDrivenFSM {
     // 1) Use up-to-date inputs from the current cycle to inform next state
     // 2) Have the state ready and consistent for everybody in the next cycle
     // This only works if the fsm is a Moore machine
-    EventFunctionWrapper _tickEvent;
+    EventFunctionWrapper _stateUpdateEvent;
+    EventFunctionWrapper _outputUpdateEvent;
     
     //Inputs_t _inputs;
     

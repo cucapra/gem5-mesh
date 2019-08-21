@@ -5,7 +5,8 @@
 
 EventDrivenFSM::EventDrivenFSM(VectorForward *vec, MinorCPU *cpu, SensitiveStage stage) :
   _vec(vec), _cpu(cpu), _state(IDLE), _oldState(IDLE), _didTransition(false),
-  _stage(stage), _tickEvent([this] { stateTransition(); }, cpu->name()) 
+  _stage(stage), _stateUpdateEvent([this] { stateTransition(); }, cpu->name()),
+  _outputUpdateEvent([this] { stateOutputTransition(); }, cpu->name())
 {}
 
 
@@ -93,7 +94,7 @@ EventDrivenFSM::tick() {
   // if there was a state update, inform caller
   // it will likely want to inform neighbors that something happened
   if (_didTransition) {
-    DPRINTF(Mesh, "%s %d on clk edge state %s -> %s\n", _cpu->name(), _stage, stateToStr(_oldState), stateToStr(_state));
+    //DPRINTF(Mesh, "%s %d on clk edge state %s -> %s\n", _cpu->name(), _stage, stateToStr(_oldState), stateToStr(_state));
     
     _didTransition = false;
     
@@ -121,9 +122,9 @@ EventDrivenFSM::tryScheduleUpdate() {
   }*/
   
   // more efficient to reorder branches b/c don't want to waste lookup work?
-  if (!_tickEvent.scheduled()) {
+  if (!_stateUpdateEvent.scheduled()) {
     if (_state != pendingNextState()) {
-      _cpu->schedule(_tickEvent, _cpu->clockEdge());
+      _cpu->schedule(_stateUpdateEvent, _cpu->clockEdge());
     }
   }
 }
@@ -247,6 +248,21 @@ EventDrivenFSM::stateTransition() {
   _didTransition = true;
   _oldState = _state;
   _state = pendingNextState();
+  
+  // schedule the state to update after this transition
+  _cpu->schedule(_outputUpdateEvent, _cpu->clockEdge());
+  
+  DPRINTF(Mesh, "%s %d on clk edge state %s -> %s\n", _cpu->name(), _stage, stateToStr(_oldState), stateToStr(_state));
+
+}
+
+void
+EventDrivenFSM::stateOutputTransition() {
+  Outputs_t newOutputs = stateOutput();
+  _vec->setVal(newOutputs.val);
+  _vec->setRdy(newOutputs.rdy);
+  
+  DPRINTF(Mesh, "%s update output\n", _cpu->name());
 }
 
 bool

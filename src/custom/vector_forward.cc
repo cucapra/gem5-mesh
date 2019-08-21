@@ -57,9 +57,10 @@ VectorForward::evaluate() {
   bool update = _fsm->tick();
   if (update) {
     // set the mesh ports with the new state output
-    EventDrivenFSM::Outputs_t fsmOut = _fsm->stateOutput();
-    setVal(fsmOut.val);
-    setRdy(fsmOut.rdy);
+    // can't do here b/c not guarenteed to be visible to nearby cores
+    //EventDrivenFSM::Outputs_t fsmOut = _fsm->stateOutput();
+    //setVal(fsmOut.val);
+    //setRdy(fsmOut.rdy);
     
     // inform there is local activity
     _cpu.activityRecorder->activity();
