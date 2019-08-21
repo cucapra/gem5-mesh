@@ -48,6 +48,8 @@ class MeshHelper {
     // the config in the csr means that no special behvaior should occur
     static bool isCSRDefault(uint64_t csrVal);
     
+    static bool isVectorMaster(uint64_t csrVal);
+    static bool isVectorSlave(uint64_t csrVal);
     static bool fetCsrToInSrc(uint64_t csrVal, Mesh_Dir &dir);
     static bool fetCsrToOutDests(uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
     static bool fetCsrToCount(uint64_t csrVal, int &count);

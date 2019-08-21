@@ -72,7 +72,7 @@ VectorForward::evaluate() {
   bool canGo = _fsm->isMeshActive();
   
   if (canGo) {
-    DPRINTF(Mesh, "all good\n");
+    DPRINTF(Mesh, "vector unit going\n");
     // pull instruction from the mesh or from the local fetch stage
     TheISA::MachInst instWord = pullInstruction();
   
@@ -82,7 +82,7 @@ VectorForward::evaluate() {
     // forward instruction to other neighbors potentially
     forwardInstruction(instWord);
     
-    // if any one of the stages calls this, then the processor will tick
+    /*// if any one of the stages calls this, then the processor will tick
     // on the follwoing cycle
     _cpu.activityRecorder->activity();
     
@@ -92,12 +92,12 @@ VectorForward::evaluate() {
     int tid = 0;
     
     insts_out.threadId = tid;
-    _nextStageReserve[tid].reserve();
+    _nextStageReserve[tid].reserve();*/
   } 
-  else {
+  /*else {
     if (getNumPortsActive() > 0)
     DPRINTF(Mesh, "vec can't do anything\n");
-  }
+  }*/
   
   // if not configured just pop the input so fetch doesn't stall
   if (MeshHelper::isCSRDefault(_curCsrVal)) {
@@ -172,8 +172,11 @@ VectorForward::createInstruction(const TheISA::MachInst instWord) {
 
 void
 VectorForward::pushInstToNextStage(const TheISA::MachInst instWord) {
-  Minor::MinorDynInstPtr dynInst = createInstruction(instWord);
-  pushToNextStage(dynInst);
+  // only push into decode if we are a slave
+  if (MeshHelper::isVectorSlave(_curCsrVal)) {
+    Minor::MinorDynInstPtr dynInst = createInstruction(instWord);
+    pushToNextStage(dynInst);
+  }
 }
 
 void
@@ -183,6 +186,18 @@ VectorForward::pushToNextStage(const Minor::MinorDynInstPtr dynInst) {
   
   // Pack the generated dynamic instruction into the output
   insts_out.insts[0] = dynInst;
+  
+  // if any one of the stages calls this, then the processor will tick
+  // on the follwoing cycle
+  _cpu.activityRecorder->activity();
+    
+  // reserve space in the output buffer?
+  //Minor::ForwardInstData &insts_out = *_out.inputWire;
+  // tid is always 0 when no smt
+  int tid = 0;
+    
+  insts_out.threadId = tid;
+  _nextStageReserve[tid].reserve();
 }
 
 void

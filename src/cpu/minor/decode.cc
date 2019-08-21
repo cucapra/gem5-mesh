@@ -42,6 +42,8 @@
 #include "cpu/minor/pipeline.hh"
 #include "debug/Decode.hh"
 
+#include "debug/Mesh.hh"
+
 namespace Minor
 {
 
@@ -132,6 +134,7 @@ Decode::evaluate()
     // 2) From Vector
     // Vector should be prioritized
     if (!inp_v.outputWire->isBubble()) {
+        DPRINTF(Mesh, "decode gets from vector\n");
         inputBuffer[inp.outputWire->threadId].setTail(*inp_v.outputWire);
     }
     else if (!inp.outputWire->isBubble()) {

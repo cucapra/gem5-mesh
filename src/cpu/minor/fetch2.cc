@@ -265,6 +265,7 @@ Fetch2::evaluate()
         // can try isBubble instead?
         bool vectorStall = !vectorStageReserve[tid].canReserve();
         if (vectorStall) DPRINTF(Mesh, "vec stall\n");
+        //if (decodeStall) DPRINTF(Mesh, "decode stall\n");
         
         // thread.blocked will prevent the thread from being selected
         // in the getScheduledThread() call below. in the single-thread

@@ -134,6 +134,12 @@ MeshHelper::fetCsrToInSrc(uint64_t csrVal, Mesh_Dir &dir) {
 }
 
 bool
+MeshHelper::isVectorSlave(uint64_t csrVal) {
+  Mesh_Dir dir;
+  return (fetCsrToInSrc(csrVal, dir));
+}
+
+bool
 MeshHelper::fetCsrToOutDests(uint64_t csrVal, std::vector<Mesh_Dir> &dirs) {
   // check each bit region to see if we should send
   for (int i = 0; i < NUM_DIR; i++) {
@@ -143,6 +149,12 @@ MeshHelper::fetCsrToOutDests(uint64_t csrVal, std::vector<Mesh_Dir> &dirs) {
   }
   
   return (dirs.size() > 0);
+}
+
+bool
+MeshHelper::isVectorMaster(uint64_t csrVal) {
+  std::vector<Mesh_Dir> dirs;
+  return (fetCsrToOutDests(csrVal, dirs));
 }
 
 bool
