@@ -58,9 +58,13 @@
 // after a config the pipeline needs to be flushed
 // we can achieve this easily in software with delay slots
 // I think fetch2 and decode need to be flushed so put two slots
+// Minor is a 7? (f1 -> f2 -> d -> i -> x -> m -> w) stage pipeline
+// writeback, looks like need 5 delay slots!!!
 //
 // 2) figure out jump point (don't have to do this when resync though)
-// this instruction can be put into one of the two delay solots
+// this instruction can be put into one of the delay slots since doesnt need vec
+// actually instructions can be put in delay slots and still be functional
+// just won't be vectorized
 //
 // 3) run vectorized code
 // 
@@ -70,13 +74,15 @@
     ".insn u 0x77, x0, %[sbind0]\n\t"                       \
     ".insn uj 0x0b, x28, label" #id "\n\t"                  \
     "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
     code                                                    \
     ".insn u 0x7b, x28, %[ebind0]\n\t"                      \
     "label" #id ":\n\t"                                     \
     : wr                                                    \
     : [sbind0] "i" (sbind), [ebind0] "i" (ebind) rd         \
   )                                                 
-  
   
 // bind both exe and fetch
 #define BINDED_TIMED_SECTION(ebind0, ebind1, fbind0, timer, code, wr, rd)  \

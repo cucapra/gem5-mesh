@@ -36,7 +36,7 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
   // FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND,
   if (tid_x == 0 && tid_y == 0) {
     BINDED_FET_SECTION(
-      ALL_NORM, //FET_O_INST_RIGHT_SEND,
+      FET_O_INST_RIGHT_SEND,
       ALL_NORM,
       0,
       
@@ -49,7 +49,7 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
   }
   else if (tid_x == 1 && tid_y == 0) {
     BINDED_FET_SECTION(
-      ALL_NORM, //FET_I_INST_LEFT,
+      FET_I_INST_LEFT,
       ALL_NORM,
       1,
       

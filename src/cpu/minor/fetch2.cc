@@ -419,6 +419,9 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, TheISA::MachInst inst_word,
     if (output_index == 0) {
         insts_out.resize(outputWidth);
     }
+    
+    if (dyn_inst->staticInst->isBind()) DPRINTF(Mesh, "saw bind\n");
+    
     /* Pack the generated dynamic instruction into the output */
     insts_out.insts[output_index] = dyn_inst;
 
