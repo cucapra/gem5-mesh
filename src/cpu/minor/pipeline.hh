@@ -156,6 +156,10 @@ class Pipeline : public Ticked
 
     /** To give the activity recorder to the CPU */
     MinorActivityRecorder *getActivityRecorder() { return &activityRecorder; }
+    
+    /** Inform relevant stages that an important csr was updated and should
+     * check it out */
+    void informCSRUpdate(int csrId, RegVal val);
 };
 
 }

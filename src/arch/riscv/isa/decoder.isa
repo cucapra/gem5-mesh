@@ -1846,7 +1846,7 @@ decode QUADRANT default Unknown::unknown() {
         0x1d: BUOp::csrfet({{
             xc->setMiscReg(MISCREG_FETCH, imm);
             
-            printf("csr set %ld pc %ld\n", imm, PC);
+            //printf("csr set %ld pc %ld\n", imm, PC);
         }}, IsNonSpeculative, IsBind, No_OpClass);
         
         // this can be made into an itype to get more instructions?
@@ -1855,14 +1855,14 @@ decode QUADRANT default Unknown::unknown() {
             
             NPC = Rd;
             xc->setMiscReg(MISCREG_FETCH, imm);
-            printf("devec to %ld from curr pc %ld\n", NPC, PC);
+            //printf("devec to %ld from curr pc %ld\n", NPC, PC);
         }}, IsDirectControl, IsUncondControl, IsCall, IsNonSpeculative, IsBind);
         
         // save the address to jump out of the vector block without tracking
         // the pc within the block
         0x02: JOp::savejmp({{
             Rd = PC + imm;
-            printf("savejmp %ld = %ld + %ld\n", Rd, PC, imm);
+            //printf("savejmp %ld = %ld + %ld\n", Rd, PC, imm);
         }});
         
     }

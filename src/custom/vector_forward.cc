@@ -176,14 +176,17 @@ VectorForward::pushToNextStage(const Minor::MinorDynInstPtr dynInst) {
 }
 
 void
-VectorForward::setupConfig(RegVal csrVal) {
+VectorForward::setupConfig(int csrId, RegVal csrVal) {
+  // make sure this is the csr we are looking for
+  if (csrId != RiscvISA::MISCREG_FETCH) return;
+  
   // clear all ports associated with this csr
   
   resetActive();
   
   DPRINTF(Mesh, "csrVal %d\n", csrVal);
   
-  int csrId = MeshHelper::stageToCsr(_stage);
+  //int csrId = MeshHelper::stageToCsr(_stage);
   
   // get the internal src to be send of each of the output ports
   std::vector<Mesh_Dir> outDirs;

@@ -205,6 +205,11 @@ class MinorCPU : public BaseCPU
      *  already been idled.  The stage argument should be from the
      *  enumeration Pipeline::StageId */
     void wakeupOnEvent(unsigned int stage_id);
+    
+    /** Non-execute stages need to know about a csr update */
+    void informCSRUpdate(int csrId, RegVal val);
+    
+    
 };
 
 #endif /* __CPU_MINOR_CPU_HH__ */

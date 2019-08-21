@@ -394,3 +394,10 @@ MinorCPU::totalOps() const
 
     return ret;
 }
+
+void
+MinorCPU::informCSRUpdate(int csrId, RegVal val) {
+    pipeline->informCSRUpdate(csrId, val);
+}
+
+

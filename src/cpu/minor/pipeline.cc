@@ -283,4 +283,11 @@ Pipeline::isDrained()
     return ret;
 }
 
+void
+Pipeline::informCSRUpdate(int csrId, RegVal val) {
+    vector.setupConfig(csrId, val);
+    // spatial.setupConfig(csrId, val);
+}
+
+
 }

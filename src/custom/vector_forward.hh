@@ -44,7 +44,7 @@ class VectorForward : public Named {
     void evaluate();
     
     // setup which mesh ports are active
-    void setupConfig(RegVal csrVal);
+    void setupConfig(int csrId, RegVal csrVal);
     
     // tells the cpu in fetch2 or decode(?) whether it needs to stall or not
     // before _effectively_ issuing the current instruction

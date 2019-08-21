@@ -61,6 +61,8 @@
 #include "mem/request.hh"
 #include "debug/MinorExecute.hh"
 
+#include "custom/mesh_helper.hh"
+
 namespace Minor
 {
 
@@ -348,11 +350,12 @@ class ExecContext : public ::ExecContext
     {
         thread.setMiscReg(misc_reg, val);
         
-        // pbb potentially need to halt cpu here, if operation is blocking
-        // How to do?
-        //if (MeshHelper::isBindCSR(misc_reg)) {
-        //    cpu->setupAndHandshake();
-        //}
+        // inform that a relevant csr has been updated and some stages
+        // should switch default behavior
+        // might also need to flush the pipeline when this happens
+        if (MeshHelper::isBindCSR(misc_reg)) {
+            cpu.informCSRUpdate(misc_reg, val);
+        }
         
     }
 
