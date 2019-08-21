@@ -32,7 +32,7 @@ EventDrivenFSM::neighborEvent() {
 
 void
 EventDrivenFSM::configEvent() {
-  //DPRINTF(Mesh, "%s config update\n", _cpu->name());
+  DPRINTF(Mesh, "%s config update\n", _cpu->name());
   
   sensitiveUpdate();
 }

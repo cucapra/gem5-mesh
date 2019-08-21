@@ -7,58 +7,18 @@
   (active && val && rdy) || (!active)
 
 /*----------------------------------------------------------------------
- * Implement base port behavior
- *--------------------------------------------------------------------*/ 
-
-TimingCPUSlavePort::TimingCPUSlavePort(const std::string& _name, int idx, 
-  MinorCPU* _cpu)
-        : SlavePort(_name, _cpu), idx(idx), cpu(_cpu)
-         //, retryRespEvent([this]{ sendRetryResp(); }, name())
-    { }
-
-void
-TimingCPUSlavePort::TickEvent::schedule(PacketPtr _pkt, Tick t)
-{
-    pkt = _pkt;
-    cpu->schedule(this, t);
-}
-
-TimingCPUMasterPort::TimingCPUMasterPort(const std::string& _name, int idx, 
-  MinorCPU* _cpu) : 
-  MasterPort(_name, _cpu), idx(idx), cpu(_cpu), 
-  retryRespEvent([this]{ sendRetryResp(); }, name()) {
-        
-}
-
-
-void
-TimingCPUMasterPort::TickEvent::schedule(PacketPtr _pkt, Tick t)
-{
-    pkt = _pkt;
-    cpu->schedule(this, t);
-}
-
-/*----------------------------------------------------------------------
  * Define mesh master port behavior
  *--------------------------------------------------------------------*/ 
 
 
 ToMeshPort::ToMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx)
-        : TimingCPUMasterPort(
-          _cpu->name() + ".mesh_out_port" + csprintf("[%d]", idx), 
-          idx, _cpu), tickEvent(_cpu), val(false), active(NONE), 
+        : MasterPort(
+          _cpu->name() + ".mesh_out_port" + csprintf("[%d]", idx), _cpu), 
+          cpu(_cpu), idx(idx), val(false), active(NONE), 
           stalledPkt(nullptr), vec(vec)
     { }
 
 // if you want to send a packet, used <MasterPort_Inst>.sendTimingReq(pkt);
-
-// after waiting for some delay, we finally do something with the recv
-// packet response
-void
-ToMeshPort::MOTickEvent::process()
-{
-    //cpu->completeIfetch(pkt);
-}
 
 // override what should happen when the packet we sent on this port has returned
 bool
@@ -67,9 +27,9 @@ ToMeshPort::recvTimingResp(PacketPtr pkt)
     DPRINTF(Mesh, "Received mesh out response %#x\n", pkt->getAddr());
     // we should only ever see one response per cycle since we only
     // issue a new request once this response is sunk
-    assert(!tickEvent.scheduled());
+    //assert(!tickEvent.scheduled());
     // delay processing of returned data until next CPU clock edge
-    tickEvent.schedule(pkt, cpu->clockEdge());
+    //tickEvent.schedule(pkt, cpu->clockEdge());
 
     return true;
 }
@@ -158,9 +118,9 @@ ToMeshPort::beginToSend() {
 
 // NEVER give THIS pointer 
 FromMeshPort::FromMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx)
-        : TimingCPUSlavePort(
-          _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), 
-          idx, _cpu), recvPkt_d(nullptr), recvEvent([this] { process(); }, name()), 
+        : SlavePort(
+          _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), _cpu), 
+          cpu(_cpu), idx(idx), recvPkt_d(nullptr), recvEvent([this] { process(); }, name()), 
           wakeupCPUEvent([this] { tryUnblockCPU(); }, name()), 
           recvPkt(nullptr), cyclePktRecv(0), rdy(false), active(NONE), vec(vec)
     { 

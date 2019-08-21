@@ -15,38 +15,9 @@
 class MinorCPU;
 class VectorForward;
 
-// pbb implement mesh ports
-class TimingCPUMasterPort : public MasterPort
-{
-  public:
-
-    TimingCPUMasterPort(const std::string& _name, int idx, MinorCPU* _cpu);
-       /* : MasterPort(_name, _cpu), idx(idx), cpu(_cpu),
-          retryRespEvent([this]{ sendRetryResp(); }, name())
-    { }*/
-
-  protected:
-  
-    int idx;
-
-    MinorCPU* cpu;
-
-    struct TickEvent : public Event
-    {
-        PacketPtr pkt;
-        MinorCPU *cpu;
-
-        TickEvent(MinorCPU *_cpu) : pkt(NULL), cpu(_cpu) {}
-        const char *description() const { return "Timing CPU tick"; }
-        void schedule(PacketPtr _pkt, Tick t);
-    };
-
-    EventFunctionWrapper retryRespEvent;
-};
-
 
 // port that goes out over the mesh
-class ToMeshPort : public TimingCPUMasterPort {
+class ToMeshPort : public MasterPort {
   public:
     ToMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx);
         /*: TimingCPUMasterPort(
@@ -84,19 +55,14 @@ class ToMeshPort : public TimingCPUMasterPort {
     virtual bool recvTimingResp(PacketPtr pkt);
     virtual void recvReqRetry();
 
-    // the event to put on the event queue when a resp is received
-    struct MOTickEvent : public TickEvent
-    {
-
-        MOTickEvent(MinorCPU *_cpu)
-            : TickEvent(_cpu) {}
-        void process();
-        const char *description() const { return "Timing CPU to mesh tick"; }
-    };
-
-    MOTickEvent tickEvent;
+    // cpu for callbacks
+    MinorCPU *cpu;
+    
+    // idx for debug
+    int idx;
     
     // whether this signal is valid over the mesh net
+    // we're not going to set a value, rather you need to check from neighbors
     bool val;
     
     // whether this port is used and should assert val when packet 
@@ -111,43 +77,7 @@ class ToMeshPort : public TimingCPUMasterPort {
     
 };
 
-class FromMeshPort;
-
-// similar purpose as TimingCPUPort (derived from master port)
-class TimingCPUSlavePort : public SlavePort {
-  public:
-
-    TimingCPUSlavePort(const std::string& _name, int idx, MinorCPU* _cpu);
-        /*: SlavePort(_name, _cpu), idx(idx), cpu(_cpu)
-         //, retryRespEvent([this]{ sendRetryResp(); }, name())
-    { }*/
-
-  protected:
-
-    // id in vector port
-    int idx;
-
-    // cpu reference, so we can do things in it on response
-    MinorCPU* cpu;
-
-    // base for delayed events like processing a request
-    struct TickEvent : public Event
-    {
-        PacketPtr pkt;
-        MinorCPU *cpu;
-
-        TickEvent(MinorCPU *_cpu) : pkt(NULL), cpu(_cpu) {}
-        const char *description() const { return "Timing CPU slave tick"; }
-        void schedule(PacketPtr _pkt, Tick t);
-    };
-
-    // potentially want to schedule a retry event in the case that
-    // two things arrive? in the same cycle ??
-    // not sure if would also sched retry in the slave?
-    //EventFunctionWrapper retryRespEvent;
-};
-
-class FromMeshPort : public TimingCPUSlavePort {
+class FromMeshPort : public SlavePort {
   public:
     FromMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx);
         /*: TimingCPUSlavePort(
@@ -190,24 +120,13 @@ class FromMeshPort : public TimingCPUSlavePort {
     virtual Tick recvAtomic(PacketPtr pkt) { panic("recvAtomic unimpl"); };
     virtual void recvFunctional(PacketPtr pkt);
 
-  /*
-    // the event to put on the event queue when a resp is received
-    struct MITickEvent : public TickEvent
-    {
-      // for some reason the port is changing its base addr after
-      // being initialized, so this pointer is instantly bad
-        FromMeshPort *port;
-
-        MITickEvent(TimingSimpleCPU *_cpu)
-            : TickEvent(_cpu) {}
-        void process() override;
-        const char *description() const { return "Mesh to timing CPU tick"; }
-    };
-
-    MITickEvent tickEvent;
-  */
+    // cpu reference, so we can do things in it on response
+    MinorCPU* cpu;
+    
+    // id in vector port
+    int idx;
   
-  // packet to be received after clk edge
+    // packet to be received after clk edge
     PacketPtr recvPkt_d;
     EventFunctionWrapper recvEvent;
     EventFunctionWrapper wakeupCPUEvent;
