@@ -72,7 +72,7 @@ VectorForward::evaluate() {
   bool canGo = _fsm->isMeshActive();
   
   if (canGo) {
-    
+    DPRINTF(Mesh, "all good\n");
     // pull instruction from the mesh or from the local fetch stage
     TheISA::MachInst instWord = pullInstruction();
   
@@ -93,6 +93,10 @@ VectorForward::evaluate() {
     
     insts_out.threadId = tid;
     _nextStageReserve[tid].reserve();
+  } 
+  else {
+    if (getNumPortsActive() > 0)
+    DPRINTF(Mesh, "vec can't do anything\n");
   }
   
   // if not configured just pop the input so fetch doesn't stall

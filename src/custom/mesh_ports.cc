@@ -159,7 +159,7 @@ FromMeshPort::recvTimingReq(PacketPtr pkt) {
     //recvPkt_d = pkt;
     //recvEvent.schedule(cpu->clockEdge());
     recvPkt_d = pkt;
-    cpu->schedule(recvEvent, cpu->clockEdge());
+    cpu->schedule(recvEvent, cpu->clockEdge(Cycles(1)));
     // temp
     //setPacket(pkt);
 
@@ -254,16 +254,17 @@ FromMeshPort::setPacket(PacketPtr pkt) {
   recvPkt = pkt;
   
   // remember the time we recv the packet
-  cyclePktRecv = cpu->clockEdge();
+  //cyclePktRecv = cpu->clockEdge();
   
   // schedule a wakeup event on the next cycle to try to run with this
   // pkt
-  cpu->schedule(wakeupCPUEvent, cpu->clockEdge(Cycles(1)));
+  //cpu->schedule(wakeupCPUEvent, cpu->clockEdge(Cycles(1)));
 }
 
 bool
 FromMeshPort::pktExists() { 
-  return ((recvPkt != nullptr) && (cyclePktRecv < cpu->clockEdge()));
+  //return ((recvPkt != nullptr) && (cyclePktRecv < cpu->clockEdge()));
+  return recvPkt != nullptr;
 }
 
 void
@@ -280,14 +281,14 @@ FromMeshPort::checkHandshake(){
 
 bool
 FromMeshPort::getPairVal() {
-  return pktExists();
-  /*BaseMasterPort *masterPort = &(getMasterPort());
+  //return pktExists();
+  BaseMasterPort *masterPort = &(getMasterPort());
   if (ToMeshPort *masterMeshPort = dynamic_cast<ToMeshPort*>(masterPort)) {
     return masterMeshPort->getVal();
   }
   else {
     return false;
-  }*/
+  }
 }
 
 void

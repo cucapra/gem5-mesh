@@ -124,7 +124,7 @@ EventDrivenFSM::tryScheduleUpdate() {
   // more efficient to reorder branches b/c don't want to waste lookup work?
   if (!_stateUpdateEvent.scheduled()) {
     if (_state != pendingNextState()) {
-      _cpu->schedule(_stateUpdateEvent, _cpu->clockEdge());
+      _cpu->schedule(_stateUpdateEvent, _cpu->clockEdge(Cycles(1)));
     }
   }
 }
