@@ -56,6 +56,11 @@ VectorForward::evaluate() {
   // because minor has cycle by cycle ticks unlike TimingSimpleCPU
   bool update = _fsm->tick();
   if (update) {
+    // set the mesh ports with the new state output
+    EventDrivenFSM::Outputs_t fsmOut = _fsm->stateOutput();
+    setVal(fsmOut.val);
+    setRdy(fsmOut.rdy);
+    
     // inform there is local activity
     _cpu.activityRecorder->activity();
     // inform there might be neighbor activity
@@ -207,6 +212,9 @@ VectorForward::setupConfig(int csrId, RegVal csrVal) {
   
   // cache the csr val for easy lookup later
   _curCsrVal = csrVal;
+  
+  // the state machine is sensitive to configure events, so let it know here
+  _fsm->configEvent();
   
 }
 
@@ -364,7 +372,7 @@ VectorForward::neighborUpdate() {
 
 void
 VectorForward::informNeighbors() {
-  //DPRINTF(Mesh, "notify neighbors\n");
+  DPRINTF(Mesh, "notify neighbors\n");
   // go through mesh ports to get tryUnblock function called in neighbor cores
   for (int i = 0; i < _toMeshPort.size(); i++) {
     _toMeshPort[i].tryUnblockNeighbor();

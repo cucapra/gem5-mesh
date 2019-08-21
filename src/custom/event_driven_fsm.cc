@@ -4,8 +4,8 @@
 #include "custom/vector_forward.hh"
 
 EventDrivenFSM::EventDrivenFSM(VectorForward *vec, MinorCPU *cpu, SensitiveStage stage) :
-  _vec(vec), _cpu(cpu), _state(IDLE), _oldState(IDLE), _stage(stage), 
-  _tickEvent([this] { sensitiveUpdate(); }, cpu->name()) 
+  _vec(vec), _cpu(cpu), _state(IDLE), _oldState(IDLE), _didTransition(false),
+  _stage(stage), _tickEvent([this] { stateTransition(); }, cpu->name()) 
 {}
 
 
@@ -25,7 +25,7 @@ EventDrivenFSM::EventDrivenFSM(VectorForward *vec, MinorCPU *cpu, SensitiveStage
  *--------------------------------------------------------------------*/
 void
 EventDrivenFSM::neighborEvent() {
-  //DPRINTF(Mesh, "%s neighbor update\n", _cpu->name());
+  DPRINTF(Mesh, "%s neighbor update\n", _cpu->name());
   
   sensitiveUpdate();
 }
@@ -46,8 +46,9 @@ EventDrivenFSM::configEvent() {
 bool
 EventDrivenFSM::isMeshActive() {
   return 
-    ((getInVal() && getOutRdy()) && 
-    ((_state == RUNNING_BIND) || (_state == BEGIN_SEND))) 
+    ((getInVal() && getOutRdy()) && getConfigured())
+    //&& 
+    //((_state == RUNNING_BIND) || (_state == BEGIN_SEND))) 
     
     //|| (!getConfigured())
     ;
@@ -91,8 +92,10 @@ EventDrivenFSM::tick() {
 
   // if there was a state update, inform caller
   // it will likely want to inform neighbors that something happened
-  if (_oldState != _state) {
-    DPRINTF(Mesh, "%s %d state %s -> %s\n", _cpu->name(), _stage, stateToStr(_oldState), stateToStr(_state));
+  if (_didTransition) {
+    DPRINTF(Mesh, "%s %d on clk edge state %s -> %s\n", _cpu->name(), _stage, stateToStr(_oldState), stateToStr(_state));
+    
+    _didTransition = false;
     
     // if there is a state update, going to want to inform neighbors
     return true;
@@ -241,6 +244,7 @@ EventDrivenFSM::setNextState(State state) {
 
 void
 EventDrivenFSM::stateTransition() {
+  _didTransition = true;
   _oldState = _state;
   _state = pendingNextState();
 }

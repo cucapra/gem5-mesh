@@ -102,6 +102,9 @@ class EventDrivenFSM {
     State _state;
     // remember debug for the old state
     State _oldState;
+    // there was an update since the last time we ticked, 
+    // so the output might be diff
+    bool _didTransition;
     
     // double buffer the next state for weird timing issues
     //int _nextStateIdx;
