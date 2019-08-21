@@ -34,17 +34,28 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
   printf("tid_x %d tid_y %d\n", tid_x, tid_y);
   
   // FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND,
-  /*if (tid_x == 0 && tid_y == 0) {
-    BINDED_FET_SECTION(
-      FET_O_INST_RIGHT_SEND,
-      0,
+  if (tid_x == 0 && tid_y == 0) {
+    /*BINDED_FET_SECTION(
+      ALL_NORM, //FET_O_INST_RIGHT_SEND,
+      1,
       
       "add %[a0], %[a], %[b]\n\t"
       ,
       [a0] "=r" (rd)
       ,
       COMMA [a] "r" (op0) COMMA [b] "r" (op1)
-    );
+    );*/
+    
+    
+    // why is an add only 2 bytes? --> turned into compressed intruction?
+    // ... this is why we need to work in labels somehow
+    asm volatile (
+      ".insn u 0x77, x1, 0\n\t"
+      "add %[a0], %[a], %[b]\n\t"
+      ".insn u 0x7b, x1, 10\n\t"
+      : [a0] "=r" (rd)
+      : [a] "r" (op0), [b] "r" (op1)
+    );      
   }
   // the pc still ticks on these?
   // either replicate instructions or need to not advanceInst()
@@ -52,9 +63,9 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
   // I think need to replicate so compiler fills in the supporting code
   // before and after
   //FET_O_INST_DOWN_SEND | FET_I_INST_LEFT,
-  else if (tid_x == 1 && tid_y == 0) {
+  /*else if (tid_x == 1 && tid_y == 0) {
     BINDED_FET_SECTION(
-      FET_I_INST_LEFT,
+      ALL_NORM, //FET_I_INST_LEFT,
       1,
       
       "add %[a0], %[a], %[b]\n\t"
@@ -64,29 +75,6 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       COMMA [a] "r" (op0) COMMA [b] "r" (op1)
     );
   }*/
-  
-  
-  if (tid_x == 0 && tid_y == 0) {
-    BINDED_FET_SECTION(
-      ALL_NORM,
-      0,
-      
-      ,
-      ,
-    );
-    
-  }
-
-  else if (tid_x == 1 && tid_y == 0) {
-    BINDED_FET_SECTION(
-      ALL_NORM,
-      0,
-      
-      ,
-      ,
-    );
-  }
-  
   
   
   /*else if (tid_x == 0 && tid_y == 1) {

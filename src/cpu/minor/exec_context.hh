@@ -347,6 +347,13 @@ class ExecContext : public ::ExecContext
     setMiscReg(int misc_reg, RegVal val) override
     {
         thread.setMiscReg(misc_reg, val);
+        
+        // pbb potentially need to halt cpu here, if operation is blocking
+        // How to do?
+        //if (MeshHelper::isBindCSR(misc_reg)) {
+        //    cpu->setupAndHandshake();
+        //}
+        
     }
 
     RegVal
