@@ -53,19 +53,28 @@
   )
 */
   
-// bind certain config
-// figure out jump point (don't have to do this when resync though)
-// run vectorized code
-// devec
+// 1) bind certain config
+// 
+// after a config the pipeline needs to be flushed
+// we can achieve this easily in software with delay slots
+// I think fetch2 and decode need to be flushed so put two slots
+//
+// 2) figure out jump point (don't have to do this when resync though)
+// this instruction can be put into one of the two delay solots
+//
+// 3) run vectorized code
+// 
+// 4) devec
 #define BINDED_FET_SECTION(sbind, ebind, id, code, wr, rd)  \
   asm volatile (                                            \
     ".insn u 0x77, x0, %[sbind0]\n\t"                       \
     ".insn uj 0x0b, x28, label" #id "\n\t"                  \
+    "nop\n\t"                                               \
     code                                                    \
     ".insn u 0x7b, x28, %[ebind0]\n\t"                      \
     "label" #id ":\n\t"                                     \
     : wr                                                    \
-    : [sbind0] "i" (sbind), [ebind0] "i" (ebind) rd \
+    : [sbind0] "i" (sbind), [ebind0] "i" (ebind) rd         \
   )                                                 
   
   
