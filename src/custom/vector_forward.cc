@@ -156,6 +156,10 @@ VectorForward::createInstruction(const TheISA::MachInst instWord) {
   //dyn_inst->pc = 0;
   dyn_inst->staticInst = extractInstruction(instWord);
   
+  // lie about fetchSeqNum so not considered a bubble
+  // alternatviely can try to track own pc here
+  dyn_inst->id.fetchSeqNum = 1;
+  
   DPRINTF(Mesh, "decoder inst %s\n", *dyn_inst);
 
   return dyn_inst;
@@ -172,6 +176,7 @@ VectorForward::pushInstToNextStage(const TheISA::MachInst instWord) {
 
 void
 VectorForward::pushToNextStage(const Minor::MinorDynInstPtr dynInst) {
+  DPRINTF(Mesh, "push instruction to decode %s\n", *dynInst);
   Minor::ForwardInstData &insts_out = *_out.inputWire;
   insts_out.resize(1);
   
@@ -188,6 +193,10 @@ VectorForward::pushToNextStage(const Minor::MinorDynInstPtr dynInst) {
   int tid = 0;
     
   insts_out.threadId = tid;
+  
+  assert(!(dynInst->isBubble()));
+  assert(!insts_out.isBubble());
+  
   _nextStageReserve[tid].reserve();
 }
 
