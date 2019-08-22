@@ -71,6 +71,8 @@ VectorForward::evaluate() {
   // check for instruction from mesh
   bool canGo = _fsm->isMeshActive();
   
+  // TODO need to check for stalls in the local pipeline!
+  
   if (canGo) {
     DPRINTF(Mesh, "vector unit going\n");
     // pull instruction from the mesh or from the local fetch stage
@@ -82,17 +84,6 @@ VectorForward::evaluate() {
     // forward instruction to other neighbors potentially
     forwardInstruction(instWord);
     
-    /*// if any one of the stages calls this, then the processor will tick
-    // on the follwoing cycle
-    _cpu.activityRecorder->activity();
-    
-    // reserve space in the output buffer?
-    Minor::ForwardInstData &insts_out = *_out.inputWire;
-    // tid is always 0 when no smt
-    int tid = 0;
-    
-    insts_out.threadId = tid;
-    _nextStageReserve[tid].reserve();*/
   } 
   /*else {
     if (getNumPortsActive() > 0)

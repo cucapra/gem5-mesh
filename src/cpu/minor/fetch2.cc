@@ -320,15 +320,14 @@ Fetch2::evaluate()
                 fetch_info.predictionSeqNum);
             }
             else {
-                TheISA::MachInst inst_word;
                 
-                MinorDynInstPtr dyn_inst = createDynInstFromFetchedLine(line_in, fetch_info, 
-                    prediction, output_index, inst_word);
+                MinorDynInstPtr dyn_inst = createDynInstFromFetchedLine(
+                    line_in, fetch_info, prediction, output_index);
                     
                 // output dynamic instruction to the next stage
                 if (dyn_inst) {
                 
-                    pushDynInst(dyn_inst, inst_word, output_index);
+                    pushDynInst(dyn_inst, output_index);
                 
                     /* Step to next sequence number */
                     fetch_info.fetchSeqNum++;
@@ -411,8 +410,7 @@ Fetch2::evaluate()
 
 
 void
-Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, TheISA::MachInst inst_word,
-        int output_index) {
+Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
     
     ForwardInstData &insts_out = *out.inputWire;
 
@@ -420,6 +418,8 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, TheISA::MachInst inst_word,
     if (output_index == 0) {
         insts_out.resize(outputWidth);
     }
+    
+    //DPRINTF(Mesh, "%s\n", *dyn_inst);
     
     if (dyn_inst->staticInst->isBind()) DPRINTF(Mesh, "saw bind\n");
     
@@ -431,7 +431,16 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, TheISA::MachInst inst_word,
     // the buffer
     // TODO needs to be a class, b/c expect NULL possible!
     ForwardVectorData vecData(0);
-    vecData.machInst = inst_word;
+    
+    // get the bytes of the static inst to pass on
+    // important to get directly from the decoded instructions rather than
+    // looking up because instruction alignment is weird due to riscv compressed
+    // (16 bit) instructions
+    TheISA::ExtMachInst extMachInst = dyn_inst->staticInst->machInst;
+    //DPRINTF(Mesh, "extmachinst %#x\n", extMachInst);
+    TheISA::MachInst machInst = (TheISA::MachInst)extMachInst;
+    
+    vecData.machInst = machInst;
     
     ThreadID tid = 0;
     
@@ -455,7 +464,7 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, TheISA::MachInst inst_word,
 MinorDynInstPtr
 Fetch2::createDynInstFromFetchedLine(const ForwardLineData *line_in, 
         Fetch2ThreadInfo &fetch_info, BranchData &prediction, 
-        unsigned int output_index, TheISA::MachInst &inst_word) {
+        unsigned int output_index) {
     ThreadContext *thread = cpu.getContext(line_in->id.threadId);
     TheISA::Decoder *decoder = thread->getDecoderPtr();
 
@@ -498,7 +507,7 @@ Fetch2::createDynInstFromFetchedLine(const ForwardLineData *line_in,
     } else {
         uint8_t *line = line_in->line;
 
-        //TheISA::MachInst inst_word;
+        TheISA::MachInst inst_word;
         /* The instruction is wholly in the line, can just
         *  assign */
         inst_word = TheISA::gtoh(

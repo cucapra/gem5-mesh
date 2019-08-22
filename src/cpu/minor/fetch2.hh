@@ -203,8 +203,7 @@ class Fetch2 : public Named
     ThreadID getScheduledThread();
     
     /** Send the new dynamic instruction to the next stage */
-    void pushDynInst(MinorDynInstPtr dyn_inst, TheISA::MachInst inst_word,
-        int output_index);
+    void pushDynInst(MinorDynInstPtr dyn_inst, int output_index);
     
     /** Create a dynamic instruction from a static one with the intention
      *  to send it */
@@ -215,7 +214,7 @@ class Fetch2 : public Named
     /** Extract the next dynamic instruction from the fetch line*/
     MinorDynInstPtr createDynInstFromFetchedLine(const ForwardLineData *line_in, 
         Fetch2ThreadInfo &fetch_info, BranchData &prediction, 
-        unsigned int output_index, TheISA::MachInst &inst_word);
+        unsigned int output_index);
     
     /** Take appropriate actions if detect a branch from an earlier inst */    
     void handleBranch(BranchData &branch_inp);
