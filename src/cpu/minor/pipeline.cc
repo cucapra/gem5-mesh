@@ -81,7 +81,7 @@ Pipeline::Pipeline(MinorCPU &cpu_, MinorCPUParams &params) :
         
     fetch2(cpu.name() + ".fetch2", cpu, params,
         f1ToF2.output(), eToF1.output(), f2ToF1.input(), f2ToD.input(),
-        decode.inputBuffer, vector.getInputBuf()),
+        decode.inputBuffer, vector.getInputBuf(), &vector),
     fetch1(cpu.name() + ".fetch1", cpu, params,
         eToF1.output(), f1ToF2.input(), f2ToF1.output(), fetch2.inputBuffer),
         

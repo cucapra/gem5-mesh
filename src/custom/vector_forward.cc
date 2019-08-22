@@ -160,6 +160,10 @@ VectorForward::createInstruction(const TheISA::MachInst instWord) {
   // alternatviely can try to track own pc here
   dyn_inst->id.fetchSeqNum = 1;
   
+  // the execute stage needs to check the streamSeqNum to make sure we are on
+  // the correct branch?
+  dyn_inst->id.streamSeqNum = _lastStreamSeqNum;
+  
   DPRINTF(Mesh, "decoder inst %s\n", *dyn_inst);
 
   return dyn_inst;

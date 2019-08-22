@@ -53,6 +53,8 @@
 #include "cpu/pred/bpred_unit.hh"
 #include "params/MinorCPU.hh"
 
+class VectorForward;
+
 namespace Minor
 {
 
@@ -92,6 +94,9 @@ class Fetch2 : public Named
 
     /** Branch predictor passed from Python configuration */
     BPredUnit &branchPredictor;
+    
+    /** Keep a reference to vector unit because might want to inferface*/
+    VectorForward *vector;
 
   public:
     /* Public so that Pipeline can pass it to Fetch1 */
@@ -228,7 +233,8 @@ class Fetch2 : public Named
         Latch<BranchData>::Input predictionOut_,
         Latch<ForwardInstData>::Input out_,
         std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer,
-        std::vector<InputBuffer<ForwardVectorData>> &vectorStageReserve);
+        std::vector<InputBuffer<ForwardVectorData>> &vectorStageReserve,
+        VectorForward *vector);
 
   public:
     /** Pass on input/buffer data to the output if you can */

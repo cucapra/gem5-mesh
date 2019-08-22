@@ -49,6 +49,7 @@
 #include "debug/Fetch.hh"
 #include "debug/MinorTrace.hh"
 
+#include "custom/vector_forward.hh"
 #include "debug/Mesh.hh"
 
 namespace Minor
@@ -62,7 +63,8 @@ Fetch2::Fetch2(const std::string &name,
     Latch<BranchData>::Input predictionOut_,
     Latch<ForwardInstData>::Input out_,
     std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer,
-    std::vector<InputBuffer<ForwardVectorData>> &vectorStageReserve) :
+    std::vector<InputBuffer<ForwardVectorData>> &vectorStageReserve,
+    VectorForward *vector) :
     Named(name),
     cpu(cpu_),
     inp(inp_),
@@ -74,6 +76,7 @@ Fetch2::Fetch2(const std::string &name,
     outputWidth(params.decodeInputWidth),
     processMoreThanOneInput(params.fetch2CycleInput),
     branchPredictor(*params.branchPred),
+    vector(vector),
     fetchInfo(params.numThreads),
     threadPriority(0)
 {
@@ -610,6 +613,10 @@ Fetch2::createDynInst(InstId fetch_line_id, InstSeqNum fetch_seq_num,
 
     dyn_inst->pc = pc;
     DPRINTF(Fetch, "decoder inst %s\n", *dyn_inst);
+
+    // remember the last streamSeqNum if ever become vector slave b/c important
+    // for an check in execute
+    vector->updateStreamSeqNum(fetch_line_id.streamSeqNum);
 
 
     if (decoded_inst) {

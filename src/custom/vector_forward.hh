@@ -155,6 +155,14 @@ class VectorForward : public Named {
     
     // communication channel between fetch2 and vector
     std::vector<Minor::InputBuffer<Minor::ForwardVectorData>> _inputBuffer;
+    
+    // remember the last stream seq num. 
+    // this is how many branches there has been?
+    InstSeqNum _lastStreamSeqNum;
+    
+  public:
+    // TEMP?
+    void updateStreamSeqNum(InstSeqNum seqNum) { _lastStreamSeqNum = seqNum; };
   
 };
 
