@@ -1582,6 +1582,10 @@ Execute::evaluate()
     /* Make sure the input (if any left) is pushed */
     if (!inp.outputWire->isBubble())
         inputBuffer[inp.outputWire->threadId].pushTail();
+        
+    // mark that this is going to be stalled so we dont send any mesh packets
+    // this cycle
+    _becomingStalled = becoming_stalled;
 }
 
 ThreadID

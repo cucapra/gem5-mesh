@@ -334,6 +334,35 @@ ForwardVectorData::reportData(std::ostream &os) const
 }
  
  
+//////
+
+MeshPacketData::MeshPacketData(PacketPtr pkt)
+{
+    this->pkt = pkt;
+}
+
+MeshPacketData::MeshPacketData(const MeshPacketData &src)
+{
+    *this = src;
+}
+
+bool
+MeshPacketData::isBubble() const
+{
+    return (pkt == nullptr);
+}
+
+void
+MeshPacketData::bubbleFill()
+{
+    pkt = nullptr;
+}
+
+void
+MeshPacketData::reportData(std::ostream &os) const
+{
+}
+ 
  
 
 

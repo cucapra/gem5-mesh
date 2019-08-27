@@ -319,6 +319,33 @@ class ForwardVectorData /* : public ReportIF, public BubbleIF */
     void reportData(std::ostream &os) const;
 };
 
+/** Data for queues/regs between mesh nodes */
+class MeshPacketData /* : public ReportIF, public BubbleIF */
+{
+  public:
+    /** mesh packet */
+    PacketPtr pkt;
+
+  public:
+    explicit MeshPacketData(PacketPtr pkt);
+
+    MeshPacketData(const MeshPacketData &src);
+
+  public:
+
+    /** Fill with bubbles */
+    void bubbleFill();
+
+    /** BubbleIF interface */
+    bool isBubble() const;
+
+    /** ReportIF interface */
+    void reportData(std::ostream &os) const;
+    
+    /** get the stored packet */
+    PacketPtr getPacket() const { return pkt; }
+};
+
 
 
 }

@@ -77,7 +77,7 @@ Pipeline::Pipeline(MinorCPU &cpu_, MinorCPUParams &params) :
         f2ToD.output(), vfToD.output(), dToE.input(), execute.inputBuffer),
         
     vector(cpu.name() + ".vector", cpu, params, 
-        vfToD.input(), decode.inputBuffer),
+        vfToD.input(), decode.inputBuffer, [&] () { return execute.stalledThisCycle(); }),
         
     fetch2(cpu.name() + ".fetch2", cpu, params,
         f1ToF2.output(), eToF1.output(), f2ToF1.input(), f2ToD.input(),

@@ -6,6 +6,8 @@
 #define PROTOCOL(active, val, rdy) \
   (active && val && rdy) || (!active)
 
+#define MESH_QUEUE_SLOTS 1
+
 /*----------------------------------------------------------------------
  * Define mesh master port behavior
  *--------------------------------------------------------------------*/ 
@@ -14,8 +16,7 @@
 ToMeshPort::ToMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx)
         : MasterPort(
           _cpu->name() + ".mesh_out_port" + csprintf("[%d]", idx), _cpu), 
-          cpu(_cpu), idx(idx), val(false), active(NONE), 
-          stalledPkt(nullptr), vec(vec)
+          cpu(_cpu), idx(idx), val(false), active(NONE), vec(vec)
     { }
 
 // if you want to send a packet, used <MasterPort_Inst>.sendTimingReq(pkt);
@@ -89,29 +90,6 @@ ToMeshPort::setValIfActive(bool val, SensitiveStage stage) {
   }
 }
 
-// deprecated
-/*void
-ToMeshPort::failToSend(PacketPtr pkt) {
-  // assert not rdy
-  cpu->resetRdy();
-  
-  // store this packet to be used later
-  stalledPkt = pkt;
-}
-
-// deprecated
-void
-ToMeshPort::beginToSend() {
-  // if there is a stalled packet lets send that now
-  if (stalledPkt) {
-    sendTimingReq(stalledPkt);
-    stalledPkt = nullptr;
-  }
-  
-  cpu->setVal();
-  cpu->setRdy();
-}*/
-
 /*----------------------------------------------------------------------
  * Define mesh slave port behavior
  *--------------------------------------------------------------------*/ 
@@ -122,7 +100,8 @@ FromMeshPort::FromMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx)
           _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), _cpu), 
           cpu(_cpu), idx(idx), recvPkt_d(nullptr), recvEvent([this] { process(); }, name()), 
           wakeupCPUEvent([this] { tryUnblockCPU(); }, name()), 
-          recvPkt(nullptr), cyclePktRecv(0), rdy(false), active(NONE), vec(vec)
+          rdy(false), active(NONE), _meshQueue(name(), "pkt", MESH_QUEUE_SLOTS), 
+          vec(vec)
     { 
       //DPRINTF(Mesh, "init %d %d %ld %ld\n", rdy, active, (uint64_t)recvPkt, (uint64_t)this);
       //DPRINTF(Mesh, "init idx %d\n", idx);
@@ -200,7 +179,7 @@ FromMeshPort::getAddrRanges() const {
 // get recv pkts
 PacketPtr
 FromMeshPort::getPacket() {
-  if (recvPkt == nullptr) {
+  /*if (recvPkt == nullptr) {
     DPRINTF(Mesh, "[[WARNING]] Did not recv packet\n");
     return nullptr;
   }
@@ -215,10 +194,18 @@ FromMeshPort::getPacket() {
   // destructive read on packet
   recvPkt = nullptr;
   
-  // this might update val/rdy interface
-  //cpu->informNeighbors();
+  return curPacket;*/
   
-  return curPacket;
+  PacketPtr pkt = nullptr;
+  if (pktExists()) {
+    pkt = _meshQueue.front().getPacket();
+    _meshQueue.pop();
+  }
+  else {
+    DPRINTF(Mesh, "[[WARNING]] No packet available\n");
+  }
+  
+  return pkt;
 }
 
 
@@ -247,24 +234,28 @@ FromMeshPort::getPacketData() {
 
 void
 FromMeshPort::setPacket(PacketPtr pkt) {
-  if (recvPkt != nullptr) {
+  /*if (recvPkt != nullptr) {
     DPRINTF(Mesh, "[[WARNING]] Overwrite packet %#x in port %d\n", recvPkt->getAddr(), idx);
   }
   
-  recvPkt = pkt;
+  recvPkt = pkt;*/
   
-  // remember the time we recv the packet
-  //cyclePktRecv = cpu->clockEdge();
-  
-  // schedule a wakeup event on the next cycle to try to run with this
-  // pkt
-  //cpu->schedule(wakeupCPUEvent, cpu->clockEdge(Cycles(1)));
+  // push packet onto a 2 element queue to be stall-proof
+  if (_meshQueue.canReserve()) {
+    auto pktData = Minor::MeshPacketData(pkt);
+    _meshQueue.push(pktData);
+  }
+  else {
+    DPRINTF(Mesh, "[[WARNING]] Dropping packet %#x in port %d\n", 
+      pkt->getAddr(), idx);
+  }
 }
 
 bool
 FromMeshPort::pktExists() { 
   //return ((recvPkt != nullptr) && (cyclePktRecv < cpu->clockEdge()));
-  return recvPkt != nullptr;
+  //return recvPkt != nullptr;
+  return !_meshQueue.empty();
 }
 
 void

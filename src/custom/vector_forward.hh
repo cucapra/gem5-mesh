@@ -12,6 +12,8 @@
  * zero cycle communication can be resolved (as in pipeline.cc)
  */ 
 
+#include <functional>
+
 #include "cpu/minor/buffers.hh"
 #include "cpu/minor/cpu.hh"
 #include "cpu/minor/pipe_data.hh"
@@ -27,7 +29,8 @@ class VectorForward : public Named {
         MinorCPU &cpu,
         MinorCPUParams &params,
         Minor::Latch<Minor::ForwardInstData>::Input out,
-        std::vector<Minor::InputBuffer<Minor::ForwardInstData>> &nextStageReserve)
+        std::vector<Minor::InputBuffer<Minor::ForwardInstData>> &nextStageReserve,
+        std::function<bool()> backStall)
       ;
   
     // MinorDynInstPtr from Fetch2?
@@ -159,6 +162,9 @@ class VectorForward : public Named {
     // remember the last stream seq num. 
     // this is how many branches there has been?
     InstSeqNum _lastStreamSeqNum;
+    
+    // channel to detect is stalled on this cycle
+    std::function<bool()> _checkExeStall;
     
   public:
     // TEMP?

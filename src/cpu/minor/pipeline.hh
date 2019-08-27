@@ -86,6 +86,8 @@ class Pipeline : public Ticked
     
     // vector unit to decode
     Latch<ForwardInstData> vfToD;
+    // fetch2 to vector
+    //Latch<ForwardInstData> f2ToV;
 
     Execute execute;
     Decode decode;

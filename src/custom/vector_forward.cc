@@ -8,7 +8,8 @@ VectorForward::VectorForward(const std::string &name,
   MinorCPU &cpu,
   MinorCPUParams &p,
   Minor::Latch<Minor::ForwardInstData>::Input out,
-  std::vector<Minor::InputBuffer<Minor::ForwardInstData>> &nextStageReserve) : 
+  std::vector<Minor::InputBuffer<Minor::ForwardInstData>> &nextStageReserve,
+  std::function<bool()> backStall) : 
         
     Named(name),
     _cpu(cpu),
@@ -18,7 +19,8 @@ VectorForward::VectorForward(const std::string &name,
     _numOutPortsActive(0),
     _stage(FETCH),
     _fsm(std::make_shared<EventDrivenFSM>(this, &_cpu, _stage)),
-    _curCsrVal(0)
+    _curCsrVal(0),
+    _checkExeStall(backStall)
 {
   // 
   // declare vector ports
@@ -72,6 +74,12 @@ VectorForward::evaluate() {
   bool canGo = _fsm->isMeshActive();
   
   // TODO need to check for stalls in the local pipeline!
+  // decode ticks first so accurate stall info here
+  // need to factor this into state machine
+  int tid = 0;
+  bool decodeStall = !_nextStageReserve[tid].canReserve();
+  canGo = canGo & !decodeStall;
+  
   
   if (canGo) {
     DPRINTF(Mesh, "vector unit going\n");

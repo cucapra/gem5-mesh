@@ -9,6 +9,8 @@
 #include "mem/port.hh"
 #include "mem/packet.hh"
 #include "sim/clocked_object.hh"
+#include "cpu/minor/buffers.hh"
+#include "cpu/minor/pipe_data.hh"
 #include "custom/mesh_helper.hh"
 
 //resolve circular deps
@@ -42,12 +44,6 @@ class ToMeshPort : public MasterPort {
     
     // call tryUnblock() in cpu attach to slave port of this
     void tryUnblockNeighbor();
-    
-    // buffer pkt and inform we're not ready
-    //void failToSend(PacketPtr pkt);
-    
-    // release the pkt and inform we are now ready
-    //void beginToSend();
 
   protected:
 
@@ -68,10 +64,6 @@ class ToMeshPort : public MasterPort {
     // whether this port is used and should assert val when packet 
     // available
     SensitiveStage active;
-    
-    // packet stored in register that can't be sent yet due to val/rdy
-    // requires additional enable reg and 2-1 mux
-    PacketPtr stalledPkt;
     
     VectorForward *vec;
     
@@ -132,15 +124,6 @@ class FromMeshPort : public SlavePort {
     EventFunctionWrapper wakeupCPUEvent;
     void process();
     
-    // store the most recently received packet (in a single register)
-    PacketPtr recvPkt;
-    
-    // the packet can't be used until the cycle after its received
-    // but can't communicate this with 1 cycle delay event b/c have
-    // to send at the end of the previous clock cycle to be available
-    // to every event on the next cycle
-    uint64_t cyclePktRecv;
-    
     // setter, if there is an unused packet already present
     // we should drop and inform of the lost packet
     void setPacket(PacketPtr pkt);
@@ -150,6 +133,18 @@ class FromMeshPort : public SlavePort {
     
     // this should go high when the core is rdy
     SensitiveStage active;
+    
+    // we need to enqueue packets into a two-slot queue to handle
+    // stalls in the pipeline. this replaces the single register being
+    // used previously
+    // if were willing to except long wires, then could have a global
+    // stall signal in which wouldn't need the second register slot.
+    // if not willing need 2x as many registers in the systolic net...
+    // overhead? potentially can have a hybrid approach where have queues
+    // every 4x4 tiles and lets wires expand within the 4x4 tile group
+    // doesn't change performance just reduces the number of queue registers
+    // while not blowing up cycle time
+    Minor::Queue<Minor::MeshPacketData> _meshQueue;
     
     //std::queue<PacketPtr> _pktQueue;
     
