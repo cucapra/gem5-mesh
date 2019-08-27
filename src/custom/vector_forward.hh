@@ -83,6 +83,10 @@ class VectorForward : public Named {
     
     // set appropriate mesh node ports as valid
     void setVal(bool val);
+    
+    // check if the next stage is stalled or not
+    // really just check the decode stage for this (propagated from execute?)
+    bool isNextStageStalled();
   
     // the communication channel between fetch2 and vector
     std::vector<Minor::InputBuffer<Minor::ForwardVectorData>>& getInputBuf();

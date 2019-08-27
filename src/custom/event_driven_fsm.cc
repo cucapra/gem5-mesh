@@ -154,6 +154,9 @@ EventDrivenFSM::stateOutput() {
     case WAIT_MESH_VAL: {
       return Outputs_t(true, false);
     }
+    case BEGIN_STALL: {
+      return Outputs_t(false, true);
+    }
     default: {
       return Outputs_t(false, false);
     }
@@ -179,6 +182,7 @@ EventDrivenFSM::pendingNextState() {
   bool inVal = getInVal();
   bool outRdy = getOutRdy();
   bool configured = getConfigured();
+  bool stalled = getStalled();
   
   // fully connected state machine?
   /*if (inVal && outRdy) return SENDING;
@@ -194,34 +198,20 @@ EventDrivenFSM::pendingNextState() {
       else return IDLE;
     }
     case BEGIN_SEND: {
-      return meshState(RUNNING_BIND, inVal, outRdy);
+      if (stalled) return BEGIN_STALL;
+      else return meshState(RUNNING_BIND, inVal, outRdy);
     }
     case RUNNING_BIND: {
-      return meshState(RUNNING_BIND, inVal, outRdy);
+      if (stalled) return BEGIN_STALL;
+      else return meshState(RUNNING_BIND, inVal, outRdy);
     }
-    /*case WAIT_DATA_RESP: {
-      if (_inputs.dataResp) {
-        return meshState(BEGIN_SEND, inVal, outRdy);
-      }
-      else {
-        return WAIT_DATA_RESP;
-      }
+    case BEGIN_STALL: {
+      if (stalled) return WAIT_MESH_VALRDY;
+      else return meshState(BEGIN_SEND, inVal, outRdy);
     }
-    // this one needs work, on resp tries the send, so shouldnt
-    // do again here
-    case WAIT_INST_RESP: {
-      if (_inputs.instResp && outRdy) {
-        return meshState(BEGIN_SEND, inVal, outRdy);
-      }
-      else if (_inputs.instResp) {
-        return meshState(WAIT_MESH_RDY, inVal, outRdy);
-      }
-      else {
-        return WAIT_INST_RESP;
-      }
-    }*/
     default: {
-      return meshState(BEGIN_SEND, inVal, outRdy);
+      if (stalled) return WAIT_MESH_VALRDY;
+      else return meshState(BEGIN_SEND, inVal, outRdy);
     }
   }
   
@@ -276,6 +266,11 @@ EventDrivenFSM::getOutRdy() {
 }
 
 bool
+EventDrivenFSM::getStalled() {
+  return _vec->isNextStageStalled();
+}
+
+bool
 EventDrivenFSM::getConfigured() {
   return _vec->getNumPortsActive() > 0;
 }
@@ -295,17 +290,14 @@ EventDrivenFSM::stateToStr(State state) {
     case WAIT_MESH_VAL: {
       return "WAIT_MESH_VAL";
     }
-    case WAIT_DATA_RESP: {
-      return "WAIT_DATA_RESP";
-    }
-    case WAIT_INST_RESP: {
-      return "WAIT_INST_RESP";
-    }
     case RUNNING_BIND: {
       return "RUNNING_BIND";
     }
     case BEGIN_SEND: {
       return "BEGIN_SEND";
+    }
+    case BEGIN_STALL: {
+      return "BEGIN_STALL";
     }
     default: {
       return "NONE";

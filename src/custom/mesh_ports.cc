@@ -6,7 +6,7 @@
 #define PROTOCOL(active, val, rdy) \
   (active && val && rdy) || (!active)
 
-#define MESH_QUEUE_SLOTS 1
+#define MESH_QUEUE_SLOTS 2
 
 /*----------------------------------------------------------------------
  * Define mesh master port behavior

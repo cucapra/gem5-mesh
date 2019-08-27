@@ -73,14 +73,6 @@ VectorForward::evaluate() {
   // check for instruction from mesh
   bool canGo = _fsm->isMeshActive();
   
-  // TODO need to check for stalls in the local pipeline!
-  // decode ticks first so accurate stall info here
-  // need to factor this into state machine
-  int tid = 0;
-  bool decodeStall = !_nextStageReserve[tid].canReserve();
-  canGo = canGo & !decodeStall;
-  
-  
   if (canGo) {
     DPRINTF(Mesh, "vector unit going\n");
     // pull instruction from the mesh or from the local fetch stage
@@ -465,6 +457,13 @@ VectorForward::popFetchInput(ThreadID tid) {
     //_inputBuffer[tid].front().freeLine();
     _inputBuffer[tid].pop();
   }
+}
+
+bool
+VectorForward::isNextStageStalled() {
+  int tid = 0;
+  bool decodeStall = !_nextStageReserve[tid].canReserve();
+  return decodeStall;
 }
 
 

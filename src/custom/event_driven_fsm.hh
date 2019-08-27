@@ -56,8 +56,9 @@ class EventDrivenFSM {
       WAIT_MESH_RDY,
       //WAIT_MESH_RDY_WITH_INST,
       //WAIT_ON_REQ
-      WAIT_INST_RESP,
-      WAIT_DATA_RESP
+      //WAIT_INST_RESP,
+      //WAIT_DATA_RESP
+      BEGIN_STALL
     } State;
     
   private:
@@ -87,6 +88,7 @@ class EventDrivenFSM {
     bool getInVal();
     bool getOutRdy();
     bool getConfigured();
+    bool getStalled();
     
     // find the next state for the given inptus statemachine
     State pendingNextState();
