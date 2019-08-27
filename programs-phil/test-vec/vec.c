@@ -39,7 +39,8 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       ALL_NORM,
       0,
       
-      "add %[a0], %[a], %[b]\n\t"
+      "add x29, %[a], %[b]\n\t"
+      "add %[a0], x29, %[b]\n\t"
       ,
       [a0] "=r" (rd)
       ,
@@ -52,7 +53,8 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       ALL_NORM,
       1,
       
-      "add %[a0], %[a], %[b]\n\t"
+      "add x29, %[a], %[b]\n\t"
+      "add %[a0], x29, %[b]\n\t"
       ,
       [a0] "=r" (rd)
       ,
@@ -65,7 +67,8 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       ALL_NORM,
       2,
       
-      "add %[a0], %[a], %[b]\n\t"
+      "add x29, %[a], %[b]\n\t"
+      "add %[a0], x29, %[b]\n\t"
       ,
       [a0] "=r" (rd)
       ,
@@ -78,7 +81,8 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       ALL_NORM,
       3,
       
-      "add %[a0], %[a], %[b]\n\t"
+      "add x29, %[a], %[b]\n\t"
+      "add %[a0], x29, %[b]\n\t"
       ,
       [a0] "=r" (rd)
       ,
