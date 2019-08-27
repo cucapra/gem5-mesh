@@ -23,6 +23,9 @@ void *vec_pthread(void *args) {
   vec(tid_x, tid_y, dim_x, dim_y);
 }
 
+// some data to use in lw instructions
+int mem[4] = { 10, 100, 1000, 10000 };
+
 void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
   
   // TODO want binded section around normal c code!
@@ -30,8 +33,9 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
   int op0 = tid_x + 1;
   int op1 = tid_y + 1;
   int rd = 0;
+  int *virtualMemAddr = &(mem[tid_x + tid_y * dim_x]);
   
-  printf("tid_x %d tid_y %d\n", tid_x, tid_y);
+  printf("tid_x %d tid_y %d dim_x %d dim_y %d\n", tid_x, tid_y, dim_x, dim_y);
   
   if (tid_x == 0 && tid_y == 0) {
     BINDED_FET_SECTION(
@@ -40,11 +44,12 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       0,
       
       "add x29, %[a], %[b]\n\t"
-      "add %[a0], x29, %[b]\n\t"
+      "lw x30, 0(%[m0])\n\t"
+      "add %[a0], x29, x30\n\t"
       ,
       [a0] "=r" (rd)
       ,
-      COMMA [a] "r" (op0) COMMA [b] "r" (op1)
+      COMMA [a] "r" (op0) COMMA [b] "r" (op1) COMMA [m0] "r" (virtualMemAddr)
     );
   }
   else if (tid_x == 1 && tid_y == 0) {
@@ -54,11 +59,12 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       1,
       
       "add x29, %[a], %[b]\n\t"
-      "add %[a0], x29, %[b]\n\t"
+      "lw x30, 0(%[m0])\n\t"
+      "add %[a0], x29, x30\n\t"
       ,
       [a0] "=r" (rd)
       ,
-      COMMA [a] "r" (op0) COMMA [b] "r" (op1)
+      COMMA [a] "r" (op0) COMMA [b] "r" (op1) COMMA [m0] "r" (virtualMemAddr)
     );
   }
   else if (tid_x == 0 && tid_y == 1) {
@@ -68,11 +74,12 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       2,
       
       "add x29, %[a], %[b]\n\t"
-      "add %[a0], x29, %[b]\n\t"
+      "lw x30, 0(%[m0])\n\t"
+      "add %[a0], x29, x30\n\t"
       ,
       [a0] "=r" (rd)
       ,
-      COMMA [a] "r" (op0) COMMA [b] "r" (op1)
+      COMMA [a] "r" (op0) COMMA [b] "r" (op1) COMMA [m0] "r" (virtualMemAddr)
     );
   }
   else if (tid_x == 1 && tid_y == 1) {
@@ -82,11 +89,12 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       3,
       
       "add x29, %[a], %[b]\n\t"
-      "add %[a0], x29, %[b]\n\t"
+      "lw x30, 0(%[m0])\n\t"
+      "add %[a0], x29, x30\n\t"
       ,
       [a0] "=r" (rd)
       ,
-      COMMA [a] "r" (op0) COMMA [b] "r" (op1)
+      COMMA [a] "r" (op0) COMMA [b] "r" (op1) COMMA [m0] "r" (virtualMemAddr)
     );
   }
   
