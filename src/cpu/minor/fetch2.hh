@@ -97,6 +97,9 @@ class Fetch2 : public Named
     
     /** Keep a reference to vector unit because might want to inferface*/
     VectorForward *vector;
+    
+    /** just used for as a debug flag */
+    int debug;
 
   public:
     /* Public so that Pipeline can pass it to Fetch1 */

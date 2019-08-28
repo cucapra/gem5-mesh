@@ -29,6 +29,7 @@ class EventDrivenFSM {
     // sensitivity list
     void neighborEvent();
     void configEvent();
+    void stallEvent();
     
     // check if can do stuff
     bool isMeshActive();
@@ -42,23 +43,23 @@ class EventDrivenFSM {
     
   private:
     typedef enum State {
+      // not participating in mesh
       IDLE,
-      /*RUNNING_UNBD,
-      RUNNING_BIND,
-      WAIT_INST_MEM_UNBD,
-      WAIT_DATA_MEM_UNBD,
-      WAIT_INST_MEM_BIND,
-      WAIT_DATA_MEM_BIND,*/
+      // starting to run, self val next cycle, rdy this cycle
       BEGIN_SEND,
+      // actively running, val and rdy
       RUNNING_BIND,
+      // waiting on all neighbors
       WAIT_MESH_VALRDY,
+      // waiting on neighbors to be val, neighbors are rdy
       WAIT_MESH_VAL,
+      // waiting on neighbors to be rdy, neighbors are val
       WAIT_MESH_RDY,
-      //WAIT_MESH_RDY_WITH_INST,
-      //WAIT_ON_REQ
-      //WAIT_INST_RESP,
-      //WAIT_DATA_RESP
-      BEGIN_STALL
+      // we are beginning stall this cycle, b/c active neighbor went !rdy
+      // but we still sent a packet last cycle so need to assert val
+      BEGIN_STALL_VAL,
+      // we stalled due to the internal core pipeline, next packet won't be val
+      STALL_NOT_VAL
     } State;
     
   private:
@@ -88,7 +89,7 @@ class EventDrivenFSM {
     bool getInVal();
     bool getOutRdy();
     bool getConfigured();
-    bool getStalled();
+    bool getInternalStall();
     
     // find the next state for the given inptus statemachine
     State pendingNextState();

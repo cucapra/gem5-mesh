@@ -38,6 +38,13 @@ EventDrivenFSM::configEvent() {
   sensitiveUpdate();
 }
 
+void
+EventDrivenFSM::stallEvent() {
+  DPRINTF(Mesh, "%s stall update\n", _cpu->name());
+  
+  sensitiveUpdate();
+}
+
 /*----------------------------------------------------------------------
  * 
  *--------------------------------------------------------------------*/
@@ -154,8 +161,11 @@ EventDrivenFSM::stateOutput() {
     case WAIT_MESH_VAL: {
       return Outputs_t(true, false);
     }
-    case BEGIN_STALL: {
+    case BEGIN_STALL_VAL: {
       return Outputs_t(false, true);
+    }
+    case STALL_NOT_VAL: {
+      return Outputs_t(false, false);
     }
     default: {
       return Outputs_t(false, false);
@@ -182,7 +192,7 @@ EventDrivenFSM::pendingNextState() {
   bool inVal = getInVal();
   bool outRdy = getOutRdy();
   bool configured = getConfigured();
-  bool stalled = getStalled();
+  bool stalled = getInternalStall();
   
   // fully connected state machine?
   /*if (inVal && outRdy) return SENDING;
@@ -198,19 +208,24 @@ EventDrivenFSM::pendingNextState() {
       else return IDLE;
     }
     case BEGIN_SEND: {
-      if (stalled) return BEGIN_STALL;
-      else return meshState(RUNNING_BIND, inVal, outRdy);
+      if (stalled) return BEGIN_STALL_VAL;
+      else if (inVal && outRdy) return RUNNING_BIND;
+      else return BEGIN_STALL_VAL;
     }
     case RUNNING_BIND: {
-      if (stalled) return BEGIN_STALL;
-      else return meshState(RUNNING_BIND, inVal, outRdy);
+      if (stalled) return BEGIN_STALL_VAL;
+      else if (inVal && outRdy) return RUNNING_BIND;
+      else return BEGIN_STALL_VAL;
     }
-    case BEGIN_STALL: {
-      if (stalled) return WAIT_MESH_VALRDY;
+    case BEGIN_STALL_VAL: {
+      if (stalled) return STALL_NOT_VAL;
       else return meshState(BEGIN_SEND, inVal, outRdy);
     }
+    /*case STALL_NOT_VAL: {
+      
+    }*/
     default: {
-      if (stalled) return WAIT_MESH_VALRDY;
+      if (stalled) return STALL_NOT_VAL;
       else return meshState(BEGIN_SEND, inVal, outRdy);
     }
   }
@@ -266,8 +281,8 @@ EventDrivenFSM::getOutRdy() {
 }
 
 bool
-EventDrivenFSM::getStalled() {
-  return _vec->isNextStageStalled();
+EventDrivenFSM::getInternalStall() {
+  return _vec->isInternallyStalled();
 }
 
 bool
@@ -296,8 +311,11 @@ EventDrivenFSM::stateToStr(State state) {
     case BEGIN_SEND: {
       return "BEGIN_SEND";
     }
-    case BEGIN_STALL: {
-      return "BEGIN_STALL";
+    case BEGIN_STALL_VAL: {
+      return "BEGIN_STALL_VAL";
+    }
+    case STALL_NOT_VAL: {
+      return "STALL_NOT_VAL";
     }
     default: {
       return "NONE";

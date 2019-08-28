@@ -37,7 +37,40 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
   
   printf("tid_x %d tid_y %d dim_x %d dim_y %d\n", tid_x, tid_y, dim_x, dim_y);
   
+  
   if (tid_x == 0 && tid_y == 0) {
+    BINDED_FET_SECTION(
+      FET_O_INST_RIGHT_SEND,
+      ALL_NORM,
+      0,
+      
+      "add x29, %[a], %[b]\n\t"
+      "lw x30, 0(%[m0])\n\t"
+      "add %[a0], x29, x30\n\t"
+      ,
+      [a0] "=r" (rd)
+      ,
+      COMMA [a] "r" (op0) COMMA [b] "r" (op1) COMMA [m0] "r" (virtualMemAddr)
+    );
+  }
+  else if (tid_x == 1 && tid_y == 0) {
+    BINDED_FET_SECTION(
+      FET_I_INST_LEFT,
+      ALL_NORM,
+      1,
+      
+      "add x29, %[a], %[b]\n\t"
+      "lw x30, 0(%[m0])\n\t"
+      "add %[a0], x29, x30\n\t"
+      ,
+      [a0] "=r" (rd)
+      ,
+      COMMA [a] "r" (op0) COMMA [b] "r" (op1) COMMA [m0] "r" (virtualMemAddr)
+    );
+  }
+  
+  
+  /*if (tid_x == 0 && tid_y == 0) {
     BINDED_FET_SECTION(
       FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND,
       ALL_NORM,
@@ -96,7 +129,7 @@ void vec(int tid_x, int tid_y, int dim_x, int dim_y) {
       ,
       COMMA [a] "r" (op0) COMMA [b] "r" (op1) COMMA [m0] "r" (virtualMemAddr)
     );
-  }
+  }*/
   
   printf("(%d, %d): %d\n", tid_x, tid_y, rd);
   

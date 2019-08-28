@@ -84,9 +84,8 @@ class VectorForward : public Named {
     // set appropriate mesh node ports as valid
     void setVal(bool val);
     
-    // check if the next stage is stalled or not
-    // really just check the decode stage for this (propagated from execute?)
-    bool isNextStageStalled();
+    // check if we need to stall due to the internal pipeline
+    bool isInternallyStalled();
   
     // the communication channel between fetch2 and vector
     std::vector<Minor::InputBuffer<Minor::ForwardVectorData>>& getInputBuf();
@@ -131,6 +130,12 @@ class VectorForward : public Named {
     
     // mark the fetch2 input as processed so that it can push more stuff
     void popFetchInput(ThreadID tid);
+    
+    // check if there is a new internal stall this cycle from fetch2 or decode
+    void processInternalStalls();
+    
+    // check if this stage can proceed
+    bool shouldStall();
      
   protected:
     
@@ -169,6 +174,13 @@ class VectorForward : public Named {
     
     // channel to detect is stalled on this cycle
     std::function<bool()> _checkExeStall;
+    
+    // if stalled last cycle
+    bool _wasStalled;
+    
+    // do we receive input this cycle, buffer will be cleared before state 
+    // machine will check so need to save
+    bool _internalInputThisCycle;
     
   public:
     // TEMP?

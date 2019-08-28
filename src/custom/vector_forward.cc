@@ -20,7 +20,9 @@ VectorForward::VectorForward(const std::string &name,
     _stage(FETCH),
     _fsm(std::make_shared<EventDrivenFSM>(this, &_cpu, _stage)),
     _curCsrVal(0),
-    _checkExeStall(backStall)
+    _checkExeStall(backStall),
+    _wasStalled(false),
+    _internalInputThisCycle(false)
 {
   // 
   // declare vector ports
@@ -54,6 +56,9 @@ VectorForward::VectorForward(const std::string &name,
 void
 VectorForward::evaluate() {
   
+  // hack so when we call this, we still have this information on state transition
+  _internalInputThisCycle = !_inputBuffer[0].empty();
+  
   // check the state of the fsm (dont need async updates like before)
   // because minor has cycle by cycle ticks unlike TimingSimpleCPU
   bool update = _fsm->tick();
@@ -70,8 +75,12 @@ VectorForward::evaluate() {
     informNeighbors();
   }
   
-  // check for instruction from mesh
-  bool canGo = _fsm->isMeshActive();
+  // if there was an internal stall either due to last stage or next stage
+  // we need to make sure to schedule state machine update for the next cycle
+  processInternalStalls();
+  
+  // check if the current processor state allows us to go
+  bool canGo = !shouldStall();
   
   if (canGo) {
     DPRINTF(Mesh, "vector unit going\n");
@@ -447,6 +456,7 @@ VectorForward::getFetchInput(ThreadID tid) {
     auto msg = &(_inputBuffer[tid].front());
     return msg->machInst;
   } else {
+    // if there was nothing from fetch just push a nop???
     return 0;
   }
 }
@@ -460,11 +470,57 @@ VectorForward::popFetchInput(ThreadID tid) {
 }
 
 bool
-VectorForward::isNextStageStalled() {
+VectorForward::isInternallyStalled() {
   int tid = 0;
   bool decodeStall = !_nextStageReserve[tid].canReserve();
-  return decodeStall;
+  
+  // the stall depends on whether this is a slave or not (has an indest)
+  // TODO can vector just do all of the forwarding into fetch2?
+  // then don't need to distinguish the stalls here
+  // note you can be both a master and a slave under defs that master
+  // sends at least, once and slave sends at least once
+  bool recver = MeshHelper::isVectorSlave(_curCsrVal);
+  bool sender = MeshHelper::isVectorMaster(_curCsrVal);
+  
+  // we care about this if we are going to push into that stage (vec slave)
+  bool recverStall = recver && decodeStall;
+  
+  // there was no input from fetch2
+  // employ hack were use the input buffer at the beginning of the eval
+  // to be the one used for check
+  bool senderStall = sender && !recver && !_internalInputThisCycle;
+  
+  bool stall = recverStall || senderStall;
+  if (stall) {
+    DPRINTF(Mesh, "internal stall: rs %d ss %d r %d s %d dec %d in %d\n", 
+      recverStall, senderStall, recver, sender, decodeStall, _internalInputThisCycle);
+  }
+  
+  return stall;
 }
 
+
+void
+VectorForward::processInternalStalls() {
+  bool justStalled = isInternallyStalled();
+  
+  if (_wasStalled ^ justStalled) {
+    _fsm->stallEvent();
+  }
+  
+  _wasStalled = justStalled;
+}
+
+bool
+VectorForward::shouldStall() {
+  // check for instruction from mesh
+  bool meshOk = _fsm->isMeshActive();
+  
+  // check if local decode is open to get new input or is stalled
+  bool nextStageOk = !isInternallyStalled();
+  bool canGo = meshOk && nextStageOk;
+  
+  return !canGo;
+}
 
 

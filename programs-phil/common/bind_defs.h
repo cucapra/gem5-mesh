@@ -77,6 +77,10 @@
     "nop\n\t"                                               \
     "nop\n\t"                                               \
     "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
     code                                                    \
     ".insn u 0x7b, x28, %[ebind0]\n\t"                      \
     "nop\n\t"                                               \

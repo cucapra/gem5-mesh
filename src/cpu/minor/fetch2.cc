@@ -76,7 +76,7 @@ Fetch2::Fetch2(const std::string &name,
     outputWidth(params.decodeInputWidth),
     processMoreThanOneInput(params.fetch2CycleInput),
     branchPredictor(*params.branchPred),
-    vector(vector),
+    vector(vector), debug(0),
     fetchInfo(params.numThreads),
     threadPriority(0)
 {
@@ -411,7 +411,6 @@ Fetch2::evaluate()
         inputBuffer[inp.outputWire->id.threadId].pushTail();
 }
 
-
 void
 Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
     
@@ -422,9 +421,24 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
         insts_out.resize(outputWidth);
     }
     
-    //DPRINTF(Mesh, "%s\n", *dyn_inst);
+    /*if (debug == 1) {
+        DPRINTF(Mesh, "%s\n", *dyn_inst);
+    }*/
     
-    if (dyn_inst->staticInst->isBind()) DPRINTF(Mesh, "saw bind\n");
+    if (dyn_inst->staticInst->isBind()) { 
+        debug = ( debug + 1 ) % 2;
+        DPRINTF(Mesh, "saw bind\n");
+        
+        // write fetch csr here?
+        // less nops and delay, but might be issue with squashing the pipeline
+        // on exception or branch...
+        // would need a way to revert architectural state, but may have already
+        // sent a packet to another core and hard to revert that!
+        //ExecContext context(cpu, *cpu.threads[thread_id], *this /*execute*/, inst);
+        //fault = inst->staticInst->execute(&context,
+        //    inst->traceData);
+        
+    }
     
     /* Pack the generated dynamic instruction into the output */
     insts_out.insts[output_index] = dyn_inst;
