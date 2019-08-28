@@ -88,6 +88,9 @@
     "nop\n\t"                                               \
     "nop\n\t"                                               \
     "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
     "label" #id ":\n\t"                                     \
     : wr                                                    \
     : [sbind0] "i" (sbind), [ebind0] "i" (ebind) rd         \

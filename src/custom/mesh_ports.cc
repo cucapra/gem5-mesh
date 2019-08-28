@@ -146,6 +146,10 @@ FromMeshPort::recvTimingReq(PacketPtr pkt) {
     // try to unblock when recv a packet
     //cpu->tryUnblock(false);
 
+    // inform there is local activity and should wakeup entire pipeline to try
+    // stuff on the next cycle
+    cpu->activityRecorder->activity();
+
     return true;
 }
 
@@ -244,6 +248,7 @@ FromMeshPort::setPacket(PacketPtr pkt) {
   if (_meshQueue.canReserve()) {
     auto pktData = Minor::MeshPacketData(pkt);
     _meshQueue.push(pktData);
+    DPRINTF(Mesh, "set packet, size now %d\n", _meshQueue.occupiedSpace());
   }
   else {
     DPRINTF(Mesh, "[[WARNING]] Dropping packet %#x in port %d\n", 

@@ -26,21 +26,21 @@ EventDrivenFSM::EventDrivenFSM(VectorForward *vec, MinorCPU *cpu, SensitiveStage
  *--------------------------------------------------------------------*/
 void
 EventDrivenFSM::neighborEvent() {
-  DPRINTF(Mesh, "%s neighbor update\n", _cpu->name());
+  //DPRINTF(Mesh, "%s neighbor update\n", _cpu->name());
   
   sensitiveUpdate();
 }
 
 void
 EventDrivenFSM::configEvent() {
-  DPRINTF(Mesh, "%s config update\n", _cpu->name());
+  //DPRINTF(Mesh, "%s config update\n", _cpu->name());
   
   sensitiveUpdate();
 }
 
 void
 EventDrivenFSM::stallEvent() {
-  DPRINTF(Mesh, "%s stall update\n", _cpu->name());
+  //DPRINTF(Mesh, "%s stall update\n", _cpu->name());
   
   sensitiveUpdate();
 }
@@ -53,12 +53,12 @@ EventDrivenFSM::stallEvent() {
 // TODO do we even need a state machine or can just check val rdy before sending?
 bool
 EventDrivenFSM::isMeshActive() {
+  /*if (getConfigured()) {
+    DPRINTF(Mesh, "%s in %d out %d\n", _cpu->name(), getInVal(), getOutRdy());
+  }*/
   return 
-    ((getInVal() && getOutRdy()) && getConfigured())
-    //&& 
-    //((_state == RUNNING_BIND) || (_state == BEGIN_SEND))) 
-    
-    //|| (!getConfigured())
+    //((getInVal() && getOutRdy()) && getConfigured())
+    (_state == BEGIN_SEND || _state == RUNNING_BIND) && getInVal() && getOutRdy();
     ;
 }
 
@@ -259,6 +259,9 @@ EventDrivenFSM::stateTransition() {
   
   DPRINTF(Mesh, "%s %d on clk edge state %s -> %s\n", _cpu->name(), _stage, stateToStr(_oldState), stateToStr(_state));
 
+  // if there was a state transition we should try to update on the next cycle as well
+  tryScheduleUpdate();
+
 }
 
 void
@@ -267,7 +270,7 @@ EventDrivenFSM::stateOutputTransition() {
   _vec->setVal(newOutputs.val);
   _vec->setRdy(newOutputs.rdy);
   
-  DPRINTF(Mesh, "%s update output\n", _cpu->name());
+  DPRINTF(Mesh, "%s update output val %d rdy %d\n", _cpu->name(), newOutputs.val, newOutputs.rdy);
 }
 
 bool

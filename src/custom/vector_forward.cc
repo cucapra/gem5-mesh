@@ -83,7 +83,7 @@ VectorForward::evaluate() {
   bool canGo = !shouldStall();
   
   if (canGo) {
-    DPRINTF(Mesh, "vector unit going\n");
+    //DPRINTF(Mesh, "vector unit going\n");
     // pull instruction from the mesh or from the local fetch stage
     TheISA::MachInst instWord = pullInstruction();
   
@@ -345,8 +345,8 @@ VectorForward::getInVal() {
   
   for (int i = 0; i < _fromMeshPort.size(); i++) {
     if (_fromMeshPort[i].getActive() == _stage) {
-      //if (!_fromMeshPort[i].getPairVal()) allVal = false;
-      if (!_fromMeshPort[i].pktExists()) allVal = false;
+      if (!_fromMeshPort[i].getPairVal()) allVal = false;
+      //if (!_fromMeshPort[i].pktExists()) allVal = false;
     }
   }
   
@@ -405,7 +405,7 @@ VectorForward::neighborUpdate() {
 
 void
 VectorForward::informNeighbors() {
-  DPRINTF(Mesh, "notify neighbors\n");
+  //DPRINTF(Mesh, "notify neighbors\n");
   // go through mesh ports to get tryUnblock function called in neighbor cores
   for (int i = 0; i < _toMeshPort.size(); i++) {
     _toMeshPort[i].tryUnblockNeighbor();
