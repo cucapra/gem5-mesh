@@ -161,6 +161,17 @@ InputUnit::functionalWrite(Packet *pkt)
     return num_functional_writes;
 }
 
+bool
+InputUnit::functionalRead(Packet* pkt)
+{
+    for (int i=0; i < m_num_vcs; i++) {
+        if (m_vcs[i]->functionalRead(pkt)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 void
 InputUnit::resetStats()
 {

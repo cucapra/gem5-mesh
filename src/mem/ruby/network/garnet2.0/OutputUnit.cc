@@ -166,3 +166,9 @@ OutputUnit::functionalWrite(Packet *pkt)
 {
     return m_out_buffer->functionalWrite(pkt);
 }
+
+bool
+OutputUnit::functionalRead(Packet* pkt)
+{
+    return m_out_buffer->functionalRead(pkt);
+}

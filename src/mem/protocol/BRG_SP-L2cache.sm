@@ -1,0 +1,704 @@
+//-----------------------------------------------------------------------------
+// SP_LLC-cache.sm
+//-----------------------------------------------------------------------------
+// This models LLC cache
+//
+// Author: Tuan Ta
+// Date  : 19/07/03
+
+machine(MachineType:L2Cache, "SP LLC cache")
+    : CacheMemory* cacheMemory;
+      Cycles cache_resp_latency := 12;
+      Cycles to_memory_controller_latency := 1;
+
+      MessageBuffer* requestToLLC,    network = "From", virtual_network = "1", vnet_type = "request";
+      MessageBuffer* responseFromLLC, network = "To",   virtual_network = "0", vnet_type = "response";
+      MessageBuffer* responseFromMemory;
+{
+  //---------------------------------------------------------------------------
+  // States
+  //---------------------------------------------------------------------------
+
+  state_declaration(State, desc = "", default = "L2Cache_State_I") {
+    I,     AccessPermission:Invalid,     desc = "Not present/invalid";
+    IV,    AccessPermission:Busy,        desc = "Waiting for data";
+    IM,    AccessPermission:Busy,        desc = "Waiting for data";
+    V,     AccessPermission:Read_Write,  desc = "Valid & clean";
+    M,     AccessPermission:Read_Write,  desc = "Valid & dirty";
+    MI,    AccessPermission:Busy,        desc = "Waiting for writeback ACK";
+    IV_LL, AccessPermission:Busy,        desc = "Waiting for data (LL request)";
+    IA,    AccessPermission:Busy,        desc = "Waiting for data (ATOMIC request)";
+  }
+
+  //---------------------------------------------------------------------------
+  // Events
+  //---------------------------------------------------------------------------
+
+  enumeration(Event, desc = "Cache events") {
+    // from scratchpads
+    READ,   desc = "A READ request arrives";
+    WRITE,  desc = "A WRITE request arrives";
+    LL,     desc = "A LL request arrives";
+    SC,     desc = "A SC request arrives";
+    ATOMIC, desc = "An ATOMIC request arrives";
+    Repl,   desc = "Replacement";
+
+    // from memory
+    Memory_Data,  desc = "Fetched data from memory arrives";
+    Memory_Ack,   desc = "Writeback Ack from memory arrives";
+  }
+
+  //---------------------------------------------------------------------------
+  // Cache entry
+  //---------------------------------------------------------------------------
+
+  structure(Entry, desc = "...", interface = "AbstractCacheEntry") {
+    State CacheState,     desc = "Cache state";
+    DataBlock DataBlk,    desc = "Data in the block";
+    WriteMask writeMask,  desc = "Dirty byte mask";
+    MachineID LLSC_owner, desc = "Owner of LLSC lock";
+  }
+
+  //---------------------------------------------------------------------------
+  // TBE entry
+  //---------------------------------------------------------------------------
+
+  structure(TBE, desc = "...") {
+    State     TBEState,   desc = "Transient state";
+    DataBlock DataBlk,    desc = "Data for the block";
+    WriteMask writeMask,  desc = "Dirty byte mask";
+    MachineID Requestor,  desc = "Requestor's ID";
+    int       SeqNum,     desc = "Sequence number";
+  }
+
+  structure(TBETable, external = "yes") {
+    TBE lookup(Addr);
+    void allocate(Addr);
+    void deallocate(Addr);
+    bool isPresent(Addr);
+  }
+
+  //---------------------------------------------------------------------------
+  // Structures
+  //---------------------------------------------------------------------------
+
+  TBETable TBEs, template="<L2Cache_TBE>", constructor="m_number_of_TBEs";
+
+  //---------------------------------------------------------------------------
+  // Prototypes
+  //---------------------------------------------------------------------------
+
+  Tick clockEdge();
+  Cycles ticksToCycles(Tick t);
+  void set_cache_entry(AbstractCacheEntry a);
+  void unset_cache_entry();
+  void set_tbe(TBE b);
+  void unset_tbe();
+  void wakeUpAllBuffers();
+
+  //---------------------------------------------------------------------------
+  // Functions
+  //---------------------------------------------------------------------------
+
+  Entry getCacheEntry(Addr address), return_by_pointer="yes" {
+    return static_cast(Entry, "pointer", cacheMemory.lookup(address));
+  }
+
+  State getState(TBE tbe, Entry cache_entry, Addr addr) {
+    if (is_valid(tbe)) {
+      return tbe.TBEState;
+    } else if (is_valid(cache_entry)) {
+      return cache_entry.CacheState;
+    } else {
+      return State:I;
+    }
+  }
+
+  void setState(TBE tbe, Entry cache_entry, Addr addr, State state) {
+    if (is_valid(tbe)) {
+      tbe.TBEState := state;
+    }
+
+    if (is_valid(cache_entry)) {
+      cache_entry.CacheState := state;
+    }
+  }
+
+  AccessPermission getAccessPermission(Addr addr) {
+    TBE tbe := TBEs[addr];
+
+    if (is_valid(tbe)) {
+      return L2Cache_State_to_permission(tbe.TBEState);
+    }
+
+    Entry cache_entry := getCacheEntry(addr);
+
+    if (is_valid(cache_entry)) {
+      return L2Cache_State_to_permission(cache_entry.CacheState);
+    }
+
+    return AccessPermission:NotPresent;
+  }
+
+  void setAccessPermission(Entry cache_entry, Addr addr, State state) {
+    if (is_valid(cache_entry)) {
+      cache_entry.changePermission(L2Cache_State_to_permission(state));
+    }
+  }
+
+  bool functionalRead(Addr addr, Packet *pkt) {
+    TBE tbe := TBEs[addr];
+    Entry cache_entry := getCacheEntry(addr);
+
+    if (is_valid(tbe)) {
+      return testAndRead(addr, tbe.DataBlk, pkt);
+    } else if (is_valid(cache_entry)) {
+      return testAndRead(addr, getCacheEntry(addr).DataBlk, pkt);
+    } else {
+      functionalMemoryRead(pkt);
+      return true;
+    }
+  }
+
+  int functionalWrite(Addr addr, Packet *pkt) {
+    int num_functional_writes := 0;
+    TBE tbe := TBEs[addr];
+    Entry cache_entry := getCacheEntry(addr);
+
+    if (is_valid(tbe)) {
+      num_functional_writes := num_functional_writes +
+                        testAndWrite(addr, tbe.DataBlk, pkt);
+    } else if (is_valid(cache_entry)) {
+      num_functional_writes := num_functional_writes +
+                        testAndWrite(addr, getCacheEntry(addr).DataBlk, pkt);
+    } else if (version == intToID(0)) {
+      // only one L2 bank needs to do the functional write to memory, so let
+      // the first L2 do it.
+      num_functional_writes := num_functional_writes +
+                        functionalMemoryWrite(pkt);
+    }
+
+    return num_functional_writes;
+  }
+
+  bool isCacheEntryPresent(Addr addr) {
+    return cacheMemory.isTagPresent(addr);
+  }
+
+  //---------------------------------------------------------------------------
+  // Network ports
+  //---------------------------------------------------------------------------
+
+  // Responses to CPU side
+  out_port(responseNetwork_out, LLCResponseMsg, responseFromLLC);
+
+  // Requests coming from CPU side
+  in_port(requestNetwork_in, LLCRequestMsg, requestToLLC) {
+    if (requestNetwork_in.isReady(clockEdge())) {
+      peek(requestNetwork_in, LLCRequestMsg) {
+
+        Entry cache_entry := getCacheEntry(in_msg.LineAddress);
+
+        DPRINTF(RubySlicc, "%s arrived\n", in_msg);
+
+        if (is_invalid(cache_entry) &&
+            cacheMemory.cacheAvail(in_msg.LineAddress) == false) {
+          // No available cache line for this address -> trigger cache
+          // replacement
+          Addr victim := cacheMemory.cacheProbe(in_msg.LineAddress);
+          trigger(Event:Repl, victim, getCacheEntry(victim), TBEs.lookup(victim));
+        } else {
+          // There's an available slot
+          TBE tbe := TBEs[in_msg.LineAddress];
+
+          if (in_msg.Type == LLCRequestType:READ) {
+            trigger(Event:READ, in_msg.LineAddress, cache_entry, tbe);
+          } else if (in_msg.Type == LLCRequestType:WRITE) {
+            trigger(Event:WRITE, in_msg.LineAddress, cache_entry, tbe);
+          } else if (in_msg.Type == LLCRequestType:LL) {
+            trigger(Event:LL, in_msg.LineAddress, cache_entry, tbe);
+          } else if (in_msg.Type == LLCRequestType:SC) {
+            trigger(Event:SC, in_msg.LineAddress, cache_entry, tbe);
+          } else if (in_msg.Type == LLCRequestType:ATOMIC) {
+            trigger(Event:ATOMIC, in_msg.LineAddress, cache_entry, tbe);
+          } else {
+            error("Invalid message");
+          }
+        }
+      }
+    }
+  }
+
+  // Responses from memory controller
+  in_port(memQueue_in, MemoryMsg, responseFromMemory) {
+    if (memQueue_in.isReady(clockEdge())) {
+      peek(memQueue_in, MemoryMsg, block_on = "addr") {
+        TBE tbe := TBEs.lookup(in_msg.addr);
+        assert(is_valid(tbe));
+
+        Entry cache_entry := getCacheEntry(in_msg.addr);
+
+        if (in_msg.Type == MemoryRequestType:MEMORY_READ) {
+          assert(is_valid(cache_entry));
+          trigger(Event:Memory_Data, in_msg.addr, cache_entry, tbe);
+        } else if (in_msg.Type == MemoryRequestType:MEMORY_WB) {
+          trigger(Event:Memory_Ack, in_msg.addr, cache_entry, tbe);
+        } else {
+          error("Invalid message");
+        }
+      }
+    }
+  }
+
+  //---------------------------------------------------------------------------
+  // Actions
+  //---------------------------------------------------------------------------
+
+  action(atb_allocateTBE, "atb", desc = "Allocate TBE") {
+    TBEs.allocate(address);
+    set_tbe(TBEs[address]);
+  }
+
+  action(dtb_deallocateTBE, "dtb", desc = "Deallocate TBE") {
+    TBEs.deallocate(address);
+    unset_tbe();
+  }
+
+  action(acb_allocateCacheBlock, "acb", desc = "Allocate cache block") {
+    if (is_valid(cache_entry) == false) {
+      set_cache_entry(cacheMemory.allocate(address, new Entry));
+      cache_entry.LLSC_owner := createMachineID(MachineType:NULL, intToID(0));
+    }
+  }
+
+  action(imr_issueMemReadRequest, "imr", desc = "Queue memory read request") {
+    peek(requestNetwork_in, LLCRequestMsg) {
+      queueMemoryRead(in_msg.Requestor, address, to_memory_controller_latency);
+    }
+  }
+
+  action(imw_issueMemWriteBackRequest, "imw", desc = "Queue memory write request") {
+    queueMemoryWrite(machineID, address, to_memory_controller_latency, cache_entry.DataBlk);
+  }
+
+  action(smu_setMRU, "smu", desc = "Set MRU") {
+    assert(is_valid(cache_entry));
+    cacheMemory.setMRU(cache_entry);
+  }
+
+  action(sdm_sendDataFromMem, "sdm", desc = "Send response data to CPU side from mem") {
+    peek(memQueue_in, MemoryMsg) {
+      enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+        assert(is_valid(tbe));
+        out_msg.Type        := LLCResponseType:DATA;
+        out_msg.LineAddress := in_msg.addr;
+        out_msg.Destination.add(tbe.Requestor);
+        out_msg.DataBlk     := cache_entry.DataBlk;
+        out_msg.MessageSize := MessageSizeType:SingleWordData;
+        out_msg.SeqNum      := tbe.SeqNum;
+      }
+    }
+  }
+
+  action(sdc_sendDataFromCache, "sdc", desc = "Send response data to CPU side from cache") {
+    peek(requestNetwork_in, LLCRequestMsg) {
+      enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+        out_msg.Type        := LLCResponseType:DATA;
+        out_msg.LineAddress := in_msg.LineAddress;
+        out_msg.Destination.add(in_msg.Requestor);
+        out_msg.DataBlk     := cache_entry.DataBlk;
+        out_msg.MessageSize := MessageSizeType:SingleWordData;
+        out_msg.SeqNum      := in_msg.SeqNum;
+      }
+    }
+  }
+
+  action(wdc_writeDataToCache, "wdc", desc = "Write data from mem to cache") {
+    peek(memQueue_in, MemoryMsg) {
+      cache_entry.DataBlk := in_msg.DataBlk;
+    }
+  }
+
+  action(prq_popRequestQueue, "prq", desc = "Pop a msg from request queue") {
+    requestNetwork_in.dequeue(clockEdge());
+  }
+
+  action(pmq_popMemResponseQueue, "pmq", desc = "Pop a msg from mem rsp queue") {
+    memQueue_in.dequeue(clockEdge());
+  }
+
+  action(art_addRequestorToTBE, "art", desc = "Add requestor to TBE") {
+    peek(requestNetwork_in, LLCRequestMsg) {
+      assert(is_valid(tbe));
+      tbe.Requestor := in_msg.Requestor;
+      tbe.SeqNum := in_msg.SeqNum;
+    }
+  }
+
+  action(sdt_saveDataInTBE, "sdt", desc = "Save data from in_msg to TBE") {
+    peek(requestNetwork_in, LLCRequestMsg) {
+      assert(is_valid(tbe));
+      tbe.DataBlk := in_msg.DataBlk;
+      tbe.writeMask := in_msg.writeMask;
+    }
+  }
+
+  action(wdd_writeDirtyDataToCache, "wdd", desc = "Write data to cache") {
+    assert(is_valid(cache_entry));
+    peek(requestNetwork_in, LLCRequestMsg) {
+      cache_entry.DataBlk.copyPartial(in_msg.DataBlk, in_msg.writeMask);
+      cache_entry.writeMask.orMask(in_msg.writeMask);
+    }
+  }
+
+  action(wdt_writeDirtyDataToCacheFromTBE, "wdt", desc = "") {
+    assert(is_valid(tbe));
+    assert(is_valid(cache_entry));
+    cache_entry.DataBlk.copyPartial(tbe.DataBlk, tbe.writeMask);
+    cache_entry.writeMask.orMask(tbe.writeMask);
+  }
+
+  action(swa_sendWriteAck, "swa", desc = "Send write ack") {
+    enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+      assert(is_valid(tbe));
+      out_msg.Type        := LLCResponseType:ACK;
+      out_msg.LineAddress := address;
+      out_msg.Destination.add(tbe.Requestor);
+      out_msg.MessageSize := MessageSizeType:Response_Control;
+      out_msg.SeqNum      := tbe.SeqNum;
+    }
+  }
+
+  action(dce_deallocateCacheEntry, "dce", desc = "Deallocate a cache entry") {
+    if (is_valid(cache_entry)) {
+      cacheMemory.deallocate(address);
+    }
+    unset_cache_entry();
+  }
+
+  action(sot_setLLSCOwnerFromTBE, "sot", desc = "Set LL owner") {
+    assert(is_valid(tbe));
+    assert(is_valid(cache_entry));
+    cache_entry.LLSC_owner := tbe.Requestor;
+  }
+
+  action(sor_setLLSCOwnerFromRequest, "sor", desc = "Set LL owner from requests") {
+    assert(is_valid(cache_entry));
+    peek(requestNetwork_in, LLCRequestMsg) {
+      cache_entry.LLSC_owner := in_msg.Requestor;
+    }
+  }
+
+  action(scf_sendFailedSCAck, "scf", desc = "Send Failed SC ACK") {
+    enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+      assert(is_valid(tbe));
+      out_msg.Type        := LLCResponseType:ACK;
+      out_msg.LineAddress := address;
+      out_msg.Destination.add(tbe.Requestor);
+      out_msg.SC_Success  := false;
+      out_msg.MessageSize := MessageSizeType:Response_Control;
+      out_msg.SeqNum      := tbe.SeqNum;
+    }
+  }
+
+  action(hsc_handleSCRequest, "hsc", desc = "Handle SC request") {
+    assert(is_valid(cache_entry));
+
+    peek(requestNetwork_in, LLCRequestMsg) {
+      if (in_msg.Requestor == cache_entry.LLSC_owner) {
+        cache_entry.DataBlk.copyPartial(in_msg.DataBlk, in_msg.writeMask);
+        cache_entry.writeMask.orMask(in_msg.writeMask);
+
+        // reply requestor
+        enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+          out_msg.Type        := LLCResponseType:ACK;
+          out_msg.LineAddress := address;
+          out_msg.Destination.add(in_msg.Requestor);
+          out_msg.SC_Success  := true;
+          out_msg.MessageSize := MessageSizeType:Response_Control;
+          out_msg.SeqNum      := in_msg.SeqNum;
+        }
+
+        // set MRU
+        cacheMemory.setMRU(cache_entry);
+      } else {
+        // send Fail ACK
+        enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+          assert(is_valid(tbe));
+          out_msg.Type        := LLCResponseType:ACK;
+          out_msg.LineAddress := address;
+          out_msg.Destination.add(in_msg.Requestor);
+          out_msg.SC_Success  := false;
+          out_msg.MessageSize := MessageSizeType:Response_Control;
+          out_msg.SeqNum      := in_msg.SeqNum;
+        }
+      }
+    }
+  }
+
+  action(dat_doAtomicUpdate, "dat", desc = "Do atomic update") {
+    assert(is_valid(tbe));
+    assert(is_valid(cache_entry));
+
+    tbe.DataBlk := cache_entry.DataBlk;
+    cache_entry.DataBlk.atomicPartial(cache_entry.DataBlk, tbe.writeMask);
+    cache_entry.writeMask.orMask(tbe.writeMask);
+
+    // Make a response with old data
+    enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+      out_msg.Type := LLCResponseType:DATA;
+      out_msg.LineAddress := address;
+      out_msg.Destination.add(tbe.Requestor);
+      out_msg.DataBlk := tbe.DataBlk;
+      out_msg.MessageSize := MessageSizeType:SingleWordData;
+      out_msg.SeqNum := tbe.SeqNum;
+    }
+  }
+
+  action(pht_profileHitAccess, "pht", desc = "Profile hit access") {
+    ++cacheMemory.demand_hits;
+  }
+
+  action(pms_profileMissAccess, "pms", desc = "Profile miss access") {
+    ++cacheMemory.demand_misses;
+  }
+
+  action(z_stall, "z", desc="stall") {
+    // built-in
+  }
+
+  action(z_stallAndWait, "zsw", desc = "Stall and wait") {
+    stall_and_wait(requestNetwork_in, address);
+  }
+
+  action(wua_wakeupAllDependents, "wua", desc = "Wake up all buffers") {
+    wakeUpAllBuffers();
+  }
+
+  //---------------------------------------------------------------------------
+  // Transitions
+  //---------------------------------------------------------------------------
+
+  // READ requests
+
+  transition(I, READ, IV) {
+    atb_allocateTBE;
+    art_addRequestorToTBE;
+    acb_allocateCacheBlock;
+    imr_issueMemReadRequest;
+    prq_popRequestQueue;
+    pms_profileMissAccess;
+  }
+
+  transition(V, READ) {
+    smu_setMRU;
+    sdc_sendDataFromCache;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+
+  transition(M, READ) {
+    smu_setMRU;
+    sdc_sendDataFromCache;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+
+  transition(IV, Memory_Data, V) {
+    wdc_writeDataToCache;
+    smu_setMRU;
+    sdm_sendDataFromMem;
+    dtb_deallocateTBE;
+    pmq_popMemResponseQueue;
+    wua_wakeupAllDependents;
+  }
+
+  transition({IV, MI, IM, IV_LL, IA}, READ) {
+    z_stallAndWait;
+  }
+
+  // LL requests
+
+  transition(I, LL, IV_LL) {
+    atb_allocateTBE;
+    art_addRequestorToTBE;
+    acb_allocateCacheBlock;
+    imr_issueMemReadRequest;
+    prq_popRequestQueue;
+    pms_profileMissAccess;
+  }
+
+  transition(V, LL) {
+    smu_setMRU;
+    sor_setLLSCOwnerFromRequest;
+    sdc_sendDataFromCache;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+
+  transition(M, LL) {
+    smu_setMRU;
+    sor_setLLSCOwnerFromRequest;
+    sdc_sendDataFromCache;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+
+  transition(IV_LL, Memory_Data, V) {
+    wdc_writeDataToCache;
+    sot_setLLSCOwnerFromTBE;
+    smu_setMRU;
+    sdm_sendDataFromMem;
+    dtb_deallocateTBE;
+    pmq_popMemResponseQueue;
+    wua_wakeupAllDependents;
+  }
+
+  transition({IV, MI, IM, IV_LL, IA}, LL) {
+    z_stallAndWait;
+  }
+
+  // WRITE requests
+
+  transition(V, WRITE, M) {
+    atb_allocateTBE;
+    art_addRequestorToTBE;
+    smu_setMRU;
+    wdd_writeDirtyDataToCache;
+    swa_sendWriteAck;
+    dtb_deallocateTBE;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+
+  transition(M, WRITE) {
+    atb_allocateTBE;
+    art_addRequestorToTBE;
+    smu_setMRU;
+    wdd_writeDirtyDataToCache;
+    swa_sendWriteAck;
+    dtb_deallocateTBE;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+
+  transition(I, WRITE, IM) {
+    atb_allocateTBE;
+    art_addRequestorToTBE;
+    sdt_saveDataInTBE;
+    acb_allocateCacheBlock;
+    imr_issueMemReadRequest;
+    prq_popRequestQueue;
+    pms_profileMissAccess;
+  }
+
+  transition(IM, Memory_Data, M) {
+    wdc_writeDataToCache;
+    wdt_writeDirtyDataToCacheFromTBE;
+    swa_sendWriteAck;
+    smu_setMRU;
+    dtb_deallocateTBE;
+    pmq_popMemResponseQueue;
+    wua_wakeupAllDependents;
+  }
+
+  transition({IV, MI, IM, IV_LL, IA}, WRITE) {
+    z_stallAndWait;
+  }
+
+  // SC requests
+
+  transition(I, SC) {
+    atb_allocateTBE;
+    art_addRequestorToTBE;
+    scf_sendFailedSCAck;
+    dtb_deallocateTBE;
+    prq_popRequestQueue;
+    pms_profileMissAccess;
+  }
+
+  transition(V, SC, M) {
+    hsc_handleSCRequest;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+
+  transition(M, SC) {
+    hsc_handleSCRequest;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+
+  transition({IV, MI, IM, IV_LL, IA}, SC) {
+    z_stallAndWait;
+  }
+
+  // ATOMIC requests
+
+  transition(V, ATOMIC, M) {
+    atb_allocateTBE;
+    art_addRequestorToTBE;
+    sdt_saveDataInTBE;
+    smu_setMRU;
+    dat_doAtomicUpdate;
+    dtb_deallocateTBE;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+
+  transition(M, ATOMIC) {
+    atb_allocateTBE;
+    art_addRequestorToTBE;
+    sdt_saveDataInTBE;
+    smu_setMRU;
+    dat_doAtomicUpdate;
+    dtb_deallocateTBE;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+
+  transition(I, ATOMIC, IA) {
+    atb_allocateTBE;
+    art_addRequestorToTBE;
+    sdt_saveDataInTBE;
+    acb_allocateCacheBlock;
+    imr_issueMemReadRequest;
+    prq_popRequestQueue;
+    pms_profileMissAccess;
+  }
+
+  transition(IA, Memory_Data, M) {
+    wdc_writeDataToCache;
+    dat_doAtomicUpdate;
+    smu_setMRU;
+    dtb_deallocateTBE;
+    pmq_popMemResponseQueue;
+    wua_wakeupAllDependents;
+  }
+
+  transition({IV, MI, IM, IV_LL, IA}, ATOMIC) {
+    z_stallAndWait;
+  }
+
+  // REPL
+
+  transition({V, I}, Repl, I) {
+    dce_deallocateCacheEntry;
+  }
+
+  transition(M, Repl, MI) {
+    atb_allocateTBE;
+    imw_issueMemWriteBackRequest;
+    dce_deallocateCacheEntry;
+  }
+
+  transition(MI, Memory_Ack, I) {
+    dtb_deallocateTBE;
+    pmq_popMemResponseQueue;
+    wua_wakeupAllDependents;
+  }
+
+  transition({IV, MI, IM, IV_LL, IA}, Repl) {
+    z_stallAndWait;
+  }
+}

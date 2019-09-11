@@ -84,3 +84,10 @@ flit::functionalWrite(Packet *pkt)
     Message *msg = m_msg_ptr.get();
     return msg->functionalWrite(pkt);
 }
+
+bool
+flit::functionalRead(Packet* pkt)
+{
+    Message *msg = m_msg_ptr.get();
+    return msg->functionalRead(pkt);
+}

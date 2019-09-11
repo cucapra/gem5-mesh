@@ -59,6 +59,7 @@ DebugFlag('RubySystem')
 DebugFlag('RubyTester')
 DebugFlag('RubyStats')
 DebugFlag('RubyResourceStalls')
+DebugFlag('Scratchpad')
 
 CompoundFlag('Ruby', [ 'RubyQueue', 'RubyNetwork', 'RubyTester',
     'RubyGenerated', 'RubySlicc', 'RubySystem', 'RubyCache',
@@ -144,3 +145,6 @@ MakeInclude('system/Sequencer.hh')
 # generated_dir = Dir('../protocol')
 MakeInclude('system/GPUCoalescer.hh')
 MakeInclude('system/VIPERCoalescer.hh')
+
+MakeInclude('scratchpad/MemMessage.hh')
+MakeInclude('scratchpad/Scratchpad.hh')

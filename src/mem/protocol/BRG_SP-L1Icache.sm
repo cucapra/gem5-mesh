@@ -1,0 +1,242 @@
+//=============================================================================
+// SP_LLC-icache
+//=============================================================================
+// Icache model
+//
+// Author: Tuan Ta
+// Date  : 19/07/09
+
+machine(MachineType:L1Cache, "SP_LLC (L1I Cache)")
+ : Sequencer* sequencer;
+   CacheMemory * L1cache;
+   Cycles issue_latency := 80;  // time to send data down to TCC
+   Cycles l2_hit_latency := 18; // for 1MB L2, 20 for 2MB
+
+  MessageBuffer* requestToNetwork, network="To", virtual_network="1", vnet_type="request";
+  MessageBuffer* responseFromNetwork, network="From", virtual_network="0", vnet_type="response";
+  MessageBuffer* mandatoryQueue;
+{
+  state_declaration(State, desc="", default="L1Cache_State_I") {
+    I, AccessPermission:Invalid, desc="Invalid";
+    V, AccessPermission:Read_Only, desc="Valid";
+  }
+
+  enumeration(Event, desc="L1Cache Events") {
+    // Core initiated
+    Fetch,          desc="Fetch";
+    // Mem sys initiated
+    Repl,           desc="Replacing block from cache";
+    Data,           desc="Received Data";
+  }
+
+  structure(Entry, desc="...", interface="AbstractCacheEntry") {
+    State CacheState,  desc="cache state";
+    DataBlock DataBlk, desc="data for the block";
+  }
+
+  structure(TBE, desc="...") {
+    State TBEState,    desc="Transient state";
+    DataBlock DataBlk, desc="data for the block, required for concurrent writebacks";
+   }
+
+  structure(TBETable, external="yes") {
+    TBE lookup(Addr);
+    void allocate(Addr);
+    void deallocate(Addr);
+    bool isPresent(Addr);
+  }
+
+  TBETable TBEs, template="<L1Cache_TBE>", constructor="m_number_of_TBEs";
+
+  void set_cache_entry(AbstractCacheEntry b);
+  void unset_cache_entry();
+  void set_tbe(TBE b);
+  void unset_tbe();
+  void wakeUpAllBuffers();
+  void wakeUpBuffers(Addr a);
+  Cycles curCycle();
+
+  // Internal functions
+  Tick clockEdge();
+
+  Entry getCacheEntry(Addr address), return_by_pointer="yes" {
+    Entry cache_entry := static_cast(Entry, "pointer", L1cache.lookup(address));
+    return cache_entry;
+  }
+
+  DataBlock getDataBlock(Addr addr), return_by_ref="yes" {
+    TBE tbe := TBEs.lookup(addr);
+    if (is_valid(tbe)) {
+      return tbe.DataBlk;
+    } else {
+      return getCacheEntry(addr).DataBlk;
+    }
+  }
+
+  State getState(TBE tbe, Entry cache_entry, Addr addr) {
+    if(is_valid(tbe)) {
+      return tbe.TBEState;
+    } else if (is_valid(cache_entry)) {
+      return cache_entry.CacheState;
+    }
+    return State:I;
+  }
+
+  void setState(TBE tbe, Entry cache_entry, Addr addr, State state) {
+    if (is_valid(tbe)) {
+      tbe.TBEState := state;
+    }
+
+    if (is_valid(cache_entry)) {
+      cache_entry.CacheState := state;
+    }
+  }
+
+  bool functionalRead(Addr addr, Packet *pkt) {
+    TBE tbe := TBEs.lookup(addr);
+    if (is_valid(tbe)) {
+      return testAndRead(addr, tbe.DataBlk, pkt);
+    }
+    return false;
+  }
+
+  int functionalWrite(Addr addr, Packet *pkt) {
+    int num_functional_writes := 0;
+
+    TBE tbe := TBEs.lookup(addr);
+    if (is_valid(tbe)) {
+      num_functional_writes := num_functional_writes +
+            testAndWrite(addr, tbe.DataBlk, pkt);
+    }
+
+    return num_functional_writes;
+  }
+
+  AccessPermission getAccessPermission(Addr addr) {
+    TBE tbe := TBEs.lookup(addr);
+    if(is_valid(tbe)) {
+      return L1Cache_State_to_permission(tbe.TBEState);
+    }
+
+    Entry cache_entry := getCacheEntry(addr);
+    if(is_valid(cache_entry)) {
+      return L1Cache_State_to_permission(cache_entry.CacheState);
+    }
+
+    return AccessPermission:NotPresent;
+  }
+
+  void setAccessPermission(Entry cache_entry, Addr addr, State state) {
+    if (is_valid(cache_entry)) {
+      cache_entry.changePermission(L1Cache_State_to_permission(state));
+    }
+  }
+
+  // Out Ports
+
+  out_port(requestNetwork_out, LLCRequestMsg, requestToNetwork);
+
+  // In Ports
+
+  in_port(responseToL1Cache_in, LLCResponseMsg, responseFromNetwork) {
+    if (responseToL1Cache_in.isReady(clockEdge())) {
+      peek(responseToL1Cache_in, LLCResponseMsg, block_on="LineAddress") {
+
+        Entry cache_entry := getCacheEntry(in_msg.LineAddress);
+        TBE tbe := TBEs.lookup(in_msg.LineAddress);
+
+        if (in_msg.Type == LLCResponseType:DATA) {
+          if (is_valid(cache_entry) || L1cache.cacheAvail(in_msg.LineAddress)) {
+            trigger(Event:Data, in_msg.LineAddress, cache_entry, tbe);
+          } else {
+            Addr victim := L1cache.cacheProbe(in_msg.LineAddress);
+            trigger(Event:Repl, victim, getCacheEntry(victim), TBEs.lookup(victim));
+          }
+        } else {
+          error("Unexpected Response Message to Core");
+        }
+      }
+    }
+  }
+
+  in_port(mandatoryQueue_in, RubyRequest, mandatoryQueue, desc="...") {
+    if (mandatoryQueue_in.isReady(clockEdge())) {
+      peek(mandatoryQueue_in, RubyRequest, block_on="LineAddress") {
+        Entry cache_entry := getCacheEntry(in_msg.LineAddress);
+        TBE tbe := TBEs.lookup(in_msg.LineAddress);
+
+        assert(in_msg.Type == RubyRequestType:IFETCH);
+        trigger(Event:Fetch, in_msg.LineAddress, cache_entry, tbe);
+      }
+    }
+  }
+
+  // Actions
+
+  action(ic_invCache, "ic", desc="invalidate cache") {
+    if (is_valid(cache_entry)) {
+      L1cache.deallocate(address);
+    }
+    unset_cache_entry();
+  }
+
+  action(nS_issueRdBlkS, "nS", desc="Issue RdBlkS") {
+    enqueue(requestNetwork_out, LLCRequestMsg, issue_latency) {
+      out_msg.LineAddress := address;
+      out_msg.Type := LLCRequestType:READ;
+      out_msg.Requestor := machineID;
+      out_msg.Destination.add(createMachineID(MachineType:L2Cache, intToID(0)));
+      out_msg.MessageSize := MessageSizeType:Request_Control;
+    }
+  }
+
+  action(a_allocate, "a", desc="allocate block") {
+    if (is_invalid(cache_entry)) {
+      set_cache_entry(L1cache.allocate(address, new Entry));
+    }
+  }
+
+  action(p_popMandatoryQueue, "pm", desc="Pop Mandatory Queue") {
+    mandatoryQueue_in.dequeue(clockEdge());
+  }
+
+  action(pr_popResponseQueue, "pr", desc="Pop Response Queue") {
+    responseToL1Cache_in.dequeue(clockEdge());
+  }
+
+  action(l_loadDone, "l", desc="local load done") {
+    assert(is_valid(cache_entry));
+    sequencer.readCallback(address, cache_entry.DataBlk, false, MachineType:L1Cache);
+    APPEND_TRANSITION_COMMENT(cache_entry.DataBlk);
+  }
+
+  action(w_writeCache, "w", desc="write data to cache") {
+    peek(responseToL1Cache_in, LLCResponseMsg) {
+      assert(is_valid(cache_entry));
+      cache_entry.DataBlk := in_msg.DataBlk;
+    }
+  }
+
+  // Transitions
+
+  transition({I, V}, Repl, I) {
+    ic_invCache
+  }
+
+  transition(I, Data, V) {
+    a_allocate;
+    w_writeCache
+    l_loadDone;
+    pr_popResponseQueue;
+  }
+
+  transition(I, Fetch) {
+    nS_issueRdBlkS;
+    p_popMandatoryQueue;
+  }
+
+  transition(V, Fetch) {
+    l_loadDone;
+    p_popMandatoryQueue;
+  }
+}

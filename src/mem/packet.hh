@@ -136,6 +136,10 @@ class MemCmd
         FlushReq,      //request for a cache flush
         InvalidateReq,   // request for address to be invalidated
         InvalidateResp,
+        SPMReadReq,       // Scratchpad cntrl request/response
+        SPMReadResp,      // Scratchpad cntrl request/response
+        SPMWriteReq,      // Scratchpad cntrl request/response
+        SPMWriteResp,     // Scratchpad cntrl request/response
         NUM_MEM_CMDS
     };
 
@@ -163,6 +167,7 @@ class MemCmd
         IsPrint,        //!< Print state matching address (for debugging)
         IsFlush,        //!< Flush the address from caches
         FromCache,      //!< Request originated from a caching agent
+        IsSPM,          //!< Is this scratchpad packet
         NUM_COMMAND_ATTRIBUTES
     };
 
@@ -228,6 +233,7 @@ class MemCmd
     bool isError() const        { return testCmdAttrib(IsError); }
     bool isPrint() const        { return testCmdAttrib(IsPrint); }
     bool isFlush() const        { return testCmdAttrib(IsFlush); }
+    bool isSPM() const          { return testCmdAttrib(IsSPM); }
 
     Command
     responseCommand() const
@@ -563,6 +569,8 @@ class Packet : public Printable
         return (cmd == MemCmd::WriteReq || cmd == MemCmd::WriteLineReq) &&
             getOffset(blk_size) == 0 && getSize() == blk_size;
     }
+
+    bool isSPM() const               { return cmd.isSPM(); }
 
     //@{
     /// Snoop flags

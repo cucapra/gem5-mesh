@@ -98,6 +98,7 @@ class flit
     }
 
     bool functionalWrite(Packet *pkt);
+    bool functionalRead(Packet* pkt);
 
   protected:
     int m_id;

@@ -1,0 +1,4 @@
+protocol "BRG_SP";
+include "RubySlicc_interfaces.slicc";
+include "BRG_SP-L2cache.sm";
+include "BRG_SP-L1Icache.sm";

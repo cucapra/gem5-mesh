@@ -184,6 +184,12 @@ class WriteMask
             (*fnctr)(p);
         }
     }
+    
+    void
+    addAtomicOp(int offset, AtomicOpFunctor* op) {
+        mAtomicOp.push_back(std::make_pair(offset, op));
+    }
+    
   private:
     int mSize;
     std::vector<bool> mMask;

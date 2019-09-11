@@ -458,3 +458,24 @@ GarnetNetwork::functionalWrite(Packet *pkt)
 
     return num_functional_writes;
 }
+
+bool
+GarnetNetwork::functionalRead(Packet *pkt)
+{
+    for (unsigned int i = 0; i < m_routers.size(); i++) {
+        if (m_routers[i]->functionalRead(pkt))
+            return true;
+    }
+
+    for (unsigned int i = 0; i < m_nis.size(); ++i) {
+        if (m_nis[i]->functionalRead(pkt))
+            return true;
+    }
+
+    for (unsigned int i = 0; i < m_networklinks.size(); ++i) {
+        if (m_networklinks[i]->functionalRead(pkt))
+            return true;
+    }
+
+    return false;
+}

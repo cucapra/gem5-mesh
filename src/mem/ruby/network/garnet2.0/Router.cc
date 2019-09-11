@@ -292,6 +292,22 @@ Router::functionalWrite(Packet *pkt)
     return num_functional_writes;
 }
 
+bool
+Router::functionalRead(Packet* pkt)
+{
+    for (uint32_t i = 0; i < m_input_unit.size(); i++) {
+        if (m_input_unit[i]->functionalRead(pkt))
+            return true;
+    }
+
+    for (uint32_t i = 0; i < m_output_unit.size(); i++) {
+        if (m_output_unit[i]->functionalRead(pkt))
+            return true;
+    }
+
+    return false;
+}
+
 Router *
 GarnetRouterParams::create()
 {

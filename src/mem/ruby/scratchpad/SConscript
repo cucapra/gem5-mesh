@@ -1,0 +1,6 @@
+Import('*')
+
+SimObject('Scratchpad.py')
+
+Source('Scratchpad.cc')
+Source('MemMessage.cc')

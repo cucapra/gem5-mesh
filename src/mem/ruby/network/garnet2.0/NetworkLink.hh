@@ -70,6 +70,8 @@ class NetworkLink : public ClockedObject, public Consumer
     inline flit* consumeLink()    { return linkBuffer->getTopFlit(); }
 
     uint32_t functionalWrite(Packet *);
+    bool functionalRead(Packet* pkt);
+    
     void resetStats();
 
   private:

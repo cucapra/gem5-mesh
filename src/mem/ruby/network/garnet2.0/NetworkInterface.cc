@@ -541,6 +541,20 @@ NetworkInterface::functionalWrite(Packet *pkt)
     return num_functional_writes;
 }
 
+bool
+NetworkInterface::functionalRead(Packet* pkt)
+{
+    for (unsigned int i = 0; i < m_num_vcs; ++i) {
+        if (m_ni_out_vcs[i]->functionalRead(pkt))
+            return true;
+    }
+
+    if (outFlitQueue->functionalRead(pkt))
+        return true;
+
+    return false;
+}
+
 NetworkInterface *
 GarnetNetworkInterfaceParams::create()
 {

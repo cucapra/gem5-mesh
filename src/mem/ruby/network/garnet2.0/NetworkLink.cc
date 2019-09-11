@@ -102,3 +102,9 @@ NetworkLink::functionalWrite(Packet *pkt)
 {
     return linkBuffer->functionalWrite(pkt);
 }
+
+bool
+NetworkLink::functionalRead(Packet *pkt)
+{
+    return linkBuffer->functionalRead(pkt);
+}

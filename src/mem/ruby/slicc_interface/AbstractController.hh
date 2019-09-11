@@ -104,7 +104,7 @@ class AbstractController : public ClockedObject, public Consumer
 
     //! These functions are used by ruby system to read/write the data blocks
     //! that exist with in the controller.
-    virtual void functionalRead(const Addr &addr, PacketPtr) = 0;
+    virtual bool functionalRead(const Addr &addr, PacketPtr) = 0;
     void functionalMemoryRead(PacketPtr);
     //! The return value indicates the number of messages written with the
     //! data from the packet.
@@ -126,8 +126,10 @@ class AbstractController : public ClockedObject, public Consumer
     virtual void initNetQueues() = 0;
 
     /** A function used to return the port associated with this bus object. */
-    Port &getPort(const std::string &if_name,
-                  PortID idx=InvalidPortID);
+    //Port &getPort(const std::string &if_name,
+    //              PortID idx=InvalidPortID);
+    BaseMasterPort& getMasterPort(const std::string& if_name,
+                                  PortID idx = InvalidPortID);
 
     void queueMemoryRead(const MachineID &id, Addr addr, Cycles latency);
     void queueMemoryWrite(const MachineID &id, Addr addr, Cycles latency,

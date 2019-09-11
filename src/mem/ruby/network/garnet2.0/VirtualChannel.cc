@@ -83,3 +83,9 @@ VirtualChannel::functionalWrite(Packet *pkt)
 {
     return m_input_buffer->functionalWrite(pkt);
 }
+
+bool
+VirtualChannel::functionalRead(Packet* pkt)
+{
+    return m_input_buffer->functionalRead(pkt);
+}

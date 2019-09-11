@@ -91,3 +91,14 @@ flitBuffer::functionalWrite(Packet *pkt)
 
     return num_functional_writes;
 }
+
+bool
+flitBuffer::functionalRead(Packet* pkt)
+{
+    for (unsigned int i = 0; i < m_buffer.size(); ++i) {
+        if (m_buffer[i]->functionalRead(pkt)) {
+            return true;
+        }
+    }
+    return false;
+}
