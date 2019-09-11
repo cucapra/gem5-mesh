@@ -239,8 +239,13 @@ def makeMeshTopology(n_rows, n_cols, system, network,
 parser = optparse.OptionParser()
 Options.addCommonOptions(parser)
 Options.addSEOptions(parser)
-Options.addBRGOptions(parser)
+#Options.addBRGOptions(parser)
 Ruby.define_options(parser)
+
+# Scratchpad size
+parser.add_option("--spm-size", action="store", type="string", 
+  default="4kB", help="Specify the scratchpad memory size")
+
 
 parser.add_option("--num-xcels", type = "int", default = 16)
 parser.add_option("--stream-width", type = "int", default = 8)
