@@ -1,5 +1,17 @@
+# no spad (should not use this branch)
 scons -j16 build/RISCV/gem5.opt
 
+# spad
+scons -j16 build/RVSP/gem5.opt
+
+# for 16 core (+1 host core) sim with scratchpad
+./build/RVSP/gem5.opt -d results/sddmm-cpu \
+  configs/phil/brg_hammerblade.py \
+  --cmd=programs-phil/spad/sddmm-cpu/sddmm_cpu \
+  --network=garnet2.0 \
+  --num-cpus=17
+
+# no spad
 ./build/RISCV/gem5.opt -d results/test_ configs/phil/mesh.py \
   --cmd=programs-phil/gemm/basic_riscv --cpu-type=MinorCPU \
   --num-cpus=5 --caches --l2cache --l1d_size=2kB --l1i_size=2kB \

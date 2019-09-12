@@ -115,8 +115,11 @@ class Scratchpad : public AbstractController
     /**
      * Return slave port
      */
-    BaseSlavePort& getSlavePort(const std::string& if_name,
-                                PortID idx = InvalidPortID); //override;
+    //BaseSlavePort& getSlavePort(const std::string& if_name,
+    //                            PortID idx = InvalidPortID); //override;
+    Port &getPort(const std::string &if_name,
+                  PortID idx=InvalidPortID) override;
+
 
     /**
      * Initialize network queues from/to Ruby network

@@ -201,6 +201,7 @@ class Type(Symbol):
 #include <iostream>
 
 #include "mem/ruby/slicc_interface/RubySlicc_Util.hh"
+#include "mem/ruby/scratchpad/Scratchpad.hh"
 ''')
 
         for dm in self.data_members.values():
@@ -728,6 +729,8 @@ ${{self.c_ident}}_base_number(const ${{self.c_ident}}& obj)
                 # Check if there is a defined machine with this type
                 if enum.primary:
                     code('    base += ${{enum.ident}}_Controller::getNumControllers();')
+                elif enum.ident == 'Scratchpad':
+                    code('    base += Scratchpad::getNumControllers();')
                 else:
                     code('    base += 0;')
                 code('    M5_FALLTHROUGH;')
@@ -757,6 +760,8 @@ ${{self.c_ident}}_base_count(const ${{self.c_ident}}& obj)
                 code('case ${{self.c_ident}}_${{enum.ident}}:')
                 if enum.primary:
                     code('return ${{enum.ident}}_Controller::getNumControllers();')
+                elif enum.ident == 'Scratchpad':
+                    code('return Scratchpad::getNumControllers();')
                 else:
                     code('return 0;')
 

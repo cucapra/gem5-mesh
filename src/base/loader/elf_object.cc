@@ -303,6 +303,7 @@ ElfObject::ElfObject(const std::string &_filename, size_t _len,
     Addr text_sec_start = 0;
     Addr data_sec_start = 0;
     Addr bss_sec_start = 0;
+    Addr spm_sec_start = 0;
 
     // Get the first section
     Elf_Scn *section = elf_getscn(elf, sec_idx);
@@ -320,6 +321,8 @@ ElfObject::ElfObject(const std::string &_filename, size_t _len,
                 data_sec_start = shdr.sh_addr;
             } else if (!strcmp(".bss", sec_name)) {
                 bss_sec_start = shdr.sh_addr;
+            } else if (!strcmp(".spm", sec_name)) {
+                spm_sec_start = shdr.sh_addr;
             }
         } else {
             Elf_Error errorNum = (Elf_Error)elf_errno();
@@ -331,6 +334,12 @@ ElfObject::ElfObject(const std::string &_filename, size_t _len,
 
         section = elf_getscn(elf, ++sec_idx);
     }
+    
+    // spm segment is optional, so we should initialize its field to 0 or
+    // nullptr in case such segment does not exist in elf file
+    spm.baseAddr = 0;
+    spm.size = 0;
+    spm.fileImage = nullptr;
 
     // Go through all the segments in the program, record them, and scrape
     // out information about the text, data, and bss areas needed by other
@@ -373,6 +382,11 @@ ElfObject::ElfObject(const std::string &_filename, size_t _len,
             data.baseAddr = phdr.p_paddr;
             data.size = phdr.p_filesz;
             data.fileImage = fileData + phdr.p_offset;
+        } else if (phdr.p_vaddr <= spm_sec_start &&
+            phdr.p_vaddr + phdr.p_filesz > spm_sec_start) {
+            spm.baseAddr = phdr.p_paddr;
+            spm.size = phdr.p_filesz;
+            spm.fileImage = fileData + phdr.p_offset;
         } else {
             // If it's none of the above but is loadable,
             // load the filesize worth of data

@@ -86,7 +86,7 @@ def get_processes(options):
 # The first (n_rows - 1) rows are connected to either CPUs and/or xcels
 # The last row is connected to L2 banks
 
-def makeMeshTopology(n_rows, n_cols, system, network,
+def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                      IntLink, ExtLink, Router):
   assert(n_rows >= 2)
   assert(n_cols >= 1)
@@ -96,8 +96,8 @@ def makeMeshTopology(n_rows, n_cols, system, network,
   link_latency = 1
   router_latency = 1
 
-  n_cpus = len(system.cpu)
-  n_xcels = len(system.xcel)
+  #n_cpus = len(system.cpu)
+  #n_xcels = len(system.xcel)
 
   # all controllers
   icaches   = system.icaches
@@ -105,11 +105,15 @@ def makeMeshTopology(n_rows, n_cols, system, network,
   xcel_sps  = system.scratchpads[n_cpus:]
   l2s       = system.l2_cntrls
 
+
+  print('cpu {} router {} pad {} l2s {}'.format(
+    n_cpus, num_routers, len(cpu_sps), len(l2s)))
   assert(len(icaches) == n_cpus)
   assert(len(cpu_sps) == n_cpus)
   assert(n_cpus <= num_routers)
   assert(n_xcels <= num_routers)
   assert(len(l2s) <= n_cols)
+  #assert(len(l2s) + n_cpus + n_xcels == num_routers)
 
   # create all routers
   routers = [ Router(router_id = i,
@@ -247,16 +251,27 @@ parser.add_option("--spm-size", action="store", type="string",
   default="4kB", help="Specify the scratchpad memory size")
 
 
-parser.add_option("--num-xcels", type = "int", default = 16)
-parser.add_option("--stream-width", type = "int", default = 8)
-parser.add_option("--xcel", type = "string", default = "")
+#parser.add_option("--num-xcels", type = "int", default = 16)
+
+# number of pending requests allowed by scratchpad
+parser.add_option("--stream-width", type = "int", default = 1)
+
+#parser.add_option("--xcel", type = "string", default = "")
 
 (options, args) = parser.parse_args()
 
 n_cpus  = options.num_cpus
-n_xcels = options.num_xcels
 
-n_cols  = int(math.sqrt(n_xcels))
+# TODO we need a single host cpu that won't be in the mesh
+#n_cpus  = n_mcpus + 1
+
+n_xcels = 0 #options.num_xcels
+n_tiles = n_cpus + n_xcels
+
+# mesh size is determined by the number of xcels and device cpus
+n_cols  = int(math.sqrt(n_tiles))
+
+# this extra row of routers is for the l2s
 n_rows  = n_cols + 1
 
 n_l2s   = n_cols
@@ -269,6 +284,7 @@ ExtLinkClass = GarnetExtLink
 RouterClass = GarnetRouter
 InterfaceClass = GarnetNetworkInterface
 
+'''
 # xcel classes
 if options.xcel == "TensorSumXcel":
   XcelClass = TensorSumXcel
@@ -278,6 +294,7 @@ elif options.xcel == "EmbeddingBwXcel":
   XcelClass = EmbeddingBwXcel
 else:
   assert(False)
+'''
 
 # Do not support multi-process simulation
 process = get_processes(options)[0]
@@ -324,9 +341,11 @@ for i in xrange(n_cpus):
 # Construct Xcels
 #------------------------------------------------------------------------------
 
+'''
 system.xcel = [ XcelClass(cpu_process = process, \
                           stream_width = options.stream_width) \
                 for i in xrange(n_xcels) ]
+'''
 
 #------------------------------------------------------------------------------
 # Construct Ruby memory system
@@ -343,7 +362,8 @@ network = NetworkClass (ruby_system = system.ruby,
                         number_of_virtual_networks = 2)
 
 # Scratchpads
-n_scratchpads = n_cpus + n_xcels
+#n_scratchpads = n_cpus + n_xcels
+n_scratchpads = n_tiles
 scratchpads = []
 
 for i in xrange(n_scratchpads):
@@ -445,7 +465,7 @@ system.l2_cntrls = l2_cntrls
 #topology.makeTopology(options, network,
 #                      IntLinkClass, ExtLinkClass, RouterClass)
 
-makeMeshTopology(n_rows, n_cols, system, network,
+makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                  IntLinkClass, ExtLinkClass, RouterClass)
 
 init_network(options, network, InterfaceClass)

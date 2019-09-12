@@ -48,12 +48,14 @@
 uint32_t Network::m_virtual_networks;
 uint32_t Network::m_control_msg_size;
 uint32_t Network::m_data_msg_size;
+uint32_t Network::m_singleword_data_msg_size;
 
 Network::Network(const Params *p)
     : ClockedObject(p)
 {
     m_virtual_networks = p->number_of_virtual_networks;
     m_control_msg_size = p->control_msg_size;
+    m_singleword_data_msg_size = m_control_msg_size + p->data_word_size;
 
     // Total nodes/controllers in network
     // Must make sure this is called after the State Machine constructors
@@ -151,6 +153,8 @@ Network::MessageSizeType_to_int(MessageSizeType size_type)
       case MessageSizeType_ResponseL2hit_Data:
       case MessageSizeType_Writeback_Data:
         return m_data_msg_size;
+      case MessageSizeType_SingleWordData:
+        return m_singleword_data_msg_size;
       default:
         panic("Invalid range for type MessageSizeType");
         break;

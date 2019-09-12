@@ -224,7 +224,15 @@ MemCmd::commandInfo[] =
       InvalidateResp, "InvalidateReq" },
     /* Invalidation Response */
     { SET2(IsInvalidate, IsResponse),
-      InvalidCmd, "InvalidateResp" }
+      InvalidCmd, "InvalidateResp" },
+    /* SPM request with local SPM address */
+    { SET4(IsRead, IsRequest, IsSPM, NeedsResponse),
+                                                  SPMReadResp, "SPMReadReq" },
+    { SET3(IsRead, IsResponse, IsSPM), SPMReadResp, "SPMReadResp" },
+    { SET4(IsWrite, IsRequest, IsSPM, NeedsResponse),
+                                                SPMWriteResp, "SPMWriteReq" },
+    { SET3(IsWrite, IsResponse, IsSPM), SPMWriteResp, "SPMWriteResp" }
+      
 };
 
 AddrRange

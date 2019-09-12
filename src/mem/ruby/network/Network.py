@@ -45,6 +45,7 @@ class RubyNetwork(ClockedObject):
            "the number of virtual networks should be one more than the "
            "highest numbered vnet in use.")
     control_msg_size = Param.Int(8, "")
+    data_word_size = Param.Int(4, "size of single word")
     ruby_system = Param.RubySystem("")
 
     routers = VectorParam.BasicRouter("Network routers")

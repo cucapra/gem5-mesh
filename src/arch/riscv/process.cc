@@ -103,6 +103,16 @@ RiscvProcess64::initState()
     argsInit<uint64_t>(PageBytes);
     for (ContextID ctx: contextIds)
         system->getThreadContext(ctx)->setMiscRegNoEffect(MISCREG_PRV, PRV_U);
+        
+    // add support for spad in elf?
+    if (objFile->spmBase() != 0 && objFile->spmSize() != 0) {
+        Addr sp_base_paddr = system->memSize();
+        Addr sp_base_vaddr = objFile->spmBase();
+        Addr sp_size = objFile->spmSize();
+
+        pTable->map(sp_base_vaddr, sp_base_paddr, sp_size,
+                    EmulationPageTable::MappingFlags(0));
+    }
 }
 
 void

@@ -126,6 +126,7 @@ class ObjectFile
     Section text;
     Section data;
     Section bss;
+    Section spm;    // scratchpad memory section
 
     bool loadSection(Section *sec, PortProxy& mem_proxy, Addr mask,
                      Addr offset = 0);
@@ -139,10 +140,12 @@ class ObjectFile
     Addr textBase() const { return text.baseAddr; }
     Addr dataBase() const { return data.baseAddr; }
     Addr bssBase() const { return bss.baseAddr; }
+    Addr spmBase() const { return spm.baseAddr; }
 
     size_t textSize() const { return text.size; }
     size_t dataSize() const { return data.size; }
     size_t bssSize() const { return bss.size; }
+    size_t spmSize() const { return spm.size; }
 
     /* This function allows you to override the base address where
      * a binary is going to be loaded or set it if the binary is just a

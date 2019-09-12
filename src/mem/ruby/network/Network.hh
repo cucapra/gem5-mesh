@@ -151,6 +151,7 @@ class Network : public ClockedObject
     Topology* m_topology_ptr;
     static uint32_t m_control_msg_size;
     static uint32_t m_data_msg_size;
+    static uint32_t m_singleword_data_msg_size;
 
     // vector of queues from the components
     std::vector<std::vector<MessageBuffer*> > m_toNetQueues;

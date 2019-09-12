@@ -118,10 +118,21 @@ Scratchpad::~Scratchpad()
   delete[] m_data_array;
 }
 
-BaseSlavePort&
-Scratchpad::getSlavePort(const std::string& if_name, PortID idx)
+//BaseSlavePort&
+//Scratchpad::getSlavePort(const std::string& if_name, PortID idx)
+//{
+//  return *m_cpu_port_p;
+//}
+
+Port &
+Scratchpad::getPort(const std::string &if_name, PortID idx)
 {
-  return *m_cpu_port_p;
+  if (if_name == "cpu_port") {
+    return *m_cpu_port_p; 
+  }
+  else {
+    return AbstractController::getPort(if_name, idx);
+  }
 }
 
 void
