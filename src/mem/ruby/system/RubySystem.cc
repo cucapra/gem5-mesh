@@ -495,8 +495,9 @@ RubySystem::functionalWrite(PacketPtr pkt)
             m_abs_cntrl_vec[i]->functionalWriteBuffers(pkt);
 
         access_perm = m_abs_cntrl_vec[i]->getAccessPermission(line_addr);
-        if (access_perm != AccessPermission_Invalid &&
-            access_perm != AccessPermission_NotPresent) {
+        if (m_abs_cntrl_vec[i]->getMemoryQueue() ||
+           (access_perm != AccessPermission_Invalid &&
+            access_perm != AccessPermission_NotPresent)) {
             num_functional_writes +=
                 m_abs_cntrl_vec[i]->functionalWrite(line_addr, pkt);
         }
