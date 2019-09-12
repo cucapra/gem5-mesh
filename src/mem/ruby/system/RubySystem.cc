@@ -469,6 +469,32 @@ RubySystem::functionalRead(PacketPtr pkt)
                 return true;
             }
         }
+    } else {
+        // None of the controller has read access of the data. This may
+        // be because of all controllers are in transient states so that
+        // their access permissions are busy. We check if the data is in
+        // the network
+        DPRINTF(RubySystem, "num_busy = %d, num_ro = %d, num_rw = %d\n",
+                num_busy, num_ro, num_rw);
+        DPRINTF(RubySystem, "read from the network.\n");
+        if (m_network->functionalRead(pkt))
+          return true;
+
+        // The network does not have the data either. This could be the
+        // case that the controller that previously owned the data has
+        // received a data request and has forward the data to the
+        // requestor (e.g. a cache controller received a Fwd_GETX request
+        // and has sent the data and has transitioned to I
+        // state). However, the message containing the data has not been
+        // put in the network yet. In this case we simply search all
+        // controllers that may still hold a copy of the data although
+        // they no longer own the data.
+        DPRINTF(RubySystem, "Network does not have the data either\n");
+
+        for (unsigned int i = 0;i < num_controllers;++i) {
+            if (m_abs_cntrl_vec[i]->functionalRead(line_address, pkt))
+                return true;
+        }
     }
 
     return false;
