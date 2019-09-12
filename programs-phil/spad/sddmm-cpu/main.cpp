@@ -50,9 +50,6 @@ T* spm_alloc(uint8_t** base_pp, size_t size = 1) {
 
 int main(int argc, char *argv[]) {
   
-  
-  return 0;
-  
   #ifdef FIXED_POINT
   set_range(0.0f, 20.0f);
   //return 0;
