@@ -277,7 +277,8 @@ n_rows  = n_cols + 1
 n_l2s   = n_cols
 
 # network classes
-assert(options.network == "garnet2.0")
+#assert(options.network == "garnet2.0")
+options.network = "garnet2.0"
 NetworkClass = GarnetNetwork
 IntLinkClass = GarnetIntLink
 ExtLinkClass = GarnetExtLink
