@@ -8,8 +8,7 @@ scons -j16 build/RVSP/gem5.opt
 ./build/RVSP/gem5.opt -d results/sddmm-cpu \
   configs/phil/brg_hammerblade.py \
   --cmd=programs-phil/spad/sddmm-cpu/sddmm_cpu \
-  --network=garnet2.0 \
-  --num-cpus=17
+  --num-cpus=4
 
 # no spad
 ./build/RISCV/gem5.opt -d results/test_ configs/phil/mesh.py \
