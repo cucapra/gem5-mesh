@@ -2,16 +2,25 @@
 #include "pthread_launch.h"
 #include <stdlib.h>
 #include <math.h>
-#include <stdbool.h>
 #include <sys/sysinfo.h>
 
 //#include <stdio.h>
  
-inline void toggle_stats(bool on)
+inline void stats_on()
 {
+  int on = 1;
  __asm__ volatile ("csrw 0x7C1, %0;"
                     :
                     : "r" (on)
+                    :);
+}
+
+inline void stats_off()
+{
+  int off = 10; // can't use 0, but anything other than 1
+ __asm__ volatile ("csrw 0x7C1, %0;"
+                    :
+                    : "r" (off)
                     :);
 }
  
@@ -32,13 +41,13 @@ void launch_kernel(void* (*kernel)(void*), void **args, int cores_x, int cores_y
     threads[i] = (pthread_t*)malloc(sizeof(pthread_t));
   }
 
-  // start recording stats
-  //toggle_stats(true);
-
   // create a thread on each device core
   for (int i = 0; i < dev_cores; i++) {
 		pthread_create(threads[i], NULL, kernel, args[i + 1]);
   }
+  
+  // start recording stats
+  stats_on();
 
   // start an iteration locally
   kernel(args[0]);
@@ -49,7 +58,7 @@ void launch_kernel(void* (*kernel)(void*), void **args, int cores_x, int cores_y
   }
   
   // stop recording stats
-  //toggle_stats(false);
+  stats_off();
   
   // cleanup
   for (int i = 0; i < num_cores; i++) {

@@ -41,6 +41,7 @@
 #include "params/RiscvISA.hh"
 #include "sim/core.hh"
 #include "sim/pseudo_inst.hh"
+#include "sim/stat_control.hh"
 
 namespace RiscvISA
 {
@@ -196,6 +197,42 @@ ISA::setMiscReg(int misc_reg, RegVal val, ThreadContext *tc)
           case MISCREG_IE:
             return tc->getCpuPtr()->getInterruptController(tc->threadId())
                                   ->setIE(val);
+                                  
+          // enable/disable stats (tuan)
+          case MISCREG_STATS:
+            if (val == 1) {
+                // for BRG activity trace
+                std::cout << "STATS: ON { "
+                    << "\"num_cpus\": "
+                    << tc->getSystemPtr()->numContexts()
+                    << ", "
+                    << "\"tick\": "
+                    << curTick()
+                    << ", "
+                    << "\"cycle\": "
+                    << tc->getCpuPtr()->curCycle()
+                    << " }" << std::endl;
+                
+                // schedule a stat event to reset all stats but not dump
+                // them (dump = false, reset = true)
+                Stats::schedStatEvent(false, true);
+            }
+            else {
+                // for BRG activity trace
+                std::cout << "STATS: OFF { "
+                << "\"tick\": "
+                << curTick()
+                << ", "
+                << "\"cycle\": "
+                << tc->getCpuPtr()->curCycle()
+                << " }" << std::endl;
+                
+                // schedule a stat event to dump all stats but not reset
+                // them (dump = true, reset = false)
+                Stats::schedStatEvent(true, false);
+            }
+            break;
+                                  
           default:
             setMiscRegNoEffect(misc_reg, val);
         }

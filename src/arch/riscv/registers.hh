@@ -254,6 +254,9 @@ enum MiscRegIndex {
     MISCREG_FFLAGS,
     MISCREG_FRM,
 
+    // state en register (based on brg gem5 by tuan ta)
+    // you can set this to begin recording stats and finish recording stats
+    MISCREG_STATS,
 
     // pbb custom regs that can be accessed by insructions
     MISCREG_EXE,
@@ -428,6 +431,7 @@ enum CSRIndex {
     
     // pbb custom reg codes
     ,
+    CSR_STATS = 0x7C1,
     CSR_EXE = 0x400,
     CSR_FETCH = 0x401
     
@@ -602,6 +606,7 @@ const std::map<int, CSRMetadata> CSRData = {
     
     // PBB 
     ,
+    {CSR_STATS, {"stats", MISCREG_STATS}},
     {CSR_EXE, {"executemesh", MISCREG_EXE}},
     {CSR_FETCH, {"fetchmesh", MISCREG_FETCH}}
 };
