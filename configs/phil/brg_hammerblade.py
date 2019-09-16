@@ -254,7 +254,7 @@ parser.add_option("--spm-size", action="store", type="string",
 #parser.add_option("--num-xcels", type = "int", default = 16)
 
 # number of pending requests allowed by scratchpad
-parser.add_option("--stream-width", type = "int", default = 1)
+parser.add_option("--stream-width", type = "int", default = 2)
 
 #parser.add_option("--xcel", type = "string", default = "")
 
@@ -306,21 +306,21 @@ process = get_processes(options)[0]
 
 # CPU class
 #CPUClass = TimingSimpleCPU
-CPUClass = MinorCPU
 
-# Create top-level system
-system = System(cpu = [ 
-                  CPUClass(
-                    cpu_id = i,
+CPUClass = MinorCPU(   
                     fetch2InputBufferSize = 1,
                     decodeInputWidth = 1,
                     executeInputWidth = 1,
                     executeIssueLimit = 1,
                     executeCommitLimit = 1,
-                    #executeMaxAccessesInMemory = 1,
+                    # important that this is not greter than stream_width!!!
+                    #executeMaxAccessesInMemory = options.stream_width, 
                     executeLSQMaxStoreBufferStoresPerCycle = 1,
                   )
-                  for i in xrange(n_cpus) ],
+
+
+# Create top-level system
+system = System(cpu = [ CPUClass(cpu_id = i) for i in xrange(n_cpus) ],
                         mem_mode = CPUClass.memory_mode(),
                         mem_ranges = [ AddrRange(options.mem_size) ],
                         cache_line_size = 32) #options.cacheline_size)
