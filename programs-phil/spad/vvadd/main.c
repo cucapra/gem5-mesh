@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-#include "vvadd.h"
 #include "spad.h"
 #include "pthread_launch.h"
+#include "vvadd.h"
 
 int main(int argc, char *argv[]) {
   
@@ -36,6 +36,29 @@ int main(int argc, char *argv[]) {
     b[i] = i;
     c[i] = 0;
   }
+  
+  // if we're going to be using scratchpads, simply copy the data from
+  // global to scratchpads before we start running the kernel
+  #ifdef _USE_SCRATCHPAD
+  float **sp_a; float **sp_b; float **sp_c;
+  sp_a = (float**)malloc(sizeof(float*) * num_cores);
+  sp_b = (float**)malloc(sizeof(float*) * num_cores);
+  sp_c = (float**)malloc(sizeof(float*) * num_cores);
+  for (int i = 0; i < num_cores; i++) {
+    float *sp = (float*)getSpAddr(i, 0);
+    
+    sp_a[i] = &(sp[0]);
+    sp_b[i] = &(sp[size]);
+    sp_c[i] = &(sp[2 * size]);
+    
+    // copy same data to each scratchpad
+    for (int j = 0; j < size; j++) {
+        sp_a[i][j] = a[j];
+        sp_b[i][j] = b[j];
+        sp_c[i][j] = c[j];
+    }
+  }
+  #endif
 
   /*--------------------------------------------------------------------
   * Pack argument for kernel
@@ -47,7 +70,12 @@ int main(int argc, char *argv[]) {
   for (int y = 0; y < cores_y; y++) {
     for (int x = 0; x < cores_x; x++){
       int i = x + y * cores_x;
+      
+      #ifdef _USE_SCRATCHPAD
+      kern_args[i] = construct_args(sp_a[i], sp_b[i], sp_c[i], size, x, y, cores_x, cores_y);
+      #else
       kern_args[i] = construct_args(a, b, c, size, x, y, cores_x, cores_y);
+      #endif
     }  
   }
 
@@ -62,9 +90,28 @@ int main(int argc, char *argv[]) {
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
   
-  for (int i = 0; i < size; i++) {
-    printf("%f\n", c[i]);
+  #ifdef _USE_SCRATCHPAD
+  for (int i = 0; i < num_cores; i++) {
+    for (int j = 0; j < size; j++) {
+      //printf("%f\n", sp_c[i][j]);
+      if (sp_c[i][j] != 2 * j) {
+        printf("[[FAIL]]\n");
+        return 1;
+      }
+    }
   }
+  free(sp_a);
+  free(sp_b);
+  free(sp_c);
+  #else
+  for (int i = 0; i < size; i++) {
+    //printf("%f\n", c[i]);
+    if (c[i] != 2 * i) {
+      printf("[[FAIL]]\n");
+      return 1;
+    }
+  }
+  #endif
   
   free(a);
   free(b);

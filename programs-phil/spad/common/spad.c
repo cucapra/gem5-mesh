@@ -47,6 +47,9 @@ void initScratchpads() {
 void *getSpAddr(int pad, size_t offset) {
   if (pad >= N_SPS) return NULL;
   
-  void *basePtr = (void*)(spm_base_ptr_arr[pad]);
+  // the spad treats the addr, go, done flag as special, don't write to them
+  // TODO we probably want the stack to exist in the scratchpad... how to do?
+  size_t afterFlags = sizeof(uint64_t) + 2 * sizeof(uint32_t);
+  void *basePtr = (void*)(spm_base_ptr_arr[pad] + afterFlags);
   return basePtr + offset;
 }
