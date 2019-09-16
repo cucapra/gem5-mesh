@@ -3,9 +3,9 @@ DEPS = $(C_SRCS:.c=.o)
 C_OBJS = $(notdir $(C_SRCS:.c=.o))
 
 
-EXEC = vvadd
+EXEC = sddmm
 
-N_SPS = 4
+N_SPS = 16
 
 # installed cross compiler gcc for riscv
 RV_CC=/data/phil/riscv-build/bin/riscv64-unknown-linux-gnu-gcc

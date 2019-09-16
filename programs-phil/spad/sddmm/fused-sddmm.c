@@ -1,7 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-#include "weirdo-kernel.h"
+#include "fused-sddmm.h"
 
 inline int sparse_mat_get_x(sparse_mat_t *mat, int nnz) {
   return mat->nz_idxs[nnz];
@@ -14,7 +14,7 @@ inline int sparse_mat_get_y(sparse_mat_t *mat, int nnz) {
 
 // t x m @ n x t ( x -- y )
 // b is the transpose (not to be confused with the inverse!)
-void sddmm_fused_div(data_t *a, data_t *b_t, sparse_mat_t *c,
+void kernel(data_t *a, data_t *b_t, sparse_mat_t *c,
     sparse_mat_t *mask, int m, int n, int t, int tid_x, int tid_y, 
     int threads_x, int threads_y, int start_row, int end_row) {
   
@@ -66,11 +66,11 @@ void sddmm_fused_div(data_t *a, data_t *b_t, sparse_mat_t *c,
 }
 
 
-sddmm_args_t *construct_sddmm_args(data_t *a, data_t *b_t, sparse_mat_t *c,
+Kern_Args *construct_args(data_t *a, data_t *b_t, sparse_mat_t *c,
     sparse_mat_t *mask, int m, int n, int t, int tid_x, int tid_y, 
     int threads_x, int threads_y, int start_row, int end_row) {
       
-  sddmm_args_t *args = (sddmm_args_t*)malloc(sizeof(sddmm_args_t));
+  Kern_Args *args = (Kern_Args*)malloc(sizeof(Kern_Args));
   
   args->a         = a;
   args->b_t       = b_t;
@@ -90,11 +90,11 @@ sddmm_args_t *construct_sddmm_args(data_t *a, data_t *b_t, sparse_mat_t *c,
       
 }
 
-void *pthread_sddmm_fused_div(void *args) {
-  sddmm_args_t *a = (sddmm_args_t*)args;
+void *pthread_kernel(void *args) {
+  Kern_Args *a = (Kern_Args*)args;
   
-  sddmm_fused_div(a->a, a->b_t, a->c, a->mask, a->m, a->n, a->t,
+  kernel(a->a, a->b_t, a->c, a->mask, a->m, a->n, a->t,
       a->tid_x, a->tid_y, a->threads_x, a->threads_y, a->start_row, a->end_row);
       
-  return nullptr;
+  return NULL;
 }

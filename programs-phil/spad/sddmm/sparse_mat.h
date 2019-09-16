@@ -1,7 +1,8 @@
 #ifndef __SPARSE_MAT_H__
 #define __SPARSE_MAT_H__
 
-#include <cstdint>
+#include <stdint.h>
+#include <stdbool.h>
 
 #ifdef FIXED_POINT
 #include "fixed_point.h"
