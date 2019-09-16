@@ -305,10 +305,22 @@ process = get_processes(options)[0]
 #------------------------------------------------------------------------------
 
 # CPU class
-CPUClass = TimingSimpleCPU
+#CPUClass = TimingSimpleCPU
+CPUClass = MinorCPU
 
 # Create top-level system
-system = System(cpu = [ CPUClass(cpu_id = i) for i in xrange(n_cpus) ],
+system = System(cpu = [ 
+                  CPUClass(
+                    cpu_id = i,
+                    fetch2InputBufferSize = 1,
+                    decodeInputWidth = 1,
+                    executeInputWidth = 1,
+                    executeIssueLimit = 1,
+                    executeCommitLimit = 1,
+                    #executeMaxAccessesInMemory = 1,
+                    executeLSQMaxStoreBufferStoresPerCycle = 1,
+                  )
+                  for i in xrange(n_cpus) ],
                         mem_mode = CPUClass.memory_mode(),
                         mem_ranges = [ AddrRange(options.mem_size) ],
                         cache_line_size = 32) #options.cacheline_size)
