@@ -236,6 +236,77 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
 
   network.int_links = int_links
 
+def makeSystolicTopology(system, tiles_x, tiles_y):
+
+  # edges harnesses to take bad packets
+  system.harness = [Harness() for i in range(2 * tiles_x + 2 * tiles_y)]
+  harness_idx = 0
+
+  # get reference to the cpus already in the system
+  cpus = system.cpu
+
+  #print ('harnesses: {0}'.format(len(system.harness)))
+
+  for y in range(tiles_y):
+    for x in range(tiles_x):
+      # do all mesh connections
+      # it's important that these are done a particular order
+      # so that vector idx are consistent
+      # edges need to be connected to something! will do harness for now!
+      idx   = x     + y         * tiles_x
+      idx_r = x + 1 + y         * tiles_x
+      idx_l = x - 1 + y         * tiles_x
+      idx_u = x     + ( y - 1 ) * tiles_x
+      idx_d = x     + ( y + 1 ) * tiles_x
+    
+      #print('Connecting ({0}, {1}) = {2}'.format(x, y, idx))
+    
+      to_right = 0
+      from_left = 2
+    
+      to_below = 1
+      from_above = 3
+    
+      to_left = 2
+      from_right = 0
+    
+      to_above = 3
+      from_below = 1
+    
+    
+      # connect to the right!
+      if (x + 1 < tiles_x):
+        cpus[idx].to_mesh_port[to_right] = cpus[idx_r].from_mesh_port[from_left]
+      else:
+        cpus[idx].to_mesh_port[to_right] = system.harness[harness_idx].from_cpu
+        cpus[idx].from_mesh_port[from_right] = system.harness[harness_idx].to_cpu
+        harness_idx += 1
+      
+      # connect to below
+      if (y + 1 < tiles_y):
+        cpus[idx].to_mesh_port[to_below] = cpus[idx_d].from_mesh_port[from_above]
+      else:
+        cpus[idx].to_mesh_port[to_below] = system.harness[harness_idx].from_cpu
+        cpus[idx].from_mesh_port[from_below] = system.harness[harness_idx].to_cpu
+        harness_idx += 1
+      
+      # connect to the left 
+      if (x - 1 >= 0):
+        cpus[idx].to_mesh_port[to_left] = cpus[idx_l].from_mesh_port[from_right]
+      else:
+        cpus[idx].to_mesh_port[to_left] = system.harness[harness_idx].from_cpu
+        cpus[idx].from_mesh_port[from_left] = system.harness[harness_idx].to_cpu
+        harness_idx += 1
+      
+      # connect to above
+      if (y - 1 >= 0):
+        cpus[idx].to_mesh_port[to_above] = cpus[idx_u].from_mesh_port[from_below]
+      else:
+        cpus[idx].to_mesh_port[to_above] = system.harness[harness_idx].from_cpu
+        cpus[idx].from_mesh_port[from_above] = system.harness[harness_idx].to_cpu
+        harness_idx += 1
+
+
 #------------------------------------------------------------------------------
 # Parse options
 #------------------------------------------------------------------------------
@@ -250,21 +321,13 @@ Ruby.define_options(parser)
 parser.add_option("--spm-size", action="store", type="string", 
   default="4kB", help="Specify the scratchpad memory size")
 
-
-#parser.add_option("--num-xcels", type = "int", default = 16)
-
 # number of pending requests allowed by scratchpad
 parser.add_option("--stream-width", type = "int", default = 2)
 
-#parser.add_option("--xcel", type = "string", default = "")
-
 (options, args) = parser.parse_args()
 
+# figure out system size
 n_cpus  = options.num_cpus
-
-# TODO we need a single host cpu that won't be in the mesh
-#n_cpus  = n_mcpus + 1
-
 n_xcels = 0 #options.num_xcels
 n_tiles = n_cpus + n_xcels
 
@@ -285,18 +348,6 @@ ExtLinkClass = GarnetExtLink
 RouterClass = GarnetRouter
 InterfaceClass = GarnetNetworkInterface
 
-'''
-# xcel classes
-if options.xcel == "TensorSumXcel":
-  XcelClass = TensorSumXcel
-elif options.xcel == "EmbeddingXcel":
-  XcelClass = EmbeddingXcel
-elif options.xcel == "EmbeddingBwXcel":
-  XcelClass = EmbeddingBwXcel
-else:
-  assert(False)
-'''
-
 # Do not support multi-process simulation
 process = get_processes(options)[0]
 
@@ -308,12 +359,16 @@ process = get_processes(options)[0]
 #CPUClass = TimingSimpleCPU
 
 CPUClass = MinorCPU(   
+                    # modified minor currently only works with 1way proc
+                    # does compiler know that this is a 1way io proc? seems
+                    # like it would matter a lot for instruction order chosen
                     fetch2InputBufferSize = 1,
                     decodeInputWidth = 1,
                     executeInputWidth = 1,
                     executeIssueLimit = 1,
                     executeCommitLimit = 1,
                     # important that this is not greter than stream_width!!!
+                    # default both to 2
                     #executeMaxAccessesInMemory = options.stream_width, 
                     executeLSQMaxStoreBufferStoresPerCycle = 1,
                   )
@@ -487,6 +542,12 @@ system.network = network
 
 system.ruby.sys_port_proxy = RubyPortProxy(ruby_system = system.ruby)
 system.system_port = system.ruby.sys_port_proxy.slave
+
+#------------------------------------------------------------------------------
+# Construct systolic network
+#------------------------------------------------------------------------------
+
+makeSystolicTopology(system, n_rows - 1, n_cols)
 
 #------------------------------------------------------------------------------
 # Construct memory controller
