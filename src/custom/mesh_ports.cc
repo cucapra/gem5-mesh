@@ -25,7 +25,7 @@ ToMeshPort::ToMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx)
 bool
 ToMeshPort::recvTimingResp(PacketPtr pkt)
 {
-    DPRINTF(Mesh, "Received mesh out response %#x\n", pkt->getAddr());
+    //DPRINTF(Mesh, "Received mesh out response %#x\n", pkt->getAddr());
     // we should only ever see one response per cycle since we only
     // issue a new request once this response is sunk
     //assert(!tickEvent.scheduled());
@@ -88,6 +88,10 @@ ToMeshPort::setValIfActive(bool val, SensitiveStage stage) {
   if (active == stage) { 
     setVal(val);
   }
+  // if not active then allow to go to false, this occurs when deconfigure
+  else if (active == NONE && !val) {
+    setVal(false);
+  }
 }
 
 /*----------------------------------------------------------------------
@@ -127,7 +131,7 @@ FromMeshPort::process(){
 bool 
 FromMeshPort::recvTimingReq(PacketPtr pkt) {
   //DPRINTF(Mesh, "recvresp packet %ld %ld\n", (uint64_t)recvPkt, (uint64_t)this);
-  DPRINTF(Mesh, "Received mesh request %#x for idx %d\n", pkt->getAddr(), idx);
+  //DPRINTF(Mesh, "Received mesh request %#x for idx %d\n", pkt->getAddr(), idx);
     // we should only ever see one response per cycle since we only
     // issue a new request once this response is sunk
     
@@ -317,5 +321,9 @@ void
 FromMeshPort::setRdyIfActive(bool rdy, SensitiveStage stage) {
   if (active == stage) {
     setRdy(rdy);
+  }
+  // if not active then allow to go to false, this occurs when deconfigure
+  else if (active == NONE && !rdy) {
+    setRdy(false);
   }
 }
