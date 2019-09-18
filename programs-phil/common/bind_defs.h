@@ -94,6 +94,35 @@
     : wr                                                    \
     : [sbind0] "i" (sbind), [ebind0] "i" (ebind) rd         \
   )                                                 
+ 
+// when using -O2/3 getting error using labels (already defined)
+// normal solution is to use block unique name with %=
+// BUT  can't use %= to generate unique labels because across diff blocks
+// use 'goto' qualifier to jump outside of block?
+#define BINDED_FET_SOURCE(sbind, ebind, code)               \
+  asm volatile goto (                                       \
+    ".insn u 0x77, x0, %[sbind0]\n\t"                       \
+    ".insn uj 0x0b, x28, %l[label]\n\t"                     \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    ::[sbind0] "i" (sbind) :: label);                       \
+  code                                                      \
+  asm volatile (                                            \
+    ".insn u 0x7b, x28, %[ebind0]\n\t"                      \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    ::[ebind0] "i" (ebind));                                
   
 // bind both exe and fetch
 #define BINDED_TIMED_SECTION(ebind0, ebind1, fbind0, timer, code, wr, rd)  \
