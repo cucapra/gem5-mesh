@@ -154,7 +154,8 @@ FromMeshPort::recvTimingReq(PacketPtr pkt) {
     // inform there is local activity and should wakeup entire pipeline to try
     // stuff on the next cycle
     //cpu->activityRecorder->activity();
-    cpu->activityRecorder->activateStage(Minor::Pipeline::VectorStageId);
+    //cpu->activityRecorder->activateStage(Minor::Pipeline::VectorStageId);
+    cpu->wakeupOnEvent(Minor::Pipeline::VectorStageId);
 
     return true;
 }
