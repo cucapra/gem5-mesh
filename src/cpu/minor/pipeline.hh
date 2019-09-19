@@ -112,7 +112,7 @@ class Pipeline : public Ticked
         /* A stage representing wakeup of the whole processor */
         CPUStageId = 0,
         /* Real pipeline stages */
-        Fetch1StageId, Fetch2StageId, DecodeStageId, ExecuteStageId,
+        Fetch1StageId, Fetch2StageId, DecodeStageId, ExecuteStageId, VectorStageId,
         Num_StageId /* Stage count */
     };
 

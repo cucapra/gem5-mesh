@@ -132,6 +132,10 @@ EventDrivenFSM::tryScheduleUpdate() {
   if (!_stateUpdateEvent.scheduled()) {
     if (_state != pendingNextState()) {
       _cpu->schedule(_stateUpdateEvent, _cpu->clockEdge(Cycles(1)));
+      
+      // if we're going to change state on the next cycle we want the cpu
+      // to try to tick as it may unstall
+      //_cpu->activityRecorder->activity();
     }
   }
 }
@@ -270,7 +274,7 @@ EventDrivenFSM::stateOutputTransition() {
   _vec->setVal(newOutputs.val);
   _vec->setRdy(newOutputs.rdy);
   
-  DPRINTF(Mesh, "%s update output val %d rdy %d\n", _cpu->name(), newOutputs.val, newOutputs.rdy);
+  //DPRINTF(Mesh, "%s update output val %d rdy %d\n", _cpu->name(), newOutputs.val, newOutputs.rdy);
 }
 
 bool
@@ -290,7 +294,8 @@ EventDrivenFSM::getInternalStall() {
 
 bool
 EventDrivenFSM::getConfigured() {
-  return _vec->getNumPortsActive() > 0;
+  //return _vec->getNumPortsActive() > 0;
+  return _vec->getConfigured();
 }
 
 std::string

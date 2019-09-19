@@ -22,9 +22,9 @@ void kernel(
       FET_O_INST_RIGHT_SEND,
       ALL_NORM,
         
-      for (int i = 0; i < size; i++) {
-        c[i] = a[i] + b[i];
-      }
+      //for (int i = 0; i < size; i++) {
+        c[0] = a[0] + b[0];
+      //}
       
     );
   }
@@ -33,11 +33,13 @@ void kernel(
       FET_I_INST_LEFT /*| FET_O_INST_DOWN_SEND*/,
       ALL_NORM,
         
-      for (int i = 0; i < size; i++) {
-        c[i] = a[i] + b[i];
-      }
+      //for (int i = 0; i < size; i++) {
+        c[0] = a[0] + b[0];
+      //}
       
     );
+    //label:
+      //asm volatile ("nop\n\t"::);
   }
   /*else if (tid_x == 0 && tid_y == 1) {
     BINDED_FET_SOURCE(
@@ -67,6 +69,7 @@ void kernel(
   label:
     // need to have at least one subsequent instruction for label to be here
     asm volatile ("nop\n\t"::);
+    printf("tid %d %d made it!\n", tid_x, tid_y);
   
   #endif
   

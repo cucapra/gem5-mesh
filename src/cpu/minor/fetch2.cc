@@ -421,9 +421,9 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
         insts_out.resize(outputWidth);
     }
     
-    /*if (debug == 1) {
+    if (debug == 1 && cpu.cpuId() == 0) {
         DPRINTF(Mesh, "%s\n", *dyn_inst);
-    }*/
+    }
     
     if (dyn_inst->staticInst->isBind()) { 
         debug = ( debug + 1 ) % 2;

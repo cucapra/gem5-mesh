@@ -83,7 +83,7 @@ VectorForward::evaluate() {
   bool canGo = !shouldStall();
   
   if (canGo) {
-    //DPRINTF(Mesh, "vector unit going\n");
+    DPRINTF(Mesh, "vector unit going\n");
     // pull instruction from the mesh or from the local fetch stage
     TheISA::MachInst instWord = pullInstruction();
   
@@ -94,13 +94,13 @@ VectorForward::evaluate() {
     forwardInstruction(instWord);
     
   } 
-  /*else {
-    if (getNumPortsActive() > 0)
-    DPRINTF(Mesh, "vec can't do anything\n");
-  }*/
+  else {
+    if (getConfigured())
+      DPRINTF(Mesh, "vec can't do anything\n");
+  }
   
   // if not configured just pop the input so fetch doesn't stall
-  if (MeshHelper::isCSRDefault(_curCsrVal)) {
+  if (!getConfigured()) {
     popFetchInput(0);
   }
   
@@ -126,7 +126,7 @@ VectorForward::forwardInstruction(const TheISA::MachInst inst) {
     Mesh_Dir dir = out[i].outDir;
     Mesh_Out_Src src = out[i].src;
     
-    DPRINTF(Mesh, "Sending mesh request %d from %d with val %#x\n", dir, src, inst);
+    DPRINTF(Mesh, "Sending mesh request %d from %d with val %s\n", dir, src, inst);
   
     PacketPtr new_pkt = createMeshPacket((uint64_t)inst);
     _toMeshPort[dir].sendTimingReq(new_pkt);
@@ -173,7 +173,7 @@ VectorForward::createInstruction(const TheISA::MachInst instWord) {
   // the correct branch?
   dyn_inst->id.streamSeqNum = _lastStreamSeqNum;
   
-  DPRINTF(Mesh, "decoder inst %s\n", *dyn_inst);
+  //DPRINTF(Mesh, "decoder inst %s\n", *dyn_inst);
 
   return dyn_inst;
 }
@@ -470,6 +470,11 @@ VectorForward::popFetchInput(ThreadID tid) {
 }
 
 bool
+VectorForward::getConfigured() {
+  return !MeshHelper::isCSRDefault(_curCsrVal);
+}
+
+bool
 VectorForward::isInternallyStalled() {
   int tid = 0;
   bool decodeStall = !_nextStageReserve[tid].canReserve();
@@ -521,6 +526,14 @@ VectorForward::shouldStall() {
   bool canGo = meshOk && nextStageOk;
   
   return !canGo;
+}
+
+void
+VectorForward::updateStreamSeqNum(InstSeqNum seqNum) { 
+  if (getConfigured()) DPRINTF(Mesh, "set slave seq num %s\n", seqNum);
+  _lastStreamSeqNum = seqNum; 
+  // for some reason when do isSerializeAfter (a branch), need to hack in an additional +1?
+  _lastStreamSeqNum += 1;
 }
 
 

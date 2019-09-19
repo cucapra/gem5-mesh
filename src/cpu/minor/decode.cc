@@ -134,7 +134,7 @@ Decode::evaluate()
     // 2) From Vector
     // Vector should be prioritized
     if (!inp_v.outputWire->isBubble()) {
-        DPRINTF(Mesh, "decode gets from vector\n");
+        //DPRINTF(Mesh, "decode gets from vector\n");
         inputBuffer[inp_v.outputWire->threadId].setTail(*inp_v.outputWire);
     }
     else if (!inp.outputWire->isBubble()) {

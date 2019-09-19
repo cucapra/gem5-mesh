@@ -1,5 +1,6 @@
 #include "custom/mesh_ports.hh"
 #include "cpu/minor/cpu.hh"
+#include "cpu/minor/pipeline.hh"
 #include "custom/vector_forward.hh"
 #include "debug/Mesh.hh"
 
@@ -152,7 +153,8 @@ FromMeshPort::recvTimingReq(PacketPtr pkt) {
 
     // inform there is local activity and should wakeup entire pipeline to try
     // stuff on the next cycle
-    cpu->activityRecorder->activity();
+    //cpu->activityRecorder->activity();
+    cpu->activityRecorder->activateStage(Minor::Pipeline::VectorStageId);
 
     return true;
 }

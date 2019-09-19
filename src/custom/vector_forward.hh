@@ -86,6 +86,9 @@ class VectorForward : public Named {
     
     // check if we need to stall due to the internal pipeline
     bool isInternallyStalled();
+    
+    // get if this is configured beyond default behavior
+    bool getConfigured();
   
     // the communication channel between fetch2 and vector
     std::vector<Minor::InputBuffer<Minor::ForwardVectorData>>& getInputBuf();
@@ -184,7 +187,9 @@ class VectorForward : public Named {
     
   public:
     // TEMP?
-    void updateStreamSeqNum(InstSeqNum seqNum) { _lastStreamSeqNum = seqNum; };
+    // Minor execute stage expects a stream seq number (the number of branches I believe)
+    // need to cache this before config starts
+    void updateStreamSeqNum(InstSeqNum seqNum);
   
 };
 

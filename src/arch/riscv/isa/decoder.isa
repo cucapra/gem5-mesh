@@ -1847,7 +1847,7 @@ decode QUADRANT default Unknown::unknown() {
             xc->setMiscReg(MISCREG_FETCH, imm);
             
             //printf("csr set %ld pc %ld\n", imm, PC);
-        }}, IsNonSpeculative, IsBind, No_OpClass);
+        }}, IsSerializeAfter, IsNonSpeculative, IsBind, No_OpClass);
         
         // this can be made into an itype to get more instructions?
         // if imm always 0
@@ -1855,7 +1855,7 @@ decode QUADRANT default Unknown::unknown() {
             
             NPC = Rd;
             xc->setMiscReg(MISCREG_FETCH, imm);
-            //printf("devec to %ld from curr pc %ld\n", NPC, PC);
+            printf("devec to %ld from curr pc %ld\n", NPC, PC);
         }}, IsDirectControl, IsUncondControl, IsCall, IsNonSpeculative, IsBind);
         
         // save the address to jump out of the vector block without tracking
