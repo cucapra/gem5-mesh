@@ -55,6 +55,7 @@
 #include "debug/MinorMem.hh"
 #include "debug/MinorTrace.hh"
 #include "debug/PCEvent.hh"
+#include "debug/Mesh.hh"
 
 namespace Minor
 {
@@ -307,8 +308,10 @@ Execute::updateBranchData(
 {
     if (reason != BranchData::NoBranch) {
         /* Bump up the stream sequence number on a real branch*/
-        if (BranchData::isStreamChange(reason))
+        if (BranchData::isStreamChange(reason)) {
             executeInfo[tid].streamSeqNum++;
+            DPRINTF(Mesh, "tick seq num %d->%d\n", executeInfo[tid].streamSeqNum - 1, executeInfo[tid].streamSeqNum);
+        }
 
         /* Branches (even mis-predictions) don't change the predictionSeqNum,
          *  just the streamSeqNum */
@@ -575,6 +578,10 @@ Execute::issue(ThreadID thread_id)
             issued = true;
             discarded = true;
         } else if (inst->id.streamSeqNum != thread.streamSeqNum) {
+            DPRINTF(Mesh, "Discarding inst: %s as its stream"
+                " state was unexpected, expected: %d\n",
+                *inst, thread.streamSeqNum);
+            
             DPRINTF(MinorExecute, "Discarding inst: %s as its stream"
                 " state was unexpected, expected: %d\n",
                 *inst, thread.streamSeqNum);

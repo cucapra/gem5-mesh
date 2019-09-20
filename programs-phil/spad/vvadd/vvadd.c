@@ -22,9 +22,9 @@ void kernel(
       FET_O_INST_RIGHT_SEND,
       ALL_NORM,
         
-      //for (int i = 0; i < size; i++) {
-        c[0] = a[0] + b[0];
-      //}
+      for (int i = 0; i < size; i++) {
+        c[i] = a[i] + b[i];
+      }
       
     );
   }
@@ -33,9 +33,9 @@ void kernel(
       FET_I_INST_LEFT /*| FET_O_INST_DOWN_SEND*/,
       ALL_NORM,
         
-      //for (int i = 0; i < size; i++) {
-        c[0] = a[0] + b[0];
-      //}
+      for (int i = 0; i < size; i++) {
+        c[i] = a[i] + b[i];
+      }
       
     );
     //label:

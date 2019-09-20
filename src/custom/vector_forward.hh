@@ -32,16 +32,7 @@ class VectorForward : public Named {
         std::vector<Minor::InputBuffer<Minor::ForwardInstData>> &nextStageReserve,
         std::function<bool()> backStall)
       ;
-  
-    // MinorDynInstPtr from Fetch2?
-      // MachInst only exists in Fetch2
-    // MinorDynInstPtr from Decode?
-    
-    // I think should be called from fetch2 and inject into decode
-    
-    // master calls this to broadcast to neighbors
-    void forwardInstruction(const TheISA::MachInst inst);
-    
+
     // like a pipeline stage, tick this and pass stuff on to the next stage
     // if possible. this should mimic fetch2 somewhat
     void evaluate();
@@ -108,10 +99,13 @@ class VectorForward : public Named {
     void pushToNextStage(const Minor::MinorDynInstPtr);
     
     // call the two things above to make a dynamic instruction then push it
-    void pushInstToNextStage(const TheISA::MachInst instWord);
+    void pushInstToNextStage(const Minor::ForwardVectorData &instInfo);
+    
+    // master calls this to broadcast to neighbors
+    void forwardInstruction(const Minor::ForwardVectorData &instInfo);
     
     // pull an instruction from the mesh network (figure out the right dir)
-    TheISA::MachInst pullInstruction();
+    void pullInstruction(Minor::ForwardVectorData &instInfo);
     
     // extract (functional decode) the machinst to ExtMachInst
     StaticInstPtr extractInstruction(const TheISA::MachInst inst);
@@ -129,7 +123,7 @@ class VectorForward : public Named {
     PacketPtr getMeshPortPkt(Mesh_Dir dir);
     
     // get a machinst from the local fetch2
-    TheISA::MachInst getFetchInput(ThreadID tid);
+    Minor::ForwardVectorData* getFetchInput(ThreadID tid);
     
     // mark the fetch2 input as processed so that it can push more stuff
     void popFetchInput(ThreadID tid);
@@ -139,6 +133,11 @@ class VectorForward : public Named {
     
     // check if this stage can proceed
     bool shouldStall();
+    
+    // encode + decode of information over mesh net
+    // requires 32 + 1 = 33bits currently
+    Minor::ForwardVectorData decodeMeshData(uint64_t data);
+    uint64_t encodeMeshData(const Minor::ForwardVectorData &instInfo);
      
   protected:
     

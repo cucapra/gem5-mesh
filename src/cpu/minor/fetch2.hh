@@ -211,7 +211,7 @@ class Fetch2 : public Named
     ThreadID getScheduledThread();
     
     /** Send the new dynamic instruction to the next stage */
-    void pushDynInst(MinorDynInstPtr dyn_inst, int output_index);
+    void pushDynInst(MinorDynInstPtr dyn_inst, bool branch_taken, int output_index);
     
     /** Create a dynamic instruction from a static one with the intention
      *  to send it */

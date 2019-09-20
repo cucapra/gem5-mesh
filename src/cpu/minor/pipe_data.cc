@@ -292,7 +292,6 @@ ForwardInstData::reportData(std::ostream &os) const
 ForwardVectorData::ForwardVectorData(ThreadID tid) :
     threadId(tid)
 {
-    machInst = 0;
     bubbleFill();
 }
 
@@ -311,6 +310,7 @@ void
 ForwardVectorData::bubbleFill()
 {
     machInst = 0;
+    branchTaken = false;
 }
 
 void
@@ -323,6 +323,7 @@ ForwardVectorData::reportData(std::ostream &os) const
 
         os << '(';
         os << machInst;
+        os << branchTaken;
         /*while (i != numInsts) {
             insts[i]->reportData(os);
             i++;

@@ -298,6 +298,9 @@ class ForwardVectorData /* : public ReportIF, public BubbleIF */
   public:
     /** the encoded instruction */
     TheISA::MachInst machInst;
+    
+    /** whether a branch was taken due to this instruction */
+    bool branchTaken;
 
     /** Thread associated with the instruction */
     ThreadID threadId;

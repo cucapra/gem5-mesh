@@ -330,7 +330,10 @@ Fetch2::evaluate()
                 // output dynamic instruction to the next stage
                 if (dyn_inst) {
                 
-                    pushDynInst(dyn_inst, output_index);
+                    // check if there was a branch taken which would change streamSeqNum
+                    bool branch_taken = fetch_info.lastStreamSeqNum != line_in->id.streamSeqNum;
+                
+                    pushDynInst(dyn_inst, branch_taken, output_index);
                 
                     /* Step to next sequence number */
                     fetch_info.fetchSeqNum++;
@@ -412,7 +415,7 @@ Fetch2::evaluate()
 }
 
 void
-Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
+Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, bool branch_taken, int output_index) {
     
     ForwardInstData &insts_out = *out.inputWire;
 
@@ -421,9 +424,9 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
         insts_out.resize(outputWidth);
     }
     
-    if (debug == 1 && cpu.cpuId() == 0) {
+    /*if (debug == 1 && cpu.cpuId() == 0) {
         DPRINTF(Mesh, "%s\n", *dyn_inst);
-    }
+    }*/
     
     if (dyn_inst->staticInst->isBind()) { 
         debug = ( debug + 1 ) % 2;
@@ -458,6 +461,12 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, int output_index) {
     TheISA::MachInst machInst = (TheISA::MachInst)extMachInst;
     
     vecData.machInst = machInst;
+    vecData.branchTaken = branch_taken;
+    
+    // let's also encode whether we predicted a branch or not
+    //dyn_inst->id.fetchSeqNum
+    //DPRINTF(Mesh, "predSeqNum %d\n", dyn_inst->id.predictionSeqNum);
+    //fetch_line_id.streamSeqNum
     
     ThreadID tid = 0;
     

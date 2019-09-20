@@ -1,8 +1,10 @@
 #include "arch/registers.hh"
-
+#include "base/bitfield.hh"
 #include "custom/vector_forward.hh"
 
 #include "debug/Mesh.hh"
+
+using namespace Minor;
 
 VectorForward::VectorForward(const std::string &name,
   MinorCPU &cpu,
@@ -83,21 +85,22 @@ VectorForward::evaluate() {
   bool canGo = !shouldStall();
   
   if (canGo) {
-    DPRINTF(Mesh, "vector unit going\n");
+    //DPRINTF(Mesh, "vector unit going\n");
     // pull instruction from the mesh or from the local fetch stage
-    TheISA::MachInst instWord = pullInstruction();
+    ForwardVectorData instInfo;
+    pullInstruction(instInfo);
   
     // give instruction to the local decode stage if present
-    pushInstToNextStage(instWord);
+    pushInstToNextStage(instInfo);
     
     // forward instruction to other neighbors potentially
-    forwardInstruction(instWord);
+    forwardInstruction(instInfo);
     
   } 
-  else {
+  /*else {
     if (getConfigured())
       DPRINTF(Mesh, "vec can't do anything\n");
-  }
+  }*/
   
   // if not configured just pop the input so fetch doesn't stall
   if (!getConfigured()) {
@@ -115,7 +118,7 @@ VectorForward::canIssue() {
 
 
 void
-VectorForward::forwardInstruction(const TheISA::MachInst inst) {
+VectorForward::forwardInstruction(const ForwardVectorData& instInfo) {
   
   // find each direction to send a packet to
   std::vector<Mesh_DS_t> out;
@@ -126,31 +129,54 @@ VectorForward::forwardInstruction(const TheISA::MachInst inst) {
     Mesh_Dir dir = out[i].outDir;
     Mesh_Out_Src src = out[i].src;
     
-    DPRINTF(Mesh, "Sending mesh request %d from %d with val %s\n", dir, src, inst);
-  
-    PacketPtr new_pkt = createMeshPacket((uint64_t)inst);
+    
+    uint64_t meshData = encodeMeshData(instInfo);
+    DPRINTF(Mesh, "Sending mesh request %d from %d with val %#x %d = %#x\n", 
+        dir, src, instInfo.machInst, instInfo.branchTaken, meshData);
+    PacketPtr new_pkt = createMeshPacket(meshData);
     _toMeshPort[dir].sendTimingReq(new_pkt);
     
   }
 }
 
-TheISA::MachInst
-VectorForward::pullInstruction() {
+void
+VectorForward::pullInstruction(ForwardVectorData &instInfo) {
   
   // if slave, pull from the mesh
   Mesh_Dir recvDir;
   if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir)) {
     uint64_t meshData = getMeshPortData(recvDir);
-    TheISA::MachInst instWord = (TheISA::MachInst) meshData;
-    return instWord;
+    
+    // decode the msg here
+    instInfo = decodeMeshData(meshData);
+    DPRINTF(Mesh, "decoded %#x -> %#x %d\n", meshData, instInfo.machInst, instInfo.branchTaken);
+    //return instWord;
   }
   // if master, pull from the local fetch
   else {
-    TheISA::MachInst instWord = getFetchInput(0);
+    auto msg = getFetchInput(0);
+    
+    instInfo.machInst = msg->machInst;
+    instInfo.branchTaken = msg->branchTaken;
+    
     // pop to free up the space
     popFetchInput(0);
-    return instWord;
   }
+}
+
+ForwardVectorData
+VectorForward::decodeMeshData(uint64_t data) {
+  TheISA::MachInst instWord = (TheISA::MachInst)data;
+  bool branchTaken = (bool)bits(data, 32, 33);
+  ForwardVectorData instInfo;
+  instInfo.machInst = instWord;
+  instInfo.branchTaken = branchTaken;
+  return instInfo;
+}
+
+uint64_t
+VectorForward::encodeMeshData(const ForwardVectorData &instInfo) {
+  return (((uint64_t)instInfo.branchTaken) << 32) | (uint64_t)instInfo.machInst;
 }
 
 Minor::MinorDynInstPtr
@@ -179,10 +205,13 @@ VectorForward::createInstruction(const TheISA::MachInst instWord) {
 }
 
 void
-VectorForward::pushInstToNextStage(const TheISA::MachInst instWord) {
+VectorForward::pushInstToNextStage(const ForwardVectorData& instInfo) {
   // only push into decode if we are a slave
   if (MeshHelper::isVectorSlave(_curCsrVal)) {
-    Minor::MinorDynInstPtr dynInst = createInstruction(instWord);
+    // update the stream seq number based on branch hint from master
+    if (instInfo.branchTaken) _lastStreamSeqNum++;
+    
+    Minor::MinorDynInstPtr dynInst = createInstruction(instInfo.machInst);
     pushToNextStage(dynInst);
   }
 }
@@ -449,15 +478,14 @@ VectorForward::getInputBuf() {
   return _inputBuffer;
 }
 
-TheISA::MachInst
+ForwardVectorData*
 VectorForward::getFetchInput(ThreadID tid) {
   // Get a line from the inputBuffer to work with
   if (!_inputBuffer[tid].empty()) {
     auto msg = &(_inputBuffer[tid].front());
-    return msg->machInst;
+    return msg;
   } else {
-    // if there was nothing from fetch just push a nop???
-    return 0;
+    return nullptr;
   }
 }
 
@@ -532,7 +560,7 @@ void
 VectorForward::updateStreamSeqNum(InstSeqNum seqNum) { 
   if (getConfigured()) DPRINTF(Mesh, "set slave seq num %s\n", seqNum);
   _lastStreamSeqNum = seqNum; 
-  // for some reason when do isSerializeAfter (a branch), need to hack in an additional +1?
+  // when do isSerializeAfter (a branch), need to hack in an additional +1
   _lastStreamSeqNum += 1;
 }
 
