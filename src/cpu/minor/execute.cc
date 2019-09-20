@@ -56,7 +56,6 @@
 #include "debug/MinorTrace.hh"
 #include "debug/PCEvent.hh"
 
-#include "debug/Mesh.hh"
 namespace Minor
 {
 
@@ -470,19 +469,12 @@ Execute::executeMemRefInst(MinorDynInstPtr inst, BranchData &branch,
         ExecContext context(cpu, *cpu.threads[inst->id.threadId],
             *this, inst);
 
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Initiating memRef inst: %s\n", *inst);
-
         DPRINTF(MinorExecute, "Initiating memRef inst: %s\n", *inst);
 
         Fault init_fault = inst->staticInst->initiateAcc(&context,
             inst->traceData);
 
         if (init_fault != NoFault) {
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Fault on memory inst: %s"
-                " initiateAcc: %s\n", *inst, init_fault->name());
-            
             DPRINTF(MinorExecute, "Fault on memory inst: %s"
                 " initiateAcc: %s\n", *inst, init_fault->name());
             fault = init_fault;
@@ -579,22 +571,10 @@ Execute::issue(ThreadID thread_id)
         {
             DPRINTF(MinorExecute, "Discarding inst: %s from suspended"
                 " thread\n", *inst);
-                
-                ExecContext context(cpu, *cpu.threads[0], *this, inst);
-                if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Discarding inst: %s from suspended"
-                " thread\n", *inst);
 
             issued = true;
             discarded = true;
         } else if (inst->id.streamSeqNum != thread.streamSeqNum) {
-            ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Discarding inst: %s as its stream"
-                " state was unexpected, expected: %d\n",
-                *inst, thread.streamSeqNum);
-            
-            
             DPRINTF(MinorExecute, "Discarding inst: %s as its stream"
                 " state was unexpected, expected: %d\n",
                 *inst, thread.streamSeqNum);
@@ -612,11 +592,6 @@ Execute::issue(ThreadID thread_id)
              *  available FUs */
             do {
                 FUPipeline *fu = funcUnits[fu_index];
-
-    /*ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Trying to issue inst: %s to FU: %d\n",
-                    *inst, fu_index);*/
 
                 DPRINTF(MinorExecute, "Trying to issue inst: %s to FU: %d\n",
                     *inst, fu_index);
@@ -641,11 +616,6 @@ Execute::issue(ThreadID thread_id)
                     scoreboard[thread_id].markupInstDests(inst, cpu.curCycle() +
                         Cycles(0), cpu.getContext(thread_id), false);
 
-
-    ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Issuing %s to %d\n", inst->id, noCostFUIndex);
-
                     DPRINTF(MinorExecute, "Issuing %s to %d\n", inst->id, noCostFUIndex);
                     inst->fuIndex = noCostFUIndex;
                     inst->extraCommitDelay = Cycles(0);
@@ -661,40 +631,17 @@ Execute::issue(ThreadID thread_id)
                 } else if (!fu_is_capable || fu->alreadyPushed()) {
                     /* Skip */
                     if (!fu_is_capable) {
-                       /* ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Can't issue as FU: %d isn't"
-                            " capable\n", fu_index);*/
-                        
                         DPRINTF(MinorExecute, "Can't issue as FU: %d isn't"
                             " capable\n", fu_index);
                     } else {
-                        ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Can't issue as FU: %d is"
-                            " already busy\n", fu_index);
-                        
                         DPRINTF(MinorExecute, "Can't issue as FU: %d is"
                             " already busy\n", fu_index);
                     }
                 } else if (fu->stalled) {
-                        ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Can't issue inst: %s into FU: %d,"
-                        " it's stalled\n",
-                        *inst, fu_index);
-                    
                     DPRINTF(MinorExecute, "Can't issue inst: %s into FU: %d,"
                         " it's stalled\n",
                         *inst, fu_index);
                 } else if (!fu->canInsert()) {
-                    ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Can't issue inst: %s to busy FU"
-                        " for another: %d cycles\n",
-                        *inst, fu->cyclesBeforeInsert());
-                    
-                    
                     DPRINTF(MinorExecute, "Can't issue inst: %s to busy FU"
                         " for another: %d cycles\n",
                         *inst, fu->cyclesBeforeInsert());
@@ -710,13 +657,6 @@ Execute::issue(ThreadID thread_id)
                         &(fu->cantForwardFromFUIndices);
 
                     if (timing && timing->suppress) {
-                        
-                        ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Can't issue inst: %s as extra"
-                            " decoding is suppressing it\n",
-                            *inst);
-                        
                         DPRINTF(MinorExecute, "Can't issue inst: %s as extra"
                             " decoding is suppressing it\n",
                             *inst);
@@ -724,20 +664,9 @@ Execute::issue(ThreadID thread_id)
                         src_latencies, cant_forward_from_fu_indices,
                         cpu.curCycle(), cpu.getContext(thread_id)))
                     {
-                        ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Can't issue inst: %s yet\n",
-                            *inst);
-                        
                         DPRINTF(MinorExecute, "Can't issue inst: %s yet\n",
                             *inst);
                     } else {
-                        ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Issuing inst: %s"
-                            " into FU %d\n", *inst,
-                            fu_index);
-                        
                         /* Can insert the instruction into this FU */
                         DPRINTF(MinorExecute, "Issuing inst: %s"
                             " into FU %d\n", *inst,
@@ -780,15 +709,6 @@ Execute::issue(ThreadID thread_id)
                                 if (lsq.getLastMemBarrier(thread_id) >
                                     inst->instToWaitFor)
                                 {
-                                    ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "A barrier will"
-                                        " cause a delay in mem ref issue of"
-                                        " inst: %s until after inst"
-                                        " %d(exec)\n", *inst,
-                                        lsq.getLastMemBarrier(thread_id));
-                                    
-                                    
                                     DPRINTF(MinorExecute, "A barrier will"
                                         " cause a delay in mem ref issue of"
                                         " inst: %s until after inst"
@@ -798,13 +718,6 @@ Execute::issue(ThreadID thread_id)
                                     inst->instToWaitFor =
                                         lsq.getLastMemBarrier(thread_id);
                                 } else {
-                                    ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Memory ref inst:"
-                                        " %s must wait for inst %d(exec)"
-                                        " before issuing\n",
-                                        *inst, inst->instToWaitFor);
-                                    
                                     DPRINTF(MinorExecute, "Memory ref inst:"
                                         " %s must wait for inst %d(exec)"
                                         " before issuing\n",
@@ -846,13 +759,8 @@ Execute::issue(ThreadID thread_id)
                 fu_index++;
             } while (fu_index != numFuncUnits && !issued);
 
-            if (!issued) {
-                           ExecContext context(cpu, *cpu.threads[0], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Didn't issue inst: %s\n", *inst);
-                
+            if (!issued)
                 DPRINTF(MinorExecute, "Didn't issue inst: %s\n", *inst);
-            }
         }
 
         if (issued) {
@@ -1048,9 +956,6 @@ Execute::commitInst(MinorDynInstPtr inst, bool early_memory_issue,
         completed_inst = false;
     } else {
         ExecContext context(cpu, *cpu.threads[thread_id], *this, inst);
-
-        if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-            DPRINTF(Mesh, "Committing inst: %s\n", *inst);
 
         DPRINTF(MinorExecute, "Committing inst: %s\n", *inst);
 
@@ -1587,21 +1492,9 @@ Execute::evaluate()
         if (getInput(tid)) {
             unsigned int input_index = executeInfo[tid].inputIndex;
             MinorDynInstPtr inst = getInput(tid)->insts[input_index];
-            
-            
-            
             if (inst->isFault()) {
-                ExecContext context(cpu, *cpu.threads[tid], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "inst %d is fault\n", *inst);
-                
                 can_issue_next = true;
             } else if (!inst->isBubble()) {
-                
-                ExecContext context(cpu, *cpu.threads[tid], *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "inst %d not bubble, schedule issue\n", *inst);
-                
                 next_issuable_insts.push_back(inst);
             }
         }
