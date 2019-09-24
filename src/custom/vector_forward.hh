@@ -83,6 +83,10 @@ class VectorForward : public Named {
   
     // the communication channel between fetch2 and vector
     std::vector<Minor::InputBuffer<Minor::ForwardVectorData>>& getInputBuf();
+    
+    // communicate that there was a branch misprediction in fetch, the next
+    // instruction transmitted should include a bit to let slaves know
+    void setMispredict();
   protected:
     
     // give the instruction to a slave core once at local node
@@ -93,7 +97,7 @@ class VectorForward : public Named {
     // the instruction must be decoded internally
     
     // create a dynamic instruction
-    Minor::MinorDynInstPtr createInstruction(const TheISA::MachInst instWord);
+    Minor::MinorDynInstPtr createInstruction(const Minor::ForwardVectorData &instInfo);
     
     // push output to the next stage
     void pushToNextStage(const Minor::MinorDynInstPtr);
@@ -183,6 +187,11 @@ class VectorForward : public Named {
     // do we receive input this cycle, buffer will be cleared before state 
     // machine will check so need to save
     bool _internalInputThisCycle;
+    
+    // since misprediction is detected many cycles before the next instruction
+    // is set (pipeline restart) we need to cache when there was a mispredict
+    // and sent this with the next instruction
+    bool _pendingMispredict;
     
   public:
     // TEMP?

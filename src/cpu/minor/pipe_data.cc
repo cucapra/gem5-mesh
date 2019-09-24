@@ -310,7 +310,8 @@ void
 ForwardVectorData::bubbleFill()
 {
     machInst = 0;
-    branchTaken = false;
+    predictTaken = false;
+    mispredicted = false;
 }
 
 void
@@ -323,7 +324,8 @@ ForwardVectorData::reportData(std::ostream &os) const
 
         os << '(';
         os << machInst;
-        os << branchTaken;
+        os << predictTaken;
+        os << mispredicted;
         /*while (i != numInsts) {
             insts[i]->reportData(os);
             i++;

@@ -257,6 +257,32 @@ Execute::tryToBranch(MinorDynInstPtr inst, Fault fault, BranchData &branch)
 
         reason = BranchData::SuspendThread;
     } else if (inst->predictedTaken && !force_branch) {
+        // if this instruction is from vector ignore the branch target, b/c 
+        // not this cores job to figure it out (BTB not active)
+        if (inst->fromVector) {
+            /* Predicted to branch */
+            if (!must_branch) {
+                /* No branch was taken, change stream to get us back to the
+                *  intended PC value */
+                DPRINTF(Branch, "Predicted a branch from 0x%x to 0x%x but"
+                    " none happened inst: %s\n",
+                    inst->pc.instAddr(), inst->predictedTarget.instAddr(), *inst);
+
+                reason = BranchData::BadlyPredictedBranch;
+            } else {
+                /* Branch prediction got the right target, kill the branch and
+                *  carry on.
+                *  Note that this information to the branch predictor might get
+                *  overwritten by a "real" branch during this cycle */
+                DPRINTF(Branch, "Predicted a branch from 0x%x to 0x%x correctly"
+                " inst: %s\n",
+                inst->pc.instAddr(), inst->predictedTarget.instAddr(), *inst);
+
+                reason = BranchData::CorrectlyPredictedBranch;
+            }
+        }
+        else {
+        
         /* Predicted to branch */
         if (!must_branch) {
             /* No branch was taken, change stream to get us back to the
@@ -285,6 +311,7 @@ Execute::tryToBranch(MinorDynInstPtr inst, Fault fault, BranchData &branch)
 
             reason = BranchData::BadlyPredictedBranchTarget;
         }
+        }
     } else if (must_branch) {
         /* Unpredicted branch */
         DPRINTF(Branch, "Unpredicted branch from 0x%x to 0x%x inst: %s\n",
@@ -306,11 +333,18 @@ Execute::updateBranchData(
     MinorDynInstPtr inst, const TheISA::PCState &target,
     BranchData &branch)
 {
+    // always do stream change on branch if not using branch predictor
+    /*if (inst->fromVector && reason != BranchData::NoBranch) {
+        executeInfo[tid].streamSeqNum++;
+    }*/
     if (reason != BranchData::NoBranch) {
         /* Bump up the stream sequence number on a real branch*/
         if (BranchData::isStreamChange(reason)) {
             executeInfo[tid].streamSeqNum++;
             DPRINTF(Mesh, "tick seq num %d->%d\n", executeInfo[tid].streamSeqNum - 1, executeInfo[tid].streamSeqNum);
+        }
+        else {
+            DPRINTF(Mesh, "preserve seq num %d\n", executeInfo[tid].streamSeqNum);
         }
 
         /* Branches (even mis-predictions) don't change the predictionSeqNum,

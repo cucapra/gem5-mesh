@@ -220,6 +220,11 @@ class MinorDynInst : public RefCounted
      *  have the same register indices as when the instruction was marked
      *  up */
     RegId flatDestRegIdx[TheISA::MaxInstDestRegs];
+    
+    /** Have a flag indicating whether this instruction was created by the 
+     *  vector stage instead of the usual fetch2 stage
+     * */
+     bool fromVector;
 
   public:
     MinorDynInst(InstId id_ = InstId(), Fault fault_ = NoFault) :
@@ -229,7 +234,8 @@ class MinorDynInst : public RefCounted
         fuIndex(0), inLSQ(false), inStoreBuffer(false),
         canEarlyIssue(false),
         instToWaitFor(0), extraCommitDelay(Cycles(0)),
-        extraCommitDelayExpr(NULL), minimumCommitCycle(Cycles(0))
+        extraCommitDelayExpr(NULL), minimumCommitCycle(Cycles(0)), 
+        fromVector(false)
     { }
 
   public:

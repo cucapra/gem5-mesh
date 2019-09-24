@@ -330,10 +330,15 @@ Fetch2::evaluate()
                 // output dynamic instruction to the next stage
                 if (dyn_inst) {
                 
-                    // check if there was a branch taken which would change streamSeqNum
-                    bool branch_taken = fetch_info.lastStreamSeqNum != line_in->id.streamSeqNum;
-                
-                    pushDynInst(dyn_inst, branch_taken, output_index);
+                    // check if there was a mispredicted branch taken which would change streamSeqNum
+                    //bool branch_mispred = fetch_info.lastStreamSeqNum != line_in->id.streamSeqNum;
+                    //if (branch_inp.isStreamChange()) DPRINTF(Mesh, "branch stream change\n");
+                    //if (branch_inp.reason != BranchData::Reason::NoBranch) DPRINTF(Mesh, "branch reason %d\n", branch_inp.reason);
+                    //if (fetch_info.lastStreamSeqNum != line_in->id.streamSeqNum) DPRINTF(Mesh, "stream mismatch\n");
+                    
+                    // TODO not sure if this is needed when using setMispredict when badly predicted branch
+                    bool branch_mispred = (fetch_info.lastStreamSeqNum != line_in->id.streamSeqNum);
+                    pushDynInst(dyn_inst, branch_mispred, output_index);
                 
                     /* Step to next sequence number */
                     fetch_info.fetchSeqNum++;
@@ -415,7 +420,7 @@ Fetch2::evaluate()
 }
 
 void
-Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, bool branch_taken, int output_index) {
+Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, bool branch_mispred, int output_index) {
     
     ForwardInstData &insts_out = *out.inputWire;
 
@@ -461,7 +466,12 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, bool branch_taken, int output_inde
     TheISA::MachInst machInst = (TheISA::MachInst)extMachInst;
     
     vecData.machInst = machInst;
-    vecData.branchTaken = branch_taken;
+    // whether the branch is predicted to be taken or not
+    // if prediction is correct then the slave cpu needs to change seqNum
+    // because not really keeping track of branch predictor?
+    // if fail then this will send the correct instructions and squash?
+    vecData.predictTaken = dyn_inst->predictedTaken;
+    vecData.mispredicted = branch_mispred;
     
     // let's also encode whether we predicted a branch or not
     //dyn_inst->id.fetchSeqNum
@@ -665,6 +675,12 @@ Fetch2::createDynInst(InstId fetch_line_id, InstSeqNum fetch_seq_num,
 
 void
 Fetch2::handleBranch(BranchData &branch_inp) {
+    // inform local vector unit to send next instruction with mispredict flag
+    if (branch_inp.reason == BranchData::Reason::BadlyPredictedBranch) {
+        vector->setMispredict();
+        //DPRINTF(Mesh, "branch reason %d\n", branch_inp.reason);
+    }
+    
     /* React to branches from Execute to update local branch prediction
      *  structures */
     updateBranchPrediction(branch_inp);
