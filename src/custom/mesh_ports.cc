@@ -284,14 +284,14 @@ FromMeshPort::checkHandshake(){
 
 bool
 FromMeshPort::getPairVal() {
-  //return pktExists();
-  BaseMasterPort *masterPort = &(getMasterPort());
+  return pktExists();
+  /*BaseMasterPort *masterPort = &(getMasterPort());
   if (ToMeshPort *masterMeshPort = dynamic_cast<ToMeshPort*>(masterPort)) {
     return masterMeshPort->getVal();
   }
   else {
     return false;
-  }
+  }*/
 }
 
 void
@@ -301,7 +301,8 @@ FromMeshPort::tryUnblockCPU() {
 
 bool
 FromMeshPort::getRdy() {
-  if (rdy) {
+  //if (rdy) {
+  if (_meshQueue.canReserve() && vec->getConfigured()) {
     // if we have a packet but don't have a packet in other ports or
     // we have packets but can't send them anywhere b/c output not rdy
     // then we can't accept anymore packets on this port b/c we can't tick

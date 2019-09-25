@@ -197,7 +197,12 @@ EventDrivenFSM::pendingNextState() {
   bool outRdy = getOutRdy();
   bool configured = getConfigured();
   bool stalled = getInternalStall();
-  
+  bool sentMsg = _vec->sentMsgThisCycle();
+ 
+  DPRINTF(Mesh, "%s find pending change: currstate %s inval %d, outrdy %d, config %d, stalled %d, sentmsg %d\n",
+     _cpu->name(), stateToStr(_state), inVal, outRdy, configured, stalled, sentMsg); 
+
+ 
   // fully connected state machine?
   /*if (inVal && outRdy) return SENDING;
   else if (inVal) return WAIT_RDY;
@@ -214,12 +219,15 @@ EventDrivenFSM::pendingNextState() {
     case BEGIN_SEND: {
       if (stalled) return BEGIN_STALL_VAL;
       else if (inVal && outRdy) return RUNNING_BIND;
-      else return BEGIN_STALL_VAL;
+      else if (sentMsg) return BEGIN_STALL_VAL;
+      else return STALL_NOT_VAL;
     }
     case RUNNING_BIND: {
       if (stalled) return BEGIN_STALL_VAL;
       else if (inVal && outRdy) return RUNNING_BIND;
-      else return BEGIN_STALL_VAL;
+      // if you didn't send a packet this cycle you should just stall not valid
+      else if (sentMsg) return BEGIN_STALL_VAL;
+      else return STALL_NOT_VAL;
     }
     case BEGIN_STALL_VAL: {
       if (stalled) return STALL_NOT_VAL;
@@ -274,7 +282,7 @@ EventDrivenFSM::stateOutputTransition() {
   _vec->setVal(newOutputs.val);
   _vec->setRdy(newOutputs.rdy);
   
-  //DPRINTF(Mesh, "%s update output val %d rdy %d\n", _cpu->name(), newOutputs.val, newOutputs.rdy);
+  DPRINTF(Mesh, "%s update output val %d rdy %d\n", _cpu->name(), newOutputs.val, newOutputs.rdy);
 }
 
 bool

@@ -606,3 +606,8 @@ VectorForward::setMispredict() {
   _pendingMispredict = true;
 }
 
+// this is hack to see if we sent anything this cycle when the state machine needs to update
+bool
+VectorForward::sentMsgThisCycle() {
+  return _internalInputThisCycle;
+}

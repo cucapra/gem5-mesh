@@ -341,11 +341,11 @@ Execute::updateBranchData(
         /* Bump up the stream sequence number on a real branch*/
         if (BranchData::isStreamChange(reason)) {
             executeInfo[tid].streamSeqNum++;
-            DPRINTF(Mesh, "tick seq num %d->%d\n", executeInfo[tid].streamSeqNum - 1, executeInfo[tid].streamSeqNum);
+            //DPRINTF(Mesh, "tick seq num %d->%d\n", executeInfo[tid].streamSeqNum - 1, executeInfo[tid].streamSeqNum);
         }
-        else {
+        /*else {
             DPRINTF(Mesh, "preserve seq num %d\n", executeInfo[tid].streamSeqNum);
-        }
+        }*/
 
         /* Branches (even mis-predictions) don't change the predictionSeqNum,
          *  just the streamSeqNum */
@@ -612,10 +612,11 @@ Execute::issue(ThreadID thread_id)
             issued = true;
             discarded = true;
         } else if (inst->id.streamSeqNum != thread.streamSeqNum) {
+            if (inst->fromVector)
             DPRINTF(Mesh, "Discarding inst: %s as its stream"
                 " state was unexpected, expected: %d\n",
                 *inst, thread.streamSeqNum);
-            
+        
             DPRINTF(MinorExecute, "Discarding inst: %s as its stream"
                 " state was unexpected, expected: %d\n",
                 *inst, thread.streamSeqNum);
@@ -997,7 +998,9 @@ Execute::commitInst(MinorDynInstPtr inst, bool early_memory_issue,
         completed_inst = false;
     } else {
         ExecContext context(cpu, *cpu.threads[thread_id], *this, inst);
-
+if (inst->fromVector) {
+   DPRINTF(Mesh, "Committing inst: %s\n", *inst);
+}
         DPRINTF(MinorExecute, "Committing inst: %s\n", *inst);
 
         fault = inst->staticInst->execute(&context,

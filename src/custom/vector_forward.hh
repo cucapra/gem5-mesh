@@ -198,6 +198,10 @@ class VectorForward : public Named {
     // Minor execute stage expects a stream seq number (the number of branches I believe)
     // need to cache this before config starts
     void updateStreamSeqNum(InstSeqNum seqNum);
+    
+    // whether we sent anything this cycle, will dictate what state we go into
+    // on stall (STALL_VAL or STALL_NOT_VAL)
+    bool sentMsgThisCycle();
   
 };
 

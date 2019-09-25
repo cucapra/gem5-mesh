@@ -25,23 +25,25 @@ void kernel(
       for (int i = 0; i < size; i++) {
         c[i] = a[i] + b[i];
       }
+      //c[0] = a[0] + b[0];
+
       
     );
   }
   else if (tid_x == 1 && tid_y == 0) {
     BINDED_FET_SOURCE(
-      FET_I_INST_LEFT /*| FET_O_INST_DOWN_SEND*/,
+      FET_I_INST_LEFT | FET_O_INST_DOWN_SEND,
       ALL_NORM,
         
       for (int i = 0; i < size; i++) {
         c[i] = a[i] + b[i];
       }
+      // c[0] = a[0] + b[0];
+
       
     );
-    //label:
-      //asm volatile ("nop\n\t"::);
   }
-  /*else if (tid_x == 0 && tid_y == 1) {
+  else if (tid_x == 0 && tid_y == 1) {
     BINDED_FET_SOURCE(
       FET_I_INST_RIGHT,
       ALL_NORM,
@@ -49,6 +51,8 @@ void kernel(
       for (int i = 0; i < size; i++) {
         c[i] = a[i] + b[i];
       }
+
+     //c[0] = a[0] + b[0];
       
     );
   }
@@ -60,9 +64,10 @@ void kernel(
       for (int i = 0; i < size; i++) {
         c[i] = a[i] + b[i];
       }
+ //c[0] = a[0] + b[0];
       
     );
-  }*/
+  }
   
   // if doing this way then don't need each core to save a label, can
   // get rid of the savejmp instruction?
