@@ -134,6 +134,8 @@ VectorForward::forwardInstruction(const ForwardVectorData& instInfo) {
     uint64_t meshData = encodeMeshData(instInfo);
     DPRINTF(Mesh, "Sending mesh request %d from %d with val %#x %d %d = %#x\n", 
         dir, src, instInfo.machInst, instInfo.predictTaken, instInfo.mispredicted, meshData);
+    if (instInfo.predictTaken) DPRINTF(Mesh, "predict taken %d\n", instInfo.predictTaken);
+    if (instInfo.mispredicted) DPRINTF(Mesh, "mispredicted %d\n", instInfo.mispredicted);
     PacketPtr new_pkt = createMeshPacket(meshData);
     _toMeshPort[dir].sendTimingReq(new_pkt);
     
@@ -219,7 +221,10 @@ VectorForward::createInstruction(const ForwardVectorData &instInfo) {
   }*/
   
   if (instInfo.mispredicted || _pendingMispredict) { 
-    _lastStreamSeqNum++;
+    if (instInfo.mispredicted) DPRINTF(Mesh, "update due seq misalignment\n");
+    if (_pendingMispredict) DPRINTF(Mesh, "Update due to pending mispredict\n");
+    //_lastStreamSeqNum++;
+    updateStreamSeqNum(getStreamSeqNum() + 1);
     _pendingMispredict = false;
   }
   dyn_inst->id.streamSeqNum = _lastStreamSeqNum;
@@ -561,10 +566,10 @@ VectorForward::isInternallyStalled() {
   bool senderStall = sender && !recver && !_internalInputThisCycle;
   
   bool stall = recverStall || senderStall;
-  if (stall) {
+  /*if (stall) {
     DPRINTF(Mesh, "internal stall: rs %d ss %d r %d s %d dec %d in %d\n", 
       recverStall, senderStall, recver, sender, decodeStall, _internalInputThisCycle);
-  }
+  }*/
   
   return stall;
 }
@@ -599,6 +604,11 @@ VectorForward::updateStreamSeqNum(InstSeqNum seqNum) {
   _lastStreamSeqNum = seqNum; 
   // when do isSerializeAfter (a branch), need to hack in an additional +1
   //_lastStreamSeqNum += 1;
+}
+
+int
+VectorForward::getStreamSeqNum() {
+  return _lastStreamSeqNum;
 }
 
 void

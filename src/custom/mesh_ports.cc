@@ -255,7 +255,7 @@ FromMeshPort::setPacket(PacketPtr pkt) {
   if (_meshQueue.canReserve()) {
     auto pktData = Minor::MeshPacketData(pkt);
     _meshQueue.push(pktData);
-    DPRINTF(Mesh, "set packet, size now %d\n", _meshQueue.occupiedSpace());
+    //DPRINTF(Mesh, "set packet, size now %d\n", _meshQueue.occupiedSpace());
   }
   else {
     DPRINTF(Mesh, "[[WARNING]] Dropping packet %#x in port %d\n", 

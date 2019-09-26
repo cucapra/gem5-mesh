@@ -433,7 +433,7 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, bool branch_mispred, int output_in
         DPRINTF(Mesh, "%s\n", *dyn_inst);
     }*/
     
-    if (dyn_inst->staticInst->isBind()) { 
+    /*if (dyn_inst->staticInst->isBind()) { 
         debug = ( debug + 1 ) % 2;
         DPRINTF(Mesh, "saw bind\n");
         
@@ -442,11 +442,11 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, bool branch_mispred, int output_in
         // on exception or branch...
         // would need a way to revert architectural state, but may have already
         // sent a packet to another core and hard to revert that!
-        //ExecContext context(cpu, *cpu.threads[thread_id], *this /*execute*/, inst);
+        //ExecContext context(cpu, *cpu.threads[thread_id], *this , inst);
         //fault = inst->staticInst->execute(&context,
         //    inst->traceData);
         
-    }
+    }*/
     
     /* Pack the generated dynamic instruction into the output */
     insts_out.insts[output_index] = dyn_inst;
@@ -462,7 +462,7 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, bool branch_mispred, int output_in
     // looking up because instruction alignment is weird due to riscv compressed
     // (16 bit) instructions
     TheISA::ExtMachInst extMachInst = dyn_inst->staticInst->machInst;
-    //DPRINTF(Mesh, "extmachinst %#x\n", extMachInst);
+    DPRINTF(Mesh, "extmachinst %#x\n", extMachInst);
     TheISA::MachInst machInst = (TheISA::MachInst)extMachInst;
     
     vecData.machInst = machInst;
@@ -676,7 +676,9 @@ Fetch2::createDynInst(InstId fetch_line_id, InstSeqNum fetch_seq_num,
 void
 Fetch2::handleBranch(BranchData &branch_inp) {
     // inform local vector unit to send next instruction with mispredict flag
-    if (branch_inp.reason == BranchData::Reason::BadlyPredictedBranch) {
+    if (/*branch_inp.reason == BranchData::Reason::BadlyPredictedBranch ||*/
+        branch_inp.reason == BranchData::Reason::UnpredictedBranch
+        ) {
         vector->setMispredict();
         //DPRINTF(Mesh, "branch reason %d\n", branch_inp.reason);
     }

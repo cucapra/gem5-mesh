@@ -142,6 +142,8 @@ class VectorForward : public Named {
     // requires 32 + 1 = 33bits currently
     Minor::ForwardVectorData decodeMeshData(uint64_t data);
     uint64_t encodeMeshData(const Minor::ForwardVectorData &instInfo);
+    
+    int getStreamSeqNum();
      
   protected:
     

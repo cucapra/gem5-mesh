@@ -93,7 +93,7 @@ int main(int argc, char *argv[]) {
   #ifdef _USE_SCRATCHPAD
   for (int i = 0; i < num_cores; i++) {
     for (int j = 0; j < size; j++) {
-      //printf("%f\n", sp_c[i][j]);
+      printf("%f\n", sp_c[i][j]); // this breaks vec program
       if (sp_c[i][j] != 2 * j) {
         printf("[[FAIL]]\n");
         return 1;

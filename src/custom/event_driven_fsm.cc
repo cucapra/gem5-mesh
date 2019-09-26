@@ -199,8 +199,8 @@ EventDrivenFSM::pendingNextState() {
   bool stalled = getInternalStall();
   bool sentMsg = _vec->sentMsgThisCycle();
  
-  DPRINTF(Mesh, "%s find pending change: currstate %s inval %d, outrdy %d, config %d, stalled %d, sentmsg %d\n",
-     _cpu->name(), stateToStr(_state), inVal, outRdy, configured, stalled, sentMsg); 
+  //DPRINTF(Mesh, "%s find pending change: currstate %s inval %d, outrdy %d, config %d, stalled %d, sentmsg %d\n",
+  //   _cpu->name(), stateToStr(_state), inVal, outRdy, configured, stalled, sentMsg); 
 
  
   // fully connected state machine?
@@ -269,7 +269,7 @@ EventDrivenFSM::stateTransition() {
   // schedule the state to update after this transition
   _cpu->schedule(_outputUpdateEvent, _cpu->clockEdge());
   
-  DPRINTF(Mesh, "%s %d on clk edge state %s -> %s\n", _cpu->name(), _stage, stateToStr(_oldState), stateToStr(_state));
+  //DPRINTF(Mesh, "%s %d on clk edge state %s -> %s\n", _cpu->name(), _stage, stateToStr(_oldState), stateToStr(_state));
 
   // if there was a state transition we should try to update on the next cycle as well
   tryScheduleUpdate();
@@ -282,7 +282,7 @@ EventDrivenFSM::stateOutputTransition() {
   _vec->setVal(newOutputs.val);
   _vec->setRdy(newOutputs.rdy);
   
-  DPRINTF(Mesh, "%s update output val %d rdy %d\n", _cpu->name(), newOutputs.val, newOutputs.rdy);
+  //DPRINTF(Mesh, "%s update output val %d rdy %d\n", _cpu->name(), newOutputs.val, newOutputs.rdy);
 }
 
 bool

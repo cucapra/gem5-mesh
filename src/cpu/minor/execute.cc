@@ -264,7 +264,7 @@ Execute::tryToBranch(MinorDynInstPtr inst, Fault fault, BranchData &branch)
             if (!must_branch) {
                 /* No branch was taken, change stream to get us back to the
                 *  intended PC value */
-                DPRINTF(Branch, "Predicted a branch from 0x%x to 0x%x but"
+                DPRINTF(Mesh, "Predicted a branch from 0x%x to 0x%x but"
                     " none happened inst: %s\n",
                     inst->pc.instAddr(), inst->predictedTarget.instAddr(), *inst);
 
@@ -274,7 +274,7 @@ Execute::tryToBranch(MinorDynInstPtr inst, Fault fault, BranchData &branch)
                 *  carry on.
                 *  Note that this information to the branch predictor might get
                 *  overwritten by a "real" branch during this cycle */
-                DPRINTF(Branch, "Predicted a branch from 0x%x to 0x%x correctly"
+                DPRINTF(Mesh, "Predicted a branch from 0x%x to 0x%x correctly"
                 " inst: %s\n",
                 inst->pc.instAddr(), inst->predictedTarget.instAddr(), *inst);
 
@@ -285,6 +285,12 @@ Execute::tryToBranch(MinorDynInstPtr inst, Fault fault, BranchData &branch)
         
         /* Predicted to branch */
         if (!must_branch) {
+            ExecContext context(cpu, *cpu.threads[inst->id.threadId],
+            *this, inst);
+            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
+                DPRINTF(Mesh, "Predicted a branch from 0x%x to 0x%x but"
+                " none happened inst: %s\n",
+                inst->pc.instAddr(), inst->predictedTarget.instAddr(), *inst);
             /* No branch was taken, change stream to get us back to the
              *  intended PC value */
             DPRINTF(Branch, "Predicted a branch from 0x%x to 0x%x but"
@@ -293,6 +299,13 @@ Execute::tryToBranch(MinorDynInstPtr inst, Fault fault, BranchData &branch)
 
             reason = BranchData::BadlyPredictedBranch;
         } else if (inst->predictedTarget == target) {
+            ExecContext context(cpu, *cpu.threads[inst->id.threadId],
+            *this, inst);
+            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
+            DPRINTF(Mesh, "Predicted a branch from 0x%x to 0x%x correctly"
+                " inst: %s\n",
+                inst->pc.instAddr(), inst->predictedTarget.instAddr(), *inst);
+            
             /* Branch prediction got the right target, kill the branch and
              *  carry on.
              *  Note that this information to the branch predictor might get
@@ -303,6 +316,14 @@ Execute::tryToBranch(MinorDynInstPtr inst, Fault fault, BranchData &branch)
 
             reason = BranchData::CorrectlyPredictedBranch;
         } else {
+            ExecContext context(cpu, *cpu.threads[inst->id.threadId],
+            *this, inst);
+            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
+            DPRINTF(Mesh, "Predicted a branch from 0x%x to 0x%x"
+                    " but got the wrong target (actual: 0x%x) inst: %s\n",
+                    inst->pc.instAddr(), inst->predictedTarget.instAddr(),
+                    target.instAddr(), *inst);
+            
             /* Branch prediction got the wrong target */
             DPRINTF(Branch, "Predicted a branch from 0x%x to 0x%x"
                     " but got the wrong target (actual: 0x%x) inst: %s\n",
@@ -333,15 +354,15 @@ Execute::updateBranchData(
     MinorDynInstPtr inst, const TheISA::PCState &target,
     BranchData &branch)
 {
-    // always do stream change on branch if not using branch predictor
-    /*if (inst->fromVector && reason != BranchData::NoBranch) {
-        executeInfo[tid].streamSeqNum++;
-    }*/
+    
+    if (inst->fromVector && reason != BranchData::NoBranch) {
+        DPRINTF(Mesh, "Branch reason %d\n", reason);
+    }
     if (reason != BranchData::NoBranch) {
         /* Bump up the stream sequence number on a real branch*/
         if (BranchData::isStreamChange(reason)) {
             executeInfo[tid].streamSeqNum++;
-            //DPRINTF(Mesh, "tick seq num %d->%d\n", executeInfo[tid].streamSeqNum - 1, executeInfo[tid].streamSeqNum);
+            if (inst->fromVector) DPRINTF(Mesh, "tick seq num %d->%d\n", executeInfo[tid].streamSeqNum - 1, executeInfo[tid].streamSeqNum);
         }
         /*else {
             DPRINTF(Mesh, "preserve seq num %d\n", executeInfo[tid].streamSeqNum);
@@ -612,7 +633,9 @@ Execute::issue(ThreadID thread_id)
             issued = true;
             discarded = true;
         } else if (inst->id.streamSeqNum != thread.streamSeqNum) {
-            if (inst->fromVector)
+            ExecContext context(cpu, *cpu.threads[inst->id.threadId],
+            *this, inst);
+            if (inst->fromVector || context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0)
             DPRINTF(Mesh, "Discarding inst: %s as its stream"
                 " state was unexpected, expected: %d\n",
                 *inst, thread.streamSeqNum);
