@@ -200,13 +200,13 @@ class VectorForward : public Named {
     // since misprediction is detected many cycles before the next instruction
     // is set (pipeline restart) we need to cache when there was a mispredict
     // and sent this with the next instruction
-    bool _pendingMispredict;
+    //bool _pendingMispredict;
     
     // should not set the misprediction for this cycle b/c the instruction sent
     // would have been fetch without knowing?
-    //EventFunctionWrapper mispredictNextCycle;
+    EventFunctionWrapper _mispredictUpdate;
     // just record the cycle we received mispredict to warn if this case happens
-    uint64_t _mispredictTick;
+    //uint64_t _mispredictTick;
     
   public:
     // TEMP?

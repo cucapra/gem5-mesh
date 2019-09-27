@@ -25,8 +25,9 @@ VectorForward::VectorForward(const std::string &name,
     _checkExeStall(backStall),
     _wasStalled(false),
     _internalInputThisCycle(false),
-    _pendingMispredict(false),
-    _mispredictTick(0)
+    _mispredictUpdate([this] { handleMispredict(); }, name)
+    //_pendingMispredict(false),
+    //_mispredictTick(0)
 {
   // 
   // declare vector ports
@@ -231,7 +232,7 @@ VectorForward::createInstruction(const ForwardVectorData &instInfo) {
     _pendingMispredict = false;
   }*/
   
-  handleMispredict();
+  //handleMispredict();
   
   dyn_inst->id.streamSeqNum = _lastStreamSeqNum;
   
@@ -325,7 +326,7 @@ VectorForward::setupConfig(int csrId, RegVal csrVal) {
   _fsm->configEvent();
   
   // no pending mispredicts to start off with
-  _pendingMispredict = false;
+  //_pendingMispredict = false;
   
   // if the new configuration is slave, we need to push a bs instruction
   // into the pipeline buffer, or when reset need to take instruction out of pipeline buffer
@@ -645,11 +646,11 @@ VectorForward::getStreamSeqNum() {
   return _lastStreamSeqNum;
 }
 
-// TODO potential to fail
 void
 VectorForward::setMispredict() {
-  _pendingMispredict = true;
-  _mispredictTick = curTick();
+  //_pendingMispredict = true;
+  //_mispredictTick = curTick();
+  _cpu.schedule(_mispredictUpdate, _cpu.clockEdge(Cycles(1)));
 }
 
 // TODO no longer used
@@ -661,12 +662,12 @@ VectorForward::sentMsgThisCycle() {
 
 void
 VectorForward::handleMispredict() {
-  if (_pendingMispredict) {
-    if (_mispredictTick == curTick()) DPRINTF(Mesh, "[[WARNING]] Update due to pending mispredict on same cycle it was set\n");
+  //if (_pendingMispredict) {
+    //if (_mispredictTick == curTick()) DPRINTF(Mesh, "[[WARNING]] Update due to pending mispredict on same cycle it was set\n");
     //_lastStreamSeqNum++;
     updateStreamSeqNum(getStreamSeqNum() + 1);
-    _pendingMispredict = false;
+    //_pendingMispredict = false;
     
-  }
+  //}
 }
 
