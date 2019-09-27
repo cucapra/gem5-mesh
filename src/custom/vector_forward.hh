@@ -149,6 +149,8 @@ class VectorForward : public Named {
     void stallFetchInput(ThreadID tid);
     void unstallFetchInput(ThreadID tid);
 
+    // handle when there is a misprediction forwarded from the master
+    void handleMispredict();
      
   protected:
     

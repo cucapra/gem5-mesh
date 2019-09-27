@@ -337,6 +337,7 @@ Fetch2::evaluate()
                     //if (fetch_info.lastStreamSeqNum != line_in->id.streamSeqNum) DPRINTF(Mesh, "stream mismatch\n");
                     
                     // TODO not sure if this is needed when using setMispredict when badly predicted branch
+                    // this is not always reliable
                     bool branch_mispred = (fetch_info.lastStreamSeqNum != line_in->id.streamSeqNum);
                     pushDynInst(dyn_inst, branch_mispred, output_index);
                 
@@ -475,7 +476,7 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, bool branch_mispred, int output_in
     // because not really keeping track of branch predictor?
     // if fail then this will send the correct instructions and squash?
     vecData.predictTaken = dyn_inst->predictedTaken;
-    vecData.mispredicted = branch_mispred;
+    vecData.mispredicted = false; //branch_mispred;
     
     // let's also encode whether we predicted a branch or not
     //dyn_inst->id.fetchSeqNum
@@ -680,9 +681,14 @@ Fetch2::createDynInst(InstId fetch_line_id, InstSeqNum fetch_seq_num,
 void
 Fetch2::handleBranch(BranchData &branch_inp) {
     // inform local vector unit to send next instruction with mispredict flag
-    if (/*branch_inp.reason == BranchData::Reason::BadlyPredictedBranch ||*/
+    // TODO this sometimes applies the change to an instruction too early!!!!
+    // maybe have to make sure the current inflight instruction (this cycle)
+    // doesnt get it applied
+    if (branch_inp.reason == BranchData::Reason::BadlyPredictedBranch ||
         branch_inp.reason == BranchData::Reason::UnpredictedBranch
         ) {
+        // TODO set flag here, that occurs here to set on the next evaluation cycle (at the beginning)
+        // or make sure that vector unit does not apply this immeidietly
         vector->setMispredict();
         //DPRINTF(Mesh, "branch reason %d\n", branch_inp.reason);
     }
