@@ -25,13 +25,7 @@ void kernel(
       for (int i = 0; i < size; i++) {
         c[i] = a[i] + b[i];
       }
-      //c[0] = a[0] + b[0];
-
-      
     );
-    /*for(int i = 0; i < size; i++) {
-      c[i] = a[i] + b[i];
-    }*/
   }
   else if (tid_x == 1 && tid_y == 0) {
     BINDED_FET_SOURCE(
@@ -41,45 +35,27 @@ void kernel(
       for (int i = 0; i < size; i++) {
         c[i] = a[i] + b[i];
       }
-      // c[0] = a[0] + b[0];
-
-      
     );
- /*for(int i = 0; i < size; i++) {
-      c[i] = a[i] + b[i];
-    }*/
-}
+  }
   else if (tid_x == 0 && tid_y == 1) {
-    /*for (int i = 0; i < size; i++) {
-      c[i] = a[i] + b[i];
-    } */ 
-
-  BINDED_FET_SOURCE(
+    BINDED_FET_SOURCE(
       FET_I_INST_RIGHT,
       ALL_NORM,
         
       for (int i = 0; i < size; i++) {
         c[i] = a[i] + b[i];
       }
-
-     //c[0] = a[0] + b[0];
       
     );
   }
   else if (tid_x == 1 && tid_y == 1) {
-    /*for (int i = 0; i < size; i++) {
-      c[i] = a[i] + b[i];
-    } */   
-
-  BINDED_FET_SOURCE(
+    BINDED_FET_SOURCE(
       FET_I_INST_UP | FET_O_INST_LEFT_SEND,
       ALL_NORM,
         
       for (int i = 0; i < size; i++) {
         c[i] = a[i] + b[i];
       }
- //c[0] = a[0] + b[0];
-      
     );
   }
   
@@ -88,7 +64,7 @@ void kernel(
   label:
     // need to have at least one subsequent instruction for label to be here
     asm volatile ("nop\n\t"::);
-    printf("tid %d %d made it!\n", tid_x, tid_y);
+    //printf("tid %d %d made it!\n", tid_x, tid_y);
   
   #endif
   
