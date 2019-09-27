@@ -86,11 +86,10 @@ void kernel(
   
   // if doing this way then don't need each core to save a label, can
   // get rid of the savejmp instruction?
+  // Need to have at least one subsequent instruction for label to be here
   label:
-    // need to have at least one subsequent instruction for label to be here
-    //asm volatile ("nop\n\t"::);
-    //printf("tid %d %d made it!\n", tid_x, tid_y);
-  
+  // master and slave jump to different places without this nop, is compiler optimizing something?
+    //asm volatile ("nop\t\n");
   
   if (tid_x == 0 && tid_y == 0) {
     stats_off();
