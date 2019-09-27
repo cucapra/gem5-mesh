@@ -202,6 +202,12 @@ class VectorForward : public Named {
     // and sent this with the next instruction
     bool _pendingMispredict;
     
+    // should not set the misprediction for this cycle b/c the instruction sent
+    // would have been fetch without knowing?
+    //EventFunctionWrapper mispredictNextCycle;
+    // just record the cycle we received mispredict to warn if this case happens
+    uint64_t _mispredictTick;
+    
   public:
     // TEMP?
     // Minor execute stage expects a stream seq number (the number of branches I believe)

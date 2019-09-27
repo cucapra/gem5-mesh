@@ -25,7 +25,8 @@ VectorForward::VectorForward(const std::string &name,
     _checkExeStall(backStall),
     _wasStalled(false),
     _internalInputThisCycle(false),
-    _pendingMispredict(false)
+    _pendingMispredict(false),
+    _mispredictTick(0)
 {
   // 
   // declare vector ports
@@ -648,6 +649,7 @@ VectorForward::getStreamSeqNum() {
 void
 VectorForward::setMispredict() {
   _pendingMispredict = true;
+  _mispredictTick = curTick();
 }
 
 // TODO no longer used
@@ -660,10 +662,11 @@ VectorForward::sentMsgThisCycle() {
 void
 VectorForward::handleMispredict() {
   if (_pendingMispredict) {
-    if (_pendingMispredict) DPRINTF(Mesh, "Update due to pending mispredict\n");
+    if (_mispredictTick == curTick()) DPRINTF(Mesh, "[[WARNING]] Update due to pending mispredict on same cycle it was set\n");
     //_lastStreamSeqNum++;
     updateStreamSeqNum(getStreamSeqNum() + 1);
     _pendingMispredict = false;
+    
   }
 }
 
