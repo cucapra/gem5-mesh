@@ -635,7 +635,7 @@ VectorForward::shouldStall() {
 
 void
 VectorForward::updateStreamSeqNum(InstSeqNum seqNum) { 
-  if (getConfigured()) DPRINTF(Mesh, "set slave seq num %s\n", seqNum);
+  //if (getConfigured()) DPRINTF(Mesh, "set slave seq num %s\n", seqNum);
   _lastStreamSeqNum = seqNum; 
   // when do isSerializeAfter (a branch), need to hack in an additional +1
   //_lastStreamSeqNum += 1;
