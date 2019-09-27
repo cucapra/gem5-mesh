@@ -6,7 +6,7 @@
 
 //#include <stdio.h>
  
-inline void stats_on()
+/*inline void stats_on()
 {
   int on = 1;
  __asm__ volatile ("csrw 0x7C1, %0;"
@@ -22,7 +22,7 @@ inline void stats_off()
                     :
                     : "r" (off)
                     :);
-}
+}*/
  
 void launch_kernel(void* (*kernel)(void*), void **args, int cores_x, int cores_y) {
   
@@ -47,7 +47,7 @@ void launch_kernel(void* (*kernel)(void*), void **args, int cores_x, int cores_y
   }
   
   // start recording stats
-  stats_on();
+  //stats_on();
 
   // start an iteration locally
   kernel(args[0]);
@@ -58,7 +58,7 @@ void launch_kernel(void* (*kernel)(void*), void **args, int cores_x, int cores_y
   }
   
   // stop recording stats
-  stats_off();
+  //stats_off();
   
   // cleanup
   for (int i = 0; i < num_cores; i++) {

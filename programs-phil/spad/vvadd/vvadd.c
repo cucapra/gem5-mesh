@@ -7,10 +7,35 @@
 
 #define VEC 1
 
+
+inline void stats_on()
+{
+  int on = 1;
+ __asm__ volatile ("csrw 0x7C1, %0;"
+                    :
+                    : "r" (on)
+                    :);
+}
+
+inline void stats_off()
+{
+  int off = 10; // can't use 0, but anything other than 1
+ __asm__ volatile ("csrw 0x7C1, %0;"
+                    :
+                    : "r" (off)
+                    :);
+}
+
 // actual kernel
 void kernel(
     float *a, float *b, float *c, int size, 
     int tid_x, int tid_y, int dim_x, int dim_y) {
+  
+  // start recording all stats (all cores)
+  // use the last thread, b/c this wakes up last?
+  if (tid_x == 0 && tid_y == 0) {
+    stats_on();
+  }
   
   #ifndef VEC
   for (int i = 0; i < size; i++) {
@@ -63,8 +88,13 @@ void kernel(
   // get rid of the savejmp instruction?
   label:
     // need to have at least one subsequent instruction for label to be here
-    asm volatile ("nop\n\t"::);
+    //asm volatile ("nop\n\t"::);
     //printf("tid %d %d made it!\n", tid_x, tid_y);
+  
+  
+  if (tid_x == 0 && tid_y == 0) {
+    stats_off();
+  }
   
   #endif
   
