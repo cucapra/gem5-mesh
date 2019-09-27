@@ -108,6 +108,8 @@ VectorForward::evaluate() {
     popFetchInput(0);
   }
   
+  // TODO need to actually stall fetch2 when in slave mode??? why are we not doing that
+  
 }
 
 /*// Decprecated using buffers now
@@ -320,6 +322,15 @@ VectorForward::setupConfig(int csrId, RegVal csrVal) {
   
   // no pending mispredicts to start off with
   _pendingMispredict = false;
+  
+  // if the new configuration is slave, we need to push a bs instruction
+  // into the pipeline buffer, or when reset need to take instruction out of pipeline buffer
+  if (MeshHelper::isVectorSlave(_curCsrVal)) {
+    stallFetchInput(0);
+  }
+  if (!getConfigured()) {
+    unstallFetchInput(0);
+  }
   
 }
 
@@ -539,6 +550,25 @@ VectorForward::popFetchInput(ThreadID tid) {
   }
 }
 
+void
+VectorForward::stallFetchInput(ThreadID tid) {
+  if (_inputBuffer[tid].empty()) {
+    ForwardVectorData vecData(0);
+    vecData.machInst = 0x511; // c_addi (nop)
+    _inputBuffer[tid].setTail(vecData);
+    _inputBuffer[tid].pushTail();
+    DPRINTF(Mesh, "try stall frontend %d?=0\n", _inputBuffer[tid].canReserve());
+  }
+  /*else {
+    DPRINTF(Mesh, "fetch not empty %d\n", _inputBuffer[tid].canReserve());
+  }*/
+}
+
+void
+VectorForward::unstallFetchInput(ThreadID tid) {
+  popFetchInput(tid);
+}
+
 bool
 VectorForward::getConfigured() {
   return !MeshHelper::isCSRDefault(_curCsrVal);
@@ -611,13 +641,17 @@ VectorForward::getStreamSeqNum() {
   return _lastStreamSeqNum;
 }
 
+// TODO potential to fail
 void
 VectorForward::setMispredict() {
   _pendingMispredict = true;
 }
 
+// TODO no longer used
 // this is hack to see if we sent anything this cycle when the state machine needs to update
 bool
 VectorForward::sentMsgThisCycle() {
   return _internalInputThisCycle;
 }
+
+

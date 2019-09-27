@@ -461,8 +461,12 @@ Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, bool branch_mispred, int output_in
     // important to get directly from the decoded instructions rather than
     // looking up because instruction alignment is weird due to riscv compressed
     // (16 bit) instructions
+    
+    // ret if no static inst
+    // TODO why would this even happen though, currently getting a case with this after devec
+    if (!dyn_inst->staticInst) return;
+    
     TheISA::ExtMachInst extMachInst = dyn_inst->staticInst->machInst;
-    DPRINTF(Mesh, "extmachinst %#x\n", extMachInst);
     TheISA::MachInst machInst = (TheISA::MachInst)extMachInst;
     
     vecData.machInst = machInst;

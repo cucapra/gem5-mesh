@@ -144,6 +144,11 @@ class VectorForward : public Named {
     uint64_t encodeMeshData(const Minor::ForwardVectorData &instInfo);
     
     int getStreamSeqNum();
+    
+    // when setup a configuration, may need to stall or unstall the frontend
+    void stallFetchInput(ThreadID tid);
+    void unstallFetchInput(ThreadID tid);
+
      
   protected:
     
