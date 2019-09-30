@@ -22,10 +22,23 @@ int main(int argc, char *argv[]) {
   int num_cores = get_dimensions(&cores_x, &cores_y);
 
   /*--------------------------------------------------------------------
+  * Put the command line arguments into variables
+  *-------------------------------------------------------------------*/
+  
+  // default values
+  int size = 16;
+  
+  // parse positional arguments
+  if (argc > 1) {
+    size = atoi(argv[1]);
+  }
+  
+  printf("Vector size is %d\n", size);
+
+  /*--------------------------------------------------------------------
   * Data initialization
   *-------------------------------------------------------------------*/
  
-  int size = 16;
   size_t arrSize = sizeof(float) * size;
   float *a = (float*)malloc(arrSize);
   float *b = (float*)malloc(arrSize);

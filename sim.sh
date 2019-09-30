@@ -4,10 +4,16 @@ scons -j16 build/RISCV/gem5.opt
 # spad
 scons -j16 build/RVSP/gem5.opt
 
-# for 16 core (+1 host core) sim with scratchpad
+# for 4 core sim with scratchpad (host core is one of the cores)
 ./build/RVSP/gem5.opt -d results/sddmm-cpu \
   configs/phil/brg_hammerblade.py \
   --cmd=programs-phil/spad/sddmm-cpu/sddmm_cpu \
+  --num-cpus=4
+  
+# if want to use arguments in program
+./build/RVSP/gem5.opt -d results/vvadd \
+  configs/phil/brg_hammerblade.py \
+  --cmd=programs-phil/spad/vvadd/vvadd --options="4" \
   --num-cpus=4
 
 # no spad
