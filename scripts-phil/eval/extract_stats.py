@@ -44,6 +44,15 @@ for root, dirs, files in os.walk(args.sims):
     
     if (not foundStats):
       continue
+      
+    # check if stats file is empty or not (empty is sign of failed run)
+    numLines = 0
+    with open(os.path.join(path, 'stats.txt')) as fin:
+      for line in fin:
+        numLines += 1
+    
+    if (numLines == 0):
+      continue
     
     dirPaths.append(path)
 
@@ -108,7 +117,7 @@ for dirPath in dirPaths:
   # write data row by row
   dataCSV += str(size)
   for k, v in stats.items():
-    dataCSV += ',{0}'.format(str(v['avg']))
+    dataCSV += ', {0}'.format(str(v['avg']))
     
   dataCSV += '\n'
   
@@ -118,7 +127,7 @@ with open(args.outfile, 'w+') as fout:
   # header line
   fout.write('size')
   for k, v in stats.items():
-    fout.write(',{0}'.format(v['name']))
+    fout.write(', {0}'.format(v['name']))
       
   fout.write('\n')
   

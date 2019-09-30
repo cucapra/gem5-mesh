@@ -37,7 +37,7 @@ success_regex = re.compile(programs['vvadd']['success'])
 # run vvadd with multiple sizes in factors of 2
 numCpus = 4
 minSize = 16
-maxSize = 32
+maxSize = 256 # make sure fits in the spad if you're doing this!
 currSize = minSize
 while currSize <= maxSize:
   # run with currSize
