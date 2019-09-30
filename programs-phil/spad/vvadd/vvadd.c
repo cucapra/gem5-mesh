@@ -5,7 +5,7 @@
 #include "vvadd.h"
 #include "../../common/bind_defs.h"
 
-#define VEC 1
+//#define VEC 1
 
 
 inline void stats_on()
@@ -91,11 +91,11 @@ void kernel(
   // master and slave jump to different places without this nop, is compiler optimizing something?
     //asm volatile ("nop\t\n");
   
+  #endif
+  
   if (tid_x == 0 && tid_y == 0) {
     stats_off();
   }
-  
-  #endif
   
 }
 
