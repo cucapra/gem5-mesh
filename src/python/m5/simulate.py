@@ -161,9 +161,12 @@ def simulate(*args, **kwargs):
         for obj in root.descendants(): obj.startup()
         need_startup = False
 
-        # Python exit handlers happen in reverse order.
-        # We want to dump stats last.
-        atexit.register(stats.dump)
+    # @Tuan: assuming all apps annotate their stats region in their code,
+    # there's no need to dump the stats for the region after stats_control
+    # is disabled. Therefore, it's okay to always turn this stats dump off.
+#        # Python exit handlers happen in reverse order.
+#        # We want to dump stats last.
+#        atexit.register(stats.dump)
 
         # register our C++ exit callback function with Python
         atexit.register(_m5.core.doExitCleanup)
