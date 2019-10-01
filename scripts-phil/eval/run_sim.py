@@ -22,20 +22,39 @@ args = parser.parse_args()
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful
 progDir0 = '/home/pbb59/hammerblade/gem5/programs-phil/spad/'
 programs = {
-  'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd/vvadd', 'options' : '16', 'success' : '\[\[SUCCESS\]\]'}
+  'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd-big/vvadd', 'options' : '16', 'success' : '\[\[SUCCESS\]\]'}
 
 }
 
 # create a template for the gem5 command line
 gem5_cmd = lambda program, options, result, cpus: \
-  '{0} -d {1}/{2} {3} --cmd={4} --options=\"{5}\" --num-cpus={6}'.format(
+  '{} -d {}/{} {} --cmd={} --options=\"{}\" --num-cpus={}'.format(
       args.build, args.results, result, args.config, program, options, str(cpus))
+  
+def compile_cmd(program_dir, cpus, use_sp, use_vec):
+  cmd = 'make clean -C {}'.format(program_dir)
+  cmd += ' && '
+  if (not use_sp):
+    cmd += 'ENV_NO_SP=1 '
+  if (not use_vec):
+    cmd += 'ENV_NO_VEC=1 '
+    
+  cmd += 'ENV_N_SPS={} make -C {}'.format(cpus, program_dir)
+  return cmd
       
 # check if the success flag was asserted using regex checking on the gem5 output
 success_regex = re.compile(programs['vvadd']['success'])
 
+# fixed parameters for the run, compile the binary for these
+numCpus = 16
+use_vec = True
+use_sps = True
+
+cmplCmd = compile_cmd(os.path.dirname(programs['vvadd']['path']), numCpus, use_sps, use_vec)
+result = subprocess.check_output(cmplCmd, shell=True)
+print(result)
+
 # run vvadd with multiple sizes in factors of 2
-numCpus = 4
 minSize = 16
 maxSize = 256 # make sure fits in the spad if you're doing this!
 currSize = minSize
