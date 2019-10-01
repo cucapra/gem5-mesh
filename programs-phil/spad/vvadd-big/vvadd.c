@@ -80,7 +80,7 @@ void kernel(
   }
   
   // the left edge (besides corners) sends down and to the right
-  else if (tid_x == 0 && tid_y > 0) {
+  else if (tid_x == 0) {
     BINDED_FET_SOURCE(
       FET_I_INST_UP | FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND,
       ALL_NORM,
