@@ -64,7 +64,7 @@ floatRegexStr = '([+-]?([0-9]*[.])?[0-9]+)'
 floatRegexStr = '([0-9]+)'
 
 stats = { 
-  'cycles' : { 'name' : 'cycles', 'regex' : re.compile('system.cpu0.numCycles\s*' + floatRegexStr), 'avg' : 0, 'count' : 0 }
+  'cycles' : { 'name' : 'cycles', 'regex' : re.compile('system.cpu0+.numCycles\s*' + floatRegexStr), 'avg' : 0, 'count' : 0 }
 
 }
 
