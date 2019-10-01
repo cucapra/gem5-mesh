@@ -103,6 +103,20 @@
   asm volatile goto (                                       \
     ".insn uj 0x0b, x28, %l[label]\n\t"                     \
     ".insn u 0x77, x0, %[sbind0]\n\t"                       \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
+    "nop\n\t"                                               \
     ::[sbind0] "i" (sbind) :: label);                       \
   code                                                      \
   asm volatile (                                            \

@@ -1021,7 +1021,7 @@ Execute::commitInst(MinorDynInstPtr inst, bool early_memory_issue,
         completed_inst = false;
     } else {
         ExecContext context(cpu, *cpu.threads[thread_id], *this, inst);
-if (inst->fromVector) {
+if (inst->fromVector || context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) {
    DPRINTF(Mesh, "Committing inst: %s\n", *inst);
 }
         DPRINTF(MinorExecute, "Committing inst: %s\n", *inst);
