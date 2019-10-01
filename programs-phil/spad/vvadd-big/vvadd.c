@@ -5,9 +5,6 @@
 #include "vvadd.h"
 #include "../../common/bind_defs.h"
 
-//#define VEC 1
-
-
 inline void stats_on()
 {
   int on = 1;
@@ -37,7 +34,7 @@ void kernel(
     stats_on();
   }
   
-  #ifndef VEC
+  #ifndef _VEC
   for (int i = 0; i < size; i++) {
     c[i] = a[i] + b[i];
   }
@@ -61,7 +58,7 @@ void kernel(
   // right edge does not send to anyone
   else if (tid_x == dim_x - 1) {
     BINDED_FET_SOURCE(
-      FET_I_INST_RIGHT,
+      FET_I_INST_LEFT,
       ALL_NORM,
         
       for (int i = 0; i < size; i++) {
@@ -71,7 +68,7 @@ void kernel(
   }
   
   // bottom left corner just sends to the right
-  else if (tid_x == 0 && tid_y > 0) {
+  else if (tid_x == 0 && tid_y == dim_y - 1) {
     BINDED_FET_SOURCE(
       FET_I_INST_UP | FET_O_INST_RIGHT_SEND,
       ALL_NORM,
@@ -97,7 +94,7 @@ void kernel(
   // otherwise we're just forwarding to the right in the middle area
   else {
     BINDED_FET_SOURCE(
-      FET_I_INST_RIGHT | FET_O_INST_RIGHT_SEND,
+      FET_I_INST_LEFT | FET_O_INST_RIGHT_SEND,
       ALL_NORM,
         
       for (int i = 0; i < size; i++) {

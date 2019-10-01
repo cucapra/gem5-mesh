@@ -5,12 +5,12 @@ C_OBJS = $(notdir $(C_SRCS:.c=.o))
 
 EXEC = vvadd
 
-N_SPS = 16
+N_SPS = 4
 
 # installed cross compiler gcc for riscv
 RV_CC=/data/phil/riscv-build/bin/riscv64-unknown-linux-gnu-gcc
 
-CFLAGS=-D_N_SPS=$(N_SPS) -D_USE_SCRATCHPAD -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
+CFLAGS=-D_N_SPS=$(N_SPS) -D_USE_SCRATCHPAD -D_VEC -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 
 default: $(EXEC)
 
