@@ -173,6 +173,14 @@ machine(MachineType:L1Cache, "SP_LLC (L1I Cache)")
 
   // Actions
 
+  action(pht_profileHitAccess, "pht", desc = "Profile hit access") {
+    ++L1cache.demand_hits;
+  }
+
+  action(pms_profileMissAccess, "pms", desc = "Profile miss access") {
+    ++L1cache.demand_misses;
+  }
+
   action(ic_invCache, "ic", desc="invalidate cache") {
     if (is_valid(cache_entry)) {
       L1cache.deallocate(address);
@@ -233,10 +241,12 @@ machine(MachineType:L1Cache, "SP_LLC (L1I Cache)")
   transition(I, Fetch) {
     nS_issueRdBlkS;
     p_popMandatoryQueue;
+    pms_profileMissAccess;
   }
 
   transition(V, Fetch) {
     l_loadDone;
     p_popMandatoryQueue;
+    pht_profileHitAccess;
   }
 }
