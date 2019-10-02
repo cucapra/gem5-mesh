@@ -1,0 +1,6 @@
+# -*- mode:python -*-
+# Author: Tuan Ta
+# Date:   19/08/29
+
+Import('*')
+CpuModel('IOCPU', default = True)

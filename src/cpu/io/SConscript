@@ -1,0 +1,23 @@
+# -*- mode:python -*-
+# Author: Tuan Ta
+# Date:   19/08/29
+
+import sys
+Import('*')
+
+if 'IOCPU' in env['CPU_MODELS']:
+  SimObject('IOCPU.py')
+
+  Source('commit.cc')
+  Source('cpu.cc')
+  Source('decode.cc')
+  Source('dyn_inst.cc')
+  Source('fetch.cc')
+  Source('iew.cc')
+  Source('rename.cc')
+  Source('rob.cc')
+  Source('pipelined_exec_unit.cc')
+  Source('unpipelined_exec_unit.cc')
+  Source('mem_unit.cc')
+
+  DebugFlag('IOCPU')
