@@ -19,7 +19,7 @@
 #include "config/the_isa.hh"
 #include "cpu/exec_context.hh"
 #include "cpu/inst_seq.hh"
-#include "cpu/phys_reg_id.hh"
+//#include "cpu/phys_reg_id.hh"
 #include "cpu/reg_class.hh"
 #include "cpu/thread_state.hh"
 
@@ -91,7 +91,7 @@ class IODynInst : public ExecContext
     bool isLastMicroop()    const { return static_inst_p->isLastMicroop(); }
     bool isFirstMicroop()   const { return static_inst_p->isFirstMicroop(); }
     bool isMicroBranch()    const { return static_inst_p->isMicroBranch(); }
-    bool isRoCC()           const { return static_inst_p->isRoCC(); }
+    //bool isRoCC()           const { return static_inst_p->isRoCC(); }
 
     /**
      * Checking instruction status
@@ -296,12 +296,6 @@ class IODynInst : public ExecContext
      */
     void setMiscReg(int misc_reg, RegVal val) override;
 
-    /**
-     * Handle necessary operations associated with a given misc register
-     */
-    void handleMiscRegOp(int misc_reg, RegVal old_val,
-                         const RegVal &val) override;
-
     /** Called at the commit stage to update misc regs */
     void updateMiscRegs();
 
@@ -376,15 +370,15 @@ class IODynInst : public ExecContext
      * Somewhat Alpha-specific function that handles returning from an
      * error or interrupt.
      */
-    Fault hwrei() override
-    { panic("IO CPU does not support Alpha-specific hwrei()\n"); }
+    //Fault hwrei() override
+    //{ panic("IO CPU does not support Alpha-specific hwrei()\n"); }
 
     /**
      * Check for special simulator handling of specific PAL calls.  If
      * return value is false, actual PAL call will be suppressed.
      */
-    bool simPalCheck(int palFunc) override
-    { panic("IO CPU does not support Alpha-specific simPalCheck()\n"); }
+    //bool simPalCheck(int palFunc) override
+    //{ panic("IO CPU does not support Alpha-specific simPalCheck()\n"); }
 
     /**
      * @name ARM-Specific Interfaces

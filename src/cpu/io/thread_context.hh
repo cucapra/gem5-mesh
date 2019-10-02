@@ -95,6 +95,12 @@ class IOThreadContext : public ThreadContext
       warn("Checker CPU is not supported in IO CPU\n");
       return nullptr;
     }
+    
+    TheISA::ISA *
+    getIsaPtr() override
+    {
+        return nullptr;
+    }
 
     /** Get pointer to Decoder */
     TheISA::Decoder *getDecoderPtr() override
@@ -264,13 +270,13 @@ class IOThreadContext : public ThreadContext
     }
 
     /** */
-    RegVal readIntReg(int reg_idx) override
+    RegVal readIntReg(RegIndex reg_idx) const override
     {
       return readIntRegFlat(flattenRegId(RegId(IntRegClass, reg_idx)).index());
     }
 
     /** */
-    RegVal readFloatReg(int reg_idx) override
+    RegVal readFloatReg(RegIndex reg_idx) const override
     {
       return readFloatRegFlat(
                     flattenRegId(RegId(FloatRegClass, reg_idx)).index());
@@ -360,17 +366,17 @@ class IOThreadContext : public ThreadContext
       return getWritableVecPredRegFlat(flattenRegId(reg).index());
     }
 
-    RegVal readCCReg(int reg_idx) override
+    RegVal readCCReg(RegIndex reg_idx) const override
     {
       return readCCRegFlat(flattenRegId(RegId(CCRegClass, reg_idx)).index());
     }
 
-    void setIntReg(int reg_idx, RegVal val) override
+    void setIntReg(RegIndex reg_idx, RegVal val) override
     {
       setIntRegFlat(flattenRegId(RegId(IntRegClass, reg_idx)).index(), val);
     }
 
-    void setFloatReg(int reg_idx, RegVal val) override
+    void setFloatReg(RegIndex reg_idx, RegVal val) override
     {
       setFloatRegFlat(flattenRegId(RegId(FloatRegClass, reg_idx)).index(),
                       val);
@@ -392,12 +398,12 @@ class IOThreadContext : public ThreadContext
       setVecPredRegFlat(flattenRegId(reg).index(), val);
     }
 
-    void setCCReg(int reg_idx, RegVal val) override
+    void setCCReg(RegIndex reg_idx, RegVal val) override
     {
       setCCRegFlat(flattenRegId(RegId(CCRegClass, reg_idx)).index(), val);
     }
 
-    TheISA::PCState pcState() override
+    TheISA::PCState pcState() const override
     {
       return m_cpu_p->pcState(m_thread_p->threadId());
     }
@@ -412,37 +418,37 @@ class IOThreadContext : public ThreadContext
       m_cpu_p->pcState(val, m_thread_p->threadId());
     }
 
-    Addr instAddr() override
+    Addr instAddr() const override
     {
       return m_cpu_p->instAddr(m_thread_p->threadId());
     }
 
-    Addr nextInstAddr() override
+    Addr nextInstAddr() const override
     {
       return m_cpu_p->nextInstAddr(m_thread_p->threadId());
     }
 
-    MicroPC microPC() override
+    MicroPC microPC() const override
     {
       return m_cpu_p->microPC(m_thread_p->threadId());
     }
 
-    RegVal readMiscRegNoEffect(int misc_reg) const override
+    RegVal readMiscRegNoEffect(RegIndex misc_reg) const override
     {
       return m_cpu_p->readMiscRegNoEffect(misc_reg, m_thread_p->threadId());
     }
 
-    RegVal readMiscReg(int misc_reg) override
+    RegVal readMiscReg(RegIndex misc_reg) override
     {
       return m_cpu_p->readMiscReg(misc_reg, m_thread_p->threadId());
     }
 
-    void setMiscRegNoEffect(int misc_reg, RegVal val) override
+    void setMiscRegNoEffect(RegIndex misc_reg, RegVal val) override
     {
       m_cpu_p->setMiscRegNoEffect(misc_reg, val, m_thread_p->threadId());
     }
 
-    void setMiscReg(int misc_reg, RegVal val) override
+    void setMiscReg(RegIndex misc_reg, RegVal val) override
     {
       m_cpu_p->setMiscReg(misc_reg, val, m_thread_p->threadId());
     }
@@ -454,7 +460,7 @@ class IOThreadContext : public ThreadContext
 
     // Also not necessarily the best location for these two. Hopefully will go
     // away once we decide upon where st cond failures goes.
-    unsigned readStCondFailures() override
+    unsigned readStCondFailures() const override
     {
       return m_thread_p->storeCondFailures;
     }
@@ -465,7 +471,7 @@ class IOThreadContext : public ThreadContext
     }
 
     // Same with st cond failures.
-    Counter readFuncExeInst() override
+    Counter readFuncExeInst() const override
     {
       return m_thread_p->funcExeInst;
     }
@@ -486,74 +492,74 @@ class IOThreadContext : public ThreadContext
      * serialization code to access all registers.
      */
 
-    RegVal readIntRegFlat(int idx) override
+    RegVal readIntRegFlat(RegIndex idx) const override
     {
       return m_cpu_p->readArchIntReg(idx, m_thread_p->threadId());
     }
 
-    void setIntRegFlat(int idx, RegVal val) override
+    void setIntRegFlat(RegIndex idx, RegVal val) override
     {
       m_cpu_p->setArchIntReg(idx, val, m_thread_p->threadId());
     }
 
-    RegVal readFloatRegFlat(int idx) override
+    RegVal readFloatRegFlat(RegIndex idx) const override
     {
       return m_cpu_p->readArchFloatReg(idx, m_thread_p->threadId());
     }
 
-    void setFloatRegFlat(int idx, RegVal val) override
+    void setFloatRegFlat(RegIndex idx, RegVal val) override
     {
       m_cpu_p->setArchFloatReg(idx, val, m_thread_p->threadId());
     }
 
-    const VecRegContainer& readVecRegFlat(int idx) const override
+    const VecRegContainer& readVecRegFlat(RegIndex idx) const override
     {
       return m_cpu_p->readArchVecReg(idx, m_thread_p->threadId());
     }
 
-    VecRegContainer& getWritableVecRegFlat(int idx) override
+    VecRegContainer& getWritableVecRegFlat(RegIndex idx) override
     {
       return m_cpu_p->getWritableArchVecReg(idx, m_thread_p->threadId());
     }
 
-    void setVecRegFlat(int idx, const VecRegContainer& val) override
+    void setVecRegFlat(RegIndex idx, const VecRegContainer& val) override
     {
       m_cpu_p->setArchVecReg(idx, val, m_thread_p->threadId());
     }
 
-    const VecElem& readVecElemFlat(const RegIndex& idx,
+    const VecElem& readVecElemFlat(RegIndex idx,
                                    const ElemIndex& elemIdx) const override
     {
       return m_cpu_p->readArchVecElem(idx, elemIdx, m_thread_p->threadId());
     }
 
-    void setVecElemFlat(const RegIndex& idx, const ElemIndex& elemIdx,
+    void setVecElemFlat(RegIndex idx, const ElemIndex& elemIdx,
                         const VecElem& val) override
     {
       m_cpu_p->setArchVecElem(idx, elemIdx, val, m_thread_p->threadId());
     }
 
-    const VecPredRegContainer& readVecPredRegFlat(int idx) const override
+    const VecPredRegContainer& readVecPredRegFlat(RegIndex idx) const override
     {
       return m_cpu_p->readArchVecPredReg(idx, m_thread_p->threadId());
     }
 
-    VecPredRegContainer& getWritableVecPredRegFlat(int idx) override
+    VecPredRegContainer& getWritableVecPredRegFlat(RegIndex idx) override
     {
       return m_cpu_p->getWritableArchVecPredReg(idx, m_thread_p->threadId());
     }
 
-    void setVecPredRegFlat(int idx, const VecPredRegContainer& val) override
+    void setVecPredRegFlat(RegIndex idx, const VecPredRegContainer& val) override
     {
       m_cpu_p->setArchVecPredReg(idx, val, m_thread_p->threadId());
     }
 
-    RegVal readCCRegFlat(int idx) override
+    RegVal readCCRegFlat(RegIndex idx) const override
     {
       return m_cpu_p->readArchCCReg(idx, m_thread_p->threadId());
     }
 
-    void setCCRegFlat(int idx, RegVal val) override
+    void setCCRegFlat(RegIndex idx, RegVal val) override
     {
       m_cpu_p->setArchCCReg(idx, val, m_thread_p->threadId());
     }

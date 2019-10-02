@@ -353,12 +353,6 @@ IODynInst::setMiscReg(int misc_reg, RegVal val)
 }
 
 void
-IODynInst::handleMiscRegOp(int misc_reg, RegVal old_val, const RegVal &val)
-{
-  ExecContext::handleMiscRegOp(misc_reg, old_val, val);
-}
-
-void
 IODynInst::updateMiscRegs()
 {
   for (int i = 0; i < m_num_dest_misc_regs; i++) {

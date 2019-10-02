@@ -1,3 +1,4 @@
 TARGET_ISA = 'riscv'
 CPU_MODELS = 'AtomicSimpleCPU,TimingSimpleCPU,MinorCPU,O3CPU,IOCPU'
 PROTOCOL = 'BRG_SP'
+USE_SYSTEMC = False

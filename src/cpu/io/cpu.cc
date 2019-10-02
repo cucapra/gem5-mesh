@@ -13,7 +13,7 @@
 #include "cpu/io/mem_unit.hh"
 #include "cpu/io/thread_context.hh"
 #include "debug/IOCPU.hh"
-#include "debug/LineTrace.hh"
+//#include "debug/LineTrace.hh"
 
 //-----------------------------------------------------------------------------
 // IOCPU::IcachePort
