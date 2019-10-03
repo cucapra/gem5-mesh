@@ -177,7 +177,7 @@ class IOThreadContext : public ThreadContext
     /** Activate this thread context */
     void activate() override
     {
-      assert(status() == Suspended || status() == Halted);
+      //assert(status() == Suspended || status() == Halted);
       m_cpu_p->activateContext(m_thread_p->threadId());
       setStatus(Active);
     }

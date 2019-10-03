@@ -380,15 +380,20 @@ IOCPU::activateContext(ThreadID tid)
     assert(!m_active_thread_ids.empty());
 
   // assert that the thread is not active yet
-  assert(std::find(m_active_thread_ids.begin(), m_active_thread_ids.end(),
-                   tid) == m_active_thread_ids.end());
+  if (std::find(m_active_thread_ids.begin(), m_active_thread_ids.end(),
+                   tid) == m_active_thread_ids.end()) {
 
-  // push the new thread into the active list
-  m_active_thread_ids.push_back(tid);
+    // push the new thread into the active list
+    m_active_thread_ids.push_back(tid);
+
+  }
+  else {
+    DPRINTF(IOCPU, "[tid:%d] Already present, prob a pthread startup\n", tid);
+  }
 
   // if this is the first thread running after the CPU is idle, we need to wake
   // up the pipeline.
-  if (m_active_thread_ids.size() == 1)
+  if (m_active_thread_ids.size() == 1 && status == Idle && !m_tick_event.scheduled())
     wakeup();
 
   // tell fetch stage to put this thread into its scheduling list
@@ -1057,7 +1062,7 @@ IOCPU::linetrace()
   m_iew.linetrace(ss);
   m_commit.linetrace(ss);
 
-  DPRINTF(LineTrace, "%s\n", ss.str());
+  //DPRINTF(LineTrace, "%s\n", ss.str());
 #endif
 }
 

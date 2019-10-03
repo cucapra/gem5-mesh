@@ -155,7 +155,7 @@ Fetch::suspend()
 void
 Fetch::activateThread(ThreadID tid)
 {
-  assert(m_thread_status[tid] == Inactive);
+  //assert(m_thread_status[tid] == Inactive);
   m_thread_status[tid] = Active;
 }
 

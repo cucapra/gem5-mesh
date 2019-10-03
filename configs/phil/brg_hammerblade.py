@@ -358,7 +358,7 @@ process = get_processes(options)[0]
 # CPU class
 #CPUClass = TimingSimpleCPU
 
-
+'''
 CPUClass = MinorCPU(   
                     # modified minor currently only works with 1way proc
                     # does compiler know that this is a 1way io proc? seems
@@ -373,7 +373,7 @@ CPUClass = MinorCPU(
                     #executeMaxAccessesInMemory = options.stream_width, 
                     executeLSQMaxStoreBufferStoresPerCycle = 1,
                   )
-
+'''
 
 CPUClass = IOCPU ()
 
