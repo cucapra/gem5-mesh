@@ -122,7 +122,7 @@ Kern_Args *construct_args(float *a, float *b, float *c, int size,
 void *pthread_kernel(void *args) {
   // guarentee one thread goes to each core, by preventing any threads
   // from finishing early
-  //pthread_barrier_wait(&start_barrier);
+  pthread_barrier_wait(&start_barrier);
   
   // call the spmd kernel
   Kern_Args *a = (Kern_Args*)args;
