@@ -5,7 +5,7 @@
 #include "vvadd.h"
 #include "../../common/bind_defs.h"
 
-#define VEC 1
+//#define VEC 1
 
 
 inline void stats_on()

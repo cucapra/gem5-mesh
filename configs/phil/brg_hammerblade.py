@@ -358,6 +358,7 @@ process = get_processes(options)[0]
 # CPU class
 #CPUClass = TimingSimpleCPU
 
+
 CPUClass = MinorCPU(   
                     # modified minor currently only works with 1way proc
                     # does compiler know that this is a 1way io proc? seems
@@ -372,6 +373,9 @@ CPUClass = MinorCPU(
                     #executeMaxAccessesInMemory = options.stream_width, 
                     executeLSQMaxStoreBufferStoresPerCycle = 1,
                   )
+
+
+CPUClass = IOCPU ()
 
 
 # Create top-level system
@@ -404,16 +408,6 @@ for cpu in system.cpu:
 for i in xrange(n_cpus):
   system.cpu[i].workload = process
   system.cpu[i].createThreads()
-
-#------------------------------------------------------------------------------
-# Construct Xcels
-#------------------------------------------------------------------------------
-
-'''
-system.xcel = [ XcelClass(cpu_process = process, \
-                          stream_width = options.stream_width) \
-                for i in xrange(n_xcels) ]
-'''
 
 #------------------------------------------------------------------------------
 # Construct Ruby memory system
@@ -528,11 +522,6 @@ system.l2_cntrls = l2_cntrls
 # Connect all controllers to network
 #------------------------------------------------------------------------------
 
-#all_cntrls = system.icaches + system.scratchpads + system.l2_cntrls
-#topology = Crossbar(all_cntrls)
-#topology.makeTopology(options, network,
-#                      IntLinkClass, ExtLinkClass, RouterClass)
-
 makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                  IntLinkClass, ExtLinkClass, RouterClass)
 
@@ -547,7 +536,7 @@ system.system_port = system.ruby.sys_port_proxy.slave
 # Construct systolic network
 #------------------------------------------------------------------------------
 
-makeSystolicTopology(system, n_rows - 1, n_cols)
+#makeSystolicTopology(system, n_rows - 1, n_cols)
 
 #------------------------------------------------------------------------------
 # Construct memory controller

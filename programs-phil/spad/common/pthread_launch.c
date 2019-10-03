@@ -50,12 +50,19 @@ int get_cores() {
   // get the number of processors in the system
   // would rather use multi-platform thread::hardware_concurreny
   // but doesn't work in c (only c++11)
-  int total_cpus = get_nprocs();
+  //
+  // this line does not work with iocpu, gets stuck on a trap
+  // three options
+  // 1) fix iocpu
+  // 2) set and then read a csr with this info
+  // 3) since need to specify number of sps anyway, just use that for core count
+  //int total_cpus = get_nprocs();
+  int total_cpus = _N_SPS;
   return total_cpus;
 }
 
 int get_dimensions(int *cores_x, int *cores_y) {
-  int total_cpus = get_nprocs();
+  int total_cpus = get_cores();
 
   // figure out device dimensions
   int width = (int)sqrt(total_cpus);
