@@ -56,8 +56,6 @@
 #include "params/MinorCPU.hh"
 #include "sim/ticked_object.hh"
 
-#include "custom/vector_forward.hh"
-
 namespace Minor
 {
 
@@ -83,22 +81,11 @@ class Pipeline : public Ticked
     Latch<ForwardInstData> f2ToD;
     Latch<ForwardInstData> dToE;
     Latch<BranchData> eToF1;
-    
-    // vector unit to decode
-    Latch<ForwardInstData> vfToD;
-    // fetch2 to vector
-    //Latch<ForwardInstData> f2ToV;
 
     Execute execute;
     Decode decode;
-    
-    // vec
-    VectorForward vector;
-    
     Fetch2 fetch2;
     Fetch1 fetch1;
-    
-    
 
     /** Activity recording for the pipeline.  This is access through the CPU
      *  by the pipeline stages but belongs to the Pipeline as it is the
@@ -112,7 +99,7 @@ class Pipeline : public Ticked
         /* A stage representing wakeup of the whole processor */
         CPUStageId = 0,
         /* Real pipeline stages */
-        Fetch1StageId, Fetch2StageId, DecodeStageId, ExecuteStageId, VectorStageId,
+        Fetch1StageId, Fetch2StageId, DecodeStageId, ExecuteStageId,
         Num_StageId /* Stage count */
     };
 
@@ -151,17 +138,9 @@ class Pipeline : public Ticked
     MinorCPU::MinorCPUPort &getInstPort();
     /** Return the DcachePort belonging to Execute for the CPU */
     MinorCPU::MinorCPUPort &getDataPort();
-    
-    /** Return mesh ports for the CPU*/
-    Port &getMeshPort(int idx, bool isOut);
-    int getNumMeshPorts();
 
     /** To give the activity recorder to the CPU */
     MinorActivityRecorder *getActivityRecorder() { return &activityRecorder; }
-    
-    /** Inform relevant stages that an important csr was updated and should
-     * check it out */
-    void informCSRUpdate(int csrId, RegVal val);
 };
 
 }

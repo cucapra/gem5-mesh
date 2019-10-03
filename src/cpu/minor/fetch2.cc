@@ -49,9 +49,6 @@
 #include "debug/Fetch.hh"
 #include "debug/MinorTrace.hh"
 
-#include "custom/vector_forward.hh"
-#include "debug/Mesh.hh"
-
 namespace Minor
 {
 
@@ -62,9 +59,7 @@ Fetch2::Fetch2(const std::string &name,
     Latch<BranchData>::Output branchInp_,
     Latch<BranchData>::Input predictionOut_,
     Latch<ForwardInstData>::Input out_,
-    std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer,
-    std::vector<InputBuffer<ForwardVectorData>> &vectorStageReserve,
-    VectorForward *vector) :
+    std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer) :
     Named(name),
     cpu(cpu_),
     inp(inp_),
@@ -72,11 +67,9 @@ Fetch2::Fetch2(const std::string &name,
     predictionOut(predictionOut_),
     out(out_),
     nextStageReserve(next_stage_input_buffer),
-    vectorStageReserve(vectorStageReserve),
     outputWidth(params.decodeInputWidth),
     processMoreThanOneInput(params.fetch2CycleInput),
     branchPredictor(*params.branchPred),
-    vector(vector), debug(0),
     fetchInfo(params.numThreads),
     threadPriority(0)
 {
@@ -254,48 +247,60 @@ Fetch2::evaluate()
     BranchData prediction;
     BranchData &branch_inp = *branchInp.outputWire;
 
-    // handle a branch that was detected later on in the pipe
-    handleBranch(branch_inp);
+    assert(insts_out.isBubble());
 
-    // detect stalls in later stages
-    for (ThreadID tid = 0; tid < cpu.numThreads; tid++) {
-        
-        // detect any stalls due to the Decode stage
-        bool decodeStall = !nextStageReserve[tid].canReserve();
-        
-        // detect any stalls due to the Vector "stage"
-        // TODO this is not stalling when it should what does canReserve() do?
-        // can try isBubble instead?
-        bool vectorStall = !vectorStageReserve[tid].canReserve();
-        //if (vectorStall) DPRINTF(Mesh, "vec stall\n");
-        //if (decodeStall) DPRINTF(Mesh, "decode stall\n");
-        
-        // thread.blocked will prevent the thread from being selected
-        // in the getScheduledThread() call below. in the single-thread
-        // case this will return an InvalidThreadID and will result in a stall
-        Fetch2ThreadInfo &thread = fetchInfo[tid];
-        thread.blocked = decodeStall || vectorStall;
+    /* React to branches from Execute to update local branch prediction
+     *  structures */
+    updateBranchPrediction(branch_inp);
+
+    /* If a branch arrives, don't try and do anything about it.  Only
+     *  react to your own predictions */
+    if (branch_inp.isStreamChange()) {
+        DPRINTF(Fetch, "Dumping all input as a stream changing branch"
+            " has arrived\n");
+        dumpAllInput(branch_inp.threadId);
+        fetchInfo[branch_inp.threadId].havePC = false;
     }
-    
-    
 
     assert(insts_out.isBubble());
+    /* Even when blocked, clear out input lines with the wrong
+     *  prediction sequence number */
+    for (ThreadID tid = 0; tid < cpu.numThreads; tid++) {
+        Fetch2ThreadInfo &thread = fetchInfo[tid];
+
+        thread.blocked = !nextStageReserve[tid].canReserve();
+
+        const ForwardLineData *line_in = getInput(tid);
+
+        while (line_in &&
+            thread.expectedStreamSeqNum == line_in->id.streamSeqNum &&
+            thread.predictionSeqNum != line_in->id.predictionSeqNum)
+        {
+            DPRINTF(Fetch, "Discarding line %s"
+                " due to predictionSeqNum mismatch (expected: %d)\n",
+                line_in->id, thread.predictionSeqNum);
+
+            popInput(tid);
+            fetchInfo[tid].havePC = false;
+
+            if (processMoreThanOneInput) {
+                DPRINTF(Fetch, "Wrapping\n");
+                line_in = getInput(tid);
+            } else {
+                line_in = NULL;
+            }
+        }
+    }
 
     ThreadID tid = getScheduledThread();
     DPRINTF(Fetch, "Scheduled Thread: %d\n", tid);
 
     assert(insts_out.isBubble());
-    
-    
-    // extract instructions from fetch lines
     if (tid != InvalidThreadID) {
         Fetch2ThreadInfo &fetch_info = fetchInfo[tid];
 
-        // get the cache line from fetch1
         const ForwardLineData *line_in = getInput(tid);
 
-        // since this proc supports >=1 way, we try extract multiple in
-        // a cycle
         unsigned int output_index = 0;
 
         /* Pack instructions into the output while we can.  This may involve
@@ -307,52 +312,192 @@ Fetch2::evaluate()
             output_index < outputWidth && /* More output to fill */
             prediction.isBubble() /* No predicted branch */)
         {
+            ThreadContext *thread = cpu.getContext(line_in->id.threadId);
+            TheISA::Decoder *decoder = thread->getDecoderPtr();
+
             /* Discard line due to prediction sequence number being wrong but
-            * without the streamSeqNum number having changed */
+             * without the streamSeqNum number having changed */
             bool discard_line =
                 fetch_info.expectedStreamSeqNum == line_in->id.streamSeqNum &&
                 fetch_info.predictionSeqNum != line_in->id.predictionSeqNum;
-            
-            
+
+            /* Set the PC if the stream changes.  Setting havePC to false in
+             *  a previous cycle handles all other change of flow of control
+             *  issues */
+            bool set_pc = fetch_info.lastStreamSeqNum != line_in->id.streamSeqNum;
+
+            if (!discard_line && (!fetch_info.havePC || set_pc)) {
+                /* Set the inputIndex to be the MachInst-aligned offset
+                 *  from lineBaseAddr of the new PC value */
+                fetch_info.inputIndex =
+                    (line_in->pc.instAddr() & BaseCPU::PCMask) -
+                    line_in->lineBaseAddr;
+                DPRINTF(Fetch, "Setting new PC value: %s inputIndex: 0x%x"
+                    " lineBaseAddr: 0x%x lineWidth: 0x%x\n",
+                    line_in->pc, fetch_info.inputIndex, line_in->lineBaseAddr,
+                    line_in->lineWidth);
+                fetch_info.pc = line_in->pc;
+                fetch_info.havePC = true;
+                decoder->reset();
+            }
+
+            /* The generated instruction.  Leave as NULL if no instruction
+             *  is to be packed into the output */
+            MinorDynInstPtr dyn_inst = NULL;
+
             if (discard_line) {
                 /* Rest of line was from an older prediction in the same
-                *  stream */
+                 *  stream */
                 DPRINTF(Fetch, "Discarding line %s (from inputIndex: %d)"
-                " due to predictionSeqNum mismatch (expected: %d)\n",
-                line_in->id, fetch_info.inputIndex,
-                fetch_info.predictionSeqNum);
-            }
-            else {
-                
-                MinorDynInstPtr dyn_inst = createDynInstFromFetchedLine(
-                    line_in, fetch_info, prediction, output_index);
-                    
-                // output dynamic instruction to the next stage
-                if (dyn_inst) {
-                
-                    // check if there was a mispredicted branch taken which would change streamSeqNum
-                    //bool branch_mispred = fetch_info.lastStreamSeqNum != line_in->id.streamSeqNum;
-                    //if (branch_inp.isStreamChange()) DPRINTF(Mesh, "branch stream change\n");
-                    //if (branch_inp.reason != BranchData::Reason::NoBranch) DPRINTF(Mesh, "branch reason %d\n", branch_inp.reason);
-                    //if (fetch_info.lastStreamSeqNum != line_in->id.streamSeqNum) DPRINTF(Mesh, "stream mismatch\n");
-                    
-                    // TODO not sure if this is needed when using setMispredict when badly predicted branch
-                    // this is not always reliable
-                    bool branch_mispred = (fetch_info.lastStreamSeqNum != line_in->id.streamSeqNum);
-                    pushDynInst(dyn_inst, branch_mispred, output_index);
-                
-                    /* Step to next sequence number */
-                    fetch_info.fetchSeqNum++;
-                    output_index++;
+                    " due to predictionSeqNum mismatch (expected: %d)\n",
+                    line_in->id, fetch_info.inputIndex,
+                    fetch_info.predictionSeqNum);
+            } else if (line_in->isFault()) {
+                /* Pack a fault as a MinorDynInst with ->fault set */
+
+                /* Make a new instruction and pick up the line, stream,
+                 *  prediction, thread ids from the incoming line */
+                dyn_inst = new MinorDynInst(line_in->id);
+
+                /* Fetch and prediction sequence numbers originate here */
+                dyn_inst->id.fetchSeqNum = fetch_info.fetchSeqNum;
+                dyn_inst->id.predictionSeqNum = fetch_info.predictionSeqNum;
+                /* To complete the set, test that exec sequence number has
+                 *  not been set */
+                assert(dyn_inst->id.execSeqNum == 0);
+
+                dyn_inst->pc = fetch_info.pc;
+
+                /* Pack a faulting instruction but allow other
+                 *  instructions to be generated. (Fetch2 makes no
+                 *  immediate judgement about streamSeqNum) */
+                dyn_inst->fault = line_in->fault;
+                DPRINTF(Fetch, "Fault being passed output_index: "
+                    "%d: %s\n", output_index, dyn_inst->fault->name());
+            } else {
+                uint8_t *line = line_in->line;
+
+                TheISA::MachInst inst_word;
+                /* The instruction is wholly in the line, can just
+                 *  assign */
+                inst_word = TheISA::gtoh(
+                    *(reinterpret_cast<TheISA::MachInst *>
+                    (line + fetch_info.inputIndex)));
+
+                if (!decoder->instReady()) {
+                    decoder->moreBytes(fetch_info.pc,
+                        line_in->lineBaseAddr + fetch_info.inputIndex,
+                        inst_word);
+                    DPRINTF(Fetch, "Offering MachInst to decoder addr: 0x%x\n",
+                            line_in->lineBaseAddr + fetch_info.inputIndex);
+                }
+
+                /* Maybe make the above a loop to accomodate ISAs with
+                 *  instructions longer than sizeof(MachInst) */
+
+                if (decoder->instReady()) {
+                    /* Make a new instruction and pick up the line, stream,
+                     *  prediction, thread ids from the incoming line */
+                    dyn_inst = new MinorDynInst(line_in->id);
+
+                    /* Fetch and prediction sequence numbers originate here */
+                    dyn_inst->id.fetchSeqNum = fetch_info.fetchSeqNum;
+                    dyn_inst->id.predictionSeqNum = fetch_info.predictionSeqNum;
+                    /* To complete the set, test that exec sequence number
+                     *  has not been set */
+                    assert(dyn_inst->id.execSeqNum == 0);
+
+                    /* Note that the decoder can update the given PC.
+                     *  Remember not to assign it until *after* calling
+                     *  decode */
+                    StaticInstPtr decoded_inst = decoder->decode(fetch_info.pc);
+                    dyn_inst->staticInst = decoded_inst;
+
+                    dyn_inst->pc = fetch_info.pc;
+                    DPRINTF(Fetch, "decoder inst %s\n", *dyn_inst);
+
+                    // Collect some basic inst class stats
+                    if (decoded_inst->isLoad())
+                        loadInstructions++;
+                    else if (decoded_inst->isStore())
+                        storeInstructions++;
+                    else if (decoded_inst->isAtomic())
+                        amoInstructions++;
+                    else if (decoded_inst->isVector())
+                        vecInstructions++;
+                    else if (decoded_inst->isFloating())
+                        fpInstructions++;
+                    else if (decoded_inst->isInteger())
+                        intInstructions++;
+
+                    DPRINTF(Fetch, "Instruction extracted from line %s"
+                        " lineWidth: %d output_index: %d inputIndex: %d"
+                        " pc: %s inst: %s\n",
+                        line_in->id,
+                        line_in->lineWidth, output_index, fetch_info.inputIndex,
+                        fetch_info.pc, *dyn_inst);
+
+#if THE_ISA == X86_ISA || THE_ISA == ARM_ISA
+                    /* In SE mode, it's possible to branch to a microop when
+                     *  replaying faults such as page faults (or simply
+                     *  intra-microcode branches in X86).  Unfortunately,
+                     *  as Minor has micro-op decomposition in a separate
+                     *  pipeline stage from instruction decomposition, the
+                     *  following advancePC (which may follow a branch with
+                     *  microPC() != 0) *must* see a fresh macroop.  This
+                     *  kludge should be improved with an addition to PCState
+                     *  but I offer it in this form for the moment
+                     *
+                     * X86 can branch within microops so we need to deal with
+                     * the case that, after a branch, the first un-advanced PC
+                     * may be pointing to a microop other than 0.  Once
+                     * advanced, however, the microop number *must* be 0 */
+                    fetch_info.pc.upc(0);
+                    fetch_info.pc.nupc(1);
+#endif
+
+                    /* Advance PC for the next instruction */
+                    TheISA::advancePC(fetch_info.pc, decoded_inst);
+
+                    /* Predict any branches and issue a branch if
+                     *  necessary */
+                    predictBranch(dyn_inst, prediction);
+                } else {
+                    DPRINTF(Fetch, "Inst not ready yet\n");
+                }
+
+                /* Step on the pointer into the line if there's no
+                 *  complete instruction waiting */
+                if (decoder->needMoreBytes()) {
+                    fetch_info.inputIndex += sizeof(TheISA::MachInst);
+
+                DPRINTF(Fetch, "Updated inputIndex value PC: %s"
+                    " inputIndex: 0x%x lineBaseAddr: 0x%x lineWidth: 0x%x\n",
+                    line_in->pc, fetch_info.inputIndex, line_in->lineBaseAddr,
+                    line_in->lineWidth);
                 }
             }
 
-            
-            
-            
-//
-//
-//
+            if (dyn_inst) {
+                /* Step to next sequence number */
+                fetch_info.fetchSeqNum++;
+
+                /* Correctly size the output before writing */
+                if (output_index == 0) {
+                    insts_out.resize(outputWidth);
+                }
+                /* Pack the generated dynamic instruction into the output */
+                insts_out.insts[output_index] = dyn_inst;
+                output_index++;
+
+                /* Output MinorTrace instruction info for
+                 *  pre-microop decomposition macroops */
+                if (DTRACE(MinorTrace) && !dyn_inst->isFault() &&
+                    dyn_inst->staticInst->isMacroop())
+                {
+                    dyn_inst->minorTraceInst(*this);
+                }
+            }
 
             /* Remember the streamSeqNum of this line so we can tell when
              *  we change stream */
@@ -418,325 +563,6 @@ Fetch2::evaluate()
     /* Make sure the input (if any left) is pushed */
     if (!inp.outputWire->isBubble())
         inputBuffer[inp.outputWire->id.threadId].pushTail();
-}
-
-void
-Fetch2::pushDynInst(MinorDynInstPtr dyn_inst, bool branch_mispred, int output_index) {
-    
-    ForwardInstData &insts_out = *out.inputWire;
-
-    /* Correctly size the output before writing */
-    if (output_index == 0) {
-        insts_out.resize(outputWidth);
-    }
-    
-    /*if (debug == 1 && cpu.cpuId() == 0) {
-        DPRINTF(Mesh, "%s\n", *dyn_inst);
-    }*/
-    
-    /*if (dyn_inst->staticInst->isBind()) { 
-        debug = ( debug + 1 ) % 2;
-        DPRINTF(Mesh, "saw bind\n");
-        
-        // write fetch csr here?
-        // less nops and delay, but might be issue with squashing the pipeline
-        // on exception or branch...
-        // would need a way to revert architectural state, but may have already
-        // sent a packet to another core and hard to revert that!
-        //ExecContext context(cpu, *cpu.threads[thread_id], *this , inst);
-        //fault = inst->staticInst->execute(&context,
-        //    inst->traceData);
-        
-    }*/
-    
-    /* Pack the generated dynamic instruction into the output */
-    insts_out.insts[output_index] = dyn_inst;
-
-    // also write to vector unit
-    // if not configured as master, won't send anything on will just clear
-    // the buffer
-    // TODO needs to be a class, b/c expect NULL possible!
-    ForwardVectorData vecData(0);
-    
-    // get the bytes of the static inst to pass on
-    // important to get directly from the decoded instructions rather than
-    // looking up because instruction alignment is weird due to riscv compressed
-    // (16 bit) instructions
-    
-    // ret if no static inst
-    // TODO why would this even happen though, currently getting a case with this after devec
-    if (!dyn_inst->staticInst) return;
-    
-    TheISA::ExtMachInst extMachInst = dyn_inst->staticInst->machInst;
-    TheISA::MachInst machInst = (TheISA::MachInst)extMachInst;
-    
-    vecData.machInst = machInst;
-    // whether the branch is predicted to be taken or not
-    // if prediction is correct then the slave cpu needs to change seqNum
-    // because not really keeping track of branch predictor?
-    // if fail then this will send the correct instructions and squash?
-    vecData.predictTaken = dyn_inst->predictedTaken;
-    vecData.mispredicted = false; //branch_mispred;
-    
-    // let's also encode whether we predicted a branch or not
-    //dyn_inst->id.fetchSeqNum
-    //DPRINTF(Mesh, "predSeqNum %d\n", dyn_inst->id.predictionSeqNum);
-    //fetch_line_id.streamSeqNum
-    
-    ThreadID tid = 0;
-    
-    // stage value to be pushed onto the queue
-    vectorStageReserve[tid].setTail(vecData);
-    
-    // push onto the queue (will be picked up by canReserve())
-    vectorStageReserve[tid].pushTail();
-
-    /* Output MinorTrace instruction info for
-    *  pre-microop decomposition macroops */
-    if (DTRACE(MinorTrace) && !dyn_inst->isFault() &&
-        dyn_inst->staticInst->isMacroop())
-    {
-        dyn_inst->minorTraceInst(*this);
-    }
-}
-
-
-
-MinorDynInstPtr
-Fetch2::createDynInstFromFetchedLine(const ForwardLineData *line_in, 
-        Fetch2ThreadInfo &fetch_info, BranchData &prediction, 
-        unsigned int output_index) {
-    ThreadContext *thread = cpu.getContext(line_in->id.threadId);
-    TheISA::Decoder *decoder = thread->getDecoderPtr();
-
-    /* Set the PC if the stream changes.  Setting havePC to false in
-    *  a previous cycle handles all other change of flow of control
-    *  issues */
-    bool set_pc = fetch_info.lastStreamSeqNum != line_in->id.streamSeqNum;
-
-    if (!fetch_info.havePC || set_pc) {
-        /* Set the inputIndex to be the MachInst-aligned offset
-        *  from lineBaseAddr of the new PC value */
-        fetch_info.inputIndex =
-            (line_in->pc.instAddr() & BaseCPU::PCMask) -
-            line_in->lineBaseAddr;
-        DPRINTF(Fetch, "Setting new PC value: %s inputIndex: 0x%x"
-                " lineBaseAddr: 0x%x lineWidth: 0x%x\n",
-                line_in->pc, fetch_info.inputIndex, line_in->lineBaseAddr,
-                line_in->lineWidth);
-        fetch_info.pc = line_in->pc;
-        fetch_info.havePC = true;
-        decoder->reset();
-    }
-
-    /* The generated instruction.  Leave as NULL if no instruction
-    *  is to be packed into the output */
-    MinorDynInstPtr dyn_inst = NULL;
-
-    if (line_in->isFault()) {
-        /* Pack a fault as a MinorDynInst with ->fault set */
-                
-        dyn_inst = createDynInst(line_in->id, fetch_info.fetchSeqNum,
-            fetch_info.predictionSeqNum, fetch_info.pc, nullptr);
-
-        /* Pack a faulting instruction but allow other
-        *  instructions to be generated. (Fetch2 makes no
-        *  immediate judgement about streamSeqNum) */
-        dyn_inst->fault = line_in->fault;
-        DPRINTF(Fetch, "Fault being passed output_index: "
-            "%d: %s\n", output_index, dyn_inst->fault->name());
-    } else {
-        uint8_t *line = line_in->line;
-
-        TheISA::MachInst inst_word;
-        /* The instruction is wholly in the line, can just
-        *  assign */
-        inst_word = TheISA::gtoh(
-            *(reinterpret_cast<TheISA::MachInst *>
-            (line + fetch_info.inputIndex)));
-
-        if (!decoder->instReady()) {
-            decoder->moreBytes(fetch_info.pc,
-                            line_in->lineBaseAddr + fetch_info.inputIndex,
-                            inst_word);
-            DPRINTF(Fetch, "Offering MachInst to decoder addr: 0x%x\n",
-                    line_in->lineBaseAddr + fetch_info.inputIndex);
-        }
-
-        /* Maybe make the above a loop to accomodate ISAs with
-        *  instructions longer than sizeof(MachInst) */
-
-        if (decoder->instReady()) {
-            // create a new dynamic instruction
-            StaticInstPtr decoded_inst = decoder->decode(fetch_info.pc);
-                    
-            dyn_inst = createDynInst(line_in->id, fetch_info.fetchSeqNum, 
-                fetch_info.predictionSeqNum, fetch_info.pc, decoded_inst);
-                        
-
-            DPRINTF(Fetch, "Instruction extracted from line %s"
-                    " lineWidth: %d output_index: %d inputIndex: %d"
-                    " pc: %s inst: %s\n",
-                    line_in->id,
-                    line_in->lineWidth, output_index, fetch_info.inputIndex,
-                    fetch_info.pc, *dyn_inst);
-
-#if THE_ISA == X86_ISA || THE_ISA == ARM_ISA
-            /* In SE mode, it's possible to branch to a microop when
-            *  replaying faults such as page faults (or simply
-            *  intra-microcode branches in X86).  Unfortunately,
-            *  as Minor has micro-op decomposition in a separate
-            *  pipeline stage from instruction decomposition, the
-            *  following advancePC (which may follow a branch with
-            *  microPC() != 0) *must* see a fresh macroop.  This
-            *  kludge should be improved with an addition to PCState
-            *  but I offer it in this form for the moment
-            *
-            * X86 can branch within microops so we need to deal with
-            * the case that, after a branch, the first un-advanced PC
-            * may be pointing to a microop other than 0.  Once
-            * advanced, however, the microop number *must* be 0 */
-            fetch_info.pc.upc(0);
-            fetch_info.pc.nupc(1);
-#endif
-
-// TODO move outside? i.e. decoupling fetch extract from control flow
-            /* Advance PC for the next instruction */
-            TheISA::advancePC(fetch_info.pc, decoded_inst);
-
-            /* Predict any branches and issue a branch if
-            *  necessary */
-            predictBranch(dyn_inst, prediction);
-            
-        } else {
-            DPRINTF(Fetch, "Inst not ready yet\n");
-        }
-
-        /* Step on the pointer into the line if there's no
-        *  complete instruction waiting */
-        if (decoder->needMoreBytes()) {
-            fetch_info.inputIndex += sizeof(TheISA::MachInst);
-
-            DPRINTF(Fetch, "Updated inputIndex value PC: %s"
-                " inputIndex: 0x%x lineBaseAddr: 0x%x lineWidth: 0x%x\n",
-                line_in->pc, fetch_info.inputIndex, line_in->lineBaseAddr,
-                line_in->lineWidth);
-        }
-    }
-    
-    return dyn_inst;
-    
-}
-
-// most of these fields don't matter for non-macro-op inst (i.e. riscv)
-MinorDynInstPtr
-Fetch2::createDynInst(InstId fetch_line_id, InstSeqNum fetch_seq_num, 
-        InstSeqNum pred_seq_num, TheISA::PCState pc, StaticInstPtr decoded_inst) {
-    /* Make a new instruction and pick up the line, stream,
-    *  prediction, thread ids from the incoming line */
-    MinorDynInstPtr dyn_inst = new MinorDynInst(fetch_line_id);
-
-    /* Fetch and prediction sequence numbers originate here */
-    dyn_inst->id.fetchSeqNum = fetch_seq_num;
-    dyn_inst->id.predictionSeqNum = pred_seq_num;
-    /* To complete the set, test that exec sequence number
-    *  has not been set */
-    assert(dyn_inst->id.execSeqNum == 0);
-
-    /* Note that the decoder can update the given PC.
-    *  Remember not to assign it until *after* calling
-    *  decode */
-    //StaticInstPtr decoded_inst = decoder->decode(fetch_info.pc);
-    //dyn_inst->staticInst = decoded_inst;
-
-    dyn_inst->pc = pc;
-    DPRINTF(Fetch, "decoder inst %s\n", *dyn_inst);
-
-    // remember the last streamSeqNum if ever become vector slave b/c important
-    // for an check in execute
-    vector->updateStreamSeqNum(fetch_line_id.streamSeqNum);
-
-
-    if (decoded_inst) {
-        dyn_inst->staticInst = decoded_inst;
-        // Collect some basic inst class stats
-        if (decoded_inst->isLoad())
-            loadInstructions++;
-        else if (decoded_inst->isStore())
-            storeInstructions++;
-        else if (decoded_inst->isAtomic())
-            amoInstructions++;
-        else if (decoded_inst->isVector())
-            vecInstructions++;
-        else if (decoded_inst->isFloating())
-            fpInstructions++;
-        else if (decoded_inst->isInteger())
-            intInstructions++;
-    }
-        
-    return dyn_inst;
-}
-
-
-void
-Fetch2::handleBranch(BranchData &branch_inp) {
-    // inform local vector unit to send next instruction with mispredict flag
-    // TODO this sometimes applies the change to an instruction too early!!!!
-    // maybe have to make sure the current inflight instruction (this cycle)
-    // doesnt get it applied
-    if (branch_inp.reason == BranchData::Reason::BadlyPredictedBranch ||
-        branch_inp.reason == BranchData::Reason::UnpredictedBranch
-        ) {
-        // TODO set flag here, that occurs here to set on the next evaluation cycle (at the beginning)
-        // or make sure that vector unit does not apply this immeidietly
-        vector->setMispredict();
-        //DPRINTF(Mesh, "branch reason %d\n", branch_inp.reason);
-    }
-    
-    /* React to branches from Execute to update local branch prediction
-     *  structures */
-    updateBranchPrediction(branch_inp);
-
-    /* If a branch arrives, don't try and do anything about it.  Only
-     *  react to your own predictions */
-    if (branch_inp.isStreamChange()) {
-        DPRINTF(Fetch, "Dumping all input as a stream changing branch"
-            " has arrived\n");
-        dumpAllInput(branch_inp.threadId);
-        fetchInfo[branch_inp.threadId].havePC = false;
-    }
-
-    //assert(insts_out.isBubble());
-    /* Even when blocked, clear out input lines with the wrong
-     *  prediction sequence number */
-    for (ThreadID tid = 0; tid < cpu.numThreads; tid++) {
-        Fetch2ThreadInfo &thread = fetchInfo[tid];
-
-        // pbb move to another function to be clearer
-        //thread.blocked = !nextStageReserve[tid].canReserve();
-
-        const ForwardLineData *line_in = getInput(tid);
-
-        while (line_in &&
-            thread.expectedStreamSeqNum == line_in->id.streamSeqNum &&
-            thread.predictionSeqNum != line_in->id.predictionSeqNum)
-        {
-            DPRINTF(Fetch, "Discarding line %s"
-                " due to predictionSeqNum mismatch (expected: %d)\n",
-                line_in->id, thread.predictionSeqNum);
-
-            popInput(tid);
-            fetchInfo[tid].havePC = false;
-
-            if (processMoreThanOneInput) {
-                DPRINTF(Fetch, "Wrapping\n");
-                line_in = getInput(tid);
-            } else {
-                line_in = NULL;
-            }
-        }
-    }
-
 }
 
 inline ThreadID

@@ -121,15 +121,8 @@ class Execute : public Named
     /** The execution functional units */
     std::vector<FUPipeline *> funcUnits;
 
-    /** Backwards channel to vector stage to inform of stalling.
-     * This increases a path delay, but hopefully not on critical path */
-    //std::vector<InputBuffer<BackwardStall>> stallBuffer;
-    bool _becomingStalled;
-
   public: /* Public for Pipeline to be able to pass it to Decode */
     std::vector<InputBuffer<ForwardInstData>> inputBuffer;
-
-    bool stalledThisCycle() const { return _becomingStalled; }
 
   protected:
     /** Stage cycle-by-cycle state */

@@ -572,115 +572,15 @@ Fetch1::processResponse(Fetch1::FetchRequestPtr response,
 void
 Fetch1::evaluate()
 {
-    // initially there's no input data in the next stage
+    const BranchData &execute_branch = *inp.outputWire;
+    const BranchData &fetch2_branch = *prediction.outputWire;
     ForwardLineData &line_out = *out.inputWire;
+
     assert(line_out.isBubble());
 
-    // always select tid 0
-    assert(cpu.numThreads == 1);
     for (ThreadID tid = 0; tid < cpu.numThreads; tid++)
         fetchInfo[tid].blocked = !nextStageReserve[tid].canReserve();
 
-    // change the next pc from the expected one if there has been a branch
-    handleBranch();
-
-    // issue a fetch for the next pc
-    fetchRequest();
-    
-    // update any inflight fetches and process if response received
-    // this will setup data to be send to fetch2 stage
-    handleFetch(line_out);
-
-    // processor might go to idle mode if we don't inform that we expect
-    // something to happen in next cycle
-    // this sleep is implemented in pipeline.cc where it ticks
-    // each stage and then decide if it should idle
-    
-    /* If we generated output, and mark the stage as being active
-     *  to encourage that output on to the next stage */
-    if (!line_out.isBubble())
-        cpu.activityRecorder->activity();
-
-    /* Fetch1 has no inputBuffer so the only activity we can have is to
-     *  generate a line output (tested just above) or to initiate a memory
-     *  fetch which will signal activity when it returns/needs stepping
-     *  between queues */
-
-
-    /* This looks hackish.  And it is, but there doesn't seem to be a better
-     * way to do this.  The signal from commit to suspend fetch takes 1
-     * clock cycle to propagate to fetch.  However, a legitimate wakeup
-     * may occur between cycles from the memory system.  Thus wakeup guard
-     * prevents us from suspending in that case. */
-
-    for (auto& thread : fetchInfo) {
-        thread.wakeupGuard = false;
-    }
-}
-
-void
-Fetch1::fetchRequest() {
-    // send a new fetch
-    if (numInFlightFetches() < fetchLimit) {
-        ThreadID fetch_tid = getScheduledThread();
-
-        if (fetch_tid != InvalidThreadID) {
-            DPRINTF(Fetch, "Fetching from thread %d\n", fetch_tid);
-
-            /* Generate fetch to selected thread */
-            fetchLine(fetch_tid);
-            /* Take up a slot in the fetch queue */
-            nextStageReserve[fetch_tid].reserve();
-        } else {
-            DPRINTF(Fetch, "No active threads available to fetch from\n");
-        }
-    }
-}
-
-void
-Fetch1::handleFetch(ForwardLineData &line_out) {
-    // update any inflight fetches
-
-    /* Halting shouldn't prevent fetches in flight from being processed */
-    /* Step fetches through the icachePort queues and memory system */
-    stepQueues();
-
-    // process any completed requests
-
-    /* As we've thrown away early lines, if there is a line, it must
-     *  be from the right stream */
-    if (!transfers.empty() &&
-        transfers.front()->isComplete())
-    {
-        Fetch1::FetchRequestPtr response = transfers.front();
-
-        if (response->isDiscardable()) {
-            nextStageReserve[response->id.threadId].freeReservation();
-
-            DPRINTF(Fetch, "Discarding translated fetch as it's for"
-                " an old stream\n");
-
-            /* Wake up next cycle just in case there was some other
-             *  action to do */
-            cpu.wakeupOnEvent(Pipeline::Fetch1StageId);
-        } else {
-            DPRINTF(Fetch, "Processing fetched line: %s\n",
-                response->id);
-                
-            // got request so send to output (line_out)
-
-            processResponse(response, line_out);
-        }
-
-        popAndDiscard(transfers);
-    }
-}
-
-void
-Fetch1::handleBranch() {
-    const BranchData &execute_branch = *inp.outputWire;
-    const BranchData &fetch2_branch = *prediction.outputWire;  
-        
     /** Are both branches from later stages valid and for the same thread? */
     if (execute_branch.threadId != InvalidThreadID &&
         execute_branch.threadId == fetch2_branch.threadId) {
@@ -740,6 +640,73 @@ Fetch1::handleBranch() {
                 changeStream(fetch2_branch);
             }
         }
+    }
+
+    if (numInFlightFetches() < fetchLimit) {
+        ThreadID fetch_tid = getScheduledThread();
+
+        if (fetch_tid != InvalidThreadID) {
+            DPRINTF(Fetch, "Fetching from thread %d\n", fetch_tid);
+
+            /* Generate fetch to selected thread */
+            fetchLine(fetch_tid);
+            /* Take up a slot in the fetch queue */
+            nextStageReserve[fetch_tid].reserve();
+        } else {
+            DPRINTF(Fetch, "No active threads available to fetch from\n");
+        }
+    }
+
+
+    /* Halting shouldn't prevent fetches in flight from being processed */
+    /* Step fetches through the icachePort queues and memory system */
+    stepQueues();
+
+    /* As we've thrown away early lines, if there is a line, it must
+     *  be from the right stream */
+    if (!transfers.empty() &&
+        transfers.front()->isComplete())
+    {
+        Fetch1::FetchRequestPtr response = transfers.front();
+
+        if (response->isDiscardable()) {
+            nextStageReserve[response->id.threadId].freeReservation();
+
+            DPRINTF(Fetch, "Discarding translated fetch as it's for"
+                " an old stream\n");
+
+            /* Wake up next cycle just in case there was some other
+             *  action to do */
+            cpu.wakeupOnEvent(Pipeline::Fetch1StageId);
+        } else {
+            DPRINTF(Fetch, "Processing fetched line: %s\n",
+                response->id);
+
+            processResponse(response, line_out);
+        }
+
+        popAndDiscard(transfers);
+    }
+
+    /* If we generated output, and mark the stage as being active
+     *  to encourage that output on to the next stage */
+    if (!line_out.isBubble())
+        cpu.activityRecorder->activity();
+
+    /* Fetch1 has no inputBuffer so the only activity we can have is to
+     *  generate a line output (tested just above) or to initiate a memory
+     *  fetch which will signal activity when it returns/needs stepping
+     *  between queues */
+
+
+    /* This looks hackish.  And it is, but there doesn't seem to be a better
+     * way to do this.  The signal from commit to suspend fetch takes 1
+     * clock cycle to propagate to fetch.  However, a legitimate wakeup
+     * may occur between cycles from the memory system.  Thus wakeup guard
+     * prevents us from suspending in that case. */
+
+    for (auto& thread : fetchInfo) {
+        thread.wakeupGuard = false;
     }
 }
 

@@ -42,8 +42,6 @@
 #include "cpu/minor/pipeline.hh"
 #include "debug/Decode.hh"
 
-#include "debug/Mesh.hh"
-
 namespace Minor
 {
 
@@ -51,13 +49,11 @@ Decode::Decode(const std::string &name,
     MinorCPU &cpu_,
     MinorCPUParams &params,
     Latch<ForwardInstData>::Output inp_,
-    Latch<ForwardInstData>::Output inp_v,
     Latch<ForwardInstData>::Input out_,
     std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer) :
     Named(name),
     cpu(cpu_),
     inp(inp_),
-    inp_v(inp_v),
     out(out_),
     nextStageReserve(next_stage_input_buffer),
     outputWidth(params.executeInputWidth),
@@ -127,19 +123,9 @@ dynInstAddTracing(MinorDynInstPtr inst, StaticInstPtr static_inst,
 void
 Decode::evaluate()
 {
-    // Push input onto appropriate input buffer
-    // The input can come from one or two places (but probably not both unless
-    // some weird ILP scheme is going on)
-    // 1) From Fetch2
-    // 2) From Vector
-    // Vector should be prioritized
-    if (!inp_v.outputWire->isBubble()) {
-        //DPRINTF(Mesh, "decode gets from vector\n");
-        inputBuffer[inp_v.outputWire->threadId].setTail(*inp_v.outputWire);
-    }
-    else if (!inp.outputWire->isBubble()) {
+    /* Push input onto appropriate input buffer */
+    if (!inp.outputWire->isBubble())
         inputBuffer[inp.outputWire->threadId].setTail(*inp.outputWire);
-    }
 
     ForwardInstData &insts_out = *out.inputWire;
 
@@ -305,9 +291,6 @@ Decode::evaluate()
     /* Make sure the input (if any left) is pushed */
     if (!inp.outputWire->isBubble())
         inputBuffer[inp.outputWire->threadId].pushTail();
-        
-    if (!inp_v.outputWire->isBubble())
-        inputBuffer[inp_v.outputWire->threadId].pushTail();
 }
 
 inline ThreadID

@@ -67,24 +67,15 @@ Pipeline::Pipeline(MinorCPU &cpu_, MinorCPUParams &params) :
         params.decodeToExecuteForwardDelay),
     eToF1(cpu.name() + ".eToF1", "branch",
         params.executeBranchDelay),
-        
-    vfToD(cpu.name() + ".vfToD", "insts",
-        params.fetch2ToDecodeForwardDelay),
-        
     execute(cpu.name() + ".execute", cpu, params,
         dToE.output(), eToF1.input()),
     decode(cpu.name() + ".decode", cpu, params,
-        f2ToD.output(), vfToD.output(), dToE.input(), execute.inputBuffer),
-        
-    vector(cpu.name() + ".vector", cpu, params, 
-        vfToD.input(), decode.inputBuffer, [&] () { return execute.stalledThisCycle(); }),
-        
+        f2ToD.output(), dToE.input(), execute.inputBuffer),
     fetch2(cpu.name() + ".fetch2", cpu, params,
         f1ToF2.output(), eToF1.output(), f2ToF1.input(), f2ToD.input(),
-        decode.inputBuffer, vector.getInputBuf(), &vector),
+        decode.inputBuffer),
     fetch1(cpu.name() + ".fetch1", cpu, params,
         eToF1.output(), f1ToF2.input(), f2ToF1.output(), fetch2.inputBuffer),
-        
     activityRecorder(cpu.name() + ".activity", Num_StageId,
         /* The max depth of inter-stage FIFOs */
         std::max(params.fetch1ToFetch2ForwardDelay,
@@ -146,7 +137,6 @@ Pipeline::evaluate()
     execute.evaluate();
     decode.evaluate();
     fetch2.evaluate();
-    vector.evaluate(); // vector goes after fetch b/c 0 cycle transmissions
     fetch1.evaluate();
 
     if (DTRACE(MinorTrace))
@@ -156,7 +146,6 @@ Pipeline::evaluate()
     f1ToF2.evaluate();
     f2ToF1.evaluate();
     f2ToD.evaluate();
-    vfToD.evaluate();
     dToE.evaluate();
     eToF1.evaluate();
 
@@ -204,16 +193,6 @@ MinorCPU::MinorCPUPort &
 Pipeline::getDataPort()
 {
     return execute.getDcachePort();
-}
-
-Port &
-Pipeline::getMeshPort(int idx, bool isOut) {
-    return vector.getMeshPort(idx, isOut);
-}
-
-int
-Pipeline::getNumMeshPorts() {
-    return vector.getNumMeshPorts();
 }
 
 void
@@ -282,12 +261,5 @@ Pipeline::isDrained()
 
     return ret;
 }
-
-void
-Pipeline::informCSRUpdate(int csrId, RegVal val) {
-    vector.setupConfig(csrId, val);
-    // spatial.setupConfig(csrId, val);
-}
-
 
 }

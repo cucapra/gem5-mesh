@@ -61,8 +61,6 @@
 #include "mem/request.hh"
 #include "debug/MinorExecute.hh"
 
-#include "custom/mesh_helper.hh"
-
 namespace Minor
 {
 
@@ -349,14 +347,6 @@ class ExecContext : public ::ExecContext
     setMiscReg(int misc_reg, RegVal val) override
     {
         thread.setMiscReg(misc_reg, val);
-        
-        // inform that a relevant csr has been updated and some stages
-        // should switch default behavior
-        // might also need to flush the pipeline when this happens
-        if (MeshHelper::isBindCSR(misc_reg)) {
-            cpu.informCSRUpdate(misc_reg, val);
-        }
-        
     }
 
     RegVal

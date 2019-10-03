@@ -53,8 +53,6 @@
 #include "cpu/pred/bpred_unit.hh"
 #include "params/MinorCPU.hh"
 
-class VectorForward;
-
 namespace Minor
 {
 
@@ -81,9 +79,6 @@ class Fetch2 : public Named
 
     /** Interface to reserve space in the next stage */
     std::vector<InputBuffer<ForwardInstData>> &nextStageReserve;
-    
-    /** Interface to reserve space in the vector stage */
-    std::vector<InputBuffer<ForwardVectorData>> &vectorStageReserve;
 
     /** Width of output of this stage/input of next in instructions */
     unsigned int outputWidth;
@@ -94,12 +89,6 @@ class Fetch2 : public Named
 
     /** Branch predictor passed from Python configuration */
     BPredUnit &branchPredictor;
-    
-    /** Keep a reference to vector unit because might want to inferface*/
-    VectorForward *vector;
-    
-    /** just used for as a debug flag */
-    int debug;
 
   public:
     /* Public so that Pipeline can pass it to Fetch1 */
@@ -209,23 +198,6 @@ class Fetch2 : public Named
     /** Use the current threading policy to determine the next thread to
      *  fetch from. */
     ThreadID getScheduledThread();
-    
-    /** Send the new dynamic instruction to the next stage */
-    void pushDynInst(MinorDynInstPtr dyn_inst, bool branch_mispred, int output_index);
-    
-    /** Create a dynamic instruction from a static one with the intention
-     *  to send it */
-    MinorDynInstPtr createDynInst(InstId fetch_line_id, 
-        InstSeqNum fetch_seq_num, InstSeqNum pred_seq_num, TheISA::PCState pc, 
-        StaticInstPtr decoded_inst);
-        
-    /** Extract the next dynamic instruction from the fetch line*/
-    MinorDynInstPtr createDynInstFromFetchedLine(const ForwardLineData *line_in, 
-        Fetch2ThreadInfo &fetch_info, BranchData &prediction, 
-        unsigned int output_index);
-    
-    /** Take appropriate actions if detect a branch from an earlier inst */    
-    void handleBranch(BranchData &branch_inp);
 
   public:
     Fetch2(const std::string &name,
@@ -235,9 +207,7 @@ class Fetch2 : public Named
         Latch<BranchData>::Output branchInp_,
         Latch<BranchData>::Input predictionOut_,
         Latch<ForwardInstData>::Input out_,
-        std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer,
-        std::vector<InputBuffer<ForwardVectorData>> &vectorStageReserve,
-        VectorForward *vector);
+        std::vector<InputBuffer<ForwardInstData>> &next_stage_input_buffer);
 
   public:
     /** Pass on input/buffer data to the output if you can */

@@ -55,7 +55,6 @@
 #include "debug/MinorMem.hh"
 #include "debug/MinorTrace.hh"
 #include "debug/PCEvent.hh"
-#include "debug/Mesh.hh"
 
 namespace Minor
 {
@@ -257,40 +256,8 @@ Execute::tryToBranch(MinorDynInstPtr inst, Fault fault, BranchData &branch)
 
         reason = BranchData::SuspendThread;
     } else if (inst->predictedTaken && !force_branch) {
-        // if this instruction is from vector ignore the branch target, b/c 
-        // not this cores job to figure it out (BTB not active)
-        if (inst->fromVector) {
-            /* Predicted to branch */
-            if (!must_branch) {
-                /* No branch was taken, change stream to get us back to the
-                *  intended PC value */
-                DPRINTF(Mesh, "Predicted a branch from 0x%x to 0x%x but"
-                    " none happened inst: %s\n",
-                    inst->pc.instAddr(), inst->predictedTarget.instAddr(), *inst);
-
-                reason = BranchData::BadlyPredictedBranch;
-            } else {
-                /* Branch prediction got the right target, kill the branch and
-                *  carry on.
-                *  Note that this information to the branch predictor might get
-                *  overwritten by a "real" branch during this cycle */
-                DPRINTF(Mesh, "Predicted a branch from 0x%x to 0x%x correctly"
-                " inst: %s\n",
-                inst->pc.instAddr(), inst->predictedTarget.instAddr(), *inst);
-
-                reason = BranchData::CorrectlyPredictedBranch;
-            }
-        }
-        else {
-        
         /* Predicted to branch */
         if (!must_branch) {
-            ExecContext context(cpu, *cpu.threads[inst->id.threadId],
-            *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-                DPRINTF(Mesh, "Predicted a branch from 0x%x to 0x%x but"
-                " none happened inst: %s\n",
-                inst->pc.instAddr(), inst->predictedTarget.instAddr(), *inst);
             /* No branch was taken, change stream to get us back to the
              *  intended PC value */
             DPRINTF(Branch, "Predicted a branch from 0x%x to 0x%x but"
@@ -299,13 +266,6 @@ Execute::tryToBranch(MinorDynInstPtr inst, Fault fault, BranchData &branch)
 
             reason = BranchData::BadlyPredictedBranch;
         } else if (inst->predictedTarget == target) {
-            ExecContext context(cpu, *cpu.threads[inst->id.threadId],
-            *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-            DPRINTF(Mesh, "Predicted a branch from 0x%x to 0x%x correctly"
-                " inst: %s\n",
-                inst->pc.instAddr(), inst->predictedTarget.instAddr(), *inst);
-            
             /* Branch prediction got the right target, kill the branch and
              *  carry on.
              *  Note that this information to the branch predictor might get
@@ -316,14 +276,6 @@ Execute::tryToBranch(MinorDynInstPtr inst, Fault fault, BranchData &branch)
 
             reason = BranchData::CorrectlyPredictedBranch;
         } else {
-            ExecContext context(cpu, *cpu.threads[inst->id.threadId],
-            *this, inst);
-            if (context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) 
-            DPRINTF(Mesh, "Predicted a branch from 0x%x to 0x%x"
-                    " but got the wrong target (actual: 0x%x) inst: %s\n",
-                    inst->pc.instAddr(), inst->predictedTarget.instAddr(),
-                    target.instAddr(), *inst);
-            
             /* Branch prediction got the wrong target */
             DPRINTF(Branch, "Predicted a branch from 0x%x to 0x%x"
                     " but got the wrong target (actual: 0x%x) inst: %s\n",
@@ -331,7 +283,6 @@ Execute::tryToBranch(MinorDynInstPtr inst, Fault fault, BranchData &branch)
                     target.instAddr(), *inst);
 
             reason = BranchData::BadlyPredictedBranchTarget;
-        }
         }
     } else if (must_branch) {
         /* Unpredicted branch */
@@ -354,19 +305,10 @@ Execute::updateBranchData(
     MinorDynInstPtr inst, const TheISA::PCState &target,
     BranchData &branch)
 {
-    
-    if (inst->fromVector && reason != BranchData::NoBranch) {
-        DPRINTF(Mesh, "Branch reason %d\n", reason);
-    }
     if (reason != BranchData::NoBranch) {
         /* Bump up the stream sequence number on a real branch*/
-        if (BranchData::isStreamChange(reason)) {
+        if (BranchData::isStreamChange(reason))
             executeInfo[tid].streamSeqNum++;
-            if (inst->fromVector) DPRINTF(Mesh, "tick seq num %d->%d\n", executeInfo[tid].streamSeqNum - 1, executeInfo[tid].streamSeqNum);
-        }
-        /*else {
-            DPRINTF(Mesh, "preserve seq num %d\n", executeInfo[tid].streamSeqNum);
-        }*/
 
         /* Branches (even mis-predictions) don't change the predictionSeqNum,
          *  just the streamSeqNum */
@@ -633,13 +575,6 @@ Execute::issue(ThreadID thread_id)
             issued = true;
             discarded = true;
         } else if (inst->id.streamSeqNum != thread.streamSeqNum) {
-            ExecContext context(cpu, *cpu.threads[inst->id.threadId],
-            *this, inst);
-            if (inst->fromVector || context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0)
-            DPRINTF(Mesh, "Discarding inst: %s as its stream"
-                " state was unexpected, expected: %d\n",
-                *inst, thread.streamSeqNum);
-        
             DPRINTF(MinorExecute, "Discarding inst: %s as its stream"
                 " state was unexpected, expected: %d\n",
                 *inst, thread.streamSeqNum);
@@ -1021,9 +956,7 @@ Execute::commitInst(MinorDynInstPtr inst, bool early_memory_issue,
         completed_inst = false;
     } else {
         ExecContext context(cpu, *cpu.threads[thread_id], *this, inst);
-if (inst->fromVector || context.readMiscReg(RiscvISA::MISCREG_FETCH) != 0) {
-   DPRINTF(Mesh, "Committing inst: %s\n", *inst);
-}
+
         DPRINTF(MinorExecute, "Committing inst: %s\n", *inst);
 
         fault = inst->staticInst->execute(&context,
@@ -1649,10 +1582,6 @@ Execute::evaluate()
     /* Make sure the input (if any left) is pushed */
     if (!inp.outputWire->isBubble())
         inputBuffer[inp.outputWire->threadId].pushTail();
-        
-    // mark that this is going to be stalled so we dont send any mesh packets
-    // this cycle
-    _becomingStalled = becoming_stalled;
 }
 
 ThreadID

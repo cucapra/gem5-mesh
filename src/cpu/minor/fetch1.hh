@@ -380,19 +380,6 @@ class Fetch1 : public Named
     /** Memory interface */
     virtual bool recvTimingResp(PacketPtr pkt);
     virtual void recvReqRetry();
-    
-    
-    /** new methods */
-    
-    /** try to issue a new fetch request */
-    void fetchRequest();
-    
-    /** process any inflight/recv fetch responses */
-    void handleFetch(ForwardLineData &line_out);
-    
-    /** change the pc if there was a branch detected later in the pipe */
-    void handleBranch();
-    
 
   public:
     Fetch1(const std::string &name_,

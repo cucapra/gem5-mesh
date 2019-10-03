@@ -120,11 +120,6 @@ class MinorCPU : public BaseCPU
     /** Thread Scheduling Policy (RoundRobin, Random, etc) */
     Enums::ThreadPolicy threadPolicy;
   protected:
-    /** pbb override function that maps ports declared and connected in 
-     the python config to c port objects*/
-    Port &getPort(const std::string &if_name,
-                  PortID idx=InvalidPortID) override;
-  
      /** Return a reference to the data port. */
     MasterPort &getDataPort() override;
 
@@ -205,11 +200,6 @@ class MinorCPU : public BaseCPU
      *  already been idled.  The stage argument should be from the
      *  enumeration Pipeline::StageId */
     void wakeupOnEvent(unsigned int stage_id);
-    
-    /** Non-execute stages need to know about a csr update */
-    void informCSRUpdate(int csrId, RegVal val);
-    
-    
 };
 
 #endif /* __CPU_MINOR_CPU_HH__ */
