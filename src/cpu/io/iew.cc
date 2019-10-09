@@ -331,7 +331,7 @@ IEW::doIssue()
     // remove the inst from the queue
     m_insts.pop();
     num_issued_insts++;
-    m_outgoing_credit_wire->from_iew++;
+    m_outgoing_credit_wire->from_iew()++;
 
 #ifdef DEBUG
     // record issued inst
@@ -345,7 +345,7 @@ void
 IEW::queueInsts()
 {
   // move all new coming instructions into m_insts
-  for (auto inst : m_incoming_inst_wire->to_iew_insts)
+  for (auto inst : m_incoming_inst_wire->to_iew_insts())
     m_insts.push(inst);
   assert(m_insts.size() <= m_input_queue_size);
 }
@@ -400,7 +400,7 @@ IEW::doSquash(IODynInstPtr squash_inst)
       DPRINTF(IEW, "Squashing %s\n", inst);
       assert(inst->seq_num > squash_inst->seq_num);
       // update the number of credits to previous stage
-      m_outgoing_credit_wire->from_iew++;
+      m_outgoing_credit_wire->from_iew()++;
     }
     count++;
   }
@@ -414,7 +414,7 @@ void
 IEW::readCredits()
 {
   // read and update my number of credits to Commit stage
-  m_num_credits += m_incoming_credit_wire->from_commit;
+  m_num_credits += m_incoming_credit_wire->from_commit();
   assert(m_num_credits <= m_max_num_credits);
 }
 
@@ -449,7 +449,7 @@ IEW::sendInstToNextStage(IODynInstPtr inst)
   // sanity check: make sure we have enough credit before we sent the inst
   assert(m_num_credits > 0);
   // Place inst into the buffer
-  m_outgoing_inst_wire->to_commit_insts.push_back(inst);
+  m_outgoing_inst_wire->to_commit_insts().push_back(inst);
   // consume one credit
   m_num_credits--;
 

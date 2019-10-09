@@ -106,7 +106,7 @@ void
 Rename::queueInsts()
 {
   // take all coming instructions in
-  for (auto inst : m_incoming_inst_wire->to_rename_insts)
+  for (auto inst : m_incoming_inst_wire->to_rename_insts())
     m_insts.push(inst);
   assert(m_insts.size() <= m_input_queue_size);
 }
@@ -146,7 +146,7 @@ void
 Rename::readCredits()
 {
   // read and update my number of credits
-  m_num_credits += m_incoming_credit_wire->from_iew;
+  m_num_credits += m_incoming_credit_wire->from_iew();
   assert(m_num_credits <= m_max_num_credits);
 }
 
@@ -223,7 +223,7 @@ Rename::doRename()
     // remove the inst from the queue and update the number of credits to the
     // previous stage
     m_insts.pop();
-    m_outgoing_credit_wire->from_rename++;
+    m_outgoing_credit_wire->from_rename()++;
   }
 }
 
@@ -312,7 +312,7 @@ Rename::doSquash(IODynInstPtr squash_inst)
       DPRINTF(Rename, "Squashing %s\n", inst);
       assert(inst->seq_num > squash_inst->seq_num);
       // update the number of credits to the previous stage
-      m_outgoing_credit_wire->from_rename++;
+      m_outgoing_credit_wire->from_rename()++;
     }
     count++;
   }
@@ -353,7 +353,7 @@ Rename::sendInstToNextStage(IODynInstPtr inst)
   // sanity check: make sure we have enough credit before we sent the inst
   assert(m_num_credits > 0);
   // Place inst into the buffer
-  m_outgoing_inst_wire->to_iew_insts.push_back(inst);
+  m_outgoing_inst_wire->to_iew_insts().push_back(inst);
   // consume one credit
   m_num_credits--;
 

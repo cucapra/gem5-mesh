@@ -31,6 +31,8 @@
 #include "params/IOCPU.hh"
 #include "sim/process.hh"
 
+//#include "custom/vector.hh"
+
 class IOCPU : public BaseCPU
 {
   public:
@@ -103,6 +105,10 @@ class IOCPU : public BaseCPU
 
     /** Get reference to dcache port */
     MasterPort& getDataPort() override;
+    
+    /** Get reference to any port owned by cpu */
+    Port& getPort(const std::string &if_name,
+                  PortID idx=InvalidPortID) override;
 
     /** Tick */
     void tick();
@@ -301,6 +307,12 @@ class IOCPU : public BaseCPU
 
     /** Print line trace */
     void linetrace();
+    
+    /** temp way for vector to get the most up-to-date csr val */
+    /*void informCSRUpdate(int csrId, RegVal val) {
+        m_vector.setupConfig(csrId, val);
+        // spatial.setupConfig(csrId, val);
+    }*/
 
   public:
     /** Overall status of this CPU */
@@ -328,6 +340,8 @@ class IOCPU : public BaseCPU
     Rename m_rename;
     IEW    m_iew;     // Issue, Execute, Writeback
     Commit m_commit;
+    
+    //Vector m_vector;
 
     /**
      * Inter-stage communication buffers

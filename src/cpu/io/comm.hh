@@ -14,23 +14,60 @@
 #include "arch/types.hh"
 #include "cpu/io/dyn_inst.hh"
 
+
+/**
+ * Keep track of how many pipe stages we have for modularity bonuses
+*/ 
+typedef enum StageIdx {
+  FetchIdx = 0,
+  //VectorIdx
+  DecodeIdx,
+  RenameIdx,
+  IEWIdx,
+  CommitIdx,
+  NumStages
+} StageIdx;
+
 class IODynInst;
 
 /**
  * Instruction communication (forward communication btw stages)
  */
 struct InstComm {
+  std::list<IODynInstPtr> inst_buffer[(int)StageIdx::NumStages];
+  
+  // preserve helpers to core stage buffers 
   // Fetch -> Decode
-  std::list<IODynInstPtr> to_decode_insts;
+  std::list<IODynInstPtr> &to_decode_insts() {
+    return inst_buffer[(int)StageIdx::DecodeIdx];
+  }
 
   // Decode -> Rename
-  std::list<IODynInstPtr> to_rename_insts;
+  std::list<IODynInstPtr> &to_rename_insts() {
+    return inst_buffer[(int)StageIdx::RenameIdx];
+  }
 
   // Rename -> IEW
-  std::list<IODynInstPtr> to_iew_insts;
+  std::list<IODynInstPtr> &to_iew_insts() {
+    return inst_buffer[(int)StageIdx::IEWIdx];
+  }
 
   // IEW -> Commit
-  std::list<IODynInstPtr> to_commit_insts;
+  std::list<IODynInstPtr> &to_commit_insts() {
+    return inst_buffer[(int)StageIdx::CommitIdx];
+  }
+  
+  std::list<IODynInstPtr> &to_stage(StageIdx stage) {
+    return inst_buffer[(int)stage];
+  }
+  
+  std::list<IODynInstPtr> &to_next_stage(StageIdx stage) {
+    int nextStageIdx = (int)stage + 1;
+    assert(nextStageIdx < (int)StageIdx::NumStages);
+    return inst_buffer[nextStageIdx];
+  }
+  
+  
 };
 
 /**
@@ -38,16 +75,42 @@ struct InstComm {
  */
 struct CreditComm {
   CreditComm()
-      : from_decode(0),
-        from_rename(0),
-        from_iew(0),
-        from_commit(0)
-  { }
+  { 
+      for (int i = 0; i < (int)StageIdx::NumStages; i++) {
+        stage_credits[i] = 0;
+      }
+  }
 
-  size_t from_decode;
-  size_t from_rename;
-  size_t from_iew;
-  size_t from_commit;
+  size_t stage_credits[(int)StageIdx::NumStages];
+  
+  // keep helpers to access the core stages
+  size_t &from_decode() {
+    return stage_credits[(int)StageIdx::DecodeIdx];
+  }
+  
+  size_t &from_rename() {
+    return stage_credits[(int)StageIdx::RenameIdx];
+  }
+  
+  size_t &from_iew() {
+    return stage_credits[(int)StageIdx::IEWIdx];
+  }
+  
+  size_t &from_commit() {
+    return stage_credits[(int)StageIdx::CommitIdx];
+  }
+  
+  // modular accessors
+  size_t &from_stage(StageIdx stage) {
+    return stage_credits[(int)stage];
+  }
+  
+  size_t &from_next_stage(StageIdx stage) {
+    int nextStageIdx = (int)stage + 1;
+    assert(nextStageIdx < (int)StageIdx::NumStages);
+    return stage_credits[nextStageIdx];
+  }
+  
 };
 
 /**

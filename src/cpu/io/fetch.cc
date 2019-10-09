@@ -190,7 +190,7 @@ Fetch::resetStates(ThreadID tid)
   }
 
   // remove any pending instruction going to the next stage
-  auto& inst_list = m_outgoing_inst_wire->to_decode_insts;
+  auto& inst_list = m_outgoing_inst_wire->to_decode_insts();
   size_t old_size = inst_list.size();
   auto inst_it = std::remove_if(inst_list.begin(), inst_list.end(),
                                 [&](const IODynInstPtr& inst)
@@ -330,7 +330,7 @@ void
 Fetch::readCredits()
 {
   // read and update my number of credits
-  m_num_credits += m_incoming_credit_wire->from_decode;
+  m_num_credits += m_incoming_credit_wire->from_decode();
   assert(m_num_credits <= m_max_num_credits);
 }
 
@@ -687,7 +687,7 @@ Fetch::sendInstToNextStage(IODynInstPtr inst)
   // sanity check: make sure we have enough credit before we sent the inst
   assert(m_num_credits > 0);
   // Place inst into the buffer
-  m_outgoing_inst_wire->to_decode_insts.push_back(inst);
+  m_outgoing_inst_wire->to_decode_insts().push_back(inst);
   // consume one credit
   m_num_credits--;
 

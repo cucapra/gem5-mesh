@@ -545,6 +545,24 @@ IOCPU::getDataPort()
   return m_dcache_port;
 }
 
+Port&
+IOCPU::getPort(const std::string &if_name, PortID idx)
+{
+    // Get the right port based on name. This applies to all the
+    // subclasses of the base CPU and relies on their implementation
+    // of getDataPort and getInstPort.
+    if (if_name == "dcache_port")
+        return getDataPort();
+    else if (if_name == "icache_port")
+        return getInstPort();
+    /*else if (if_name == "to_mesh_port"  && idx < m_vector.getNumMeshPorts())
+        return m_vector.getMeshPort(idx, true);
+    else if (if_name == "from_mesh_port" && idx < m_vector.getNumMeshPorts())
+        return m_vector.getMeshPort(idx, false);*/
+    else
+        return ClockedObject::getPort(if_name, idx);
+}
+
 void
 IOCPU::tick()
 {

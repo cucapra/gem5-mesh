@@ -118,7 +118,7 @@ Commit::doCommit()
     // pop the inst from the incoming buffer and give credits to the previous
     // stage
     m_insts.pop();
-    m_outgoing_credit_wire->from_commit++;
+    m_outgoing_credit_wire->from_commit()++;
   }
 
   // Try to commit as many ready-to-commit instructions from the top of ROB
@@ -177,7 +177,7 @@ Commit::doCommit()
 void
 Commit::queueInsts()
 {
-  for (auto inst : m_incoming_inst_wire->to_commit_insts)
+  for (auto inst : m_incoming_inst_wire->to_commit_insts())
     m_insts.push(inst);
   assert(m_insts.size() <= m_input_queue_size);
 }
@@ -282,7 +282,7 @@ Commit::doSquash(IODynInstPtr squash_inst)
     } else {
       DPRINTF(Commit, "Squashing %s\n", inst->toString());
       // update the number of credits to previous stage
-      m_outgoing_credit_wire->from_commit++;
+      m_outgoing_credit_wire->from_commit()++;
     }
     count++;
   }
