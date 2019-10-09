@@ -18,41 +18,34 @@
 #include "cpu/io/dyn_inst.hh"
 #include "cpu/timebuf.hh"
 #include "params/IOCPU.hh"
+#include "cpu/io/stage.hh"
 
-class IOCPU;
-
-class Decode
+class Decode : public Stage
 {
   public:
     Decode(IOCPU* _cpu_p, IOCPUParams* params);
     ~Decode() = default;
 
     /** Init (this is called after all CPU structures are created) */
-    void init();
+    void init() override;
 
     /** Return name of this stage object */
-    std::string name() const;
+    std::string name() const override;
 
     /** Register stats */
-    void regStats();
-
-    /** Set incoming/outgoing communication wires */
-    void setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
-                        TimeBuffer<CreditComm>& credit_buffer,
-                        TimeBuffer<SquashComm>& squash_buffer,
-                        TimeBuffer<InfoComm>& info_buffer);
+    void regStats() override;
 
     /** Main tick function */
-    void tick();
+    void tick() override;
 
     /** Wake up this stage */
-    void wakeup();
+    void wakeup() override;
 
     /** Suspend this stage */
-    void suspend();
+    void suspend() override;
 
     /** Line trace */
-    void linetrace(std::stringstream& ss);
+    void linetrace(std::stringstream& ss) override;
 
   private:
     enum DecodeStatus {
@@ -67,14 +60,8 @@ class Decode
     /** Do decode */
     void doDecode();
 
-    /** Put all instructions to be processed this cycle into m_insts queue */
-    void queueInsts();
-
     /** Check squash signal. Return true if this stage is squashed */
     bool checkSquash();
-
-    /** Read credit signal */
-    void readCredits();
 
     /** Squash all instructions younger than the squash instruction */
     void doSquash(IODynInstPtr squash_inst);
@@ -83,43 +70,12 @@ class Decode
     void initiateSquash(const IODynInstPtr& mispred_inst);
 
     /** Place the given instruction into the buffer to the next stage */
-    void sendInstToNextStage(IODynInstPtr inst);
+    void sendInstToNextStage(IODynInstPtr inst) override;
 
-  private:
-    /** Pointer to the main CPU */
-    IOCPU* m_cpu_p;
-
-    /** Is this stage active? */
-    bool m_is_active;
-
-    /** N-entry input instruction buffer */
-    std::queue<IODynInstPtr> m_insts;
-
-    /** Input queue's size */
-    const size_t m_input_queue_size;
-
+  private:  
     /** Max number of instructions that can be decoded in 1 cycle */
     size_t m_decode_width;
-
-    /** Max number of credits. This is equal to the size of input buffer in the
-     * next stage */
-    const size_t m_max_num_credits;
-
-    /** Number of credits for forward communication */
-    size_t m_num_credits;
-
-    /**
-     * Time buffer interface
-     */
-    TimeBuffer<InstComm>::wire m_outgoing_inst_wire;     // to Rename
-    TimeBuffer<InstComm>::wire m_incoming_inst_wire;     // from Fetch
-
-    TimeBuffer<CreditComm>::wire m_outgoing_credit_wire;   // to Fetch
-    TimeBuffer<CreditComm>::wire m_incoming_credit_wire;   // from Rename
-
-    TimeBuffer<SquashComm>::wire m_outgoing_squash_wire; // to Fetch
-    TimeBuffer<SquashComm>::wire m_incoming_squash_wire; // from IEW/Commit
-
+  
 #ifdef DEBUG
     /** Stage's status (for line trace) */
     std::bitset<DecodeStatus::NumStatus> m_stage_status;

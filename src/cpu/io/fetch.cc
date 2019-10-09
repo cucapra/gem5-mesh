@@ -69,11 +69,8 @@ Fetch::FinishTranslationEvent::description() const
 //-----------------------------------------------------------------------------
 
 Fetch::Fetch(IOCPU* _cpu_p, IOCPUParams* params)
-  : m_cpu_p(_cpu_p),
+  : Stage(_cpu_p, 0, params->decodeBufferSize, StageIdx::FetchIdx, true), 
     m_num_threads(params->numThreads),
-    m_is_active(false),
-    m_max_num_credits(params->decodeBufferSize),
-    m_num_credits(m_max_num_credits),
     m_fetch_buffer_size(m_cpu_p->getCacheLineSize()), // 1-cache-line L0 buffer
     m_fetch_buffers(m_num_threads, new uint8_t[m_fetch_buffer_size]),
     m_fetch_buffer_vaddrs(m_num_threads, 0),
@@ -116,18 +113,6 @@ void
 Fetch::regStats()
 {
 
-}
-
-void
-Fetch::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
-                      TimeBuffer<CreditComm>& credit_buffer,
-                      TimeBuffer<SquashComm>& squash_buffer,
-                      TimeBuffer<InfoComm>& info_buffer)
-{
-  m_outgoing_inst_wire   = inst_buffer.getWire(0);
-  m_incoming_credit_wire = credit_buffer.getWire(-1);
-  m_incoming_squash_wire = squash_buffer.getWire(-1);
-  m_incoming_info_wire   = info_buffer.getWire(-1);
 }
 
 TheISA::Decoder*
@@ -219,14 +204,11 @@ Fetch::pcState(const TheISA::PCState& new_pc, ThreadID tid)
 void
 Fetch::tick()
 {
-  // sanity check
-  assert(m_is_active);
+  // interact with credit and inst buffers
+  Stage::tick();
 
   // check squash
   bool is_squashed = checkSquash();
-
-  // read credits coming from Decode
-  readCredits();
 
   // read info coming from Commit
   readInfo();
@@ -324,14 +306,6 @@ Fetch::checkSquash()
   }
 
   return false;
-}
-
-void
-Fetch::readCredits()
-{
-  // read and update my number of credits
-  m_num_credits += m_incoming_credit_wire->from_decode();
-  assert(m_num_credits <= m_max_num_credits);
 }
 
 void
@@ -684,12 +658,8 @@ Fetch::getCacheLineAlignedAddr(Addr addr) const
 void
 Fetch::sendInstToNextStage(IODynInstPtr inst)
 {
-  // sanity check: make sure we have enough credit before we sent the inst
-  assert(m_num_credits > 0);
-  // Place inst into the buffer
-  m_outgoing_inst_wire->to_decode_insts().push_back(inst);
-  // consume one credit
-  m_num_credits--;
+  // actually send the instruction
+  Stage::sendInstToNextStage(inst);
 
 #ifdef DEBUG
   // record trace

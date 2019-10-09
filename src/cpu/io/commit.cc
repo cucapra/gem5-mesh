@@ -12,11 +12,9 @@
 #include "debug/Commit.hh"
 
 Commit::Commit(IOCPU* _cpu_p, IOCPUParams* params)
-    : m_cpu_p(_cpu_p),
+    : Stage(_cpu_p, params->commitBufferSize, 0, StageIdx::CommitIdx, true),
       m_num_threads(params->numThreads),
-      m_is_active(false),
       m_commit_width(params->commitWidth),
-      m_input_queue_size(params->commitBufferSize),
       m_commit_pc(m_num_threads, TheISA::PCState(0))
 {
   assert(m_commit_width > 0);
@@ -46,19 +44,6 @@ Commit::regStats()
 }
 
 void
-Commit::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
-                       TimeBuffer<CreditComm>& credit_buffer,
-                       TimeBuffer<SquashComm>& squash_buffer,
-                       TimeBuffer<InfoComm>& info_buffer)
-{
-  m_incoming_inst_wire = inst_buffer.getWire(-1);
-  m_outgoing_credit_wire = credit_buffer.getWire(0);
-  m_outgoing_squash_wire = squash_buffer.getWire(0);
-  m_incoming_squash_wire = squash_buffer.getWire(-1);
-  m_outgoing_info_wire = info_buffer.getWire(0);
-}
-
-void
 Commit::wakeup()
 {
   assert(!m_is_active);
@@ -75,11 +60,8 @@ Commit::suspend()
 void
 Commit::tick()
 {
-  // sanity check
-  assert(m_is_active);
-
-  // put all instructions from Rename in m_insts queue
-  queueInsts();
+  // interact with credit and inst buffers
+  Stage::tick();
 
   // check squash
   bool is_squashed = checkSquash();
@@ -117,8 +99,7 @@ Commit::doCommit()
 
     // pop the inst from the incoming buffer and give credits to the previous
     // stage
-    m_insts.pop();
-    m_outgoing_credit_wire->from_commit()++;
+    consumeInst();
   }
 
   // Try to commit as many ready-to-commit instructions from the top of ROB
@@ -172,14 +153,6 @@ Commit::doCommit()
       break;
     }
   }
-}
-
-void
-Commit::queueInsts()
-{
-  for (auto inst : m_incoming_inst_wire->to_commit_insts())
-    m_insts.push(inst);
-  assert(m_insts.size() <= m_input_queue_size);
 }
 
 void

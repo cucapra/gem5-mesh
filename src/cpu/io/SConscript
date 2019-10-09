@@ -19,5 +19,6 @@ if 'IOCPU' in env['CPU_MODELS']:
   Source('pipelined_exec_unit.cc')
   Source('unpipelined_exec_unit.cc')
   Source('mem_unit.cc')
+  Source('stage.cc')
 
   DebugFlag('IOCPU')

@@ -19,10 +19,9 @@
 #include "cpu/pred/bpred_unit.hh"
 #include "cpu/timebuf.hh"
 #include "params/IOCPU.hh"
+#include "cpu/io/stage.hh"
 
-class IOCPU;
-
-class Fetch
+class Fetch : public Stage
 {
   public:
     /**
@@ -82,19 +81,13 @@ class Fetch
     ~Fetch();
 
     /** Init (this is called after all CPU structures are created) */
-    void init();
+    void init() override;
 
     /** Return name of this stage object */
-    std::string name() const;
+    std::string name() const override;
 
     /** Register statistics */
-    void regStats();
-
-    /** Set incoming/outgoing communication wires */
-    void setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
-                        TimeBuffer<CreditComm>& credit_buffer,
-                        TimeBuffer<SquashComm>& squash_buffer,
-                        TimeBuffer<InfoComm>& info_buffer);
+    void regStats() override;
 
     /** Get decoder of a thread */
     TheISA::Decoder* getDecoderPtr(ThreadID tid);
@@ -106,13 +99,13 @@ class Fetch
     void completeRetryReq();
 
     /** Main tick function */
-    void tick();
+    void tick() override;
 
     /** Wake up this stage */
-    void wakeup();
+    void wakeup() override;
 
     /** Suspend this stage */
-    void suspend();
+    void suspend() override;
 
     /** Activate the given thread */
     void activateThread(ThreadID tid);
@@ -127,14 +120,11 @@ class Fetch
     void pcState(const TheISA::PCState& new_pc, ThreadID tid);
 
     /** Line trace */
-    void linetrace(std::stringstream& ss);
+    void linetrace(std::stringstream& ss) override;
 
   private:
     /** Check squash signal. Return true if Fetch is being squashed  */
     bool checkSquash();
-
-    /** Read credit signal & update my credits */
-    void readCredits();
 
     /** Read info on committed instruction (used to update branch predictor)*/
     void readInfo();
@@ -163,27 +153,14 @@ class Fetch
     ThreadID getNextThread();
 
     /** Place the given instruction into the buffer to the next stage */
-    void sendInstToNextStage(IODynInstPtr inst);
+    void sendInstToNextStage(IODynInstPtr inst) override;
 
     /** Return the number of active threads */
     size_t getNumActiveThreads() const;
 
   private:
-    /** Pointer to the main CPU */
-    IOCPU* m_cpu_p;
-
     /** Number of threads */
     size_t m_num_threads;
-
-    /** Is this stage active */
-    bool m_is_active;
-
-    /** Max number of credits. This is equal to the size of input buffer in the
-     * next stage */
-    const size_t m_max_num_credits;
-
-    /** Number of credits for forward communication */
-    size_t m_num_credits;
 
     /** Size of L0 fetch buffer */
     size_t m_fetch_buffer_size;
@@ -223,14 +200,6 @@ class Fetch
 
     /** Decoders */
     std::vector<TheISA::Decoder*> m_decoders;
-
-    /**
-     * Time buffer wires from/to other stages
-     */
-    TimeBuffer<InstComm>::wire    m_outgoing_inst_wire;
-    TimeBuffer<CreditComm>::wire  m_incoming_credit_wire;
-    TimeBuffer<SquashComm>::wire  m_incoming_squash_wire;
-    TimeBuffer<InfoComm>::wire    m_incoming_info_wire;
 
 #ifdef DEBUG
     /** Stage's status (for line trace) */

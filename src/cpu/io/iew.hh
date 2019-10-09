@@ -35,47 +35,40 @@
 #include "cpu/o3/scoreboard.hh"
 #include "cpu/timebuf.hh"
 #include "params/IOCPU.hh"
-
-class IOCPU;
+#include "cpu/io/stage.hh"
 
 /**
  * IEW stage: Issue, Execute, Writeback stages
  */
-class IEW
+class IEW : public Stage
 {
   public:
     IEW(IOCPU* _cpu_p, IOCPUParams* params);
     ~IEW();
 
     /** Init (this is called after all CPU structures are created) */
-    void init();
+    void init() override;
 
     /** Return name of this stage object */
-    std::string name() const;
+    std::string name() const override;
 
     /** Register stats */
-    void regStats();
-
-    /** Set incoming/outgoing communication wires */
-    void setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
-                        TimeBuffer<CreditComm>& credit_buffer,
-                        TimeBuffer<SquashComm>& squash_buffer,
-                        TimeBuffer<InfoComm>& info_buffer);
+    void regStats() override;
 
     /** Main tick function */
-    void tick();
+    void tick() override;
 
     /** Wake up this stage */
-    void wakeup();
+    void wakeup() override;
 
     /** Suspend this stage */
-    void suspend();
+    void suspend() override;
 
     /** Get pointer to memory unit */
     MemUnit* getMemUnitPtr();
 
     /** Line trace */
-    void linetrace(std::stringstream& ss);
+    void linetrace(std::stringstream& ss) override;
 
   private:
     enum IEWStatus {
@@ -104,48 +97,24 @@ class IEW
     /** Do squash */
     void doSquash(IODynInstPtr squash_inst);
 
-    /** Put all instructions to be processed this cycle into m_insts queue */
-    void queueInsts();
-
     /** Check squash signal. Return true if we're squashed. */
     bool checkSquash();
-
-    /** Read credit signal */
-    void readCredits();
 
     /** Initiate a squash signal */
     void initiateSquash(const IODynInstPtr mispred_inst);
 
     /** Place the given instruction into the buffer to the next stage */
-    void sendInstToNextStage(IODynInstPtr inst);
+    void sendInstToNextStage(IODynInstPtr inst) override;
 
   private:
-    /** Pointer to the main CPU */
-    IOCPU* m_cpu_p;
-
     /** Number of threads */
     size_t m_num_threads;
-
-    /** Is this stage active? */
-    bool m_is_active;
-
-    /** N-entry incoming instruction queue */
-    std::queue<IODynInstPtr> m_insts;
-
-    /** Max input queue's size */
-    const size_t m_input_queue_size;
 
     /** Issue width */
     size_t m_issue_width;
 
     /** Writeback width */
     size_t m_wb_width;
-
-    /** Max number of credits to Commit */
-    const size_t m_max_num_credits;
-
-    /** Number of credits to Commit */
-    size_t m_num_credits;
 
     /** Vector of execution units */
     std::vector<ExecUnit*> m_exec_units;
@@ -165,18 +134,6 @@ class IEW
     /** Index of the next exec unit to be selected to write back (used in
      * round-robin selection in Writeback stage) */
     size_t m_next_wb_exec_unit_idx;
-
-    /**
-     * Time buffer interface
-     */
-    TimeBuffer<InstComm>::wire m_outgoing_inst_wire;    // to Commit
-    TimeBuffer<InstComm>::wire m_incoming_inst_wire;    // from Rename
-
-    TimeBuffer<CreditComm>::wire m_outgoing_credit_wire;  // to Rename
-    TimeBuffer<CreditComm>::wire m_incoming_credit_wire;  // from Commit
-
-    TimeBuffer<SquashComm>::wire m_outgoing_squash_wire;  // to Rename
-    TimeBuffer<SquashComm>::wire m_incoming_squash_wire;  // from Commit
 
     /** ROBs */
     std::vector<ROB*> m_robs;

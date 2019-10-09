@@ -57,7 +57,7 @@ struct InstComm {
     return inst_buffer[(int)StageIdx::CommitIdx];
   }
   
-  std::list<IODynInstPtr> &to_stage(StageIdx stage) {
+  std::list<IODynInstPtr> &from_prev_stage(StageIdx stage) {
     return inst_buffer[(int)stage];
   }
   
@@ -101,7 +101,7 @@ struct CreditComm {
   }
   
   // modular accessors
-  size_t &from_stage(StageIdx stage) {
+  size_t &to_prev_stage(StageIdx stage) {
     return stage_credits[(int)stage];
   }
   

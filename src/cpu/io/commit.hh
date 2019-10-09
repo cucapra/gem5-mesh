@@ -21,41 +21,34 @@
 #include "cpu/o3/rename_map.hh"
 #include "cpu/timebuf.hh"
 #include "params/IOCPU.hh"
+#include "cpu/io/stage.hh"
 
-class IOCPU;
-
-class Commit
+class Commit : public Stage
 {
   public:
     Commit(IOCPU* _cpu_p, IOCPUParams* params);
     ~Commit() = default;
 
     /** Init (this is called after all CPU structures are created) */
-    void init();
+    void init() override;
 
     /** Return name of this stage object */
-    std::string name() const;
+    std::string name() const override;
 
     /** Register stats */
-    void regStats();
-
-    /** Set incoming/outgoing communication wires */
-    void setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
-                        TimeBuffer<CreditComm>& credit_buffer,
-                        TimeBuffer<SquashComm>& squash_buffer,
-                        TimeBuffer<InfoComm>& info_buffer);
+    void regStats() override;
 
     /** Main tick function */
-    void tick();
+    void tick() override;
 
     /** Wake up this stage */
-    void wakeup();
+    void wakeup() override;
 
     /** Suspend this stage */
-    void suspend();
+    void suspend() override;
 
     /** Line trace */
-    void linetrace(std::stringstream& ss);
+    void linetrace(std::stringstream& ss) override;
 
     /**
      * Get info about instruction being processed/committed.
@@ -81,9 +74,6 @@ class Commit
     /** Do commit */
     void doCommit();
 
-    /** Put all instructions to be processed this cycle into m_insts queue */
-    void queueInsts();
-
     /** Check squash signal. Return true if we're squashing */
     bool checkSquash();
 
@@ -97,33 +87,11 @@ class Commit
     void commitHead(ThreadID tid);
 
   private:
-    /** Pointer to the main CPU */
-    IOCPU* m_cpu_p;
-
     /** Number of threads */
     size_t m_num_threads;
 
-    /** True if the stage is active */
-    bool m_is_active;
-
     /** Max number of instructions that can be committed in a cycle */
     size_t m_commit_width;
-
-    /** Queue of all instructions coming from writeback this cycle. This models
-     * an N-entry bypass queue */
-    std::queue<IODynInstPtr> m_insts;
-
-    /** Max input queue's size */
-    const size_t m_input_queue_size;
-
-    /**
-     * Time buffer interface
-     */
-    TimeBuffer<InstComm>::wire m_incoming_inst_wire;      // from IEW
-    TimeBuffer<CreditComm>::wire m_outgoing_credit_wire;  // to IEW
-    TimeBuffer<SquashComm>::wire m_outgoing_squash_wire;
-    TimeBuffer<SquashComm>::wire m_incoming_squash_wire;
-    TimeBuffer<InfoComm>::wire m_outgoing_info_wire;      // to Fetch/Rename
 
     /** ROBs */
     std::vector<ROB*> m_robs;

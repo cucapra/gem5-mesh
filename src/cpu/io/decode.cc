@@ -11,12 +11,8 @@
 #include "debug/Decode.hh"
 
 Decode::Decode(IOCPU* _cpu_p, IOCPUParams* params)
-    : m_cpu_p(_cpu_p),
-      m_is_active(false),
-      m_input_queue_size(params->decodeBufferSize),
-      m_decode_width(1),
-      m_max_num_credits(params->renameBufferSize),
-      m_num_credits(m_max_num_credits)
+    : Stage(_cpu_p, params->decodeBufferSize, params->renameBufferSize, StageIdx::DecodeIdx, true),
+    m_decode_width(1)
 { }
 
 std::string
@@ -38,22 +34,6 @@ Decode::regStats()
 }
 
 void
-Decode::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
-                       TimeBuffer<CreditComm>& credit_buffer,
-                       TimeBuffer<SquashComm>& squash_buffer,
-                       TimeBuffer<InfoComm>& info_buffer)
-{
-  m_outgoing_inst_wire = inst_buffer.getWire(0);
-  m_incoming_inst_wire = inst_buffer.getWire(-1);
-
-  m_outgoing_credit_wire = credit_buffer.getWire(0);
-  m_incoming_credit_wire = credit_buffer.getWire(-1);
-
-  m_outgoing_squash_wire = squash_buffer.getWire(0);
-  m_incoming_squash_wire = squash_buffer.getWire(-1);
-}
-
-void
 Decode::wakeup()
 {
   assert(!m_is_active);
@@ -70,17 +50,11 @@ Decode::suspend()
 void
 Decode::tick()
 {
-  // sanity check
-  assert(m_is_active);
-
-  // put all coming instructions to process in m_insts queue
-  queueInsts();
+  // interact with credit and inst buffers
+  Stage::tick();
 
   // check squash
   bool is_squashed = checkSquash();
-
-  // read credits from the next stage
-  readCredits();
 
   // do actual decode
   if (!is_squashed && m_num_credits > 0) {
@@ -93,15 +67,6 @@ Decode::tick()
     m_stage_status.set(DecodeStatus::Stalled);
   }
 #endif
-}
-
-void
-Decode::queueInsts()
-{
-  // push new coming instructions to m_insts
-  for (auto inst : m_incoming_inst_wire->to_decode_insts())
-    m_insts.push(inst);
-  assert(m_insts.size() <= m_input_queue_size);
 }
 
 bool
@@ -151,14 +116,6 @@ Decode::checkSquash()
 }
 
 void
-Decode::readCredits()
-{
-  // read and update my number of credits
-  m_num_credits += m_incoming_credit_wire->from_rename();
-  assert(m_num_credits <= m_max_num_credits);
-}
-
-void
 Decode::doDecode()
 {
   // try to decode as many incoming instructions as possible unless we run out
@@ -174,8 +131,7 @@ Decode::doDecode()
 
     // Remove the inst from the queue and increment the credit to the previous
     // stage.
-    m_insts.pop();
-    m_outgoing_credit_wire->from_decode()++;
+    consumeInst();
 
     // Check for branch misprediction. Technically, at this point (i.e., after
     // the instruction is fully decoded), we know for sure that the instruction
@@ -253,12 +209,8 @@ Decode::initiateSquash(const IODynInstPtr& mispred_inst)
 void
 Decode::sendInstToNextStage(IODynInstPtr inst)
 {
-  // sanity check: make sure we have enough credit before we sent the inst
-  assert(m_num_credits > 0);
-  // Place inst into the buffer
-  m_outgoing_inst_wire->to_rename_insts().push_back(inst);
-  // consume one credit
-  m_num_credits--;
+  // actual send inst to next stage
+  Stage::sendInstToNextStage(inst);
 
 #ifdef DEBUG
   // record for linetrace

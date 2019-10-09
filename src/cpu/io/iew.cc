@@ -16,14 +16,10 @@
 //-----------------------------------------------------------------------------
 
 IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params)
-    : m_cpu_p(_cpu_p),
+    : Stage(_cpu_p, params->iewBufferSize, params->commitBufferSize, StageIdx::IEWIdx, true),
       m_num_threads(params->numThreads),
-      m_is_active(false),
-      m_input_queue_size(params->iewBufferSize),
       m_issue_width(params->issueWidth),
       m_wb_width(params->writebackWidth),
-      m_max_num_credits(params->commitBufferSize),
-      m_num_credits(m_max_num_credits),
       m_scoreboard_p(nullptr)
 {
   // create Int ALU exec unit
@@ -111,22 +107,6 @@ IEW::regStats()
 }
 
 void
-IEW::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
-                    TimeBuffer<CreditComm>& credit_buffer,
-                    TimeBuffer<SquashComm>& squash_buffer,
-                    TimeBuffer<InfoComm>& info_buffer)
-{
-  m_outgoing_inst_wire = inst_buffer.getWire(0);
-  m_incoming_inst_wire = inst_buffer.getWire(-1);
-
-  m_outgoing_credit_wire = credit_buffer.getWire(0);
-  m_incoming_credit_wire = credit_buffer.getWire(-1);
-
-  m_outgoing_squash_wire = squash_buffer.getWire(0);
-  m_incoming_squash_wire = squash_buffer.getWire(-1);
-}
-
-void
 IEW::wakeup()
 {
   assert(!m_is_active);
@@ -149,17 +129,11 @@ IEW::getMemUnitPtr()
 void
 IEW::tick()
 {
-  // sanity check
-  assert(m_is_active);
-
-  // put all instructions from Rename in m_insts queue
-  queueInsts();
+  // interact with credit and inst buffers
+  Stage::tick();
 
   // check squash
   bool is_squashed = checkSquash();
-
-  // read credits from Commit
-  readCredits();
 
   // If we're not squashing this cycle, do writeback, execute and issue in a
   // reversed order to model the pipeline.
@@ -329,9 +303,8 @@ IEW::doIssue()
     m_robs[tid]->push(inst);
 
     // remove the inst from the queue
-    m_insts.pop();
+    consumeInst();
     num_issued_insts++;
-    m_outgoing_credit_wire->from_iew()++;
 
 #ifdef DEBUG
     // record issued inst
@@ -339,15 +312,6 @@ IEW::doIssue()
     m_issued_insts.push_back(inst);
 #endif
   }
-}
-
-void
-IEW::queueInsts()
-{
-  // move all new coming instructions into m_insts
-  for (auto inst : m_incoming_inst_wire->to_iew_insts())
-    m_insts.push(inst);
-  assert(m_insts.size() <= m_input_queue_size);
 }
 
 bool
@@ -411,14 +375,6 @@ IEW::doSquash(IODynInstPtr squash_inst)
 }
 
 void
-IEW::readCredits()
-{
-  // read and update my number of credits to Commit stage
-  m_num_credits += m_incoming_credit_wire->from_commit();
-  assert(m_num_credits <= m_max_num_credits);
-}
-
-void
 IEW::initiateSquash(const IODynInstPtr mispred_inst)
 {
   // get the correct branch target. Since this instruction has not committed
@@ -446,12 +402,8 @@ IEW::initiateSquash(const IODynInstPtr mispred_inst)
 void
 IEW::sendInstToNextStage(IODynInstPtr inst)
 {
-  // sanity check: make sure we have enough credit before we sent the inst
-  assert(m_num_credits > 0);
-  // Place inst into the buffer
-  m_outgoing_inst_wire->to_commit_insts().push_back(inst);
-  // consume one credit
-  m_num_credits--;
+  // actually send inst
+  Stage::sendInstToNextStage(inst);
 
 #ifdef DEBUG
   // record

@@ -11,13 +11,9 @@
 #include "debug/Rename.hh"
 
 Rename::Rename(IOCPU* _cpu_p, IOCPUParams* params)
-    : m_cpu_p(_cpu_p),
+    : Stage(_cpu_p, params->renameBufferSize, params->iewBufferSize, StageIdx::RenameIdx, true),
       m_num_threads(params->numThreads),
-      m_is_active(false),
-      m_input_queue_size(params->renameBufferSize),
       m_rename_width(1),
-      m_max_num_credits(params->iewBufferSize),
-      m_num_credits(m_max_num_credits),
       m_free_list_p(nullptr),
       m_history_buffers(m_num_threads)
 { }
@@ -44,20 +40,6 @@ Rename::regStats()
 }
 
 void
-Rename::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
-                       TimeBuffer<CreditComm>& credit_buffer,
-                       TimeBuffer<SquashComm>& squash_buffer,
-                       TimeBuffer<InfoComm>& info_buffer)
-{
-  m_outgoing_inst_wire   = inst_buffer.getWire(0);
-  m_incoming_inst_wire   = inst_buffer.getWire(-1);
-  m_outgoing_credit_wire = credit_buffer.getWire(0);
-  m_incoming_credit_wire = credit_buffer.getWire(-1);
-  m_incoming_squash_wire = squash_buffer.getWire(-1);
-  m_incoming_info_wire   = info_buffer.getWire(-1);
-}
-
-void
 Rename::wakeup()
 {
   assert(!m_is_active);
@@ -74,16 +56,12 @@ Rename::suspend()
 void
 Rename::tick()
 {
-  assert(m_is_active);
-
-  // put all instructions to process in m_insts queue
-  queueInsts();
+  
+  // interact with credit and inst buffers
+  Stage::tick();
 
   // check squash
   bool is_squashed = checkSquash();
-
-  // read credits from the subsequent stage
-  readCredits();
 
   // read info from the subsequent stage(s)
   readInfo();
@@ -100,15 +78,6 @@ Rename::tick()
     m_stage_status.set(RenameStatus::Stalled);
   }
 #endif
-}
-
-void
-Rename::queueInsts()
-{
-  // take all coming instructions in
-  for (auto inst : m_incoming_inst_wire->to_rename_insts())
-    m_insts.push(inst);
-  assert(m_insts.size() <= m_input_queue_size);
 }
 
 bool
@@ -140,14 +109,6 @@ Rename::checkSquash()
   }
 
   return false;
-}
-
-void
-Rename::readCredits()
-{
-  // read and update my number of credits
-  m_num_credits += m_incoming_credit_wire->from_iew();
-  assert(m_num_credits <= m_max_num_credits);
 }
 
 void
@@ -222,8 +183,7 @@ Rename::doRename()
 
     // remove the inst from the queue and update the number of credits to the
     // previous stage
-    m_insts.pop();
-    m_outgoing_credit_wire->from_rename()++;
+    consumeInst();
   }
 }
 
@@ -350,12 +310,8 @@ Rename::doSquash(IODynInstPtr squash_inst)
 void
 Rename::sendInstToNextStage(IODynInstPtr inst)
 {
-  // sanity check: make sure we have enough credit before we sent the inst
-  assert(m_num_credits > 0);
-  // Place inst into the buffer
-  m_outgoing_inst_wire->to_iew_insts().push_back(inst);
-  // consume one credit
-  m_num_credits--;
+  // actually send inst
+  Stage::sendInstToNextStage(inst);
 
 #ifdef DEBUG
   // record for linetrace
