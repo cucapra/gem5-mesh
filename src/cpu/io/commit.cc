@@ -46,15 +46,13 @@ Commit::regStats()
 void
 Commit::wakeup()
 {
-  assert(!m_is_active);
-  m_is_active = true;
+  Stage::wakeup();
 }
 
 void
 Commit::suspend()
 {
-  assert(m_is_active);
-  m_is_active = false;
+  Stage::suspend();
 }
 
 void

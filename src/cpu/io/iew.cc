@@ -109,15 +109,13 @@ IEW::regStats()
 void
 IEW::wakeup()
 {
-  assert(!m_is_active);
-  m_is_active = true;
+  Stage::wakeup();
 }
 
 void
 IEW::suspend()
 {
-  assert(m_is_active);
-  m_is_active = false;
+  Stage::suspend();
 }
 
 MemUnit*

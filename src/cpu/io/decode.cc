@@ -36,15 +36,13 @@ Decode::regStats()
 void
 Decode::wakeup()
 {
-  assert(!m_is_active);
-  m_is_active = true;
+  Stage::wakeup();
 }
 
 void
 Decode::suspend()
 {
-  assert(m_is_active);
-  m_is_active = false;
+  Stage::suspend();
 }
 
 void

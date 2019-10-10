@@ -124,17 +124,15 @@ Fetch::getDecoderPtr(ThreadID tid)
 void
 Fetch::wakeup()
 {
-  assert(!m_is_active);
-  m_is_active = true;
+  Stage::wakeup();
 }
 
 void
 Fetch::suspend()
 {
-  assert(m_is_active);
   // make sure we suspend only when no thread is active
   assert(getNumActiveThreads() == 0);
-  m_is_active = false;
+  Stage::suspend();
 }
 
 void

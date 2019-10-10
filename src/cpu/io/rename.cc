@@ -42,15 +42,13 @@ Rename::regStats()
 void
 Rename::wakeup()
 {
-  assert(!m_is_active);
-  m_is_active = true;
+  Stage::wakeup();
 }
 
 void
 Rename::suspend()
 {
-  assert(m_is_active);
-  m_is_active = false;
+  Stage::suspend();
 }
 
 void
