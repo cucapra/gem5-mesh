@@ -7,9 +7,12 @@ Pipeline::create(IOCPU *_cpu_p, IOCPUParams* params) {
   
   auto stages = std::array<std::shared_ptr<Stage>, (int)StageIdx::NumStages>();
   
+  // create stages in order given by StageIdx
   for (int i = 0; i < (int)StageIdx::NumStages; i++) {
     StageIdx stageIdx = (StageIdx)i;
     switch (stageIdx) {
+      
+      // core stages
       case FetchIdx:
         stages[i] = std::make_shared<Fetch>(_cpu_p, params);
         break;
@@ -25,6 +28,13 @@ Pipeline::create(IOCPU *_cpu_p, IOCPUParams* params) {
       case CommitIdx:
         stages[i] = std::make_shared<Commit>(_cpu_p, params);
         break;
+      
+      // new stages
+      //case VectorIdx:
+      //  stages[i] = std::make_shared<Vector>(_cpu_p, params);
+      //  break;
+        
+      // 
       default:
         break;
     }

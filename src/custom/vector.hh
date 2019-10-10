@@ -14,43 +14,48 @@
 
 #include <functional>
 
-#include "cpu/minor/buffers.hh"
-#include "cpu/minor/cpu.hh"
-#include "cpu/minor/pipe_data.hh"
+#include "cpu/io/cpu.hh"
+#include "cpu/io/stage.hh"
 
 #include "custom/mesh_helper.hh"
 #include "custom/event_driven_fsm.hh"
 #include "custom/mesh_ports.hh"
 
 
-class VectorForward : public Named {
+class Vector : public Stage {
+  // inheritance
   public:
-    VectorForward(const std::string &name,
-        MinorCPU &cpu,
-        MinorCPUParams &params,
-        Minor::Latch<Minor::ForwardInstData>::Input out,
-        std::vector<Minor::InputBuffer<Minor::ForwardInstData>> &nextStageReserve,
-        std::function<bool()> backStall)
-      ;
+    Vector(IOCPU *_cpu_p, IOCPUParams *params);
+    ~Vector() = default;
 
-    // like a pipeline stage, tick this and pass stuff on to the next stage
-    // if possible. this should mimic fetch2 somewhat
-    void evaluate();
+    /** Init (this is called after all CPU structures are created) */
+    void init() override;
+
+    /** Return name of this stage object */
+    std::string name() const override;
+
+    /** Register stats */
+    void regStats() override;
+
+    /** Main tick function */
+    void tick() override;
+    
+    /** Line trace */
+    void linetrace(std::stringstream& ss) override;
+
+  // inheritance
+  protected:
+    /** Place the given instruction into the buffer to the next stage */
+    void sendInstToNextStage(IODynInstPtr inst) override;
+
+  public:
     
     // setup which mesh ports are active
     void setupConfig(int csrId, RegVal csrVal);
     
-    // tells the cpu in fetch2 or decode(?) whether it needs to stall or not
-    // before _effectively_ issuing the current instruction
-    // either the mesh is configured and active, or the mesh isn't active
-    //bool canIssue();
-    
     // cpu needs to bind ports to names, so expose them via a reference
     Port &getMeshPort(int idx, bool isOut);
     int getNumMeshPorts();
-  
-  
-    // used just by mesh ports (TODO friend class??)
   
     // check if the output nodes are ready
     bool getOutRdy();
@@ -80,45 +85,52 @@ class VectorForward : public Named {
     
     // get if this is configured beyond default behavior
     bool getConfigured();
-  
-    // the communication channel between fetch2 and vector
-    std::vector<Minor::InputBuffer<Minor::ForwardVectorData>>& getInputBuf();
     
     // communicate that there was a branch misprediction in fetch, the next
     // instruction transmitted should include a bit to let slaves know
-    void setMispredict();
-  protected:
+    //void setMispredict();
     
-    // give the instruction to a slave core once at local node
-    // we will write to the input latch between this unit and decode
-    // decode will take the instruction in the exact same way as it would
-    // from the regular fetch2
-    // 
-    // the instruction must be decoded internally
+    // if cpu allows idling, need to call this to make sure active when stuff to do
+    // currently does nothing in IOCPU
+    void signalActivity() {}
+    
+  protected:
+    // information to use to create local IODynInst
+    // currenlty cheating and using all possible info
+    struct MasterData {
+        IODynInstPtr inst;
+    };
     
     // create a dynamic instruction
-    Minor::MinorDynInstPtr createInstruction(const Minor::ForwardVectorData &instInfo);
+    IODynInstPtr createInstruction(const MasterData &instInfo);
     
-    // push output to the next stage
-    void pushToNextStage(const Minor::MinorDynInstPtr);
-    
-    // call the two things above to make a dynamic instruction then push it
-    void pushInstToNextStage(const Minor::ForwardVectorData &instInfo);
+    // make a dynamic instruction then push it
+    void pushInstToNextStage(const MasterData &instInfo);
     
     // master calls this to broadcast to neighbors
-    void forwardInstruction(const Minor::ForwardVectorData &instInfo);
+    void forwardInstruction(const MasterData &instInfo);
     
     // pull an instruction from the mesh network (figure out the right dir)
-    void pullInstruction(Minor::ForwardVectorData &instInfo);
+    void pullInstruction(MasterData &instInfo);
+    
+    // pass the instruction through this stage because not in vec mode
+    // wont this add buffer slots in !sequentialMode which is undesirable?
+    // need to reflect in credits
+    void passInstructions();
     
     // extract (functional decode) the machinst to ExtMachInst
     StaticInstPtr extractInstruction(const TheISA::MachInst inst);
     
     // create a packet to send over the mesh network
     PacketPtr createMeshPacket(RegVal payload);
+    // cheat version for experiments
+    PacketPtr createMeshPacket(IODynInstPtr inst);
     
     // reset all mesh node port settings
     void resetActive();
+    
+    // TEMP get an instruction from the master
+    IODynInstPtr getMeshPortInst(Mesh_Dir dir);
     
     // get received data from the specified mesh port
     uint64_t getMeshPortData(Mesh_Dir dir);
@@ -127,10 +139,10 @@ class VectorForward : public Named {
     PacketPtr getMeshPortPkt(Mesh_Dir dir);
     
     // get a machinst from the local fetch2
-    Minor::ForwardVectorData* getFetchInput(ThreadID tid);
+    IODynInstPtr getFetchInput();
     
     // mark the fetch2 input as processed so that it can push more stuff
-    void popFetchInput(ThreadID tid);
+    //void popFetchInput();
     
     // check if there is a new internal stall this cycle from fetch2 or decode
     void processInternalStalls();
@@ -140,29 +152,20 @@ class VectorForward : public Named {
     
     // encode + decode of information over mesh net
     // requires 32 + 1 = 33bits currently
-    Minor::ForwardVectorData decodeMeshData(uint64_t data);
-    uint64_t encodeMeshData(const Minor::ForwardVectorData &instInfo);
+    //Minor::ForwardVectorData decodeMeshData(uint64_t data);
+    //uint64_t encodeMeshData(const Minor::ForwardVectorData &instInfo);
     
-    int getStreamSeqNum();
+    //int getStreamSeqNum();
     
     // when setup a configuration, may need to stall or unstall the frontend
     void stallFetchInput(ThreadID tid);
     void unstallFetchInput(ThreadID tid);
 
     // handle when there is a misprediction forwarded from the master
-    void handleMispredict();
+    //void handleMispredict();
      
   protected:
-    
-    // Pointer back to the containing CPU
-    MinorCPU &_cpu;
   
-    // Output port carrying instructions into Decode
-    Minor::Latch<Minor::ForwardInstData>::Input _out;
-    
-    // Interface to reserve space in the next stage // ?
-    std::vector<Minor::InputBuffer<Minor::ForwardInstData>> &_nextStageReserve;
-    
     // define the ports we're going to use for to access the mesh net
     std::vector<ToMeshPort> _toMeshPort;
     std::vector<FromMeshPort> _fromMeshPort;
@@ -180,43 +183,41 @@ class VectorForward : public Named {
     // cache the most recently set csr value
     RegVal _curCsrVal;
     
-    // communication channel between fetch2 and vector
-    std::vector<Minor::InputBuffer<Minor::ForwardVectorData>> _inputBuffer;
-    
     // remember the last stream seq num. 
     // this is how many branches there has been?
-    InstSeqNum _lastStreamSeqNum;
-    
-    // channel to detect is stalled on this cycle
-    std::function<bool()> _checkExeStall;
+    //InstSeqNum _lastStreamSeqNum;
     
     // if stalled last cycle
     bool _wasStalled;
     
     // do we receive input this cycle, buffer will be cleared before state 
     // machine will check so need to save
-    bool _internalInputThisCycle;
-    
-    // since misprediction is detected many cycles before the next instruction
-    // is set (pipeline restart) we need to cache when there was a mispredict
-    // and sent this with the next instruction
-    //bool _pendingMispredict;
+    //bool _internalInputThisCycle;
     
     // should not set the misprediction for this cycle b/c the instruction sent
     // would have been fetch without knowing?
-    EventFunctionWrapper _mispredictUpdate;
-    // just record the cycle we received mispredict to warn if this case happens
-    //uint64_t _mispredictTick;
+    //EventFunctionWrapper _mispredictUpdate;
+    
+    // TEMP to make all relevant info available
+    struct SenderState : public Packet::SenderState
+    {
+      // important this is shared_ptr so wont be freed while packet 'in-flight'
+      std::shared_ptr<IODynInst> master_inst;
+      SenderState(IODynInstPtr _master_inst)
+        : master_inst(_master_inst)
+      { }
+    };
+
     
   public:
     // TEMP?
     // Minor execute stage expects a stream seq number (the number of branches I believe)
     // need to cache this before config starts
-    void updateStreamSeqNum(InstSeqNum seqNum);
+    //void updateStreamSeqNum(InstSeqNum seqNum);
     
     // whether we sent anything this cycle, will dictate what state we go into
     // on stall (STALL_VAL or STALL_NOT_VAL)
-    bool sentMsgThisCycle();
+    //bool sentMsgThisCycle();
   
 };
 

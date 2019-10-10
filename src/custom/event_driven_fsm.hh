@@ -7,11 +7,12 @@
 #include "mem/packet.hh"
 #include "custom/mesh_helper.hh"
 #include <string>
+#include "base/trace.hh"
 
-class MinorCPU;
-class VectorForward;
+class IOCPU;
+class Vector;
 
-class EventDrivenFSM {
+class EventDrivenFSM : public Named {
   public:
     typedef struct Outputs_t {
       bool rdy;
@@ -24,7 +25,7 @@ class EventDrivenFSM {
   
   public:
     // constructor
-    EventDrivenFSM(VectorForward *vec, MinorCPU *cpu, SensitiveStage stage);
+    EventDrivenFSM(Vector *vec, IOCPU *cpu, SensitiveStage stage);
   
     // sensitivity list
     void neighborEvent();
@@ -100,10 +101,10 @@ class EventDrivenFSM {
     
   private:
     // pointer to mesh unit this fsm is apart of
-    VectorForward *_vec;
+    Vector *_vec;
   
     // reference to cpu this fsm is apart of
-    MinorCPU *_cpu;
+    IOCPU *_cpu;
     
     // state of fsm
     State _state;

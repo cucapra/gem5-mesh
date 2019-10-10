@@ -1,7 +1,6 @@
 #include "custom/mesh_ports.hh"
-#include "cpu/minor/cpu.hh"
-#include "cpu/minor/pipeline.hh"
-#include "custom/vector_forward.hh"
+#include "cpu/io/cpu.hh"
+#include "custom/vector.hh"
 #include "debug/Mesh.hh"
 
 #define PROTOCOL(active, val, rdy) \
@@ -14,7 +13,7 @@
  *--------------------------------------------------------------------*/ 
 
 
-ToMeshPort::ToMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx)
+ToMeshPort::ToMeshPort(Vector *vec, IOCPU *_cpu, int idx)
         : MasterPort(
           _cpu->name() + ".mesh_out_port" + csprintf("[%d]", idx), _cpu), 
           cpu(_cpu), idx(idx), val(false), active(NONE), vec(vec)
@@ -26,13 +25,6 @@ ToMeshPort::ToMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx)
 bool
 ToMeshPort::recvTimingResp(PacketPtr pkt)
 {
-    //DPRINTF(Mesh, "Received mesh out response %#x\n", pkt->getAddr());
-    // we should only ever see one response per cycle since we only
-    // issue a new request once this response is sunk
-    //assert(!tickEvent.scheduled());
-    // delay processing of returned data until next CPU clock edge
-    //tickEvent.schedule(pkt, cpu->clockEdge());
-
     return true;
 }
 
@@ -40,15 +32,6 @@ ToMeshPort::recvTimingResp(PacketPtr pkt)
 void
 ToMeshPort::recvReqRetry()
 {
-    // we shouldn't get a retry unless we have a packet that we're
-    // waiting to transmit
-    /*assert(cpu->ifetch_pkt != NULL);
-    assert(cpu->_status == IcacheRetry);
-    PacketPtr tmp = cpu->ifetch_pkt;
-    if (sendTimingReq(tmp)) {
-        cpu->_status = IcacheWaitResponse;
-        cpu->ifetch_pkt = NULL;
-    }*/
 }
 
 void
@@ -100,7 +83,7 @@ ToMeshPort::setValIfActive(bool val, SensitiveStage stage) {
  *--------------------------------------------------------------------*/ 
 
 // NEVER give THIS pointer 
-FromMeshPort::FromMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx)
+FromMeshPort::FromMeshPort(Vector *vec, IOCPU *_cpu, int idx)
         : SlavePort(
           _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), _cpu), 
           cpu(_cpu), idx(idx), recvPkt_d(nullptr), recvEvent([this] { process(); }, name()), 
@@ -155,7 +138,9 @@ FromMeshPort::recvTimingReq(PacketPtr pkt) {
     // stuff on the next cycle
     //cpu->activityRecorder->activity();
     //cpu->activityRecorder->activateStage(Minor::Pipeline::VectorStageId);
-    cpu->wakeupOnEvent(Minor::Pipeline::VectorStageId);
+    
+    //cpu->wakeupOnEvent(Minor::Pipeline::VectorStageId);
+    vec->signalActivity();
 
     return true;
 }
@@ -253,7 +238,7 @@ FromMeshPort::setPacket(PacketPtr pkt) {
   
   // push packet onto a 2 element queue to be stall-proof
   if (_meshQueue.canReserve()) {
-    auto pktData = Minor::MeshPacketData(pkt);
+    auto pktData = MeshPacketData(pkt);
     _meshQueue.push(pktData);
     //DPRINTF(Mesh, "set packet, size now %d\n", _meshQueue.occupiedSpace());
   }

@@ -31,8 +31,7 @@
 #include "params/IOCPU.hh"
 #include "sim/process.hh"
 #include "cpu/io/pipeline.hh"
-
-//#include "custom/vector.hh"
+#include "custom/vector.hh"
 
 class IOCPU : public BaseCPU
 {

@@ -1,45 +1,32 @@
 #include "arch/registers.hh"
 #include "base/bitfield.hh"
-#include "custom/vector_forward.hh"
+#include "custom/vector.hh"
 
 #include "debug/Mesh.hh"
 
-using namespace Minor;
+Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p) : 
 
-VectorForward::VectorForward(const std::string &name,
-  MinorCPU &cpu,
-  MinorCPUParams &p,
-  Minor::Latch<Minor::ForwardInstData>::Input out,
-  std::vector<Minor::InputBuffer<Minor::ForwardInstData>> &nextStageReserve,
-  std::function<bool()> backStall) : 
-        
-    Named(name),
-    _cpu(cpu),
-    _out(out),
-    _nextStageReserve(nextStageReserve),
+    Stage(_cpu_p, 2, 2, /*StageIdx::VectorIdx*/ StageIdx::FetchIdx, true),
     _numInPortsActive(0),
     _numOutPortsActive(0),
     _stage(FETCH),
-    _fsm(std::make_shared<EventDrivenFSM>(this, &_cpu, _stage)),
+    _fsm(std::make_shared<EventDrivenFSM>(this, m_cpu_p, _stage)),
     _curCsrVal(0),
-    _checkExeStall(backStall),
-    _wasStalled(false),
-    _internalInputThisCycle(false),
-    _mispredictUpdate([this] { handleMispredict(); }, name)
-    //_pendingMispredict(false),
-    //_mispredictTick(0)
+    _wasStalled(false)
+    //_internalInputThisCycle(false),
+    //_mispredictUpdate([this] { handleMispredict(); }, name)
 {
   // 
   // declare vector ports
-  for (int i = 0; i < p.port_to_mesh_port_connection_count; ++i) {
-      _toMeshPort.emplace_back(this, &_cpu, i);
+  for (int i = 0; i < p->port_to_mesh_port_connection_count; ++i) {
+      _toMeshPort.emplace_back(this, m_cpu_p, i);
   }
    
-  for (int i = 0; i < p.port_from_mesh_port_connection_count; ++i) {
-      _fromMeshPort.emplace_back(this, &_cpu, i);
+  for (int i = 0; i < p->port_from_mesh_port_connection_count; ++i) {
+      _fromMeshPort.emplace_back(this, m_cpu_p, i);
   }
     
-  for (int i = 0; i < p.port_from_mesh_port_connection_count; i++) {
+  for (int i = 0; i < p->port_from_mesh_port_connection_count; i++) {
     // need to setup anything involving the 'this' pointer in the port
     // class after have moved into vector memory
     
@@ -47,35 +34,22 @@ VectorForward::VectorForward(const std::string &name,
     _fromMeshPort[i].setupEvents();
   }
   
-  // Per-thread input buffers
-  for (ThreadID tid = 0; tid < p.numThreads; tid++) {
-    _inputBuffer.push_back(
-      Minor::InputBuffer<Minor::ForwardVectorData>(
-        name + ".inputBuffer" + std::to_string(tid), "insts",
-        1 /* buf size */));
-  }
-  
-  
 }
 
 void
-VectorForward::evaluate() {
+Vector::tick() {
+  
+  Stage::tick();
   
   // hack so when we call this, we still have this information on state transition
-  _internalInputThisCycle = !_inputBuffer[0].empty();
+  //_internalInputThisCycle = !_inputBuffer[0].empty();
   
   // check the state of the fsm (dont need async updates like before)
   // because minor has cycle by cycle ticks unlike TimingSimpleCPU
   bool update = _fsm->tick();
   if (update) {
-    // set the mesh ports with the new state output
-    // can't do here b/c not guarenteed to be visible to nearby cores
-    //EventDrivenFSM::Outputs_t fsmOut = _fsm->stateOutput();
-    //setVal(fsmOut.val);
-    //setRdy(fsmOut.rdy);
-    
     // inform there is local activity
-    _cpu.activityRecorder->activity();
+    signalActivity();
     // inform there might be neighbor activity
     informNeighbors();
   }
@@ -90,7 +64,7 @@ VectorForward::evaluate() {
   if (canGo) {
     //DPRINTF(Mesh, "vector unit going\n");
     // pull instruction from the mesh or from the local fetch stage
-    ForwardVectorData instInfo;
+    MasterData instInfo;
     pullInstruction(instInfo);
   
     // give instruction to the local decode stage if present
@@ -105,25 +79,53 @@ VectorForward::evaluate() {
       DPRINTF(Mesh, "vec can't do anything\n");
   }*/
   
-  // if not configured just pop the input so fetch doesn't stall
+  // if not configured just pass the instruction through
   if (!getConfigured()) {
-    popFetchInput(0);
+    passInstructions();
+    //popFetchInput(0);
   }
-  
-  // TODO need to actually stall fetch2 when in slave mode??? why are we not doing that
   
 }
 
-/*// Decprecated using buffers now
-bool
-VectorForward::canIssue() {
-  bool ok = _fsm->isMeshActive() || (getNumPortsActive() == 0);
-  return ok;
-}*/
-
+std::string
+Vector::name() const {
+  return m_cpu_p->name() + ".vector";
+}
 
 void
-VectorForward::forwardInstruction(const ForwardVectorData& instInfo) {
+Vector::init() {
+
+}
+
+void
+Vector::regStats() {
+
+}
+
+void
+Vector::linetrace(std::stringstream& ss) {
+  
+}
+
+void
+Vector::passInstructions() {
+  while (!m_insts.empty() && nextStageRdy()) {
+    IODynInstPtr inst = m_insts.front();
+    //ThreadID tid = inst->thread_id;
+    //DPRINTF(Mesh, "[tid:%d] Decoding inst [sn:%lli] with PC %s\n",
+    //                tid, inst->seq_num, inst->pc);
+
+    // send out this inst
+    sendInstToNextStage(inst);
+
+    // Remove the inst from the queue and increment the credit to the previous
+    // stage.
+    consumeInst(); // TODO credits need to reflect next queue, not this queue
+  }
+}
+
+void
+Vector::forwardInstruction(const MasterData& instInfo) {
   
   // find each direction to send a packet to
   std::vector<Mesh_DS_t> out;
@@ -132,48 +134,49 @@ VectorForward::forwardInstruction(const ForwardVectorData& instInfo) {
   // send a packet in each direction
   for (int i = 0; i < out.size(); i++) {
     Mesh_Dir dir = out[i].outDir;
-    Mesh_Out_Src src = out[i].src;
+    //Mesh_Out_Src src = out[i].src;
     
     
-    uint64_t meshData = encodeMeshData(instInfo);
-    DPRINTF(Mesh, "Sending mesh request %d from %d with val %#x %d %d = %#x\n", 
-        dir, src, instInfo.machInst, instInfo.predictTaken, instInfo.mispredicted, meshData);
-    if (instInfo.predictTaken) DPRINTF(Mesh, "predict taken %d\n", instInfo.predictTaken);
-    if (instInfo.mispredicted) DPRINTF(Mesh, "mispredicted %d\n", instInfo.mispredicted);
-    PacketPtr new_pkt = createMeshPacket(meshData);
+    //uint64_t meshData = encodeMeshData(instInfo);
+    //DPRINTF(Mesh, "Sending mesh request %d from %d with val %#x %d %d = %#x\n", 
+    //    dir, src, instInfo.machInst, instInfo.predictTaken, instInfo.mispredicted, meshData);
+    //if (instInfo.predictTaken) DPRINTF(Mesh, "predict taken %d\n", instInfo.predictTaken);
+    //if (instInfo.mispredicted) DPRINTF(Mesh, "mispredicted %d\n", instInfo.mispredicted);
+    PacketPtr new_pkt = createMeshPacket(instInfo.inst);
     _toMeshPort[dir].sendTimingReq(new_pkt);
     
   }
 }
 
 void
-VectorForward::pullInstruction(ForwardVectorData &instInfo) {
+Vector::pullInstruction(MasterData &instInfo) {
   
   // if slave, pull from the mesh
   Mesh_Dir recvDir;
   if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir)) {
-    uint64_t meshData = getMeshPortData(recvDir);
+    //uint64_t meshData = getMeshPortData(recvDir);
     
     // decode the msg here
-    instInfo = decodeMeshData(meshData);
-    DPRINTF(Mesh, "decoded %#x -> %#x %d %d\n", meshData, instInfo.machInst, instInfo.predictTaken, instInfo.mispredicted);
-    //return instWord;
+    //instInfo = decodeMeshData(meshData);
+    //DPRINTF(Mesh, "decoded %#x -> %#x %d %d\n", meshData, instInfo.machInst, instInfo.predictTaken, instInfo.mispredicted);
+    instInfo.inst = getMeshPortInst(recvDir);
   }
   // if master, pull from the local fetch
   else {
-    auto msg = getFetchInput(0);
+    auto msg = getFetchInput();
     
-    instInfo.machInst = msg->machInst;
-    instInfo.predictTaken = msg->predictTaken;
-    instInfo.mispredicted = msg->mispredicted;
+    //instInfo.machInst = msg->machInst;
+    //instInfo.predictTaken = msg->predictTaken;
+    //instInfo.mispredicted = msg->mispredicted;
+    instInfo.inst = msg;
     
     // pop to free up the space
-    popFetchInput(0);
+    consumeInst();
   }
 }
 
-ForwardVectorData
-VectorForward::decodeMeshData(uint64_t data) {
+/*ForwardVectorData
+Vector::decodeMeshData(uint64_t data) {
   TheISA::MachInst instWord = (TheISA::MachInst)data;
   // note bits() args are MSB->LSB all inclusive
   bool predictTaken = (bool)bits(data, 32, 32);
@@ -186,111 +189,69 @@ VectorForward::decodeMeshData(uint64_t data) {
 }
 
 uint64_t
-VectorForward::encodeMeshData(const ForwardVectorData &instInfo) {
+Vector::encodeMeshData(const ForwardVectorData &instInfo) {
   return (((uint64_t)instInfo.mispredicted) << 33) | (((uint64_t)instInfo.predictTaken) << 32) | (uint64_t)instInfo.machInst;
-}
+}*/
 
-Minor::MinorDynInstPtr
-VectorForward::createInstruction(const ForwardVectorData &instInfo) {
+IODynInstPtr
+Vector::createInstruction(const MasterData &instInfo) {
   // make a minor dynamic instruction to pass to the decode stage
   // bs most of the fields because the slave wouldn't be keeping track
   // of this
-  Minor::MinorDynInstPtr dyn_inst = new Minor::MinorDynInst(0);
-  //dyn_inst->id.fetchSeqNum = 0;
-  //dyn_inst->id.predictionSeqNum = 0;
-  //assert(dyn_inst->id.execSeqNum == 0);
-  //dyn_inst->pc = 0;
-  dyn_inst->staticInst = extractInstruction(instInfo.machInst);
+  int tid = 0;
+  TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
+  auto cur_pc = instInfo.inst->pc; // temp?
+  auto static_inst = extractInstruction(machInst);
+  IODynInstPtr dyn_inst =
+          std::make_shared<IODynInst>(static_inst, cur_pc,
+                                      m_cpu_p->getAndIncrementInstSeq(),
+                                      tid, m_cpu_p);
+  DPRINTF(Mesh, "[tid:%d]: built inst %s\n", tid, dyn_inst->toString(true));
   
-  // lie about fetchSeqNum so not considered a bubble
-  // alternatviely can try to track own pc here
-  dyn_inst->id.fetchSeqNum = 1;
   
-  // if there was a branch prediction/taken by the master core, apply this
-  // change to the seq number so that the execute stage won't squash the 
-  // instruction.
-  /*if (instInfo.branchTaken) _lastStreamSeqNum++;
-  
-  // It's important that seq numbers only change on the next basic block
-  // rather than at the end of the current basic block. otherwise the branch
-  // will be discarded because we changed seqNum before execute even got result
-  
-  // Also will eventually need to support divergence and/or predication
-  
-  if (instInfo.branchTaken && dyn_inst->staticInst->isCondCtrl()) {
-    dyn_inst->id.streamSeqNum = _lastStreamSeqNum - 1;
-  }
-  else {
-    dyn_inst->id.streamSeqNum = _lastStreamSeqNum;
-  }*/
-  
-  /*if (instInfo.mispredicted || _pendingMispredict) { 
-    if (instInfo.mispredicted) DPRINTF(Mesh, "update due seq misalignment\n");
-    if (_pendingMispredict) DPRINTF(Mesh, "Update due to pending mispredict\n");
-    //_lastStreamSeqNum++;
-    updateStreamSeqNum(getStreamSeqNum() + 1);
-    _pendingMispredict = false;
-  }*/
-  
-  //handleMispredict();
-  
-  dyn_inst->id.streamSeqNum = _lastStreamSeqNum;
+  /* // Look up the next pc
+  TheISA::PCState next_pc = cur_pc;
+  bool predict_taken = lookupAndUpdateNextPC(dyn_inst_p, next_pc);
+  DPRINTF(Fetch, "[tid:%d]: cur_pc %s -> next_pc %s (predict_taken = %d)\n",
+                tid, cur_pc, next_pc, predict_taken);
+
+  // Update dyn_inst
+  dyn_inst_p->setPredTarg(next_pc);
+  dyn_inst_p->predicted_taken = predict_taken;*/
   
   // mark this instruction as being generated by the vector stage
   // this flag will be used by later stages to do unique behavior like
   // turn off the BTB check in execute
-  dyn_inst->fromVector = true;
-  
-  // use branch prediction from master to get execute to correctly update
-  // seq number
-  dyn_inst->predictedTaken = instInfo.predictTaken;
-  
-  
-  //DPRINTF(Mesh, "decoder inst %s\n", *dyn_inst);
+  //dyn_inst->fromVector = true;
 
   return dyn_inst;
 }
 
 void
-VectorForward::pushInstToNextStage(const ForwardVectorData& instInfo) {
+Vector::pushInstToNextStage(const MasterData &instInfo) {
   // only push into decode if we are a slave
   if (MeshHelper::isVectorSlave(_curCsrVal)) {
     // update the stream seq number based on branch hint from master
     //if (instInfo.branchTaken) _lastStreamSeqNum++;
     
-    Minor::MinorDynInstPtr dynInst = createInstruction(instInfo);
-    pushToNextStage(dynInst);
+    IODynInstPtr dynInst = createInstruction(instInfo);
+    sendInstToNextStage(dynInst);
   }
 }
 
 void
-VectorForward::pushToNextStage(const Minor::MinorDynInstPtr dynInst) {
-  DPRINTF(Mesh, "push instruction to decode %s\n", *dynInst);
-  Minor::ForwardInstData &insts_out = *_out.inputWire;
-  insts_out.resize(1);
+Vector::sendInstToNextStage(IODynInstPtr dynInst) {
+  //DPRINTF(Mesh, "push instruction to decode %s\n", *dynInst);
   
-  // Pack the generated dynamic instruction into the output
-  insts_out.insts[0] = dynInst;
+  Stage::sendInstToNextStage(dynInst);
   
   // if any one of the stages calls this, then the processor will tick
   // on the follwoing cycle
-  _cpu.activityRecorder->activity();
-    
-  // reserve space in the output buffer?
-  //Minor::ForwardInstData &insts_out = *_out.inputWire;
-  // tid is always 0 when no smt
-  int tid = 0;
-    
-  insts_out.threadId = tid;
-  
-  assert(!(dynInst->isBubble()));
-  assert(!insts_out.isBubble());
-  
-  _nextStageReserve[tid].reserve();
+  signalActivity();
 }
 
 void
-VectorForward::setupConfig(int csrId, RegVal csrVal) {
+Vector::setupConfig(int csrId, RegVal csrVal) {
   // make sure this is the csr we are looking for
   if (csrId != RiscvISA::MISCREG_FETCH) return;
   
@@ -340,54 +301,17 @@ VectorForward::setupConfig(int csrId, RegVal csrVal) {
 }
 
 StaticInstPtr
-VectorForward::extractInstruction(const TheISA::MachInst inst) {
-  //TheISA::Decoder *decoder = thread->getDecoderPtr();
-  // decoder->reset() sometimes?
-  /*TheISA::MachInst inst_word;
-  inst_word = TheISA::gtoh(
-    *(reinterpret_cast<TheISA::MachInst *>
-      (line + fetch_info.inputIndex)));
-
-  if (!decoder->instReady()) {
-      decoder->moreBytes(fetch_info.pc,
-          line_in->lineBaseAddr + fetch_info.inputIndex,
-          inst_word);
-        DPRINTF(Fetch, "Offering MachInst to decoder addr: 0x%x\n",
-            line_in->lineBaseAddr + fetch_info.inputIndex);
-        }
-
-        if (decoder->instReady()) {
-         StaticInstPtr decoded_inst = decoder->decode(fetch_info.pc);
-        */
-        
-  // can we just totally fake the actual decoding? probably
-  // the fetchPc and addr stuff is generally just used for printouts
-  // really only need machInst
-  
-  // For RISCV decoder, ExtMachInst = MachInst
-  // has a decode(ExtMachInst) function
-  
-  
-  // but may also need to provide moreBytes to check alignment
-  // this just seems to be when don't have an aligned instruction
-  // seems only important for compressed instruction, which we don't care about?
-  
-  // bool aligned = pc.pc() % sizeof(MachInst) == 0;?
-  
-  // TODO might need to call decoder.moreBytes() to align MachInst (32 bits)
-  // onto ExtMachInst (64 bits). although I thought all RV instructions
-  // were 32 bits? Would need to get the PC from master core to do this
-  // occasionally instructions can be 16bits (compressed) or more?
+Vector::extractInstruction(const TheISA::MachInst inst) {
+  // turn instruction bits into higher-level instruction
   RiscvISA::Decoder decoder;
   StaticInstPtr ret = decoder.decode(inst, 0x0);
   return ret;
-  
 }
 
 
 
 PacketPtr
-VectorForward::createMeshPacket(RegVal payload) {
+Vector::createMeshPacket(RegVal payload) {
   // create a packet to send
   // size is numbytes? (8 bytes -- 64 bits)
   int size = sizeof(payload);
@@ -408,9 +332,23 @@ VectorForward::createMeshPacket(RegVal payload) {
   return new_pkt;
 }
 
+// cheat and let all information about master state be available
+// when figure out what we actually need we can stop cheating
+PacketPtr
+Vector::createMeshPacket(IODynInstPtr inst) {
+  // create a packet to send
+  Addr addr = 0;
+  int size = 0;
+  RequestPtr req = std::make_shared<Request>(addr, size, 0, 0);
+  PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
+  new_pkt->pushSenderState(new Vector::SenderState(inst));
+  
+  return new_pkt;
+}
+
 
 bool
-VectorForward::getOutRdy() {
+Vector::getOutRdy() {
   bool allRdy = true;
   
   for (int i = 0; i < _toMeshPort.size(); i++) {
@@ -427,7 +365,7 @@ VectorForward::getOutRdy() {
 // however in cycle level simulators, NULL exists so if there's
 // a new packet then its valid otherwise its invalid
 bool
-VectorForward::getInVal() {
+Vector::getInVal() {
   bool allVal = true;
   
   for (int i = 0; i < _fromMeshPort.size(); i++) {
@@ -441,21 +379,21 @@ VectorForward::getInVal() {
 }
 
 void
-VectorForward::setRdy(bool rdy) {
+Vector::setRdy(bool rdy) {
   for (int i = 0; i < _fromMeshPort.size(); i++) {
     _fromMeshPort[i].setRdyIfActive(rdy, _stage);
   }
 }
 
 void
-VectorForward::setVal(bool val) {
+Vector::setVal(bool val) {
   for (int i = 0; i < _toMeshPort.size(); i++) {
     _toMeshPort[i].setValIfActive(val, _stage);
   }
 }
 
 void
-VectorForward::resetActive() {
+Vector::resetActive() {
   _numInPortsActive = 0;
   _numOutPortsActive = 0;
   
@@ -470,7 +408,7 @@ VectorForward::resetActive() {
 
 // inform that there has been an update
 void
-VectorForward::neighborUpdate() {
+Vector::neighborUpdate() {
   /*if ((getNumPortsActive(EXECUTE) > 0) || (getNumPortsActive(FETCH) > 0)) {
   
   DPRINTF(Mesh, "to_mesh:\nactive   %d %d %d %d\nself val %d %d %d %d\npair rdy %d %d %d %d\n",
@@ -491,7 +429,7 @@ VectorForward::neighborUpdate() {
 
 
 void
-VectorForward::informNeighbors() {
+Vector::informNeighbors() {
   //DPRINTF(Mesh, "notify neighbors\n");
   // go through mesh ports to get tryUnblock function called in neighbor cores
   for (int i = 0; i < _toMeshPort.size(); i++) {
@@ -499,20 +437,30 @@ VectorForward::informNeighbors() {
   }
 }
 
+IODynInstPtr
+Vector::getMeshPortInst(Mesh_Dir dir) {
+  PacketPtr pkt = getMeshPortPkt(dir);
+  Vector::SenderState* ss =
+              safe_cast<Vector::SenderState*>(pkt->popSenderState());
+  auto msg = ss->master_inst;
+  delete ss;
+  return msg;
+}
+
 uint64_t
-VectorForward::getMeshPortData(Mesh_Dir dir) {
+Vector::getMeshPortData(Mesh_Dir dir) {
   PacketPtr pkt = getMeshPortPkt(dir);
   return FromMeshPort::getPacketData(pkt);
   //return fromMeshPort[dir].getPacketData();
 }
 
 PacketPtr
-VectorForward::getMeshPortPkt(Mesh_Dir dir) {
+Vector::getMeshPortPkt(Mesh_Dir dir) {
   return _fromMeshPort[dir].getPacket();
 }
 
-Port &
-VectorForward::getMeshPort(int idx, bool isOut) {
+Port&
+Vector::getMeshPort(int idx, bool isOut) {
  if (isOut) {
    return _toMeshPort[idx];
  } 
@@ -522,67 +470,66 @@ VectorForward::getMeshPort(int idx, bool isOut) {
 }
 
 int
-VectorForward::getNumMeshPorts() {
+Vector::getNumMeshPorts() {
   return _toMeshPort.size();
 }
 
 int
-VectorForward::getNumPortsActive() {
+Vector::getNumPortsActive() {
   return _numInPortsActive + _numOutPortsActive;
 }
 
-std::vector<Minor::InputBuffer<Minor::ForwardVectorData>>&
-VectorForward::getInputBuf() {
+/*std::vector<Minor::InputBuffer<Minor::ForwardVectorData>>&
+Vector::getInputBuf() {
   return _inputBuffer;
-}
+}*/
 
-ForwardVectorData*
-VectorForward::getFetchInput(ThreadID tid) {
-  // Get a line from the inputBuffer to work with
-  if (!_inputBuffer[tid].empty()) {
-    auto msg = &(_inputBuffer[tid].front());
-    return msg;
-  } else {
+IODynInstPtr
+Vector::getFetchInput() {
+  if (!m_insts.empty()) {
+    return m_insts.front();
+  }
+  else {
     return nullptr;
   }
 }
 
-void
-VectorForward::popFetchInput(ThreadID tid) {
+/*void
+Vector::popFetchInput(ThreadID tid) {
   if (!_inputBuffer[tid].empty()) {
     //_inputBuffer[tid].front().freeLine();
     _inputBuffer[tid].pop();
   }
-}
+}*/
 
 void
-VectorForward::stallFetchInput(ThreadID tid) {
-  if (_inputBuffer[tid].empty()) {
+Vector::stallFetchInput(ThreadID tid) {
+  /*if (_inputBuffer[tid].empty()) {
     ForwardVectorData vecData(0);
     vecData.machInst = 0x511; // c_addi (nop)
     _inputBuffer[tid].setTail(vecData);
     _inputBuffer[tid].pushTail();
     DPRINTF(Mesh, "try stall frontend %d?=0\n", _inputBuffer[tid].canReserve());
-  }
-  /*else {
-    DPRINTF(Mesh, "fetch not empty %d\n", _inputBuffer[tid].canReserve());
   }*/
+  
+  assert(0);
 }
 
 void
-VectorForward::unstallFetchInput(ThreadID tid) {
-  popFetchInput(tid);
+Vector::unstallFetchInput(ThreadID tid) {
+  //popFetchInput(tid);
+  assert(0);
 }
 
 bool
-VectorForward::getConfigured() {
+Vector::getConfigured() {
   return !MeshHelper::isCSRDefault(_curCsrVal);
 }
 
 bool
-VectorForward::isInternallyStalled() {
-  int tid = 0;
-  bool decodeStall = !_nextStageReserve[tid].canReserve();
+Vector::isInternallyStalled() {
+  //int tid = 0;
+  bool decodeStall = !nextStageRdy();
   
   // the stall depends on whether this is a slave or not (has an indest)
   // TODO can vector just do all of the forwarding into fetch2?
@@ -598,7 +545,7 @@ VectorForward::isInternallyStalled() {
   // there was no input from fetch2
   // employ hack were use the input buffer at the beginning of the eval
   // to be the one used for check
-  bool senderStall = sender && !recver && !_internalInputThisCycle;
+  bool senderStall = sender && !recver; // && !_internalInputThisCycle;
   
   bool stall = recverStall || senderStall;
   /*if (stall) {
@@ -611,7 +558,7 @@ VectorForward::isInternallyStalled() {
 
 
 void
-VectorForward::processInternalStalls() {
+Vector::processInternalStalls() {
   bool justStalled = isInternallyStalled();
   
   if (_wasStalled ^ justStalled) {
@@ -622,7 +569,7 @@ VectorForward::processInternalStalls() {
 }
 
 bool
-VectorForward::shouldStall() {
+Vector::shouldStall() {
   // check for instruction from mesh
   bool meshOk = _fsm->isMeshActive();
   
@@ -633,8 +580,8 @@ VectorForward::shouldStall() {
   return !canGo;
 }
 
-void
-VectorForward::updateStreamSeqNum(InstSeqNum seqNum) { 
+/*void
+Vector::updateStreamSeqNum(InstSeqNum seqNum) { 
   //if (getConfigured()) DPRINTF(Mesh, "set slave seq num %s\n", seqNum);
   _lastStreamSeqNum = seqNum; 
   // when do isSerializeAfter (a branch), need to hack in an additional +1
@@ -642,12 +589,12 @@ VectorForward::updateStreamSeqNum(InstSeqNum seqNum) {
 }
 
 int
-VectorForward::getStreamSeqNum() {
+Vector::getStreamSeqNum() {
   return _lastStreamSeqNum;
 }
 
 void
-VectorForward::setMispredict() {
+Vector::setMispredict() {
   //_pendingMispredict = true;
   //_mispredictTick = curTick();
   _cpu.schedule(_mispredictUpdate, _cpu.clockEdge(Cycles(1)));
@@ -656,12 +603,12 @@ VectorForward::setMispredict() {
 // TODO no longer used
 // this is hack to see if we sent anything this cycle when the state machine needs to update
 bool
-VectorForward::sentMsgThisCycle() {
+Vector::sentMsgThisCycle() {
   return _internalInputThisCycle;
 }
 
 void
-VectorForward::handleMispredict() {
+Vector::handleMispredict() {
   //if (_pendingMispredict) {
     //if (_mispredictTick == curTick()) DPRINTF(Mesh, "[[WARNING]] Update due to pending mispredict on same cycle it was set\n");
     //_lastStreamSeqNum++;
@@ -669,5 +616,4 @@ VectorForward::handleMispredict() {
     //_pendingMispredict = false;
     
   //}
-}
-
+}*/

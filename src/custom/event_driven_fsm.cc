@@ -1,9 +1,10 @@
 #include "custom/event_driven_fsm.hh"
-#include "cpu/minor/cpu.hh"
 #include "debug/Mesh.hh"
-#include "custom/vector_forward.hh"
+#include "cpu/io/cpu.hh"
+#include "custom/vector.hh"
 
-EventDrivenFSM::EventDrivenFSM(VectorForward *vec, MinorCPU *cpu, SensitiveStage stage) :
+EventDrivenFSM::EventDrivenFSM(Vector *vec, IOCPU *cpu, SensitiveStage stage) :
+  Named(vec->name() + ".fsm"),
   _vec(vec), _cpu(cpu), _state(IDLE), _oldState(IDLE), _didTransition(false),
   _stage(stage), _stateUpdateEvent([this] { stateTransition(); }, cpu->name()),
   _outputUpdateEvent([this] { stateOutputTransition(); }, cpu->name())
@@ -197,7 +198,7 @@ EventDrivenFSM::pendingNextState() {
   bool outRdy = getOutRdy();
   bool configured = getConfigured();
   bool stalled = getInternalStall();
-  bool sentMsg = _vec->sentMsgThisCycle();
+  //bool sentMsg = _vec->sentMsgThisCycle();
  
   //DPRINTF(Mesh, "%s find pending change: currstate %s inval %d, outrdy %d, config %d, stalled %d, sentmsg %d\n",
   //   _cpu->name(), stateToStr(_state), inVal, outRdy, configured, stalled, sentMsg); 
@@ -219,14 +220,14 @@ EventDrivenFSM::pendingNextState() {
     case BEGIN_SEND: {
       if (stalled) return BEGIN_STALL_VAL;
       else if (inVal && outRdy) return RUNNING_BIND;
-      else if (sentMsg) return BEGIN_STALL_VAL;
+      //else if (sentMsg) return BEGIN_STALL_VAL;
       else return STALL_NOT_VAL;
     }
     case RUNNING_BIND: {
       if (stalled) return BEGIN_STALL_VAL;
       else if (inVal && outRdy) return RUNNING_BIND;
       // if you didn't send a packet this cycle you should just stall not valid
-      else if (sentMsg) return BEGIN_STALL_VAL;
+      //else if (sentMsg) return BEGIN_STALL_VAL;
       else return STALL_NOT_VAL;
     }
     case BEGIN_STALL_VAL: {

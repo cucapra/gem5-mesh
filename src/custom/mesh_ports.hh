@@ -9,24 +9,47 @@
 #include "mem/port.hh"
 #include "mem/packet.hh"
 #include "sim/clocked_object.hh"
-#include "cpu/minor/buffers.hh"
-#include "cpu/minor/pipe_data.hh"
 #include "custom/mesh_helper.hh"
+#include "cpu/minor/buffers.hh"
 
 //resolve circular deps
-class MinorCPU;
-class VectorForward;
+class IOCPU;
+class Vector;
+
+
+// TODO need this will using a Minor hardware queue, maybe want to move away?
+/** Data for queues/regs between mesh nodes */
+class MeshPacketData /* : public ReportIF, public BubbleIF */
+{
+  public:
+    /** mesh packet */
+    PacketPtr pkt;
+
+  public:
+    explicit MeshPacketData(PacketPtr pkt) { this->pkt = pkt; }
+
+    MeshPacketData(const MeshPacketData &src) { *this = src; }
+
+  public:
+
+    /** Fill with bubbles */
+    void bubbleFill() { pkt = nullptr; }
+
+    /** BubbleIF interface */
+    bool isBubble() const { return pkt == nullptr; }
+
+    /** ReportIF interface */
+    void reportData(std::ostream &os) const {}
+    
+    /** get the stored packet */
+    PacketPtr getPacket() const { return pkt; }
+};
 
 
 // port that goes out over the mesh
 class ToMeshPort : public MasterPort {
   public:
-    ToMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx);
-        /*: TimingCPUMasterPort(
-          _cpu->name() + ".mesh_out_port" + csprintf("[%d]", idx), 
-          idx, _cpu), tickEvent(_cpu), val(false), active(false), 
-          stalledPkt(nullptr)
-    { }*/
+    ToMeshPort(Vector *vec, IOCPU *_cpu, int idx);
 
     void setVal(bool val);
     bool getVal() const { return val; }
@@ -52,7 +75,7 @@ class ToMeshPort : public MasterPort {
     virtual void recvReqRetry();
 
     // cpu for callbacks
-    MinorCPU *cpu;
+    IOCPU *cpu;
     
     // idx for debug
     int idx;
@@ -65,17 +88,13 @@ class ToMeshPort : public MasterPort {
     // available
     SensitiveStage active;
     
-    VectorForward *vec;
+    Vector *vec;
     
 };
 
 class FromMeshPort : public SlavePort {
   public:
-    FromMeshPort(VectorForward *vec, MinorCPU *_cpu, int idx);
-        /*: TimingCPUSlavePort(
-          _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), 
-          idx, _cpu), tickEvent(_cpu), rdy(false), active(false)
-    { }*/
+    FromMeshPort(Vector *vec, IOCPU *_cpu, int idx);
 
     virtual AddrRangeList getAddrRanges() const;
 
@@ -113,7 +132,7 @@ class FromMeshPort : public SlavePort {
     virtual void recvFunctional(PacketPtr pkt);
 
     // cpu reference, so we can do things in it on response
-    MinorCPU* cpu;
+    IOCPU* cpu;
     
     // id in vector port
     int idx;
@@ -144,11 +163,11 @@ class FromMeshPort : public SlavePort {
     // every 4x4 tiles and lets wires expand within the 4x4 tile group
     // doesn't change performance just reduces the number of queue registers
     // while not blowing up cycle time
-    Minor::Queue<Minor::MeshPacketData> _meshQueue;
+    Minor::Queue<MeshPacketData> _meshQueue;
     
     //std::queue<PacketPtr> _pktQueue;
     
-    VectorForward *vec;
+    Vector *vec;
 };
 
 
