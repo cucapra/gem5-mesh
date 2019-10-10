@@ -2,12 +2,6 @@
 #include "cpu/io/stage.hh"
 #include "cpu/io/cpu.hh"
 
-#include "cpu/io/fetch.hh"
-#include "cpu/io/decode.hh"
-#include "cpu/io/rename.hh"
-#include "cpu/io/iew.hh"
-#include "cpu/io/commit.hh"
-
 std::array<std::shared_ptr<Stage>, (int)StageIdx::NumStages>
 Pipeline::create(IOCPU *_cpu_p, IOCPUParams* params) {
   
