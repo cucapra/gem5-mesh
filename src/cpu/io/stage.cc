@@ -124,6 +124,11 @@ Stage::tick() {
 
   // read credits from the next stage
   readCredits();
+  
+  /*// check if stage can proceed
+  if (!checkSquash() && !checkStall()) {
+    forwardTick();
+  }*/
 }
 
 void
@@ -141,6 +146,12 @@ Stage::suspend()
 }
 
 bool
-Stage::nextStageRdy() {
-  return (m_num_credits > 0);
+Stage::checkStall() {
+  return (m_num_credits == 0);
 }
+
+// TODO 
+/*bool
+Stage::checkSquash() {
+  return false;
+}*/

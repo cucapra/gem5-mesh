@@ -61,7 +61,7 @@ class Decode : public Stage
     void doDecode();
 
     /** Check squash signal. Return true if this stage is squashed */
-    bool checkSquash();
+    bool checkSquash() override;
 
     /** Squash all instructions younger than the squash instruction */
     void doSquash(IODynInstPtr squash_inst);

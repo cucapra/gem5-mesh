@@ -6,7 +6,7 @@
 
 Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p) : 
 
-    Stage(_cpu_p, 2, 2, /*StageIdx::VectorIdx*/ StageIdx::FetchIdx, true),
+    Stage(_cpu_p, 2, 2, StageIdx::VectorIdx, true),
     _numInPortsActive(0),
     _numOutPortsActive(0),
     _stage(FETCH),
@@ -41,7 +41,11 @@ Vector::tick() {
   
   Stage::tick();
   
-  // hack so when we call this, we still have this information on state transition
+  // TEMP
+  if (!checkSquash() && !checkStall())
+    passInstructions();
+  
+  /*// hack so when we call this, we still have this information on state transition
   //_internalInputThisCycle = !_inputBuffer[0].empty();
   
   // check the state of the fsm (dont need async updates like before)
@@ -73,17 +77,12 @@ Vector::tick() {
     // forward instruction to other neighbors potentially
     forwardInstruction(instInfo);
     
-  } 
-  /*else {
-    if (getConfigured())
-      DPRINTF(Mesh, "vec can't do anything\n");
-  }*/
+  }
   
   // if not configured just pass the instruction through
   if (!getConfigured()) {
     passInstructions();
-    //popFetchInput(0);
-  }
+  }*/
   
 }
 
@@ -107,13 +106,83 @@ Vector::linetrace(std::stringstream& ss) {
   
 }
 
+bool
+Vector::checkSquash() {
+  // check all possible squash signals coming from subsequent stages. It's
+  // important to do this in a reversed order since earlier stages may squash
+  // younger instructions.
+
+  // check squash coming from Commit
+  if (m_incoming_squash_wire->commit_squash.squash) {
+    IODynInstPtr fault_inst = m_incoming_squash_wire->
+                                            commit_squash.fault_inst;
+    assert(fault_inst);
+    DPRINTF(Mesh, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
+                    fault_inst->thread_id, fault_inst->seq_num);
+
+    doSquash(fault_inst);
+    return true;
+  }
+
+  // check squash coming from IEW (due to branch misprediction)
+  if (m_incoming_squash_wire->iew_squash.squash) {
+    IODynInstPtr mispred_inst = m_incoming_squash_wire->
+                                                  iew_squash.mispred_inst;
+    assert(mispred_inst);
+    DPRINTF(Mesh, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
+                    mispred_inst->thread_id, mispred_inst->seq_num);
+    doSquash(mispred_inst);
+    return true;
+  }
+
+  // check squash coming from Decode stage (last cycle) (due to branch
+  // misprediction). We handle the squash initiated in the last cycle in the
+  // current cycle.
+  if (m_incoming_squash_wire->decode_squash.squash) {
+    IODynInstPtr mispred_inst =
+                    m_incoming_squash_wire->decode_squash.mispred_inst;
+    assert(mispred_inst);
+    DPRINTF(Mesh, "Squash from Decode: squash inst [tid:%d] [sn:%d]\n",
+                    mispred_inst->thread_id, mispred_inst->seq_num);
+    doSquash(mispred_inst);
+    return true;
+  }
+
+  return false;
+}
+
+void
+Vector::doSquash(IODynInstPtr squash_inst) {
+  ThreadID tid = squash_inst->thread_id;
+
+  // walk through all insts in the m_insts queue and remove all instructions
+  // belonging to thread tid
+  size_t qsize = m_insts.size();
+  size_t count = 0;
+  IODynInstPtr inst = nullptr;
+  while (count < qsize) {
+    inst = m_insts.front();
+    m_insts.pop();
+    if (inst->thread_id != tid) {
+      m_insts.push(inst);
+    } else {
+      DPRINTF(Decode, "Squashing %s\n", inst->toString());
+      assert(inst->seq_num > squash_inst->seq_num);
+      // increment the number of credits to the previous stage
+      //m_outgoing_credit_wire->from_decode()++;
+      m_outgoing_credit_wire->to_prev_stage(m_stage_idx)++;
+    }
+    count++;
+  }
+}
+
 void
 Vector::passInstructions() {
-  while (!m_insts.empty() && nextStageRdy()) {
+  while (!m_insts.empty() && !checkStall()) {
     IODynInstPtr inst = m_insts.front();
-    //ThreadID tid = inst->thread_id;
-    //DPRINTF(Mesh, "[tid:%d] Decoding inst [sn:%lli] with PC %s\n",
-    //                tid, inst->seq_num, inst->pc);
+    ThreadID tid = inst->thread_id;
+    DPRINTF(Mesh, "[tid:%d] Decoding inst [sn:%lli] with PC %s\n",
+                    tid, inst->seq_num, inst->pc);
 
     // send out this inst
     sendInstToNextStage(inst);
@@ -529,7 +598,7 @@ Vector::getConfigured() {
 bool
 Vector::isInternallyStalled() {
   //int tid = 0;
-  bool decodeStall = !nextStageRdy();
+  bool decodeStall = checkStall();
   
   // the stall depends on whether this is a slave or not (has an indest)
   // TODO can vector just do all of the forwarding into fetch2?

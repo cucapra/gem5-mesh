@@ -48,6 +48,11 @@ class Vector : public Stage {
     /** Place the given instruction into the buffer to the next stage */
     void sendInstToNextStage(IODynInstPtr inst) override;
 
+    /** Check squash and squash if true */
+    bool checkSquash() override;
+    
+    void doSquash(IODynInstPtr squash_inst);
+
   public:
     
     // setup which mesh ports are active

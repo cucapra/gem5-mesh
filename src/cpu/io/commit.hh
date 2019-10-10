@@ -75,7 +75,7 @@ class Commit : public Stage
     void doCommit();
 
     /** Check squash signal. Return true if we're squashing */
-    bool checkSquash();
+    bool checkSquash() override;
 
     /** Initiate a squash signal */
     void initiateSquash(IODynInstPtr faulty_inst);

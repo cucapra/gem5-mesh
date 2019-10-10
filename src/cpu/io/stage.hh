@@ -83,8 +83,13 @@ class Stage {
         size_t &inputCredit();
         size_t &outputCredit();
         
-        /** method to check if we have any credits */
-        bool nextStageRdy();
+        /** Check if we have to stall because there are not credits available */
+        virtual bool checkStall();
+        
+        /** Check squash signal (and do squash). Return true if this stage is squashed */
+        // TODO can we get a nice refactor on this that checks only future stages in reverse order?
+        // will need to incorporate lambdas for diff case, but could be nice!
+        virtual bool checkSquash() = 0;
         
     public:
         Stage(IOCPU* _cpu_p, size_t inputBufSize, size_t outputBufSize,

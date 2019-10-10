@@ -98,7 +98,7 @@ class IEW : public Stage
     void doSquash(IODynInstPtr squash_inst);
 
     /** Check squash signal. Return true if we're squashed. */
-    bool checkSquash();
+    bool checkSquash() override;
 
     /** Initiate a squash signal */
     void initiateSquash(const IODynInstPtr mispred_inst);

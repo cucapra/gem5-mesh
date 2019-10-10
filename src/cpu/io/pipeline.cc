@@ -30,9 +30,9 @@ Pipeline::create(IOCPU *_cpu_p, IOCPUParams* params) {
         break;
       
       // new stages
-      //case VectorIdx:
-      //  stages[i] = std::make_shared<Vector>(_cpu_p, params);
-      //  break;
+      case VectorIdx:
+        stages[i] = std::make_shared<Vector>(_cpu_p, params);
+        break;
         
       // 
       default:

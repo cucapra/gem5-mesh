@@ -124,7 +124,7 @@ class Fetch : public Stage
 
   private:
     /** Check squash signal. Return true if Fetch is being squashed  */
-    bool checkSquash();
+    bool checkSquash() override;
 
     /** Read info on committed instruction (used to update branch predictor)*/
     void readInfo();
