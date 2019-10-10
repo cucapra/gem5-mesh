@@ -19,14 +19,18 @@
 // IOCPU::IcachePort
 //-----------------------------------------------------------------------------
 
-IOCPU::IcachePort::IcachePort(Fetch* _fetch_p, IOCPU* _cpu_p,
-                              int _num_cache_ports)
+IOCPU::IcachePort::IcachePort(IOCPU* _cpu_p, int _num_cache_ports)
     : MasterPort(_cpu_p->name() + ".icache_port", _cpu_p),
-      fetch_p(_fetch_p),
+      //fetch_p(_fetch_p),
       num_cache_ports(_num_cache_ports),
       num_used_cache_ports(0),
       need_retry(false)
 { }
+
+void
+IOCPU::IcachePort::AttachToStage(Fetch* _fetch_p) {
+  fetch_p = _fetch_p;
+}
 
 bool
 IOCPU::IcachePort::sendTimingReq(PacketPtr pkt)
@@ -79,14 +83,18 @@ IOCPU::IcachePort::reset()
 // IOCPU::DcachePort
 //-----------------------------------------------------------------------------
 
-IOCPU::DcachePort::DcachePort(MemUnit* _mem_unit_p, IOCPU* _cpu_p,
-                              int _num_cache_ports)
+IOCPU::DcachePort::DcachePort(IOCPU* _cpu_p, int _num_cache_ports)
     : MasterPort(_cpu_p->name() + ".dcache_port", _cpu_p),
-      mem_unit_p(_mem_unit_p),
+      //mem_unit_p(_mem_unit_p),
       num_cache_ports(_num_cache_ports),
       num_used_cache_ports(0),
       need_retry(false)
 { }
+
+void
+IOCPU::DcachePort::AttachToStage(IEW *_iew_p) {
+  mem_unit_p = _iew_p->getMemUnitPtr();
+}
 
 bool
 IOCPU::DcachePort::sendTimingReq(PacketPtr pkt)
@@ -148,11 +156,6 @@ IOCPU::IOCPU(IOCPUParams* params)
       m_num_threads(params->numThreads),
       m_tick_event([this]{ tick(); }, "IO_CPU tick",
                    false, Event::CPU_Tick_Pri),
-      m_fetch(this, params),
-      m_decode(this, params),
-      m_rename(this, params),
-      m_iew(this, params),
-      m_commit(this, params),
       // TODO need to figure out the delays for those buffers. For now, assume
       // it can hold message for one next cycle and one past cycle.
       m_inst_buffer(1, 1),
@@ -167,8 +170,8 @@ IOCPU::IOCPU(IOCPUParams* params)
                  Enums::VecRegRenameMode::Full),
       m_scoreboard(name() + ".scoreboard", m_reg_file.totalNumPhysRegs()),
       m_free_list(name() + ".freelist", &m_reg_file),
-      m_icache_port(&m_fetch, this, params->numIcachePorts),
-      m_dcache_port(m_iew.getMemUnitPtr(), this, params->numDcachePorts),
+      m_icache_port(this, params->numIcachePorts),
+      m_dcache_port(this, params->numDcachePorts),
       m_active_thread_ids(),
       m_isa_list(),
       m_global_seq_num(1),
@@ -177,17 +180,17 @@ IOCPU::IOCPU(IOCPUParams* params)
   // IOCPU does not support FullSystem mode yet
   assert(!FullSystem);
 
+  // create all stages
+  m_stages = Pipeline::create(this, params);
+
+  // setup ports
+  m_icache_port.AttachToStage(getFetch());
+  m_dcache_port.AttachToStage(getIEW());
+
   // Set up communication wires for all stages
-  m_fetch.setCommBuffers(m_inst_buffer, m_credit_buffer,
-                         m_squash_buffer, m_info_buffer);
-  m_decode.setCommBuffers(m_inst_buffer, m_credit_buffer,
-                          m_squash_buffer, m_info_buffer);
-  m_rename.setCommBuffers(m_inst_buffer, m_credit_buffer,
-                          m_squash_buffer, m_info_buffer);
-  m_iew.setCommBuffers(m_inst_buffer, m_credit_buffer,
-                       m_squash_buffer, m_info_buffer);
-  m_commit.setCommBuffers(m_inst_buffer, m_credit_buffer,
-                          m_squash_buffer, m_info_buffer);
+  for (int i = 0; i < (int)StageIdx::NumStages; i++)
+    m_stages[i]->setCommBuffers(m_inst_buffer, m_credit_buffer,
+                              m_squash_buffer, m_info_buffer);
 
   // IOCPU does not support simulating multiple workloads
   assert(params->workload.size() == 1);
@@ -316,11 +319,9 @@ IOCPU::init()
   for (ThreadID tid = 0; tid < m_num_threads; ++tid)
     threadContexts[tid]->initMemProxies(threadContexts[tid]);
 
-  m_fetch.init();
-  m_decode.init();
-  m_rename.init();
-  m_iew.init();
-  m_commit.init();
+  for (int i = 0; i < (int)StageIdx::NumStages; i++) {
+    m_stages[i]->init();
+  }
 }
 
 void
@@ -397,7 +398,7 @@ IOCPU::activateContext(ThreadID tid)
     wakeup();
 
   // tell fetch stage to put this thread into its scheduling list
-  m_fetch.activateThread(tid);
+  getFetch()->activateThread(tid);
 
   // call activateContext in the base class
   BaseCPU::activateContext(tid);
@@ -421,7 +422,7 @@ IOCPU::suspendContext(ThreadID tid)
   m_active_thread_ids.erase(it);
 
   // tell fetch stage to put this thread out of its scheduling list
-  m_fetch.deactivateThread(tid);
+  getFetch()->deactivateThread(tid);
 
   // if this is was the last thread, unschedule the tick event
   if (m_active_thread_ids.empty())
@@ -455,7 +456,7 @@ IOCPU::haltContext(ThreadID tid)
     m_active_thread_ids.erase(it);
 
     // tell fetch stage to put this thread out of its scheduling list
-    m_fetch.deactivateThread(tid);
+    getFetch()->deactivateThread(tid);
   }
 
   // if this is was the last thread, unschedule the tick event
@@ -474,7 +475,7 @@ IOCPU::resetStates(ThreadID tid)
 {
   // TODO: need to reset states related to the thread in all data structures of
   // the pipeline
-  m_fetch.resetStates(tid);
+  getFetch()->resetStates(tid);
 }
 
 void
@@ -497,11 +498,8 @@ IOCPU::wakeup()
   status = Running;
 
   // need to wakeup all stages
-  m_fetch.wakeup();
-  m_decode.wakeup();
-  m_rename.wakeup();
-  m_iew.wakeup();
-  m_commit.wakeup();
+  for (int i = 0; i < (int)StageIdx::NumStages; i++)
+    m_stages[i]->wakeup();
 
   // schedule a tick event in the next clock edge
   schedule(m_tick_event, clockEdge());
@@ -519,11 +517,8 @@ IOCPU::suspend()
   if (status != Idle) {
     status = Idle;
     // need to suspend all stages
-    m_fetch.suspend();
-    m_decode.suspend();
-    m_rename.suspend();
-    m_iew.suspend();
-    m_commit.suspend();
+    for (int i = 0; i < (int)StageIdx::NumStages; i++)
+      m_stages[i]->suspend();
 
     // update stats
     m_last_active_cycle = curCycle();
@@ -573,11 +568,8 @@ IOCPU::tick()
   m_dcache_port.reset();
 
   // tick each stage in the forward order
-  m_fetch.tick();
-  m_decode.tick();
-  m_rename.tick();
-  m_iew.tick();
-  m_commit.tick();
+  for (int i = 0; i < (int)StageIdx::NumStages; i++)
+    m_stages[i]->tick();
 
   // advance communication buffers so that signals are propagated at the end of
   // this cycle and will be seen in beginning of the next cycle.
@@ -602,15 +594,15 @@ IOCPU::tick()
 void
 IOCPU::pcState(const TheISA::PCState& newPCState, ThreadID tid)
 {
-  m_fetch.pcState(newPCState, tid);
+  getFetch()->pcState(newPCState, tid);
   // TODO: what pc state is tracked in commit stage? do we need it?
-  m_commit.pcState(newPCState, tid);
+  getCommit()->pcState(newPCState, tid);
 }
 
 TheISA::PCState
 IOCPU::pcState(ThreadID tid)
 {
-  return m_commit.pcState(tid);
+  return getCommit()->pcState(tid);
 }
 
 void
@@ -623,7 +615,7 @@ IOCPU::trap(const Fault& fault, ThreadID tid, const StaticInstPtr& inst)
 TheISA::Decoder*
 IOCPU::getDecoderPtr(ThreadID tid)
 {
-  return m_fetch.getDecoderPtr(tid);
+  return getFetch()->getDecoderPtr(tid);
 }
 
 System*
@@ -641,19 +633,19 @@ IOCPU::getISAPtr(ThreadID tid)
 Addr
 IOCPU::instAddr(ThreadID tid)
 {
-  return m_commit.instAddr(tid);
+  return getCommit()->instAddr(tid);
 }
 
 MicroPC
 IOCPU::microPC(ThreadID tid)
 {
-  return m_commit.microPC(tid);
+  return getCommit()->microPC(tid);
 }
 
 Addr
 IOCPU::nextInstAddr(ThreadID tid)
 {
-  return m_commit.nextInstAddr(tid);
+  return getCommit()->nextInstAddr(tid);
 }
 
 ThreadContext*
@@ -699,7 +691,7 @@ IOCPU::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
                   unsigned int size, Addr addr, Request::Flags flags,
                   uint64_t* res, AtomicOpFunctor* amo_op)
 {
-  return m_iew.getMemUnitPtr()->pushMemReq(inst, is_load, data, size, addr,
+  return getIEW()->getMemUnitPtr()->pushMemReq(inst, is_load, data, size, addr,
                                            flags, res, amo_op);
 }
 
@@ -1074,11 +1066,8 @@ IOCPU::linetrace()
   std::stringstream ss;
   ss << std::setw(10) << curTick() / clockPeriod();
 
-  m_fetch.linetrace(ss);
-  m_decode.linetrace(ss);
-  m_rename.linetrace(ss);
-  m_iew.linetrace(ss);
-  m_commit.linetrace(ss);
+  for (int i = 0; i < (int)StageIdx::NumStages; i++)
+    m_stages[i]->linetrace(ss);
 
   //DPRINTF(LineTrace, "%s\n", ss.str());
 #endif

@@ -30,6 +30,7 @@
 #include "cpu/timebuf.hh"
 #include "params/IOCPU.hh"
 #include "sim/process.hh"
+#include "cpu/io/pipeline.hh"
 
 //#include "custom/vector.hh"
 
@@ -249,8 +250,11 @@ class IOCPU : public BaseCPU
     class IcachePort : public MasterPort
     {
       public:
-        IcachePort(Fetch* _fetch_p, IOCPU* _cpu_p, int _num_cache_ports);
+        IcachePort(IOCPU* _cpu_p, int _num_cache_ports);
         ~IcachePort() = default;
+
+        /** Attach stage specific stuff */
+        void AttachToStage(Fetch *_fetch_p);
 
         /** Send timing request */
         virtual bool sendTimingReq(PacketPtr pkt);
@@ -278,8 +282,11 @@ class IOCPU : public BaseCPU
     class DcachePort : public MasterPort
     {
       public:
-        DcachePort(MemUnit* _mem_unit_p, IOCPU* _cpu_p, int _num_cache_ports);
+        DcachePort(IOCPU* _cpu_p, int _num_cache_ports);
         ~DcachePort() = default;
+
+        /** Attach stage specific stuff */
+        void AttachToStage(IEW *_iew_p);
 
         /** Send timing request */
         virtual bool sendTimingReq(PacketPtr pkt);
@@ -335,13 +342,7 @@ class IOCPU : public BaseCPU
     /**
      * Pipeline stages
      */
-    Fetch  m_fetch;
-    Decode m_decode;
-    Rename m_rename;
-    IEW    m_iew;     // Issue, Execute, Writeback
-    Commit m_commit;
-    
-    //Vector m_vector;
+    std::array<std::shared_ptr<Stage>, (int)StageIdx::NumStages> m_stages;
 
     /**
      * Inter-stage communication buffers
@@ -425,6 +426,14 @@ class IOCPU : public BaseCPU
     /** number of misc */
     Stats::Scalar m_misc_regfile_reads;
     Stats::Scalar m_misc_regfile_writes;
+    
+  private:
+    Fetch  *getFetch() { return std::dynamic_pointer_cast<Fetch>(m_stages[(int)StageIdx::FetchIdx]).get(); }
+    Decode *getDecode() { return std::dynamic_pointer_cast<Decode>(m_stages[(int)StageIdx::DecodeIdx]).get(); }
+    Rename *getRename() { return std::dynamic_pointer_cast<Rename>(m_stages[(int)StageIdx::RenameIdx]).get(); }
+    IEW    *getIEW() { return std::dynamic_pointer_cast<IEW>(m_stages[(int)StageIdx::IEWIdx]).get(); }
+    Commit *getCommit() { return std::dynamic_pointer_cast<Commit>(m_stages[(int)StageIdx::CommitIdx]).get(); }
+    
 };
 
 template<typename VecElem, int LaneIdx>

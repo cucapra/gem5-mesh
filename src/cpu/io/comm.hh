@@ -13,20 +13,7 @@
 
 #include "arch/types.hh"
 #include "cpu/io/dyn_inst.hh"
-
-
-/**
- * Keep track of how many pipe stages we have for modularity bonuses
-*/ 
-typedef enum StageIdx {
-  FetchIdx = 0,
-  //VectorIdx
-  DecodeIdx,
-  RenameIdx,
-  IEWIdx,
-  CommitIdx,
-  NumStages
-} StageIdx;
+#include "cpu/io/pipeline.hh"
 
 class IODynInst;
 
