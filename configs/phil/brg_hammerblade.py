@@ -536,7 +536,7 @@ system.system_port = system.ruby.sys_port_proxy.slave
 # Construct systolic network
 #------------------------------------------------------------------------------
 
-#makeSystolicTopology(system, n_rows - 1, n_cols)
+makeSystolicTopology(system, n_rows - 1, n_cols)
 
 #------------------------------------------------------------------------------
 # Construct memory controller

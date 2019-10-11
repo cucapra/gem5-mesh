@@ -177,10 +177,6 @@ Stage::checkSquash() {
           doSquash(bs, (StageIdx)i);
           
           return true;
-          
-          // moved into doSquash
-          // DPRINTF(Decode, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
-                    //fault_inst->thread_id, fault_inst->seq_num);
         }
         
       }

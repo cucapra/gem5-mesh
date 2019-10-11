@@ -41,13 +41,13 @@ Vector::tick() {
   
   Stage::tick();
   
-  // TEMP
-  if (!checkSquash() && !checkStall())
-    passInstructions();
+  // TODO this awkwardly calls doSquash as well, would like to decouple
+  /*bool squashed =*/ checkSquash();
   
-  /*// hack so when we call this, we still have this information on state transition
+  // hack so when we call this, we still have this information on state transition
   //_internalInputThisCycle = !_inputBuffer[0].empty();
   
+  // TODO rip out statemachine (but keep activity and neighbor inform for activty monitoring)
   // check the state of the fsm (dont need async updates like before)
   // because minor has cycle by cycle ticks unlike TimingSimpleCPU
   bool update = _fsm->tick();
@@ -58,11 +58,13 @@ Vector::tick() {
     informNeighbors();
   }
   
+  // TODO rip out
   // if there was an internal stall either due to last stage or next stage
   // we need to make sure to schedule state machine update for the next cycle
   processInternalStalls();
   
   // check if the current processor state allows us to go
+  // TODO rip out state machine and just look at val rdy of queues between ports
   bool canGo = !shouldStall();
   
   if (canGo) {
@@ -82,7 +84,7 @@ Vector::tick() {
   // if not configured just pass the instruction through
   if (!getConfigured()) {
     passInstructions();
-  }*/
+  }
   
 }
 
@@ -150,16 +152,16 @@ void
 Vector::passInstructions() {
   while (!m_insts.empty() && !checkStall()) {
     IODynInstPtr inst = m_insts.front();
-    ThreadID tid = inst->thread_id;
-    DPRINTF(Mesh, "[tid:%d] Decoding inst [sn:%lli] with PC %s\n",
-                    tid, inst->seq_num, inst->pc);
+    //ThreadID tid = inst->thread_id;
+    //DPRINTF(Mesh, "[tid:%d] Decoding inst [sn:%lli] with PC %s\n",
+    //                tid, inst->seq_num, inst->pc);
 
     // send out this inst
     sendInstToNextStage(inst);
 
     // Remove the inst from the queue and increment the credit to the previous
     // stage.
-    consumeInst(); // TODO credits need to reflect next queue, not this queue
+    consumeInst(); // TODO credits need to reflect next queue, not this queue if combinational
   }
 }
 
@@ -330,12 +332,12 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   
   // if the new configuration is slave, we need to push a bs instruction
   // into the pipeline buffer, or when reset need to take instruction out of pipeline buffer
-  if (MeshHelper::isVectorSlave(_curCsrVal)) {
-    stallFetchInput(0);
+  /*if (MeshHelper::isVectorSlave(_curCsrVal)) {
+    stallFetchInput();
   }
   if (!getConfigured()) {
-    unstallFetchInput(0);
-  }
+    unstallFetchInput();
+  }*/
   
 }
 
@@ -586,6 +588,7 @@ Vector::isInternallyStalled() {
   // to be the one used for check
   bool senderStall = sender && !recver; // && !_internalInputThisCycle;
   
+  // also check squash here?
   bool stall = recverStall || senderStall;
   /*if (stall) {
     DPRINTF(Mesh, "internal stall: rs %d ss %d r %d s %d dec %d in %d\n", 
@@ -610,7 +613,7 @@ Vector::processInternalStalls() {
 bool
 Vector::shouldStall() {
   // check for instruction from mesh
-  bool meshOk = _fsm->isMeshActive();
+  bool meshOk = getConfigured() && getInVal() && getOutRdy(); //_fsm->isMeshActive();
   
   // check if local decode is open to get new input or is stalled
   bool nextStageOk = !isInternallyStalled();
