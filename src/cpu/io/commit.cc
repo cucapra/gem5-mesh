@@ -204,40 +204,18 @@ Commit::commitHead(ThreadID tid)
   m_cpu_p->incrNumCommittedInsts(tid);
 }
 
-bool
-Commit::checkSquash()
-{
-  // check all possible squash signals coming from subsequent stages. It's
-  // important to do this in a reversed order since earlier stages may squash
-  // younger instructions.
-
-  // check squash signals coming from Commit
-  if (m_incoming_squash_wire->commit_squash.squash) {
-    IODynInstPtr fault_inst = m_incoming_squash_wire->commit_squash.fault_inst;
-    assert(fault_inst);
-    DPRINTF(Commit, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
-                 fault_inst->thread_id, fault_inst->seq_num);
-    doSquash(fault_inst);
-    return true;
-  }
-
-  // check squash coming from IEW (due to branch misprediction)
-  if (m_incoming_squash_wire->iew_squash.squash) {
-    IODynInstPtr mispred_inst = m_incoming_squash_wire->
-                                                iew_squash.mispred_inst;
-    assert(mispred_inst);
-    DPRINTF(Commit, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
-                  mispred_inst->thread_id, mispred_inst->seq_num);
-    doSquash(mispred_inst);
-    return true;
-  }
-
-  return false;
-}
-
 void
-Commit::doSquash(IODynInstPtr squash_inst)
+Commit::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator)
 {
+  IODynInstPtr squash_inst = squashInfo.trig_inst;
+  
+  if (initiator == StageIdx::CommitIdx)
+    DPRINTF(Decode, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
+                    squash_inst->thread_id, squash_inst->seq_num);
+  else if (initiator == StageIdx::IEWIdx)
+    DPRINTF(Decode, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
+                    squash_inst->thread_id, squash_inst->seq_num);
+  
   ThreadID tid = squash_inst->thread_id;
 
   // walk through all insts in the m_insts queue and remove all instructions
@@ -273,10 +251,10 @@ Commit::initiateSquash(IODynInstPtr faulty_inst)
   TheISA::PCState next_pc = faulty_inst->pc;
   TheISA::advancePC(next_pc, faulty_inst->static_inst_p);
 
-  m_outgoing_squash_wire->commit_squash.squash = true;
-  m_outgoing_squash_wire->commit_squash.next_pc = next_pc;
-  m_outgoing_squash_wire->commit_squash.fault_inst = faulty_inst;
-  m_outgoing_squash_wire->commit_squash.is_trap_pending = true;
+  m_outgoing_squash_wire->commit_squash()->squash = true;
+  m_outgoing_squash_wire->commit_squash()->next_pc = next_pc;
+  m_outgoing_squash_wire->commit_squash()->trig_inst = faulty_inst;
+  m_outgoing_squash_wire->commit_squash()->is_trap_pending = true;
 }
 
 void

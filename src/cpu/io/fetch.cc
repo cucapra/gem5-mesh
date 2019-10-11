@@ -233,79 +233,6 @@ Fetch::tick()
 #endif
 }
 
-bool
-Fetch::checkSquash()
-{
-  // check all possible squash signals coming from subsequent stages. It's
-  // important to do this in a reversed order since earlier stages may squash
-  // younger instructions.
-
-  // check squash coming from Commit
-  if (m_incoming_squash_wire->commit_squash.squash) {
-    IODynInstPtr fault_inst = m_incoming_squash_wire->commit_squash.fault_inst;
-    assert(fault_inst);
-    DPRINTF(Fetch, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
-                    fault_inst->thread_id, fault_inst->seq_num);
-
-    doSquash(m_incoming_squash_wire->commit_squash.next_pc, fault_inst);
-
-    // update branch predictor
-    m_branch_pred_p->squash(fault_inst->seq_num, fault_inst->thread_id);
-
-    // XXX: a hack that delays progressing Fetch with the updated PC until a
-    // trap is completed. It's necessary because a trap in SE mode can update
-    // PC functionally by calling RiscvFault::invoke ->
-    // ThreadContext::pcState(newPC). Without this hack, we can end up with
-    // executing instructions after a fault twice (i.e., once by the new PC
-    // passed from Commit and another one by the new PC updated functionally by
-    // the trap in SE mode). We temporarily change the state of this thread to
-    // TrapPending so that it does not get scheduled to fetch until the trap
-    // completes.
-    if (m_incoming_squash_wire->commit_squash.is_trap_pending)
-      m_thread_status[fault_inst->thread_id] = TrapPending;
-
-    return true;
-  }
-
-  // check squash coming from IEW (due to branch misprediction)
-  if (m_incoming_squash_wire->iew_squash.squash) {
-    IODynInstPtr mispred_inst =
-                    m_incoming_squash_wire->iew_squash.mispred_inst;
-    assert(mispred_inst);
-    DPRINTF(Fetch, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
-                    mispred_inst->thread_id, mispred_inst->seq_num);
-
-    doSquash(m_incoming_squash_wire->iew_squash.next_pc, mispred_inst);
-
-    // update branch predictor
-    m_branch_pred_p->squash(mispred_inst->seq_num,
-                            m_incoming_squash_wire->iew_squash.next_pc,
-                            m_incoming_squash_wire->iew_squash.branch_taken,
-                            mispred_inst->thread_id);
-    return true;
-  }
-
-  // check squash comming from Decode (due to branch misprediction)
-  if (m_incoming_squash_wire->decode_squash.squash) {
-    IODynInstPtr mispred_inst =
-                    m_incoming_squash_wire->decode_squash.mispred_inst;
-    assert(mispred_inst);
-    DPRINTF(Fetch, "Squash from Decode: squash inst [tid:%d] [sn:%d]\n",
-                    mispred_inst->thread_id, mispred_inst->seq_num);
-
-    doSquash(m_incoming_squash_wire->decode_squash.next_pc, mispred_inst);
-
-    // update branch predictor
-    m_branch_pred_p->squash(mispred_inst->seq_num,
-                            m_incoming_squash_wire->decode_squash.next_pc,
-                            m_incoming_squash_wire->decode_squash.branch_taken,
-                            mispred_inst->thread_id);
-    return true;
-  }
-
-  return false;
-}
-
 void
 Fetch::readInfo()
 {
@@ -318,8 +245,11 @@ Fetch::readInfo()
 }
 
 void
-Fetch::doSquash(const TheISA::PCState& new_pc, const IODynInstPtr squash_inst)
+Fetch::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator)
 {
+  IODynInstPtr squash_inst = squashInfo.trig_inst;
+  TheISA::PCState new_pc = squashInfo.next_pc;
+  
   ThreadID tid = squash_inst->thread_id;
   assert(tid != InvalidThreadID);
 
@@ -345,6 +275,52 @@ Fetch::doSquash(const TheISA::PCState& new_pc, const IODynInstPtr squash_inst)
 
   // reset pc offset for this thread
   m_fetch_offsets[tid] = 0;
+  
+  // do squash specific to initiator
+  if (initiator == StageIdx::CommitIdx) {
+    DPRINTF(Fetch, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
+                    squash_inst->thread_id, squash_inst->seq_num);
+                    
+    // update branch predictor
+    m_branch_pred_p->squash(squash_inst->seq_num, squash_inst->thread_id);
+
+    // XXX: a hack that delays progressing Fetch with the updated PC until a
+    // trap is completed. It's necessary because a trap in SE mode can update
+    // PC functionally by calling RiscvFault::invoke ->
+    // ThreadContext::pcState(newPC). Without this hack, we can end up with
+    // executing instructions after a fault twice (i.e., once by the new PC
+    // passed from Commit and another one by the new PC updated functionally by
+    // the trap in SE mode). We temporarily change the state of this thread to
+    // TrapPending so that it does not get scheduled to fetch until the trap
+    // completes.
+    if (((SquashComm::CommitSquash*)&squashInfo)->is_trap_pending)
+      m_thread_status[squash_inst->thread_id] = TrapPending;
+  }
+  else if (initiator == StageIdx::IEWIdx) {
+    DPRINTF(Fetch, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
+                    squash_inst->thread_id, squash_inst->seq_num);
+    
+    auto iew_squash = (SquashComm::IEWSquash*)&squashInfo;
+    
+    // update branch predictor
+    m_branch_pred_p->squash(squash_inst->seq_num,
+                            iew_squash->next_pc,
+                            iew_squash->branch_taken,
+                            squash_inst->thread_id);
+  }
+  else if (initiator == StageIdx::DecodeIdx) {
+    DPRINTF(Fetch, "Squash from Decode: squash inst [tid:%d] [sn:%d]\n",
+                    squash_inst->thread_id, squash_inst->seq_num);
+  
+    auto decode_squash = (SquashComm::DecodeSquash*)&squashInfo;
+    
+    // update branch predictor
+    m_branch_pred_p->squash(squash_inst->seq_num,
+                            decode_squash->next_pc,
+                            decode_squash->branch_taken,
+                            squash_inst->thread_id);
+  
+  }
 }
 
 ThreadID

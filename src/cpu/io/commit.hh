@@ -73,15 +73,12 @@ class Commit : public Stage
   private:
     /** Do commit */
     void doCommit();
-
-    /** Check squash signal. Return true if we're squashing */
-    bool checkSquash() override;
-
+    
     /** Initiate a squash signal */
     void initiateSquash(IODynInstPtr faulty_inst);
 
     /** Squash all instructions younger than the given squash instruction */
-    void doSquash(IODynInstPtr squash_inst);
+    void doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) override;
 
     /** Commit head instruction from the given thread */
     void commitHead(ThreadID tid);

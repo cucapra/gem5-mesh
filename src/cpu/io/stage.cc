@@ -151,7 +151,45 @@ Stage::checkStall() {
 }
 
 // TODO 
-/*bool
+bool
 Stage::checkSquash() {
+  // check all possible squash signals coming from subsequent stages. It's
+  // important to do this in a reversed order since earlier stages may squash
+  // younger instructions.
+  
+  // for some reason commit also needs to check iew as well
+
+  for (int i = (int)StageIdx::NumStages - 1; i >= 0; i--) {
+    
+    // check if the stage is allowed to squash instructions in this stage
+    if (i >= (int)m_stage_idx || 
+          ( m_stage_idx == StageIdx::CommitIdx && (StageIdx)i == StageIdx::IEWIdx ) ){
+    
+      // check if the stage even has a squash signal
+      if (m_incoming_squash_wire->squash_signals.count(i) > 0) {
+        
+        // check if there is actually a squash
+        auto &bs = m_incoming_squash_wire->squash_signals[i];
+        if (bs.squash) {
+          IODynInstPtr trig_inst = bs.trig_inst;
+          assert(trig_inst);
+          
+          doSquash(bs, (StageIdx)i);
+          
+          return true;
+          
+          // moved into doSquash
+          // DPRINTF(Decode, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
+                    //fault_inst->thread_id, fault_inst->seq_num);
+        }
+        
+      }
+    
+    }
+    
+  }
+
+  // no squash
   return false;
-}*/
+  
+}

@@ -89,7 +89,10 @@ class Stage {
         /** Check squash signal (and do squash). Return true if this stage is squashed */
         // TODO can we get a nice refactor on this that checks only future stages in reverse order?
         // will need to incorporate lambdas for diff case, but could be nice!
-        virtual bool checkSquash() = 0;
+        virtual bool checkSquash();
+        
+        // TODO another refactor where checkSquash return who squashed instead of calling this directly
+        virtual void doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) = 0;
         
     public:
         Stage(IOCPU* _cpu_p, size_t inputBufSize, size_t outputBufSize,

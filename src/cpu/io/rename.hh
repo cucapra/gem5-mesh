@@ -87,14 +87,11 @@ class Rename : public Stage
     /** Rename dest regs */
     void renameDestRegs(const IODynInstPtr& inst, ThreadID tid);
 
-    /** Check squash signal. Return true if we're being squashed */
-    bool checkSquash() override;
-
     /** Read info from subsequent stages */
     void readInfo();
 
     /** Squash all instructions younger than the given squash instruction */
-    void doSquash(IODynInstPtr squash_inst);
+    void doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) override;
 
     /** Place the given instruction into the buffer to the next stage */
     void sendInstToNextStage(IODynInstPtr inst) override;

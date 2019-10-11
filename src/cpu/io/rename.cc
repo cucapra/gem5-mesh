@@ -78,37 +78,6 @@ Rename::tick()
 #endif
 }
 
-bool
-Rename::checkSquash()
-{
-  // check all possible squash signals coming from subsequent stages. It's
-  // important to do this in a reversed order since earlier stages may squash
-  // younger instructions.
-
-  // check squash coming from Commit
-  if (m_incoming_squash_wire->commit_squash.squash) {
-    IODynInstPtr fault_inst = m_incoming_squash_wire->commit_squash.fault_inst;
-    assert(fault_inst);
-    DPRINTF(Rename, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
-                    fault_inst->thread_id, fault_inst->seq_num);
-    doSquash(fault_inst);
-    return true;
-  }
-
-  // check squash coming from IEW (due to branch misprediction)
-  if (m_incoming_squash_wire->iew_squash.squash) {
-    IODynInstPtr mispred_inst = m_incoming_squash_wire->
-                                                iew_squash.mispred_inst;
-    assert(mispred_inst);
-    DPRINTF(Rename, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
-                    mispred_inst->thread_id, mispred_inst->seq_num);
-    doSquash(mispred_inst);
-    return true;
-  }
-
-  return false;
-}
-
 void
 Rename::readInfo()
 {
@@ -252,8 +221,18 @@ Rename::renameDestRegs(const IODynInstPtr& inst, ThreadID tid)
 }
 
 void
-Rename::doSquash(IODynInstPtr squash_inst)
+Rename::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator)
 {
+  IODynInstPtr squash_inst = squashInfo.trig_inst;
+  
+  if (initiator == StageIdx::CommitIdx)
+    DPRINTF(Rename, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
+                    squash_inst->thread_id, squash_inst->seq_num);
+  else if (initiator == StageIdx::IEWIdx)
+    DPRINTF(Rename, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
+                    squash_inst->thread_id, squash_inst->seq_num);
+  
+  
   ThreadID tid = squash_inst->thread_id;
 
   // walk through all insts in the m_insts queue and remove all instructions

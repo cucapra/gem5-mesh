@@ -47,11 +47,9 @@ class Vector : public Stage {
   protected:
     /** Place the given instruction into the buffer to the next stage */
     void sendInstToNextStage(IODynInstPtr inst) override;
-
-    /** Check squash and squash if true */
-    bool checkSquash() override;
     
-    void doSquash(IODynInstPtr squash_inst);
+    /** Squash all instructions younger than the given squash instruction */
+    void doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) override;
 
   public:
     

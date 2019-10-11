@@ -60,11 +60,8 @@ class Decode : public Stage
     /** Do decode */
     void doDecode();
 
-    /** Check squash signal. Return true if this stage is squashed */
-    bool checkSquash() override;
-
     /** Squash all instructions younger than the squash instruction */
-    void doSquash(IODynInstPtr squash_inst);
+    void doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) override;
 
     /** Initiate a squash signal due to branch misprediction */
     void initiateSquash(const IODynInstPtr& mispred_inst);

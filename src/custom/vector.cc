@@ -5,7 +5,6 @@
 #include "debug/Mesh.hh"
 
 Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p) : 
-
     Stage(_cpu_p, 2, 2, StageIdx::VectorIdx, true),
     _numInPortsActive(0),
     _numOutPortsActive(0),
@@ -106,53 +105,23 @@ Vector::linetrace(std::stringstream& ss) {
   
 }
 
-bool
-Vector::checkSquash() {
-  // check all possible squash signals coming from subsequent stages. It's
-  // important to do this in a reversed order since earlier stages may squash
-  // younger instructions.
-
-  // check squash coming from Commit
-  if (m_incoming_squash_wire->commit_squash.squash) {
-    IODynInstPtr fault_inst = m_incoming_squash_wire->
-                                            commit_squash.fault_inst;
-    assert(fault_inst);
-    DPRINTF(Mesh, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
-                    fault_inst->thread_id, fault_inst->seq_num);
-
-    doSquash(fault_inst);
-    return true;
-  }
-
-  // check squash coming from IEW (due to branch misprediction)
-  if (m_incoming_squash_wire->iew_squash.squash) {
-    IODynInstPtr mispred_inst = m_incoming_squash_wire->
-                                                  iew_squash.mispred_inst;
-    assert(mispred_inst);
-    DPRINTF(Mesh, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
-                    mispred_inst->thread_id, mispred_inst->seq_num);
-    doSquash(mispred_inst);
-    return true;
-  }
-
-  // check squash coming from Decode stage (last cycle) (due to branch
-  // misprediction). We handle the squash initiated in the last cycle in the
-  // current cycle.
-  if (m_incoming_squash_wire->decode_squash.squash) {
-    IODynInstPtr mispred_inst =
-                    m_incoming_squash_wire->decode_squash.mispred_inst;
-    assert(mispred_inst);
-    DPRINTF(Mesh, "Squash from Decode: squash inst [tid:%d] [sn:%d]\n",
-                    mispred_inst->thread_id, mispred_inst->seq_num);
-    doSquash(mispred_inst);
-    return true;
-  }
-
-  return false;
-}
-
 void
-Vector::doSquash(IODynInstPtr squash_inst) {
+Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
+  // TODO want to push this in parent, but the useful DPRINTF is hard to move
+  // could append to std::vector and return...
+  
+  IODynInstPtr squash_inst = squashInfo.trig_inst;
+  
+  if (initiator == StageIdx::CommitIdx)
+    DPRINTF(Mesh, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
+                    squash_inst->thread_id, squash_inst->seq_num);
+  else if (initiator == StageIdx::IEWIdx)
+    DPRINTF(Mesh, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
+                    squash_inst->thread_id, squash_inst->seq_num);
+  else if (initiator == StageIdx::DecodeIdx)
+    DPRINTF(Mesh, "Squash from Decode: squash inst [tid:%d] [sn:%d]\n",
+                    squash_inst->thread_id, squash_inst->seq_num);
+  
   ThreadID tid = squash_inst->thread_id;
 
   // walk through all insts in the m_insts queue and remove all instructions
@@ -166,7 +135,7 @@ Vector::doSquash(IODynInstPtr squash_inst) {
     if (inst->thread_id != tid) {
       m_insts.push(inst);
     } else {
-      DPRINTF(Decode, "Squashing %s\n", inst->toString());
+      DPRINTF(Mesh, "Squashing %s\n", inst->toString());
       assert(inst->seq_num > squash_inst->seq_num);
       // increment the number of credits to the previous stage
       //m_outgoing_credit_wire->from_decode()++;

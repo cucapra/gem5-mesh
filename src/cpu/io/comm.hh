@@ -105,43 +105,60 @@ struct CreditComm {
  * Any of three stages Decode, IEW and Commit can initiate a squash signal
  */
 struct SquashComm {
-  /** Squash initiated by Decode (listened by Fetch) */
-  struct DecodeSquash {
-    DecodeSquash() : mispred_inst(nullptr), squash(false) { }
-
+  // common to all squash 
+  struct BaseSquash {
+    BaseSquash(StageIdx _stage_idx) : stage_idx(_stage_idx), trig_inst(nullptr), squash(false) { }
+    BaseSquash() : stage_idx(StageIdx::NumStages), trig_inst(nullptr), squash(false) { }
+    
+    StageIdx stage_idx;
     TheISA::PCState next_pc;    // PC to fetch next after this squash
-    IODynInstPtr mispred_inst;  // branch instruction that is mispredicted
-    bool branch_taken;          // was the branch taken?
+    IODynInstPtr trig_inst;     // Inst triggering the squash
     bool squash;                // True if this squash signal is high
+  };
+  
+  /** Squash initiated by Decode (listened by Fetch) */
+  struct DecodeSquash : public BaseSquash {
+    DecodeSquash() : BaseSquash(StageIdx::DecodeIdx) { }
+
+    bool branch_taken;          // was the branch taken?
   };
 
   /** Squash initiated by IEW (listened by Fetch, Decode, Rename, Commit) */
-  struct IEWSquash {
-    IEWSquash() : mispred_inst(nullptr), squash(false) { }
+  struct IEWSquash : public BaseSquash {
+    IEWSquash() : BaseSquash(StageIdx::IEWIdx) { }
 
-    TheISA::PCState next_pc;    // PC to fetch next after this squash
-    IODynInstPtr mispred_inst;  // branch instruction that is mispredicted
     bool branch_taken;          // was the branch taken?
-    bool squash;                // True if this squash signal is high
   };
 
   /** Squash initiated by Commit (listened by Fetch, Decode, Rename, IEW) */
-  struct CommitSquash {
+  struct CommitSquash : public BaseSquash {
     CommitSquash()
-        : fault_inst(nullptr),
-          squash(false),
+        : BaseSquash(StageIdx::CommitIdx), 
           is_trap_pending(false)
     { }
-
-    TheISA::PCState next_pc;      // PC to fetch next after this squash
-    IODynInstPtr fault_inst;      // fault instruction triggerring this squash
-    bool squash;                  // True if this squash signal is high
+    
     bool is_trap_pending;         // True if there's an in-flight trap
   };
+  
+  /*typedef enum SquashSignal {
+    Commit = 0,
+    IEW,
+    Decode = 0,
+    Num_Signals
+  } SquashSignals;*/
 
-  DecodeSquash decode_squash;
-  IEWSquash    iew_squash;
-  CommitSquash commit_squash;
+  // TODO use unordered map instead or enum and array?
+  std::unordered_map<int, BaseSquash> squash_signals;
+
+  SquashComm() {
+    squash_signals[(int)StageIdx::DecodeIdx] = DecodeSquash();
+    squash_signals[(int)StageIdx::IEWIdx] = IEWSquash();
+    squash_signals[(int)StageIdx::CommitIdx] = CommitSquash();
+  }
+
+  DecodeSquash *decode_squash() { return (DecodeSquash*)&(squash_signals[(int)StageIdx::DecodeIdx]); }
+  IEWSquash    *iew_squash() { return (IEWSquash*)&(squash_signals[(int)StageIdx::IEWIdx]); }
+  CommitSquash *commit_squash() { return (CommitSquash*)&(squash_signals[(int)StageIdx::CommitIdx]); }
 };
 
 /**

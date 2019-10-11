@@ -123,8 +123,6 @@ class Fetch : public Stage
     void linetrace(std::stringstream& ss) override;
 
   private:
-    /** Check squash signal. Return true if Fetch is being squashed  */
-    bool checkSquash() override;
 
     /** Read info on committed instruction (used to update branch predictor)*/
     void readInfo();
@@ -133,8 +131,7 @@ class Fetch : public Stage
     void doFetch(ThreadID tid);
 
     /** Do squash */
-    void doSquash(const TheISA::PCState& new_pc,
-                  const IODynInstPtr squash_inst);
+    void doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) override;
 
     /** Send a request to I-cache to fetch a cache line*/
     bool fetchCacheLine(Addr vaddr, ThreadID tid, Addr pc);
