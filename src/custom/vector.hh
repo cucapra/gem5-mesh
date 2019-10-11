@@ -14,13 +14,10 @@
 
 #include <functional>
 
-#include "cpu/io/cpu.hh"
 #include "cpu/io/stage.hh"
-
 #include "custom/mesh_helper.hh"
 #include "custom/event_driven_fsm.hh"
 #include "custom/mesh_ports.hh"
-
 
 class Vector : public Stage {
   // inheritance

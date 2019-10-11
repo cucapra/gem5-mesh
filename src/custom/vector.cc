@@ -1,6 +1,7 @@
 #include "arch/registers.hh"
 #include "base/bitfield.hh"
 #include "custom/vector.hh"
+#include "cpu/io/cpu.hh"
 
 #include "debug/Mesh.hh"
 
