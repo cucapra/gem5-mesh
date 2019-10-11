@@ -940,6 +940,8 @@ IOCPU::setMiscRegNoEffect(int misc_reg, RegVal val, ThreadID tid)
 void
 IOCPU::setMiscReg(int misc_reg, RegVal val, ThreadID tid)
 {
+  getVector()->setupConfig(misc_reg, val);
+  
   m_isa_list[tid]->setMiscReg(misc_reg, val, tcBase(tid));
 }
 
