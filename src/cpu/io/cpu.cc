@@ -550,10 +550,10 @@ IOCPU::getPort(const std::string &if_name, PortID idx)
         return getDataPort();
     else if (if_name == "icache_port")
         return getInstPort();
-    /*else if (if_name == "to_mesh_port"  && idx < m_vector.getNumMeshPorts())
-        return m_vector.getMeshPort(idx, true);
-    else if (if_name == "from_mesh_port" && idx < m_vector.getNumMeshPorts())
-        return m_vector.getMeshPort(idx, false);*/
+    else if (if_name == "to_mesh_port"  && idx < getVector()->getNumMeshPorts())
+        return getVector()->getMeshPort(idx, true);
+    else if (if_name == "from_mesh_port" && idx < getVector()->getNumMeshPorts())
+        return getVector()->getMeshPort(idx, false);
     else
         return ClockedObject::getPort(if_name, idx);
 }

@@ -432,6 +432,7 @@ class IOCPU : public BaseCPU
     Rename *getRename() { return std::dynamic_pointer_cast<Rename>(m_stages[(int)StageIdx::RenameIdx]).get(); }
     IEW    *getIEW() { return std::dynamic_pointer_cast<IEW>(m_stages[(int)StageIdx::IEWIdx]).get(); }
     Commit *getCommit() { return std::dynamic_pointer_cast<Commit>(m_stages[(int)StageIdx::CommitIdx]).get(); }
+    Vector *getVector() { return std::dynamic_pointer_cast<Vector>(m_stages[(int)StageIdx::VectorIdx]).get(); }
     
 };
 
