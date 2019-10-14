@@ -2,17 +2,10 @@
 #define __CUSTOM_VECTOR_UNIT_HH__
 
 /*
- * Handles insturction communication over the mesh network:
+ * Handles instruction communication over the mesh network:
  * sends, recvs, and syncs with neighbors.
  * 
- * This is a pseudo-pipeline stage in the sense that it fires in a 
- * logical order with the other pipeline stages in the Minor CPU model.
- * 
- * This will fire before the the stage that needs its results so that
- * zero cycle communication can be resolved (as in pipeline.cc)
  */ 
-
-#include <functional>
 
 #include "cpu/io/stage.hh"
 #include "custom/mesh_helper.hh"
@@ -85,10 +78,6 @@ class Vector : public Stage {
     // get if this is configured beyond default behavior
     bool getConfigured();
     
-    // communicate that there was a branch misprediction in fetch, the next
-    // instruction transmitted should include a bit to let slaves know
-    //void setMispredict();
-    
     // if cpu allows idling, need to call this to make sure active when stuff to do
     // currently does nothing in IOCPU
     void signalActivity() {}
@@ -140,12 +129,6 @@ class Vector : public Stage {
     // get a machinst from the local fetch2
     IODynInstPtr getFetchInput();
     
-    // mark the fetch2 input as processed so that it can push more stuff
-    //void popFetchInput();
-    
-    // check if there is a new internal stall this cycle from fetch2 or decode
-    //void processInternalStalls();
-    
     // check if this stage can proceed
     bool shouldStall();
     
@@ -154,14 +137,9 @@ class Vector : public Stage {
     //Minor::ForwardVectorData decodeMeshData(uint64_t data);
     //uint64_t encodeMeshData(const Minor::ForwardVectorData &instInfo);
     
-    //int getStreamSeqNum();
-    
     // when setup a configuration, may need to stall or unstall the frontend
     void stallFetchInput(ThreadID tid);
     void unstallFetchInput(ThreadID tid);
-
-    // handle when there is a misprediction forwarded from the master
-    //void handleMispredict();
      
   protected:
   
@@ -179,25 +157,10 @@ class Vector : public Stage {
     // cache the most recently set csr value
     RegVal _curCsrVal;
     
-    // remember the last stream seq num. 
-    // this is how many branches there has been?
-    //InstSeqNum _lastStreamSeqNum;
-    
-    // if stalled last cycle
-    //bool _wasStalled;
-    
     // need to steal credits to force stall the previous stage
     // effectively the mesh network has these credits, 
     // TODO? maybe make that more explicit in code
     int _stolenCredits;
-    
-    // do we receive input this cycle, buffer will be cleared before state 
-    // machine will check so need to save
-    //bool _internalInputThisCycle;
-    
-    // should not set the misprediction for this cycle b/c the instruction sent
-    // would have been fetch without knowing?
-    //EventFunctionWrapper _mispredictUpdate;
     
     // TEMP to make all relevant info available
     struct SenderState : public Packet::SenderState
@@ -208,17 +171,6 @@ class Vector : public Stage {
         : master_inst(_master_inst)
       { }
     };
-
-    
-  public:
-    // TEMP?
-    // Minor execute stage expects a stream seq number (the number of branches I believe)
-    // need to cache this before config starts
-    //void updateStreamSeqNum(InstSeqNum seqNum);
-    
-    // whether we sent anything this cycle, will dictate what state we go into
-    // on stall (STALL_VAL or STALL_NOT_VAL)
-    //bool sentMsgThisCycle();
   
 };
 

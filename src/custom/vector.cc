@@ -11,7 +11,6 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p) :
     _numOutPortsActive(0),
     _stage(FETCH),
     _curCsrVal(0),
-    //_wasStalled(false),
     _stolenCredits(0)
 {
   // 
@@ -40,8 +39,8 @@ Vector::tick() {
   Stage::tick();
   
   // TODO this awkwardly calls doSquash as well, would like to decouple
-  /*bool squashed =*/ checkSquash();
-  
+  bool squashed = checkSquash();
+  if (squashed) return;
   
   // if not configured just pass the instruction through
   if (!getConfigured()) {
@@ -59,10 +58,7 @@ Vector::tick() {
   }
   
   // check if the current processor state allows us to go
-  // TODO rip out state machine and just look at val rdy of queues between ports
-  bool canGo = !shouldStall();
-  
-  if (canGo) {
+  if (!shouldStall()) {
     //DPRINTF(Mesh, "vector unit going\n");
     // pull instruction from the mesh or from the local fetch stage
     MasterData instInfo;
@@ -221,9 +217,6 @@ Vector::pullInstruction(MasterData &instInfo) {
   else {
     auto msg = getFetchInput();
     
-    //instInfo.machInst = msg->machInst;
-    //instInfo.predictTaken = msg->predictTaken;
-    //instInfo.mispredicted = msg->mispredicted;
     instInfo.inst = msg;
     
     // pop to free up the space
@@ -340,12 +333,6 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   
   // cache the csr val for easy lookup later
   _curCsrVal = csrVal;
-  
-  // the state machine is sensitive to configure events, so let it know here
-  //_fsm->configEvent();
-  
-  // no pending mispredicts to start off with
-  //_pendingMispredict = false;
   
   // if the new configuration is slave, we need to push a bs instruction
   // into the pipeline buffer, or when reset need to take instruction out of pipeline buffer
@@ -624,18 +611,6 @@ Vector::isInternallyStalled() {
   return stall;
 }
 
-
-/*void
-Vector::processInternalStalls() {
-  bool justStalled = isInternallyStalled();
-  
-  if (_wasStalled ^ justStalled) {
-    _fsm->stallEvent();
-  }
-  
-  _wasStalled = justStalled;
-}*/
-
 bool
 Vector::shouldStall() {
   // check for instruction from mesh
@@ -646,41 +621,3 @@ Vector::shouldStall() {
   bool canGo = meshOk && nextStageOk;
   return !canGo;
 }
-
-/*void
-Vector::updateStreamSeqNum(InstSeqNum seqNum) { 
-  //if (getConfigured()) DPRINTF(Mesh, "set slave seq num %s\n", seqNum);
-  _lastStreamSeqNum = seqNum; 
-  // when do isSerializeAfter (a branch), need to hack in an additional +1
-  //_lastStreamSeqNum += 1;
-}
-
-int
-Vector::getStreamSeqNum() {
-  return _lastStreamSeqNum;
-}
-
-void
-Vector::setMispredict() {
-  //_pendingMispredict = true;
-  //_mispredictTick = curTick();
-  _cpu.schedule(_mispredictUpdate, _cpu.clockEdge(Cycles(1)));
-}
-
-// TODO no longer used
-// this is hack to see if we sent anything this cycle when the state machine needs to update
-bool
-Vector::sentMsgThisCycle() {
-  return _internalInputThisCycle;
-}
-
-void
-Vector::handleMispredict() {
-  //if (_pendingMispredict) {
-    //if (_mispredictTick == curTick()) DPRINTF(Mesh, "[[WARNING]] Update due to pending mispredict on same cycle it was set\n");
-    //_lastStreamSeqNum++;
-    updateStreamSeqNum(getStreamSeqNum() + 1);
-    //_pendingMispredict = false;
-    
-  //}
-}*/
