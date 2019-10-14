@@ -137,9 +137,12 @@ class Vector : public Stage {
     //Minor::ForwardVectorData decodeMeshData(uint64_t data);
     //uint64_t encodeMeshData(const Minor::ForwardVectorData &instInfo);
     
-    // when setup a configuration, may need to stall or unstall the frontend
-    void stallFetchInput(ThreadID tid);
-    void unstallFetchInput(ThreadID tid);
+    // take credits from previous stage, stage should have 0 credits after this
+    void stealCredits();
+    
+    // return credits to previous stage that were stolen
+    // stage should have m_max_num_credits after this
+    void restoreCredits();
      
   protected:
   
@@ -158,8 +161,7 @@ class Vector : public Stage {
     RegVal _curCsrVal;
     
     // need to steal credits to force stall the previous stage
-    // effectively the mesh network has these credits, 
-    // TODO? maybe make that more explicit in code
+    // effectively the mesh network has these credits
     int _stolenCredits;
     
     // TEMP to make all relevant info available

@@ -140,10 +140,7 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   // How does -ve credit work? -> use twos complement to send back (currently using some small unsigned int) -- ok
   if (initiator == StageIdx::CommitIdx && !((SquashComm::CommitSquash*)&squashInfo)->is_trap_pending) {
     if (MeshHelper::isVectorSlave(_curCsrVal)) {
-      int remainingCred = m_input_queue_size - m_outgoing_credit_wire->to_prev_stage(m_stage_idx);
-      outputCredit() = -1 * remainingCred;
-      _stolenCredits = remainingCred;
-      DPRINTF(Mesh, "steal credits %d\n", _stolenCredits);
+      stealCredits();
     }
     else {
       // restore credits when go back?, I guess done in setupConfig (b/c no squash in other)
@@ -334,20 +331,9 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   // cache the csr val for easy lookup later
   _curCsrVal = csrVal;
   
-  // if the new configuration is slave, we need to push a bs instruction
-  // into the pipeline buffer, or when reset need to take instruction out of pipeline buffer
-  /*if (MeshHelper::isVectorSlave(_curCsrVal)) {
-    stallFetchInput();
-  }
-  if (!getConfigured()) {
-    unstallFetchInput();
-  }*/
-  
   // give back stolen credits
   if (!getConfigured()) {
-    outputCredit() += _stolenCredits;
-    DPRINTF(Mesh, "restore credits %d\n", _stolenCredits);
-    _stolenCredits = 0;
+    restoreCredits();
   }
   
 }
@@ -534,11 +520,6 @@ Vector::getNumPortsActive() {
   return _numInPortsActive + _numOutPortsActive;
 }
 
-/*std::vector<Minor::InputBuffer<Minor::ForwardVectorData>>&
-Vector::getInputBuf() {
-  return _inputBuffer;
-}*/
-
 IODynInstPtr
 Vector::getFetchInput() {
   if (!m_insts.empty()) {
@@ -557,25 +538,20 @@ Vector::popFetchInput(ThreadID tid) {
   }
 }*/
 
-/*void
-Vector::absorbCredits() {
-  // get rid of input instructions and dont return a credits
-  // we need to get rid of instruction b/c will detect bad seq num later on
-  // alternatively squash the pipeline and restart on bind
-  while(!m_insts.empty()) { 
-    m_insts.pop();
-    
-    // keep track of the credits we have absorbed to return later
-  }
+void
+Vector::stealCredits() {
+  int remainingCred = m_input_queue_size - m_outgoing_credit_wire->to_prev_stage(m_stage_idx);
+  outputCredit() = -1 * remainingCred;
+  _stolenCredits = m_input_queue_size;
+  DPRINTF(Mesh, "steal credits %d\n", _stolenCredits);
 }
 
 void
-Vector::returnCredits() {
-  // return credits, assume always the buffer size 
-  // (if wanted to play safe could keep track on unreturned creds)
-  
-  for (int i = 0; i < 
-}*/
+Vector::restoreCredits() {
+  outputCredit() = _stolenCredits;
+  DPRINTF(Mesh, "restore credits %d\n", _stolenCredits);
+  _stolenCredits = 0;
+}
 
 bool
 Vector::getConfigured() {
