@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int size = 16;
+  int size = 1;
   
   // parse positional arguments
   if (argc > 1) {

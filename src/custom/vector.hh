@@ -190,6 +190,11 @@ class Vector : public Stage {
     // if stalled last cycle
     bool _wasStalled;
     
+    // need to steal credits to force stall the previous stage
+    // effectively the mesh network has these credits, 
+    // TODO? maybe make that more explicit in code
+    int _stolenCredits;
+    
     // do we receive input this cycle, buffer will be cleared before state 
     // machine will check so need to save
     //bool _internalInputThisCycle;

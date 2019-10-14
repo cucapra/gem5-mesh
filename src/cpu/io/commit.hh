@@ -73,9 +73,6 @@ class Commit : public Stage
   private:
     /** Do commit */
     void doCommit();
-
-    /** Instruction conditions that should initiate a squash */
-    bool shouldFault(IODynInstPtr inst);
     
     /** Initiate a squash signal */
     void initiateSquash(IODynInstPtr faulty_inst);

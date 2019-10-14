@@ -90,7 +90,7 @@ Commit::doCommit()
 
     // If this inst does not have any fault, mark it as "CanCommit".
     // Otherwise, mark it as "NeedToTrapFault"
-    if (!shouldFault(inst))
+    if (inst->fault == NoFault)
       inst->setCanCommit();
     else
       inst->setNeedToTrapFault();
@@ -118,11 +118,18 @@ Commit::doCommit()
       m_stage_status.set(CommitStatus::Busy);
       m_committed_insts.push_back(head_inst);
 #endif
+
+      // if this requires squash after commit, then do it here. 
+      // don't wait for 1 cycle like trap case below
+      if (head_inst->isSquashAfter()) {
+        initiateSquash(head_inst);
+      }
+
     } else {
       // The head instruction is not ready to commit yet, check we need to trap
       // any fault for this inst If so, initiatiate a squash in this cycle.
       if (head_inst->needToTrapFault()) {
-        assert(shouldFault(head_inst));
+        assert(head_inst->fault != NoFault);
         // In this cycle, we simply initiate a squash. After the squash
         // completes in the future cycles, we can handle the trap magically. We
         // need to do in this strict order because the trap handler may destroy
@@ -256,21 +263,11 @@ Commit::initiateSquash(IODynInstPtr faulty_inst)
   m_outgoing_squash_wire->commit_squash()->trig_inst = faulty_inst;
   m_outgoing_squash_wire->commit_squash()->is_trap_pending = true;
   
-  // not actually a trap, so don't need to wait for completion
-  if (faulty_inst->isSquashAfter()) {
+  // not actually a fault, just need to squash from commit
+  if (faulty_inst->isSquashAfter())
     m_outgoing_squash_wire->commit_squash()->is_trap_pending = false;
-  }
+  
 }
-
-bool
-Commit::shouldFault(IODynInstPtr inst) {
-  // consider a squash after request as a fault because does the some thing
-  // to the pipeline
-  // i.e. squash all instructions in the pipe, and restart at next instruction
-  // after the fault
-  return (inst->fault != NoFault || inst->isSquashAfter());
-}
-
 
 void
 Commit::linetrace(std::stringstream& ss)

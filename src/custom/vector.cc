@@ -12,9 +12,8 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p) :
     _stage(FETCH),
     _fsm(std::make_shared<EventDrivenFSM>(this, m_cpu_p, _stage)),
     _curCsrVal(0),
-    _wasStalled(false)
-    //_internalInputThisCycle(false),
-    //_mispredictUpdate([this] { handleMispredict(); }, name)
+    _wasStalled(false),
+    _stolenCredits(0)
 {
   // 
   // declare vector ports
@@ -109,11 +108,11 @@ Vector::linetrace(std::stringstream& ss) {
 
 void
 Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
-  // TODO want to push this in parent, but the useful DPRINTF is hard to move
-  // could append to std::vector and return...
+  // TODO instructions placed by fetch this cycle won't be killed...
   
   IODynInstPtr squash_inst = squashInfo.trig_inst;
   
+  if (getConfigured()) {
   if (initiator == StageIdx::CommitIdx)
     DPRINTF(Mesh, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
                     squash_inst->thread_id, squash_inst->seq_num);
@@ -123,6 +122,7 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   else if (initiator == StageIdx::DecodeIdx)
     DPRINTF(Mesh, "Squash from Decode: squash inst [tid:%d] [sn:%d]\n",
                     squash_inst->thread_id, squash_inst->seq_num);
+  }
   
   ThreadID tid = squash_inst->thread_id;
 
@@ -137,14 +137,32 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
     if (inst->thread_id != tid) {
       m_insts.push(inst);
     } else {
-      DPRINTF(Mesh, "Squashing %s\n", inst->toString());
+      if (getConfigured()) DPRINTF(Mesh, "Squashing %s\n", inst->toString());
       assert(inst->seq_num > squash_inst->seq_num);
       // increment the number of credits to the previous stage
-      //m_outgoing_credit_wire->from_decode()++;
-      m_outgoing_credit_wire->to_prev_stage(m_stage_idx)++;
+      outputCredit()++;
     }
     count++;
   }
+  
+  // if this was a config squash and if we are a slave, then takeaway all credits?
+  // but not sure we can make this check based on when the csr file is written and credits
+  //
+  // could have small wire carrying slave bit from commit stage -- ok
+  //    a gem5 specific implementation detail of this is can't read the csr until executes (this ends up firing cycle after)
+  // How does -ve credit work? -> use twos complement to send back (currently using some small unsigned int) -- ok
+  if (initiator == StageIdx::CommitIdx && !((SquashComm::CommitSquash*)&squashInfo)->is_trap_pending) {
+    if (MeshHelper::isVectorSlave(_curCsrVal)) {
+      int remainingCred = m_input_queue_size - m_outgoing_credit_wire->to_prev_stage(m_stage_idx);
+      outputCredit() = -1 * remainingCred;
+      _stolenCredits = remainingCred;
+      DPRINTF(Mesh, "steal credits %d\n", _stolenCredits);
+    }
+    else {
+      // restore credits when go back?, I guess done in setupConfig (b/c no squash in other)
+    }
+  }
+  
 }
 
 void
@@ -172,6 +190,9 @@ Vector::forwardInstruction(const MasterData& instInfo) {
   MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
   
   DPRINTF(Mesh, "Forward to mesh net %s\n", instInfo.inst->toString(true));
+  if (instInfo.inst->isCondCtrl()) {
+    DPRINTF(Mesh, "bne sent pred taken %d target %#x\n", instInfo.inst->predicted_taken, instInfo.inst->readPredTarg());
+  }
   
   // send a packet in each direction
   for (int i = 0; i < out.size(); i++) {
@@ -203,7 +224,7 @@ Vector::pullInstruction(MasterData &instInfo) {
     //DPRINTF(Mesh, "decoded %#x -> %#x %d %d\n", meshData, instInfo.machInst, instInfo.predictTaken, instInfo.mispredicted);
     instInfo.inst = getMeshPortInst(recvDir);
     
-    DPRINTF(Mesh, "Pull from mesh net %s\n", instInfo.inst->toString(true));
+    //DPRINTF(Mesh, "Pull from mesh net %s\n", instInfo.inst->toString(true));
   }
   // if master, pull from the local fetch
   else {
@@ -217,7 +238,7 @@ Vector::pullInstruction(MasterData &instInfo) {
     // pop to free up the space
     consumeInst();
     
-    DPRINTF(Mesh, "Pull from fetch %s\n", instInfo.inst->toString(true));
+    //DPRINTF(Mesh, "Pull from fetch %s\n", instInfo.inst->toString(true));
   }
 }
 
@@ -252,7 +273,7 @@ Vector::createInstruction(const MasterData &instInfo) {
           std::make_shared<IODynInst>(static_inst, cur_pc,
                                       m_cpu_p->getAndIncrementInstSeq(),
                                       tid, m_cpu_p);
-  DPRINTF(Mesh, "[tid:%d]: built inst %s\n", tid, dyn_inst->toString(true));
+  //DPRINTF(Mesh, "[tid:%d]: built inst %s\n", tid, dyn_inst->toString(true));
   
   // just use branch prediction from the master instruction
   // need to justify part of this in how it would actually work in hardware
@@ -270,16 +291,12 @@ Vector::createInstruction(const MasterData &instInfo) {
 
 void
 Vector::pushInstToNextStage(const MasterData &instInfo) {
-  // only push into decode if we are a slave
-  if (MeshHelper::isVectorSlave(_curCsrVal)) {
-    // update the stream seq number based on branch hint from master
-    //if (instInfo.branchTaken) _lastStreamSeqNum++;
+  
+  IODynInstPtr dynInst = createInstruction(instInfo);
+  sendInstToNextStage(dynInst);
     
-    IODynInstPtr dynInst = createInstruction(instInfo);
-    sendInstToNextStage(dynInst);
-    
-    DPRINTF(Mesh, "Push inst to decode %s->%s\n", instInfo.inst->toString(true), dynInst->toString(true));
-  }
+  DPRINTF(Mesh, "Push inst to decode %s->%s\n", instInfo.inst->toString(true), dynInst->toString(true));
+  
 }
 
 void
@@ -340,6 +357,13 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   if (!getConfigured()) {
     unstallFetchInput();
   }*/
+  
+  // give back stolen credits
+  if (!getConfigured()) {
+    outputCredit() += _stolenCredits;
+    DPRINTF(Mesh, "restore credits %d\n", outputCredit());
+    _stolenCredits = 0;
+  }
   
 }
 
@@ -587,12 +611,17 @@ Vector::isInternallyStalled() {
   // there was no input from fetch
   bool senderStall = sender && !recver && m_insts.empty();
   
+  // we also can stall when we are not configured if next stage is stalled
+  // TODO not sure why this is needed, should not be in this case
+  bool normalStall = decodeStall;
+  //if (normalStall && !recverStall) DPRINTF(Mesh, "normal stall\n");
+  
   // also check squash here?
-  bool stall = recverStall || senderStall;
-  if (stall) {
+  bool stall = recverStall || senderStall || normalStall;
+  /*if (stall) {
     if (recver) DPRINTF(Mesh, "slave stall\n");
     else if (sender) DPRINTF(Mesh, "master stall\n");
-  }
+  }*/
   
   return stall;
 }

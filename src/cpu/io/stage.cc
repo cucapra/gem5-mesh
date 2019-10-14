@@ -60,14 +60,14 @@ Stage::outputInst() {
   return m_outgoing_inst_wire->to_next_stage(m_stage_idx);
 }
     
-size_t&
+int&
 Stage::inputCredit() {
   return m_incoming_credit_wire->from_next_stage(m_stage_idx);
 }
 
 // TODO this might be problematic i.e. fetch happens before vector, but wont know about credits until vec?
 // but combo can just give a credit every cycle to keep going
-size_t&
+int&
 Stage::outputCredit() {
   return m_outgoing_credit_wire->to_prev_stage(m_stage_idx);
 }
@@ -112,6 +112,7 @@ Stage::readCredits() {
   // read and update my number of credits
   m_num_credits += inputCredit();
   assert(m_num_credits <= m_max_num_credits);
+  assert(m_num_credits >= 0);
 }
 
 void

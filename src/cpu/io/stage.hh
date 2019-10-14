@@ -32,15 +32,15 @@ class Stage {
 
         /** Max number of credits. This is equal to the size of input buffer in the
         * next stage */
-        const size_t m_max_num_credits;
+        const int m_max_num_credits;
         
         /** Number of credits for forward communication */
-        size_t m_num_credits;
+        int m_num_credits;
     
         /** the idx of this stage to lookup what the next stage should be */
         StageIdx m_stage_idx;
         
-        /** whether that stage takes one or zero cycles (combinational) */
+        /** whether that stage takes one (sequential) or zero cycles (combinational) */
         bool m_is_sequential;
         
         /**
@@ -80,8 +80,8 @@ class Stage {
         std::list<std::shared_ptr<IODynInst>> &outputInst();
     
         /** get the input and output credit buffers */
-        size_t &inputCredit();
-        size_t &outputCredit();
+        int &inputCredit();
+        int &outputCredit();
         
         /** Check if we have to stall because there are not credits available */
         virtual bool checkStall();

@@ -68,31 +68,31 @@ struct CreditComm {
       }
   }
 
-  size_t stage_credits[(int)StageIdx::NumStages];
+  int stage_credits[(int)StageIdx::NumStages];
   
   // keep helpers to access the core stages
-  size_t &from_decode() {
+  int &from_decode() {
     return stage_credits[(int)StageIdx::DecodeIdx];
   }
   
-  size_t &from_rename() {
+  int &from_rename() {
     return stage_credits[(int)StageIdx::RenameIdx];
   }
   
-  size_t &from_iew() {
+  int &from_iew() {
     return stage_credits[(int)StageIdx::IEWIdx];
   }
   
-  size_t &from_commit() {
+  int &from_commit() {
     return stage_credits[(int)StageIdx::CommitIdx];
   }
   
   // modular accessors
-  size_t &to_prev_stage(StageIdx stage) {
+  int &to_prev_stage(StageIdx stage) {
     return stage_credits[(int)stage];
   }
   
-  size_t &from_next_stage(StageIdx stage) {
+  int &from_next_stage(StageIdx stage) {
     int nextStageIdx = (int)stage + 1;
     assert(nextStageIdx < (int)StageIdx::NumStages);
     return stage_credits[nextStageIdx];
@@ -140,14 +140,6 @@ struct SquashComm {
     bool is_trap_pending;         // True if there's an in-flight trap
   };
   
-  /*typedef enum SquashSignal {
-    Commit = 0,
-    IEW,
-    Decode = 0,
-    Num_Signals
-  } SquashSignals;*/
-
-  // TODO use unordered map instead or enum and array?
   std::unordered_map<int, BaseSquash> squash_signals;
 
   SquashComm() {
