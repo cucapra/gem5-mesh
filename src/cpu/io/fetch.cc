@@ -10,7 +10,7 @@
 #include "arch/utility.hh"
 #include "cpu/io/cpu.hh"
 #include "debug/Fetch.hh"
-#include "debug/Mesh.hh"
+
 //-----------------------------------------------------------------------------
 // Fetch::FetchTranslation
 //-----------------------------------------------------------------------------
@@ -210,7 +210,7 @@ Fetch::tick()
 
   // read info coming from Commit
   readInfo();
-DPRINTF(Mesh, "num credits %d\n", m_num_credits);
+
   // do actual fetch if we're not being squashed this cycle and we still have
   // at least one credit to the next stage.
   if (!is_squashed && m_num_credits > 0) {
