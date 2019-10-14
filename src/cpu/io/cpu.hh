@@ -170,6 +170,8 @@ class IOCPU : public BaseCPU
     UnifiedRenameMap* getRenameMapPtr(ThreadID tid);
     UnifiedRenameMap* getCommitRenameMapPtr(ThreadID tid);
 
+    BPredUnit* getBranchPredPtr();
+
     /**
      * Read/write to register file
      */

@@ -205,6 +205,9 @@ class Fetch : public Stage
     /** List of instructions processed in the current cycle (for line trace) */
     std::vector<IODynInstPtr> m_fetched_insts;
 #endif
+
+  public:
+    BPredUnit* getBranchPredPtr() { return m_branch_pred_p; }
 };
 
 #endif // CPU_IO_FETCH_HH

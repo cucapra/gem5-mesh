@@ -741,6 +741,10 @@ IOCPU::getCommitRenameMapPtr(ThreadID tid)
   return &m_commit_rename_maps[tid];
 }
 
+BPredUnit*
+IOCPU::getBranchPredPtr() {
+  return getFetch()->getBranchPredPtr();
+}
 //-----------------------------------------------------------------------------
 // Functions managing register file
 //-----------------------------------------------------------------------------
