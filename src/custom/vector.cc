@@ -10,9 +10,8 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p) :
     _numInPortsActive(0),
     _numOutPortsActive(0),
     _stage(FETCH),
-    _fsm(std::make_shared<EventDrivenFSM>(this, m_cpu_p, _stage)),
     _curCsrVal(0),
-    _wasStalled(false),
+    //_wasStalled(false),
     _stolenCredits(0)
 {
   // 
@@ -50,21 +49,14 @@ Vector::tick() {
     return;
   }
   
-  // TODO rip out statemachine (but keep activity and neighbor inform for activty monitoring)
-  // check the state of the fsm (dont need async updates like before)
-  // because minor has cycle by cycle ticks unlike TimingSimpleCPU
-  bool update = _fsm->tick();
+  // if IOCPU implements activity monitor the need to have something like this
+  bool update = true; //_fsm->tick();
   if (update) {
     // inform there is local activity
     signalActivity();
     // inform there might be neighbor activity
     informNeighbors();
   }
-  
-  // TODO rip out
-  // if there was an internal stall either due to last stage or next stage
-  // we need to make sure to schedule state machine update for the next cycle
-  processInternalStalls();
   
   // check if the current processor state allows us to go
   // TODO rip out state machine and just look at val rdy of queues between ports
@@ -350,7 +342,7 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   _curCsrVal = csrVal;
   
   // the state machine is sensitive to configure events, so let it know here
-  _fsm->configEvent();
+  //_fsm->configEvent();
   
   // no pending mispredicts to start off with
   //_pendingMispredict = false;
@@ -496,7 +488,7 @@ Vector::neighborUpdate() {
   }*/
   
   // update the statemachines
-  _fsm->neighborEvent();
+  //_fsm->neighborEvent();
   
   
   signalActivity();
@@ -633,7 +625,7 @@ Vector::isInternallyStalled() {
 }
 
 
-void
+/*void
 Vector::processInternalStalls() {
   bool justStalled = isInternallyStalled();
   
@@ -642,7 +634,7 @@ Vector::processInternalStalls() {
   }
   
   _wasStalled = justStalled;
-}
+}*/
 
 bool
 Vector::shouldStall() {

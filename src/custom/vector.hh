@@ -16,7 +16,6 @@
 
 #include "cpu/io/stage.hh"
 #include "custom/mesh_helper.hh"
-#include "custom/event_driven_fsm.hh"
 #include "custom/mesh_ports.hh"
 
 class Vector : public Stage {
@@ -145,7 +144,7 @@ class Vector : public Stage {
     //void popFetchInput();
     
     // check if there is a new internal stall this cycle from fetch2 or decode
-    void processInternalStalls();
+    //void processInternalStalls();
     
     // check if this stage can proceed
     bool shouldStall();
@@ -176,9 +175,6 @@ class Vector : public Stage {
 
     // the stage this vector unit is representing
     SensitiveStage _stage;
-    
-    // finite state machine to know when to send an receive
-    std::shared_ptr<EventDrivenFSM> _fsm;
   
     // cache the most recently set csr value
     RegVal _curCsrVal;
@@ -188,7 +184,7 @@ class Vector : public Stage {
     //InstSeqNum _lastStreamSeqNum;
     
     // if stalled last cycle
-    bool _wasStalled;
+    //bool _wasStalled;
     
     // need to steal credits to force stall the previous stage
     // effectively the mesh network has these credits, 
