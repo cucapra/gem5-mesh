@@ -35,10 +35,7 @@ SimObject('Harness.py')
 # define c++ files to compile
 Source('harness.cc')
 Source('mesh_helper.cc')
-Source('mesh_machine.cc')
 Source('mesh_ports.cc')
-Source('config_counter.cc')
-Source('event_driven_fsm.cc')
 Source('vector.cc')
 
 # define debug domain that can be used in DPRINTF
