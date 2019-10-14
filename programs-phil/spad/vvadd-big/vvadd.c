@@ -103,9 +103,6 @@ void kernel(
     );
   }
   
-  
-  label:
-  
   #endif
   
   if (tid_x == 0 && tid_y == 0) {

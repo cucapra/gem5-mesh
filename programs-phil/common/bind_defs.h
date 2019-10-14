@@ -100,9 +100,9 @@
 // BUT  can't use %= to generate unique labels because across diff blocks
 // use 'goto' qualifier to jump outside of block?
 #define BINDED_FET_SOURCE(sbind, ebind, code)               \
-  asm volatile goto (                                       \
+  asm volatile (                                            \
     ".insn u 0x77, x0, %[sbind0]\n\t"                       \
-    ::[sbind0] "i" (sbind) :: label);                       \
+    ::[sbind0] "i" (sbind));                                \
   code                                                      \
   asm volatile (                                            \
     ".insn u 0x77, x0, %[ebind0]\n\t"                       \
