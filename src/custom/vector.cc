@@ -108,7 +108,6 @@ Vector::linetrace(std::stringstream& ss) {
 
 void
 Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
-  // TODO instructions placed by fetch this cycle won't be killed...
   
   IODynInstPtr squash_inst = squashInfo.trig_inst;
   

@@ -102,32 +102,10 @@
 #define BINDED_FET_SOURCE(sbind, ebind, code)               \
   asm volatile goto (                                       \
     ".insn u 0x77, x0, %[sbind0]\n\t"                       \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
     ::[sbind0] "i" (sbind) :: label);                       \
   code                                                      \
   asm volatile (                                            \
     ".insn u 0x77, x0, %[ebind0]\n\t"                       \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
     ::[ebind0] "i" (ebind));                                
   
 // bind both exe and fetch
