@@ -24,9 +24,9 @@ Pipeline::create(IOCPU *_cpu_p, IOCPUParams* params) {
   Len = Order.size(); // prob dont need this 
   auto stages = std::vector<std::shared_ptr<Stage>>();
   
-  // create stages in order given by StageIdx
+  // create stages in order given above
   for (int i = 0; i < Len; i++) {
-    StageIdx stageIdx = (StageIdx)i;
+    StageIdx stageIdx = Order[i];
     switch (stageIdx) {
       
       // core stages
