@@ -60,6 +60,7 @@ class IOCPU(BaseCPU):
   commitWidth    = Param.Unsigned(1, "Commit width")
 
   # Sizes of input buffers in different stages
+  vectorBufferSize = Param.Unsigned(2, "Size of vector's input buffer")
   decodeBufferSize = Param.Unsigned(2, "Size of decode's input buffer")
   renameBufferSize = Param.Unsigned(2, "Size of rename's input buffer")
   iewBufferSize    = Param.Unsigned(2, "Size of iew's input buffer")
@@ -83,3 +84,6 @@ class IOCPU(BaseCPU):
   # Memory unit params
   numLoadQueueEntries   = Param.Unsigned(2, "");
   numStoreQueueEntries  = Param.Unsigned(2, "");
+
+  includeVector         = Param.Bool(False, "Whether to include vector stage after fetch")
+

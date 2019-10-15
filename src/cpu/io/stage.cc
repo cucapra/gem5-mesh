@@ -164,7 +164,7 @@ Stage::checkSquash() {
     
     // check if the stage is allowed to squash instructions in this stage
     if (i >= (int)m_stage_idx || 
-          ( m_stage_idx == StageIdx::CommitIdx && (StageIdx)i == StageIdx::IEWIdx ) ){
+          ( (StageIdx)i == StageIdx::IEWIdx ) ){ // always consider branch resolution even if stage after
     
       // check if the stage even has a squash signal
       if (m_incoming_squash_wire->squash_signals.count(i) > 0) {

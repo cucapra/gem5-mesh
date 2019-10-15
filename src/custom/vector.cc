@@ -6,7 +6,7 @@
 #include "debug/Mesh.hh"
 
 Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p) : 
-    Stage(_cpu_p, 2, 2, StageIdx::VectorIdx, true),
+    Stage(_cpu_p, p->vectorBufferSize, p->decodeBufferSize, StageIdx::VectorIdx, false),
     _numInPortsActive(0),
     _numOutPortsActive(0),
     _stage(FETCH),
