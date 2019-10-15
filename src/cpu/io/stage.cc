@@ -38,7 +38,7 @@ Stage::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
   
   // every stage needs to check IEW for branch mispredicts (even stages after, i.e. commit)
   auto& pipeline = m_cpu_p->getPipeline();
-  for (int i = 0; i < pipeline.getLen(); i++) {
+  for (int i = pipeline.getLen() - 1; i >= 0; i--) {
     StageIdx stage = pipeline.getOrder()[i];
 
     // check if allowed to squash instructions in this stage
