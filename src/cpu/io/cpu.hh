@@ -343,7 +343,7 @@ class IOCPU : public BaseCPU
     /**
      * Pipeline stages
      */
-    std::array<std::shared_ptr<Stage>, (int)StageIdx::NumStages> m_stages;
+    std::vector<std::shared_ptr<Stage>> m_stages;
 
     /**
      * Inter-stage communication buffers

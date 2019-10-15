@@ -25,7 +25,7 @@ struct InstComm {
   
   // preserve helpers to core stage buffers 
   // Fetch -> Decode
-  std::list<IODynInstPtr> &to_decode_insts() {
+  /*std::list<IODynInstPtr> &to_decode_insts() {
     return inst_buffer[(int)StageIdx::DecodeIdx];
   }
 
@@ -42,18 +42,23 @@ struct InstComm {
   // IEW -> Commit
   std::list<IODynInstPtr> &to_commit_insts() {
     return inst_buffer[(int)StageIdx::CommitIdx];
+  }*/
+  
+  std::list<IODynInstPtr> &from_prev_stage(StageIdx curStageIdx) {
+    return inst_buffer[(int)curStageIdx];
   }
   
-  std::list<IODynInstPtr> &from_prev_stage(StageIdx stage) {
-    return inst_buffer[(int)stage];
-  }
-  
-  std::list<IODynInstPtr> &to_next_stage(StageIdx stage) {
+  // should prob accepted cached for better perf
+  /*std::list<IODynInstPtr> &to_next_stage(StageIdx stage) {
     int nextStageIdx = (int)stage + 1;
     assert(nextStageIdx < (int)StageIdx::NumStages);
     return inst_buffer[nextStageIdx];
+  }*/
+  std::list<IODynInstPtr> &to_next_stage(StageIdx nextStageIdx) {
+    //int nextStageIdx = (int)stage + 1;
+    //assert(nextStageIdx < (int)StageIdx::NumStages);
+    return inst_buffer[(int)nextStageIdx];
   }
-  
   
 };
 
@@ -70,7 +75,7 @@ struct CreditComm {
 
   int stage_credits[(int)StageIdx::NumStages];
   
-  // keep helpers to access the core stages
+  /*// keep helpers to access the core stages
   int &from_decode() {
     return stage_credits[(int)StageIdx::DecodeIdx];
   }
@@ -85,19 +90,27 @@ struct CreditComm {
   
   int &from_commit() {
     return stage_credits[(int)StageIdx::CommitIdx];
-  }
+  }*/
   
   // modular accessors
-  int &to_prev_stage(StageIdx stage) {
-    return stage_credits[(int)stage];
+  int &to_prev_stage(StageIdx curStageIdx) {
+    return stage_credits[(int)curStageIdx];
   }
   
-  int &from_next_stage(StageIdx stage) {
+  /*int &from_next_stage(StageIdx stage) {
     int nextStageIdx = (int)stage + 1;
     assert(nextStageIdx < (int)StageIdx::NumStages);
     return stage_credits[nextStageIdx];
-  }
+  }*/
   
+ int &from_next_stage(StageIdx nextStageIdx) {
+    //int nextStageIdx = (int)stage + 1;
+    //assert(nextStageIdx < (int)StageIdx::NumStages);
+    return stage_credits[(int)nextStageIdx];
+  }
+
+
+
 };
 
 /**

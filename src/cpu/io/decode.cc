@@ -143,7 +143,7 @@ Decode::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator)
       DPRINTF(Decode, "Squashing %s\n", inst->toString());
       assert(inst->seq_num > squash_inst->seq_num);
       // increment the number of credits to the previous stage
-      m_outgoing_credit_wire->from_decode()++;
+      outputCredit()++;
     }
     count++;
   }

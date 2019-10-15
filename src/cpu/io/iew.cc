@@ -340,7 +340,7 @@ IEW::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator)
       DPRINTF(IEW, "Squashing %s\n", inst);
       assert(inst->seq_num > squash_inst->seq_num);
       // update the number of credits to previous stage
-      m_outgoing_credit_wire->from_iew()++;
+      outputCredit()++;
     }
     count++;
   }

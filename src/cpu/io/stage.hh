@@ -39,7 +39,13 @@ class Stage {
     
         /** the idx of this stage to lookup what the next stage should be */
         StageIdx m_stage_idx;
-        
+       
+        /** the idx of the next stage. cached for quick lookup */
+        StageIdx m_next_stage_idx;
+
+        /** stages that can squash this one. cached for quick lookup */
+        std::vector<StageIdx> m_squashing_stages;
+
         /** whether that stage takes one (sequential) or zero cycles (combinational) */
         bool m_is_sequential;
         

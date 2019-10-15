@@ -173,7 +173,7 @@ Fetch::resetStates(ThreadID tid)
   }
 
   // remove any pending instruction going to the next stage
-  auto& inst_list = m_outgoing_inst_wire->to_decode_insts();
+  auto& inst_list = outputInst();
   size_t old_size = inst_list.size();
   auto inst_it = std::remove_if(inst_list.begin(), inst_list.end(),
                                 [&](const IODynInstPtr& inst)

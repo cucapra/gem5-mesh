@@ -9,6 +9,7 @@ Stage::Stage(IOCPU* _cpu_p, size_t inputBufSize, size_t outputBufSize,
       m_max_num_credits(outputBufSize),
       m_num_credits(m_max_num_credits),
       m_stage_idx(stageIdx),
+      m_next_stage_idx(Pipeline::getNextStageIdx(m_stage_idx)),
       m_is_sequential(isSequential)
 { }
 
@@ -29,16 +30,40 @@ Stage::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
   
   m_outgoing_info_wire = info_buffer.getWire(0);
   m_incoming_info_wire   = info_buffer.getWire(-1);
+
+  // lookup stages that can squash this one based on squash wire
+  // check all possible squash signals coming from subsequent stages. It's
+  // important to do this in a reversed order since earlier stages may squash
+  // younger instructions.
+  
+  // every stage needs to check IEW for branch mispredicts (even stages after, i.e. commit)
+  for (int i = 0; i < Pipeline::Len; i++) {
+    StageIdx stage = Pipeline::Order[i];
+
+    // check if allowed to squash instructions in this stage
+    if ( Pipeline::stageCmp(stage, m_stage_idx) || stage == StageIdx::IEWIdx ) {
+      
+      // check if the stage even has a squash signal
+      if (m_incoming_squash_wire->squash_signals.count(i) > 0) {    
+        
+        m_squashing_stages.push_back(stage);
+      
+      }
+    }    
+  }
+
 }
 
 bool
 Stage::hasNextStage() {
-  return ((int)m_stage_idx + 1 < (int)StageIdx::NumStages);
+  //return ((int)m_stage_idx + 1 < Pipeline::Len);
+  return Pipeline::hasNextStage(m_stage_idx);
 }
 
 bool
 Stage::hasPrevStage() {
-  return ((int)m_stage_idx - 1 >= 0);
+  //return ((int)m_stage_idx - 1 >= 0);
+  return Pipeline::hasPrevStage(m_stage_idx);
 }
     
 std::list<std::shared_ptr<IODynInst>>&
@@ -57,12 +82,12 @@ Stage::inputInst() {
 
 std::list<std::shared_ptr<IODynInst>>&
 Stage::outputInst() {
-  return m_outgoing_inst_wire->to_next_stage(m_stage_idx);
+  return m_outgoing_inst_wire->to_next_stage(m_next_stage_idx);
 }
     
 int&
 Stage::inputCredit() {
-  return m_incoming_credit_wire->from_next_stage(m_stage_idx);
+  return m_incoming_credit_wire->from_next_stage(m_next_stage_idx);
 }
 
 // TODO this might be problematic i.e. fetch happens before vector, but wont know about credits until vec?
@@ -154,38 +179,23 @@ Stage::checkStall() {
 // TODO 
 bool
 Stage::checkSquash() {
-  // check all possible squash signals coming from subsequent stages. It's
-  // important to do this in a reversed order since earlier stages may squash
-  // younger instructions.
-  
-  // for some reason commit also needs to check iew as well
-
-  for (int i = (int)StageIdx::NumStages - 1; i >= 0; i--) {
+  // check all possible squash signals coming from subsequent stages.
+  for (int i = 0; i < m_squashing_stages.size(); i++) {
+    StageIdx squashing_stage = m_squashing_stages[i];
     
-    // check if the stage is allowed to squash instructions in this stage
-    if (i >= (int)m_stage_idx || 
-          ( (StageIdx)i == StageIdx::IEWIdx ) ){ // always consider branch resolution even if stage after
-    
-      // check if the stage even has a squash signal
-      if (m_incoming_squash_wire->squash_signals.count(i) > 0) {
-        
-        // check if there is actually a squash
-        auto &bs = m_incoming_squash_wire->squash_signals[i];
-        if (bs.squash) {
-          IODynInstPtr trig_inst = bs.trig_inst;
-          assert(trig_inst);
+    // check if there is actually a squash
+    auto &bs = m_incoming_squash_wire->squash_signals[(int)squashing_stage];
+    if (bs.squash) {
+      IODynInstPtr trig_inst = bs.trig_inst;
+      assert(trig_inst);
           
-          doSquash(bs, (StageIdx)i);
+      doSquash(bs, (StageIdx)i);
           
-          return true;
-        }
-        
-      }
-    
+      return true;
     }
-    
+        
   }
-
+    
   // no squash
   return false;
   

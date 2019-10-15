@@ -238,7 +238,7 @@ Commit::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator)
     } else {
       DPRINTF(Commit, "Squashing %s\n", inst->toString());
       // update the number of credits to previous stage
-      m_outgoing_credit_wire->from_commit()++;
+      outputCredit()++;
     }
     count++;
   }

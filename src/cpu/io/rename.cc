@@ -249,7 +249,7 @@ Rename::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator)
       DPRINTF(Rename, "Squashing %s\n", inst);
       assert(inst->seq_num > squash_inst->seq_num);
       // update the number of credits to the previous stage
-      m_outgoing_credit_wire->from_rename()++;
+      outputCredit()++;
     }
     count++;
   }

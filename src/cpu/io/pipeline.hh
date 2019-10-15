@@ -7,8 +7,7 @@
 #ifndef __CPU_IO_PIPELINE_HH__
 #define __CPU_IO_PIPELINE_HH__
 
-//#include <memory>
-
+#include <vector>
 #include "params/IOCPU.hh"
 
 class Stage;
@@ -29,11 +28,21 @@ typedef enum StageIdx {
 } StageIdx;
 
 class Pipeline {
+  public:
+    static unsigned Len;
+    static std::vector<StageIdx> Order;
   
   public:
     // return a 
-    static std::array<std::shared_ptr<Stage>, (int)StageIdx::NumStages> create(IOCPU *_cpu_p, IOCPUParams* params);
-    
+    static std::vector<std::shared_ptr<Stage>> create(IOCPU *_cpu_p, IOCPUParams* params);
+   
+    static int lookupPos(StageIdx currStage);
+    static StageIdx getNextStageIdx(StageIdx currStage);
+    static StageIdx getPrevStageIdx(StageIdx currStage);
+    static bool hasNextStage(StageIdx currStage);
+    static bool hasPrevStage(StageIdx currStage);
+    static bool stageCmp(StageIdx a, StageIdx b);
+  
     // TODO function that looks up appropriate buffer size?
   
 };
