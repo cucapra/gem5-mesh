@@ -9,7 +9,8 @@ Stage::Stage(IOCPU* _cpu_p, size_t inputBufSize, size_t outputBufSize,
       m_max_num_credits(outputBufSize),
       m_num_credits(m_max_num_credits),
       m_stage_idx(stageIdx),
-      m_next_stage_idx(m_cpu_p->getPipeline().getNextStageIdx(m_stage_idx)),
+      m_next_stage_inst_idx(StageIdx::NumStages), // init with temp value
+      m_next_stage_credit_idx(StageIdx::NumStages),
       m_is_sequential(isSequential)
 { }
 
@@ -31,13 +32,29 @@ Stage::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
   m_outgoing_info_wire = info_buffer.getWire(0);
   m_incoming_info_wire   = info_buffer.getWire(-1);
 
+  // find where the next stages are to send insts and get credits from
+  // these connections are easy to do in hardware, but to make this CL sim
+  // more modular have to jump through some hoops
+  auto& pipeline = m_cpu_p->getPipeline();
+  m_next_stage_inst_idx = pipeline.getNextStageIdx(m_stage_idx);
+  
+  // if there is a 'combinational stage' (fake) next then we need to get pay attention
+  // to the credits buffer of the next sequential stage
+  m_next_stage_credit_idx = m_next_stage_inst_idx;
+  while (pipeline.hasNextStage(m_next_stage_credit_idx) && 
+      !pipeline.isStageSeq(m_next_stage_credit_idx)) {
+    m_next_stage_credit_idx = pipeline.getNextStageIdx(m_next_stage_credit_idx);
+  }
+   
+
+
   // lookup stages that can squash this one based on squash wire
   // check all possible squash signals coming from subsequent stages. It's
   // important to do this in a reversed order since earlier stages may squash
   // younger instructions.
   
   // every stage needs to check IEW for branch mispredicts (even stages after, i.e. commit)
-  auto& pipeline = m_cpu_p->getPipeline();
+  //auto& pipeline = m_cpu_p->getPipeline();
   for (int i = pipeline.getLen() - 1; i >= 0; i--) {
     StageIdx stage = pipeline.getOrder()[i];
 
@@ -83,12 +100,12 @@ Stage::inputInst() {
 
 std::list<std::shared_ptr<IODynInst>>&
 Stage::outputInst() {
-  return m_outgoing_inst_wire->to_next_stage(m_next_stage_idx);
+  return m_outgoing_inst_wire->to_next_stage(m_next_stage_inst_idx);
 }
     
 int&
 Stage::inputCredit() {
-  return m_incoming_credit_wire->from_next_stage(m_next_stage_idx);
+  return m_incoming_credit_wire->from_next_stage(m_next_stage_credit_idx);
 }
 
 // TODO this might be problematic i.e. fetch happens before vector, but wont know about credits until vec?

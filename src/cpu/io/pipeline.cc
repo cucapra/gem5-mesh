@@ -120,3 +120,12 @@ Pipeline::stageCmp(StageIdx a, StageIdx b) {
   }
 }
 
+bool
+Pipeline::isStageSeq(StageIdx stage) {
+  int idx = lookupPos(stage);
+  if (idx >= 0)
+    return _stages[idx]->isSequential();
+  else
+    return true;
+}
+

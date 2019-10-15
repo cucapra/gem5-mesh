@@ -40,8 +40,11 @@ class Stage {
         /** the idx of this stage to lookup what the next stage should be */
         StageIdx m_stage_idx;
        
-        /** the idx of the next stage. cached for quick lookup */
-        StageIdx m_next_stage_idx;
+        /** the idx of the next stage you should send insts to. cached for quick lookup */
+        StageIdx m_next_stage_inst_idx;
+        
+        /** the idx of the next stage to get credits from. cached for quick lookup */
+        StageIdx m_next_stage_credit_idx;
 
         /** stages that can squash this one. cached for quick lookup */
         std::vector<StageIdx> m_squashing_stages;
@@ -131,6 +134,9 @@ class Stage {
 
         /** Line trace */
         virtual void linetrace(std::stringstream& ss) = 0;
+        
+        /** whether this is an actual sequntial stage or pretend 0 delay combinational stage*/
+        bool isSequential() const { return m_is_sequential; }
         
 };
 
