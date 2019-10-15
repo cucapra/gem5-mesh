@@ -183,6 +183,16 @@ IOCPU::IOCPU(IOCPUParams* params)
 
   // create all stages
   //m_stages = Pipeline::create(this, params);
+  assert(getFetch());
+  assert(getDecode());
+  assert(getRename());
+  assert(getIEW());
+  assert(getCommit());
+  assert(m_pipeline.lookupPos(FetchIdx) == 0);
+  assert(m_pipeline.lookupPos(DecodeIdx) == 1);
+  assert(m_pipeline.lookupPos(RenameIdx) == 2);
+  assert(m_pipeline.lookupPos(IEWIdx) == 3);
+  assert(m_pipeline.lookupPos(CommitIdx) == 4); 
 
   // setup ports
   m_icache_port.AttachToStage(getFetch());

@@ -45,7 +45,7 @@ Stage::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
     if ( pipeline.stageCmp(stage, m_stage_idx) || stage == StageIdx::IEWIdx ) {
       
       // check if the stage even has a squash signal
-      if (m_incoming_squash_wire->squash_signals.count(i) > 0) {    
+      if (m_incoming_squash_wire->squash_signals.count((int)stage) > 0) {    
         
         m_squashing_stages.push_back(stage);
       
@@ -190,7 +190,7 @@ Stage::checkSquash() {
       IODynInstPtr trig_inst = bs.trig_inst;
       assert(trig_inst);
           
-      doSquash(bs, (StageIdx)i);
+      doSquash(bs, (StageIdx)squashing_stage);
           
       return true;
     }
