@@ -188,11 +188,7 @@ IOCPU::IOCPU(IOCPUParams* params)
   assert(getRename());
   assert(getIEW());
   assert(getCommit());
-  assert(m_pipeline.lookupPos(FetchIdx) == 0);
-  assert(m_pipeline.lookupPos(DecodeIdx) == 1);
-  assert(m_pipeline.lookupPos(RenameIdx) == 2);
-  assert(m_pipeline.lookupPos(IEWIdx) == 3);
-  assert(m_pipeline.lookupPos(CommitIdx) == 4); 
+  if (params->includeVector) assert(getVector()); 
 
   // setup ports
   m_icache_port.AttachToStage(getFetch());

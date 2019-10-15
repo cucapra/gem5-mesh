@@ -379,7 +379,12 @@ CPUClass = MinorCPU(
                   )
 '''
 
-CPUClass = IOCPU ()
+CPUClass = IOCPU (
+  includeVector = options.vector
+
+
+)
+
 
 
 # Create top-level system
