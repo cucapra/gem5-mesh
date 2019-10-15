@@ -7,6 +7,7 @@
 #ifndef __CPU_IO_PIPELINE_HH__
 #define __CPU_IO_PIPELINE_HH__
 
+#include <memory>
 #include <vector>
 #include "params/IOCPU.hh"
 
@@ -28,22 +29,40 @@ typedef enum StageIdx {
 } StageIdx;
 
 class Pipeline {
-  public:
-    static unsigned Len;
-    static std::vector<StageIdx> Order;
-  
+  private:
+    std::vector<StageIdx> _order;
+    std::vector<std::shared_ptr<Stage>> _stages;
+    
   public:
     // return a 
-    static std::vector<std::shared_ptr<Stage>> create(IOCPU *_cpu_p, IOCPUParams* params);
-   
-    static int lookupPos(StageIdx currStage);
-    static StageIdx getNextStageIdx(StageIdx currStage);
-    static StageIdx getPrevStageIdx(StageIdx currStage);
-    static bool hasNextStage(StageIdx currStage);
-    static bool hasPrevStage(StageIdx currStage);
-    static bool stageCmp(StageIdx a, StageIdx b);
-  
+    //std::vector<std::shared_ptr<Stage>> create(IOCPU *_cpu_p, IOCPUParams* params);
+    Pipeline(IOCPU *_cpu_p, IOCPUParams* params); 
+ 
+    int lookupPos(StageIdx currStage);
+    StageIdx getNextStageIdx(StageIdx currStage);
+    StageIdx getPrevStageIdx(StageIdx currStage);
+    bool hasNextStage(StageIdx currStage);
+    bool hasPrevStage(StageIdx currStage);
+    bool stageCmp(StageIdx a, StageIdx b);
+ 
+    /** extract specific stages from a list based on order */
+    template<typename T>
+    T* extractStagePtr(StageIdx stage) {
+      int idx = lookupPos(stage); 
+      if (idx >= 0)      
+        return std::dynamic_pointer_cast<T>(_stages[idx]).get();
+      else
+        return nullptr;
+    }
+
+    unsigned getLen() const { return _order.size(); }
+    std::vector<StageIdx> getOrder() const { return _order; }
+    std::vector<std::shared_ptr<Stage>> getStages() const { return _stages; }
+    std::shared_ptr<Stage>& operator [](int i) { return _stages[i]; }
+
+
     // TODO function that looks up appropriate buffer size?
+  
   
 };
 

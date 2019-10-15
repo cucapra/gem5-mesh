@@ -324,6 +324,10 @@ parser.add_option("--spm-size", action="store", type="string",
 # number of pending requests allowed by scratchpad
 parser.add_option("--stream-width", type = "int", default = 2)
 
+# whether to use vector stage or not
+parser.add_option("--vector", action="store_true", default=False,
+  help="Use vector stage in pipe")
+
 (options, args) = parser.parse_args()
 
 # figure out system size
@@ -536,7 +540,8 @@ system.system_port = system.ruby.sys_port_proxy.slave
 # Construct systolic network
 #------------------------------------------------------------------------------
 
-makeSystolicTopology(system, n_rows - 1, n_cols)
+if (options.vector):
+  makeSystolicTopology(system, n_rows - 1, n_cols)
 
 #------------------------------------------------------------------------------
 # Construct memory controller

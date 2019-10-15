@@ -9,7 +9,7 @@ Stage::Stage(IOCPU* _cpu_p, size_t inputBufSize, size_t outputBufSize,
       m_max_num_credits(outputBufSize),
       m_num_credits(m_max_num_credits),
       m_stage_idx(stageIdx),
-      m_next_stage_idx(Pipeline::getNextStageIdx(m_stage_idx)),
+      m_next_stage_idx(m_cpu_p->getPipeline().getNextStageIdx(m_stage_idx)),
       m_is_sequential(isSequential)
 { }
 
@@ -37,11 +37,12 @@ Stage::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
   // younger instructions.
   
   // every stage needs to check IEW for branch mispredicts (even stages after, i.e. commit)
-  for (int i = 0; i < Pipeline::Len; i++) {
-    StageIdx stage = Pipeline::Order[i];
+  auto& pipeline = m_cpu_p->getPipeline();
+  for (int i = 0; i < pipeline.getLen(); i++) {
+    StageIdx stage = pipeline.getOrder()[i];
 
     // check if allowed to squash instructions in this stage
-    if ( Pipeline::stageCmp(stage, m_stage_idx) || stage == StageIdx::IEWIdx ) {
+    if ( pipeline.stageCmp(stage, m_stage_idx) || stage == StageIdx::IEWIdx ) {
       
       // check if the stage even has a squash signal
       if (m_incoming_squash_wire->squash_signals.count(i) > 0) {    
@@ -57,13 +58,13 @@ Stage::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
 bool
 Stage::hasNextStage() {
   //return ((int)m_stage_idx + 1 < Pipeline::Len);
-  return Pipeline::hasNextStage(m_stage_idx);
+  return m_cpu_p->getPipeline().hasNextStage(m_stage_idx);
 }
 
 bool
 Stage::hasPrevStage() {
   //return ((int)m_stage_idx - 1 >= 0);
-  return Pipeline::hasPrevStage(m_stage_idx);
+  return m_cpu_p->getPipeline().hasPrevStage(m_stage_idx);
 }
     
 std::list<std::shared_ptr<IODynInst>>&

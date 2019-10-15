@@ -2,53 +2,46 @@
 #include "cpu/io/stage.hh"
 #include "cpu/io/cpu.hh"
 
-unsigned Pipeline::Len = (int)StageIdx::NumStages;
-
-std::vector<StageIdx> Pipeline::Order;
-
-std::vector<std::shared_ptr<Stage>>
-Pipeline::create(IOCPU *_cpu_p, IOCPUParams* params) {
-   
+Pipeline::Pipeline(IOCPU *_cpu_p, IOCPUParams* params) {
+ 
   // figure out order of the stages
-  Order.push_back(FetchIdx);
+  _order.push_back(FetchIdx);
   
   if (params->includeVector)
-    Order.push_back(VectorIdx);
+    _order.push_back(VectorIdx);
 
-  Order.push_back(DecodeIdx);
-  Order.push_back(RenameIdx);
-  Order.push_back(IEWIdx);
-  Order.push_back(CommitIdx);
-
-
-  Len = Order.size(); // prob dont need this 
-  auto stages = std::vector<std::shared_ptr<Stage>>();
+  _order.push_back(DecodeIdx);
+  _order.push_back(RenameIdx);
+  _order.push_back(IEWIdx);
+  _order.push_back(CommitIdx);
+ 
+  //auto stages = std::vector<std::shared_ptr<Stage>>();
   
   // create stages in order given above
-  for (int i = 0; i < Len; i++) {
-    StageIdx stageIdx = Order[i];
+  for (int i = 0; i < _order.size(); i++) {
+    StageIdx stageIdx = _order[i];
     switch (stageIdx) {
       
       // core stages
       case FetchIdx:
-        stages.push_back(std::make_shared<Fetch>(_cpu_p, params));
+        _stages.push_back(std::make_shared<Fetch>(_cpu_p, params));
         break;
       case DecodeIdx:
-        stages.push_back(std::make_shared<Decode>(_cpu_p, params));
+        _stages.push_back(std::make_shared<Decode>(_cpu_p, params));
         break;
       case RenameIdx:
-        stages.push_back(std::make_shared<Rename>(_cpu_p, params));
+        _stages.push_back(std::make_shared<Rename>(_cpu_p, params));
         break;
       case IEWIdx:
-        stages.push_back(std::make_shared<IEW>(_cpu_p, params));
+        _stages.push_back(std::make_shared<IEW>(_cpu_p, params));
         break;
       case CommitIdx:
-        stages.push_back(std::make_shared<Commit>(_cpu_p, params));
+        _stages.push_back(std::make_shared<Commit>(_cpu_p, params));
         break;
       
       // new stages
       case VectorIdx:
-        stages.push_back(std::make_shared<Vector>(_cpu_p, params));
+        _stages.push_back(std::make_shared<Vector>(_cpu_p, params));
         break;
         
       // 
@@ -57,19 +50,19 @@ Pipeline::create(IOCPU *_cpu_p, IOCPUParams* params) {
     }
   }
   
-  return stages;
+  //return stages;
 }
 
 int
 Pipeline::lookupPos(StageIdx currStage) {
   int idx = -1;
-  for (int i = 0; i < Pipeline::Len; i++) {
-    if (Order[i] == currStage) {
+  for (int i = 0; i < _order.size(); i++) {
+    if (_order[i] == currStage) {
       idx = i;
     }
   }
   
-  assert(idx >= 0);
+  //assert(idx >= 0);
   
   return idx;
 }
@@ -80,8 +73,12 @@ Pipeline::getNextStageIdx(StageIdx currStage) {
   // find stage in the order array and add 1
   int idx = lookupPos(currStage);
   
-  assert(idx < Pipeline::Len - 1);
-  return Order[idx + 1];
+  //assert(idx < Pipeline::Len - 1);
+  if (idx >= 0 && idx < _order.size() - 1)
+    return _order[idx + 1];
+  else
+    // just return random thing
+    return StageIdx::NumStages;
 }
 
 StageIdx
@@ -89,15 +86,18 @@ Pipeline::getPrevStageIdx(StageIdx currStage) {
   // find stage in the order array and add 1
   int idx = lookupPos(currStage);
   
-  assert(idx >= 1 && idx < Pipeline::Len);
-  return Order[idx - 1];
+  //assert(idx >= 1 && idx < _order.size());
+  if (idx >= 1 && idx < _order.size())
+    return _order[idx - 1];
+  else
+    return StageIdx::NumStages; // just return something
 }
 
 bool
 Pipeline::hasNextStage(StageIdx currStage) {
   int idx = lookupPos(currStage);
   
-  return (idx < Pipeline::Len - 1);
+  return (idx < _order.size() - 1);
 }
 
 bool
@@ -119,5 +119,4 @@ Pipeline::stageCmp(StageIdx a, StageIdx b) {
     return false;
   }
 }
-
 

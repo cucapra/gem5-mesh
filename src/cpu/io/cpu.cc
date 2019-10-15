@@ -156,6 +156,7 @@ IOCPU::IOCPU(IOCPUParams* params)
       m_num_threads(params->numThreads),
       m_tick_event([this]{ tick(); }, "IO_CPU tick",
                    false, Event::CPU_Tick_Pri),
+      m_pipeline(this, params),
       // TODO need to figure out the delays for those buffers. For now, assume
       // it can hold message for one next cycle and one past cycle.
       m_inst_buffer(1, 1),
@@ -181,15 +182,15 @@ IOCPU::IOCPU(IOCPUParams* params)
   assert(!FullSystem);
 
   // create all stages
-  m_stages = Pipeline::create(this, params);
+  //m_stages = Pipeline::create(this, params);
 
   // setup ports
   m_icache_port.AttachToStage(getFetch());
   m_dcache_port.AttachToStage(getIEW());
 
   // Set up communication wires for all stages
-  for (int i = 0; i < (int)StageIdx::NumStages; i++)
-    m_stages[i]->setCommBuffers(m_inst_buffer, m_credit_buffer,
+  for (int i = 0; i < m_pipeline.getLen(); i++)
+    m_pipeline[i]->setCommBuffers(m_inst_buffer, m_credit_buffer,
                               m_squash_buffer, m_info_buffer);
 
   // IOCPU does not support simulating multiple workloads
@@ -319,8 +320,8 @@ IOCPU::init()
   for (ThreadID tid = 0; tid < m_num_threads; ++tid)
     threadContexts[tid]->initMemProxies(threadContexts[tid]);
 
-  for (int i = 0; i < (int)StageIdx::NumStages; i++) {
-    m_stages[i]->init();
+  for (int i = 0; i < m_pipeline.getLen(); i++) {
+    m_pipeline[i]->init();
   }
 }
 
@@ -498,8 +499,8 @@ IOCPU::wakeup()
   status = Running;
 
   // need to wakeup all stages
-  for (int i = 0; i < (int)StageIdx::NumStages; i++)
-    m_stages[i]->wakeup();
+  for (int i = 0; i < m_pipeline.getLen(); i++)
+    m_pipeline[i]->wakeup();
 
   // schedule a tick event in the next clock edge
   schedule(m_tick_event, clockEdge());
@@ -517,8 +518,8 @@ IOCPU::suspend()
   if (status != Idle) {
     status = Idle;
     // need to suspend all stages
-    for (int i = 0; i < (int)StageIdx::NumStages; i++)
-      m_stages[i]->suspend();
+    for (int i = 0; i < m_pipeline.getLen(); i++)
+      m_pipeline[i]->suspend();
 
     // update stats
     m_last_active_cycle = curCycle();
@@ -550,7 +551,7 @@ IOCPU::getPort(const std::string &if_name, PortID idx)
         return getDataPort();
     else if (if_name == "icache_port")
         return getInstPort();
-    else if (if_name == "to_mesh_port"  && idx < getVector()->getNumMeshPorts())
+    else if (if_name == "to_mesh_port" && idx < getVector()->getNumMeshPorts())
         return getVector()->getMeshPort(idx, true);
     else if (if_name == "from_mesh_port" && idx < getVector()->getNumMeshPorts())
         return getVector()->getMeshPort(idx, false);
@@ -568,8 +569,8 @@ IOCPU::tick()
   m_dcache_port.reset();
 
   // tick each stage in the forward order
-  for (int i = 0; i < (int)StageIdx::NumStages; i++)
-    m_stages[i]->tick();
+  for (int i = 0; i < m_pipeline.getLen(); i++)
+    m_pipeline[i]->tick();
 
   // advance communication buffers so that signals are propagated at the end of
   // this cycle and will be seen in beginning of the next cycle.
@@ -1072,8 +1073,8 @@ IOCPU::linetrace()
   std::stringstream ss;
   ss << std::setw(10) << curTick() / clockPeriod();
 
-  for (int i = 0; i < (int)StageIdx::NumStages; i++)
-    m_stages[i]->linetrace(ss);
+  for (int i = 0; i < m_pipeline.getLen(); i++)
+    m_pipeline[i]->linetrace(ss);
 
   //DPRINTF(LineTrace, "%s\n", ss.str());
 #endif

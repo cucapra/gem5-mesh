@@ -343,7 +343,8 @@ class IOCPU : public BaseCPU
     /**
      * Pipeline stages
      */
-    std::vector<std::shared_ptr<Stage>> m_stages;
+    //std::vector<std::shared_ptr<Stage>> m_stages;
+    Pipeline m_pipeline;
 
     /**
      * Inter-stage communication buffers
@@ -429,13 +430,14 @@ class IOCPU : public BaseCPU
     Stats::Scalar m_misc_regfile_writes;
     
   private:
-    Fetch  *getFetch() { return std::dynamic_pointer_cast<Fetch>(m_stages[(int)StageIdx::FetchIdx]).get(); }
-    Decode *getDecode() { return std::dynamic_pointer_cast<Decode>(m_stages[(int)StageIdx::DecodeIdx]).get(); }
-    Rename *getRename() { return std::dynamic_pointer_cast<Rename>(m_stages[(int)StageIdx::RenameIdx]).get(); }
-    IEW    *getIEW() { return std::dynamic_pointer_cast<IEW>(m_stages[(int)StageIdx::IEWIdx]).get(); }
-    Commit *getCommit() { return std::dynamic_pointer_cast<Commit>(m_stages[(int)StageIdx::CommitIdx]).get(); }
-    Vector *getVector() { return std::dynamic_pointer_cast<Vector>(m_stages[(int)StageIdx::VectorIdx]).get(); }
-    
+    Fetch  *getFetch() { return m_pipeline.extractStagePtr<Fetch>(StageIdx::FetchIdx); }
+    Decode *getDecode() { return m_pipeline.extractStagePtr<Decode>(StageIdx::DecodeIdx); }
+    Rename *getRename() { return m_pipeline.extractStagePtr<Rename>(StageIdx::RenameIdx); }
+    IEW    *getIEW() { return m_pipeline.extractStagePtr<IEW>(StageIdx::IEWIdx); }
+    Commit *getCommit() { return m_pipeline.extractStagePtr<Commit> (StageIdx::CommitIdx); }
+    Vector *getVector() { return m_pipeline.extractStagePtr<Vector>(StageIdx::VectorIdx); }
+  public:
+    Pipeline& getPipeline() { return m_pipeline; }    
 };
 
 template<typename VecElem, int LaneIdx>
