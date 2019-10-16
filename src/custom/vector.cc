@@ -540,7 +540,7 @@ Vector::popFetchInput(ThreadID tid) {
 
 void
 Vector::stealCredits() {
-  int remainingCred = m_input_queue_size - m_outgoing_credit_wire->to_prev_stage(m_stage_idx);
+  int remainingCred = m_input_queue_size - outputCredit();
   outputCredit() = -1 * remainingCred;
   _stolenCredits = m_input_queue_size;
   DPRINTF(Mesh, "steal credits %d\n", _stolenCredits);
