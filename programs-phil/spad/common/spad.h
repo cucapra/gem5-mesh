@@ -6,5 +6,8 @@
 void initScratchpads();
 void *getSpAddr(int pad, size_t offset);
 
+// get single spad size in bytes
+size_t getSpadNumBytes();
+
 #endif
 

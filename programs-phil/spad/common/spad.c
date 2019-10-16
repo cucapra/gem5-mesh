@@ -5,6 +5,7 @@
 #define SP_SIZE 4096
 #define N_SPS _N_SPS
 
+#if !defined(__x86_64__) && !defined(__i386__)
 // SPM space mapped to scratchpads
 uint8_t spm[SP_SIZE * N_SPS] __attribute__ ((section(".spm")));
 uint8_t*  spm_base_ptr_arr     [N_SPS];
@@ -24,8 +25,10 @@ uint32_t* spm_alloc32(uint8_t** base_pp, size_t size) {
   (*base_pp) += sizeof(uint32_t) * size;
   return p;
 }
+#endif
 
 void initScratchpads() {
+#if !defined(__x86_64__) && !defined(__i386__)
   for (size_t i = 0; i < N_SPS; ++i) {
     // get important spad pointers to interface with the respective xcel
     spm_base_ptr_arr[i]       = spm + i * SP_SIZE;
@@ -40,11 +43,12 @@ void initScratchpads() {
     // do this so that xcel sees this message and knows where its scratchpad is
     *(spm_base_addr_ptr_arr[i]) = (uint64_t)(spm_base_ptr_arr[i]);
   }
-  
+#endif
 }
 
 
 void *getSpAddr(int pad, size_t offset) {
+#if !defined(__x86_64__) && !defined(__i386__)
   if (pad >= N_SPS) return NULL;
   
   // the spad treats the addr, go, done flag as special, don't write to them
@@ -52,4 +56,12 @@ void *getSpAddr(int pad, size_t offset) {
   size_t afterFlags = sizeof(uint64_t) + 2 * sizeof(uint32_t);
   void *basePtr = (void*)(spm_base_ptr_arr[pad] + afterFlags);
   return basePtr + offset;
+#else
+  return NULL;
+#endif
+}
+
+
+size_t getSpadNumBytes() {
+  return SP_SIZE;
 }

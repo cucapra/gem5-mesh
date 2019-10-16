@@ -4,6 +4,8 @@
 // include spec from gem5
 #include "../../src/custom/bind_spec.hh"
 
+#if !defined(__x86_64__) && !defined(__i386__)
+
 // 20 bit / 5 hex
 #define ALL_NORM  0x00000
 
@@ -132,22 +134,28 @@
       [fb0] "i" (fbind0), [fb1] "i" (fbind1) rd             \
   )
   
-inline void stats_on()
+#endif
+  
+static inline void stats_on()
 {
+#if !defined(__x86_64__) && !defined(__i386__)
   int on = 1;
  __asm__ volatile ("csrw 0x7C1, %0;"
                     :
                     : "r" (on)
                     :);
+#endif
 }
 
-inline void stats_off()
+static inline void stats_off()
 {
+#if !defined(__x86_64__) && !defined(__i386__)
   int off = 10; // can't use 0, but anything other than 1
  __asm__ volatile ("csrw 0x7C1, %0;"
                     :
                     : "r" (off)
                     :);
+#endif
 }
 
 
