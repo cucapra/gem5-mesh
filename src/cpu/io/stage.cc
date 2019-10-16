@@ -11,7 +11,8 @@ Stage::Stage(IOCPU* _cpu_p, size_t inputBufSize, size_t outputBufSize,
       m_stage_idx(stageIdx),
       m_next_stage_inst_idx(StageIdx::NumStages), // init with temp value
       m_next_stage_credit_idx(StageIdx::NumStages),
-      m_is_sequential(isSequential)
+      m_is_sequential(isSequential),
+      m_is_unemployed(false)
 { }
 
 void
@@ -32,6 +33,7 @@ Stage::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
   m_outgoing_info_wire = info_buffer.getWire(0);
   m_incoming_info_wire   = info_buffer.getWire(-1);
 
+  // TODO not great that this is here
   // find where the next stages are to send insts and get credits from
   // these connections are easy to do in hardware, but to make this CL sim
   // more modular have to jump through some hoops
@@ -45,8 +47,6 @@ Stage::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
       !pipeline.isStageSeq(m_next_stage_credit_idx)) {
     m_next_stage_credit_idx = pipeline.getNextStageIdx(m_next_stage_credit_idx);
   }
-   
-
 
   // lookup stages that can squash this one based on squash wire
   // check all possible squash signals coming from subsequent stages. It's
@@ -168,6 +168,13 @@ Stage::tick() {
 
   // read credits from the next stage
   readCredits();
+  
+  // GEM5-specific hack
+  // if we are unemployed then we can't get any credits (effectively a fake stall)
+  // note we would not need this in hardware
+  if (m_is_unemployed) { 
+    m_num_credits = 0;
+  }
   
   /*// check if stage can proceed
   if (!checkSquash() && !checkStall()) {

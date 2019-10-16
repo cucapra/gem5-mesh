@@ -81,7 +81,13 @@ Vector::name() const {
 
 void
 Vector::init() {
-
+  // from the last sequential stage to steal credits from
+  /*auto& pipeline = m_cpu_p->getPipeline();
+  _prev_seq_stage_idx = m_stage_idx;
+  while (pipeline.hasPrevStage(_prev_seq_stage_idx) && 
+      !pipeline.isStageSeq(_prev_seq_stage_idx)) {
+    _prev_seq_stage_idx = pipeline.getPrevStageIdx(_prev_seq_stage_idx);
+  }*/
 }
 
 void
@@ -540,17 +546,55 @@ Vector::popFetchInput(ThreadID tid) {
 
 void
 Vector::stealCredits() {
-  int remainingCred = m_input_queue_size - outputCredit();
-  outputCredit() = -1 * remainingCred;
-  _stolenCredits = m_input_queue_size;
-  DPRINTF(Mesh, "steal credits %d\n", _stolenCredits);
+  if (m_is_sequential) {
+    int remainingCred = m_input_queue_size - outputCredit();
+    outputCredit() = -1 * remainingCred;
+    _stolenCredits = m_input_queue_size;
+  }
+  else {
+    // HACK to stall previous stage if it is in combinational pair with this one
+    // in hardware would just have access to the credit buffer because in same
+    // stage, but in this modular c++ model that's not trivial to do 
+    //
+    // if this is combinational then the previous sequential stages is looking
+    // at the stage after us' out credit buffer, not this one, so we need to modify
+    // that instead.
+    // because this is tick forward we can gauge are assignment based on whats
+    // currently there
+    // TODO only works with one combinational stage right now
+    _stolenCredits = m_max_num_credits;
+    auto& pipeline = m_cpu_p->getPipeline();
+    pipeline.setPrevStageUnemployed(m_stage_idx, true);
+    //m_outgoing_credit_wire->to_prev_stage(m_next_stage_credit_idx) -= _stolenCredits;
+    
+    // we also need to not stall ourselves so give us a bump in credits
+    // for future cycles
+    //m_num_credits += _stolenCredits;
+  }
+  DPRINTF(Mesh, "steal credits %d\n", _stolenCredits); 
+  
+  
 }
 
 void
 Vector::restoreCredits() {
-  outputCredit() = _stolenCredits;
+  if (m_is_sequential) {
+    outputCredit() = _stolenCredits;
+  }
+  else {
+    if (_stolenCredits > 0) {
+      // need to get on the same page as combinational pair
+      m_outgoing_credit_wire->to_prev_stage(m_next_stage_credit_idx) += m_num_credits;
+      m_num_credits = 0; // we are also reading this line so compensate
+    
+      auto& pipeline = m_cpu_p->getPipeline();
+      pipeline.setPrevStageUnemployed(m_stage_idx, false);
+    }
+  }
+    
   DPRINTF(Mesh, "restore credits %d\n", _stolenCredits);
   _stolenCredits = 0;
+  
 }
 
 bool

@@ -45,6 +45,7 @@ class Pipeline {
     bool hasPrevStage(StageIdx currStage);
     bool stageCmp(StageIdx a, StageIdx b);
     bool isStageSeq(StageIdx stage);
+    void setPrevStageUnemployed(StageIdx stage, bool val);
  
     /** extract specific stages from a list based on order */
     template<typename T>

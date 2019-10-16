@@ -129,3 +129,11 @@ Pipeline::isStageSeq(StageIdx stage) {
     return true;
 }
 
+void
+Pipeline::setPrevStageUnemployed(StageIdx stage, bool val) {
+  int idx = lookupPos(stage);
+  if (idx >= 1) {
+    _stages[idx - 1]->setUnemployed(val);
+  }
+}
+

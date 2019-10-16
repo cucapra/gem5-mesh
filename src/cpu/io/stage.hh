@@ -52,6 +52,10 @@ class Stage {
         /** whether that stage takes one (sequential) or zero cycles (combinational) */
         bool m_is_sequential;
         
+        /** this is hack to allow combinational stages to stall previous sequential stages 
+         * the flag prevents this stage from reclaiming credits */
+        bool m_is_unemployed;
+        
         /**
         * Time buffer interface
         */
@@ -137,6 +141,10 @@ class Stage {
         
         /** whether this is an actual sequntial stage or pretend 0 delay combinational stage*/
         bool isSequential() const { return m_is_sequential; }
+        
+        /** hack to force core to stall. either requires -ve credits if seq stages 
+         * or a wire if same stage but diff pseudo stages */
+        void setUnemployed(bool val) { m_is_unemployed = val; }
         
 };
 
