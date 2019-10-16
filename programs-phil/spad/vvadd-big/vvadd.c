@@ -5,24 +5,6 @@
 #include "vvadd.h"
 #include "../../common/bind_defs.h"
 
-inline void stats_on()
-{
-  int on = 1;
- __asm__ volatile ("csrw 0x7C1, %0;"
-                    :
-                    : "r" (on)
-                    :);
-}
-
-inline void stats_off()
-{
-  int off = 10; // can't use 0, but anything other than 1
- __asm__ volatile ("csrw 0x7C1, %0;"
-                    :
-                    : "r" (off)
-                    :);
-}
-
 // actual kernel
 void kernel(
     float *a, float *b, float *c, int size, 

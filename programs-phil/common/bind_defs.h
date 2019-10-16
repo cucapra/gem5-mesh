@@ -131,5 +131,24 @@
     : [eb0] "i" (ebind0), [eb1] "i" (ebind1),               \
       [fb0] "i" (fbind0), [fb1] "i" (fbind1) rd             \
   )
+  
+inline void stats_on()
+{
+  int on = 1;
+ __asm__ volatile ("csrw 0x7C1, %0;"
+                    :
+                    : "r" (on)
+                    :);
+}
+
+inline void stats_off()
+{
+  int off = 10; // can't use 0, but anything other than 1
+ __asm__ volatile ("csrw 0x7C1, %0;"
+                    :
+                    : "r" (off)
+                    :);
+}
+
 
 #endif
