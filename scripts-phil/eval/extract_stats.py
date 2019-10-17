@@ -13,7 +13,7 @@ parser.add_argument('--outfile', default='/home/pbb59/hammerblade/gem5/results/e
 args = parser.parse_args()
 
 #
-# build up a list of directory paths with results we care about
+# Identify data directories and how to extract parameters about program from them
 
 dirPaths = []
 
@@ -23,6 +23,22 @@ annoConv = '-([a-zA-Z]+)([0-9]+)'
 dirRegex = re.compile(nameConv)
 annoRegex = re.compile(annoConv)
 
+#
+# Run analysis on each of these directories
+
+floatRegexStr = '([+-]?([0-9]*[.])?[0-9]+)'
+floatRegexStr = '([0-9]+)'
+
+stats = { 
+  'cycles' : { 'name' : 'cycles', 'regex' : re.compile('system.cpu0+.numCycles\s*' + floatRegexStr), 'avg' : 0, 'count' : 0 },
+  'icache' : { 'name' : 'icache_access', 'regex' : re.compile('system.icaches[0-9]+.L1cache.demand_accesses\s*' + floatRegexStr), 'avg' : 0, 'count' : 0 }, 
+}
+
+
+#
+# Function defs
+
+# parse results directory name
 def parse_dir_name(dirName):
   # parse the name of the file
   nameMatch = dirRegex.search(dirName)
@@ -43,8 +59,36 @@ def parse_dir_name(dirName):
     annos[field] = value
     
   return annos
-  
 
+# parse stats file
+def parse_file(fileName):
+  # reset stat table
+  for k, v in stats.items():
+    v['avg'] = 0
+    v['count'] = 0
+  
+  with open(fileName, 'r') as fin:
+    # foreach line search for each regex
+    for line in fin:
+      for k, v in stats.items():
+        match = v['regex'].search(line)
+        if (match):
+          # get value (always int?)
+          val = match.group(1)
+          v['avg'] += int(val)
+          v['count'] += 1
+          
+          # no reason to search for other values
+          break
+          
+  # get avg
+  for k, v in stats.items():
+    if (v['count'] > 0):
+      v['avg'] /= v['count']
+      
+
+#
+# find which directories contain legit data
 
 # https://www.tutorialspoint.com/python/os_walk.htm
 for root, dirs, files in os.walk(args.sims):
@@ -81,45 +125,9 @@ for root, dirs, files in os.walk(args.sims):
     
     dirPaths.append(path)
 
-
-#
-# Run analysis on each of these directories
-
-floatRegexStr = '([+-]?([0-9]*[.])?[0-9]+)'
-floatRegexStr = '([0-9]+)'
-
-stats = { 
-  'cycles' : { 'name' : 'cycles', 'regex' : re.compile('system.cpu0+.numCycles\s*' + floatRegexStr), 'avg' : 0, 'count' : 0 },
-  'icache' : { 'name' : 'icache_access', 'regex' : re.compile('system.icaches[0-9]+.L1cache.demand_accesses\s*' + floatRegexStr), 'avg' : 0, 'count' : 0 }, 
-}
-
-def parse_file(fileName):
-  # reset stat table
-  for k, v in stats.items():
-    v['avg'] = 0
-    v['count'] = 0
-  
-  with open(fileName, 'r') as fin:
-    # foreach line search for each regex
-    for line in fin:
-      for k, v in stats.items():
-        match = v['regex'].search(line)
-        if (match):
-          # get value (always int?)
-          val = match.group(1)
-          v['avg'] += int(val)
-          v['count'] += 1
-          
-          # no reason to search for other values
-          break
-          
-  # get avg
-  for k, v in stats.items():
-    if (v['count'] > 0):
-      v['avg'] /= v['count']
-      
-
+# 
 # figure out where each parameter should be displayed
+
 parameters = []
 for dirPath in dirPaths:
   annos = parse_dir_name(os.path.basename(dirPath))
@@ -132,6 +140,9 @@ for dirPath in dirPaths:
       parameters.append(k)
 
 dataCSV = ''
+
+#
+# Extract data from directories 
 
 for dirPath in dirPaths:
   #
@@ -172,8 +183,9 @@ for dirPath in dirPaths:
     
   dataCSV += '\n'
   
-
+#
 # write output to a csv
+
 with open(args.outfile, 'w+') as fout:
   # header line
   for param in parameters:
