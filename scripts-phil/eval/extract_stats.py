@@ -30,10 +30,14 @@ floatRegexStr = '([+-]?([0-9]*[.])?[0-9]+)'
 intRegexStr = '([0-9]+)'
 
 stats = { 
-  'cycles' : { 'name' : 'cycles',         'regex' : re.compile('system.cpu0+.numCycles\s*' + intRegexStr) },
-  'icache' : { 'name' : 'icache_access',  'regex' : re.compile('system.icaches[0-9]+.L1cache.demand_accesses\s*' + intRegexStr) }, 
-  'locsp'  : { 'name' : 'local_access',   'regex' : re.compile('system.scratchpads[0-9]+.local_accesses\s*' + intRegexStr) }, 
-  'remsp'  : { 'name' : 'remote_access',  'regex' : re.compile('system.scratchpads[0-9]+.remote_accesses\s*' + intRegexStr) },
+  'cycles' : { 'name' : 'cycles',           'regex' : re.compile('system.cpu0+.numCycles\s*' + intRegexStr) },
+  'icache' : { 'name' : 'icache_access',    'regex' : re.compile('system.icaches[0-9]+.L1cache.demand_accesses\s*' + intRegexStr) }, 
+  'locsp'  : { 'name' : 'local_sp_access',  'regex' : re.compile('system.scratchpads[0-9]+.local_accesses\s*' + intRegexStr) }, 
+  'remsp'  : { 'name' : 'remote_sp_access', 'regex' : re.compile('system.scratchpads[0-9]+.remote_accesses\s*' + intRegexStr) },
+  'l2'     : { 'name' : 'llc_access',       'regex' : re.compile('system.l2_cntrls[0-9]+.cacheMemory.demand_accesses\s*' + intRegexStr) },
+  'dramrd' : { 'name' : 'dram_reads',       'regex' : re.compile('system.mem_ctrl.num_reads::total\s*' + intRegexStr) },
+  'dramwr' : { 'name' : 'dram_writes',      'regex' : re.compile('system.mem_ctrl.num_writes::total\s*' + intRegexStr) },
+
 }
 
 
