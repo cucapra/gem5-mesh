@@ -24,7 +24,7 @@ dirRegex = re.compile(nameConv)
 annoRegex = re.compile(annoConv)
 
 #
-# Run analysis on each of these directories
+# Get avg of each of these stats
 
 floatRegexStr = '([+-]?([0-9]*[.])?[0-9]+)'
 intRegexStr = '([0-9]+)'
