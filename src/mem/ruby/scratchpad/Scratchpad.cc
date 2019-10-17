@@ -384,6 +384,11 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
   if (dst_sp_id == m_version) {
     // This is a local access
     DPRINTF(Scratchpad, "Doing a local access for pkt %s\n", pkt_p->print());
+    
+    // record local access here
+    if (pkt_p->isRead()) m_local_loads++;
+    else if (pkt_p->isWrite()) m_local_stores++;
+    
     accessDataArray(pkt_p);
     // Save the response packet and schedule an event in the next cycle to send
     // it to CPU
@@ -562,6 +567,10 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
    * From a remote CPU/Xcel, access to data
    */
   else {
+    // record remote access here
+    if (pkt_p->isRead()) m_remote_loads++;
+    else if (pkt_p->isWrite()) m_remote_stores++;
+    
     // access data array
     accessDataArray(pkt_p);
   }
@@ -716,6 +725,37 @@ Scratchpad::getL2BankFromAddr(Addr addr) const
   NodeID l2_node_id = (NodeID) bitSelect(addr, low_bit, hig_bit);
   assert(l2_node_id < m_num_l2s);
   return l2_node_id;
+}
+
+void
+Scratchpad::regStats()
+{
+  AbstractController::regStats();
+  
+  m_local_loads
+        .name(name() + ".local_loads")
+        .desc("Number of loads completed by the local core")
+        ;
+        
+  m_local_stores
+        .name(name() + ".local_stores")
+        .desc("Number of stores completed by the local core")
+        ;
+        
+  m_remote_loads
+        .name(name() + ".remote_loads")
+        .desc("Number of loads completed by a remote core")
+        ;
+        
+  m_remote_stores
+        .name(name() + ".remote_stores")
+        .desc("Number of stores completed by a remote core")
+        ;
+
+  m_local_accesses = m_local_loads + m_local_stores;
+  m_remote_accesses = m_remote_loads + m_remote_stores;
+  m_total_accesses = m_local_accesses + m_remote_accesses;
+  
 }
 
 Scratchpad*

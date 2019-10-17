@@ -157,6 +157,11 @@ class Scratchpad : public AbstractController
     static int getNumControllers() { return m_num_scratchpads; }
 
     /**
+     * setup stats for this scratchpad
+     */ 
+    void regStats() override;
+
+    /**
      * unused inherited functions
      */
 
@@ -293,6 +298,18 @@ class Scratchpad : public AbstractController
 
     // Number of L2 banks
     const int m_num_l2s;
+    
+    /**
+     * Stats to keep track of for the scratchpad
+     */
+    Stats::Scalar m_local_loads;
+    Stats::Scalar m_local_stores;
+    Stats::Scalar m_remote_loads;
+    Stats::Scalar m_remote_stores;
+    
+    Stats::Formula m_local_accesses;
+    Stats::Formula m_remote_accesses;
+    Stats::Formula m_total_accesses;
 };
 
 #endif // MEM_RUBY_SCRATCHPAD_HH
