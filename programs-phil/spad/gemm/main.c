@@ -59,29 +59,6 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < sizeC; i++)
     c[i] = 0;
   
-  // if we're going to be using scratchpads, simply copy the data from
-  // global to scratchpads before we start running the kernel
-  #ifdef _USE_SCRATCHPAD
-  float **sp_a; float **sp_b; float **sp_c;
-  sp_a = (float**)malloc(sizeof(float*) * num_cores);
-  sp_b = (float**)malloc(sizeof(float*) * num_cores);
-  sp_c = (float**)malloc(sizeof(float*) * num_cores);
-  for (int i = 0; i < num_cores; i++) {
-    float *sp = (float*)getSpAddr(i, 0);
-    
-    sp_a[i] = &(sp[0]);
-    sp_b[i] = &(sp[size]);
-    sp_c[i] = &(sp[2 * size]);
-    
-    // copy same data to each scratchpad
-    for (int j = 0; j < size; j++) {
-        sp_a[i][j] = a[j];
-        sp_b[i][j] = b[j];
-        sp_c[i][j] = c[j];
-    }
-  }
-  #endif
-  
   // figure out good tile size for the architecture
   // i.e. the 2d tiles for the three matrices should fit into scratchpad
   const int num_mat = 3;
@@ -117,22 +94,6 @@ int main(int argc, char *argv[]) {
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
   
-  #ifdef _USE_SCRATCHPAD
-  /*for (int i = 0; i < num_cores; i++) {
-    for (int j = 0; j < size; j++) {
-      //printf("%f\n", sp_c[i][j]);
-      if (sp_c[i][j] != 2 * j) {
-        printf("[[FAIL]]\n");
-        return 1;
-      }
-    }
-  }*/
-  printf("[[SP NOT SUPPORTED]]\n");
-  
-  free(sp_a);
-  free(sp_b);
-  free(sp_c);
-  #else
   for (int i = 0; i < sizeC; i++) {
     //printf("%f\n", c[i]);
     if (c[i] != 6 * t) {
@@ -140,7 +101,6 @@ int main(int argc, char *argv[]) {
       return 1;
     }
   }
-  #endif
   
   free(a);
   free(b);

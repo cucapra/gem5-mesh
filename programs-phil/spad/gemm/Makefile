@@ -15,10 +15,10 @@ endif
 
 EXTRA_FLAGS:= 
 
-ifeq ($(ENV_BLOCKED),)
-	EXTRA_FLAGS := $(EXTRA_FLAGS)
-else
+ifeq ($(ENV_NO_BLOCKED),)
 	EXTRA_FLAGS := $(EXTRA_FLAGS) -D_BLOCKED
+else
+	EXTRA_FLAGS := $(EXTRA_FLAGS)
 endif
 
 ifeq ($(ENV_NO_VEC),)

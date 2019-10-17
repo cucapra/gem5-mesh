@@ -3,6 +3,7 @@
 
 #include "pthread_launch.h"
 #include "gemm.h"
+#include "spad.h"
 #include "../../common/bind_defs.h"
 
 static inline int _idx_(int y, int x, int width) {
@@ -20,7 +21,7 @@ static inline int get_blk_end(int iter, int bound, int blk_dim) {
 }
 
 static inline void gemm_vonneumann(float *a, float *b, float *c, int m, int n, int t, 
-    int m_start, int m_end, int n_start, int n_end, int blk_dim) {
+    int m_start, int m_end, int n_start, int n_end, int blk_dim, int tid) {
   
 #ifndef _BLOCKED
 
@@ -33,6 +34,8 @@ static inline void gemm_vonneumann(float *a, float *b, float *c, int m, int n, i
   }
   
 #else
+  // first 3 loops, loop over blocks
+  // last 3 loops, do mat mul within the blocks
 
   int j0_max = m_end;
   for (int j0 = m_start; j0 < j0_max; j0+=blk_dim) {
@@ -50,18 +53,43 @@ static inline void gemm_vonneumann(float *a, float *b, float *c, int m, int n, i
         
         int k1_max = get_blk_end(k0, t, blk_dim);
         
-        // block to increase spatial locality within private cache
-        // currenlty try to hit in cache line, but spads dont have lines?
-        // alternively could make it the size of the entire cache
-        for (int j1 = j0; j1 < j1_max; j1++) {
-          
-          // these inner loops are across a single cache line
-          for (int i1 = i0; i1 < i1_max; i1++) {
-            for (int k1 = k0; k1 < k1_max; k1++) {
-              
-              c[_idx_(j1, i1, n)] += a[_idx_(j1, k1, t)] * b[_idx_(k1, i1, n)];
-              
+        // mini matmul to only access data in the local scratchpad
+        // TODO for now don't interleave compute
+        // TODO also stack is sent to global memory not scratchpad, that needs to be fixed (hacktober?), somewhere in riscv/process or sim/process
+        // does a stack not make sense in spad architectures?
+        // TODO this call is broken for offset other than 0 (should just have get getSpadBasePtr());
+        float *base = getSpAddr(tid, 0); 
+        float *asp = &(base[0]);
+        float *bsp = &(base[blk_dim * blk_dim]);
+        float *csp = &(base[2 * blk_dim * blk_dim]);
+        int mblk = j1_max - j0;
+        int nblk = i1_max - i0;
+        int tblk = k1_max - k0;
+        for (int j1 = 0; j1 < mblk; j1++) {
+          for (int i1 = 0; i1 < nblk; i1++) {
+            for (int k1 = 0; k1 < tblk; k1++) {
+              asp[_idx_(j1, k1, tblk)] = a[_idx_(j1 + j0, k1 + k0, t)];
+              bsp[_idx_(k1, i1, nblk)] = b[_idx_(k1 + k0, i1 + i0, n)];
+              csp[_idx_(j1, i1, nblk)] = 0;
             }
+          }
+        }
+        
+        // do the actual compute
+        for (int j1 = 0; j1 < mblk; j1++) {
+          for (int i1 = 0; i1 < nblk; i1++) {
+            for (int k1 = 0; k1 < tblk; k1++) {
+              
+              //c[_idx_(j1, i1, n)] += a[_idx_(j1, k1, t)] * b[_idx_(k1, i1, n)];
+              csp[_idx_(j1, i1, nblk)] += asp[_idx_(j1, k1, tblk)] * bsp[_idx_(k1, i1, nblk)];
+            }
+          }
+        }
+        
+        // accumulate scratchpad results into main memory
+        for (int j1 = 0; j1 < mblk; j1++) {
+          for (int i1 = 0; i1 < nblk; i1++) {
+            c[_idx_(j1 + j0, i1 + i0, n)] += csp[_idx_(j1, i1, nblk)];
           }
         }
         
@@ -95,6 +123,8 @@ void kernel(
   int m_end = m_start + m_chunk;
   int n_end = n_start + n_chunk;
   
+  int tid = tid_x + tid_y * dim_x;
+  
   // start recording all stats (all cores)
   // use the last thread, b/c this wakes up last?
   if (tid_x == 0 && tid_y == 0) {
@@ -102,7 +132,7 @@ void kernel(
   }
   
   #ifndef _VEC
-  gemm_vonneumann(a, b, c, m, n, t, m_start, m_end, n_start, n_end, blk_dim);
+  gemm_vonneumann(a, b, c, m, n, t, m_start, m_end, n_start, n_end, blk_dim, tid);
   #else
   // gemm_vonneumann
   // gemm_vonneumann
