@@ -18,8 +18,33 @@ args = parser.parse_args()
 dirPaths = []
 
 # created by top/eval/run_sim.py
-nameConv = 'vvadd-size([0-9]+)?(-[a-zA-z_])?$'
+nameConv = 'gemm([-a-zA-Z0-9]+)'
+annoConv = '-([a-zA-Z]+)([0-9]+)'
 dirRegex = re.compile(nameConv)
+annoRegex = re.compile(annoConv)
+
+def parse_dir_name(dirName):
+  # parse the name of the file
+  nameMatch = dirRegex.search(dirName)
+  if (nameMatch):
+    annotation = nameMatch.group(1)
+    print(annotation)
+  else:
+    assert(False)
+    
+  # parse annotation
+  annos = {}
+  annos['prog'] = 'gemm'
+  
+  for match in annoRegex.finditer(annotation):
+    field = match.group(1)
+    value = int(match.group(2))
+    
+    annos[field] = value
+    
+  return annos
+  
+
 
 # https://www.tutorialspoint.com/python/os_walk.htm
 for root, dirs, files in os.walk(args.sims):
@@ -94,30 +119,56 @@ def parse_file(fileName):
       v['avg'] /= v['count']
       
 
+# figure out where each parameter should be displayed
+parameters = []
+for dirPath in dirPaths:
+  annos = parse_dir_name(os.path.basename(dirPath))
+  for k, v in annos.items():
+    exists = False
+    for param in parameters:
+      if (param == k):
+        exists = True
+    if (not exists):
+      parameters.append(k)
+
 dataCSV = ''
 
 for dirPath in dirPaths:
+  #
+  # parse dir and stats
+  
+  # get size of file, TODO should try to do on first check and insert into a dict
+  annos = parse_dir_name(os.path.basename(dirPath))
   
   # get path to stats
   statsFile = os.path.join(dirPath, 'stats.txt')
   parse_file(statsFile)
-  
+
+  #
   # print extracted stats
+  
   print(statsFile)
+  for param in parameters:
+    if (param in annos):
+      val = annos[param]
+    else:
+      val = 'N/A'
+    print('\t{0}: {1}'.format(param, val))
   for k, v in stats.items():
     print('\t{0}: {1}'.format(v['name'], v['avg']))
     
-  # get size of file, TODO should try to do on first check and insert into a dict
-  dirMatch = dirRegex.search(os.path.basename(dirPath))
-  if (dirMatch):
-    size = int(dirMatch.group(1))
-  else:
-    assert(0)
-    
-  # write data row by row
-  dataCSV += str(size)
+  # 
+  # serialize parameters and data into string row by row
+  
+  # parameters (might not have been annotated with parameter)
+  for param in parameters:
+    if (param in annos):
+      dataCSV += str(annos[param])
+    dataCSV += ', '
+  
+  # data
   for k, v in stats.items():
-    dataCSV += ', {0}'.format(str(v['avg']))
+    dataCSV += '{0}, '.format(str(v['avg']))
     
   dataCSV += '\n'
   
@@ -125,9 +176,10 @@ for dirPath in dirPaths:
 # write output to a csv
 with open(args.outfile, 'w+') as fout:
   # header line
-  fout.write('size')
+  for param in parameters:
+    fout.write(param + ', ')
   for k, v in stats.items():
-    fout.write(', {0}'.format(v['name']))
+    fout.write('{0}, '.format(v['name']))
       
   fout.write('\n')
   
