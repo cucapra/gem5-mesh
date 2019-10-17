@@ -751,6 +751,21 @@ Scratchpad::regStats()
         .name(name() + ".remote_stores")
         .desc("Number of stores completed by a remote core")
         ;
+        
+  m_local_accesses
+        .name(name() + ".local_accesses")
+        .desc("Number of local accesses completed")
+        ;
+        
+  m_remote_accesses
+        .name(name() + ".remote_accesses")
+        .desc("Number of remote accesses completed")
+        ;
+        
+  m_total_accesses
+        .name(name() + ".total_accesses")
+        .desc("Number of accesses completed")
+        ;
 
   m_local_accesses = m_local_loads + m_local_stores;
   m_remote_accesses = m_remote_loads + m_remote_stores;
