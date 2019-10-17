@@ -15,7 +15,7 @@ endif
 
 EXTRA_FLAGS:= 
 
-ifeq ($(ENV_NO_BLOCKED),)
+ifeq ($(ENV_NO_SP),)
 	EXTRA_FLAGS := $(EXTRA_FLAGS) -D_BLOCKED
 else
 	EXTRA_FLAGS := $(EXTRA_FLAGS)

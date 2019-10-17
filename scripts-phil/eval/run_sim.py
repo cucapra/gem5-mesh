@@ -22,7 +22,14 @@ args = parser.parse_args()
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful
 progDir0 = '/home/pbb59/hammerblade/gem5/programs-phil/spad/'
 programs = {
-  'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd-big/vvadd', 'options' : '16', 'success' : '\[\[SUCCESS\]\]'}
+
+  'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd-big/vvadd', 
+    'options' : lambda psize: str(psize), 
+    'success' : '\[\[SUCCESS\]\]'},
+    
+  'gemm'  : { 'name': 'gemm',  'path' : progDir0 + 'gemm/gemm', 
+    'options' : lambda psize: '{0} {0} {0}'.format(str(psize)),
+    'success' : '\[\[SUCCESS\]\]'}
 
 }
 
@@ -31,6 +38,8 @@ gem5_cmd = lambda program, options, result, cpus: \
   '{} -d {}/{} {} --cmd={} --options=\"{}\" --num-cpus={}'.format(
       args.build, args.results, result, args.config, program, options, str(cpus))
   
+# compile command that chooses whether to use scratchpad optimizations
+# how many cores/sps are present, and whether to use vector mode
 def compile_cmd(program_dir, cpus, use_sp, use_vec):
   cmd = 'make clean -C {}'.format(program_dir)
   cmd += ' && '
@@ -41,35 +50,45 @@ def compile_cmd(program_dir, cpus, use_sp, use_vec):
     
   cmd += 'ENV_N_SPS={} make -C {}'.format(cpus, program_dir)
   return cmd
-      
-# check if the success flag was asserted using regex checking on the gem5 output
-success_regex = re.compile(programs['vvadd']['success'])
+
+def run_prog(numCpus, use_vec, use_sps, prog_name):
+  
+  # check if the success flag was asserted using regex checking on the gem5 output
+  success_regex = re.compile(programs[prog_name]['success'])
+  
+  cmplCmd = compile_cmd(os.path.dirname(programs[prog_name]['path']), numCpus, use_sps, use_vec)
+  result = subprocess.check_output(cmplCmd, shell=True)
+  print(result)
+
+  # run program with increasing problem sizes in factors of 2
+  minSize = 16
+  maxSize = 64 # 256
+  currSize = minSize
+  while currSize <= maxSize:
+    # run with currSize
+    optionsStr = programs[prog_name]['options'](currSize)
+    resultsAnno = '-vec' + str(int(use_vec)) + '-sp' + str(int(use_sps)) + '-size' + str(currSize)
+    resultsDir = programs[prog_name]['name'] + resultsAnno
+    cmd = gem5_cmd(programs[prog_name]['path'], optionsStr, resultsDir, numCpus)
+    print(cmd)
+    result = subprocess.check_output(cmd, shell=True)
+    print(result)
+  
+    # double the size for future runs
+    currSize *= 2
+  
+    # make sure that the run passed
+    success = success_regex.search(result)
+    assert(success)
+
+  
+# choose which programs to run with diff parameters
 
 # fixed parameters for the run, compile the binary for these
-numCpus = 16
-use_vec = True
-use_sps = True
+numCpus = 4
+use_vec = False
+use_sps = False
 
-cmplCmd = compile_cmd(os.path.dirname(programs['vvadd']['path']), numCpus, use_sps, use_vec)
-result = subprocess.check_output(cmplCmd, shell=True)
-print(result)
-
-# run vvadd with multiple sizes in factors of 2
-minSize = 16
-maxSize = 256 # make sure fits in the spad if you're doing this!
-currSize = minSize
-while currSize <= maxSize:
-  # run with currSize
-  cmd = gem5_cmd(programs['vvadd']['path'], str(currSize), programs['vvadd']['name'] + '-size' + str(currSize), numCpus)
-  print(cmd)
-  result = subprocess.check_output(cmd, shell=True)
-  print(result)
-  
-  # make sure that the run passed
-  success = success_regex.search(result)
-  assert(success)
-
-  # double the size
-  currSize *= 2
-
+# run a program from the list above
+run_prog(numCpus, use_vec, use_sps, 'gemm')
 
