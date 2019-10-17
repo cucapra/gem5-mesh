@@ -30,8 +30,8 @@ floatRegexStr = '([+-]?([0-9]*[.])?[0-9]+)'
 intRegexStr = '([0-9]+)'
 
 stats = { 
-  'cycles' : { 'name' : 'cycles', 'regex' : re.compile('system.cpu0+.numCycles\s*' + intRegexStr), 'avg' : 0, 'count' : 0 },
-  'icache' : { 'name' : 'icache_access', 'regex' : re.compile('system.icaches[0-9]+.L1cache.demand_accesses\s*' + intRegexStr), 'avg' : 0, 'count' : 0 }, 
+  'cycles' : { 'name' : 'cycles', 'regex' : re.compile('system.cpu0+.numCycles\s*' + intRegexStr) },
+  'icache' : { 'name' : 'icache_access', 'regex' : re.compile('system.icaches[0-9]+.L1cache.demand_accesses\s*' + intRegexStr) }, 
 }
 
 
