@@ -273,12 +273,12 @@ Vector::createInstruction(const MasterData &instInfo) {
   // we can access this structure here without a structural hazard because 
   // the fetch stage should be inactive if we are here
   TheISA::PCState next_pc = cur_pc; // passed by ref and expected to change
-  /*bool pred_taken =*/ m_cpu_p->getBranchPredPtr()->predict(inst->static_inst_p,
+  bool pred_taken = m_cpu_p->getBranchPredPtr()->predict(inst->static_inst_p,
                                                 inst->seq_num, next_pc, tid);
-                                                
-  // if there's no divergence expect these to be similar
-  // but don't base divergence off prediction, but rather outcome of branch
-  //assert(pred_taken == inst->predicted_taken);
+                      
+  // not sure if prediction divergence is a problem or not
+  if (pred_taken != inst->predicted_taken) 
+    DPRINTF(Mesh, "[[WARNING]] prediction divergence\n");
 
   return inst;
 }
