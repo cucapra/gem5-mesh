@@ -65,13 +65,22 @@ static inline void gemm_vonneumann(float *a, float *b, float *c, int m, int n, i
         int mblk = j1_max - j0;
         int nblk = i1_max - i0;
         int tblk = k1_max - k0;
+        
         for (int j1 = 0; j1 < mblk; j1++) {
           for (int i1 = 0; i1 < nblk; i1++) {
-            for (int k1 = 0; k1 < tblk; k1++) {
-              asp[_idx_(j1, k1, tblk)] = a[_idx_(j1 + j0, k1 + k0, t)];
-              bsp[_idx_(k1, i1, nblk)] = b[_idx_(k1 + k0, i1 + i0, n)];
-              csp[_idx_(j1, i1, nblk)] = 0;
-            }
+            csp[_idx_(j1, i1, nblk)] = 0;
+          }
+        }
+        
+        for (int j1 = 0; j1 < mblk; j1++) {
+          for (int k1 = 0; k1 < tblk; k1++) {
+            asp[_idx_(j1, k1, tblk)] = a[_idx_(j1 + j0, k1 + k0, t)];
+          }
+        }
+        
+        for (int i1 = 0; i1 < nblk; i1++) {
+          for (int k1 = 0; k1 < tblk; k1++) {
+            bsp[_idx_(k1, i1, nblk)] = b[_idx_(k1 + k0, i1 + i0, n)];
           }
         }
         

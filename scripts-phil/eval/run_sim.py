@@ -87,7 +87,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name):
 # fixed parameters for the run, compile the binary for these
 numCpus = 4
 use_vec = False
-use_sps = False
+use_sps = True
 
 # run a program from the list above
 run_prog(numCpus, use_vec, use_sps, 'gemm')
