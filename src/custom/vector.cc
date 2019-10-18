@@ -6,7 +6,7 @@
 #include "debug/Mesh.hh"
 
 Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p) : 
-    Stage(_cpu_p, p->vectorBufferSize, p->decodeBufferSize, StageIdx::VectorIdx, false),
+    Stage(_cpu_p, p->vectorBufferSize, p->decodeBufferSize, StageIdx::VectorIdx, true),
     _numInPortsActive(0),
     _numOutPortsActive(0),
     _stage(FETCH),
@@ -286,10 +286,18 @@ Vector::createInstruction(const MasterData &instInfo) {
 void
 Vector::pushInstToNextStage(const MasterData &instInfo) {
   
-  IODynInstPtr dynInst = createInstruction(instInfo);
-  sendInstToNextStage(dynInst);
+  // create new instruction only if slave
+  if (MeshHelper::isVectorSlave(_curCsrVal)) {
+    IODynInstPtr dynInst = createInstruction(instInfo);
+    sendInstToNextStage(dynInst);
     
-  DPRINTF(Mesh, "Push inst to decode %s->%s\n", instInfo.inst->toString(true), dynInst->toString(true));
+    DPRINTF(Mesh, "Push inst to decode %s->%s\n", instInfo.inst->toString(true), dynInst->toString(true));
+  }
+  // otherwise just pass the given instruction ptr
+  else {
+    sendInstToNextStage(instInfo.inst);
+    DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
+  }
   
 }
 
