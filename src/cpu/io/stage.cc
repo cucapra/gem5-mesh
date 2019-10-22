@@ -1,6 +1,13 @@
 #include "cpu/io/stage.hh"
 #include "cpu/io/cpu.hh"
 
+
+#include "debug/Decode.hh"
+#include "debug/Rename.hh"
+#include "debug/Mesh.hh"
+#include "debug/IEW.hh"
+#include "debug/Commit.hh"
+
 Stage::Stage(IOCPU* _cpu_p, size_t inputBufSize, size_t outputBufSize,
     StageIdx stageIdx, bool isSequential)
     : m_cpu_p(_cpu_p),
@@ -225,3 +232,56 @@ Stage::checkSquash() {
   return false;
   
 }
+
+/*
+void
+Stage::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
+  
+  IODynInstPtr squash_inst = squashInfo.trig_inst;
+  ThreadID tid = squash_inst->thread_id;
+
+  // walk through all insts in the m_insts queue and remove all instructions
+  // belonging to thread tid
+  size_t qsize = m_insts.size();
+  size_t count = 0;
+  IODynInstPtr inst = nullptr;
+  while (count < qsize) {
+    inst = m_insts.front();
+    m_insts.pop();
+    bool canSquash = inst->decAndCheckSquash();
+    if (inst->thread_id != tid || !canSquash) {
+      m_insts.push(inst);
+    } else {
+      if (m_stage_idx != CommitIdx)
+        assert(inst->seq_num > squash_inst->seq_num);
+      
+      // debug out statements (TODO might want lambda function here?)
+      switch(m_stage_idx) {
+        case FetchIdx:
+          break;
+        case DecodeIdx:
+          DPRINTF(Decode, "Squashing %s\n", inst->toString());
+          break;
+        case VectorIdx:
+          DPRINTF(Mesh, "Squashing %s\n", inst);
+          break;
+        case RenameIdx:
+          DPRINTF(Rename, "Squashing %s\n", inst);
+          break;
+        case IEWIdx:
+          DPRINTF(IEW, "Squashing %s\n", inst);
+          break;
+        case CommitIdx:
+          DPRINTF(Commit, "Squashing %s\n", inst->toString());
+          break;
+        default:
+          break;
+      }
+      
+      // increment the number of credits to the previous stage
+      outputCredit()++;
+    }
+    count++;
+  }
+}
+*/

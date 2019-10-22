@@ -157,14 +157,17 @@ void kernel(
   int mask = ALL_NORM;
   
   if (tid_x == 0 && tid_y == 0) {
-    mask = FET_O_INST_RIGHT_SEND;
+    mask = FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
   }
   else if (tid_x == 1 && tid_y == 0) {
     mask = FET_I_INST_LEFT;
   }
+  else if (tid_x == 0 && tid_y == 1) {
+    mask = FET_I_INST_UP;
+  }
   
-  // upper left corner is the master
-  /*if (tid_x == 0 && tid_y == 0) {
+  /*// upper left corner is the master
+  if (tid_x == 0 && tid_y == 0) {
     mask = FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
   }
   

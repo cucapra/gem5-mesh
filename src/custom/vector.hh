@@ -87,6 +87,7 @@ class Vector : public Stage {
     // currenlty cheating and using all possible info
     struct MasterData {
         IODynInstPtr inst;
+        int new_squashes; // number of new squashes since last instruction send
     };
     
     // create a dynamic instruction
@@ -112,13 +113,13 @@ class Vector : public Stage {
     // create a packet to send over the mesh network
     PacketPtr createMeshPacket(RegVal payload);
     // cheat version for experiments
-    PacketPtr createMeshPacket(IODynInstPtr inst);
+    PacketPtr createMeshPacket(const MasterData &inst);
     
     // reset all mesh node port settings
     void resetActive();
     
     // TEMP get an instruction from the master
-    IODynInstPtr getMeshPortInst(Mesh_Dir dir);
+    std::shared_ptr<MasterData> getMeshPortInst(Mesh_Dir dir);
     
     // get received data from the specified mesh port
     uint64_t getMeshPortData(Mesh_Dir dir);
@@ -143,6 +144,14 @@ class Vector : public Stage {
     // return credits to previous stage that were stolen
     // stage should have m_max_num_credits after this
     void restoreCredits();
+    
+    // update the squash diff
+    void updateSquashDiff(int update);
+    void resetSquashDiff();
+    
+    // get the squash diff to attach to instruction to prevent it from
+    // being incorretly squashed (intertia counter)
+    int getSquashDiff();
      
   protected:
   
@@ -164,13 +173,18 @@ class Vector : public Stage {
     // effectively the mesh network has these credits
     int _stolenCredits;
     
+    // to make pipeline outcomes consistent between loosely coupled cores
+    // need to keep track of control flow, namely squashes (? or need more?)
+    // meaning is different between a master and slave
+    int _squashDiff;
+    
     // TEMP to make all relevant info available
     struct SenderState : public Packet::SenderState
     {
       // important this is shared_ptr so wont be freed while packet 'in-flight'
-      std::shared_ptr<IODynInst> master_inst;
-      SenderState(IODynInstPtr _master_inst)
-        : master_inst(_master_inst)
+      std::shared_ptr<MasterData> master_data;
+      SenderState(std::shared_ptr<MasterData> _master_data)
+        : master_data(_master_data)
       { }
     };
   

@@ -503,9 +503,21 @@ class IODynInst : public ExecContext
 
     /** Predicted target PC (branch prediction) */
     TheISA::PCState m_pred_pc;
-
+public:
+// TODO put back in prviate
     /** A string representation of disassmbled inst */
     std::string m_inst_str;
+    
+    // TODO remove
+    RegVal getDestReg();
+    
+private:
+    int m_inertia;
+    
+public:
+    bool decAndCheckSquash();
+    
+    void setInertia(int intertia);
 };
 
 typedef std::shared_ptr<IODynInst> IODynInstPtr;

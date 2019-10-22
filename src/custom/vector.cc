@@ -11,7 +11,8 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p) :
     _numOutPortsActive(0),
     _stage(FETCH),
     _curCsrVal(0),
-    _stolenCredits(0)
+    _stolenCredits(0),
+    _squashDiff(0)
 {
   // 
   // declare vector ports
@@ -67,8 +68,18 @@ Vector::tick() {
     // give instruction to the local decode stage if present
     pushInstToNextStage(instInfo);
     
+    // the master core should send the number of squashes since the last instruction was sent to slave
+    // after we've forwarded the instructions to other cores and informed of squash diff
+    // we can reset it (unsent diff is now 0)
+    if (!MeshHelper::isVectorSlave(_curCsrVal)) {
+      instInfo.new_squashes = getSquashDiff();
+      resetSquashDiff();
+    }
+    
     // forward instruction to other neighbors potentially
     forwardInstruction(instInfo);
+    
+    
     
   }
   
@@ -127,7 +138,7 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   while (count < qsize) {
     inst = m_insts.front();
     m_insts.pop();
-    if (inst->thread_id != tid) {
+    if (inst->thread_id != tid || !inst->decAndCheckSquash()) {
       m_insts.push(inst);
     } else {
       if (getConfigured()) DPRINTF(Mesh, "Squashing %s\n", inst->toString());
@@ -151,6 +162,15 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
     else {
       // restore credits when go back?, I guess done in setupConfig (b/c no squash in other)
     }
+  }
+  // update the squash diff between slave and master
+  if (MeshHelper::isVectorSlave(_curCsrVal)) {
+    updateSquashDiff(-1);
+    DPRINTF(Mesh, "slave squash -- %d\n", _squashDiff);
+  }
+  else if (MeshHelper::isVectorMaster(_curCsrVal)) {
+    updateSquashDiff(1);
+    DPRINTF(Mesh, "master squash ++ %d\n", _squashDiff);
   }
   
 }
@@ -179,12 +199,15 @@ Vector::forwardInstruction(const MasterData& instInfo) {
   std::vector<Mesh_DS_t> out;
   MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
   
+  if (out.size() > 0)
+    DPRINTF(Mesh, "Forward to mesh net %s %d\n", instInfo.inst->toString(true), instInfo.new_squashes);
+  
   // send a packet in each direction
   for (int i = 0; i < out.size(); i++) {
     Mesh_Dir dir = out[i].outDir;
     //Mesh_Out_Src src = out[i].src;
     
-    DPRINTF(Mesh, "Forward to mesh net %s %d\n", instInfo.inst->toString(true), dir);
+    
     /*if (instInfo.inst->isCondCtrl()) {
       DPRINTF(Mesh, "bne sent pred taken %d target %#x\n", instInfo.inst->predicted_taken, instInfo.inst->readPredTarg());
     }*/
@@ -194,10 +217,11 @@ Vector::forwardInstruction(const MasterData& instInfo) {
     //    dir, src, instInfo.machInst, instInfo.predictTaken, instInfo.mispredicted, meshData);
     //if (instInfo.predictTaken) DPRINTF(Mesh, "predict taken %d\n", instInfo.predictTaken);
     //if (instInfo.mispredicted) DPRINTF(Mesh, "mispredicted %d\n", instInfo.mispredicted);
-    PacketPtr new_pkt = createMeshPacket(instInfo.inst);
+    PacketPtr new_pkt = createMeshPacket(instInfo);
     _toMeshPort[dir].sendTimingReq(new_pkt);
     
   }
+
 }
 
 void
@@ -211,7 +235,9 @@ Vector::pullInstruction(MasterData &instInfo) {
     // decode the msg here
     //instInfo = decodeMeshData(meshData);
     //DPRINTF(Mesh, "decoded %#x -> %#x %d %d\n", meshData, instInfo.machInst, instInfo.predictTaken, instInfo.mispredicted);
-    instInfo.inst = getMeshPortInst(recvDir);
+    auto dataPtr = getMeshPortInst(recvDir);
+    instInfo.inst = dataPtr->inst;
+    instInfo.new_squashes = dataPtr->new_squashes;
     
     //DPRINTF(Mesh, "Pull from mesh net %s\n", instInfo.inst->toString(true));
   }
@@ -220,6 +246,7 @@ Vector::pullInstruction(MasterData &instInfo) {
     auto msg = getFetchInput();
     
     instInfo.inst = msg;
+    instInfo.new_squashes = 0;
     
     // pop to free up the space
     consumeInst();
@@ -279,6 +306,13 @@ Vector::createInstruction(const MasterData &instInfo) {
   // not sure if prediction divergence is a problem or not
   if (inst->readPredTarg() != next_pc) 
     DPRINTF(Mesh, "[[WARNING]] prediction divergence\n");
+    
+    
+  // set the squash intertia of the instruction
+  updateSquashDiff(instInfo.new_squashes);
+  if (instInfo.new_squashes)
+    DPRINTF(Mesh, "net squash ++ %d\n", _squashDiff);
+  inst->setInertia(getSquashDiff());
 
   return inst;
 }
@@ -350,6 +384,8 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
     restoreCredits();
   }
   
+  resetSquashDiff();
+  
 }
 
 StaticInstPtr
@@ -387,13 +423,16 @@ Vector::createMeshPacket(RegVal payload) {
 // cheat and let all information about master state be available
 // when figure out what we actually need we can stop cheating
 PacketPtr
-Vector::createMeshPacket(IODynInstPtr inst) {
+Vector::createMeshPacket(const MasterData& data) {
+  auto copy = std::make_shared<MasterData>();
+  copy->inst = data.inst;
+  copy->new_squashes = data.new_squashes;
   // create a packet to send
   Addr addr = 0;
   int size = 0;
   RequestPtr req = std::make_shared<Request>(addr, size, 0, 0);
   PacketPtr new_pkt = new Packet(req, MemCmd::WritebackDirty, size);
-  new_pkt->pushSenderState(new Vector::SenderState(inst));
+  new_pkt->pushSenderState(new Vector::SenderState(copy));
   
   return new_pkt;
 }
@@ -492,12 +531,12 @@ Vector::informNeighbors() {
   }
 }
 
-IODynInstPtr
+std::shared_ptr<Vector::MasterData>
 Vector::getMeshPortInst(Mesh_Dir dir) {
   PacketPtr pkt = getMeshPortPkt(dir);
   Vector::SenderState* ss =
               safe_cast<Vector::SenderState*>(pkt->popSenderState());
-  auto msg = ss->master_inst;
+  auto msg = ss->master_data;
   delete ss;
   return msg;
 }
@@ -648,4 +687,29 @@ Vector::shouldStall() {
   bool nextStageOk = !isInternallyStalled();
   bool canGo = meshOk && nextStageOk;
   return !canGo;
+}
+
+void
+Vector::updateSquashDiff(int update) {
+  _squashDiff += update;
+  //DPRINTF(Mesh, "squash diff %d\n", _squashDiff);
+}
+
+void
+Vector::resetSquashDiff() {
+  _squashDiff = 0;
+  //DPRINTF(Mesh, "squash diff %d\n", _squashDiff);
+}
+
+int
+Vector::getSquashDiff() {
+  //if (_squashDiff > 0)
+  //  DPRINTF(Mesh, "squash diff %d\n", _squashDiff);
+    
+  //assert(_squashDiff >= 0);
+  // clamp @ 0 in case slave core gets branch resolution earlier
+  if (_squashDiff < 0)
+    return 0;
+  else
+    return _squashDiff;
 }

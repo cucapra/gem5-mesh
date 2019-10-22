@@ -9,6 +9,7 @@
 #include <iomanip>
 #include <sstream>
 #include <queue>
+#include <functional>
 
 #include "cpu/io/comm.hh"
 #include "cpu/io/dyn_inst.hh"

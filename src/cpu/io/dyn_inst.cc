@@ -28,7 +28,8 @@ IODynInst::IODynInst(const StaticInstPtr& static_inst,
       m_cpu_p(cpu_p),
       m_num_dest_misc_regs(0),
       m_pred_pc(0),
-      m_inst_str(static_inst->disassemble(pc.pc()))
+      m_inst_str(static_inst->disassemble(pc.pc())),
+      m_inertia(0)
 { }
 
 IODynInst::~IODynInst()
@@ -158,6 +159,10 @@ IODynInst::toString(bool full)
 //-----------------------------------------------------------------------------
 // Implementation of functions inheritted from ExecContext
 //-----------------------------------------------------------------------------
+
+RegVal IODynInst::getDestReg() {
+        return m_cpu_p->readIntReg(m_prev_dest_reg_idx[0]);
+    }
 
 RegVal
 IODynInst::readIntRegOperand(const StaticInst *si, int idx)
@@ -438,4 +443,20 @@ ThreadContext*
 IODynInst::tcBase()
 {
   return m_cpu_p->tcBase(thread_id);
+}
+
+bool
+IODynInst::decAndCheckSquash() {
+  if (m_inertia == 0) {
+    return true;
+  }
+  else {
+    m_inertia--;
+    return false;
+  }
+}
+    
+void
+IODynInst::setInertia(int intertia) { 
+  m_inertia = intertia; 
 }
