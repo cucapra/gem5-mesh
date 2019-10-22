@@ -31,6 +31,10 @@
 
 #define BIND_FET(val) \
   asm volatile (".insn u 0x77, x0, %[x]\n\t" :: [x] "i" (val))
+  
+// 0x401 is MISCREG_FET
+#define VECTOR_EPOCH(val) \
+  asm volatile (".insn i 0x77, 0, x0, %[x], 0x401\n\t" :: [x] "r" (val))
 
 // to ensure that the compiler doesn't place unwanted instructions
 // within the binds we enforce with a single asm volatile

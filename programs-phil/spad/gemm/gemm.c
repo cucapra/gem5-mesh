@@ -27,6 +27,7 @@ static inline int get_blk_end(int iter, int bound, int blk_dim) {
 #ifndef _VEC
 static inline 
 #else
+//static inline
 #endif
 void gemm_vonneumann(float *a, float *b, float *c, int m, int n, int t, 
     int m_start, int m_end, int n_start, int n_end, int blk_dim, int tid) {
@@ -142,6 +143,8 @@ void kernel(
   
   int tid = tid_x + tid_y * dim_x;
   
+  printf("iterations %d %d\n", n_end - n_start, m_end - m_start);
+  
   // start recording all stats (all cores)
   // use the last thread, b/c this wakes up last?
   if (tid_x == 0 && tid_y == 0) {
@@ -151,55 +154,46 @@ void kernel(
   #ifndef _VEC
   gemm_vonneumann(a, b, c, m, n, t, m_start, m_end, n_start, n_end, blk_dim, tid);
   #else
-  // upper left corner is the master
+  int mask = ALL_NORM;
+  
   if (tid_x == 0 && tid_y == 0) {
-    BINDED_FET_SOURCE(
-      FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND,
-      ALL_NORM,
-        
-      gemm_vonneumann(a, b, c, m, n, t, m_start, m_end, n_start, n_end, blk_dim, tid);
-    );
+    mask = FET_O_INST_RIGHT_SEND;
+  }
+  else if (tid_x == 1 && tid_y == 0) {
+    mask = FET_I_INST_LEFT;
+  }
+  
+  // upper left corner is the master
+  /*if (tid_x == 0 && tid_y == 0) {
+    mask = FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
   }
   
   // right edge does not send to anyone
   else if (tid_x == dim_x - 1) {
-    BINDED_FET_SOURCE(
-      FET_I_INST_LEFT,
-      ALL_NORM,
-        
-      gemm_vonneumann(a, b, c, m, n, t, m_start, m_end, n_start, n_end, blk_dim, tid);
-    );
+    mask = FET_I_INST_LEFT;
   }
   
   // bottom left corner just sends to the right
   else if (tid_x == 0 && tid_y == dim_y - 1) {
-    BINDED_FET_SOURCE(
-      FET_I_INST_UP | FET_O_INST_RIGHT_SEND,
-      ALL_NORM,
-        
-      gemm_vonneumann(a, b, c, m, n, t, m_start, m_end, n_start, n_end, blk_dim, tid);
-    );
+    mask = FET_I_INST_UP | FET_O_INST_RIGHT_SEND;
   }
   
   // the left edge (besides corners) sends down and to the right
   else if (tid_x == 0) {
-    BINDED_FET_SOURCE(
-      FET_I_INST_UP | FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND,
-      ALL_NORM,
-        
-      gemm_vonneumann(a, b, c, m, n, t, m_start, m_end, n_start, n_end, blk_dim, tid);
-    );
+    mask = FET_I_INST_UP | FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
   }
   
   // otherwise we're just forwarding to the right in the middle area
   else {
-    BINDED_FET_SOURCE(
-      FET_I_INST_LEFT | FET_O_INST_RIGHT_SEND,
-      ALL_NORM,
-        
-      gemm_vonneumann(a, b, c, m, n, t, m_start, m_end, n_start, n_end, blk_dim, tid);
-    );
-  }
+    mask = FET_I_INST_LEFT | FET_O_INST_RIGHT_SEND;
+  }*/
+  
+  VECTOR_EPOCH(mask);
+  
+  gemm_vonneumann(a, b, c, m, n, t, m_start, m_end, n_start, n_end, blk_dim, tid);
+  
+  VECTOR_EPOCH(ALL_NORM);
+  
   #endif
   
   if (tid_x == 0 && tid_y == 0) {

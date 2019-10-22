@@ -179,16 +179,15 @@ Vector::forwardInstruction(const MasterData& instInfo) {
   std::vector<Mesh_DS_t> out;
   MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
   
-  DPRINTF(Mesh, "Forward to mesh net %s\n", instInfo.inst->toString(true));
-  if (instInfo.inst->isCondCtrl()) {
-    DPRINTF(Mesh, "bne sent pred taken %d target %#x\n", instInfo.inst->predicted_taken, instInfo.inst->readPredTarg());
-  }
-  
   // send a packet in each direction
   for (int i = 0; i < out.size(); i++) {
     Mesh_Dir dir = out[i].outDir;
     //Mesh_Out_Src src = out[i].src;
     
+    DPRINTF(Mesh, "Forward to mesh net %s %d\n", instInfo.inst->toString(true), dir);
+    /*if (instInfo.inst->isCondCtrl()) {
+      DPRINTF(Mesh, "bne sent pred taken %d target %#x\n", instInfo.inst->predicted_taken, instInfo.inst->readPredTarg());
+    }*/
     
     //uint64_t meshData = encodeMeshData(instInfo);
     //DPRINTF(Mesh, "Sending mesh request %d from %d with val %#x %d %d = %#x\n", 
@@ -265,6 +264,7 @@ Vector::createInstruction(const MasterData &instInfo) {
   // just use branch prediction from the master instruction
   // need to justify part of this in how it would actually work in hardware
   // in the future will prob just determine this locally
+  // the pred targ is what actually determines whether there was a misprediction or not
   inst->setPredTarg(instInfo.inst->readPredTarg());
   inst->predicted_taken = instInfo.inst->predicted_taken;
   
@@ -273,11 +273,11 @@ Vector::createInstruction(const MasterData &instInfo) {
   // we can access this structure here without a structural hazard because 
   // the fetch stage should be inactive if we are here
   TheISA::PCState next_pc = cur_pc; // passed by ref and expected to change
-  bool pred_taken = m_cpu_p->getBranchPredPtr()->predict(inst->static_inst_p,
+  /*bool pred_taken =*/ m_cpu_p->getBranchPredPtr()->predict(inst->static_inst_p,
                                                 inst->seq_num, next_pc, tid);
                       
   // not sure if prediction divergence is a problem or not
-  if (pred_taken != inst->predicted_taken) 
+  if (inst->readPredTarg() != next_pc) 
     DPRINTF(Mesh, "[[WARNING]] prediction divergence\n");
 
   return inst;
@@ -303,7 +303,7 @@ Vector::pushInstToNextStage(const MasterData &instInfo) {
 
 void
 Vector::sendInstToNextStage(IODynInstPtr dynInst) {
-  //DPRINTF(Mesh, "push instruction to decode %s\n", *dynInst);
+  //DPRINTF(Mesh, "push instruction to decode %s\n", dynInst->toString(true));
   
   Stage::sendInstToNextStage(dynInst);
   
@@ -587,7 +587,7 @@ Vector::stealCredits() {
 void
 Vector::restoreCredits() {
   if (m_is_sequential) {
-    outputCredit() = _stolenCredits;
+    outputCredit() += _stolenCredits;
   }
   else {
     if (_stolenCredits > 0) {

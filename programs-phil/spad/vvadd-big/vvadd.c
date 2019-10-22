@@ -22,68 +22,41 @@ void kernel(
   }
   #else
   // different groups of tiles, but within tiles do the same thing (HBIR would be useful here!)
-  // TODO can make this less awkard to right if use csr to read from reg and incur and extra instruction
-  // or two each time config (already takes like 10 cycles, whats 2 more!)
+  
+  int mask = ALL_NORM;
   
   // upper left corner is the master
   if (tid_x == 0 && tid_y == 0) {
-    BINDED_FET_SOURCE(
-      FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND,
-      ALL_NORM,
-        
-      for (int i = 0; i < size; i++) {
-        c[i] = a[i] + b[i];
-      }
-    );
+    mask = FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
   }
   
   // right edge does not send to anyone
   else if (tid_x == dim_x - 1) {
-    BINDED_FET_SOURCE(
-      FET_I_INST_LEFT,
-      ALL_NORM,
-        
-      for (int i = 0; i < size; i++) {
-        c[i] = a[i] + b[i];
-      }
-    );
+    mask = FET_I_INST_LEFT;
   }
   
   // bottom left corner just sends to the right
   else if (tid_x == 0 && tid_y == dim_y - 1) {
-    BINDED_FET_SOURCE(
-      FET_I_INST_UP | FET_O_INST_RIGHT_SEND,
-      ALL_NORM,
-        
-      for (int i = 0; i < size; i++) {
-        c[i] = a[i] + b[i];
-      }
-    );
+    mask = FET_I_INST_UP | FET_O_INST_RIGHT_SEND;
   }
   
   // the left edge (besides corners) sends down and to the right
   else if (tid_x == 0) {
-    BINDED_FET_SOURCE(
-      FET_I_INST_UP | FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND,
-      ALL_NORM,
-        
-      for (int i = 0; i < size; i++) {
-        c[i] = a[i] + b[i];
-      }
-    );
+    mask = FET_I_INST_UP | FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
   }
   
   // otherwise we're just forwarding to the right in the middle area
   else {
-    BINDED_FET_SOURCE(
-      FET_I_INST_LEFT | FET_O_INST_RIGHT_SEND,
-      ALL_NORM,
-        
-      for (int i = 0; i < size; i++) {
-        c[i] = a[i] + b[i];
-      }
-    );
+    mask = FET_I_INST_LEFT | FET_O_INST_RIGHT_SEND;
   }
+  
+  VECTOR_EPOCH(mask);
+  
+  for (int i = 0; i < size; i++) {
+    c[i] = a[i] + b[i];
+  }
+  
+  VECTOR_EPOCH(ALL_NORM);
   
   #endif
   

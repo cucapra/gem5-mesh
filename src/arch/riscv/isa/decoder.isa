@@ -1843,9 +1843,11 @@ decode QUADRANT default Unknown::unknown() {
             xc->setMiscReg(MISCREG_EXE, imm);
         }}, IsNonSpeculative, IsBind, No_OpClass);
         
-        0x1d: BUOp::csrfet({{
-            xc->setMiscReg(MISCREG_FETCH, imm);
-            printf("csrfetch %ld\n", imm);
+        0x1d: CSROp::csrfet({{
+            Rd = data;
+            data = Rs1;
+            //xc->setMiscReg(MISCREG_FETCH, imm);
+            //printf("csrfetch %ld\n", imm);
         //IsSerializeAfter, IsNonSpeculative, IsBind, No_OpClass);
         }}, IsSquashAfter, IsNonSpeculative, IsBind, No_OpClass);
         
