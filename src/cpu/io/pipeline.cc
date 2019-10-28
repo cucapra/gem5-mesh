@@ -14,8 +14,8 @@ Pipeline::Pipeline(IOCPU *_cpu_p, IOCPUParams* params) {
   _order.push_back(RenameIdx);
   _order.push_back(IEWIdx);
   
-  //if (params->includeVector)
-  //  _order.push_back(LateVectorIdx);
+  if (params->includeVector)
+    _order.push_back(LateVectorIdx);
   
   _order.push_back(CommitIdx);
   
@@ -43,7 +43,7 @@ Pipeline::Pipeline(IOCPU *_cpu_p, IOCPUParams* params) {
       
       // new stages
       case EarlyVectorIdx:
-        _stages.push_back(std::make_shared<Vector>(_cpu_p, params, StageIdx::EarlyVectorIdx, true, true));
+        _stages.push_back(std::make_shared<Vector>(_cpu_p, params, StageIdx::EarlyVectorIdx, false, true));
         break;
         
       case LateVectorIdx:
