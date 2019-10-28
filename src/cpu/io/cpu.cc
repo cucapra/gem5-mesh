@@ -181,18 +181,33 @@ IOCPU::IOCPU(IOCPUParams* params)
   // IOCPU does not support FullSystem mode yet
   assert(!FullSystem);
 
-  // create all stages
-  //m_stages = Pipeline::create(this, params);
+  // check that all core stages exist
   assert(getFetch());
   assert(getDecode());
   assert(getRename());
   assert(getIEW());
   assert(getCommit());
-  if (params->includeVector) assert(getVector()); 
 
   // setup ports
   m_icache_port.AttachToStage(getFetch());
   m_dcache_port.AttachToStage(getIEW());
+  
+  // declare vector ports
+  for (int i = 0; i < params->port_to_mesh_port_connection_count; ++i) {
+    m_to_mesh_port.emplace_back(this, i);
+  }
+   
+  for (int i = 0; i < params->port_from_mesh_port_connection_count; ++i) {
+    m_from_mesh_port.emplace_back(this, i);
+  }
+    
+  for (int i = 0; i < params->port_from_mesh_port_connection_count; i++) {
+    // need to setup anything involving the 'this' pointer in the port
+    // class after have moved into vector memory
+    
+    // alternatively could declare ports as pointers
+    m_from_mesh_port[i].setupEvents();
+  }
 
   // Set up communication wires for all stages
   for (int i = 0; i < m_pipeline.getLen(); i++)
@@ -547,6 +562,16 @@ IOCPU::getDataPort()
   return m_dcache_port;
 }
 
+std::vector<ToMeshPort>&
+IOCPU::getMeshMasterPorts() {
+  return m_to_mesh_port;
+}
+    
+std::vector<FromMeshPort>&
+IOCPU::getMeshSlavePorts() {
+  return m_from_mesh_port;
+}
+
 Port&
 IOCPU::getPort(const std::string &if_name, PortID idx)
 {
@@ -557,10 +582,10 @@ IOCPU::getPort(const std::string &if_name, PortID idx)
         return getDataPort();
     else if (if_name == "icache_port")
         return getInstPort();
-    else if (if_name == "to_mesh_port" && idx < getVector()->getNumMeshPorts())
-        return getVector()->getMeshPort(idx, true);
-    else if (if_name == "from_mesh_port" && idx < getVector()->getNumMeshPorts())
-        return getVector()->getMeshPort(idx, false);
+    else if (if_name == "to_mesh_port" && idx < m_to_mesh_port.size())
+        return m_to_mesh_port[idx];
+    else if (if_name == "from_mesh_port" && idx < m_from_mesh_port.size())
+        return m_from_mesh_port[idx];
     else
         return ClockedObject::getPort(if_name, idx);
 }
@@ -951,7 +976,10 @@ IOCPU::setMiscRegNoEffect(int misc_reg, RegVal val, ThreadID tid)
 void
 IOCPU::setMiscReg(int misc_reg, RegVal val, ThreadID tid)
 {
-  getVector()->setupConfig(misc_reg, val);
+  if (getEarlyVector())
+    getEarlyVector()->setupConfig(misc_reg, val);
+  if (getLateVector())
+    getLateVector()->setupConfig(misc_reg, val);
   
   m_isa_list[tid]->setMiscReg(misc_reg, val, tcBase(tid));
 }

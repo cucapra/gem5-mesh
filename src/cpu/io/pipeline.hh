@@ -20,7 +20,8 @@ class IOCPU;
 */ 
 typedef enum StageIdx {
   FetchIdx = 0,
-  VectorIdx,
+  EarlyVectorIdx,
+  LateVectorIdx,
   DecodeIdx,
   RenameIdx,
   IEWIdx,

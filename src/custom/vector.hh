@@ -14,7 +14,7 @@
 class Vector : public Stage {
   // inheritance
   public:
-    Vector(IOCPU *_cpu_p, IOCPUParams *params);
+    Vector(IOCPU *_cpu_p, IOCPUParams *params, StageIdx stageType, bool canRootSend, bool canRecv);
     ~Vector() = default;
 
     /** Init (this is called after all CPU structures are created) */
@@ -67,10 +67,10 @@ class Vector : public Stage {
     void informNeighbors();
     
     // set appropriate mesh node as ready
-    void setRdy(bool rdy);
+    //void setRdy(bool rdy);
     
     // set appropriate mesh node ports as valid
-    void setVal(bool val);
+    //void setVal(bool val);
     
     // check if we need to stall due to the internal pipeline
     bool isInternallyStalled();
@@ -152,12 +152,23 @@ class Vector : public Stage {
     // get the squash diff to attach to instruction to prevent it from
     // being incorretly squashed (intertia counter)
     int getSquashDiff();
+    
+    // get references to the master and slave ports owned by CPU
+    std::vector<ToMeshPort>& getMeshMasterPorts();
+    std::vector<FromMeshPort>& getMeshSlavePorts();
+    
+    // helpers to figure out settings of this stage
+    bool isRootMaster();
+    bool isMaster();
+    bool isSlave();
+    bool canWriteMesh();
+    bool canReadMesh();
      
   protected:
   
     // define the ports we're going to use for to access the mesh net
-    std::vector<ToMeshPort> _toMeshPort;
-    std::vector<FromMeshPort> _fromMeshPort;
+    //std::vector<ToMeshPort> _toMeshPort;
+    //std::vector<FromMeshPort> _fromMeshPort;
     
     // number of ports currently actively communicating
     int _numInPortsActive;
@@ -177,6 +188,12 @@ class Vector : public Stage {
     // need to keep track of control flow, namely squashes (? or need more?)
     // meaning is different between a master and slave
     int _squashDiff;
+    
+    // if this core is the root master then it sends
+    bool _canRootSend;
+    
+    // this stage does not recv from mesh net
+    bool _canRecv;
     
     // TEMP to make all relevant info available
     struct SenderState : public Packet::SenderState

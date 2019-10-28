@@ -8,14 +8,16 @@ Pipeline::Pipeline(IOCPU *_cpu_p, IOCPUParams* params) {
   _order.push_back(FetchIdx);
   
   if (params->includeVector)
-    _order.push_back(VectorIdx);
+    _order.push_back(EarlyVectorIdx);
 
   _order.push_back(DecodeIdx);
   _order.push_back(RenameIdx);
   _order.push_back(IEWIdx);
+  
+  //if (params->includeVector)
+  //  _order.push_back(LateVectorIdx);
+  
   _order.push_back(CommitIdx);
- 
-  //auto stages = std::vector<std::shared_ptr<Stage>>();
   
   // create stages in order given above
   for (int i = 0; i < _order.size(); i++) {
@@ -40,8 +42,12 @@ Pipeline::Pipeline(IOCPU *_cpu_p, IOCPUParams* params) {
         break;
       
       // new stages
-      case VectorIdx:
-        _stages.push_back(std::make_shared<Vector>(_cpu_p, params));
+      case EarlyVectorIdx:
+        _stages.push_back(std::make_shared<Vector>(_cpu_p, params, StageIdx::EarlyVectorIdx, true, true));
+        break;
+        
+      case LateVectorIdx:
+        _stages.push_back(std::make_shared<Vector>(_cpu_p, params, StageIdx::LateVectorIdx, true, false));
         break;
         
       // 

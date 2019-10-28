@@ -5,18 +5,21 @@
 
 #include "debug/Mesh.hh"
 
-Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p) : 
-    Stage(_cpu_p, p->vectorBufferSize, p->decodeBufferSize, StageIdx::VectorIdx, true),
+Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, StageIdx stageType, 
+    bool canRootSend, bool canRecv) : 
+    Stage(_cpu_p, p->vectorBufferSize, p->decodeBufferSize, stageType, true),
     _numInPortsActive(0),
     _numOutPortsActive(0),
     _stage(FETCH),
     _curCsrVal(0),
     _stolenCredits(0),
-    _squashDiff(0)
+    _squashDiff(0),
+    _canRootSend(canRootSend),
+    _canRecv(canRecv)
 {
   // 
   // declare vector ports
-  for (int i = 0; i < p->port_to_mesh_port_connection_count; ++i) {
+  /*for (int i = 0; i < p->port_to_mesh_port_connection_count; ++i) {
       _toMeshPort.emplace_back(this, m_cpu_p, i);
   }
    
@@ -30,7 +33,7 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p) :
     
     // alternatively could declare ports as pointers
     _fromMeshPort[i].setupEvents();
-  }
+  }*/
   
 }
 
@@ -71,7 +74,7 @@ Vector::tick() {
     // the master core should send the number of squashes since the last instruction was sent to slave
     // after we've forwarded the instructions to other cores and informed of squash diff
     // we can reset it (unsent diff is now 0)
-    if (!MeshHelper::isVectorSlave(_curCsrVal)) {
+    if (isRootMaster()) {
       instInfo.new_squashes = getSquashDiff();
       resetSquashDiff();
     }
@@ -156,7 +159,7 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   //    a gem5 specific implementation detail of this is can't read the csr until executes (this ends up firing cycle after)
   // How does -ve credit work? -> use twos complement to send back (currently using some small unsigned int) -- ok
   if (initiator == StageIdx::CommitIdx && !((SquashComm::CommitSquash*)&squashInfo)->is_trap_pending) {
-    if (MeshHelper::isVectorSlave(_curCsrVal)) {
+    if (isSlave()) {
       stealCredits();
     }
     else {
@@ -164,11 +167,11 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
     }
   }
   // update the squash diff between slave and master
-  if (MeshHelper::isVectorSlave(_curCsrVal)) {
+  if (isSlave()) {
     updateSquashDiff(-1);
     DPRINTF(Mesh, "slave squash -- %d\n", _squashDiff);
   }
-  else if (MeshHelper::isVectorMaster(_curCsrVal)) {
+  else if (isRootMaster()) {
     updateSquashDiff(1);
     DPRINTF(Mesh, "master squash ++ %d\n", _squashDiff);
   }
@@ -194,6 +197,8 @@ Vector::passInstructions() {
 
 void
 Vector::forwardInstruction(const MasterData& instInfo) {
+  // check whether this stage is allowed to forward to the mesh net
+  if (!canWriteMesh()) return;
   
   // find each direction to send a packet to
   std::vector<Mesh_DS_t> out;
@@ -218,7 +223,7 @@ Vector::forwardInstruction(const MasterData& instInfo) {
     //if (instInfo.predictTaken) DPRINTF(Mesh, "predict taken %d\n", instInfo.predictTaken);
     //if (instInfo.mispredicted) DPRINTF(Mesh, "mispredicted %d\n", instInfo.mispredicted);
     PacketPtr new_pkt = createMeshPacket(instInfo);
-    _toMeshPort[dir].sendTimingReq(new_pkt);
+    getMeshMasterPorts()[dir].sendTimingReq(new_pkt);
     
   }
 
@@ -229,7 +234,7 @@ Vector::pullInstruction(MasterData &instInfo) {
   
   // if slave, pull from the mesh
   Mesh_Dir recvDir;
-  if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir)) {
+  if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir) && canReadMesh()) {
     //uint64_t meshData = getMeshPortData(recvDir);
     
     // decode the msg here
@@ -321,7 +326,7 @@ void
 Vector::pushInstToNextStage(const MasterData &instInfo) {
   
   // create new instruction only if slave
-  if (MeshHelper::isVectorSlave(_curCsrVal)) {
+  if (canReadMesh()) {
     IODynInstPtr dynInst = createInstruction(instInfo);
     sendInstToNextStage(dynInst);
     
@@ -351,8 +356,10 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   // make sure this is the csr we are looking for
   if (csrId != RiscvISA::MISCREG_FETCH) return;
   
-  // clear all ports associated with this csr
+  // cache the csr val for easy lookup later
+  _curCsrVal = csrVal;
   
+  // clear all ports associated with this csr
   resetActive();
   
   DPRINTF(Mesh, "csrVal %d\n", csrVal);
@@ -364,7 +371,7 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   MeshHelper::csrToOutDests(csrId, csrVal, outDirs);
     
   for (int j = 0; j < outDirs.size(); j++) {
-    _toMeshPort[outDirs[j]].setActive(_stage);
+    getMeshMasterPorts()[outDirs[j]].setActive(_stage);
     _numOutPortsActive++;
   }
   
@@ -372,12 +379,9 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   MeshHelper::csrToInSrcs(csrId, csrVal, inDirs);
     
   for (int j = 0; j < inDirs.size(); j++) {
-    _fromMeshPort[inDirs[j]].setActive(_stage);
+    getMeshSlavePorts()[inDirs[j]].setActive(_stage);
     _numInPortsActive++;
   }
-  
-  // cache the csr val for easy lookup later
-  _curCsrVal = csrVal;
   
   // give back stolen credits
   if (!getConfigured()) {
@@ -442,9 +446,9 @@ bool
 Vector::getOutRdy() {
   bool allRdy = true;
   
-  for (int i = 0; i < _toMeshPort.size(); i++) {
-    if (_toMeshPort[i].getActive() == _stage) {
-      if (!_toMeshPort[i].getPairRdy()) allRdy = false;
+  for (int i = 0; i < getMeshMasterPorts().size(); i++) {
+    if (getMeshMasterPorts()[i].getActive() == _stage) {
+      if (!getMeshMasterPorts()[i].getPairRdy()) allRdy = false;
     }
   }
   
@@ -459,9 +463,9 @@ bool
 Vector::getInVal() {
   bool allVal = true;
   
-  for (int i = 0; i < _fromMeshPort.size(); i++) {
-    if (_fromMeshPort[i].getActive() == _stage) {
-      if (!_fromMeshPort[i].getPairVal()) allVal = false;
+  for (int i = 0; i < getMeshSlavePorts().size(); i++) {
+    if (getMeshSlavePorts()[i].getActive() == _stage) {
+      if (!getMeshSlavePorts()[i].getPairVal()) allVal = false;
       //if (!_fromMeshPort[i].pktExists()) allVal = false;
     }
   }
@@ -469,7 +473,7 @@ Vector::getInVal() {
   return allVal;
 }
 
-void
+/*void
 Vector::setRdy(bool rdy) {
   for (int i = 0; i < _fromMeshPort.size(); i++) {
     _fromMeshPort[i].setRdyIfActive(rdy, _stage);
@@ -481,21 +485,64 @@ Vector::setVal(bool val) {
   for (int i = 0; i < _toMeshPort.size(); i++) {
     _toMeshPort[i].setValIfActive(val, _stage);
   }
-}
+}*/
 
 void
 Vector::resetActive() {
   _numInPortsActive = 0;
   _numOutPortsActive = 0;
   
-  for (int i = 0; i < _fromMeshPort.size(); i++) {
-    _fromMeshPort[i].setActive(NONE);
+  // TODO need to prevent this reset if this is not the driver?
+  if (!getConfigured() || canWriteMesh()) {
+    
+    for (int i = 0; i < getMeshMasterPorts().size(); i++) {
+      getMeshMasterPorts()[i].setActive(NONE);
+    
+      // set the stage driving the ports (effectively setting mux select)
+      if (!getConfigured()) getMeshMasterPorts()[i].setDriver(nullptr);
+      else getMeshMasterPorts()[i].setDriver(this);
+    }
   }
   
-  for (int i = 0; i < _toMeshPort.size(); i++) {
-    _toMeshPort[i].setActive(NONE);
+  if (!getConfigured() || canReadMesh()) {
+
+    for (int i = 0; i < getMeshSlavePorts().size(); i++) {
+      getMeshSlavePorts()[i].setActive(NONE);
+     
+      // set the stage driving the ports (effectively setting mux select)
+      if (!getConfigured()) getMeshSlavePorts()[i].setDriver(nullptr);
+      else getMeshSlavePorts()[i].setDriver(this);
+    }
   }
+  
 }
+
+bool
+Vector::isRootMaster() {
+  return isMaster() && !isSlave();
+}
+
+bool
+Vector::isMaster() {
+  return MeshHelper::isVectorMaster(_curCsrVal);
+}
+
+bool
+Vector::isSlave() {
+  return MeshHelper::isVectorSlave(_curCsrVal);
+}
+
+bool
+Vector::canWriteMesh() {
+  return ((_canRootSend && isRootMaster()) || !isRootMaster());
+}
+
+bool
+Vector::canReadMesh() {
+  return (_canRecv);
+}
+
+
 
 // inform that there has been an update
 void
@@ -526,8 +573,8 @@ void
 Vector::informNeighbors() {
   //DPRINTF(Mesh, "notify neighbors\n");
   // go through mesh ports to get tryUnblock function called in neighbor cores
-  for (int i = 0; i < _toMeshPort.size(); i++) {
-    _toMeshPort[i].tryUnblockNeighbor();
+  for (int i = 0; i < getMeshMasterPorts().size(); i++) {
+    getMeshMasterPorts()[i].tryUnblockNeighbor();
   }
 }
 
@@ -550,10 +597,10 @@ Vector::getMeshPortData(Mesh_Dir dir) {
 
 PacketPtr
 Vector::getMeshPortPkt(Mesh_Dir dir) {
-  return _fromMeshPort[dir].getPacket();
+  return getMeshSlavePorts()[dir].getPacket();
 }
 
-Port&
+/*Port&
 Vector::getMeshPort(int idx, bool isOut) {
  if (isOut) {
    return _toMeshPort[idx];
@@ -566,7 +613,7 @@ Vector::getMeshPort(int idx, bool isOut) {
 int
 Vector::getNumMeshPorts() {
   return _toMeshPort.size();
-}
+}*/
 
 int
 Vector::getNumPortsActive() {
@@ -654,8 +701,8 @@ Vector::isInternallyStalled() {
   bool decodeStall = checkStall();
   
   // the stall depends on whether this is a slave or not (has an indest)
-  bool recver = MeshHelper::isVectorSlave(_curCsrVal);
-  bool sender = MeshHelper::isVectorMaster(_curCsrVal);
+  bool recver = isSlave();
+  bool sender = isMaster();
   
   // we don't have the credits to push into the next stage
   bool recverStall = recver && decodeStall;
@@ -713,3 +760,14 @@ Vector::getSquashDiff() {
   else
     return _squashDiff;
 }
+
+std::vector<ToMeshPort>&
+Vector::getMeshMasterPorts() {
+  return m_cpu_p->getMeshMasterPorts();
+}
+
+std::vector<FromMeshPort>&
+Vector::getMeshSlavePorts() {
+  return m_cpu_p->getMeshSlavePorts();
+}
+

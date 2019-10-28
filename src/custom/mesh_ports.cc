@@ -13,10 +13,10 @@
  *--------------------------------------------------------------------*/ 
 
 
-ToMeshPort::ToMeshPort(Vector *vec, IOCPU *_cpu, int idx)
+ToMeshPort::ToMeshPort(IOCPU *_cpu, int idx)
         : MasterPort(
           _cpu->name() + ".mesh_out_port" + csprintf("[%d]", idx), _cpu), 
-          cpu(_cpu), idx(idx), val(false), active(NONE), vec(vec)
+          cpu(_cpu), idx(idx), active(NONE), vec(nullptr)
     { }
 
 // if you want to send a packet, used <MasterPort_Inst>.sendTimingReq(pkt);
@@ -34,10 +34,10 @@ ToMeshPort::recvReqRetry()
 {
 }
 
-void
+/*void
 ToMeshPort::setVal(bool val) {
   this->val = val;
-}
+}*/
 
 // if active we want val/rdy, otherwise we don't care
 /*bool
@@ -67,7 +67,7 @@ ToMeshPort::tryUnblockNeighbor() {
   }
 }
 
-void
+/*void
 ToMeshPort::setValIfActive(bool val, SensitiveStage stage) {
   if (active == stage) { 
     setVal(val);
@@ -76,20 +76,20 @@ ToMeshPort::setValIfActive(bool val, SensitiveStage stage) {
   else if (active == NONE && !val) {
     setVal(false);
   }
-}
+}*/
 
 /*----------------------------------------------------------------------
  * Define mesh slave port behavior
  *--------------------------------------------------------------------*/ 
 
 // NEVER give THIS pointer 
-FromMeshPort::FromMeshPort(Vector *vec, IOCPU *_cpu, int idx)
+FromMeshPort::FromMeshPort(IOCPU *_cpu, int idx)
         : SlavePort(
           _cpu->name() + ".mesh_in_port" + csprintf("[%d]", idx), _cpu), 
           cpu(_cpu), idx(idx), recvPkt_d(nullptr), recvEvent([this] { process(); }, name()), 
           wakeupCPUEvent([this] { tryUnblockCPU(); }, name()), 
-          rdy(false), active(NONE), _meshQueue(name(), "pkt", MESH_QUEUE_SLOTS), 
-          vec(vec)
+          active(NONE), _meshQueue(name(), "pkt", MESH_QUEUE_SLOTS), 
+          vec(nullptr)
     { 
       //DPRINTF(Mesh, "init %d %d %ld %ld\n", rdy, active, (uint64_t)recvPkt, (uint64_t)this);
       //DPRINTF(Mesh, "init idx %d\n", idx);
@@ -140,7 +140,8 @@ FromMeshPort::recvTimingReq(PacketPtr pkt) {
     //cpu->activityRecorder->activateStage(Minor::Pipeline::VectorStageId);
     
     //cpu->wakeupOnEvent(Minor::Pipeline::VectorStageId);
-    vec->signalActivity();
+    if (vec)
+      vec->signalActivity();
 
     return true;
 }
@@ -255,10 +256,10 @@ FromMeshPort::pktExists() {
   return !_meshQueue.empty();
 }
 
-void
+/*void
 FromMeshPort::setRdy(bool rdy) {
   this->rdy = rdy;
-}
+}*/
 
 // if active we want val/rdy, otherwise we don't care
 /*bool
@@ -281,11 +282,14 @@ FromMeshPort::getPairVal() {
 
 void
 FromMeshPort::tryUnblockCPU() {
-  vec->neighborUpdate(); 
+  if (vec)
+    vec->neighborUpdate(); 
 }
 
 bool
 FromMeshPort::getRdy() {
+  if (!vec) return false;
+  
   //if (rdy) {
   if (_meshQueue.canReserve() && vec->getConfigured()) {
     // if we have a packet but don't have a packet in other ports or
@@ -306,7 +310,7 @@ FromMeshPort::getRdy() {
   }
 }
 
-void
+/*void
 FromMeshPort::setRdyIfActive(bool rdy, SensitiveStage stage) {
   if (active == stage) {
     setRdy(rdy);
@@ -315,4 +319,4 @@ FromMeshPort::setRdyIfActive(bool rdy, SensitiveStage stage) {
   else if (active == NONE && !rdy) {
     setRdy(false);
   }
-}
+}*/

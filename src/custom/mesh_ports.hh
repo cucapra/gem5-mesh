@@ -49,10 +49,13 @@ class MeshPacketData /* : public ReportIF, public BubbleIF */
 // port that goes out over the mesh
 class ToMeshPort : public MasterPort {
   public:
-    ToMeshPort(Vector *vec, IOCPU *_cpu, int idx);
+    ToMeshPort(IOCPU *_cpu, int idx);
 
-    void setVal(bool val);
-    bool getVal() const { return val; }
+    // set the driving stage
+    void setDriver(Vector *vec) { this->vec = vec; }
+
+    //void setVal(bool val);
+    //bool getVal();
     
     bool getPairRdy();
     
@@ -60,7 +63,7 @@ class ToMeshPort : public MasterPort {
     SensitiveStage getActive() const { return active; }
     bool isActive() const { return (active != NONE); }
     
-    void setValIfActive(bool val, SensitiveStage stage);
+    //void setValIfActive(bool val, SensitiveStage stage);
     
     // check if this port is rdy and the slave port is valid
     //bool checkHandshake();
@@ -82,7 +85,7 @@ class ToMeshPort : public MasterPort {
     
     // whether this signal is valid over the mesh net
     // we're not going to set a value, rather you need to check from neighbors
-    bool val;
+    //bool val;
     
     // whether this port is used and should assert val when packet 
     // available
@@ -94,15 +97,18 @@ class ToMeshPort : public MasterPort {
 
 class FromMeshPort : public SlavePort {
   public:
-    FromMeshPort(Vector *vec, IOCPU *_cpu, int idx);
+    FromMeshPort(IOCPU *_cpu, int idx);
 
     virtual AddrRangeList getAddrRanges() const;
+
+    // set the driving stage
+    void setDriver(Vector *vec) { this->vec = vec; }
 
     // get the packet from the port
     PacketPtr getPacket();
     static uint64_t getPacketData(PacketPtr pkt);
 
-    void setRdy(bool val);
+    //void setRdy(bool val);
     bool getRdy();
     
     bool getPairVal();
@@ -111,7 +117,7 @@ class FromMeshPort : public SlavePort {
     SensitiveStage getActive() const { return active; }
     bool isActive() const { return (active != NONE); }
     
-    void setRdyIfActive(bool rdy, SensitiveStage stage);
+    //void setRdyIfActive(bool rdy, SensitiveStage stage);
     
     // check val rdy interface
     //bool checkHandshake();
@@ -148,7 +154,7 @@ class FromMeshPort : public SlavePort {
     void setPacket(PacketPtr pkt);
     
     // whether this port is rdy to recv from the mesh net
-    bool rdy;
+    //bool rdy;
     
     // this should go high when the core is rdy
     SensitiveStage active;

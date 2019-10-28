@@ -106,6 +106,12 @@ class IOCPU : public BaseCPU
     /** Get reference to dcache port */
     MasterPort& getDataPort() override;
     
+    /** Get reference to a mesh master port */
+    std::vector<ToMeshPort>& getMeshMasterPorts();
+    
+    /** Get reference to a mesh slave port */
+    std::vector<FromMeshPort>& getMeshSlavePorts();
+    
     /** Get reference to any port owned by cpu */
     Port& getPort(const std::string &if_name,
                   PortID idx=InvalidPortID) override;
@@ -343,7 +349,6 @@ class IOCPU : public BaseCPU
     /**
      * Pipeline stages
      */
-    //std::vector<std::shared_ptr<Stage>> m_stages;
     Pipeline m_pipeline;
 
     /**
@@ -382,6 +387,10 @@ class IOCPU : public BaseCPU
 
     /** Dcache port */
     DcachePort m_dcache_port;
+    
+    /** define the ports we're going to use for to access the mesh net */
+    std::vector<ToMeshPort> m_to_mesh_port;
+    std::vector<FromMeshPort> m_from_mesh_port;
 
     /** IDs of all active threads */
     std::list<ThreadID> m_active_thread_ids;
@@ -435,7 +444,8 @@ class IOCPU : public BaseCPU
     Rename *getRename() { return m_pipeline.extractStagePtr<Rename>(StageIdx::RenameIdx); }
     IEW    *getIEW() { return m_pipeline.extractStagePtr<IEW>(StageIdx::IEWIdx); }
     Commit *getCommit() { return m_pipeline.extractStagePtr<Commit> (StageIdx::CommitIdx); }
-    Vector *getVector() { return m_pipeline.extractStagePtr<Vector>(StageIdx::VectorIdx); }
+    Vector *getEarlyVector() { return m_pipeline.extractStagePtr<Vector>(StageIdx::EarlyVectorIdx); }
+    Vector *getLateVector() { return m_pipeline.extractStagePtr<Vector>(StageIdx::LateVectorIdx); }
   public:
     Pipeline& getPipeline() { return m_pipeline; }    
 };
