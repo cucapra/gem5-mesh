@@ -90,7 +90,10 @@ Vector::tick() {
 
 std::string
 Vector::name() const {
-  return m_cpu_p->name() + ".vector";
+  if (m_stage_idx == EarlyVectorIdx)
+    return m_cpu_p->name() + ".vector";
+  else
+    return m_cpu_p->name() + ".late_vector";
 }
 
 void
@@ -142,7 +145,8 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
     inst = m_insts.front();
     m_insts.pop();
     if (inst->thread_id != tid || 
-      ((m_stage_idx == LateVectorIdx) && inst->seq_num <= squash_inst->seq_num)) {
+      ((m_stage_idx == LateVectorIdx) && inst->seq_num <= squash_inst->seq_num) ||
+      !inst->decAndCheckSquash()) {
       m_insts.push(inst);
     } else {
       if (getConfigured()) DPRINTF(Mesh, "Squashing %s\n", inst->toString());

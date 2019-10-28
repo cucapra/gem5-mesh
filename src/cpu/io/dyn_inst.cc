@@ -447,6 +447,9 @@ IODynInst::tcBase()
 
 bool
 IODynInst::decAndCheckSquash() {
+  // FOR NOW JUST RETURN TRUE to always squash
+  return true;
+  
   if (m_inertia == 0) {
     return true;
   }
