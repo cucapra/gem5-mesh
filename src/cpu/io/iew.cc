@@ -185,10 +185,15 @@ IEW::doWriteback()
 
         // check if this is a mispredicted instruction. If so, init a squash
         if (inst->isMispredicted()) {
-          if (m_cpu_p->cpuId() < 3 && (
-              inst->m_inst_str == "bne a2, t2, -20" ||
-              inst->m_inst_str == "bne t1, a3, -36" ||
-              inst->m_inst_str == "bne s0, s4, -74")) {
+          
+          // update some fields in case send to slave
+          inst->was_taken = !inst->predicted_taken;
+          TheISA::PCState temp_pc = inst->pc;
+          TheISA::advancePC(temp_pc, inst->static_inst_p);
+          inst->actual_targ = temp_pc;
+          
+          if ((
+              inst->m_inst_str == "bne a4, a5, -22")) {
             RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
             RegVal one  = inst->readIntRegOperand(inst->static_inst_p.get(), 1);
             TheISA::PCState temp_pc = inst->pc;
@@ -208,10 +213,8 @@ IEW::doWriteback()
           initiateSquash(inst);
         }
         else {
-          if (m_cpu_p->cpuId() < 3 && (
-              inst->m_inst_str == "bne a2, t2, -20" ||
-              inst->m_inst_str == "bne t1, a3, -36" ||
-              inst->m_inst_str == "bne s0, s4, -74")) {
+          if ((
+              inst->m_inst_str == "bne a4, a5, -22")) {
             RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
             RegVal one  = inst->readIntRegOperand(inst->static_inst_p.get(), 1);
             TheISA::PCState temp_pc = inst->pc;
@@ -220,9 +223,9 @@ IEW::doWriteback()
                        "[sn:%d] predicted target PC: %s ?= %s\n",
                        inst->m_inst_str, zero, one, inst->seq_num, inst->readPredTarg(), temp_pc);
           }
-          else if (m_cpu_p->cpuId() < 2 && inst->m_inst_str == "c_addiw s4, s4, 1") {
+          else if (inst->m_inst_str == "c_addi a4, a4, 4") {
               RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
-              DPRINTF(Mesh, "execute c_addiw %llu = %llu + 1\n", zero + 1, zero);
+              DPRINTF(Mesh, "execute c_addiw %llu = %llu + 4\n", zero + 4, zero);
             
           }
         }

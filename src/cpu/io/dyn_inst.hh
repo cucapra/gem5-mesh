@@ -518,6 +518,13 @@ public:
     bool decAndCheckSquash();
     
     void setInertia(int intertia);
+    
+    // was the branch actually taken in the end
+    bool was_taken;
+    
+    // how does this work? need to send of obvious to figure from instruction?
+    // is there a BTB here? what does it do?
+    TheISA::PCState actual_targ;
 };
 
 typedef std::shared_ptr<IODynInst> IODynInstPtr;

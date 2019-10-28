@@ -126,9 +126,14 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   if (initiator == StageIdx::CommitIdx)
     DPRINTF(Mesh, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
                     squash_inst->thread_id, squash_inst->seq_num);
-  else if (initiator == StageIdx::IEWIdx)
-    DPRINTF(Mesh, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
+  else if (initiator == StageIdx::IEWIdx) {
+    if (m_stage_idx == LateVectorIdx)
+      DPRINTF(Mesh, "[[WARNING]] Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
                     squash_inst->thread_id, squash_inst->seq_num);
+    else
+      DPRINTF(Mesh, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
+                    squash_inst->thread_id, squash_inst->seq_num);            
+  }
   else if (initiator == StageIdx::DecodeIdx)
     DPRINTF(Mesh, "Squash from Decode: squash inst [tid:%d] [sn:%d]\n",
                     squash_inst->thread_id, squash_inst->seq_num);
@@ -299,7 +304,7 @@ Vector::createInstruction(const MasterData &instInfo) {
           std::make_shared<IODynInst>(static_inst, cur_pc,
                                       m_cpu_p->getAndIncrementInstSeq(),
                                       tid, m_cpu_p);
-  //DPRINTF(Mesh, "[tid:%d]: built inst %s\n", tid, dyn_inst->toString(true));
+  //DPRINTF(Mesh, "[tid:%d]: built inst %s\n", tid, dyn_inst->toString(true));  
   
   // just use branch prediction from the master instruction
   // need to justify part of this in how it would actually work in hardware
@@ -307,6 +312,15 @@ Vector::createInstruction(const MasterData &instInfo) {
   // the pred targ is what actually determines whether there was a misprediction or not
   inst->setPredTarg(instInfo.inst->readPredTarg());
   inst->predicted_taken = instInfo.inst->predicted_taken;
+  
+  // iew will pass a mispredicted branch forward, we don't want to send 
+  // this to slave core because it will be wasted work, however you still need
+  // to check the branch here. if it fails with update then we know there is divergence
+  if (instInfo.inst->isMispredicted()) {
+    DPRINTF(Mesh, "misprediction changing targed %s -> %s\n", instInfo.inst->readPredTarg(), instInfo.inst->actual_targ);
+    inst->setPredTarg(instInfo.inst->actual_targ);
+    inst->predicted_taken = instInfo.inst->was_taken;
+  }
   
   // you need to update the branch predictor with the predictions before 
   // a squash can happen, otherwise the predictor will get confused and assert fail
