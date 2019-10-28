@@ -242,6 +242,9 @@ Vector::pullInstruction(MasterData &instInfo) {
   if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir) && canReadMesh()) {
     //uint64_t meshData = getMeshPortData(recvDir);
     
+    //Mesh_Dir recvDir;
+    //MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir);
+    
     // decode the msg here
     //instInfo = decodeMeshData(meshData);
     //DPRINTF(Mesh, "decoded %#x -> %#x %d %d\n", meshData, instInfo.machInst, instInfo.predictTaken, instInfo.mispredicted);
@@ -449,6 +452,8 @@ Vector::createMeshPacket(const MasterData& data) {
 
 bool
 Vector::getOutRdy() {
+  if (!canWriteMesh()) return true;
+  
   bool allRdy = true;
   
   for (int i = 0; i < getMeshMasterPorts().size(); i++) {
@@ -466,6 +471,8 @@ Vector::getOutRdy() {
 // a new packet then its valid otherwise its invalid
 bool
 Vector::getInVal() {
+  if (!canReadMesh()) return true;
+  
   bool allVal = true;
   
   for (int i = 0; i < getMeshSlavePorts().size(); i++) {
@@ -544,7 +551,7 @@ Vector::canWriteMesh() {
 
 bool
 Vector::canReadMesh() {
-  return (_canRecv);
+  return (_canRecv && isSlave());
 }
 
 
@@ -703,25 +710,24 @@ Vector::getConfigured() {
 
 bool
 Vector::isInternallyStalled() {
-  bool decodeStall = checkStall();
+  bool nextStageStall = checkStall();
   
   // the stall depends on whether this is a slave or not (has an indest)
-  bool recver = isSlave();
-  bool sender = isMaster();
+  //bool recver = isSlave();
+  //bool sender = isMaster();
   
   // we don't have the credits to push into the next stage
-  bool recverStall = recver && decodeStall;
+  //bool recverStall = recver && decodeStall;
   
   // there was no input from fetch
-  bool senderStall = sender && !recver && m_insts.empty();
-  
+  bool senderStall = !canReadMesh() && m_insts.empty();
   // we also can stall when we are not configured if next stage is stalled
   // TODO not sure why this is needed, should not be in this case
-  bool normalStall = decodeStall;
+  //bool normalStall = decodeStall;
   //if (normalStall && !recverStall) DPRINTF(Mesh, "normal stall\n");
   
   // also check squash here?
-  bool stall = recverStall || senderStall || normalStall;
+  bool stall = senderStall || nextStageStall;
   /*if (stall) {
     if (recver) DPRINTF(Mesh, "slave stall\n");
     else if (sender) DPRINTF(Mesh, "master stall\n");
