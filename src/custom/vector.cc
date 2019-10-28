@@ -546,7 +546,7 @@ Vector::isSlave() {
 
 bool
 Vector::canWriteMesh() {
-  return ((_canRootSend && isRootMaster()) || !isRootMaster());
+  return ((_canRootSend && isRootMaster()) || (!_canRootSend && !isRootMaster()));
 }
 
 bool
