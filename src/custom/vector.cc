@@ -164,7 +164,7 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   //    a gem5 specific implementation detail of this is can't read the csr until executes (this ends up firing cycle after)
   // How does -ve credit work? -> use twos complement to send back (currently using some small unsigned int) -- ok
   if (initiator == StageIdx::CommitIdx && !((SquashComm::CommitSquash*)&squashInfo)->is_trap_pending) {
-    if (isSlave()) {
+    if (canReadMesh()) {
       stealCredits();
     }
     else {
@@ -725,7 +725,7 @@ Vector::isInternallyStalled() {
   // TODO not sure why this is needed, should not be in this case
   //bool normalStall = decodeStall;
   //if (normalStall && !recverStall) DPRINTF(Mesh, "normal stall\n");
-  
+  //DPRINTF(Mesh, "nextStage %d prevStage %d\n", nextStageStall, senderStall);
   // also check squash here?
   bool stall = senderStall || nextStageStall;
   /*if (stall) {
@@ -740,7 +740,7 @@ bool
 Vector::shouldStall() {
   // check for instruction from mesh
   bool meshOk = getConfigured() && getInVal() && getOutRdy(); //_fsm->isMeshActive();
-  
+  //DPRINTF(Mesh, "config %d inval %d outrdy %d\n", getConfigured(), getInVal(), getOutRdy());
   // check if local decode is open to get new input or is stalled
   bool nextStageOk = !isInternallyStalled();
   bool canGo = meshOk && nextStageOk;
