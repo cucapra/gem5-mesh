@@ -87,8 +87,9 @@ Vector::tick() {
     // prefix()
     // callChildTick()
     // suffix()
-    if (!hasNextStage()) // actually make sure its the last stage that does this (HACK)
+    if (!hasNextStage()) { // actually make sure its the last stage that does this (HACK)
       instInfo.inst->updateMiscRegs();
+    }
   }
   
 }
@@ -207,6 +208,10 @@ Vector::passInstructions() {
     // Remove the inst from the queue and increment the credit to the previous
     // stage.
     consumeInst(); // TODO credits need to reflect next queue, not this queue if combinational
+    
+    if (!hasNextStage()) { // actually make sure its the last stage that does this (HACK)
+      inst->updateMiscRegs();
+    }
   }
 }
 
@@ -219,8 +224,8 @@ Vector::forwardInstruction(const MasterData& instInfo) {
   std::vector<Mesh_DS_t> out;
   MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
   
-  //if (out.size() > 0)
-  //  DPRINTF(Mesh, "Forward to mesh net %s %d\n", instInfo.inst->toString(true), instInfo.new_squashes);
+  if (out.size() > 0)
+    DPRINTF(Mesh, "Forward to mesh net %s %d\n", instInfo.inst->toString(true), instInfo.new_squashes);
   
   // send a packet in each direction
   for (int i = 0; i < out.size(); i++) {
