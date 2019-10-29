@@ -83,8 +83,12 @@ Vector::tick() {
     // forward instruction to other neighbors potentially
     forwardInstruction(instInfo);
     
-    
-    
+    // TODO maybe refactor out to parent
+    // prefix()
+    // callChildTick()
+    // suffix()
+    if (!hasNextStage()) // actually make sure its the last stage that does this (HACK)
+      instInfo.inst->updateMiscRegs();
   }
   
 }

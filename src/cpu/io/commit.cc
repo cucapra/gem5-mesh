@@ -205,7 +205,8 @@ Commit::commitHead(ThreadID tid)
   m_robs[tid]->commitHead();
 
   // update misc regs
-  inst->updateMiscRegs();
+  if (!hasNextStage()) // actually make sure its the last stage that does this (HACK)
+    inst->updateMiscRegs();
 
   // update last committed instruction
   m_outgoing_info_wire->commit_info.committed_inst = inst;
