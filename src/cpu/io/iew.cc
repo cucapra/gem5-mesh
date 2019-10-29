@@ -192,7 +192,7 @@ IEW::doWriteback()
           TheISA::advancePC(temp_pc, inst->static_inst_p);
           inst->actual_targ = temp_pc;
           
-          if ((
+          /*if ((
               inst->m_inst_str == "bne a4, a5, -22")) {
             RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
             RegVal one  = inst->readIntRegOperand(inst->static_inst_p.get(), 1);
@@ -201,7 +201,7 @@ IEW::doWriteback()
             DPRINTF(Mesh, "[%s] Branch misprediction: %llu %llu "
                        "[sn:%d] predicted target PC: %s instead of %s\n",
                        inst->m_inst_str, zero, one, inst->seq_num, inst->readPredTarg(), temp_pc);
-          }
+          }*/
           DPRINTF(IEW, "Branch misprediction: "
                        "[sn:%d] predicted target PC: %s\n",
                        inst->seq_num, inst->readPredTarg());
@@ -212,7 +212,7 @@ IEW::doWriteback()
           // initiate a squash signal
           initiateSquash(inst);
         }
-        else {
+        /*else {
           if ((
               inst->m_inst_str == "bne a4, a5, -22")) {
             RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
@@ -245,7 +245,7 @@ IEW::doWriteback()
               DPRINTF(Mesh, "[%s] inc %llu = %llu + 4\n", inst->toString(true), zero + 4, zero);
             
           }
-        }
+        }*/
 
         // make sure all dest regs are marked as ready by exec units
         for (int i = 0; i < inst->numDestRegs(); ++i)
