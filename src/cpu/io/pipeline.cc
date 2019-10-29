@@ -14,10 +14,10 @@ Pipeline::Pipeline(IOCPU *_cpu_p, IOCPUParams* params) {
   _order.push_back(RenameIdx);
   _order.push_back(IEWIdx);
   
+  _order.push_back(CommitIdx);
+  
   if (params->includeVector)
     _order.push_back(LateVectorIdx);
-  
-  _order.push_back(CommitIdx);
   
   // create stages in order given above
   for (int i = 0; i < _order.size(); i++) {
@@ -26,28 +26,37 @@ Pipeline::Pipeline(IOCPU *_cpu_p, IOCPUParams* params) {
       
       // core stages
       case FetchIdx:
-        _stages.push_back(std::make_shared<Fetch>(_cpu_p, params));
+        _stages.push_back(std::make_shared<Fetch>(_cpu_p, params, 
+            getBufSize(params, FetchIdx), getOutBufSize(params, FetchIdx)));
         break;
       case DecodeIdx:
-        _stages.push_back(std::make_shared<Decode>(_cpu_p, params));
+        _stages.push_back(std::make_shared<Decode>(_cpu_p, params, 
+            getBufSize(params, DecodeIdx), getOutBufSize(params, DecodeIdx)));
         break;
       case RenameIdx:
-        _stages.push_back(std::make_shared<Rename>(_cpu_p, params));
+        _stages.push_back(std::make_shared<Rename>(_cpu_p, params, 
+            getBufSize(params, RenameIdx), getOutBufSize(params, RenameIdx)));
         break;
       case IEWIdx:
-        _stages.push_back(std::make_shared<IEW>(_cpu_p, params));
+        _stages.push_back(std::make_shared<IEW>(_cpu_p, params,
+            getBufSize(params, IEWIdx), getOutBufSize(params, IEWIdx)));
         break;
       case CommitIdx:
-        _stages.push_back(std::make_shared<Commit>(_cpu_p, params));
+        _stages.push_back(std::make_shared<Commit>(_cpu_p, params, 
+            getBufSize(params, CommitIdx), getOutBufSize(params, CommitIdx)));
         break;
       
       // new stages
       case EarlyVectorIdx:
-        _stages.push_back(std::make_shared<Vector>(_cpu_p, params, StageIdx::EarlyVectorIdx, false, true));
+        _stages.push_back(std::make_shared<Vector>(_cpu_p, params, 
+            getBufSize(params, EarlyVectorIdx), getOutBufSize(params, EarlyVectorIdx), 
+            StageIdx::EarlyVectorIdx, false, true));
         break;
         
       case LateVectorIdx:
-        _stages.push_back(std::make_shared<Vector>(_cpu_p, params, StageIdx::LateVectorIdx, true, false));
+        _stages.push_back(std::make_shared<Vector>(_cpu_p, params, 
+            getBufSize(params, LateVectorIdx), getOutBufSize(params, LateVectorIdx), 
+            StageIdx::LateVectorIdx, true, false));
         break;
         
       // 
@@ -57,6 +66,38 @@ Pipeline::Pipeline(IOCPU *_cpu_p, IOCPUParams* params) {
   }
   
   //return stages;
+}
+
+int
+Pipeline::getBufSize(IOCPUParams* params, StageIdx stage) {
+  if (!hasPrevStage(stage)) return 0;
+  
+  switch (stage) {
+      case FetchIdx:
+        return 0;
+      case DecodeIdx:
+        return params->decodeBufferSize;
+      case RenameIdx:
+        return params->renameBufferSize;
+      case IEWIdx:
+        return params->iewBufferSize;
+      case CommitIdx:
+        return params->commitBufferSize;
+      case EarlyVectorIdx:
+        return params->vectorBufferSize;
+      case LateVectorIdx:
+        return params->vectorBufferSize;
+      default:
+        return params->decodeBufferSize;
+  }
+}
+
+int
+Pipeline::getOutBufSize(IOCPUParams* params, StageIdx stage) {
+  if (!hasNextStage(stage)) return 0;
+  
+  StageIdx nextStage = getNextStageIdx(stage);
+  return getBufSize(params, nextStage);
 }
 
 int

@@ -77,7 +77,7 @@ class Fetch : public Stage
       TrapPending   // waiting for Commit to process a pending trap/fault
     };
 
-    Fetch(IOCPU* _cpu_p, IOCPUParams *params);
+    Fetch(IOCPU* _cpu_p, IOCPUParams *params, size_t in_size, size_t out_size);
     ~Fetch();
 
     /** Init (this is called after all CPU structures are created) */

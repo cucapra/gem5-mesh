@@ -168,6 +168,11 @@ Stage::readCredits() {
 void
 Stage::tick() {
   // sanity check
+  // if after commit then don't worry about the check.
+  // this HACK is needed to handle pthread launch which turns cpu on,off,on
+  // TODO either make that launch process better or need this function to
+  // stop child stages from running (which this kind of does?)
+  if (!hasNextStage() && !m_is_active) return;
   assert(m_is_active);
 
   // put all coming instructions to process in m_insts queue
@@ -205,7 +210,7 @@ Stage::suspend()
 
 bool
 Stage::checkStall() {
-  return (m_num_credits == 0);
+  return (m_num_credits == 0 && hasNextStage());
 }
 
 // TODO 

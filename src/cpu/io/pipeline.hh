@@ -65,7 +65,8 @@ class Pipeline {
 
 
     // TODO function that looks up appropriate buffer size?
-  
+    int getBufSize(IOCPUParams* params, StageIdx stage);
+    int getOutBufSize(IOCPUParams* params, StageIdx stage);
   
 };
 

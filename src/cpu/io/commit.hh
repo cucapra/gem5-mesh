@@ -26,7 +26,7 @@
 class Commit : public Stage
 {
   public:
-    Commit(IOCPU* _cpu_p, IOCPUParams* params);
+    Commit(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size);
     ~Commit() = default;
 
     /** Init (this is called after all CPU structures are created) */

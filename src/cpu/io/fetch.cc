@@ -68,8 +68,8 @@ Fetch::FinishTranslationEvent::description() const
 // Fetch
 //-----------------------------------------------------------------------------
 
-Fetch::Fetch(IOCPU* _cpu_p, IOCPUParams* params)
-  : Stage(_cpu_p, 0, params->decodeBufferSize, StageIdx::FetchIdx, true), 
+Fetch::Fetch(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
+  : Stage(_cpu_p, in_size, out_size, StageIdx::FetchIdx, true), 
     m_num_threads(params->numThreads),
     m_fetch_buffer_size(m_cpu_p->getCacheLineSize()), // 1-cache-line L0 buffer
     m_fetch_buffers(m_num_threads, new uint8_t[m_fetch_buffer_size]),

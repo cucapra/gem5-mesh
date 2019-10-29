@@ -24,7 +24,7 @@
 class Rename : public Stage
 {
   public:
-    Rename(IOCPU* _cpu_p, IOCPUParams* params);
+    Rename(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size);
     ~Rename() = default;
 
     /** Init (this is called after all CPU structures are created) */

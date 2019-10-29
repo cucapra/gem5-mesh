@@ -5,9 +5,9 @@
 
 #include "debug/Mesh.hh"
 
-Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, StageIdx stageType, 
-    bool canRootSend, bool canRecv) : 
-    Stage(_cpu_p, p->vectorBufferSize, p->decodeBufferSize, stageType, true),
+Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, size_t in_size, size_t out_size,
+    StageIdx stageType, bool canRootSend, bool canRecv) : 
+    Stage(_cpu_p, in_size, out_size, stageType, true),
     _numInPortsActive(0),
     _numOutPortsActive(0),
     _stage(FETCH),
@@ -15,7 +15,8 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, StageIdx stageType,
     _stolenCredits(0),
     _squashDiff(0),
     _canRootSend(canRootSend),
-    _canRecv(canRecv)
+    _canRecv(canRecv),
+    _numInstructions(0)
 {
   // 
   // declare vector ports
@@ -45,7 +46,7 @@ Vector::tick() {
   // TODO this awkwardly calls doSquash as well, would like to decouple
   bool squashed = checkSquash();
   if (squashed) return;
-  
+
   // if not configured just pass the instruction through
   if (!getConfigured()) {
     passInstructions();
@@ -214,8 +215,8 @@ Vector::forwardInstruction(const MasterData& instInfo) {
   std::vector<Mesh_DS_t> out;
   MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
   
-  if (out.size() > 0)
-    DPRINTF(Mesh, "Forward to mesh net %s %d\n", instInfo.inst->toString(true), instInfo.new_squashes);
+  //if (out.size() > 0)
+  //  DPRINTF(Mesh, "Forward to mesh net %s %d\n", instInfo.inst->toString(true), instInfo.new_squashes);
   
   // send a packet in each direction
   for (int i = 0; i < out.size(); i++) {
@@ -347,17 +348,25 @@ Vector::createInstruction(const MasterData &instInfo) {
 void
 Vector::pushInstToNextStage(const MasterData &instInfo) {
   
+  if (m_stage_idx == LateVectorIdx) {
+    _numInstructions++;
+    DPRINTF(Mesh, "num instructions seen %d\n", _numInstructions);
+  }
+  
   // create new instruction only if slave
   if (canReadMesh()) {
     IODynInstPtr dynInst = createInstruction(instInfo);
     sendInstToNextStage(dynInst);
     
-    DPRINTF(Mesh, "Push inst to decode %s->%s\n", instInfo.inst->toString(true), dynInst->toString(true));
+    //if (m_stage_idx == LateVectorIdx)
+    //  DPRINTF(Mesh, "Push inst to decode %s->%s\n", instInfo.inst->toString(true), dynInst->toString(true));
   }
   // otherwise just pass the given instruction ptr
   else {
     sendInstToNextStage(instInfo.inst);
-    DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
+    
+    //if (m_stage_idx == LateVectorIdx)
+    //  DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
   }
   
 }

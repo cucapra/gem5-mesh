@@ -10,8 +10,8 @@
 #include "cpu/io/cpu.hh"
 #include "debug/Rename.hh"
 
-Rename::Rename(IOCPU* _cpu_p, IOCPUParams* params)
-    : Stage(_cpu_p, params->renameBufferSize, params->iewBufferSize, StageIdx::RenameIdx, true),
+Rename::Rename(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
+    : Stage(_cpu_p, in_size, out_size, StageIdx::RenameIdx, true),
       m_num_threads(params->numThreads),
       m_rename_width(1),
       m_free_list_p(nullptr),

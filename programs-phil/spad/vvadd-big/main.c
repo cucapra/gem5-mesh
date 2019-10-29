@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
     for (int j = 0; j < size; j++) {
       //printf("%f\n", sp_c[i][j]);
       if (sp_c[i][j] != 2 * j) {
-        printf("[[FAIL]]\n");
+        printf("[[FAIL]] %d %d = %f\n", i, j, sp_c[i][j]);
         return 1;
       }
     }

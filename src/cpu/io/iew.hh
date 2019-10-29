@@ -43,7 +43,7 @@
 class IEW : public Stage
 {
   public:
-    IEW(IOCPU* _cpu_p, IOCPUParams* params);
+    IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size);
     ~IEW();
 
     /** Init (this is called after all CPU structures are created) */

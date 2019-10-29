@@ -23,7 +23,7 @@
 class Decode : public Stage
 {
   public:
-    Decode(IOCPU* _cpu_p, IOCPUParams* params);
+    Decode(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size);
     ~Decode() = default;
 
     /** Init (this is called after all CPU structures are created) */

@@ -14,7 +14,8 @@
 class Vector : public Stage {
   // inheritance
   public:
-    Vector(IOCPU *_cpu_p, IOCPUParams *params, StageIdx stageType, bool canRootSend, bool canRecv);
+    Vector(IOCPU *_cpu_p, IOCPUParams *params, size_t in_size, size_t out_size,
+            StageIdx stageType, bool canRootSend, bool canRecv);
     ~Vector() = default;
 
     /** Init (this is called after all CPU structures are created) */
@@ -194,6 +195,8 @@ class Vector : public Stage {
     
     // this stage does not recv from mesh net
     bool _canRecv;
+    
+    int _numInstructions;
     
     // TEMP to make all relevant info available
     struct SenderState : public Packet::SenderState

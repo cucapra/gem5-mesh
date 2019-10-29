@@ -17,8 +17,8 @@
 // IEW
 //-----------------------------------------------------------------------------
 
-IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params)
-    : Stage(_cpu_p, params->iewBufferSize, params->commitBufferSize, StageIdx::IEWIdx, true),
+IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
+    : Stage(_cpu_p, in_size, out_size, StageIdx::IEWIdx, true),
       m_num_threads(params->numThreads),
       m_issue_width(params->issueWidth),
       m_wb_width(params->writebackWidth),
@@ -223,9 +223,26 @@ IEW::doWriteback()
                        "[sn:%d] predicted target PC: %s ?= %s\n",
                        inst->m_inst_str, zero, one, inst->seq_num, inst->readPredTarg(), temp_pc);
           }
+          else if (inst->m_inst_str == "flw fa4, 0(a2)" ||
+            inst->m_inst_str == "flw fa5, 0(a4)") {
+                RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
+              DPRINTF(Mesh, "[%s] loading from %d\n", inst->toString(true), zero);
+          }
+          else if (
+            inst->m_inst_str == "fadd_s fa5, fa5, fa4") {
+              RegVal zero = inst->readFloatRegOperandBits(inst->static_inst_p.get(), 0);
+              RegVal one = inst->readFloatRegOperandBits(inst->static_inst_p.get(), 1);
+              DPRINTF(Mesh, "[%s] adding %f + %f\n", inst->toString(true), (float)zero, (float)one);
+          }
+          else if (
+            inst->m_inst_str == "fsw fa5, -4(a3)") {
+              RegVal zero = inst->readFloatRegOperandBits(inst->static_inst_p.get(), 1);
+              RegVal one = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
+              DPRINTF(Mesh, "[%s] storing %f %llu\n", inst->toString(true), (float)zero, one);
+          }
           else if (inst->m_inst_str == "c_addi a4, a4, 4") {
               RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
-              DPRINTF(Mesh, "execute c_addiw %llu = %llu + 4\n", zero + 4, zero);
+              DPRINTF(Mesh, "[%s] inc %llu = %llu + 4\n", inst->toString(true), zero + 4, zero);
             
           }
         }

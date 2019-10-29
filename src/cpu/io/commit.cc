@@ -11,8 +11,8 @@
 #include "cpu/io/cpu.hh"
 #include "debug/Commit.hh"
 
-Commit::Commit(IOCPU* _cpu_p, IOCPUParams* params)
-    : Stage(_cpu_p, params->commitBufferSize, 0, StageIdx::CommitIdx, true),
+Commit::Commit(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
+    : Stage(_cpu_p, in_size, out_size, StageIdx::CommitIdx, true),
       m_num_threads(params->numThreads),
       m_commit_width(params->commitWidth),
       m_commit_pc(m_num_threads, TheISA::PCState(0))
@@ -78,6 +78,9 @@ Commit::tick()
 void
 Commit::doCommit()
 {
+  // TODO need to refactor this into parent?
+  if (checkStall()) return;
+  
   // Try to mark as many instructions coming from IEW as possible as ready to
   // commit.
   while (!m_insts.empty()) {
@@ -209,6 +212,9 @@ Commit::commitHead(ThreadID tid)
 
   // update cpu stats
   m_cpu_p->incrNumCommittedInsts(tid);
+  
+  // send to next stage if there is one
+  sendInstToNextStage(inst);
 }
 
 void
