@@ -20,15 +20,6 @@ static inline int get_blk_end(int iter, int bound, int blk_dim) {
   }
 }
 
-// want to avoid copy and pasting inline code because may stress the icache
-// more than is more natural. either only include inlined code once or make 
-// actual function call. vector code will include more than once, but does it actually have to
-// since pc used ends up being the master pc?
-#ifndef _VEC
-static inline 
-#else
-//static inline
-#endif
 void gemm_vonneumann(float *a, float *b, float *c, int m, int n, int t, 
     int m_start, int m_end, int n_start, int n_end, int blk_dim, int tid) {
   
