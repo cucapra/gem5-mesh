@@ -56,6 +56,11 @@ class Stage {
         /** this is hack to allow combinational stages to stall previous sequential stages 
          * the flag prevents this stage from reclaiming credits */
         bool m_is_unemployed;
+
+        /**
+        * Check whether any sequential stages are ahead
+        */
+        //bool m_any_seq_stage_after;
         
         /**
         * Time buffer interface

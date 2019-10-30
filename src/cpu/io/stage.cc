@@ -55,6 +55,12 @@ Stage::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
     m_next_stage_credit_idx = pipeline.getNextStageIdx(m_next_stage_credit_idx);
   }
 
+  // if there's no seq stage at the end need to 
+
+  // TODO for more stages?
+  // TODO unused
+  //m_any_seq_stage_after = !hasNextStage() || pipeline.isStageSeq(m_next_stage_credit_idx);
+ //DPRINTF(Mesh, "any seq after %d %d\n", m_next_stage_credit_idx, m_any_seq_stage_after);
   // lookup stages that can squash this one based on squash wire
   // check all possible squash signals coming from subsequent stages. It's
   // important to do this in a reversed order since earlier stages may squash
@@ -66,7 +72,7 @@ Stage::setCommBuffers(TimeBuffer<InstComm>& inst_buffer,
     StageIdx stage = pipeline.getOrder()[i];
 
     // check if allowed to squash instructions in this stage
-    if ( pipeline.stageCmp(stage, m_stage_idx) || stage == StageIdx::IEWIdx ) {
+    if ( pipeline.stageCmp(stage, m_stage_idx) || stage == StageIdx::IEWIdx || stage == StageIdx::CommitIdx ) {
       
       // check if the stage even has a squash signal
       if (m_incoming_squash_wire->squash_signals.count((int)stage) > 0) {    
@@ -135,8 +141,9 @@ Stage::queueInsts() {
 void
 Stage::sendInstToNextStage(IODynInstPtr inst) {
   if (!hasNextStage()) return;
-  
+ 
   // sanity check: make sure we have enough credit before we sent the inst
+  //if (m_any_seq_stage_after)
   assert(m_num_credits > 0);
   // Place inst into the buffer
   outputInst().push_back(inst);

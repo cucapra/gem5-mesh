@@ -7,7 +7,7 @@
 
 Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, size_t in_size, size_t out_size,
     StageIdx stageType, bool canRootSend, bool canRecv) : 
-    Stage(_cpu_p, in_size, out_size, stageType, true),
+    Stage(_cpu_p, in_size, out_size, stageType, false),
     _numInPortsActive(0),
     _numOutPortsActive(0),
     _stage(FETCH),
@@ -40,7 +40,7 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, size_t in_size, size_t out_size,
 
 void
 Vector::tick() {
-  
+
   Stage::tick();
   
   // TODO this awkwardly calls doSquash as well, would like to decouple
@@ -173,6 +173,7 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   //
   // could have small wire carrying slave bit from commit stage -- ok
   //    a gem5 specific implementation detail of this is can't read the csr until executes (this ends up firing cycle after)
+  // IMPORTANT that config is set before the squash comes in, otherwise wont work properly
   // How does -ve credit work? -> use twos complement to send back (currently using some small unsigned int) -- ok
   if (initiator == StageIdx::CommitIdx && !((SquashComm::CommitSquash*)&squashInfo)->is_trap_pending) {
     if (canReadMesh()) {
@@ -201,7 +202,7 @@ Vector::passInstructions() {
     //ThreadID tid = inst->thread_id;
     //DPRINTF(Mesh, "[tid:%d] Decoding inst [sn:%lli] with PC %s\n",
     //                tid, inst->seq_num, inst->pc);
-
+    
     // send out this inst
     sendInstToNextStage(inst);
 
@@ -367,15 +368,18 @@ Vector::pushInstToNextStage(const MasterData &instInfo) {
     IODynInstPtr dynInst = createInstruction(instInfo);
     sendInstToNextStage(dynInst);
     
-    //if (m_stage_idx == LateVectorIdx)
-    //  DPRINTF(Mesh, "Push inst to decode %s->%s\n", instInfo.inst->toString(true), dynInst->toString(true));
+    //if (m_stage_idx == LateVectorIdx) {
+      DPRINTF(Mesh, "Push inst to decode %s->%s\n", instInfo.inst->toString(true), dynInst->toString(true));
+      //_numInstructions++;
+      //DPRINTF(Mesh, "num instructions seen %d\n", _numInstructions);
+    //}
   }
   // otherwise just pass the given instruction ptr
   else {
     sendInstToNextStage(instInfo.inst);
     
     //if (m_stage_idx == LateVectorIdx)
-    //  DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
+    DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
   }
   
 }

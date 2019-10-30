@@ -78,6 +78,7 @@ Commit::tick()
 void
 Commit::doCommit()
 {
+
   // TODO need to refactor this into parent?
   if (checkStall()) return;
   
@@ -213,9 +214,11 @@ Commit::commitHead(ThreadID tid)
 
   // update cpu stats
   m_cpu_p->incrNumCommittedInsts(tid);
-  
+ 
   // send to next stage if there is one
-  sendInstToNextStage(inst);
+  // HACK don't send if a syscall, for some reason not showing up in next buf in combo (when trap)
+  if (!inst->isSyscall())  
+    sendInstToNextStage(inst);
 }
 
 void
