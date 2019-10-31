@@ -34,9 +34,9 @@ programs = {
 }
 
 # create a template for the gem5 command line
-gem5_cmd = lambda program, options, result, cpus: \
-  '{} -d {}/{} {} --cmd={} --options=\"{}\" --num-cpus={}'.format(
-      args.build, args.results, result, args.config, program, options, str(cpus))
+gem5_cmd = lambda program, options, result, cpus, vec: \
+  '{} -d {}/{} {} --cmd={} --options=\"{}\" --num-cpus={} {}'.format(
+      args.build, args.results, result, args.config, program, options, str(cpus), '--vector' if vec else '')
   
 # compile command that chooses whether to use scratchpad optimizations
 # how many cores/sps are present, and whether to use vector mode
@@ -69,7 +69,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name):
     optionsStr = programs[prog_name]['options'](currSize)
     resultsAnno = '-vec' + str(int(use_vec)) + '-sp' + str(int(use_sps)) + '-size' + str(currSize)
     resultsDir = programs[prog_name]['name'] + resultsAnno
-    cmd = gem5_cmd(programs[prog_name]['path'], optionsStr, resultsDir, numCpus)
+    cmd = gem5_cmd(programs[prog_name]['path'], optionsStr, resultsDir, numCpus, use_vec)
     print(cmd)
     result = subprocess.check_output(cmd, shell=True)
     print(result)
