@@ -515,16 +515,27 @@ private:
     int m_inertia;
     
 public:
+// TODO deprecated
     bool decAndCheckSquash();
     
     void setInertia(int intertia);
+//
+    // was the branch actually taken in the end (implicit tracing)
+    bool master_taken;
     
-    // was the branch actually taken in the end
-    bool was_taken;
+    // target taken in master, if you want to use this need to wait an
+    // additional cycle for master to send this payload over
+    // this is only comes into play for indirect jumps (jr $reg)
+    // TODO currently cheating an sending this with the instructions, but will need to serialize
+    TheISA::PCState master_targ;
     
-    // how does this work? need to send of obvious to figure from instruction?
-    // is there a BTB here? what does it do?
-    TheISA::PCState actual_targ;
+    // is this a synthetic instruction created in slave core
+    // this will prevent a misprediction squash from being executed
+    // unless actual taken and actual targ differ from 
+    bool from_trace;
+    
+    // check whether trace sent by master core is valid
+    bool checkTrace(bool local_taken, TheISA::PCState local_targ);
 };
 
 typedef std::shared_ptr<IODynInst> IODynInstPtr;

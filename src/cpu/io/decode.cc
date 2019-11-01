@@ -101,6 +101,14 @@ Decode::doDecode()
       if (inst->branchTarget() != inst->readPredTarg()) {
         // set the right branch target for this instruction
         inst->setPredTarg(inst->branchTarget());
+        
+        // check if this is a trace and we were expecting this branch target (i.e. BTB prediction)
+        // we can do this because in decode we read the register we're using to jump
+        // don't check the taken or not taken (b/c only know that in execute)
+        if (inst->checkTrace(inst->master_taken, inst->branchTarget())) {
+          continue;
+        }
+        
         // initiate a squash signal so that Fetch can fetch from the right
         // stream.
         initiateSquash(inst);

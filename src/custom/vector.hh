@@ -109,7 +109,7 @@ class Vector : public Stage {
     void passInstructions();
     
     // extract (functional decode) the machinst to ExtMachInst
-    StaticInstPtr extractInstruction(const TheISA::MachInst inst);
+    StaticInstPtr extractInstruction(const TheISA::MachInst inst, TheISA::PCState& cur_pc);
     
     // create a packet to send over the mesh network
     PacketPtr createMeshPacket(RegVal payload);

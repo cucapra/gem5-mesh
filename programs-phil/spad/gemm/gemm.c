@@ -20,7 +20,13 @@ static inline int get_blk_end(int iter, int bound, int blk_dim) {
   }
 }
 
-void gemm_vonneumann(float *a, float *b, float *c, int m, int n, int t, 
+// issue where getting a 'c_jr' (indirect jump) in this function that is messing up vectorization
+// this function is getting a 'call memset' emitted as a part of gcc loop-tree-distrubute optimizations?
+// https://stackoverflow.com/questions/6410595/getting-gcc-to-compile-without-inserting-call-to-memcpy
+// TODO The baseline should still have this optimization enabled??
+static inline
+void __attribute__((optimize("-fno-tree-loop-distribute-patterns")))
+  gemm_vonneumann(float *a, float *b, float *c, int m, int n, int t, 
     int m_start, int m_end, int n_start, int n_end, int blk_dim, int tid) {
   
 #ifndef _BLOCKED
@@ -116,6 +122,12 @@ void kernel(
     float *a, float *b, float *c, int m, int n, int t, int blk_dim,
     int tid_x, int tid_y, int dim_x, int dim_y) {
   
+  // start recording all stats (all cores)
+  // use the last thread, b/c this wakes up last?
+  if (tid_x == 0 && tid_y == 0) {
+    stats_on();
+  }
+  
   // figure out which work this thread should do
   int m_start = tid_y * (m / dim_y);
   int n_start = tid_x * (n / dim_x);  
@@ -134,30 +146,15 @@ void kernel(
   
   int tid = tid_x + tid_y * dim_x;
   
-  printf("iterations %d %d\n", n_end - n_start, m_end - m_start);
-  
-  // start recording all stats (all cores)
-  // use the last thread, b/c this wakes up last?
-  if (tid_x == 0 && tid_y == 0) {
-    stats_on();
-  }
+  // commenting out breaks the program
+  //printf("iterations %d %d\n", n_end - n_start, m_end - m_start);
   
   #ifndef _VEC
   gemm_vonneumann(a, b, c, m, n, t, m_start, m_end, n_start, n_end, blk_dim, tid);
   #else
   int mask = ALL_NORM;
   
-  if (tid_x == 0 && tid_y == 0) {
-    mask = FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
-  }
-  else if (tid_x == 1 && tid_y == 0) {
-    mask = FET_I_INST_LEFT;
-  }
-  else if (tid_x == 0 && tid_y == 1) {
-    mask = FET_I_INST_UP;
-  }
-  
-  /*// upper left corner is the master
+  // upper left corner is the master
   if (tid_x == 0 && tid_y == 0) {
     mask = FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
   }
@@ -180,7 +177,7 @@ void kernel(
   // otherwise we're just forwarding to the right in the middle area
   else {
     mask = FET_I_INST_LEFT | FET_O_INST_RIGHT_SEND;
-  }*/
+  }
   
   VECTOR_EPOCH(mask);
   

@@ -438,7 +438,7 @@ class IOCPU : public BaseCPU
     Stats::Scalar m_misc_regfile_reads;
     Stats::Scalar m_misc_regfile_writes;
     
-  private:
+  public:
     Fetch  *getFetch() { return m_pipeline.extractStagePtr<Fetch>(StageIdx::FetchIdx); }
     Decode *getDecode() { return m_pipeline.extractStagePtr<Decode>(StageIdx::DecodeIdx); }
     Rename *getRename() { return m_pipeline.extractStagePtr<Rename>(StageIdx::RenameIdx); }

@@ -2,6 +2,7 @@
 #include "base/bitfield.hh"
 #include "custom/vector.hh"
 #include "cpu/io/cpu.hh"
+//#include "arch/utility.hh"
 
 #include "debug/Mesh.hh"
 
@@ -225,8 +226,8 @@ Vector::forwardInstruction(const MasterData& instInfo) {
   std::vector<Mesh_DS_t> out;
   MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
   
-  if (out.size() > 0)
-    DPRINTF(Mesh, "Forward to mesh net %s %d\n", instInfo.inst->toString(true), instInfo.new_squashes);
+  //if (out.size() > 0)
+  //  DPRINTF(Mesh, "Forward to mesh net %s %d\n", instInfo.inst->toString(true), instInfo.new_squashes);
   
   // send a packet in each direction
   for (int i = 0; i < out.size(); i++) {
@@ -309,41 +310,69 @@ Vector::createInstruction(const MasterData &instInfo) {
   // own pc(?), and maybe branch predictor (in fetch)
   int tid = 0;
   TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
-  auto cur_pc = instInfo.inst->pc; // temp?
-  auto static_inst = extractInstruction(machInst);
+  TheISA::PCState cur_pc = 0;
+  if (m_cpu_p->getFetch()) {
+     cur_pc = m_cpu_p->getFetch()->getPcState(tid); // TODO this is not modular! maybe pc seperated from fetch? have info buffer?
+  }
+  else {
+    assert(false);
+  }
+ 
+  // need decoder to figure out how long this instruction is
+  //auto decoder = getFetch()->
+  //auto static_inst = 
+  auto static_inst = extractInstruction(machInst, cur_pc);
   IODynInstPtr inst =
           std::make_shared<IODynInst>(static_inst, cur_pc,
                                       m_cpu_p->getAndIncrementInstSeq(),
                                       tid, m_cpu_p);
   //DPRINTF(Mesh, "[tid:%d]: built inst %s\n", tid, dyn_inst->toString(true));  
   
+  // mark instruction as from a stream traced by master core
+  inst->from_trace = true;
+  
   // just use branch prediction from the master instruction
   // need to justify part of this in how it would actually work in hardware
   // in the future will prob just determine this locally
   // the pred targ is what actually determines whether there was a misprediction or not
-  inst->setPredTarg(instInfo.inst->readPredTarg());
-  inst->predicted_taken = instInfo.inst->predicted_taken;
+  //inst->setPredTarg(instInfo.inst->readPredTarg());
+  //inst->predicted_taken = instInfo.inst->predicted_taken;
+  // TODO calling a fetch instruction
+  TheISA::PCState next_pc = cur_pc; // passed by ref and expected to change
+  bool pred_taken = m_cpu_p->getFetch()->lookupAndUpdateNextPC(inst, next_pc); // TODO this is awkward to call...
   
+  /*TheISA::PCState next_pc = cur_pc; // passed by ref and expected to change
+  bool pred_taken = m_cpu_p->getBranchPredPtr()->predict(inst->static_inst_p,
+                                                inst->seq_num, next_pc, tid);*/
+  inst->predicted_taken = pred_taken;
+  inst->setPredTarg(next_pc);
+  
+  // update the npc based on instruction predictions (like in Fetch)
+  m_cpu_p->getFetch()->pcState(next_pc, tid);
+  //TheISA::PCState temp_pc = inst->pc;
+  //TheISA::advancePC(temp_pc, inst->static_inst_p);
+  //DPRINTF(Mesh, "[%s] pc %s npc %s advancePC %s\n", inst->toString(), cur_pc, next_pc, temp_pc);
   // iew will pass a mispredicted branch forward, we don't want to send 
   // this to slave core because it will be wasted work, however you still need
   // to check the branch here. if it fails with update then we know there is divergence
-  if (instInfo.inst->isMispredicted()) {
-    DPRINTF(Mesh, "misprediction changing targed %s -> %s\n", instInfo.inst->readPredTarg(), instInfo.inst->actual_targ);
-    inst->setPredTarg(instInfo.inst->actual_targ);
-    inst->predicted_taken = instInfo.inst->was_taken;
-  }
   
+    inst->master_targ  = instInfo.inst->master_targ;
+    inst->master_taken = instInfo.inst->master_taken;
+  
+  if (instInfo.inst->isControl()) {
+    DPRINTF(Mesh, "master targed %d %s. pred targ %d %s\n", inst->master_taken, inst->master_targ, inst->predicted_taken, inst->readPredTarg() );
+  }
   // you need to update the branch predictor with the predictions before 
   // a squash can happen, otherwise the predictor will get confused and assert fail
   // we can access this structure here without a structural hazard because 
   // the fetch stage should be inactive if we are here
-  TheISA::PCState next_pc = cur_pc; // passed by ref and expected to change
-  /*bool pred_taken =*/ m_cpu_p->getBranchPredPtr()->predict(inst->static_inst_p,
+  /*TheISA::PCState next_pc = cur_pc; // passed by ref and expected to change
+  bool pred_taken = m_cpu_p->getBranchPredPtr()->predict(inst->static_inst_p,
                                                 inst->seq_num, next_pc, tid);
-                      
+    */                  
   // not sure if prediction divergence is a problem or not
-  if (inst->readPredTarg() != next_pc) 
-    DPRINTF(Mesh, "[[WARNING]] prediction divergence\n");
+  //if (inst->readPredTarg() != next_pc) 
+  //  DPRINTF(Mesh, "[[WARNING]] prediction divergence\n");
     
     
   // set the squash intertia of the instruction
@@ -358,10 +387,10 @@ Vector::createInstruction(const MasterData &instInfo) {
 void
 Vector::pushInstToNextStage(const MasterData &instInfo) {
   
-  if (m_stage_idx == LateVectorIdx) {
+  /*if (m_stage_idx == LateVectorIdx) {
     _numInstructions++;
     DPRINTF(Mesh, "num instructions seen %d\n", _numInstructions);
-  }
+  }*/
   
   // create new instruction only if slave
   if (canReadMesh()) {
@@ -369,7 +398,7 @@ Vector::pushInstToNextStage(const MasterData &instInfo) {
     sendInstToNextStage(dynInst);
     
     //if (m_stage_idx == LateVectorIdx) {
-      DPRINTF(Mesh, "Push inst to decode %s->%s\n", instInfo.inst->toString(true), dynInst->toString(true));
+     // DPRINTF(Mesh, "Push inst to decode %s->%s\n", instInfo.inst->toString(true), dynInst->toString(true));
       //_numInstructions++;
       //DPRINTF(Mesh, "num instructions seen %d\n", _numInstructions);
     //}
@@ -379,7 +408,15 @@ Vector::pushInstToNextStage(const MasterData &instInfo) {
     sendInstToNextStage(instInfo.inst);
     
     //if (m_stage_idx == LateVectorIdx)
-    DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
+    //DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
+    if (m_stage_idx == LateVectorIdx) {
+    _numInstructions++;
+    DPRINTF(Mesh, "[%s] num instructions seen %d\n", instInfo.inst->toString(true), _numInstructions);
+    if (instInfo.inst->m_inst_str == "jal ra, 1530") {
+            RegVal ra = m_cpu_p->readArchIntReg(1, 0);
+            DPRINTF(Mesh, "[%s] %#x PC=>NPC %s\n", instInfo.inst->toString(true), ra, instInfo.inst->pc);
+          }
+  }
   }
   
 }
@@ -437,9 +474,19 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
 }
 
 StaticInstPtr
-Vector::extractInstruction(const TheISA::MachInst inst) {
+Vector::extractInstruction(const TheISA::MachInst inst, TheISA::PCState& cur_pc) {
   // turn instruction bits into higher-level instruction
   RiscvISA::Decoder decoder;
+  
+    if (decoder.compressed(inst)) {
+        cur_pc.npc(cur_pc.instAddr() + sizeof(RiscvISA::MachInst) / 2);
+    } else {
+        cur_pc.npc(cur_pc.instAddr() + sizeof(RiscvISA::MachInst));
+    }
+  // need to figure out how long insturction is (emulates the following process that happens in fetch and rv decoder
+  //decoder.moreBytes(cur_pc, 0x0, inst);
+  //assert(decoder.instReady());
+  //StaticInstPtr ret = decoder.decode(cur_pc);
   StaticInstPtr ret = decoder.decode(inst, 0x0);
   return ret;
 }

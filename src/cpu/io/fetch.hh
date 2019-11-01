@@ -119,6 +119,9 @@ class Fetch : public Stage
     /** Set new PC for a given thread */
     void pcState(const TheISA::PCState& new_pc, ThreadID tid);
 
+    /** TODO/not pretty Get the current PC for a given thread */
+    TheISA::PCState getPcState(ThreadID tid) { return m_pcs[tid]; }
+
     /** Line trace */
     void linetrace(std::stringstream& ss) override;
 
@@ -141,11 +144,11 @@ class Fetch : public Stage
 
     /** Return cache-line-aligned address of the given address */
     Addr getCacheLineAlignedAddr(Addr addr) const;
-
+public:
     /** Look up next PC. Return true if next_pc is a taken branch */
     bool lookupAndUpdateNextPC(const IODynInstPtr& inst,
                                TheISA::PCState& next_pc);
-
+private:
     /** Return the next thread to fetch */
     ThreadID getNextThread();
 

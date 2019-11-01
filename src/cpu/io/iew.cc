@@ -183,25 +183,45 @@ IEW::doWriteback()
       if (!inst->isSquashed()) {
         assert(inst->isExecuted());
 
+        TheISA::PCState temp_pc = inst->pc;
+        TheISA::advancePC(temp_pc, inst->static_inst_p);
+
         // check if this is a mispredicted instruction. If so, init a squash
         if (inst->isMispredicted()) {
+          // if this is a slave core, check that trace is expected this and don't squash
+          //TheISA::PCState temp_pc = inst->pc;
+          //TheISA::advancePC(temp_pc, inst->static_inst_p);
+          if (!inst->checkTrace(!inst->predicted_taken, temp_pc)) {
           
           // update some fields in case send to slave
-          inst->was_taken = !inst->predicted_taken;
-          TheISA::PCState temp_pc = inst->pc;
-          TheISA::advancePC(temp_pc, inst->static_inst_p);
-          inst->actual_targ = temp_pc;
-          
-          /*if ((
-              inst->m_inst_str == "bne a4, a5, -22")) {
+          inst->master_taken = !inst->predicted_taken;
+          inst->master_targ = temp_pc;
+        
+          if (
+              inst->m_inst_str == "c_jr zero, ra, 0" && inst->from_trace) {
+            RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
+            RegVal one  = 0;//inst->readIntRegOperand(inst->static_inst_p.get(), 1);
+              //  m_cpu_p->readArchIntReg(1, 0); // ra is 1st element in names?
+              
+            TheISA::PCState temp_pc = inst->pc;
+            TheISA::advancePC(temp_pc, inst->static_inst_p);
+            DPRINTF(Mesh, "[%s] Branch misprediction: %#x %llu "
+                       "predicted target PC: %s instead of %s\n",
+                       inst->toString(true), zero, one, inst->readPredTarg(), temp_pc);
+            //DPRINTF(Mesh, "%#x\n", m_cpu_p->readArchIntReg(1, 0)); // matches readIntRegOperand(0) for c_jr
+          }
+          else if (inst->m_inst_str == "bne a4, a5, -22") {
+
             RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
             RegVal one  = inst->readIntRegOperand(inst->static_inst_p.get(), 1);
+              //  m_cpu_p->readArchIntReg(1, 0); // ra is 1st element in names?
+              
             TheISA::PCState temp_pc = inst->pc;
             TheISA::advancePC(temp_pc, inst->static_inst_p);
             DPRINTF(Mesh, "[%s] Branch misprediction: %llu %llu "
-                       "[sn:%d] predicted target PC: %s instead of %s\n",
-                       inst->m_inst_str, zero, one, inst->seq_num, inst->readPredTarg(), temp_pc);
-          }*/
+                       "predicted target PC: %s instead of %s\n",
+                       inst->toString(true), zero, one, inst->readPredTarg(), temp_pc);
+          }
           DPRINTF(IEW, "Branch misprediction: "
                        "[sn:%d] predicted target PC: %s\n",
                        inst->seq_num, inst->readPredTarg());
@@ -211,8 +231,13 @@ IEW::doWriteback()
 #endif
           // initiate a squash signal
           initiateSquash(inst);
+          }
         }
-        /*else {
+        else {
+          // update some fields in case send to slave
+          inst->master_taken = inst->predicted_taken;
+          inst->master_targ = temp_pc;
+
           if ((
               inst->m_inst_str == "bne a4, a5, -22")) {
             RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
@@ -235,17 +260,25 @@ IEW::doWriteback()
               DPRINTF(Mesh, "[%s] adding %f + %f\n", inst->toString(true), (float)zero, (float)one);
           }
           else if (
-            inst->m_inst_str == "fsw fa5, -4(a3)") {
+            inst->m_inst_str == "c_add t0, t0, a7") {
+              RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
+              RegVal one = inst->readIntRegOperand(inst->static_inst_p.get(), 1);
+              DPRINTF(Mesh, "[%s] %d + %d\n", inst->toString(true), zero, one);
+          }
+          else if (
+            inst->m_inst_str == "fsw fa5, 0(t0)") {
               RegVal zero = inst->readFloatRegOperandBits(inst->static_inst_p.get(), 1);
               RegVal one = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
               DPRINTF(Mesh, "[%s] storing %f %llu\n", inst->toString(true), (float)zero, one);
           }
-          else if (inst->m_inst_str == "c_addi a4, a4, 4") {
+          else if (inst->m_inst_str == "c_mv t0, a1" || 
+                inst->m_inst_str == "c_mv a1, t5" ||
+                inst->m_inst_str == "c_ldsp t5, 160(sp)") {
               RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
-              DPRINTF(Mesh, "[%s] inc %llu = %llu + 4\n", inst->toString(true), zero + 4, zero);
-            
+              DPRINTF(Mesh, "[%s] %llu\n", inst->toString(true), zero);
           }
-        }*/
+          
+        }
 
         // make sure all dest regs are marked as ready by exec units
         for (int i = 0; i < inst->numDestRegs(); ++i)
