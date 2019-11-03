@@ -96,15 +96,14 @@ Decode::doDecode()
     // and the actual target match. If they don't, we need to initiate a squash
     // to squash all instructions after this instruction since they are in a
     // wrong execution branch.
+    // This is NOT checking indirect jumps b/c haven't read regfile yet
     if (inst->isDirectCtrl() && (inst->isUncondCtrl() || inst->isPredTaken()))
     {
       if (inst->branchTarget() != inst->readPredTarg()) {
         // set the right branch target for this instruction
         inst->setPredTarg(inst->branchTarget());
         
-        // check if this is a trace and we were expecting this branch target (i.e. BTB prediction)
-        // we can do this because in decode we read the register we're using to jump
-        // don't check the taken or not taken (b/c only know that in execute)
+        // check if this is a trace and we were expecting this branch target
         if (inst->checkTrace(inst->master_taken, inst->branchTarget())) {
           continue;
         }
