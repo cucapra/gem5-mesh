@@ -62,6 +62,27 @@ PipelinedExecUnit::isBusy() const
   return m_incoming_inst != nullptr;
 }
 
+IODynInstPtr
+PipelinedExecUnit::peekIntroInst()
+{
+  if (m_incoming_inst) {
+    return m_incoming_inst;
+  }
+  else {
+    return nullptr;
+  }
+}
+
+IODynInstPtr
+PipelinedExecUnit::peekCompletedInst()
+{
+  assert(hasInstsToWriteBack());
+  IODynInstPtr inst = m_pipeline.back();
+  assert(inst->isExecuted());
+  return inst;
+}
+
+
 void
 PipelinedExecUnit::tick()
 {

@@ -43,6 +43,17 @@ MemUnit::insert(IODynInstPtr inst)
 }
 
 IODynInstPtr
+MemUnit::peekIntroInst()
+{
+  if (m_s0_inst) {
+    return m_s0_inst;
+  }
+  else {
+    return nullptr;
+  }
+}
+
+IODynInstPtr
 MemUnit::removeCompletedInst()
 {
   // if both LQ and SQ have instructions to write back, prioritize older inst

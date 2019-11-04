@@ -47,6 +47,9 @@ class UnpipelinedExecUnit : public ExecUnit
 
     /** Linetrace */
     void linetrace(std::stringstream& ss) override;
+    
+    /** Peak instruction that has entered first stage of ALU */
+    IODynInstPtr peekIntroInst() override;
 
   private:
     enum Status {

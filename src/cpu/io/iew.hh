@@ -132,6 +132,18 @@ class IEW : public Stage
      * round-robin selection in Writeback stage) */
     size_t m_next_wb_exec_unit_idx;
 
+    /** Store a pointer to int alu exec unit b/c need to generate PCs 
+     * Will prob also need a PC +2/+4 in parallel in execute stage or reuse other one in fetch (unused now) */
+    PipelinedExecUnit *m_int_ALU_ptr;
+    
+    /** Since we can't squash the pipeline and too expensive to atomically update
+     * We need to update the PC of an instruction before it enters the ALUs
+     * We'll do this by keeping a register in the EXE stage, read to update inst pc
+     * Write it at the end of the int ALU (1 cycle) so ready for the next instruction
+     * Important that int ALU is only 1 cycle for this to work
+     * */
+    std::vector<TheISA::PCState> m_trace_pcs;
+
     /** ROBs */
     std::vector<ROB*> m_robs;
 

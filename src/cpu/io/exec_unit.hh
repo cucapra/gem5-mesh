@@ -50,6 +50,9 @@ class ExecUnit
 
     /** Linetrace */
     virtual void linetrace(std::stringstream& ss) = 0;
+    
+    /** Peak instruction that has entered first stage of ALU */
+    virtual IODynInstPtr peekIntroInst() = 0;
 };
 
 #endif // __CPU_IO_EXEC_UNIT_HH__

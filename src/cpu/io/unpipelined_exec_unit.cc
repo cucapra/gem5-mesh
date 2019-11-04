@@ -54,6 +54,17 @@ UnpipelinedExecUnit::removeCompletedInst()
   return inst;
 }
 
+IODynInstPtr
+UnpipelinedExecUnit::peekIntroInst()
+{
+  if (m_inst && m_cycle_count == Cycles(0)) {
+    return m_inst;
+  }
+  else {
+    return nullptr;
+  }
+}
+
 bool
 UnpipelinedExecUnit::hasInstsToWriteBack() const
 {

@@ -121,6 +121,9 @@ class MemUnit : public ExecUnit
 
     /** Check if store buffer is empty */
     bool isStoreBufferEmpty(ThreadID tid) const;
+    
+    /** Peak instruction that has entered first stage of ALU */
+    IODynInstPtr peekIntroInst() override;
 
   private:
     enum Status {

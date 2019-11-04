@@ -47,6 +47,12 @@ class PipelinedExecUnit : public ExecUnit
 
     /** Linetrace */
     void linetrace(std::stringstream& ss) override;
+    
+    /** Peak instruction that has entered first stage of ALU */
+    IODynInstPtr peekIntroInst() override;
+
+    /** Peak at instruction that has just finished (shouldn't do much with this b/c on crit path) */
+    IODynInstPtr peekCompletedInst();
 
   private:
     enum Status {

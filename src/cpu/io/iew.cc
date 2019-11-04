@@ -25,6 +25,7 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
       m_scoreboard_p(nullptr)
 {
   // create Int ALU exec unit
+  assert(params->intAluOpLatency == 1); // need branch to check in one cycle for trace
   size_t idx = 0;
   m_exec_units.push_back(new PipelinedExecUnit(this->name().c_str(), "IntALU",
                                                params->intAluOpLatency));
@@ -196,6 +197,11 @@ IEW::doWriteback()
           // update some fields in case send to slave
           inst->master_taken = !inst->predicted_taken;
           inst->master_targ = temp_pc;
+          
+          // update pc somehow without squashing?
+          // should this stage keep track of its own pc? and ignore the one
+          // from fetch?
+          // really only need this pc to be accurate when squash due to conditional branch or syscall (which occur after this)
         
           if (
               inst->m_inst_str == "c_jr zero, ra, 0" && inst->from_trace) {
@@ -302,9 +308,34 @@ IEW::doWriteback()
 void
 IEW::doExecute()
 {
+  // If this is a traced instruction, set the PC of each instruction
+  // in the first stage of respective ALU
+  // TODO potentially adds a mux on crit path? or no?
+  // NOTE these some of these operations don't have to be completed by execute
+  // for example jal $ra, in gem5 NPC needs to be known in exe, but really can get NPC in writeback?
+  for (auto exec_unit_p : m_exec_units) {
+    IODynInstPtr inst = exec_unit_p->peekIntroInst();
+    if (inst) {
+      inst->pcState(m_trace_pcs[inst->thread_id]);
+    }
+  }
+  
   // Tick all execute pipes
   for (auto exec_unit_p : m_exec_units)
     exec_unit_p->tick();
+    
+  
+  // BUT THIS WONT WORK B/C INST FINISH OUT OF ORDER
+  // Set update for the PC register to be read at the beginning of the next
+  // execute cycle
+  // TODO potentially adds a mux to crit path
+  IODynInstPtr inst = m_int_ALU_ptr->peekCompletedInst();
+  if (inst) {
+    TheISA::PCState temp_pc = inst->pc;
+    TheISA::advancePC(temp_pc, inst->static_inst_p);
+    m_trace_pcs[inst->thread_id] = temp_pc;
+  }
+  
 }
 
 void
