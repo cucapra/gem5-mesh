@@ -51,8 +51,8 @@ class PipelinedExecUnit : public ExecUnit
     /** Peak instruction that has entered first stage of ALU */
     IODynInstPtr peekIntroInst() override;
 
-    /** Peak at instruction that has just finished (shouldn't do much with this b/c on crit path) */
-    IODynInstPtr peekCompletedInst();
+    /** Do functional execute of incoming instruction to allow correct PC check */
+    void functionalExecute() override;
 
   private:
     enum Status {

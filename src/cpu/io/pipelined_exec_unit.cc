@@ -73,13 +73,18 @@ PipelinedExecUnit::peekIntroInst()
   }
 }
 
-IODynInstPtr
-PipelinedExecUnit::peekCompletedInst()
-{
-  assert(hasInstsToWriteBack());
-  IODynInstPtr inst = m_pipeline.back();
-  assert(inst->isExecuted());
-  return inst;
+void
+PipelinedExecUnit::functionalExecute() {
+  if (m_incoming_inst && m_incoming_inst->fault == NoFault && !m_incoming_inst->isExecuted()) {
+    m_incoming_inst->execute();
+    m_incoming_inst->setExecuted();
+    
+#ifdef DEBUG
+    // record incoming inst for linetrace
+    m_executed_insts.push_back(m_incoming_inst);
+    m_status.set(Status::Busy);
+#endif
+  }
 }
 
 
@@ -103,16 +108,17 @@ PipelinedExecUnit::tick()
     m_pipeline[i + 1] = m_pipeline[i];
 
   // functionally execute the incoming inst
-  if (m_incoming_inst && m_incoming_inst->fault == NoFault) {
+  /*if (m_incoming_inst && m_incoming_inst->fault == NoFault) {
     m_incoming_inst->execute();
     m_incoming_inst->setExecuted();
-
+  
 #ifdef DEBUG
     // record incoming inst for linetrace
     m_executed_insts.push_back(m_incoming_inst);
     m_status.set(Status::Busy);
 #endif
-  }
+  }*/
+  functionalExecute();
 
   // place the incoming inst into the first slot
   m_pipeline[0] = m_incoming_inst;

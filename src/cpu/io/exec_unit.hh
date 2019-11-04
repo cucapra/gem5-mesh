@@ -53,6 +53,9 @@ class ExecUnit
     
     /** Peak instruction that has entered first stage of ALU */
     virtual IODynInstPtr peekIntroInst() = 0;
+    
+    /** Do functional execute of incoming instruction to allow correct PC check */
+    virtual void functionalExecute() = 0;
 };
 
 #endif // __CPU_IO_EXEC_UNIT_HH__

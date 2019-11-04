@@ -18,6 +18,7 @@ MemUnit::MemUnit(const char* _iew_name, const char* _name,
       m_num_lq_entries(params->numLoadQueueEntries),
       m_num_sq_entries(params->numStoreQueueEntries),
       m_num_dcache_ports(params->numDcachePorts),
+      m_incoming_inst(nullptr),
       m_s0_inst(nullptr),
       m_s1_inst(nullptr)
 { }
@@ -40,18 +41,22 @@ MemUnit::insert(IODynInstPtr inst)
   assert(!isBusy());
   // place the incoming inst into m_s0_inst
   m_s0_inst = inst;
+  
+  // also save in a seperate variable that is gaurenteed to get freed first time tick called
+  m_incoming_inst = inst;
 }
 
 IODynInstPtr
 MemUnit::peekIntroInst()
 {
-  if (m_s0_inst) {
-    return m_s0_inst;
-  }
-  else {
-    return nullptr;
-  }
+  return m_incoming_inst;
 }
+
+void
+MemUnit::functionalExecute() {
+  // don't do anything which is fine b/c mem instruction won't update pc
+}
+
 
 IODynInstPtr
 MemUnit::removeCompletedInst()
@@ -126,6 +131,8 @@ MemUnit::tick()
 void
 MemUnit::doAddrCalc()
 {
+  m_incoming_inst = nullptr;
+  
   if (m_s0_inst == nullptr)
     return;   // nothing to do
 

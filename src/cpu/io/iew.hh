@@ -131,13 +131,6 @@ class IEW : public Stage
     /** Index of the next exec unit to be selected to write back (used in
      * round-robin selection in Writeback stage) */
     size_t m_next_wb_exec_unit_idx;
-
-    /** Store a pointer to int alu exec unit b/c need to generate PCs 
-     * Will prob also need a PC +2/+4 in parallel in execute stage or reuse other one in fetch (unused now) */
-    PipelinedExecUnit *m_int_ALU_ptr;
-    
-    /** Remember which seq num last updated pc, to combat out of order finish */
-    size_t m_last_traced_seq_num;
     
     /** Since we can't squash the pipeline and too expensive to atomically update
      * We need to update the PC of an instruction before it enters the ALUs

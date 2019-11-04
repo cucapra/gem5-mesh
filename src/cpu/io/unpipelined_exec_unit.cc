@@ -38,10 +38,11 @@ UnpipelinedExecUnit::insert(IODynInstPtr inst)
   m_cycle_count = Cycles(0);
 
   // functionally execute the incoming inst
-  if (m_inst && m_inst->fault == NoFault) {
-    m_inst->execute();
-    m_inst->setExecuted();
-  }
+  //if (m_inst && m_inst->fault == NoFault) {
+  //  m_inst->execute();
+  //  m_inst->setExecuted();
+  //}
+  functionalExecute();
 }
 
 IODynInstPtr
@@ -64,6 +65,15 @@ UnpipelinedExecUnit::peekIntroInst()
     return nullptr;
   }
 }
+
+void
+UnpipelinedExecUnit::functionalExecute() {
+  if (m_inst && m_inst->fault == NoFault && !m_inst->isExecuted()) {
+    m_inst->execute();
+    m_inst->setExecuted();
+  }
+}
+
 
 bool
 UnpipelinedExecUnit::hasInstsToWriteBack() const

@@ -124,6 +124,9 @@ class MemUnit : public ExecUnit
     
     /** Peak instruction that has entered first stage of ALU */
     IODynInstPtr peekIntroInst() override;
+    
+    /** Do functional execute of incoming instruction to allow correct PC check */
+    void functionalExecute() override;
 
   private:
     enum Status {
@@ -191,6 +194,10 @@ class MemUnit : public ExecUnit
     /** ST-LDs dependency map. A map between a store instruction's sequence
      * number to all load instructions dependeing on it */
     std::unordered_map<InstSeqNum, std::vector<IODynInstPtr>> m_st_ld_map;
+
+    /** An instruction just beginning in the pipeline. To know if this was just
+     * submitted this cycle need this, b/c can stall in s0 and s1 stages*/
+    IODynInstPtr m_incoming_inst;
 
     /** Instruction whose address is being calculated
      * (i.e., input of S0 stage) */

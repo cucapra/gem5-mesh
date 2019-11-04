@@ -26,6 +26,7 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
 {
   // create Int ALU exec unit
   assert(params->intAluOpLatency == 1); // need branch to check in one cycle for trace
+  assert(params->issueWidth == 1); // calculation of pc in execute only works with issue width of 1
   size_t idx = 0;
   m_exec_units.push_back(new PipelinedExecUnit(this->name().c_str(), "IntALU",
                                                params->intAluOpLatency));
@@ -78,8 +79,6 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
   m_next_wb_exec_unit_idx = 0;
   
   // HACK fields
-  m_int_ALU_ptr = (PipelinedExecUnit)m_exec_units[0];
-  m_last_traced_seq_num = 0;
   m_trace_pcs.push_back(0);
   
 }
@@ -321,31 +320,54 @@ IEW::doExecute()
   // for example jal $ra, in gem5 NPC needs to be known in exe, but really can get NPC in writeback?
   for (auto exec_unit_p : m_exec_units) {
     IODynInstPtr inst = exec_unit_p->peekIntroInst();
-    if (inst) {
-      inst->pcState(m_trace_pcs[inst->thread_id]);
+    if (inst && inst->from_trace) {
+      
+      // check if instruction is compressed and has diff increment
+      TheISA::PCState cur_pc = m_trace_pcs[inst->thread_id];
+      RiscvISA::Decoder decoder;
+      TheISA::MachInst mach_inst = (TheISA::MachInst)inst->static_inst_p->machInst;
+      if (decoder.compressed(mach_inst)) {
+        cur_pc.npc(cur_pc.instAddr() + sizeof(RiscvISA::MachInst) / 2);
+      } else {
+        cur_pc.npc(cur_pc.instAddr() + sizeof(RiscvISA::MachInst));
+      }
+      
+      inst->pcState(cur_pc);
     }
   }
+  
+  // do the functional ticks where applicable to get the appropriate next PC
+  // assume everything relevant to PC can occur in a single cycle so this is find to check now
+  // (really at the end of the cycle)
+  for (auto exec_unit_p : m_exec_units)
+    exec_unit_p->functionalExecute();
+    
+  // Set update for the PC register to be read at the beginning of the next
+  // execute cycle
+  // TODO potentially adds a mux to crit path
+  // TODO out of order issue, especially when issue width > 1
+  // In the current setup it should only be possible for one instruction
+  // to at the end of its first cycle in the pipeline
+  bool found = false;
+  for (auto exec_unit_p : m_exec_units) {
+    IODynInstPtr inst = exec_unit_p->peekIntroInst();
+    if (inst) {
+      TheISA::PCState cur_pc = inst->pc;
+      TheISA::advancePC(cur_pc, inst->static_inst_p);
+      m_trace_pcs[inst->thread_id] = cur_pc;
+    
+    
+      //DPRINTF(Mesh, "1cycle [%s]\n", inst->toString(true));
+    
+      if (!found) found = true;
+      else assert(0);
+    }
+  }   
   
   // Tick all execute pipes
   for (auto exec_unit_p : m_exec_units)
     exec_unit_p->tick();
     
-  
-  // BUT THIS WONT WORK B/C INST FINISH OUT OF ORDER, unless do max seq num wins?
-  // Set update for the PC register to be read at the beginning of the next
-  // execute cycle
-  // TODO potentially adds a mux to crit path
-  IODynInstPtr inst = m_int_ALU_ptr->peekCompletedInst();
-  if (inst) {
-    TheISA::PCState temp_pc = inst->pc;
-    TheISA::advancePC(temp_pc, inst->static_inst_p);
-    m_trace_pcs[inst->thread_id] = temp_pc;
-  }
-  // potentially another func unit has a relevant pc update
-  else {
-    
-  }
-  
 }
 
 void
