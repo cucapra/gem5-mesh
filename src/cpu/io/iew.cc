@@ -76,6 +76,12 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
   // init other exec_unit fields
   m_mem_unit_p = dynamic_cast<MemUnit*>(m_exec_units.back());
   m_next_wb_exec_unit_idx = 0;
+  
+  // HACK fields
+  m_int_ALU_ptr = (PipelinedExecUnit)m_exec_units[0];
+  m_last_traced_seq_num = 0;
+  m_trace_pcs.push_back(0);
+  
 }
 
 IEW::~IEW()
@@ -325,7 +331,7 @@ IEW::doExecute()
     exec_unit_p->tick();
     
   
-  // BUT THIS WONT WORK B/C INST FINISH OUT OF ORDER
+  // BUT THIS WONT WORK B/C INST FINISH OUT OF ORDER, unless do max seq num wins?
   // Set update for the PC register to be read at the beginning of the next
   // execute cycle
   // TODO potentially adds a mux to crit path
@@ -334,6 +340,10 @@ IEW::doExecute()
     TheISA::PCState temp_pc = inst->pc;
     TheISA::advancePC(temp_pc, inst->static_inst_p);
     m_trace_pcs[inst->thread_id] = temp_pc;
+  }
+  // potentially another func unit has a relevant pc update
+  else {
+    
   }
   
 }

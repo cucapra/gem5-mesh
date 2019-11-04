@@ -136,6 +136,9 @@ class IEW : public Stage
      * Will prob also need a PC +2/+4 in parallel in execute stage or reuse other one in fetch (unused now) */
     PipelinedExecUnit *m_int_ALU_ptr;
     
+    /** Remember which seq num last updated pc, to combat out of order finish */
+    size_t m_last_traced_seq_num;
+    
     /** Since we can't squash the pipeline and too expensive to atomically update
      * We need to update the PC of an instruction before it enters the ALUs
      * We'll do this by keeping a register in the EXE stage, read to update inst pc
