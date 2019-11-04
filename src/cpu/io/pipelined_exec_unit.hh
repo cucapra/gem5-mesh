@@ -78,6 +78,10 @@ class PipelinedExecUnit : public ExecUnit
     /** Number of pipeline stages */
     const size_t m_num_stages;
 
+    /** An instruction just beginning in the pipeline. To know if this was just
+     * submitted this cycle need this, b/c can stall in pipe stages */
+    IODynInstPtr m_issued_inst;
+
     /** Incoming instruction (nullptr if no incoming inst) */
     IODynInstPtr m_incoming_inst;
 

@@ -192,104 +192,62 @@ IEW::doWriteback()
         TheISA::PCState temp_pc = inst->pc;
         TheISA::advancePC(temp_pc, inst->static_inst_p);
 
+        // whether the branch was locally taken to compare to the trace
+        // TODO for some reason can get cases where mispredict is wrong due to target not taken flag
+        bool local_taken = inst->isMispredicted() ? !inst->predicted_taken : inst->predicted_taken;
+
+        
+        if ((!inst->from_trace && inst->isMispredicted()) || // normal case
+              (inst->from_trace && !inst->checkTrace(local_taken, temp_pc))) {
+                
+          if (inst->from_trace) {
+            DPRINTF(Mesh, "[%s] mispredict %d pred_taken %d pred pc %s\ncurpc %s local taken %d local target %s\nmaster taken %d master target %s\n",
+              inst->toString(), inst->isMispredicted(), inst->predicted_taken, inst->readPredTarg(), inst->pc, local_taken, temp_pc, inst->master_taken, inst->master_targ);
+            
+          }
+                
+          DPRINTF(IEW, "Branch misprediction: "
+                       "[sn:%d] predicted target PC: %s\n",
+                       inst->seq_num, inst->readPredTarg());
+#ifdef DEBUG
+            // record
+            m_stage_status.set(IEWStatus::WBInitSquash);
+#endif
+            // initiate a squash signal
+            initiateSquash(inst);
+        }
+        
+        if (!inst->from_trace) {
         // check if this is a mispredicted instruction. If so, init a squash
         if (inst->isMispredicted()) {
           // if this is a slave core, check that trace is expected this and don't squash
           //TheISA::PCState temp_pc = inst->pc;
           //TheISA::advancePC(temp_pc, inst->static_inst_p);
-          if (!inst->checkTrace(!inst->predicted_taken, temp_pc)) {
           
           // update some fields in case send to slave
           inst->master_taken = !inst->predicted_taken;
           inst->master_targ = temp_pc;
           
-          // update pc somehow without squashing?
-          // should this stage keep track of its own pc? and ignore the one
-          // from fetch?
-          // really only need this pc to be accurate when squash due to conditional branch or syscall (which occur after this)
-        
-          if (
-              inst->m_inst_str == "c_jr zero, ra, 0" && inst->from_trace) {
-            RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
-            RegVal one  = 0;//inst->readIntRegOperand(inst->static_inst_p.get(), 1);
-              //  m_cpu_p->readArchIntReg(1, 0); // ra is 1st element in names?
-              
-            TheISA::PCState temp_pc = inst->pc;
-            TheISA::advancePC(temp_pc, inst->static_inst_p);
-            DPRINTF(Mesh, "[%s] Branch misprediction: %#x %llu "
-                       "predicted target PC: %s instead of %s\n",
-                       inst->toString(true), zero, one, inst->readPredTarg(), temp_pc);
-            //DPRINTF(Mesh, "%#x\n", m_cpu_p->readArchIntReg(1, 0)); // matches readIntRegOperand(0) for c_jr
-          }
-          else if (inst->m_inst_str == "bne a4, a5, -22") {
-
-            RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
-            RegVal one  = inst->readIntRegOperand(inst->static_inst_p.get(), 1);
-              //  m_cpu_p->readArchIntReg(1, 0); // ra is 1st element in names?
-              
-            TheISA::PCState temp_pc = inst->pc;
-            TheISA::advancePC(temp_pc, inst->static_inst_p);
-            DPRINTF(Mesh, "[%s] Branch misprediction: %llu %llu "
-                       "predicted target PC: %s instead of %s\n",
-                       inst->toString(true), zero, one, inst->readPredTarg(), temp_pc);
-          }
-          DPRINTF(IEW, "Branch misprediction: "
+          
+            
+          /*
+            DPRINTF(IEW, "Branch misprediction: "
                        "[sn:%d] predicted target PC: %s\n",
                        inst->seq_num, inst->readPredTarg());
 #ifdef DEBUG
-          // record
-          m_stage_status.set(IEWStatus::WBInitSquash);
+            // record
+            m_stage_status.set(IEWStatus::WBInitSquash);
 #endif
-          // initiate a squash signal
-          initiateSquash(inst);
-          }
+            // initiate a squash signal
+            initiateSquash(inst);
+          */
         }
         else {
           // update some fields in case send to slave
           inst->master_taken = inst->predicted_taken;
           inst->master_targ = temp_pc;
-
-          if ((
-              inst->m_inst_str == "bne a4, a5, -22")) {
-            RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
-            RegVal one  = inst->readIntRegOperand(inst->static_inst_p.get(), 1);
-            TheISA::PCState temp_pc = inst->pc;
-            TheISA::advancePC(temp_pc, inst->static_inst_p);
-            DPRINTF(Mesh, "[%s] Branch ok: %llu %llu "
-                       "[sn:%d] predicted target PC: %s ?= %s\n",
-                       inst->m_inst_str, zero, one, inst->seq_num, inst->readPredTarg(), temp_pc);
-          }
-          else if (inst->m_inst_str == "flw fa4, 0(a2)" ||
-            inst->m_inst_str == "flw fa5, 0(a4)") {
-                RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
-              DPRINTF(Mesh, "[%s] loading from %d\n", inst->toString(true), zero);
-          }
-          else if (
-            inst->m_inst_str == "fadd_s fa5, fa5, fa4") {
-              RegVal zero = inst->readFloatRegOperandBits(inst->static_inst_p.get(), 0);
-              RegVal one = inst->readFloatRegOperandBits(inst->static_inst_p.get(), 1);
-              DPRINTF(Mesh, "[%s] adding %f + %f\n", inst->toString(true), (float)zero, (float)one);
-          }
-          else if (
-            inst->m_inst_str == "c_add t0, t0, a7") {
-              RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
-              RegVal one = inst->readIntRegOperand(inst->static_inst_p.get(), 1);
-              DPRINTF(Mesh, "[%s] %d + %d\n", inst->toString(true), zero, one);
-          }
-          else if (
-            inst->m_inst_str == "fsw fa5, 0(t0)") {
-              RegVal zero = inst->readFloatRegOperandBits(inst->static_inst_p.get(), 1);
-              RegVal one = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
-              DPRINTF(Mesh, "[%s] storing %f %llu\n", inst->toString(true), (float)zero, one);
-          }
-          else if (inst->m_inst_str == "c_mv t0, a1" || 
-                inst->m_inst_str == "c_mv a1, t5" ||
-                inst->m_inst_str == "c_ldsp t5, 160(sp)") {
-              RegVal zero = inst->readIntRegOperand(inst->static_inst_p.get(), 0);
-              DPRINTF(Mesh, "[%s] %llu\n", inst->toString(true), zero);
-          }
-          
         }
+      }
 
         // make sure all dest regs are marked as ready by exec units
         for (int i = 0; i < inst->numDestRegs(); ++i)
@@ -333,7 +291,13 @@ IEW::doExecute()
       }
       
       inst->pcState(cur_pc);
+      
+      //DPRINTF(Mesh, "setup inst based on trace %s . %s\n", m_trace_pcs[inst->thread_id], cur_pc);
+      
     }
+    
+    //if (inst) DPRINTF(Mesh, "1cycle [%s] pc %s. trace pc %s\n", inst->toString(true), inst->pc, m_trace_pcs[inst->thread_id]);
+
   }
   
   // do the functional ticks where applicable to get the appropriate next PC
@@ -351,14 +315,13 @@ IEW::doExecute()
   bool found = false;
   for (auto exec_unit_p : m_exec_units) {
     IODynInstPtr inst = exec_unit_p->peekIntroInst();
-    if (inst) {
+    if (inst && inst->from_trace) {      
       TheISA::PCState cur_pc = inst->pc;
       TheISA::advancePC(cur_pc, inst->static_inst_p);
       m_trace_pcs[inst->thread_id] = cur_pc;
-    
-    
-      //DPRINTF(Mesh, "1cycle [%s]\n", inst->toString(true));
-    
+  
+      // make sure only one instruction was inserted last cycle
+      // the hack only works if this is the case
       if (!found) found = true;
       else assert(0);
     }
@@ -474,6 +437,13 @@ IEW::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator)
                     squash_inst->thread_id, squash_inst->seq_num);
   
   ThreadID tid = squash_inst->thread_id;
+
+if (initiator == StageIdx::CommitIdx && !((SquashComm::CommitSquash*)&squashInfo)->is_trap_pending) {
+  DPRINTF(Mesh, "updating pc to %s from %s\n", squashInfo.next_pc, m_trace_pcs[tid]);
+}
+  // update the PC to the new_pc
+  TheISA::PCState new_pc = squashInfo.next_pc;
+  m_trace_pcs[tid] = new_pc;
 
   // walk through all insts in the m_insts queue and remove all instructions
   // belonging to thread tid

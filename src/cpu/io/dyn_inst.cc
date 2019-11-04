@@ -471,7 +471,7 @@ bool
 IODynInst::checkTrace(bool local_taken, TheISA::PCState local_targ) {
   // if this is not an synthetic instruction, then there is no trace, ret false
   if (!from_trace) return false;
-  
+  if (!isControl()) return true;
   if (local_taken == master_taken && local_targ == master_targ) {
     return true;
   }

@@ -18,7 +18,7 @@ MemUnit::MemUnit(const char* _iew_name, const char* _name,
       m_num_lq_entries(params->numLoadQueueEntries),
       m_num_sq_entries(params->numStoreQueueEntries),
       m_num_dcache_ports(params->numDcachePorts),
-      m_incoming_inst(nullptr),
+      m_issued_inst(nullptr),
       m_s0_inst(nullptr),
       m_s1_inst(nullptr)
 { }
@@ -43,13 +43,13 @@ MemUnit::insert(IODynInstPtr inst)
   m_s0_inst = inst;
   
   // also save in a seperate variable that is gaurenteed to get freed first time tick called
-  m_incoming_inst = inst;
+  m_issued_inst = inst;
 }
 
 IODynInstPtr
 MemUnit::peekIntroInst()
 {
-  return m_incoming_inst;
+  return m_issued_inst;
 }
 
 void
@@ -131,7 +131,7 @@ MemUnit::tick()
 void
 MemUnit::doAddrCalc()
 {
-  m_incoming_inst = nullptr;
+  m_issued_inst = nullptr;
   
   if (m_s0_inst == nullptr)
     return;   // nothing to do

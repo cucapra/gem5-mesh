@@ -197,7 +197,7 @@ class MemUnit : public ExecUnit
 
     /** An instruction just beginning in the pipeline. To know if this was just
      * submitted this cycle need this, b/c can stall in s0 and s1 stages*/
-    IODynInstPtr m_incoming_inst;
+    IODynInstPtr m_issued_inst;
 
     /** Instruction whose address is being calculated
      * (i.e., input of S0 stage) */

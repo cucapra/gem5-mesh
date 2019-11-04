@@ -14,6 +14,7 @@ PipelinedExecUnit::PipelinedExecUnit(const char* _iew_name, const char* _name,
     : m_iew_name(_iew_name),
       m_name(_name),
       m_num_stages(num_stages),
+      m_issued_inst(nullptr),
       m_incoming_inst(nullptr),
       m_pipeline(m_num_stages, nullptr),
       m_num_inflight_ops(0)
@@ -37,6 +38,7 @@ PipelinedExecUnit::insert(IODynInstPtr inst)
   assert(!isBusy());
   m_incoming_inst = inst;
   m_num_inflight_ops++;
+  m_issued_inst = inst;
 }
 
 IODynInstPtr
@@ -65,12 +67,7 @@ PipelinedExecUnit::isBusy() const
 IODynInstPtr
 PipelinedExecUnit::peekIntroInst()
 {
-  if (m_incoming_inst) {
-    return m_incoming_inst;
-  }
-  else {
-    return nullptr;
-  }
+  return m_issued_inst;
 }
 
 void
@@ -91,6 +88,7 @@ PipelinedExecUnit::functionalExecute() {
 void
 PipelinedExecUnit::tick()
 {
+  m_issued_inst = nullptr;
   assert(m_num_inflight_ops <= m_num_stages + 1);
 
   if (m_num_inflight_ops == 0)
