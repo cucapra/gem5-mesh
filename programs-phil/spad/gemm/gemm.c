@@ -24,8 +24,9 @@ static inline int get_blk_end(int iter, int bound, int blk_dim) {
 // this function is getting a 'call memset' emitted as a part of gcc loop-tree-distrubute optimizations?
 // https://stackoverflow.com/questions/6410595/getting-gcc-to-compile-without-inserting-call-to-memcpy
 // TODO The baseline should still have this optimization enabled??
-static inline
-void __attribute__((optimize("-fno-tree-loop-distribute-patterns")))
+//static inline
+//void __attribute__((optimize("-fno-tree-loop-distribute-patterns")))
+void
   gemm_vonneumann(float *a, float *b, float *c, int m, int n, int t, 
     int m_start, int m_end, int n_start, int n_end, int blk_dim, int tid) {
   
