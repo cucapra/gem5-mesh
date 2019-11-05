@@ -311,12 +311,12 @@ Vector::createInstruction(const MasterData &instInfo) {
   int tid = 0;
   TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
   TheISA::PCState cur_pc = 0;
-  if (m_cpu_p->getFetch()) {
+  /*if (m_cpu_p->getFetch()) {
      cur_pc = m_cpu_p->getFetch()->getPcState(tid); // TODO this is not modular! maybe pc seperated from fetch? have info buffer?
   }
   else {
     assert(false);
-  }
+  }*/
  
   // need decoder to figure out how long this instruction is
   //auto decoder = getFetch()->
@@ -338,17 +338,15 @@ Vector::createInstruction(const MasterData &instInfo) {
   //inst->setPredTarg(instInfo.inst->readPredTarg());
   //inst->predicted_taken = instInfo.inst->predicted_taken;
   // TODO calling a fetch instruction
-  TheISA::PCState next_pc = cur_pc; // passed by ref and expected to change
+  /*TheISA::PCState next_pc = cur_pc; // passed by ref and expected to change
   bool pred_taken = m_cpu_p->getFetch()->lookupAndUpdateNextPC(inst, next_pc); // TODO this is awkward to call...
   
-  /*TheISA::PCState next_pc = cur_pc; // passed by ref and expected to change
-  bool pred_taken = m_cpu_p->getBranchPredPtr()->predict(inst->static_inst_p,
-                                                inst->seq_num, next_pc, tid);*/
   inst->predicted_taken = pred_taken;
   inst->setPredTarg(next_pc);
   
   // update the npc based on instruction predictions (like in Fetch)
-  m_cpu_p->getFetch()->pcState(next_pc, tid);
+  m_cpu_p->getFetch()->pcState(next_pc, tid);*/
+  
   //TheISA::PCState temp_pc = inst->pc;
   //TheISA::advancePC(temp_pc, inst->static_inst_p);
   //DPRINTF(Mesh, "[%s] pc %s npc %s advancePC %s\n", inst->toString(), cur_pc, next_pc, temp_pc);
