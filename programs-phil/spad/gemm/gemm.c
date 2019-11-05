@@ -147,7 +147,6 @@ void kernel(
   
   int tid = tid_x + tid_y * dim_x;
   
-  // commenting out breaks the program
   //printf("iterations %d %d\n", n_end - n_start, m_end - m_start);
   
   #ifndef _VEC
