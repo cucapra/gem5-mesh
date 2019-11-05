@@ -100,6 +100,9 @@ structure(LLCRequestMsg, desc = "...", interface = "Message") {
   WriteMask       writeMask,    desc = "";
   MessageSizeType MessageSize,  desc = "";
   int             SeqNum,       desc = "";
+  // for vector mem ops
+  int             XDim,         desc = "";
+  int             YDim,         desc = "";
 
   bool functionalRead(Packet* pkt) {
     return testAndRead(LineAddress, DataBlk, pkt);
