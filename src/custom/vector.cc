@@ -168,6 +168,7 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   // - This core can potentially stall b/c target is stalled, but that's awkward b/c this is working on diff stream
   if (initiator == StageIdx::IEWIdx && squash_inst->from_trace) {
     m_cpu_p->setMiscReg(RiscvISA::MISCREG_FETCH, 0, tid);
+    DPRINTF(Mesh, "[[FATAL]] trace divergence [%s]\n", squash_inst->toString(true));
     assert(0);
   }
   
