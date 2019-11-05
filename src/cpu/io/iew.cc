@@ -223,36 +223,10 @@ IEW::doWriteback()
         }
         
         if (!inst->from_trace) {
-        // check if this is a mispredicted instruction. If so, init a squash
-        if (inst->isMispredicted()) {
-          // if this is a slave core, check that trace is expected this and don't squash
-          //TheISA::PCState temp_pc = inst->pc;
-          //TheISA::advancePC(temp_pc, inst->static_inst_p);
-          
           // update some fields in case send to slave
-          inst->master_taken = !inst->predicted_taken;
-          inst->master_targ = temp_pc;
-          
-          
-            
-          /*
-            DPRINTF(IEW, "Branch misprediction: "
-                       "[sn:%d] predicted target PC: %s\n",
-                       inst->seq_num, inst->readPredTarg());
-#ifdef DEBUG
-            // record
-            m_stage_status.set(IEWStatus::WBInitSquash);
-#endif
-            // initiate a squash signal
-            initiateSquash(inst);
-          */
-        }
-        else {
-          // update some fields in case send to slave
-          inst->master_taken = inst->predicted_taken;
+          inst->master_taken = local_taken;
           inst->master_targ = temp_pc;
         }
-      }
 
         // make sure all dest regs are marked as ready by exec units
         for (int i = 0; i < inst->numDestRegs(); ++i)
