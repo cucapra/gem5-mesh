@@ -103,8 +103,10 @@ Decode::doDecode()
         // set the right branch target for this instruction
         inst->setPredTarg(inst->branchTarget());
         
-        // check if this is a trace and we were expecting this branch target
-        if (inst->checkTrace(inst->master_taken, inst->branchTarget())) {
+        // check if this is a trace and we were expecting this branch target (i.e. from a jal)
+        // TODO not really sure what to do here, I think can just always pass true if trace
+        //if (inst->checkTrace(inst->master_taken, inst->branchTarget())) {
+        if (inst->from_trace) {
           continue;
         }
         
