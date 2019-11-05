@@ -160,6 +160,17 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
     count++;
   }
   
+  // if squash due to a traced instruction, then we need to exit trace mode
+  // TODO probably want to go to 'transparent' where recv and send as before
+  // but still doing own seperate fetch and instruction stream.
+  // + Don't run into issue when one core diverges and causes rest to diverge b/c dominates them
+  // - Potentially wasted energy on instruction pass throughs (especially if low usage)
+  // - This core can potentially stall b/c target is stalled, but that's awkward b/c this is working on diff stream
+  if (initiator == StageIdx::IEWIdx && squash_inst->from_trace) {
+    m_cpu_p->setMiscReg(RiscvISA::MISCREG_FETCH, 0, tid);
+    assert(0);
+  }
+  
   // if this was a config squash and if we are a slave, then takeaway all credits?
   // but not sure we can make this check based on when the csr file is written and credits
   //
