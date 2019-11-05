@@ -27,9 +27,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int m = 4;
-  int n = 4;
-  int t = 4;
+  int n = 16;
   
   // parse positional arguments
   if (argc > 1)
@@ -62,7 +60,7 @@ int main(int argc, char *argv[]) {
     else val = 0;
     a[i] = val;
     #else
-    if (i == 4)
+    if (i == 15)
       a[i] = 0;
     else
       a[i] = 1;
