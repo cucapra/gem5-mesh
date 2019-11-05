@@ -146,14 +146,6 @@ class Vector : public Stage {
     // stage should have m_max_num_credits after this
     void restoreCredits();
     
-    // update the squash diff
-    void updateSquashDiff(int update);
-    void resetSquashDiff();
-    
-    // get the squash diff to attach to instruction to prevent it from
-    // being incorretly squashed (intertia counter)
-    int getSquashDiff();
-    
     // get references to the master and slave ports owned by CPU
     std::vector<ToMeshPort>& getMeshMasterPorts();
     std::vector<FromMeshPort>& getMeshSlavePorts();
@@ -184,11 +176,6 @@ class Vector : public Stage {
     // need to steal credits to force stall the previous stage
     // effectively the mesh network has these credits
     int _stolenCredits;
-    
-    // to make pipeline outcomes consistent between loosely coupled cores
-    // need to keep track of control flow, namely squashes (? or need more?)
-    // meaning is different between a master and slave
-    int _squashDiff;
     
     // if this core is the root master then it sends
     bool _canRootSend;

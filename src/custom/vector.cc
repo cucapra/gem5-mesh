@@ -14,7 +14,6 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, size_t in_size, size_t out_size,
     _stage(FETCH),
     _curCsrVal(0),
     _stolenCredits(0),
-    _squashDiff(0),
     _canRootSend(canRootSend),
     _canRecv(canRecv),
     _numInstructions(0)
@@ -72,14 +71,6 @@ Vector::tick() {
   
     // give instruction to the local decode stage if present
     pushInstToNextStage(instInfo);
-    
-    // the master core should send the number of squashes since the last instruction was sent to slave
-    // after we've forwarded the instructions to other cores and informed of squash diff
-    // we can reset it (unsent diff is now 0)
-    if (isRootMaster()) {
-      instInfo.new_squashes = getSquashDiff();
-      resetSquashDiff();
-    }
     
     // forward instruction to other neighbors potentially
     forwardInstruction(instInfo);
@@ -183,15 +174,6 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
     else {
       // restore credits when go back?, I guess done in setupConfig (b/c no squash in other)
     }
-  }
-  // update the squash diff between slave and master
-  if (isSlave()) {
-    updateSquashDiff(-1);
-    DPRINTF(Mesh, "slave squash -- %d\n", _squashDiff);
-  }
-  else if (isRootMaster()) {
-    updateSquashDiff(1);
-    DPRINTF(Mesh, "master squash ++ %d\n", _squashDiff);
   }
   
 }
@@ -372,12 +354,6 @@ Vector::createInstruction(const MasterData &instInfo) {
   //if (inst->readPredTarg() != next_pc) 
   //  DPRINTF(Mesh, "[[WARNING]] prediction divergence\n");
     
-    
-  // set the squash intertia of the instruction
-  updateSquashDiff(instInfo.new_squashes);
-  if (instInfo.new_squashes)
-    DPRINTF(Mesh, "net squash ++ %d\n", _squashDiff);
-  inst->setInertia(getSquashDiff());
 
   return inst;
 }
@@ -467,7 +443,6 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
     restoreCredits();
   }
   
-  resetSquashDiff();
   
 }
 
@@ -826,31 +801,6 @@ Vector::shouldStall() {
   bool nextStageOk = !isInternallyStalled();
   bool canGo = meshOk && nextStageOk;
   return !canGo;
-}
-
-void
-Vector::updateSquashDiff(int update) {
-  _squashDiff += update;
-  //DPRINTF(Mesh, "squash diff %d\n", _squashDiff);
-}
-
-void
-Vector::resetSquashDiff() {
-  _squashDiff = 0;
-  //DPRINTF(Mesh, "squash diff %d\n", _squashDiff);
-}
-
-int
-Vector::getSquashDiff() {
-  //if (_squashDiff > 0)
-  //  DPRINTF(Mesh, "squash diff %d\n", _squashDiff);
-    
-  //assert(_squashDiff >= 0);
-  // clamp @ 0 in case slave core gets branch resolution earlier
-  if (_squashDiff < 0)
-    return 0;
-  else
-    return _squashDiff;
 }
 
 std::vector<ToMeshPort>&
