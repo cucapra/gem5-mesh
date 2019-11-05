@@ -525,6 +525,13 @@ class Packet : public Printable
         }
         return t;
     }
+    
+    /**
+     * Dimensions for the vector operation
+     */ 
+     int xDim;
+     int yDim;
+     void setVecDim(int xDim, int yDim) { this->xDim = xDim; this->yDim = yDim; }
 
     /// Return the string name of the cmd field (for debugging and
     /// tracing).
@@ -807,7 +814,7 @@ class Packet : public Printable
         :  cmd(_cmd), id((PacketId)_req.get()), req(_req),
            data(nullptr), addr(0), _isSecure(false), size(0),
            _qosValue(0), headerDelay(0), snoopDelay(0),
-           payloadDelay(0), senderState(NULL)
+           payloadDelay(0), senderState(NULL), xDim(1), yDim(1)
     {
         if (req->hasPaddr()) {
             addr = req->getPaddr();
@@ -829,7 +836,7 @@ class Packet : public Printable
         :  cmd(_cmd), id(_id ? _id : (PacketId)_req.get()), req(_req),
            data(nullptr), addr(0), _isSecure(false),
            _qosValue(0), headerDelay(0),
-           snoopDelay(0), payloadDelay(0), senderState(NULL)
+           snoopDelay(0), payloadDelay(0), senderState(NULL), xDim(1), yDim(1)
     {
         if (req->hasPaddr()) {
             addr = req->getPaddr() & ~(_blkSize - 1);
@@ -856,7 +863,7 @@ class Packet : public Printable
            headerDelay(pkt->headerDelay),
            snoopDelay(0),
            payloadDelay(pkt->payloadDelay),
-           senderState(pkt->senderState)
+           senderState(pkt->senderState), xDim(1), yDim(1)
     {
         if (!clear_flags)
             flags.set(pkt->flags & COPY_FLAGS);

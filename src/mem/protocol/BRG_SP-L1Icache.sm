@@ -195,6 +195,8 @@ machine(MachineType:L1Cache, "SP_LLC (L1I Cache)")
       out_msg.Requestor := machineID;
       out_msg.Destination.add(createMachineID(MachineType:L2Cache, intToID(0)));
       out_msg.MessageSize := MessageSizeType:Request_Control;
+      out_msg.XDim := 1;
+      out_msg.YDim := 1;
     }
   }
 

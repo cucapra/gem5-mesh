@@ -425,6 +425,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       msg_p->m_MessageSize = MessageSizeType_Request_Control;
       (msg_p->m_Destination).add(dst_port);
       msg_p->m_SeqNum = m_cur_seq_num;
+      msg_p->m_XDim = pkt_p->xDim;
+      msg_p->m_YDim = pkt_p->yDim;
 
       if (pkt_p->isAtomicOp()) {  // Atomic ops
         msg_p->m_Type = LLCRequestType_ATOMIC;
