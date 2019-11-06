@@ -227,6 +227,7 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   if (initiator == StageIdx::IEWIdx && squash_inst->from_trace) {
     //m_cpu_p->setMiscReg(RiscvISA::MISCREG_FETCH, 0, tid);
     _vecPassThrough = true;
+    restoreCredits();
     DPRINTF(Mesh, "[[WARNING]] trace divergence [%s]\n", squash_inst->toString(true));
   }
   
