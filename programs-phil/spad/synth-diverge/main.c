@@ -60,7 +60,7 @@ int main(int argc, char *argv[]) {
     else val = 0;
     a[i] = val;
     #else
-    if (i == 15)
+    if (i == 10)
       a[i] = 0;
     else
       a[i] = 1;

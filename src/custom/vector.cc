@@ -225,10 +225,10 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   // - Potentially wasted energy on instruction pass throughs (especially if low usage)
   // - This core can potentially stall b/c target is stalled, but that's awkward b/c this is working on diff stream
   if (initiator == StageIdx::IEWIdx && squash_inst->from_trace) {
+    DPRINTF(Mesh, "[[WARNING]] trace divergence [%s]\n", squash_inst->toString(true));
     //m_cpu_p->setMiscReg(RiscvISA::MISCREG_FETCH, 0, tid);
     _vecPassThrough = true;
     restoreCredits();
-    DPRINTF(Mesh, "[[WARNING]] trace divergence [%s]\n", squash_inst->toString(true));
   }
   
   // if this was a config squash and if we are a slave, then takeaway all credits?
