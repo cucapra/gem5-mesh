@@ -59,6 +59,9 @@ class MeshHelper {
     static bool csrToOutDests(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
     static bool csrToOutSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_DS_t> &out);
 
+    // get vector lengths
+    static int getXLen(uint64_t csr, uint64_t csrVal);
+    static int getYLen(uint64_t csr, uint64_t csrVal);
   
     static SensitiveStage csrToStage(uint64_t csr);
     static uint64_t stageToCsr(SensitiveStage stage);

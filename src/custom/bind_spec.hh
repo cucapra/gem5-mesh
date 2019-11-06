@@ -192,9 +192,17 @@ typedef enum Locked_Insts {
 #define FET_O_INST_UP_NORM 0 << FET_O_INST_UP_SHAMT
 #define FET_O_INST_UP_SEND 1 << FET_O_INST_UP_SHAMT
 
+// encode 2d vector length (5 bits each for x and y, 10 bits total)
+#define FET_XLEN_BITS 5
+#define FET_XLEN_SHAMT FET_O_INST_UP_SHAMT + FET_O_INST_UP_BITS
+
+#define FET_YLEN_BITS 5
+#define FET_YLEN_SHAMT FET_XLEN_SHAMT + FET_XLEN_BITS
+
+
 // remaining bits goes to the count amt (7 bits)
 #define FET_COUNT_BITS     7
-#define FET_COUNT_SHAMT    FET_O_INST_UP_SHAMT + FET_O_INST_UP_BITS
+#define FET_COUNT_SHAMT    FET_YLEN_SHAMT + FET_YLEN_BITS
 
 
 // explicilty determine bitranges for decoding
@@ -210,6 +218,12 @@ typedef enum Locked_Insts {
 
 #define FET_INST_HI FET_LOCKED_SHAMT + FET_LOCKED_INST_BITS - 1
 #define FET_INST_LO FET_LOCKED_SHAMT
+
+#define FET_XLEN_HI FET_XLEN_SHAMT + FET_XLEN_BITS - 1
+#define FET_XLEN_LO FET_XLEN_SHAMT
+
+#define FET_YLEN_HI FET_YLEN_SHAMT + FET_YLEN_BITS - 1
+#define FET_YLEN_LO FET_YLEN_SHAMT
 
 
 #endif
