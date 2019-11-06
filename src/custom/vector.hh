@@ -95,13 +95,15 @@ class Vector : public Stage {
     IODynInstPtr createInstruction(const MasterData &instInfo);
     
     // make a dynamic instruction then push it
-    void pushInstToNextStage(const MasterData &instInfo);
+    void pushPipeInstToNextStage(const MasterData &instInfo);
+    void pushMeshInstToNextStage(const MasterData &instInfo);
     
     // master calls this to broadcast to neighbors
     void forwardInstruction(const MasterData &instInfo);
     
-    // pull an instruction from the mesh network (figure out the right dir)
-    void pullInstruction(MasterData &instInfo);
+    // pull an instruction from the mesh or pipe
+    void pullPipeInstruction(MasterData &instInfo);
+    void pullMeshInstruction(MasterData &instInfo);
     
     // pass the instruction through this stage because not in vec mode
     // wont this add buffer slots in !sequentialMode which is undesirable?
@@ -132,7 +134,10 @@ class Vector : public Stage {
     IODynInstPtr getFetchInput();
     
     // check if this stage can proceed
-    bool shouldStall();
+    //bool shouldStall();
+    
+    // is stalled due to mesh
+    //bool meshStalled();
     
     // encode + decode of information over mesh net
     // requires 32 + 1 = 33bits currently
@@ -156,6 +161,20 @@ class Vector : public Stage {
     bool isSlave();
     bool canWriteMesh();
     bool canReadMesh();
+    bool isOutPipeStalled();
+    bool isInPipeStalled();
+    bool isOutMeshStalled();
+    bool isInMeshStalled();
+    
+    // instructions can come from either I$ or mesh and can be send to mesh or pipe (fully connected)
+    typedef enum InstSource {
+        None = 0,
+        Pipeline,
+        Mesh
+    } InstSource;
+    
+    InstSource getOutMeshSource();
+    InstSource getOutPipeSource();
      
   protected:
   
@@ -183,7 +202,11 @@ class Vector : public Stage {
     // this stage does not recv from mesh net
     bool _canRecv;
     
+    // keep track for debug
     int _numInstructions;
+    
+    // whether pass through mode is enabled where operates are usual, but still sends instructions
+    bool _passThrough;
     
     // TEMP to make all relevant info available
     struct SenderState : public Packet::SenderState
