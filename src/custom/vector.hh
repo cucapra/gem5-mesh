@@ -206,7 +206,7 @@ class Vector : public Stage {
     int _numInstructions;
     
     // whether pass through mode is enabled where operates are usual, but still sends instructions
-    bool _passThrough;
+    bool _vecPassThrough;
     
     // TEMP to make all relevant info available
     struct SenderState : public Packet::SenderState

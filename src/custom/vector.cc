@@ -17,7 +17,7 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, size_t in_size, size_t out_size,
     _canRootSend(canRootSend),
     _canRecv(canRecv),
     _numInstructions(0),
-    _passThrough(true)
+    _vecPassThrough(false)
 {
 }
 
@@ -226,7 +226,7 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   // - This core can potentially stall b/c target is stalled, but that's awkward b/c this is working on diff stream
   if (initiator == StageIdx::IEWIdx && squash_inst->from_trace) {
     //m_cpu_p->setMiscReg(RiscvISA::MISCREG_FETCH, 0, tid);
-    _passThrough = true;
+    _vecPassThrough = true;
     DPRINTF(Mesh, "[[WARNING]] trace divergence [%s]\n", squash_inst->toString(true));
   }
   
@@ -499,7 +499,7 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
     restoreCredits();
   }
   
-  _passThrough = false;
+  _vecPassThrough = false;
   
 }
 
@@ -857,7 +857,7 @@ Vector::getOutMeshSource() {
 
 Vector::InstSource
 Vector::getOutPipeSource() {
-  if (canReadMesh() && !_passThrough) {
+  if (canReadMesh() && !_vecPassThrough) {
     return Mesh;
   }
   else {
