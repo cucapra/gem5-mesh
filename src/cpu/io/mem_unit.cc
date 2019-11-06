@@ -471,6 +471,7 @@ MemUnit::completeRetryReq()
   // no-op. next tick will retry failed request anyway
 }
 
+// This is called when do inst->initiateAcc() called during s1 phase
 Fault
 MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
                     unsigned int size, Addr addr, Request::Flags flags,
@@ -519,6 +520,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
                                           m_cpu_p->tcBase(tid)->contextId(),
                                           amo_op);
     m_s1_inst->mem_req_p->taskId(m_cpu_p->taskId());
+    m_s1_inst->mem_req_p->xDim = 1;
+    m_s1_inst->mem_req_p->yDim = 1;
 
     // this memory will be deleted together with the dynamic instruction
     m_s1_inst->mem_data_p = new uint8_t[size];

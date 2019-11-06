@@ -400,7 +400,7 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0)
+          accessDelta(0), depth(0), xDim(1), yDim(1)
     {}
 
     Request(Addr paddr, unsigned size, Flags flags, MasterID mid,
@@ -409,7 +409,7 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(seq_num), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0)
+          accessDelta(0), depth(0), xDim(1), yDim(1)
     {
         setPhys(paddr, size, flags, mid, curTick());
         setContext(cid);
@@ -426,7 +426,7 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0)
+          accessDelta(0), depth(0), xDim(1), yDim(1)
     {
         setPhys(paddr, size, flags, mid, curTick());
     }
@@ -436,7 +436,7 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0)
+          accessDelta(0), depth(0), xDim(1), yDim(1)
     {
         setPhys(paddr, size, flags, mid, time);
     }
@@ -447,7 +447,7 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(pc),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0)
+          accessDelta(0), depth(0), xDim(1), yDim(1)
     {
         setPhys(paddr, size, flags, mid, time);
         privateFlags.set(VALID_PC);
@@ -459,7 +459,7 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0)
+          accessDelta(0), depth(0), xDim(1), yDim(1)
     {
         setVirt(asid, vaddr, size, flags, mid, pc);
         setContext(cid);
@@ -484,7 +484,7 @@ class Request
           _extraData(other._extraData), _contextId(other._contextId),
           _pc(other._pc), _reqInstSeqNum(other._reqInstSeqNum),
           translateDelta(other.translateDelta),
-          accessDelta(other.accessDelta), depth(other.depth)
+          accessDelta(other.accessDelta), depth(other.depth), xDim(other.xDim), yDim(other.yDim)
     {
         if (other.atomicOpFunctor)
             atomicOpFunctor = (other.atomicOpFunctor)->clone();
@@ -611,6 +611,12 @@ class Request
      * (e.g. 0 = L1; 1 = L2).
      */
     mutable int depth;
+    
+    /**
+     * Dimensions for the vector operation
+     */ 
+    int xDim;
+    int yDim;
 
     /**
      *  Accessor for size.
