@@ -226,12 +226,16 @@ MeshHelper::csrToOutSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_DS_t> &
 
 int
 MeshHelper::getXLen(uint64_t csr, uint64_t csrVal) {
-  return bits(csrVal, FET_XLEN_HI, FET_XLEN_LO);
+  auto val = bits(csrVal, FET_XLEN_HI, FET_XLEN_LO);
+  if (val == 0) return 1;
+  else return val;
 }
 
 int
 MeshHelper::getYLen(uint64_t csr, uint64_t csrVal) {
-  return bits(csrVal, FET_YLEN_HI, FET_YLEN_LO);
+  auto val = bits(csrVal, FET_YLEN_HI, FET_YLEN_LO);
+  if (val == 0) return 1;
+  else return val;
 }
 
 SensitiveStage

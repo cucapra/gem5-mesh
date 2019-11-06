@@ -528,9 +528,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // get vec length from mesh csr
     RegVal csrVal = m_s1_inst->readMiscReg(RiscvISA::MISCREG_FETCH);
     if (MeshHelper::doVecLoad(csrVal)) {
-      // TODO actually look a len specified by the programmer
-      m_s1_inst->mem_req_p->xDim = 2; // MeshHelper::getXLen(RiscvISA::MISCREG_FETCH, csrVal);
-      m_s1_inst->mem_req_p->yDim = 2; // MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, csrVal);
+      m_s1_inst->mem_req_p->xDim = MeshHelper::getXLen(RiscvISA::MISCREG_FETCH, csrVal);
+      m_s1_inst->mem_req_p->yDim = MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, csrVal);
     }
     else {
       m_s1_inst->mem_req_p->xDim = 1;
