@@ -29,19 +29,21 @@ void kernel(
     stats_on();
   }
   
+  // linearize tid and dim
+  int tid = tid_x + tid_y * dim_x;
+  int dim = dim_x * dim_y;
+  
   // figure out which work this thread should do
-  int start = tid_x * (n / dim_x);  
+  int start = tid * (n / dim);  
 
   // get end with remainders
-  int chunk = (int)(n / dim_x);
-  if (tid_x == dim_x - 1) {
-    chunk += n % dim_x;
+  int chunk = (int)(n / dim);
+  if (tid_x == dim - 1) {
+    chunk += n % dim;
   }
   int end = start + chunk;
   
-  int tid = tid_x + tid_y * dim_x;
-  
-  //printf("iterations %d %d\n", n_end - n_start, m_end - m_start);
+  //printf("iterations %d->%d\n", start, end);
   
   #ifndef _VEC
   synthetic(a, b, c, start, end);
