@@ -7,6 +7,8 @@
 #include "pthread_launch.h"
 #include "synth.h"
 
+#define RANDOM_DIST 1
+
 int main(int argc, char *argv[]) {
   
   /*--------------------------------------------------------------------
@@ -47,13 +49,13 @@ int main(int argc, char *argv[]) {
   int *c = (int*)malloc(sizeof(int) * sizeC);
   
   // generate a synthetic distribution to branch based on
-  #ifdef _RANDOM_DIST
-  float fraction = 1.0f;
+  #ifdef RANDOM_DIST
+  float fraction = 0.8f;
   srand(140129302);
   #endif
   
   for (int i = 0; i < sizeA; i++) {
-    #ifdef _RANDOM_DIST
+    #ifdef RANDOM_DIST
     float num = (float)rand() / (float)RAND_MAX;
     int val;
     if (num > fraction) val = 1;
