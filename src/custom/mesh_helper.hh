@@ -62,6 +62,9 @@ class MeshHelper {
     // get vector lengths
     static int getXLen(uint64_t csr, uint64_t csrVal);
     static int getYLen(uint64_t csr, uint64_t csrVal);
+    
+    // whether to perform a vector load or not based on current configuration
+    static bool doVecLoad(uint64_t csrVal) { return isVectorMaster(csrVal) && !isVectorSlave(csrVal); }
   
     static SensitiveStage csrToStage(uint64_t csr);
     static uint64_t stageToCsr(SensitiveStage stage);

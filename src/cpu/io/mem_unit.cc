@@ -520,8 +520,22 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
                                           m_cpu_p->tcBase(tid)->contextId(),
                                           amo_op);
     m_s1_inst->mem_req_p->taskId(m_cpu_p->taskId());
-    m_s1_inst->mem_req_p->xDim = 1;
-    m_s1_inst->mem_req_p->yDim = 1;
+    
+    // setup vector memory request... if we're in vector mode and not detached
+    // also send memory request as vector request (single request, multiple response)
+    // otherwise send as the usual single request, single response
+    
+    // get vec length from mesh csr
+    RegVal csrVal = m_s1_inst->readMiscReg(RiscvISA::MISCREG_FETCH);
+    if (MeshHelper::doVecLoad(csrVal)) {
+      // TODO actually look a len specified by the programmer
+      m_s1_inst->mem_req_p->xDim = 2; // MeshHelper::getXLen(RiscvISA::MISCREG_FETCH, csrVal);
+      m_s1_inst->mem_req_p->yDim = 2; // MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, csrVal);
+    }
+    else {
+      m_s1_inst->mem_req_p->xDim = 1;
+      m_s1_inst->mem_req_p->yDim = 1;
+    }
 
     // this memory will be deleted together with the dynamic instruction
     m_s1_inst->mem_data_p = new uint8_t[size];
