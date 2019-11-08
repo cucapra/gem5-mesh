@@ -98,14 +98,6 @@ Vector::tick() {
   if (!inPipeStall) {
     pullPipeInstruction(pipeInfo);
   }
-  
-  // if the instruction is a revec we need to handle it
-  handleRevec(pipeInfo.inst, meshInfo.inst);
-  // TODO be careful about sending two revecs down the pipeline (which will mess up pc)
-  // can prob happen when pipe arrives first
-  // IMPORTANT That check stalls before handle revec happens (I guess should be at bottom then)
-  // b/c will update state on the next cycle not on the current cycle (and won't run into double send problem)
-
 
   // if possible push instruction to next pipe stage and/or mesh network
   if (!outMeshStall) {
@@ -134,6 +126,12 @@ Vector::tick() {
       pushMeshInstToNextStage(meshInfo);
     }
   }
+  
+  // if the instruction is a revec we need to handle it
+  // IMPORTANT that this updates the config on the next cycle, not the current one
+  // so that's why we put this after the stalls have been considered for this cycle
+  // also prevents revec from being sent twice
+  handleRevec(pipeInfo.inst, meshInfo.inst);
   
 }
 
