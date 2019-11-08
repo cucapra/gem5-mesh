@@ -96,7 +96,10 @@ Scratchpad::Scratchpad(const Params* p)
       m_base_addr_p((uint64_t* const) (m_data_array + SPM_BASE_ADDR_OFFSET)),
       m_go_flag_p((uint32_t* const)(m_data_array + SPM_GO_FLAG_OFFSET)),
       m_done_flag_p((uint32_t* const)(m_data_array + SPM_DONE_FLAG_OFFSET)),
-      m_num_l2s(p->num_l2s)
+      m_num_l2s(p->num_l2s),
+      // setup cpu touched array to keep track of divergences (TODO not sure how should be implemetned in practice?)
+      // maybe use a single bit/byte of data towards this purpose
+      m_cpu_touched_array(new bool[m_size / 8])
 {
   m_num_scratchpads++;
 
@@ -110,12 +113,16 @@ Scratchpad::Scratchpad(const Params* p)
 
   // fill m_data_array with 0s
   std::fill_n(m_data_array, m_size, 0);
+  
+  // fill touched array with 1s
+  std::fill_n(m_cpu_touched_array, m_size / 8, 1);
 }
 
 Scratchpad::~Scratchpad()
 {
   delete m_cpu_port_p;
   delete[] m_data_array;
+  delete[] m_cpu_touched_array;
 }
 
 //BaseSlavePort&
@@ -172,6 +179,7 @@ Scratchpad::initNetQueues()
                              m_mem_resp_buffer_p);
 }
 
+// Handles response from LLC or remote load
 void
 Scratchpad::wakeup()
 {
@@ -194,6 +202,8 @@ Scratchpad::wakeup()
       DPRINTF(Scratchpad, "Handling mem resp pkt %s from a remote "
                           "scratchpad\n", pkt_p->print());
 
+      // TODO why does this send directly to the CPU? shouldn't we need another req
+      // to get the data??
       // Save the response packet and schedule an event in the next cycle to
       // send it to CPU
       m_cpu_resp_pkts.push_back(pkt_p);
@@ -213,6 +223,7 @@ Scratchpad::wakeup()
 
       if (llc_msg_p->m_Type == LLCResponseType_DATA) {
         // copy data from DataBlock to pending_mem_pkt_p
+        // just pulls out a single word from the block and discards the rest?
         int offset = pending_mem_pkt_p->getAddr() - llc_msg_p->m_LineAddress;
         int len = pending_mem_pkt_p->getSize();
         const uint8_t* data_p = (llc_msg_p->m_DataBlk).getData(offset, len);

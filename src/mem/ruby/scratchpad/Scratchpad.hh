@@ -300,6 +300,13 @@ class Scratchpad : public AbstractController
     const int m_num_l2s;
     
     /**
+     * TODO TEMP? Keep a single bit to denote whether a remote store has been 
+     * read by the core at this node. Sized spm_size / sizeof(uint8_t)
+     */ 
+    bool *m_cpu_touched_array;
+    
+    
+    /**
      * Stats to keep track of for the scratchpad
      */
     Stats::Scalar m_local_loads;

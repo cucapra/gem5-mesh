@@ -387,8 +387,8 @@ void
 Packet::print(std::ostream &o, const int verbosity,
               const std::string &prefix) const
 {
-    ccprintf(o, "%s%s [%x:%x]%s%s%s%s%s%s", prefix, cmdString(),
-             getAddr(), getAddr() + getSize() - 1,
+    ccprintf(o, "%s%s [%x:%x][%d,%d]%s%s%s%s%s%s", prefix, cmdString(),
+             getAddr(), getAddr() + getSize() - 1, getXDim(), getYDim(),
              req->isSecure() ? " (s)" : "",
              req->isInstFetch() ? " IF" : "",
              req->isUncacheable() ? " UC" : "",
