@@ -440,7 +440,7 @@ if (initiator == StageIdx::CommitIdx && !((SquashComm::CommitSquash*)&squashInfo
   while (count < qsize) {
     inst = m_insts.front();
     m_insts.pop();
-    if (inst->thread_id != tid || !inst->decAndCheckSquash()) {
+    if (inst->thread_id != tid) {
       m_insts.push(inst);
     } else {
       DPRINTF(IEW, "Squashing %s\n", inst);

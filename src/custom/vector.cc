@@ -103,6 +103,8 @@ Vector::tick() {
   handleRevec(pipeInfo.inst, meshInfo.inst);
   // TODO be careful about sending two revecs down the pipeline (which will mess up pc)
   // can prob happen when pipe arrives first
+  // IMPORTANT That check stalls before handle revec happens (I guess should be at bottom then)
+  // b/c will update state on the next cycle not on the current cycle (and won't run into double send problem)
 
 
   // if possible push instruction to next pipe stage and/or mesh network
@@ -190,8 +192,7 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
     inst = m_insts.front();
     m_insts.pop();
     if (inst->thread_id != tid || 
-      ((m_stage_idx == LateVectorIdx) && inst->seq_num <= squash_inst->seq_num) ||
-      !inst->decAndCheckSquash()) {
+      ((m_stage_idx == LateVectorIdx) && inst->seq_num <= squash_inst->seq_num)) {
       m_insts.push(inst);
     } else {
       if (getConfigured()) DPRINTF(Mesh, "Squashing %s\n", inst->toString());
@@ -312,42 +313,6 @@ Vector::pullMeshInstruction(MasterData &instInfo) {
   }
 }
 
-/*
-void
-Vector::pullInstruction(MasterData &instInfo) {
-  
-  // if slave, pull from the mesh
-  Mesh_Dir recvDir;
-  if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir) && canReadMesh()) {
-    //uint64_t meshData = getMeshPortData(recvDir);
-    
-    //Mesh_Dir recvDir;
-    //MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir);
-    
-    // decode the msg here
-    //instInfo = decodeMeshData(meshData);
-    //DPRINTF(Mesh, "decoded %#x -> %#x %d %d\n", meshData, instInfo.machInst, instInfo.predictTaken, instInfo.mispredicted);
-    auto dataPtr = getMeshPortInst(recvDir);
-    instInfo.inst = dataPtr->inst;
-    instInfo.new_squashes = dataPtr->new_squashes;
-    
-    //DPRINTF(Mesh, "Pull from mesh net %s\n", instInfo.inst->toString(true));
-  }
-  // if master, pull from the local fetch
-  else {
-    auto msg = getFetchInput();
-    
-    instInfo.inst = msg;
-    instInfo.new_squashes = 0;
-    
-    // pop to free up the space
-    consumeInst();
-    
-    //DPRINTF(Mesh, "Pull from fetch %s\n", instInfo.inst->toString(true));
-  }
-}
-*/
-
 IODynInstPtr
 Vector::createInstruction(const MasterData &instInfo) {
   // make a dynamic instruction to pass to the decode stage
@@ -384,12 +349,11 @@ void
 Vector::pushPipeInstToNextStage(const MasterData &instInfo) {
   sendInstToNextStage(instInfo.inst);
     
-  //if (m_stage_idx == LateVectorIdx)
   //DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
-  //if (m_stage_idx == LateVectorIdx) {
+  if (m_stage_idx == LateVectorIdx) {
     _numInstructions++;
     DPRINTF(Mesh, "[%s] num instructions seen %d\n", instInfo.inst->toString(true), _numInstructions);
-  //}
+  }
 }
 
 void
@@ -398,39 +362,7 @@ Vector::pushMeshInstToNextStage(const MasterData &instInfo) {
   sendInstToNextStage(dynInst);
 }
 
-/*
-void
-Vector::pushInstToNextStage(const MasterData &instInfo) {
-  
-  // create new instruction only if slave
-  if (canReadMesh()) {
-    IODynInstPtr dynInst = createInstruction(instInfo);
-    sendInstToNextStage(dynInst);
-    
-    //if (m_stage_idx == LateVectorIdx) {
-     // DPRINTF(Mesh, "Push inst to decode %s->%s\n", instInfo.inst->toString(true), dynInst->toString(true));
-      //_numInstructions++;
-      //DPRINTF(Mesh, "num instructions seen %d\n", _numInstructions);
-    //}
-  }
-  // otherwise just pass the given instruction ptr
-  else {
-    sendInstToNextStage(instInfo.inst);
-    
-    //if (m_stage_idx == LateVectorIdx)
-    //DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
-    if (m_stage_idx == LateVectorIdx) {
-    _numInstructions++;
-    DPRINTF(Mesh, "[%s] num instructions seen %d\n", instInfo.inst->toString(true), _numInstructions);
-    if (instInfo.inst->m_inst_str == "jal ra, 1530") {
-            RegVal ra = m_cpu_p->readArchIntReg(1, 0);
-            DPRINTF(Mesh, "[%s] %#x PC=>NPC %s\n", instInfo.inst->toString(true), ra, instInfo.inst->pc);
-          }
-  }
-  }
-  
-}
-*/ 
+
 
 void
 Vector::sendInstToNextStage(IODynInstPtr dynInst) {
@@ -581,20 +513,6 @@ Vector::getInVal() {
   return allVal;
 }
 
-/*void
-Vector::setRdy(bool rdy) {
-  for (int i = 0; i < _fromMeshPort.size(); i++) {
-    _fromMeshPort[i].setRdyIfActive(rdy, _stage);
-  }
-}
-
-void
-Vector::setVal(bool val) {
-  for (int i = 0; i < _toMeshPort.size(); i++) {
-    _toMeshPort[i].setValIfActive(val, _stage);
-  }
-}*/
-
 void
 Vector::resetActive() {
   _numInPortsActive = 0;
@@ -731,21 +649,6 @@ Vector::getMeshPortPkt(Mesh_Dir dir) {
   return getMeshSlavePorts()[dir].getPacket();
 }
 
-/*Port&
-Vector::getMeshPort(int idx, bool isOut) {
- if (isOut) {
-   return _toMeshPort[idx];
- } 
- else {
-   return _fromMeshPort[idx];
- }
-}
-
-int
-Vector::getNumMeshPorts() {
-  return _toMeshPort.size();
-}*/
-
 int
 Vector::getNumPortsActive() {
   return _numInPortsActive + _numOutPortsActive;
@@ -760,14 +663,6 @@ Vector::getFetchInput() {
     return nullptr;
   }
 }
-
-/*void
-Vector::popFetchInput(ThreadID tid) {
-  if (!_inputBuffer[tid].empty()) {
-    //_inputBuffer[tid].front().freeLine();
-    _inputBuffer[tid].pop();
-  }
-}*/
 
 void
 Vector::stealCredits() {
@@ -896,40 +791,6 @@ Vector::getOutPipeSource() {
     return Pipeline;
   }
 }
-
-/*
-bool
-Vector::isPipeStalled() {
-  bool nextStageStall = checkStall();
-  
-  // there was no input from fetch
-  bool senderStall = !canReadMesh() && m_insts.empty();
-  bool stall = senderStall || nextStageStall;
-  //if (stall) {
-  //  if (recver) DPRINTF(Mesh, "slave stall\n");
-  //  else if (sender) DPRINTF(Mesh, "master stall\n");
-  //}
-  
-  return stall;
-}
-
-bool
-Vector::isMeshStalled() {
-  return !(getConfigured() && getInVal() && getOutRdy());
-}*/
-
-/*
-bool
-Vector::shouldStall() {
-  // check for instruction from mesh
-  bool meshStall = meshStalled();
-  //DPRINTF(Mesh, "config %d inval %d outrdy %d\n", getConfigured(), getInVal(), getOutRdy());
-  // check if local decode is open to get new input or is stalled
-  bool inStall = isInternallyStalled();
-  bool stalled = meshStall || inStall;
-  return stalled;
-}
-*/
 
 bool
 Vector::pipeHasRevec() {
