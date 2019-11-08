@@ -243,7 +243,7 @@ Commit::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator)
   while (count < qsize) {
     inst = m_insts.front();
     m_insts.pop();
-    if (inst->thread_id != tid || inst->seq_num <= squash_inst->seq_num || !inst->decAndCheckSquash()) {
+    if (inst->thread_id != tid || inst->seq_num <= squash_inst->seq_num) {
       m_insts.push(inst);
     } else {
       DPRINTF(Commit, "Squashing %s\n", inst->toString());

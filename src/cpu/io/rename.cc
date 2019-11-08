@@ -243,7 +243,7 @@ Rename::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator)
   while (count < qsize) {
     inst = m_insts.front();
     m_insts.pop();
-    if (inst->thread_id != tid || !inst->decAndCheckSquash()) {
+    if (inst->thread_id != tid) {
       m_insts.push(inst);
     } else {
       DPRINTF(Rename, "Squashing %s\n", inst);

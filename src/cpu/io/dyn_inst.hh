@@ -508,18 +508,7 @@ public:
     /** A string representation of disassmbled inst */
     std::string m_inst_str;
     
-    // TODO remove
-    RegVal getDestReg();
-    
-private:
-    int m_inertia;
-    
 public:
-// TODO deprecated
-    bool decAndCheckSquash();
-    
-    void setInertia(int intertia);
-//
     // was the branch actually taken in the end (implicit tracing)
     bool master_taken;
     

@@ -6,8 +6,13 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
-void synthetic(int *a, int *b, int *c, int start, int end) {
+// if don't have this attribute potentially will duplicate inline assembly due
+// to code layout reordering. this happens in -O2+ with -freorder-blocks-algorithm=stc
+// this is problematic with revec call which needs to sync pc between multiple traces on a revec
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
+synthetic(int *a, int *b, int *c, int start, int end) {
   for (int i = start; i < end; i++) {
+    
     if (a[i] == 0) {
       int b_ = b[i];
       c[i] = b_ * b_ * b_ * b_;
@@ -16,6 +21,10 @@ void synthetic(int *a, int *b, int *c, int start, int end) {
       int b_ = b[i];
       c[i] = b_ * b_ * b_;
     }
+    
+    
+    // try to revec at the end of loop iteration
+    REVEC(0x0);
   }
 }
 
@@ -29,19 +38,21 @@ void kernel(
     stats_on();
   }
   
+  // linearize tid and dim
+  int tid = tid_x + tid_y * dim_x;
+  int dim = dim_x * dim_y;
+  
   // figure out which work this thread should do
-  int start = tid_x * (n / dim_x);  
+  int start = tid * (n / dim);  
 
   // get end with remainders
-  int chunk = (int)(n / dim_x);
-  if (tid_x == dim_x - 1) {
-    chunk += n % dim_x;
+  int chunk = (int)(n / dim);
+  if (tid_x == dim - 1) {
+    chunk += n % dim;
   }
   int end = start + chunk;
   
-  int tid = tid_x + tid_y * dim_x;
-  
-  //printf("iterations %d %d\n", n_end - n_start, m_end - m_start);
+  //printf("iterations %d->%d\n", start, end);
   
   #ifndef _VEC
   synthetic(a, b, c, start, end);
