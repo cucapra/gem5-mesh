@@ -6,8 +6,13 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
-void synthetic(int *a, int *b, int *c, int start, int end) {
+// if don't have this attribute potentially will duplicate inline assembly due
+// to code layout reordering. this happens in -O2+ with -freorder-blocks-algorithm=stc
+// this is problematic with revec call which needs to sync pc between multiple traces on a revec
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
+synthetic(int *a, int *b, int *c, int start, int end) {
   for (int i = start; i < end; i++) {
+    
     if (a[i] == 0) {
       int b_ = b[i];
       c[i] = b_ * b_ * b_ * b_;
@@ -16,6 +21,10 @@ void synthetic(int *a, int *b, int *c, int start, int end) {
       int b_ = b[i];
       c[i] = b_ * b_ * b_;
     }
+    
+    
+    // try to revec at the end of loop iteration
+    REVEC(0x0);
   }
 }
 

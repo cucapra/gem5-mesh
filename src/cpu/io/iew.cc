@@ -268,7 +268,7 @@ IEW::doExecute()
       } else {
         cur_pc.npc(cur_pc.instAddr() + sizeof(RiscvISA::MachInst));
       }
-      
+
       inst->pcState(cur_pc);
       
       // this is a gem5 specific thing, but checking the outcome of a branch
@@ -302,7 +302,7 @@ IEW::doExecute()
   bool found = false;
   for (auto exec_unit_p : m_exec_units) {
     IODynInstPtr inst = exec_unit_p->peekIntroInst();
-    if (inst && inst->from_trace) {      
+    if (inst && !inst->isSquashed()) { // instruction could have been squashed in pipe? so need to check
       TheISA::PCState cur_pc = inst->pc;
       TheISA::advancePC(cur_pc, inst->static_inst_p);
       m_trace_pcs[inst->thread_id] = cur_pc;

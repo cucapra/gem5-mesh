@@ -7,7 +7,7 @@
 #include "pthread_launch.h"
 #include "synth.h"
 
-#define RANDOM_DIST 1
+//#define RANDOM_DIST 1
 
 int main(int argc, char *argv[]) {
   

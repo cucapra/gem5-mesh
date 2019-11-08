@@ -175,6 +175,17 @@ class Vector : public Stage {
     
     InstSource getOutMeshSource();
     InstSource getOutPipeSource();
+    
+    void handleRevec(const IODynInstPtr pipeInst, const IODynInstPtr meshInst);
+    bool pipeHasRevec();
+    bool meshHasRevec();
+    int getPipeRevec();
+    int getMeshRevec();
+    void setPipeRevec(int val);
+    void setMeshRevec(int val);
+    void resetPipeRevec();
+    void resetMeshRevec();
+    bool getRevecStall();
      
   protected:
   
@@ -207,6 +218,10 @@ class Vector : public Stage {
     
     // whether pass through mode is enabled where operates are usual, but still sends instructions
     bool _vecPassThrough;
+    
+    // whether we've seen a revec instruction and whats it's value (?)
+    int _meshRevecId;
+    int _pipeRevecId;
     
     // TEMP to make all relevant info available
     struct SenderState : public Packet::SenderState

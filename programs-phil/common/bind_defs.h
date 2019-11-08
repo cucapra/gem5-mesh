@@ -36,6 +36,10 @@
 #define VECTOR_EPOCH(val) \
   asm volatile (".insn i 0x77, 0, x0, %[x], 0x401\n\t" :: [x] "r" (val))
 
+// revec instruction with unique hash id
+#define REVEC(hash) \
+  asm volatile (".insn u 0x7b, x0, %[id]\n\t" :: [id] "i" (hash))
+
 // to ensure that the compiler doesn't place unwanted instructions
 // within the binds we enforce with a single asm volatile
 #define BINDED_EXE_SECTION(sbind, ebind, code, wr, rd)  \

@@ -17,7 +17,9 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, size_t in_size, size_t out_size,
     _canRootSend(canRootSend),
     _canRecv(canRecv),
     _numInstructions(0),
-    _vecPassThrough(false)
+    _vecPassThrough(false),
+    _meshRevecId(-1),
+    _pipeRevecId(-1)
 {
 }
 
@@ -97,6 +99,13 @@ Vector::tick() {
     pullPipeInstruction(pipeInfo);
   }
   
+  // if the instruction is a revec we need to handle it
+  handleRevec(pipeInfo.inst, meshInfo.inst);
+  // TODO be careful about sending two revecs down the pipeline (which will mess up pc)
+  // can prob happen when pipe arrives first
+
+
+  // if possible push instruction to next pipe stage and/or mesh network
   if (!outMeshStall) {
      
     // forward instruction to other neighbors potentially
@@ -123,31 +132,6 @@ Vector::tick() {
       pushMeshInstToNextStage(meshInfo);
     }
   }
-  
-  // old method
-  /*
-  // check if the current processor state allows us to go
-  if (!shouldStall()) {
-    //DPRINTF(Mesh, "vector unit going\n");
-    // pull instruction from the mesh or from the local fetch stage
-    MasterData instInfo;
-    pullInstruction(instInfo);
-  
-    // give instruction to the local decode stage if present
-    pushInstToNextStage(instInfo);
-    
-    // forward instruction to other neighbors potentially
-    forwardInstruction(instInfo);
-    
-    // TODO maybe refactor out to parent
-    // prefix()
-    // callChildTick()
-    // suffix()
-    if (!hasNextStage()) { // actually make sure its the last stage that does this (HACK)
-      instInfo.inst->updateMiscRegs();
-    }
-  }
-  */
   
 }
 
@@ -184,7 +168,7 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
                     squash_inst->thread_id, squash_inst->seq_num);
   else if (initiator == StageIdx::IEWIdx) {
     if (m_stage_idx == LateVectorIdx)
-      DPRINTF(Mesh, "[[WARNING]] Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
+      DPRINTF(Mesh, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
                     squash_inst->thread_id, squash_inst->seq_num);
     else
       DPRINTF(Mesh, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
@@ -225,7 +209,7 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   // - Potentially wasted energy on instruction pass throughs (especially if low usage)
   // - This core can potentially stall b/c target is stalled, but that's awkward b/c this is working on diff stream
   if (initiator == StageIdx::IEWIdx && squash_inst->from_trace) {
-    DPRINTF(Mesh, "[[WARNING]] trace divergence [%s]\n", squash_inst->toString(true));
+    DPRINTF(Mesh, "[[INFO]] trace divergence [%s]\n", squash_inst->toString(true));
     //m_cpu_p->setMiscReg(RiscvISA::MISCREG_FETCH, 0, tid);
     _vecPassThrough = true;
     restoreCredits();
@@ -402,14 +386,10 @@ Vector::pushPipeInstToNextStage(const MasterData &instInfo) {
     
   //if (m_stage_idx == LateVectorIdx)
   //DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
-  if (m_stage_idx == LateVectorIdx) {
+  //if (m_stage_idx == LateVectorIdx) {
     _numInstructions++;
     DPRINTF(Mesh, "[%s] num instructions seen %d\n", instInfo.inst->toString(true), _numInstructions);
-    if (instInfo.inst->m_inst_str == "jal ra, 1530") {
-            RegVal ra = m_cpu_p->readArchIntReg(1, 0);
-            DPRINTF(Mesh, "[%s] %#x PC=>NPC %s\n", instInfo.inst->toString(true), ra, instInfo.inst->pc);
-          }
-  }
+  //}
 }
 
 void
@@ -501,6 +481,8 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   }
   
   _vecPassThrough = false;
+  resetMeshRevec();
+  resetPipeRevec();
   
 }
 
@@ -685,7 +667,12 @@ Vector::isOutMeshStalled() {
 
 bool
 Vector::isInMeshStalled() {
-  return getConfigured() && !getInVal();
+  return getConfigured() && (!getInVal() || getRevecStall());
+}
+
+bool
+Vector::getRevecStall() {
+  return (meshHasRevec() && !pipeHasRevec());
 }
 
 // inform that there has been an update
@@ -840,6 +827,50 @@ Vector::getConfigured() {
   return !MeshHelper::isCSRDefault(_curCsrVal);
 }
 
+void
+Vector::handleRevec(const IODynInstPtr pipeInst, const IODynInstPtr meshInst) {
+  // if already in trace mode, or can't be trace mode, then just ignore
+  if (!canReadMesh() || !_vecPassThrough || isRootMaster()) return;
+  
+  if (meshInst && meshInst->static_inst_p->isRevec()) {
+    // set revec, TODO how to check value, or it even appropriate to check here?
+    setMeshRevec(0);
+    
+     DPRINTF(Mesh, "[[INFO]] Recv mesh REVEC\n");
+    
+    // if there was a revec before from pipe, then unstall
+    if (pipeHasRevec()) {
+      restoreCredits();
+    }
+  }
+  
+  // if we recv a revec via pipeline, then store
+  if (pipeInst && pipeInst->static_inst_p->isRevec()) {
+    setPipeRevec(0);
+  
+    DPRINTF(Mesh, "[[INFO]] Recv pipe REVEC\n");
+  
+    // if theres no revec from mesh, then stall
+    if (!meshHasRevec()) {
+      DPRINTF(Mesh, "[[INFO]] Stall due to REVEC\n");
+      stealCredits();
+    }
+  }
+  
+  // check if both present now and can continue vec (or not)
+  if (pipeHasRevec() && meshHasRevec()) {
+    if (getPipeRevec() == getMeshRevec()) {
+      _vecPassThrough = false;
+      resetPipeRevec();
+      resetMeshRevec();
+      stealCredits();
+      
+      DPRINTF(Mesh, "[[INFO]] REVEC\n");
+      
+    }
+  }
+  
+}
 
 Vector::InstSource
 Vector::getOutMeshSource() {
@@ -899,6 +930,46 @@ Vector::shouldStall() {
   return stalled;
 }
 */
+
+bool
+Vector::pipeHasRevec() {
+  return _pipeRevecId >= 0;
+}
+
+bool
+Vector::meshHasRevec() {
+  return _meshRevecId >= 0;
+}
+
+int
+Vector::getPipeRevec() {
+  return _pipeRevecId;
+}
+
+int
+Vector::getMeshRevec() {
+  return _meshRevecId;
+}
+
+void
+Vector::setPipeRevec(int val) {
+  _pipeRevecId = val;
+}
+
+void
+Vector::setMeshRevec(int val) {
+  _meshRevecId = val;
+}
+
+void
+Vector::resetPipeRevec() {
+  _pipeRevecId = -1;
+}
+
+void
+Vector::resetMeshRevec() {
+  _meshRevecId = -1;
+}
 
 std::vector<ToMeshPort>&
 Vector::getMeshMasterPorts() {
