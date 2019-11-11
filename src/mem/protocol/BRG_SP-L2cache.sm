@@ -718,7 +718,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }*/
   
   transition(IV, VMemory_Data) {
-    sdm_sendDataFromMem;
+    rsm_remoteStoreFromMem;
     dvt_decrementVectorCountTBE;
   }
 
