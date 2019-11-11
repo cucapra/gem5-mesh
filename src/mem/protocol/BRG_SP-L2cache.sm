@@ -15,9 +15,19 @@ machine(MachineType:L2Cache, "SP LLC cache")
       MessageBuffer* responseFromLLC, network = "To",   virtual_network = "0", vnet_type = "response";
       MessageBuffer* responseFromMemory;
       
-      int XCnt := 0;
-      int YCnt := 0;
 {
+  //---------------------------------------------------------------------------
+  // Global state... registers in this mem controller
+  //---------------------------------------------------------------------------
+  
+  // counters in the mem controller
+  int XCnt := 0;
+  int YCnt := 0;
+      
+  // prevent both inports from starting vector op while other is in progress
+  bool vecFromMem := false;
+  bool vecFromLLC := false;
+  
   //---------------------------------------------------------------------------
   // States
   //---------------------------------------------------------------------------
@@ -28,8 +38,6 @@ machine(MachineType:L2Cache, "SP LLC cache")
     IM,    AccessPermission:Busy,        desc = "Waiting for data";
     V,     AccessPermission:Read_Write,  desc = "Valid & clean";
     M,     AccessPermission:Read_Write,  desc = "Valid & dirty";
-    VV,    AccessPermission:Read_Write,  desc = "Vector & Valid & clean";
-    VM,    AccessPermission:Read_Write,  desc = "Vector & Valid & dirty";
     MI,    AccessPermission:Busy,        desc = "Waiting for writeback ACK";
     IV_LL, AccessPermission:Busy,        desc = "Waiting for data (LL request)";
     IA,    AccessPermission:Busy,        desc = "Waiting for data (ATOMIC request)";
@@ -51,6 +59,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
     // from memory
     Memory_Data,  desc = "Fetched data from memory arrives";
+    VMemory_Data, desc = "Fetched data from memory arrives and do vec op"; // kinda hacky
     Memory_Ack,   desc = "Writeback Ack from memory arrives";
   }
 
@@ -76,6 +85,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
     WriteMask writeMask,  desc = "Dirty byte mask";
     MachineID Requestor,  desc = "Requestor's ID";
     int       SeqNum,     desc = "Sequence number";
+    int       XDim,       desc = "X dimension to access for";
+    int       YDim,       desc = "Y dimension to access for";
   }
 
   structure(TBETable, external = "yes") {
@@ -230,14 +241,21 @@ machine(MachineType:L2Cache, "SP LLC cache")
             // the last read will be done like a normal read (update cache policy, profile, etc..)
             // any other read will just send data and increment vector counter
             
-            bool lastRead := ((in_msg.XDim == 1 && in_msg.YDim == 1) || // check if even vector load (could just encode in msg type)
+            // note the icache can also send these messages and won't have a valid xdim, ydim
+            
+            bool lastAccess := ((in_msg.XDim <= 1 && in_msg.YDim <= 1) || // check if even vector load (could just encode in msg type)
                               (XCnt == in_msg.XDim - 1 && YCnt == in_msg.YDim - 1));
             
-            if (lastRead) {
+            if (lastAccess) {
               trigger(Event:READ, LineAddress, cache_entry, tbe);
-            } else {
+            } else if (!vecFromMem) {
               trigger(Event:VREAD, LineAddress, cache_entry, tbe);
             }
+            else {
+              // can't use vec counter, so do nothing until finished
+            }
+            
+            trigger(Event:READ, LineAddress, cache_entry, tbe);
           } else if (in_msg.Type == LLCRequestType:WRITE) {
             trigger(Event:WRITE, LineAddress, cache_entry, tbe);
           } else if (in_msg.Type == LLCRequestType:LL) {
@@ -265,6 +283,20 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
         if (in_msg.Type == MemoryRequestType:MEMORY_READ) {
           assert(is_valid(cache_entry));
+          
+          bool lastAccess := ((tbe.XDim <= 1 && tbe.YDim <= 1) || // check if even vector load (could just encode in msg type)
+                              (XCnt == tbe.XDim - 1 && YCnt == tbe.YDim - 1));
+            
+          if (lastAccess) {
+            trigger(Event:Memory_Data, in_msg.addr, cache_entry, tbe);
+          } else if (!vecFromLLC) {
+            trigger(Event:VMemory_Data, in_msg.addr, cache_entry, tbe);
+          }
+          else {
+            // can't use vec counter, so do nothing until finished
+          }
+          
+          
           trigger(Event:Memory_Data, in_msg.addr, cache_entry, tbe);
         } else if (in_msg.Type == MemoryRequestType:MEMORY_WB) {
           trigger(Event:Memory_Ack, in_msg.addr, cache_entry, tbe);
@@ -501,9 +533,16 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   // initialize vector request (to 0)
-  action(rvc_resetVectorCount, "rvc", desc = "Initialize vector req counter") {
+  action(rvm_resetVectorFromMem, "rvm", desc = "Initialize vector req counter") {
     XCnt := 0;
     YCnt := 0;
+    vecFromMem := false;
+  }
+  
+  action(rvl_resetVectorFromLLC, "rvl", desc = "Initialize vector req counter") {
+    XCnt := 0;
+    YCnt := 0;
+    vecFromLLC := false;
   }
   
   // handle vector decrement
@@ -520,7 +559,18 @@ machine(MachineType:L2Cache, "SP LLC cache")
         XCnt := 0;
         YCnt := YCnt + 1;
       }
+      vecFromLLC := true;
     }
+  }
+  
+  // for missed accesses
+  action(dvt_decrementVectorCountTBE, "dvt", desc = "Decrement vector count TBE") {
+    XCnt := XCnt + 1;
+    if (XCnt == tbe.XDim) {
+      XCnt := 0;
+      YCnt := YCnt + 1;
+    }
+    vecFromMem := true;
   }
 
   //---------------------------------------------------------------------------
@@ -538,39 +588,48 @@ machine(MachineType:L2Cache, "SP LLC cache")
     pms_profileMissAccess;
   }
 
-  transition({V, VV}, READ, V) {
+  transition(V, READ) {
     smu_setMRU;
     sdc_sendDataFromCache;
-    rvc_resetVectorCount; // last read (vector or not vector) so reset count
+    rvl_resetVectorFromLLC; // last read (vector or not vector) so reset count
     prq_popRequestQueue;
     pht_profileHitAccess;
   }
 
-  transition({M, VM}, READ, M) {
+  transition(M, READ) {
     smu_setMRU;
     sdc_sendDataFromCache;
+    rvl_resetVectorFromLLC;
     prq_popRequestQueue;
     pht_profileHitAccess;
   }
-// how do the multi send here? same way?
+
   transition(IV, Memory_Data, V) {
     wdc_writeDataToCache;
     smu_setMRU;
     sdm_sendDataFromMem;
+    rvm_resetVectorFromMem;
     dtb_deallocateTBE;
     pmq_popMemResponseQueue;
     wua_wakeupAllDependents;
   }
   
 // vector sends, go to vector, only last request is a non-vector one (like original read)
-  transition({V, VV}, VREAD, VV) {
+// TODO might want to have real op go first, but then the other port might mode while going
+// ... both have pro-cons, but saved by serialization of message in toSPAD outport (presumably serialized)
+  transition({V, M}, VREAD) {
     sdc_sendDataFromCache;
     dvc_decrementVectorCount;
   }
   
-  transition({M, VM}, VREAD, VM) {
+  /*transition(M, VREAD) {
     sdc_sendDataFromCache;
     dvc_decrementVectorCount;
+  }*/
+  
+  transition(IV, VMemory_Data) {
+    sdm_sendDataFromMem;
+    dvt_decrementVectorCountTBE;
   }
 
   transition({IV, MI, IM, IV_LL, IA}, READ) {
