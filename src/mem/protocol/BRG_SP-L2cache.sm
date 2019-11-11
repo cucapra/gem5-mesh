@@ -14,6 +14,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
       MessageBuffer* requestToLLC,    network = "From", virtual_network = "1", vnet_type = "request";
       MessageBuffer* responseFromLLC, network = "To",   virtual_network = "0", vnet_type = "response";
       MessageBuffer* responseFromMemory;
+      
+      int XCnt := 0;
+      int YCnt := 0;
 {
   //---------------------------------------------------------------------------
   // States
@@ -25,6 +28,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
     IM,    AccessPermission:Busy,        desc = "Waiting for data";
     V,     AccessPermission:Read_Write,  desc = "Valid & clean";
     M,     AccessPermission:Read_Write,  desc = "Valid & dirty";
+    VV,    AccessPermission:Read_Write,  desc = "Vector & Valid & clean";
+    VM,    AccessPermission:Read_Write,  desc = "Vector & Valid & dirty";
     MI,    AccessPermission:Busy,        desc = "Waiting for writeback ACK";
     IV_LL, AccessPermission:Busy,        desc = "Waiting for data (LL request)";
     IA,    AccessPermission:Busy,        desc = "Waiting for data (ATOMIC request)";
@@ -37,6 +42,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   enumeration(Event, desc = "Cache events") {
     // from scratchpads
     READ,   desc = "A READ request arrives";
+    VREAD,  desc = "A Vector READ request is being processed";
     WRITE,  desc = "A WRITE request arrives";
     LL,     desc = "A LL request arrives";
     SC,     desc = "A SC request arrives";
@@ -63,6 +69,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   // TBE entry
   //---------------------------------------------------------------------------
 
+  // Data stored from a packet once taken out of RequestBuf. Needed to finish req when mem resp arrives
   structure(TBE, desc = "...") {
     State     TBEState,   desc = "Transient state";
     DataBlock DataBlk,    desc = "Data for the block";
@@ -197,30 +204,48 @@ machine(MachineType:L2Cache, "SP LLC cache")
     if (requestNetwork_in.isReady(clockEdge())) {
       peek(requestNetwork_in, LLCRequestMsg) {
 
-        Entry cache_entry := getCacheEntry(in_msg.LineAddress);
-
+        //Addr LineAddress := makeLineAddress(in_msg.WordAddress);
+        //assert(LineAddress == in_msg.LineAddress); why isn't this the same!!
+        Addr LineAddress := in_msg.LineAddress;
+        
+        // sanity check
+        assert(in_msg.XDim > 0 && in_msg.YDim > 0);
+        
+        Entry cache_entry := getCacheEntry(LineAddress);
+        
         DPRINTF(RubySlicc, "%s arrived\n", in_msg);
 
         if (is_invalid(cache_entry) &&
-            cacheMemory.cacheAvail(in_msg.LineAddress) == false) {
+            cacheMemory.cacheAvail(LineAddress) == false) {
           // No available cache line for this address -> trigger cache
           // replacement
-          Addr victim := cacheMemory.cacheProbe(in_msg.LineAddress);
+          Addr victim := cacheMemory.cacheProbe(LineAddress);
           trigger(Event:Repl, victim, getCacheEntry(victim), TBEs.lookup(victim));
         } else {
           // There's an available slot
-          TBE tbe := TBEs[in_msg.LineAddress];
+          TBE tbe := TBEs[LineAddress];
 
           if (in_msg.Type == LLCRequestType:READ) {
-            trigger(Event:READ, in_msg.LineAddress, cache_entry, tbe);
+            // check whether this is the last read for this request
+            // the last read will be done like a normal read (update cache policy, profile, etc..)
+            // any other read will just send data and increment vector counter
+            
+            bool lastRead := ((in_msg.XDim == 1 && in_msg.YDim == 1) || // check if even vector load (could just encode in msg type)
+                              (XCnt == in_msg.XDim - 1 && YCnt == in_msg.YDim - 1));
+            
+            if (lastRead) {
+              trigger(Event:READ, LineAddress, cache_entry, tbe);
+            } else {
+              trigger(Event:VREAD, LineAddress, cache_entry, tbe);
+            }
           } else if (in_msg.Type == LLCRequestType:WRITE) {
-            trigger(Event:WRITE, in_msg.LineAddress, cache_entry, tbe);
+            trigger(Event:WRITE, LineAddress, cache_entry, tbe);
           } else if (in_msg.Type == LLCRequestType:LL) {
-            trigger(Event:LL, in_msg.LineAddress, cache_entry, tbe);
+            trigger(Event:LL, LineAddress, cache_entry, tbe);
           } else if (in_msg.Type == LLCRequestType:SC) {
-            trigger(Event:SC, in_msg.LineAddress, cache_entry, tbe);
+            trigger(Event:SC, LineAddress, cache_entry, tbe);
           } else if (in_msg.Type == LLCRequestType:ATOMIC) {
-            trigger(Event:ATOMIC, in_msg.LineAddress, cache_entry, tbe);
+            trigger(Event:ATOMIC, LineAddress, cache_entry, tbe);
           } else {
             error("Invalid message");
           }
@@ -474,6 +499,29 @@ machine(MachineType:L2Cache, "SP LLC cache")
   action(wua_wakeupAllDependents, "wua", desc = "Wake up all buffers") {
     wakeUpAllBuffers();
   }
+  
+  // initialize vector request (to 0)
+  action(rvc_resetVectorCount, "rvc", desc = "Initialize vector req counter") {
+    XCnt := 0;
+    YCnt := 0;
+  }
+  
+  // handle vector decrement
+  action(dvc_decrementVectorCount, "dvc", desc = "Decrement vector count") {
+    // enqueue the same packet back on request queue with decremented vec count
+    // if no more counts don't put back onto the queue
+    peek(requestNetwork_in, LLCRequestMsg) {
+      // might need to put in TBE when split across cache line (and you want to do other reqs)
+      // store and then restore the count when send req and restore?
+      // NOT neccessary because no point to do vector request across a cache line
+      // ALSO don't need to worry about banks for this same reason b/c across a cache line
+      XCnt := XCnt + 1;
+      if (XCnt == in_msg.XDim) {
+        XCnt := 0;
+        YCnt := YCnt + 1;
+      }
+    }
+  }
 
   //---------------------------------------------------------------------------
   // Transitions
@@ -490,20 +538,21 @@ machine(MachineType:L2Cache, "SP LLC cache")
     pms_profileMissAccess;
   }
 
-  transition(V, READ) {
+  transition({V, VV}, READ, V) {
+    smu_setMRU;
+    sdc_sendDataFromCache;
+    rvc_resetVectorCount; // last read (vector or not vector) so reset count
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+
+  transition({M, VM}, READ, M) {
     smu_setMRU;
     sdc_sendDataFromCache;
     prq_popRequestQueue;
     pht_profileHitAccess;
   }
-
-  transition(M, READ) {
-    smu_setMRU;
-    sdc_sendDataFromCache;
-    prq_popRequestQueue;
-    pht_profileHitAccess;
-  }
-
+// how do the multi send here? same way?
   transition(IV, Memory_Data, V) {
     wdc_writeDataToCache;
     smu_setMRU;
@@ -511,6 +560,17 @@ machine(MachineType:L2Cache, "SP LLC cache")
     dtb_deallocateTBE;
     pmq_popMemResponseQueue;
     wua_wakeupAllDependents;
+  }
+  
+// vector sends, go to vector, only last request is a non-vector one (like original read)
+  transition({V, VV}, VREAD, VV) {
+    sdc_sendDataFromCache;
+    dvc_decrementVectorCount;
+  }
+  
+  transition({M, VM}, VREAD, VM) {
+    sdc_sendDataFromCache;
+    dvc_decrementVectorCount;
   }
 
   transition({IV, MI, IM, IV_LL, IA}, READ) {

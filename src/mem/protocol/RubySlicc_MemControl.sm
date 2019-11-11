@@ -103,6 +103,11 @@ structure(LLCRequestMsg, desc = "...", interface = "Message") {
   // for vector mem ops
   int             XDim,         desc = "";
   int             YDim,         desc = "";
+  Addr            WordAddress,  desc = "address for 32 bit mem element";
+  // these are transient values only tracked in mem controller (counters)
+  // maybe could use the TBE in controller for this instead?
+  int             XCnt,         desc = "controller x count, not actually sent in packet";
+  int             YCnt,         desc = "controller y count, not actually sent in packet";
 
   bool functionalRead(Packet* pkt) {
     return testAndRead(LineAddress, DataBlk, pkt);
@@ -121,6 +126,8 @@ structure(LLCResponseMsg, desc = "...", interface = "Message") {
   MessageSizeType MessageSize,  desc = "";
   bool            SC_Success,   desc = "Is SC successful?";
   int             SeqNum,       desc = "";
+  // might need to tag this as a remote store, so scratchpad does not send to CPU
+  bool            StoreInSpad,  desc = "Don't send to CPU when recv, store in spad";
 
   bool functionalRead(Packet* pkt) {
     return testAndRead(LineAddress, DataBlk, pkt);

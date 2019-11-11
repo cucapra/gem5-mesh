@@ -180,6 +180,9 @@ Scratchpad::initNetQueues()
 }
 
 // Handles response from LLC or remote load
+// NOTE memory loads through the spad go directly to the CPU and not to the scratchpad
+// you need to add an explicit write to the spad afterwards in order to get from CPU to spad
+
 void
 Scratchpad::wakeup()
 {
@@ -431,13 +434,19 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // make and queue an LLCRequest message
       std::shared_ptr<LLCRequestMsg> msg_p
                                 = std::make_shared<LLCRequestMsg>(clockEdge());
-      msg_p->m_LineAddress = makeLineAddress(pkt_p->getAddr());
+      msg_p->m_LineAddress = makeLineAddress(pkt_p->getAddr()); // TODO don't really need this?
       msg_p->m_Requestor = m_machineID;
       msg_p->m_MessageSize = MessageSizeType_Request_Control;
       (msg_p->m_Destination).add(dst_port);
       msg_p->m_SeqNum = m_cur_seq_num;
+      // access length in x,y -- prob always linearized
       msg_p->m_XDim = pkt_p->getXDim();
       msg_p->m_YDim = pkt_p->getYDim();
+      // initialize counters for mem controller (kind of a hack, wouldn't actually send this data over network in hardware)
+      msg_p->m_XCnt = 0;
+      msg_p->m_YCnt = 0;
+      // can't just use line address when doing vec load, need to know start and offsets from it
+      msg_p->m_WordAddress = pkt_p->getAddr();
 
       if (pkt_p->isAtomicOp()) {  // Atomic ops
         msg_p->m_Type = LLCRequestType_ATOMIC;
