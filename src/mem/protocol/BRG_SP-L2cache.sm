@@ -21,12 +21,12 @@ machine(MachineType:L2Cache, "SP LLC cache")
   //---------------------------------------------------------------------------
   
   // counters in the mem controller
-  int XCnt := 0;
-  int YCnt := 0;
+  int _xCnt := 0;
+  int _yCnt := 0;
       
   // prevent both inports from starting vector op while other is in progress
-  bool vecFromMem := false;
-  bool vecFromLLC := false;
+  bool _vecFromMem := false;
+  bool _vecFromLLC := false;
   
   //---------------------------------------------------------------------------
   // States
@@ -87,6 +87,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     int       SeqNum,     desc = "Sequence number";
     int       XDim,       desc = "X dimension to access for";
     int       YDim,       desc = "Y dimension to access for";
+    Addr      WordAddress,desc = "Word address of element request";
   }
 
   structure(TBETable, external = "yes") {
@@ -202,6 +203,13 @@ machine(MachineType:L2Cache, "SP LLC cache")
   bool isCacheEntryPresent(Addr addr) {
     return cacheMemory.isTagPresent(addr);
   }
+  
+  int getLinearIdx(int xDim, int yDim) {
+    int xIdx := xDim - _xCnt - 1;
+    int yIdx := yDim - _yCnt - 1;
+    int idx  := xIdx + yIdx * xDim;
+    return idx;
+  }
 
   //---------------------------------------------------------------------------
   // Network ports
@@ -244,11 +252,11 @@ machine(MachineType:L2Cache, "SP LLC cache")
             // note the icache can also send these messages and won't have a valid xdim, ydim
             
             bool lastAccess := ((in_msg.XDim <= 1 && in_msg.YDim <= 1) || // check if even vector load (could just encode in msg type)
-                              (XCnt == in_msg.XDim - 1 && YCnt == in_msg.YDim - 1));
+                              (_xCnt == in_msg.XDim - 1 && _yCnt == in_msg.YDim - 1));
             
             if (lastAccess) {
               trigger(Event:READ, LineAddress, cache_entry, tbe);
-            } else if (!vecFromMem) {
+            } else if (!_vecFromMem) {
               trigger(Event:VREAD, LineAddress, cache_entry, tbe);
             }
             else {
@@ -285,11 +293,11 @@ machine(MachineType:L2Cache, "SP LLC cache")
           assert(is_valid(cache_entry));
           
           bool lastAccess := ((tbe.XDim <= 1 && tbe.YDim <= 1) || // check if even vector load (could just encode in msg type)
-                              (XCnt == tbe.XDim - 1 && YCnt == tbe.YDim - 1));
+                              (_xCnt == tbe.XDim - 1 && _yCnt == tbe.YDim - 1));
             
           if (lastAccess) {
             trigger(Event:Memory_Data, in_msg.addr, cache_entry, tbe);
-          } else if (!vecFromLLC) {
+          } else if (!_vecFromLLC) {
             trigger(Event:VMemory_Data, in_msg.addr, cache_entry, tbe);
           }
           else {
@@ -370,6 +378,78 @@ machine(MachineType:L2Cache, "SP LLC cache")
     }
   }
 
+  // these are special sends just back to the spad (not icache) where only send
+  // one word of data b/c don't trace doesn't know which one to use
+
+  action(rsc_remoteStoreFromCache, "rsc", desc = "A remote store to a spad who did not request") {
+    peek(requestNetwork_in, LLCRequestMsg) {
+      
+      // based on vector count get the word in the cache line to send
+      // this will always(?) be a linearization
+      // put this in the reponse packet so know what to read
+      int linOffset := getLinearIdx(in_msg.XDim, in_msg.YDim);
+      
+      // get the spad to send this to 
+      assert(machineIDToMachineType(in_msg.Requestor) == MachineType:Scratchpad);
+      NodeID baseId := machineIDToNodeID(in_msg.Requestor);
+      int spadIdx := IDToInt(baseId) + linOffset;
+      MachineID spad := createMachineID(MachineType:Scratchpad, intToID(spadIdx));
+      
+      // in case the base address is not aligned to the cache block
+      // figure out the block idx for the word this reponse should send
+      int wordAddr := addressToInt(in_msg.WordAddress); // cast to int so can subtract
+      int lineAddr := addressToInt(in_msg.LineAddress);
+      int offsetFromLineAddress := wordAddr - lineAddr + linOffset;
+      
+      // This functionally sends the whole packet, but the ruby network (garnet)
+      // acutally looks at MessageSize to deteremine how many flits are needed
+      // to serially send the data over the network.
+      // TODO Shouldn't ICACHE response be larger than a singleword? 
+      // and shouldn't use this same mechanism??
+      enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+        out_msg.Type        := LLCResponseType:REDATA;
+        out_msg.LineAddress := in_msg.LineAddress;
+        out_msg.Destination.add(spad);
+        out_msg.DataBlk     := cache_entry.DataBlk;
+        out_msg.MessageSize := MessageSizeType:SingleWordData;
+        out_msg.SeqNum      := in_msg.SeqNum;
+        // this is gem5 only meta-data, in reality would just send the single
+        // word, so no need to pick out the element from the whole block
+        out_msg.BlkIdx      := offsetFromLineAddress;
+      }
+    }
+  }
+  
+
+  action(rsm_remoteStoreFromMem, "rsm", desc = "A remote store to a spad who did not request from mem") {
+    peek(memQueue_in, MemoryMsg) {
+      // get vec offset
+      int linOffset := getLinearIdx(tbe.XDim, tbe.YDim);
+      
+      // get the spad to send this to 
+      assert(machineIDToMachineType(tbe.Requestor) == MachineType:Scratchpad);
+      NodeID baseId := machineIDToNodeID(tbe.Requestor);
+      int spadIdx := IDToInt(baseId) + linOffset;
+      MachineID spad := createMachineID(MachineType:Scratchpad, intToID(spadIdx));
+      
+      // get offset into cache blk
+      int wordAddr := addressToInt(tbe.WordAddress);
+      int lineAddr := addressToInt(in_msg.addr);
+      int offsetFromLineAddress := wordAddr - lineAddr + linOffset;
+      
+      enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+        assert(is_valid(tbe));
+        out_msg.Type        := LLCResponseType:REDATA;
+        out_msg.LineAddress := in_msg.addr;
+        out_msg.Destination.add(spad);
+        out_msg.DataBlk     := cache_entry.DataBlk;
+        out_msg.MessageSize := MessageSizeType:SingleWordData;
+        out_msg.SeqNum      := tbe.SeqNum;
+        out_msg.BlkIdx      := offsetFromLineAddress;
+      }
+    }
+  }
+
   action(wdc_writeDataToCache, "wdc", desc = "Write data from mem to cache") {
     peek(memQueue_in, MemoryMsg) {
       cache_entry.DataBlk := in_msg.DataBlk;
@@ -397,6 +477,15 @@ machine(MachineType:L2Cache, "SP LLC cache")
       assert(is_valid(tbe));
       tbe.DataBlk := in_msg.DataBlk;
       tbe.writeMask := in_msg.writeMask;
+    }
+  }
+  
+  action(avt_addVecInfoToTBE, "avt", desc = "Add information about vector req to TBE") {
+    peek(requestNetwork_in, LLCRequestMsg) {
+      assert(is_valid(tbe));
+      tbe.XDim := in_msg.XDim;
+      tbe.YDim := in_msg.YDim;
+      tbe.WordAddress := in_msg.WordAddress;
     }
   }
 
@@ -534,15 +623,15 @@ machine(MachineType:L2Cache, "SP LLC cache")
   
   // initialize vector request (to 0)
   action(rvm_resetVectorFromMem, "rvm", desc = "Initialize vector req counter") {
-    XCnt := 0;
-    YCnt := 0;
-    vecFromMem := false;
+    _xCnt := 0;
+    _yCnt := 0;
+    _vecFromMem := false;
   }
   
   action(rvl_resetVectorFromLLC, "rvl", desc = "Initialize vector req counter") {
-    XCnt := 0;
-    YCnt := 0;
-    vecFromLLC := false;
+    _xCnt := 0;
+    _yCnt := 0;
+    _vecFromLLC := false;
   }
   
   // handle vector decrement
@@ -554,23 +643,23 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // store and then restore the count when send req and restore?
       // NOT neccessary because no point to do vector request across a cache line
       // ALSO don't need to worry about banks for this same reason b/c across a cache line
-      XCnt := XCnt + 1;
-      if (XCnt == in_msg.XDim) {
-        XCnt := 0;
-        YCnt := YCnt + 1;
+      _xCnt := _xCnt + 1;
+      if (_xCnt == in_msg.XDim) {
+        _xCnt := 0;
+        _yCnt := _yCnt + 1;
       }
-      vecFromLLC := true;
+      _vecFromLLC := true;
     }
   }
   
   // for missed accesses
   action(dvt_decrementVectorCountTBE, "dvt", desc = "Decrement vector count TBE") {
-    XCnt := XCnt + 1;
-    if (XCnt == tbe.XDim) {
-      XCnt := 0;
-      YCnt := YCnt + 1;
+    _xCnt := _xCnt + 1;
+    if (_xCnt == tbe.XDim) {
+      _xCnt := 0;
+      _yCnt := _yCnt + 1;
     }
-    vecFromMem := true;
+    _vecFromMem := true;
   }
 
   //---------------------------------------------------------------------------
@@ -582,6 +671,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   transition(I, READ, IV) {
     atb_allocateTBE;
     art_addRequestorToTBE;
+    avt_addVecInfoToTBE;
     acb_allocateCacheBlock;
     imr_issueMemReadRequest;
     prq_popRequestQueue;
@@ -618,7 +708,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 // TODO might want to have real op go first, but then the other port might mode while going
 // ... both have pro-cons, but saved by serialization of message in toSPAD outport (presumably serialized)
   transition({V, M}, VREAD) {
-    sdc_sendDataFromCache;
+    rsc_remoteStoreFromCache;
     dvc_decrementVectorCount;
   }
   

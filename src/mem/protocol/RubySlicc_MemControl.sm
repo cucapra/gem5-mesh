@@ -89,6 +89,7 @@ enumeration(LLCResponseType, desc = "...", default = "LLCResponseType_NULL") {
   DATA,   desc = "Data (for read request)";
   ACK,    desc = "ACK (for write request)";
   NULL,   desc = "Invalid";
+  REDATA, desc = "Remote store data (for vector request)";
 }
 
 structure(LLCRequestMsg, desc = "...", interface = "Message") {
@@ -104,10 +105,9 @@ structure(LLCRequestMsg, desc = "...", interface = "Message") {
   int             XDim,         desc = "";
   int             YDim,         desc = "";
   Addr            WordAddress,  desc = "address for 32 bit mem element";
-  // these are transient values only tracked in mem controller (counters)
-  // maybe could use the TBE in controller for this instead?
-  int             XCnt,         desc = "controller x count, not actually sent in packet";
-  int             YCnt,         desc = "controller y count, not actually sent in packet";
+  // TODO when value across cache lines, need to send multiple requests
+  // so the first element won't always be the master core and all should get
+  // remote stores. need to convey that info with a bit or a different LLCRequestType
 
   bool functionalRead(Packet* pkt) {
     return testAndRead(LineAddress, DataBlk, pkt);
@@ -126,8 +126,7 @@ structure(LLCResponseMsg, desc = "...", interface = "Message") {
   MessageSizeType MessageSize,  desc = "";
   bool            SC_Success,   desc = "Is SC successful?";
   int             SeqNum,       desc = "";
-  // might need to tag this as a remote store, so scratchpad does not send to CPU
-  bool            StoreInSpad,  desc = "Don't send to CPU when recv, store in spad";
+  int             BlkIdx,       desc = "We functionally send a whole data blk, but really only send a word";
 
   bool functionalRead(Packet* pkt) {
     return testAndRead(LineAddress, DataBlk, pkt);

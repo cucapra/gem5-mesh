@@ -442,9 +442,6 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // access length in x,y -- prob always linearized
       msg_p->m_XDim = pkt_p->getXDim();
       msg_p->m_YDim = pkt_p->getYDim();
-      // initialize counters for mem controller (kind of a hack, wouldn't actually send this data over network in hardware)
-      msg_p->m_XCnt = 0;
-      msg_p->m_YCnt = 0;
       // can't just use line address when doing vec load, need to know start and offsets from it
       msg_p->m_WordAddress = pkt_p->getAddr();
 
