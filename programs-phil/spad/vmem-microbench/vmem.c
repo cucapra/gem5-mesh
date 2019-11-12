@@ -66,6 +66,8 @@ void kernel(
   int vlenY = 2;
   mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
   
+  printf("%d %p\n", tid, getSpAddr(tid, 0));
+  
   VECTOR_EPOCH(mask);
   
   // do a memory load (prob need to do static analysis to know this will be consecutive iterations?)

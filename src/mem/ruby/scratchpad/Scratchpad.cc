@@ -205,10 +205,8 @@ Scratchpad::wakeup()
       DPRINTF(Scratchpad, "Handling mem resp pkt %s from a remote "
                           "scratchpad\n", pkt_p->print());
 
-      // TODO why does this send directly to the CPU? shouldn't we need another req
-      // to get the data??
       // Save the response packet and schedule an event in the next cycle to
-      // send it to CPU
+      // send it to CPU. In scratchpads, don't directly store this. Need CPU to explicitly write later on
       m_cpu_resp_pkts.push_back(pkt_p);
       if (!m_cpu_resp_event.scheduled())
         schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
@@ -237,6 +235,28 @@ Scratchpad::wakeup()
           pending_mem_pkt_p->req->
                             setExtraData((uint64_t) llc_msg_p->m_SC_Success);
         }
+      } else if (llc_msg_p->m_Type == LLCResponseType_REDATA) {
+        // data from a vector request on this scratchpads behalf
+        // mimic as a remote store from the master core
+        
+        // need to 'fake' a Packet from the LLC response and then go
+        // through the regular
+        
+        
+        // sanity check: make sure this request is for me
+        /*assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
+
+        DPRINTF(Scratchpad, "Handling remote store from mem pkt %s from %s\n",
+                        pkt_p->print(), msg_p->getSenderID());
+
+        if (!handleRemoteReq(pkt_p, msg_p->getSenderID())) {
+          DPRINTF(Scratchpad, "Not able to handle remote req. \
+                            Will retry to handle it later\n");
+          scheduleEvent(Cycles(1));
+        } else {
+          DPRINTF(Scratchpad, "Finished a remote req\n");
+          //m_remote_req_buffer_p->dequeue(clockEdge());
+        }*/
       } else {
         panic("Received wrong LLCResponseType");
       }
