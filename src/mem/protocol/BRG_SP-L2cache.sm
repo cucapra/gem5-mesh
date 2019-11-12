@@ -399,7 +399,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // figure out the block idx for the word this reponse should send
       int wordAddr := addressToInt(in_msg.WordAddress); // cast to int so can subtract
       int lineAddr := addressToInt(in_msg.LineAddress);
-      int offsetFromLineAddress := wordAddr - lineAddr + linOffset;
+      int lineOffset := wordAddr - lineAddr + linOffset;
+      
+      // because this mimics a remote store, the return address should be
+      // the storage address in the spad
+      // TODO this needs to be communicated in the packet (the core needs an instruction w/ this field?)
+      // TODO cheat a pretend address
+      // 0x10000010, 0x10001010, ....
+      Addr spadAddr := intToAddress(268435472 + (spadIdx << 12));
       
       // This functionally sends the whole packet, but the ruby network (garnet)
       // acutally looks at MessageSize to deteremine how many flits are needed
@@ -408,14 +415,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // and shouldn't use this same mechanism??
       enqueue(responseNetwork_out, LLCResponseMsg, 1) {
         out_msg.Type        := LLCResponseType:REDATA;
-        out_msg.LineAddress := in_msg.LineAddress;
+        out_msg.LineAddress := spadAddr;
         out_msg.Destination.add(spad);
         out_msg.DataBlk     := cache_entry.DataBlk;
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := in_msg.SeqNum;
         // this is gem5 only meta-data, in reality would just send the single
         // word, so no need to pick out the element from the whole block
-        out_msg.BlkIdx      := offsetFromLineAddress;
+        out_msg.BlkIdx      := lineOffset;
       }
     }
   }
@@ -435,17 +442,19 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // get offset into cache blk
       int wordAddr := addressToInt(tbe.WordAddress);
       int lineAddr := addressToInt(in_msg.addr);
-      int offsetFromLineAddress := wordAddr - lineAddr + linOffset;
+      int lineOffset := wordAddr - lineAddr + linOffset;
+      
+      Addr spadAddr := intToAddress(268435472 + (spadIdx << 12));
       
       enqueue(responseNetwork_out, LLCResponseMsg, 1) {
         assert(is_valid(tbe));
         out_msg.Type        := LLCResponseType:REDATA;
-        out_msg.LineAddress := in_msg.addr;
+        out_msg.LineAddress := spadAddr;
         out_msg.Destination.add(spad);
         out_msg.DataBlk     := cache_entry.DataBlk;
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
-        out_msg.BlkIdx      := offsetFromLineAddress;
+        out_msg.BlkIdx      := lineOffset;
       }
     }
   }
