@@ -425,9 +425,9 @@ IEW::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator)
   
   ThreadID tid = squash_inst->thread_id;
 
-if (initiator == StageIdx::CommitIdx && !((SquashComm::CommitSquash*)&squashInfo)->is_trap_pending) {
+/*if (initiator == StageIdx::CommitIdx && !((SquashComm::CommitSquash*)&squashInfo)->is_trap_pending) {
   DPRINTF(Mesh, "updating pc to %s from %s\n", squashInfo.next_pc, m_trace_pcs[tid]);
-}
+}*/
   // update the PC to the new_pc
   TheISA::PCState new_pc = squashInfo.next_pc;
   m_trace_pcs[tid] = new_pc;
