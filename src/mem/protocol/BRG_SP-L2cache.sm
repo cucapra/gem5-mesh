@@ -53,7 +53,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
   enumeration(Event, desc = "Cache events") {
     // from scratchpads
     READ,   desc = "A READ request arrives";
-    VREAD,  desc = "A Vector READ request is being processed";
+    VREAD0, desc = "The initial vec read";
+    VREAD1, desc = "The middle vec read(s)";
+    VREAD2, desc = "The last vec read";
     WRITE,  desc = "A WRITE request arrives";
     LL,     desc = "A LL request arrives";
     SC,     desc = "A SC request arrives";
@@ -62,7 +64,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
     // from memory
     Memory_Data,  desc = "Fetched data from memory arrives";
-    VMemory_Data, desc = "Fetched data from memory arrives and do vec op"; // kinda hacky
+    VData0,       desc = "Fetched data from memory arrives and do vec op"; // kinda hacky
+    VData1,       desc = "Fetched data from memory arrives and do vec op";
+    VData2,       desc = "Fetched data from memory arrives and do vec op";
     Memory_Ack,   desc = "Writeback Ack from memory arrives";
   }
 
@@ -208,10 +212,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   int getLinearIdx(int xDim, int yDim) {
-    int xIdx := xDim - _xCnt - 1;
-    int yIdx := yDim - _yCnt - 1;
+    int xIdx := _xCnt; //xDim - _xCnt - 1;
+    int yIdx := _yCnt; //yDim - _yCnt - 1;
     int idx  := xIdx + yIdx * xDim;
     return idx;
+  }
+  
+  bool isVector(int xDim, int yDim) {
+    return (xDim > 1 && yDim > 1);
   }
 
   //---------------------------------------------------------------------------
@@ -254,25 +262,32 @@ machine(MachineType:L2Cache, "SP LLC cache")
             
             // note the icache can also send these messages
             
-            bool lastAccess := ((in_msg.XDim == 1 && in_msg.YDim == 1) || // check if even vector load (could just encode in msg type)
-                              (_xCnt == in_msg.XDim - 1 && _yCnt == in_msg.YDim - 1));
-            
-            if (in_msg.XDim > 1) {
-              DPRINTF(Mesh, "req (%d,%d) %d %d %d\n", _xCnt, _yCnt, lastAccess, _vecFromMem, getState(tbe, cache_entry, LineAddress));
-            }
-              
-            if (lastAccess) {
+            // check if vector or not
+            // TODO on vector, taking multiple 'transitions' to send
+            // potentially blocking other things like mem req from happening for
+            // a few cycles. Not really sure how faithfully any of this is modeled
+            // just going to do the easiest to implement thing, which may end up
+            // being worse than the baseline because blocking mem reqs more due to
+            // multiple reqs.... 
+            // See transitions_per_cycle in Controller.py
+            if (!isVector(in_msg.XDim, in_msg.YDim)) {
               trigger(Event:READ, LineAddress, cache_entry, tbe);
-            } else if (!_vecFromMem) {
-              DPRINTF(Mesh, "do vread\n");
-              trigger(Event:VREAD, LineAddress, cache_entry, tbe);
+            }
+            else if (!_vecFromMem) {
+              DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromMem, getState(tbe, cache_entry, LineAddress));
+              if (_xCnt == 0 && _yCnt == 0) {
+                trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
+              }
+              else if (_xCnt != in_msg.XDim - 1 || _yCnt != in_msg.YDim - 1) {
+                trigger(Event:VREAD1, LineAddress, cache_entry, tbe);
+              }
+              else {
+                trigger(Event:VREAD2, LineAddress, cache_entry, tbe);
+              }
             }
             else {
-              // can't use vec counter, so do nothing until finished
-              // TODO should use z_stall action
+              // stall bro
             }
-            
-            trigger(Event:READ, LineAddress, cache_entry, tbe);
           } else if (in_msg.Type == LLCRequestType:WRITE) {
             trigger(Event:WRITE, LineAddress, cache_entry, tbe);
           } else if (in_msg.Type == LLCRequestType:LL) {
@@ -300,25 +315,25 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
         if (in_msg.Type == MemoryRequestType:MEMORY_READ) {
           assert(is_valid(cache_entry));
-          
-          bool lastAccess := ((tbe.XDim <= 1 && tbe.YDim <= 1) || // check if even vector load (could just encode in msg type)
-                              (_xCnt == tbe.XDim - 1 && _yCnt == tbe.YDim - 1));
-            
-          if (tbe.XDim > 1) {
-            DPRINTF(Mesh, "mem %s (%d,%d)\n", in_msg, _xCnt, _yCnt);
-          }
-            
-          if (lastAccess) {
+
+          if (!isVector(tbe.XDim, tbe.YDim)) {
             trigger(Event:Memory_Data, in_msg.addr, cache_entry, tbe);
-          } else if (!_vecFromLLC) {
-            trigger(Event:VMemory_Data, in_msg.addr, cache_entry, tbe);
+          }
+          else if (!_vecFromMem) {
+            DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromLLC, getState(tbe, cache_entry, in_msg.addr));
+            if (_xCnt == 0 && _yCnt == 0) {
+              trigger(Event:VData0, in_msg.addr, cache_entry, tbe);
+            }
+            else if (_xCnt != tbe.XDim - 1 || _yCnt != tbe.YDim - 1) {
+              trigger(Event:VData1, in_msg.addr, cache_entry, tbe);
+            }
+            else {
+              trigger(Event:VData2, in_msg.addr, cache_entry, tbe);
+            }
           }
           else {
-            // can't use vec counter, so do nothing until finished
+            // stall bro
           }
-          
-          
-          trigger(Event:Memory_Data, in_msg.addr, cache_entry, tbe);
         } else if (in_msg.Type == MemoryRequestType:MEMORY_WB) {
           trigger(Event:Memory_Ack, in_msg.addr, cache_entry, tbe);
         } else {
@@ -663,7 +678,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   // handle vector decrement
-  action(dvc_decrementVectorCount, "dvc", desc = "Decrement vector count") {
+  action(ivc_incVectorCount, "ivc", desc = "Increment vector count") {
     // enqueue the same packet back on request queue with decremented vec count
     // if no more counts don't put back onto the queue
     peek(requestNetwork_in, LLCRequestMsg) {
@@ -681,7 +696,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   // for missed accesses
-  action(dvt_decrementVectorCountTBE, "dvt", desc = "Decrement vector count TBE") {
+  action(ivt_incVectorCountTBE, "ivt", desc = "Increment vector count TBE") {
     _xCnt := _xCnt + 1;
     if (_xCnt == tbe.XDim) {
       _xCnt := 0;
@@ -696,7 +711,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   // READ requests
 
-  transition(I, { READ, VREAD }, IV) {
+  transition(I, { READ, VREAD0 }, IV) {
     atb_allocateTBE;
     art_addRequestorToTBE;
     avt_addVecInfoToTBE;
@@ -709,7 +724,6 @@ machine(MachineType:L2Cache, "SP LLC cache")
   transition(V, READ) {
     smu_setMRU;
     sdc_sendDataFromCache;
-    rvl_resetVectorFromLLC; // last read (vector or not vector) so reset count
     prq_popRequestQueue;
     pht_profileHitAccess;
   }
@@ -717,7 +731,6 @@ machine(MachineType:L2Cache, "SP LLC cache")
   transition(M, READ) {
     smu_setMRU;
     sdc_sendDataFromCache;
-    rvl_resetVectorFromLLC;
     prq_popRequestQueue;
     pht_profileHitAccess;
   }
@@ -735,24 +748,45 @@ machine(MachineType:L2Cache, "SP LLC cache")
 // vector sends, go to vector, only last request is a non-vector one (like original read)
 // TODO might want to have real op go first, but then the other port might mode while going
 // ... both have pro-cons, but saved by serialization of message in toSPAD outport (presumably serialized)
-  transition({V, M}, VREAD) {
-    rsc_remoteStoreFromCache;
-    dvc_decrementVectorCount;
-    //z_stall; // prevent any more ops from this message this cycle, have to only zstall I guess
+  transition({V, M}, VREAD0) {
+    sdc_sendDataFromCache;
+    ivc_incVectorCount;
   }
   
-  /*transition(M, VREAD) {
-    sdc_sendDataFromCache;
-    dvc_decrementVectorCount;
-  }*/
+  transition({V, M}, VREAD1) {
+    rsc_remoteStoreFromCache;
+    ivc_incVectorCount;
+  }
   
-  transition(IV, VMemory_Data) {
+  transition({V, M}, VREAD2) {
+    smu_setMRU;
+    rsc_remoteStoreFromCache;
+    rvl_resetVectorFromLLC; // last read (vector or not vector) so reset count
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+  
+  transition(IV, VData0) {
+    sdm_sendDataFromMem;
+    ivt_incVectorCountTBE;
+  }
+  
+  transition(IV, VData1) {
     rsm_remoteStoreFromMem;
-    dvt_decrementVectorCountTBE;
-    //z_stall; // prevent any more ops from this message this cycle
+    ivt_incVectorCountTBE;
+  }
+  
+  transition(IV, VData2) {
+    wdc_writeDataToCache;
+    smu_setMRU;
+    rsm_remoteStoreFromMem;
+    rvm_resetVectorFromMem;
+    dtb_deallocateTBE;
+    pmq_popMemResponseQueue;
+    wua_wakeupAllDependents;
   }
 
-  transition({IV, MI, IM, IV_LL, IA}, { READ, VREAD }) {
+  transition({IV, MI, IM, IV_LL, IA}, { READ, VREAD0, VREAD1, VREAD2 }) {
     z_stallAndWait;
   }
 
