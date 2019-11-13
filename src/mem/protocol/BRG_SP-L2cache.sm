@@ -252,9 +252,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
             // the last read will be done like a normal read (update cache policy, profile, etc..)
             // any other read will just send data and increment vector counter
             
-            // note the icache can also send these messages and won't have a valid xdim, ydim
+            // note the icache can also send these messages
             
-            bool lastAccess := ((in_msg.XDim <= 1 && in_msg.YDim <= 1) || // check if even vector load (could just encode in msg type)
+            bool lastAccess := ((in_msg.XDim == 1 && in_msg.YDim == 1) || // check if even vector load (could just encode in msg type)
                               (_xCnt == in_msg.XDim - 1 && _yCnt == in_msg.YDim - 1));
             
             if (in_msg.XDim > 1) {
