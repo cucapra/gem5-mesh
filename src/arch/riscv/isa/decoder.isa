@@ -1857,7 +1857,7 @@ decode QUADRANT default Unknown::unknown() {
         
         0x0f: decode FUNCT3 {
             format LoadDMA {
-                0x0: dmas({{
+                0x0: dmalw({{
                     Mem_uw = (uint32_t)Fs2_bits;
                 }}, inst_flags=FloatMemWriteOp);
                 //0x1: fsd({{
