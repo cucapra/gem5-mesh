@@ -25,6 +25,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
   int _yCnt := 0;
       
   // prevent both inports from starting vector op while other is in progress
+  // TODO this prob should also prevent multiple vector ops from happening in the same
+  // cycle. Currenlty allowing (just like for cache lines) where send all in 1 cycle
+  // and have the network serialize it.
   bool _vecFromMem := false;
   bool _vecFromLLC := false;
   
@@ -254,13 +257,19 @@ machine(MachineType:L2Cache, "SP LLC cache")
             bool lastAccess := ((in_msg.XDim <= 1 && in_msg.YDim <= 1) || // check if even vector load (could just encode in msg type)
                               (_xCnt == in_msg.XDim - 1 && _yCnt == in_msg.YDim - 1));
             
+            if (in_msg.XDim > 1) {
+              DPRINTF(Mesh, "req (%d,%d) %d %d %d\n", _xCnt, _yCnt, lastAccess, _vecFromMem, getState(tbe, cache_entry, LineAddress));
+            }
+              
             if (lastAccess) {
               trigger(Event:READ, LineAddress, cache_entry, tbe);
             } else if (!_vecFromMem) {
+              DPRINTF(Mesh, "do vread\n");
               trigger(Event:VREAD, LineAddress, cache_entry, tbe);
             }
             else {
               // can't use vec counter, so do nothing until finished
+              // TODO should use z_stall action
             }
             
             trigger(Event:READ, LineAddress, cache_entry, tbe);
@@ -294,6 +303,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
           
           bool lastAccess := ((tbe.XDim <= 1 && tbe.YDim <= 1) || // check if even vector load (could just encode in msg type)
                               (_xCnt == tbe.XDim - 1 && _yCnt == tbe.YDim - 1));
+            
+          if (tbe.XDim > 1) {
+            DPRINTF(Mesh, "mem %s (%d,%d)\n", in_msg, _xCnt, _yCnt);
+          }
             
           if (lastAccess) {
             trigger(Event:Memory_Data, in_msg.addr, cache_entry, tbe);
@@ -367,6 +380,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   action(sdc_sendDataFromCache, "sdc", desc = "Send response data to CPU side from cache") {
     peek(requestNetwork_in, LLCRequestMsg) {
+      if (in_msg.XDim > 1) {
+        DPRINTF(Mesh, "resp to addr %#x\n", in_msg.LineAddress);
+      }
+      
       enqueue(responseNetwork_out, LLCResponseMsg, 1) {
         out_msg.Type        := LLCResponseType:DATA;
         out_msg.LineAddress := in_msg.LineAddress;
@@ -407,6 +424,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // TODO cheat a pretend address
       // 0x10000010, 0x10001010, ....
       Addr spadAddr := intToAddress(268435472 + (spadIdx << 12));
+      
+      DPRINTF(Mesh, "remote store to spad %d @ addr %#x\n", spadIdx, spadAddr);
       
       // This functionally sends the whole packet, but the ruby network (garnet)
       // acutally looks at MessageSize to deteremine how many flits are needed
@@ -677,7 +696,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   // READ requests
 
-  transition(I, READ, IV) {
+  transition(I, { READ, VREAD }, IV) {
     atb_allocateTBE;
     art_addRequestorToTBE;
     avt_addVecInfoToTBE;
@@ -719,6 +738,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   transition({V, M}, VREAD) {
     rsc_remoteStoreFromCache;
     dvc_decrementVectorCount;
+    //z_stall; // prevent any more ops from this message this cycle, have to only zstall I guess
   }
   
   /*transition(M, VREAD) {
@@ -729,9 +749,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
   transition(IV, VMemory_Data) {
     rsm_remoteStoreFromMem;
     dvt_decrementVectorCountTBE;
+    //z_stall; // prevent any more ops from this message this cycle
   }
 
-  transition({IV, MI, IM, IV_LL, IA}, READ) {
+  transition({IV, MI, IM, IV_LL, IA}, { READ, VREAD }) {
     z_stallAndWait;
   }
 

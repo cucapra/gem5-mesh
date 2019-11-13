@@ -10,6 +10,8 @@
 #include "cpu/io/cpu.hh"
 #include "debug/LSQ.hh"
 
+#include "debug/Mesh.hh"
+
 MemUnit::MemUnit(const char* _iew_name, const char* _name,
                  IOCPU* _cpu_p, IOCPUParams* params)
     : m_iew_name(_iew_name),
@@ -526,10 +528,16 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // otherwise send as the usual single request, single response
     
     // get vec length from mesh csr
+    // NOTE Can send reqs here with wrong vector length that may be squashed in the future
+    // particularly noteworthy when send a vector request and then devec, will still do remote
+    // stores into the trace core memories
+    // TODO not quite sure how to handle!
     RegVal csrVal = m_s1_inst->readMiscReg(RiscvISA::MISCREG_FETCH);
-    if (MeshHelper::doVecLoad(csrVal)) {
+    if (MeshHelper::doVecLoad(csrVal)) { 
       m_s1_inst->mem_req_p->xDim = MeshHelper::getXLen(RiscvISA::MISCREG_FETCH, csrVal);
       m_s1_inst->mem_req_p->yDim = MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, csrVal);
+      DPRINTF(Mesh, "[%s] send vec load %#x, (%d,%d)\n", m_s1_inst->toString(true), 
+          addr, m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
     }
     else {
       m_s1_inst->mem_req_p->xDim = 1;

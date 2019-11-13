@@ -62,8 +62,8 @@ void kernel(
   }
   
   // specify the vlen
-  int vlenX = 1;//2;
-  int vlenY = 1;//2;
+  int vlenX = 2;//2;
+  int vlenY = 2;//2;
   mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
   
   printf("%d %p\n", tid, getSpAddr(tid, 0));

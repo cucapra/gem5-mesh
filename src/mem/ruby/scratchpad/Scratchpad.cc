@@ -38,6 +38,8 @@
 #include "mem/ruby/network/Network.hh"
 #include "mem/ruby/scratchpad/MemMessage.hh"
 
+#include "debug/Mesh.hh"
+
 int Scratchpad::m_num_scratchpads = 0;
 
 //-----------------------------------------------------------------------------
@@ -213,6 +215,28 @@ Scratchpad::wakeup()
 
       // Pop the message from mem_resp_buffer
       m_mem_resp_buffer_p->dequeue(clockEdge());
+    } else if (llc_msg_p && llc_msg_p->m_Type == LLCResponseType_REDATA) {
+        // data from a vector request on this scratchpads behalf
+        // mimic as a remote store from the master core
+        
+        // need to 'fake' a Packet from the LLC response and then go
+        // through the regular
+        
+        DPRINTF(Mesh, "Recv remote store from cache\n");
+        // sanity check: make sure this request is for me
+        /*assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
+
+        DPRINTF(Scratchpad, "Handling remote store from mem pkt %s from %s\n",
+                        pkt_p->print(), msg_p->getSenderID());
+
+        if (!handleRemoteReq(pkt_p, msg_p->getSenderID())) {
+          DPRINTF(Scratchpad, "Not able to handle remote req. \
+                            Will retry to handle it later\n");
+          scheduleEvent(Cycles(1));
+        } else {
+          DPRINTF(Scratchpad, "Finished a remote req\n");
+          //m_remote_req_buffer_p->dequeue(clockEdge());
+        }*/
     } else {
       // sanity check: make sure this is the response we're waiting for
       assert(m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 1);
@@ -235,28 +259,6 @@ Scratchpad::wakeup()
           pending_mem_pkt_p->req->
                             setExtraData((uint64_t) llc_msg_p->m_SC_Success);
         }
-      } else if (llc_msg_p->m_Type == LLCResponseType_REDATA) {
-        // data from a vector request on this scratchpads behalf
-        // mimic as a remote store from the master core
-        
-        // need to 'fake' a Packet from the LLC response and then go
-        // through the regular
-        
-        
-        // sanity check: make sure this request is for me
-        /*assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
-
-        DPRINTF(Scratchpad, "Handling remote store from mem pkt %s from %s\n",
-                        pkt_p->print(), msg_p->getSenderID());
-
-        if (!handleRemoteReq(pkt_p, msg_p->getSenderID())) {
-          DPRINTF(Scratchpad, "Not able to handle remote req. \
-                            Will retry to handle it later\n");
-          scheduleEvent(Cycles(1));
-        } else {
-          DPRINTF(Scratchpad, "Finished a remote req\n");
-          //m_remote_req_buffer_p->dequeue(clockEdge());
-        }*/
       } else {
         panic("Received wrong LLCResponseType");
       }
