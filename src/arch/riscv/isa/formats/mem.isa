@@ -326,5 +326,5 @@ def format LoadDMA(memacc_code, ea_code = {{EA = Rs1 + offset;}},
         mem_flags=[], inst_flags=[]) {{
     (header_output, decoder_output, decode_block, exec_output) = \
         LoadStoreBase(name, Name, offset_code, ea_code, memacc_code, mem_flags,
-        inst_flags, 'Store', exec_template_base='LoadDMA')
+        inst_flags, 'LoadDMA', exec_template_base='LoadDMA')
 }};

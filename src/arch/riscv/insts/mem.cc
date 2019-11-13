@@ -62,4 +62,13 @@ Store::generateDisassembly(Addr pc, const SymbolTable *symtab) const
     return ss.str();
 }
 
+string
+LoadDMA::generateDisassembly(Addr pc, const SymbolTable *symtab) const
+{
+    stringstream ss;
+    ss << mnemonic << ' ' << registerName(_srcRegIdx[1]) << ", " <<
+        offset << '(' << registerName(_srcRegIdx[0]) << ')';
+    return ss.str();
+}
+
 }

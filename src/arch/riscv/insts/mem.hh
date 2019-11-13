@@ -70,6 +70,15 @@ class Store : public MemInst
         Addr pc, const SymbolTable *symtab) const override;
 };
 
+class LoadDMA : public MemInst
+{
+  protected:
+    using MemInst::MemInst;
+
+    std::string generateDisassembly(
+        Addr pc, const SymbolTable *symtab) const override;
+};
+
 }
 
 #endif // __ARCH_RISCV_INST_MEM_HH__
