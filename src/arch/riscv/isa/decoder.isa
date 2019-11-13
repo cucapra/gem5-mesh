@@ -1856,10 +1856,10 @@ decode QUADRANT default Unknown::unknown() {
         }}, IsRevec, IsNonSpeculative, No_OpClass);
         
         0x0f: decode FUNCT3 {
-            format LoadDMA {
-                0x0: dmalw({{
-                    Mem_uw = (uint32_t)Fs2_bits;
-                }}, inst_flags=FloatMemWriteOp);
+            format SpadPrefetch {
+                0x0: prelw({{
+                    Mem_sw = Mem_sw;
+                }}, inst_flags=IsSpadPrefetch);
                 //0x1: fsd({{
                 //    Mem_ud = Fs2_bits;
                 //}}, inst_flags=FloatMemWriteOp);

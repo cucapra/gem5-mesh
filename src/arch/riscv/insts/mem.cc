@@ -63,7 +63,7 @@ Store::generateDisassembly(Addr pc, const SymbolTable *symtab) const
 }
 
 string
-LoadDMA::generateDisassembly(Addr pc, const SymbolTable *symtab) const
+SpadPrefetch::generateDisassembly(Addr pc, const SymbolTable *symtab) const
 {
     stringstream ss;
     ss << mnemonic << ' ' << registerName(_srcRegIdx[1]) << ", " <<

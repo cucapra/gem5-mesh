@@ -117,5 +117,6 @@ class StaticInstFlags(Enum):
         # PBB add some new flags for new instructions!
         , 'IsBind'
         , 'IsRevec'
+        , 'IsSpadPrefetch'
 
         ]

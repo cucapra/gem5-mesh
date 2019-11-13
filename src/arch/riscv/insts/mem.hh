@@ -70,7 +70,7 @@ class Store : public MemInst
         Addr pc, const SymbolTable *symtab) const override;
 };
 
-class LoadDMA : public MemInst
+class SpadPrefetch : public MemInst
 {
   protected:
     using MemInst::MemInst;
