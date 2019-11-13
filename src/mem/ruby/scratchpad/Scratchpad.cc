@@ -223,6 +223,11 @@ Scratchpad::wakeup()
         // through the regular
         
         DPRINTF(Mesh, "Recv remote store from cache\n");
+        
+        // NEED TO DEQUEUE THE MESSAGE IF DONE, otherwise infinite loop
+        m_mem_resp_buffer_p->dequeue(clockEdge());
+        
+        
         // sanity check: make sure this request is for me
         /*assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
 
