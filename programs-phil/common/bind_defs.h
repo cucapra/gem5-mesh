@@ -42,7 +42,7 @@
 
 // 0x0f << 2 & 0x3 = 0x3f
 #define VPREFETCH(spadAddr, memAddr, offset) \
-  asm volatile (".insn s 0x3f, 0x0, %[spad], %[off](%[mem])\n\t" :: \
+  asm volatile (".insn sb 0x3f, 0x0, %[spad], %[off](%[mem])\n\t" :: \
     [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" (offset))
 
 // to ensure that the compiler doesn't place unwanted instructions
