@@ -483,8 +483,7 @@ decode QUADRANT default Unknown::unknown() {
                     // this op doesn't actually happen b/c execute is never
                     // called in brg io. However, the bitwidths here are important
                     Mem_uw = Rs2_uw;
-                }});
-                //}}, inst_flags=IsSpadPrefetch);
+                }}, inst_flags=IsSpadPrefetch);
             }
         }
 
