@@ -41,8 +41,11 @@
   asm volatile (".insn u 0x7b, x0, %[id]\n\t" :: [id] "i" (hash))
 
 // 0x0f << 2 & 0x3 = 0x3f
+// actually use, unused sw funct3
+// if don't do this then compiler thinks its a 64bit instructions which
+// messes up gem5
 #define VPREFETCH(spadAddr, memAddr, offset) \
-  asm volatile (".insn sb 0x3f, 0x0, %[spad], %[off](%[mem])\n\t" :: \
+  asm volatile (".insn sb 0x23, 0x4, %[spad], %[off](%[mem])\n\t" :: \
     [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" (offset))
 
 // to ensure that the compiler doesn't place unwanted instructions

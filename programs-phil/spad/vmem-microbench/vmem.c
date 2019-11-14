@@ -78,7 +78,7 @@ void kernel(
   // do a memory load (prob need to do static analysis to know this will be consecutive iterations?)
   int val = -1; // for some reason asm volatile doesn't work without this
   /*asm volatile (
-    ".insn sb 0x3f, 0x0, %[st], 0(%[mem])\n\t" :: [st] "r" (spAddr), [mem] "r" (dataAddr)
+    ".insn sb 0x23, 0x2, %[st], 0(%[mem])\n\t" :: [st] "r" (spAddr), [mem] "r" (dataAddr)
   );*/
   //".insn sb 0x23, 0x2, %[st], 0(%[mem])\n\t" :: [st] "r" (spAddr), [mem] "r" (dataAddr)
   //"sw %[st], 0(%[mem])\n\t" :: [st] "r" (spAddr), [mem] "r" (dataAddr)

@@ -547,7 +547,9 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
         spadAddr |= ((uint64_t)data[i]) << (i * 8);
       }
       m_s1_inst->mem_req_p->prefetchAddr = spadAddr;
-      DPRINTF(Mesh, "given spad addr %#x\n", spadAddr);
+      // Temp debug
+      m_s1_inst->mem_req_p->xDim = 1;
+      m_s1_inst->mem_req_p->yDim = 1;
     }
     else {
       m_s1_inst->mem_req_p->xDim = 1;
