@@ -220,9 +220,33 @@ Scratchpad::wakeup()
         // mimic as a remote store from the master core
         
         // need to 'fake' a Packet from the LLC response and then go
-        // through the regular
+        // through the regular remote store channels
+        std::shared_ptr<Request> req =
+                std::make_shared<Request>(llc_msg_p->m_LineAddress,    // vaddr
+                                          sizeof(uint32_t),    // size
+                                          0, 0);
         
-        DPRINTF(Mesh, "Recv remote store from cache\n");
+        PacketPtr pkt_p = Packet::createWrite(req);
+        
+        // we really only sent a word of data, so extract that
+        int blkIdx = llc_msg_p->m_BlkIdx;
+        const uint8_t *word = llc_msg_p->m_DataBlk.getData(sizeof(uint32_t) * blkIdx, sizeof(uint32_t));
+        pkt_p->dataStatic(word);
+        
+        DPRINTF(Mesh, "Recv remote store %#x from cache %d %d %d %d\n", llc_msg_p->m_LineAddress, word[3], word[2], word[1], word[0]);
+        
+        assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
+
+        //DPRINTF(Scratchpad, "Handling remote store from mem pkt %s from %s\n",
+        //                pkt_p->print(), msg_p->getSenderID());
+        
+        
+        if (pkt_p->isRead()) m_remote_loads++;
+        else if (pkt_p->isWrite()) m_remote_stores++;
+    
+        // access data array
+        accessDataArray(pkt_p);
+        
         
         // NEED TO DEQUEUE THE MESSAGE IF DONE, otherwise infinite loop
         m_mem_resp_buffer_p->dequeue(clockEdge());

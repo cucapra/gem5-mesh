@@ -10,6 +10,7 @@
 #include "cpu/io/cpu.hh"
 #include "debug/LSQ.hh"
 
+#include "mem/page_table.hh"
 #include "debug/Mesh.hh"
 
 MemUnit::MemUnit(const char* _iew_name, const char* _name,
@@ -542,11 +543,17 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
           
       // the 'data' register for this instruction is actually an address
       // convert accordingly
-      Addr spadAddr = 0;
+      Addr spadVAddr = 0;
       for (int i = size - 1; i >= 0; i--) {
-        spadAddr |= ((uint64_t)data[i]) << (i * 8);
+        spadVAddr |= ((uint64_t)data[i]) << (i * 8);
       }
-      m_s1_inst->mem_req_p->prefetchAddr = spadAddr;
+      
+      // need to translate the address, do atomically,
+      // real hammerblade doesnt have virtual addresses anyway
+      Addr spadPAddr = 0;
+      assert(m_cpu_p->tcBase(tid)->getProcessPtr()->pTable->translate(spadVAddr, spadPAddr));
+      
+      m_s1_inst->mem_req_p->prefetchAddr = spadPAddr;
     }
     else {
       m_s1_inst->mem_req_p->xDim = 1;
