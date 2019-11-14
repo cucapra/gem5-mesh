@@ -66,15 +66,18 @@ void kernel(
   int vlenY = 2;//2;
   mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
   
-  printf("%d %p\n", tid, getSpAddr(tid, 0));
+  int *spAddr = (int*)getSpAddr(tid, 0);
+  printf("%d %p\n", tid, spAddr);
+  
   
   VECTOR_EPOCH(mask);
   
   // do a memory load (prob need to do static analysis to know this will be consecutive iterations?)
   int val = -1; // for some reason asm volatile doesn't work without this
-  asm volatile (
+  /*asm volatile (
     "lw %[st], 0(%[mem])\n\t" :: [st] "r" (val), [mem] "r" (&(data[tid]))
-  );
+  );*/
+  VPREFETCH(spAddr, &(data[tid]), 0);
   
   VECTOR_EPOCH(ALL_NORM);
   
