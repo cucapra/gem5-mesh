@@ -95,6 +95,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     int       XDim,       desc = "X dimension to access for";
     int       YDim,       desc = "Y dimension to access for";
     Addr      WordAddress,desc = "Word address of element request";
+    Addr      PrefetchAddress, desc = "Prefetch address, same wire as datablk";
   }
 
   structure(TBETable, external = "yes") {
@@ -255,26 +256,17 @@ machine(MachineType:L2Cache, "SP LLC cache")
           // There's an available slot
           TBE tbe := TBEs[LineAddress];
 
-          if (in_msg.Type == LLCRequestType:READ) {
-            // check whether this is the last read for this request
-            // the last read will be done like a normal read (update cache policy, profile, etc..)
-            // any other read will just send data and increment vector counter
-            
-            // note the icache can also send these messages
-            
-            // check if vector or not
-            // TODO on vector, taking multiple 'transitions' to send
-            // potentially blocking other things like mem req from happening for
-            // a few cycles. Not really sure how faithfully any of this is modeled
-            // just going to do the easiest to implement thing, which may end up
-            // being worse than the baseline because blocking mem reqs more due to
-            // multiple reqs.... 
-            // See transitions_per_cycle in Controller.py
-            if (!isVector(in_msg.XDim, in_msg.YDim)) {
-              trigger(Event:READ, LineAddress, cache_entry, tbe);
-            }
-            else if (!_vecFromMem) {
-              DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromMem, getState(tbe, cache_entry, LineAddress));
+          // check if vector or not (TODO should prob check RequestType rather than vlen)
+          // TODO on vector, taking multiple 'transitions' to send
+          // potentially blocking other things like mem req from happening for
+          // a few cycles. Not really sure how faithfully any of this is modeled
+          // just going to do the easiest to implement thing, which may end up
+          // being worse than the baseline because blocking mem reqs more due to
+          // multiple reqs.... 
+          // See transitions_per_cycle in Controller.py
+          if (isVector(in_msg.XDim, in_msg.YDim)) {
+            DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromMem, getState(tbe, cache_entry, LineAddress));
+            if (!_vecFromMem) {
               if (_xCnt == 0 && _yCnt == 0) {
                 trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
               }
@@ -284,10 +276,11 @@ machine(MachineType:L2Cache, "SP LLC cache")
               else {
                 trigger(Event:VREAD2, LineAddress, cache_entry, tbe);
               }
-            }
-            else {
+            } else {
               // stall bro
             }
+          } else if (in_msg.Type == LLCRequestType:READ) {
+            trigger(Event:READ, LineAddress, cache_entry, tbe);
           } else if (in_msg.Type == LLCRequestType:WRITE) {
             trigger(Event:WRITE, LineAddress, cache_entry, tbe);
           } else if (in_msg.Type == LLCRequestType:LL) {
@@ -313,13 +306,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
         Entry cache_entry := getCacheEntry(in_msg.addr);
 
-        if (in_msg.Type == MemoryRequestType:MEMORY_READ) {
-          assert(is_valid(cache_entry));
-
-          if (!isVector(tbe.XDim, tbe.YDim)) {
-            trigger(Event:Memory_Data, in_msg.addr, cache_entry, tbe);
-          }
-          else if (!_vecFromMem) {
+        if (isVector(tbe.XDim, tbe.YDim)) {
+          if (!_vecFromLLC) {
+            assert(is_valid(cache_entry));
             DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromLLC, getState(tbe, cache_entry, in_msg.addr));
             if (_xCnt == 0 && _yCnt == 0) {
               trigger(Event:VData0, in_msg.addr, cache_entry, tbe);
@@ -334,6 +323,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
           else {
             // stall bro
           }
+        } else if (in_msg.Type == MemoryRequestType:MEMORY_READ) {
+          assert(is_valid(cache_entry));
+          trigger(Event:Memory_Data, in_msg.addr, cache_entry, tbe);
         } else if (in_msg.Type == MemoryRequestType:MEMORY_WB) {
           trigger(Event:Memory_Ack, in_msg.addr, cache_entry, tbe);
         } else {
@@ -438,7 +430,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // TODO this needs to be communicated in the packet (the core needs an instruction w/ this field?)
       // TODO cheat a pretend address
       // 0x10000010, 0x10001010, ....
-      Addr spadAddr := intToAddress(268435472 + (spadIdx << 12));
+      Addr spadAddr := in_msg.PrefetchAddress; //intToAddress(268435472 + (spadIdx << 12));
       
       DPRINTF(Mesh, "remote store to spad %d @ addr %#x\n", spadIdx, spadAddr);
       
@@ -529,6 +521,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       tbe.XDim := in_msg.XDim;
       tbe.YDim := in_msg.YDim;
       tbe.WordAddress := in_msg.WordAddress;
+      tbe.PrefetchAddress := in_msg.PrefetchAddress;
     }
   }
 
@@ -748,8 +741,11 @@ machine(MachineType:L2Cache, "SP LLC cache")
 // vector sends, go to vector, only last request is a non-vector one (like original read)
 // TODO might want to have real op go first, but then the other port might mode while going
 // ... both have pro-cons, but saved by serialization of message in toSPAD outport (presumably serialized)
+// TODO since a prefetch is modeled as a write we place into the st queue, need to ack this
+// for the master
   transition({V, M}, VREAD0) {
-    sdc_sendDataFromCache;
+    rsc_remoteStoreFromCache;
+    swa_sendWriteAck;
     ivc_incVectorCount;
   }
   

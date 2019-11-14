@@ -432,7 +432,8 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
     return;
   } else if (ss->inst->isStore() ||
              ss->inst->isAtomic() ||
-             ss->inst->isStoreConditional()) {
+             ss->inst->isStoreConditional() ||
+             ss->inst->static_inst_p->isSpadPrefetch()) {
     // look up ss->inst in m_st_queue. If it no longer exists, it must have
     // been squashed. If so, we simply drop the packet.
     auto it = std::find_if(m_st_queue.begin(),
@@ -533,7 +534,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // stores into the trace core memories
     // TODO not quite sure how to handle!
     RegVal csrVal = m_s1_inst->readMiscReg(RiscvISA::MISCREG_FETCH);
-    if (MeshHelper::doVecLoad(csrVal)) { 
+    if (MeshHelper::doVecLoad(csrVal) && m_s1_inst->static_inst_p->isSpadPrefetch()) { 
       m_s1_inst->mem_req_p->xDim = MeshHelper::getXLen(RiscvISA::MISCREG_FETCH, csrVal);
       m_s1_inst->mem_req_p->yDim = MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, csrVal);
       DPRINTF(Mesh, "[%s] send vec load %#x, (%d,%d)\n", m_s1_inst->toString(true), 

@@ -1858,8 +1858,10 @@ decode QUADRANT default Unknown::unknown() {
         0x0f: decode FUNCT3 {
             format SpadPrefetch {
                 0x0: prelw({{
+                    // this can be whatever, because cpu/io/mem_unit
+                    // doesn't actually execute this instruction, just need
+                    // to use flags to figure out what to do
                     Mem_sw = Rd_sd;
-                    // Mem_sw = Mem_sw; // cant do
                 }}, inst_flags=IsSpadPrefetch);
                 //0x1: fsd({{
                 //    Mem_ud = Fs2_bits;

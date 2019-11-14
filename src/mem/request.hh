@@ -617,6 +617,11 @@ class Request
      */ 
     int xDim;
     int yDim;
+    
+    /**
+     * Interpret data block as an address
+     */ 
+    Addr prefetchAddr;
 
     /**
      *  Accessor for size.

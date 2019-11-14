@@ -108,6 +108,11 @@ structure(LLCRequestMsg, desc = "...", interface = "Message") {
   // TODO when value across cache lines, need to send multiple requests
   // so the first element won't always be the master core and all should get
   // remote stores. need to convey that info with a bit or a different LLCRequestType
+  
+  // In the case of a prefetch the DataBlock(word) is actually an address
+  // rather than interpreting in Slicc, just send as an extra field, even
+  // though in practice would be send on datablk transmission line
+  Addr            PrefetchAddress, desc = "helper to get address from datablk, not actually needed in hardware";
 
   bool functionalRead(Packet* pkt) {
     return testAndRead(LineAddress, DataBlk, pkt);

@@ -779,6 +779,11 @@ class Packet : public Printable
      */
     int getXDim() const { return req->xDim; }
     int getYDim() const { return req->yDim; }
+    
+    /**
+     * Accessor to prefetch address
+     */ 
+    Addr getPrefetchAddr() const { return req->prefetchAddr; }
 
 
     /**

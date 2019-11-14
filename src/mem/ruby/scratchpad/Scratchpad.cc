@@ -471,6 +471,9 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       msg_p->m_YDim = pkt_p->getYDim();
       // can't just use line address when doing vec load, need to know start and offsets from it
       msg_p->m_WordAddress = pkt_p->getAddr();
+      // for prefetches instead of sending data blk we send an address
+      // pre-interpret it here, but not actually an additional field
+      msg_p->m_PrefetchAddress = pkt_p->getPrefetchAddr();
 
       if (pkt_p->isAtomicOp()) {  // Atomic ops
         msg_p->m_Type = LLCRequestType_ATOMIC;
