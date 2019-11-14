@@ -430,7 +430,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // TODO this needs to be communicated in the packet (the core needs an instruction w/ this field?)
       // TODO cheat a pretend address
       // 0x10000010, 0x10001010, ....
-      Addr spadAddr := in_msg.PrefetchAddress; //intToAddress(268435472 + (spadIdx << 12));
+      Addr spadAddr := intToAddress(addressToInt(in_msg.PrefetchAddress) + (spadIdx << 12)); //intToAddress(268435472 + (spadIdx << 12));
       
       DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x\n", spadIdx, spadAddr, in_msg.WordAddress);
       
@@ -470,7 +470,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
       int lineAddr := addressToInt(in_msg.addr);
       int lineOffset := wordAddr - lineAddr + linOffset;
       
-      Addr spadAddr := intToAddress(268435472 + (spadIdx << 12));
+      //Addr spadAddr := intToAddress(268435472 + (spadIdx << 12));
+      Addr spadAddr := intToAddress(addressToInt(tbe.PrefetchAddress) + (spadIdx << 12));
       
       enqueue(responseNetwork_out, LLCResponseMsg, 1) {
         assert(is_valid(tbe));
@@ -482,6 +483,30 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.SeqNum      := tbe.SeqNum;
         out_msg.BlkIdx      := lineOffset;
       }
+    }
+  }
+  
+  // acknoweldge a prefetch was send (was a hit
+  action(pah_prefetchAckHit, "pah", desc = "Send prefetch ack on hit") {
+    peek(requestNetwork_in, LLCRequestMsg) {
+      enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+        out_msg.Type        := LLCResponseType:ACK;
+        out_msg.LineAddress := address;
+        out_msg.Destination.add(in_msg.Requestor);
+        out_msg.MessageSize := MessageSizeType:Response_Control;
+        out_msg.SeqNum      := in_msg.SeqNum;
+      }
+    }
+  }
+  
+  action(pam_prefetchAckMiss, "pam", desc = "Send prefetch ack on miss") {
+    enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+      assert(is_valid(tbe));
+      out_msg.Type        := LLCResponseType:ACK;
+      out_msg.LineAddress := address;
+      out_msg.Destination.add(tbe.Requestor);
+      out_msg.MessageSize := MessageSizeType:Response_Control;
+      out_msg.SeqNum      := tbe.SeqNum;
     }
   }
 
@@ -742,11 +767,11 @@ machine(MachineType:L2Cache, "SP LLC cache")
 // TODO might want to have real op go first, but then the other port might mode while going
 // ... both have pro-cons, but saved by serialization of message in toSPAD outport (presumably serialized)
 // TODO since a prefetch is modeled as a write we place into the st queue, need to ack this
-// for the master
+// for the master.
   transition({V, M}, VREAD0) {
     rsc_remoteStoreFromCache;
-    swa_sendWriteAck;
     ivc_incVectorCount;
+    pah_prefetchAckHit;
   }
   
   transition({V, M}, VREAD1) {
@@ -765,6 +790,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   transition(IV, VData0) {
     sdm_sendDataFromMem;
     ivt_incVectorCountTBE;
+    pam_prefetchAckMiss;
   }
   
   transition(IV, VData1) {
