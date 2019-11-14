@@ -539,6 +539,15 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->yDim = MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, csrVal);
       DPRINTF(Mesh, "[%s] send vec load %#x, (%d,%d)\n", m_s1_inst->toString(true), 
           addr, m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
+          
+      // the 'data' register for this instruction is actually an address
+      // convert accordingly
+      Addr spadAddr = 0;
+      for (int i = size - 1; i >= 0; i--) {
+        spadAddr |= ((uint64_t)data[i]) << (i * 8);
+      }
+      m_s1_inst->mem_req_p->prefetchAddr = spadAddr;
+      DPRINTF(Mesh, "given spad addr %#x\n", spadAddr);
     }
     else {
       m_s1_inst->mem_req_p->xDim = 1;

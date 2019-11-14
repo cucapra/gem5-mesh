@@ -432,7 +432,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // 0x10000010, 0x10001010, ....
       Addr spadAddr := in_msg.PrefetchAddress; //intToAddress(268435472 + (spadIdx << 12));
       
-      DPRINTF(Mesh, "remote store to spad %d @ addr %#x\n", spadIdx, spadAddr);
+      DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x\n", spadIdx, spadAddr, in_msg.WordAddress);
       
       // This functionally sends the whole packet, but the ruby network (garnet)
       // acutally looks at MessageSize to deteremine how many flits are needed
