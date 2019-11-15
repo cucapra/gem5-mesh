@@ -57,7 +57,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < sizeA; i++)
     a[i] = (i % num_cores) + 1;
   for (int i = 0; i < sizeB; i++)
-    b[i] = 2;
+    b[i] = 0;
   for (int i = 0; i < sizeC; i++)
     c[i] = 0;
   
@@ -88,7 +88,11 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
 
   for (int i = 0; i < 4; i++) {
-    if (c[i] != (i + 1) * n / num_cores) {
+    printf("%d %d\n", b[i], c[i]);
+    if ((c[i] != (i + 1) * n / num_cores) &&
+        (b[i] == i < 2 ? (i + 1) : -1)
+    
+    ) {
       printf("[[FAIL]]\n");
       return 1;
     }

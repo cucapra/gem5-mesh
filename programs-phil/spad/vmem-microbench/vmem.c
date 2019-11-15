@@ -72,6 +72,31 @@ void kernel(
   
   VECTOR_EPOCH(mask);
   
+  // divergent before prefetch case, no prefetch in detached path
+  if (tid < 2) {
+    VPREFETCH(spAddr, a + tid, 0);
+    LWSPEC_RESET(val, spAddr, 0);
+    b[tid] = val;
+  }
+  else {
+    b[tid] = -1;
+  }
+  
+  REVEC(0);
+  
+  // divergent because of prefetch case
+  
+  
+  REVEC(0);
+  
+  // divergent prefetch, prefetch
+  // worry is that master prefetch may overwrite detached trace prefetch
+  // in which case detached trace needs some way to avoid??
+  
+  
+  REVEC(0);
+  
+  // convergent loop
   for (int i = 0; i < n / dim; i++) {
     int stride = dim;
     VPREFETCH(spAddr,     a + stride * i,      0);
