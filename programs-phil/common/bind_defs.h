@@ -50,13 +50,13 @@
     
 #define LWSPEC(val, spadAddr, offset)                   \
   asm volatile (                                        \
-    ".insn s 0x07, 0x4, %[val], %[off](%[mem])\n\t"     \
+    ".insn s 0x07, 0x5, %[val], %[off](%[mem])\n\t"     \
     : [val] "=r" (val)                                  \
     : [mem] "r" (spadAddr), [off] "i" (offset))         
     
 #define LWSPEC_RESET(val, spadAddr, offset)             \
   asm volatile (                                        \
-    ".insn s 0x07, 0x5, %[val], %[off](%[mem])\n\t"     \
+    ".insn s 0x07, 0x6, %[val], %[off](%[mem])\n\t"     \
     : [val] "=r" (val)                                  \
     : [mem] "r" (spadAddr), [off] "i" (offset))
 

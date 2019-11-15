@@ -398,14 +398,15 @@ decode QUADRANT default Unknown::unknown() {
                 }}, inst_flags=FloatMemReadOp);
                 // not floats, but put here to make sure compiler has some idea
                 // these are loads
+                // TODO will compiler treat these as float registers??? and not track deps?
                 // speculative loads, these are issue without knowing whether
                 // data has arrived in spads. wait until it does
                 // this does not reset there recv flag
-                0x4: lwspec({{
+                0x5: lwspec({{
                     Rd_sd = Mem_sw;
                 }}, inst_flags=IsSpadSpeculative);
                 // this does reset the recv flag
-                0x5: lwspecr({{
+                0x6: lwspecr({{
                     Rd_sd = Mem_sw;
                 }}, inst_flags=[IsSpadSpeculative, IsSpadReset]);
             }
