@@ -254,7 +254,7 @@ Scratchpad::wakeup()
         bool memDiv = setPrefetchFresh(pkt_p);
     
         if (memDiv) {
-          DPRINTF(Mesh, "diverge\n");
+          DPRINTF(Mesh, "[[WARNING]] diverge\n");
         }
         else {
           // profile, TODO should classify different than just remote load/store?

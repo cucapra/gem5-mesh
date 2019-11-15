@@ -427,7 +427,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // get offset IN WORDS, need to divide by word size
       int wordOffset := ((wordAddr - lineAddr) / 4) + linOffset;
       
-      DPRINTF(Mesh, "offset %d line %d addr %d\n", wordOffset, lineAddr, wordAddr);
+      //DPRINTF(Mesh, "offset %d line %d addr %d\n", wordOffset, lineAddr, wordAddr);
       
       // because this mimics a remote store, the return address should be
       // the storage address in the spad

@@ -31,7 +31,8 @@ IODynInst::IODynInst(const StaticInstPtr& static_inst,
       m_inst_str(static_inst->disassemble(pc.pc())),
       master_taken(false),
       master_targ(0),
-      from_trace(false)
+      from_trace(false),
+      replaced(false)
 { }
 
 IODynInst::~IODynInst()

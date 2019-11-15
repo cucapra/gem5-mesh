@@ -315,11 +315,29 @@ IODynInstPtr
 Vector::createInstruction(const MasterData &instInfo) {
   // make a dynamic instruction to pass to the decode stage
   // a slave core will track its seq num (incr on every instruction, i.e. nth dynamic inst), 
-  // own pc(?), and maybe branch predictor (in fetch)
-  int tid = 0;
-  TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
+  
+  // in trace mode don't know pc yet, so just give dummy value
   TheISA::PCState cur_pc = 0;
-  auto static_inst = extractInstruction(machInst, cur_pc);
+  
+  // if the instruction is from a trace then we might want to convert to a nop
+  // 1) vec loads
+  // 2) scalar instructions
+  StaticInstPtr static_inst;
+  bool force32bit;
+  if (instInfo.inst->static_inst_p->isSpadPrefetch()) {
+    // TODO this makes pc + 2, when need pc + 4 (the prefetch is 32 bits)
+    // compensate in iew logic
+    static_inst = StaticInst::nopStaticInstPtr; 
+    force32bit = true;
+  }
+  // otherwise copy the sent instruction
+  else {
+    TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
+    static_inst = extractInstruction(machInst, cur_pc);
+    force32bit = false;
+  }
+  
+  int tid = 0;
   IODynInstPtr inst =
           std::make_shared<IODynInst>(static_inst, cur_pc,
                                       m_cpu_p->getAndIncrementInstSeq(),
@@ -328,6 +346,7 @@ Vector::createInstruction(const MasterData &instInfo) {
   
   // mark instruction as from a stream traced by master core
   inst->from_trace = true;
+  inst->replaced = force32bit;
   
   // iew will pass a mispredicted branch forward, we don't want to send 
   // this to slave core because it will be wasted work, however you still need
@@ -339,6 +358,9 @@ Vector::createInstruction(const MasterData &instInfo) {
   if (instInfo.inst->isControl()) {
     DPRINTF(Mesh, "master targed %d %s. pred targ %d %s\n", inst->master_taken, inst->master_targ, inst->predicted_taken, inst->readPredTarg() );
   }
+  
+
+  
 
   return inst;
 }

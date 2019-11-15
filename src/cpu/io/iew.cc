@@ -263,7 +263,7 @@ IEW::doExecute()
       TheISA::PCState cur_pc = m_trace_pcs[inst->thread_id];
       RiscvISA::Decoder decoder;
       TheISA::MachInst mach_inst = (TheISA::MachInst)inst->static_inst_p->machInst;
-      if (decoder.compressed(mach_inst)) {
+      if (decoder.compressed(mach_inst) && !inst->replaced) {
         cur_pc.npc(cur_pc.instAddr() + sizeof(RiscvISA::MachInst) / 2);
       } else {
         cur_pc.npc(cur_pc.instAddr() + sizeof(RiscvISA::MachInst));

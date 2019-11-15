@@ -523,6 +523,10 @@ public:
     // unless actual taken and actual targ differ from 
     bool from_trace;
     
+    // replaced with a different instruction
+    // also helps to determine whether 32 bit or not
+    bool replaced;
+    
     // check whether trace sent by master core is valid
     bool checkTrace(bool local_taken, TheISA::PCState local_targ);
 };

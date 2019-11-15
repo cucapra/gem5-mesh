@@ -555,6 +555,17 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       
       m_s1_inst->mem_req_p->prefetchAddr = spadPAddr;
     }
+    /*else if (m_s1_inst->static_inst_p->isSpadPrefetch()) {
+      // if we won't do a vec load b/c this is a trace core then this should
+      // not fire
+      // TODO this just do a normal load if this is detached, but that would require
+      // some more complexity
+      
+      m_s1_inst->setExecuted();
+      return NoFault;
+      
+      // then need someway to push this out of mem unit
+    }*/
     else {
       m_s1_inst->mem_req_p->xDim = 1;
       m_s1_inst->mem_req_p->yDim = 1;
