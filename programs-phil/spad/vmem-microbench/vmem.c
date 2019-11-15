@@ -6,8 +6,6 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
-int data[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
-
 // actual kernel
 void kernel(
     int *a, int *b, int *c, int n,
@@ -68,25 +66,21 @@ void kernel(
   
   // NOTE potential optimization to avoid 64bit pointer store
   // b/c spad addresses are always 32bits in this setup
-  int *spAddr = &(((int*)getSpAddr(tid, 0))[4]);
-  int *dataAddr = &(data[tid]);
-  //printf("%d %p %p\n", tid, spAddr, dataAddr);
+  int *spAddr = getSpAddr(tid, 0);
   
   int val;
   
   VECTOR_EPOCH(mask);
   
-  // do a memory load (prob need to do static analysis to know this will be consecutive iterations?)
-  VPREFETCH(spAddr, dataAddr, 0);
-  VPREFETCH(spAddr + 1, dataAddr + 4, 0);
-  LWSPEC(val, spAddr, 0);
-  c[tid] = val;
-  LWSPEC_RESET(val, spAddr + 1, 0);
-  c[tid] += val;
+  for (int i = 0; i < n / dim; i++) {
+    int stride = dim;
+    VPREFETCH(spAddr,     a + stride * i,      0);
+    LWSPEC_RESET(val, spAddr, 0);
+    c[tid] += val;
+  }
+  
   
   VECTOR_EPOCH(ALL_NORM);
-  
-  //c[tid] = val;
   
   if (tid_x == 0 && tid_y == 0) {
     stats_off();
