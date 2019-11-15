@@ -396,6 +396,18 @@ decode QUADRANT default Unknown::unknown() {
                 0x3: fld({{
                     Fd_bits = Mem;
                 }}, inst_flags=FloatMemReadOp);
+                // not floats, but put here to make sure compiler has some idea
+                // these are loads
+                // speculative loads, these are issue without knowing whether
+                // data has arrived in spads. wait until it does
+                // this does not reset there recv flag
+                0x4: lwspec({{
+                    Rd_sd = Mem_sw;
+                }}, inst_flags=IsSpadSpeculative);
+                // this does reset the recv flag
+                0x5: lwspecr({{
+                    Rd_sd = Mem_sw;
+                }}, inst_flags=[IsSpadSpeculative, IsSpadReset]);
             }
         }
 

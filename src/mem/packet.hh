@@ -785,6 +785,12 @@ class Packet : public Printable
      */ 
     Addr getPrefetchAddr() const { return req->prefetchAddr; }
 
+    /**
+     * Accessor to spec flags
+     */ 
+    bool getSpecSpad() const { return req->spadSpec; }
+    bool getSpadReset() const { return req->spadReset; }
+
 
     /**
      * It has been determined that the SC packet should successfully update

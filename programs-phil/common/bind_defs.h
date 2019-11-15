@@ -47,6 +47,18 @@
 #define VPREFETCH(spadAddr, memAddr, offset) \
   asm volatile (".insn sb 0x23, 0x4, %[spad], %[off](%[mem])\n\t" :: \
     [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" (offset))
+    
+#define LWSPEC(val, spadAddr, offset)                   \
+  asm volatile (                                        \
+    ".insn s 0x07, 0x4, %[val], %[off](%[mem])\n\t"     \ 
+    : [val] "=r" (val)                                  \
+    : [mem] "r" (spadAddr), [off] "i" (offset))         
+    
+#define LWSPEC_RESET(val, spadAddr, offset)             \
+  asm volatile (                                        \
+    ".insn s 0x07, 0x5, %[val], %[off](%[mem])\n\t"     \
+    : [val] "=r" (val)                                  \
+    : [mem] "r" (spadAddr), [off] "i" (offset))
 
 // to ensure that the compiler doesn't place unwanted instructions
 // within the binds we enforce with a single asm volatile

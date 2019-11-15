@@ -622,6 +622,12 @@ class Request
      * Interpret data block as an address
      */ 
     Addr prefetchAddr;
+    
+    /**
+     * Flags for spec spad loads
+     */
+    bool spadSpec;
+    bool spadReset;
 
     /**
      *  Accessor for size.
