@@ -307,6 +307,11 @@ class Scratchpad : public AbstractController
     const int m_num_l2s;
     
     /**
+     * Allowed to store # of inflight loads from core
+     */ 
+    const int m_spec_buf_size;
+    
+    /**
      * TODO TEMP? Keep a single bit to denote whether a remote store has been 
      * read by the core at this node. Sized spm_size / sizeof(uint8_t)
      */ 

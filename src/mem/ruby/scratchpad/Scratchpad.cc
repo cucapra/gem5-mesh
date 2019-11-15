@@ -98,7 +98,8 @@ Scratchpad::Scratchpad(const Params* p)
       m_base_addr_p((uint64_t* const) (m_data_array + SPM_BASE_ADDR_OFFSET)),
       m_go_flag_p((uint32_t* const)(m_data_array + SPM_GO_FLAG_OFFSET)),
       m_done_flag_p((uint32_t* const)(m_data_array + SPM_DONE_FLAG_OFFSET)),
-      m_num_l2s(p->num_l2s)
+      m_num_l2s(p->num_l2s),
+      m_spec_buf_size(p->spec_buf_size)
 {
   m_num_scratchpads++;
 
@@ -269,24 +270,26 @@ Scratchpad::wakeup()
         m_mem_resp_buffer_p->dequeue(clockEdge());
         
         // check if there is a packet waiting on this prefetch
-        if (!memDiv && m_packet_buffer.size() > 0) {
-          assert(m_packet_buffer[0]->getSpecSpad());
-          if (m_packet_buffer[0]->getAddr() == pkt_p->getAddr()) {
-            PacketPtr wokePkt = m_packet_buffer[0];
-            //wokePkt->makeResponse();
-            DPRINTF(Mesh, "sending stored pkt %#x\n", wokePkt->getAddr());
-            m_packet_buffer.erase(m_packet_buffer.begin());
-            m_cpu_resp_pkts.push_back(wokePkt);
-            if (!m_cpu_resp_event.scheduled()) {
-              schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+        if (!memDiv) {
+          for (int i = 0; i < m_packet_buffer.size(); i++) {
+            assert(m_packet_buffer[i]->getSpecSpad());
+            if (m_packet_buffer[i]->getAddr() == pkt_p->getAddr()) {
+              PacketPtr wokePkt = m_packet_buffer[i];
+              //wokePkt->makeResponse();
+              DPRINTF(Mesh, "sending stored pkt %#x\n", wokePkt->getAddr());
+              m_packet_buffer.erase(m_packet_buffer.begin());
+              m_cpu_resp_pkts.push_back(wokePkt);
+              if (!m_cpu_resp_event.scheduled()) {
+                schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+              }
+              
+              // put the data into this packet
+              accessDataArray(wokePkt);
+              
+              // if the packet is a recycler, then clear the prefetch flag
+              if (wokePkt->getSpadReset())
+                setPrefetchRotten(wokePkt);
             }
-            
-            // put the data into this packet
-            accessDataArray(wokePkt);
-            
-            // if the packet is a recycler, then clear the prefetch flag
-            if (wokePkt->getSpadReset())
-              setPrefetchRotten(wokePkt);
           }
         }
 
@@ -495,7 +498,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // allow the single packet to be stored
     if (pkt_p->getSpecSpad() && !isPrefetchFresh(pkt_p)) {
       m_packet_buffer.push_back(pkt_p);
-      assert(m_packet_buffer.size() == 1);
+      assert(m_packet_buffer.size() <= m_spec_buf_size);
       DPRINTF(Mesh, "buffering packet to addr %#x\n", pkt_p->getAddr());
       return true;
     }

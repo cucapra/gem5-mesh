@@ -443,7 +443,8 @@ for i in xrange(n_scratchpads):
                   sp_size           = AddrRange(options.spm_size).size(),
                   dram_size         = AddrRange(options.mem_size).size(),
                   num_l2s           = n_l2s,
-                  maxNumPendingReqs = options.stream_width)
+                  maxNumPendingReqs = options.stream_width,
+                  spec_buf_size     = system.cpu[i].numLoadQueueEntries)
 
   sp.memReqBuffer             = MessageBuffer(ordered = True)
   sp.memReqBuffer.master      = network.slave

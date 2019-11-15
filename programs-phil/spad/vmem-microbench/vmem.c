@@ -6,7 +6,7 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
-int data[4] = { 1, 2, 3, 4 };
+int data[8] = { 1, 2, 3, 4, 5, 6, 7, 8 };
 
 // actual kernel
 void kernel(
@@ -78,11 +78,15 @@ void kernel(
   
   // do a memory load (prob need to do static analysis to know this will be consecutive iterations?)
   VPREFETCH(spAddr, dataAddr, 0);
-  LWSPEC_RESET(val, spAddr, 0);
+  VPREFETCH(spAddr + 1, dataAddr + 4, 0);
+  LWSPEC(val, spAddr, 0);
+  c[tid] = val;
+  LWSPEC_RESET(val, spAddr + 1, 0);
+  c[tid] += val;
   
   VECTOR_EPOCH(ALL_NORM);
   
-  c[tid] = val;
+  //c[tid] = val;
   
   if (tid_x == 0 && tid_y == 0) {
     stats_off();

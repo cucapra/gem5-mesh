@@ -423,7 +423,11 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // figure out the block idx for the word this reponse should send
       int wordAddr := addressToInt(in_msg.WordAddress); // cast to int so can subtract
       int lineAddr := addressToInt(in_msg.LineAddress);
-      int lineOffset := wordAddr - lineAddr + linOffset;
+      
+      // get offset IN WORDS, need to divide by word size
+      int wordOffset := ((wordAddr - lineAddr) / 4) + linOffset;
+      
+      DPRINTF(Mesh, "offset %d line %d addr %d\n", wordOffset, lineAddr, wordAddr);
       
       // because this mimics a remote store, the return address should be
       // the storage address in the spad
@@ -448,7 +452,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.SeqNum      := in_msg.SeqNum;
         // this is gem5 only meta-data, in reality would just send the single
         // word, so no need to pick out the element from the whole block
-        out_msg.BlkIdx      := lineOffset;
+        out_msg.BlkIdx      := wordOffset;
       }
     }
   }
@@ -468,7 +472,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // get offset into cache blk
       int wordAddr := addressToInt(tbe.WordAddress);
       int lineAddr := addressToInt(in_msg.addr);
-      int lineOffset := wordAddr - lineAddr + linOffset;
+      // get offset IN WORDS, need to divide by word size
+      int wordOffset := ((wordAddr - lineAddr) / 4) + linOffset;
       
       //Addr spadAddr := intToAddress(268435472 + (spadIdx << 12));
       Addr spadAddr := intToAddress(addressToInt(tbe.PrefetchAddress) + (spadIdx << 12));
@@ -481,7 +486,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.DataBlk     := cache_entry.DataBlk;
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
-        out_msg.BlkIdx      := lineOffset;
+        out_msg.BlkIdx      := wordOffset;
       }
     }
   }
