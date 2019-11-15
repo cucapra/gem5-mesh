@@ -88,10 +88,9 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
 
   for (int i = 0; i < 4; i++) {
-    printf("%d\n", c[i]);
     if (c[i] != i + 1) {
       printf("[[FAIL]]\n");
-      //return 1;
+      return 1;
     }
   }
   

@@ -240,7 +240,7 @@ Scratchpad::wakeup()
         //                pkt_p->print(), msg_p->getSenderID());
         
         // TODO handling desync using single bit per word
-        bool memDiv = false;
+        /*bool memDiv = false;
         int &tag = m_fresh_array[getLocalAddr(pkt_p->getAddr()) / sizeof(uint32_t)];
           
         if (tag == 1) {
@@ -248,7 +248,9 @@ Scratchpad::wakeup()
         }
           
         // TODO high overhead
-        tag = 1;
+        tag = 1;*/
+    
+        bool memDiv = setPrefetchFresh(pkt_p);
     
         if (memDiv) {
           DPRINTF(Mesh, "diverge\n");
@@ -266,7 +268,27 @@ Scratchpad::wakeup()
         // NEED TO DEQUEUE THE MESSAGE IF DONE, otherwise infinite loop
         m_mem_resp_buffer_p->dequeue(clockEdge());
         
-        
+        // check if there is a packet waiting on this prefetch
+        if (!memDiv && m_packet_buffer.size() > 0) {
+          assert(m_packet_buffer[0]->getSpecSpad());
+          if (m_packet_buffer[0]->getAddr() == pkt_p->getAddr()) {
+            PacketPtr wokePkt = m_packet_buffer[0];
+            //wokePkt->makeResponse();
+            DPRINTF(Mesh, "sending stored pkt %#x\n", wokePkt->getAddr());
+            m_packet_buffer.erase(m_packet_buffer.begin());
+            m_cpu_resp_pkts.push_back(wokePkt);
+            if (!m_cpu_resp_event.scheduled()) {
+              schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+            }
+            
+            // put the data into this packet
+            accessDataArray(wokePkt);
+            
+            // if the packet is a recycler, then clear the prefetch flag
+            if (wokePkt->getSpadReset())
+              setPrefetchRotten(wokePkt);
+          }
+        }
 
         
         // sanity check: make sure this request is for me
@@ -293,6 +315,10 @@ Scratchpad::wakeup()
                             makeLineAddress(pending_mem_pkt_p->getAddr()));
 
       if (llc_msg_p->m_Type == LLCResponseType_DATA) {
+        // any prefetch that was here is now forced out
+        // TODO not sure this is needed
+        setPrefetchRotten(pending_mem_pkt_p);
+        
         // copy data from DataBlock to pending_mem_pkt_p
         // just pulls out a single word from the block and discards the rest?
         int offset = pending_mem_pkt_p->getAddr() - llc_msg_p->m_LineAddress;
@@ -464,6 +490,22 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
   assert(dst_sp_id <= m_num_scratchpads);
 
   if (dst_sp_id == m_version) {
+    
+    // If this is a speculative load and the data isn't present, then
+    // allow the single packet to be stored
+    if (pkt_p->getSpecSpad() && !isPrefetchFresh(pkt_p)) {
+      m_packet_buffer.push_back(pkt_p);
+      assert(m_packet_buffer.size() == 1);
+      DPRINTF(Mesh, "buffering packet to addr %#x\n", pkt_p->getAddr());
+      return true;
+    }
+    else if (pkt_p->getSpadReset()) {
+      setPrefetchRotten(pkt_p);
+    }
+    
+    // TODO stats might be incorrect with these stalls
+    // should move into accessDataArray rather than keep out here
+    
     // This is a local access
     DPRINTF(Scratchpad, "Doing a local access for pkt %s\n", pkt_p->print());
     
@@ -816,6 +858,46 @@ Scratchpad::getL2BankFromAddr(Addr addr) const
   NodeID l2_node_id = (NodeID) bitSelect(addr, low_bit, hig_bit);
   assert(l2_node_id < m_num_l2s);
   return l2_node_id;
+}
+
+bool
+Scratchpad::setPrefetchFresh(PacketPtr pkt) {
+  // TODO have bit per word to set if fresh or not
+  bool memDiv = false;
+  int &tag = m_fresh_array[getLocalAddr(pkt->getAddr()) / sizeof(uint32_t)];
+
+  // if was already fresh then we have diverged
+  if (tag == 1) {
+    memDiv = true;
+  }
+
+  tag = 1;
+  
+  return memDiv;
+}
+
+bool
+Scratchpad::isPrefetchFresh(PacketPtr pkt) {
+  //if (!pkt->getSpecSpad()) return true;
+  
+  return (bool)m_fresh_array[getLocalAddr(pkt->getAddr()) / sizeof(uint32_t)];
+}
+
+bool
+Scratchpad::setPrefetchRotten(PacketPtr pkt) {
+  if (!pkt->getSpadReset() || !pkt->getSpecSpad()) return false;
+  
+  bool memDiv = false;
+  int &tag = m_fresh_array[getLocalAddr(pkt->getAddr()) / sizeof(uint32_t)];
+
+  // if was already rotten then we have diverged(??)
+  if (tag == 0) {
+    memDiv = true;
+  }
+
+  tag = 0;
+  
+  return memDiv;
 }
 
 void

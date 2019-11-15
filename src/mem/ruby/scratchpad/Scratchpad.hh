@@ -224,6 +224,13 @@ class Scratchpad : public AbstractController
      * Get L2 bank ID from address
      */
     NodeID getL2BankFromAddr(Addr addr) const;
+    
+    /**
+     * Mem divergence
+     */ 
+    bool setPrefetchFresh(PacketPtr pkt);
+    bool isPrefetchFresh(PacketPtr pkt);
+    bool setPrefetchRotten(PacketPtr pkt);
 
   private:
     /**
@@ -309,7 +316,7 @@ class Scratchpad : public AbstractController
      * Allow a single load packet to be waiting in the spad
      * This is for the vector prefetching
      */
-     std::vector<PacketPtr> m_packet_buffer;
+    std::vector<PacketPtr> m_packet_buffer;
     
     
     /**

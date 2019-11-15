@@ -83,7 +83,8 @@ void kernel(
   //"sw %[st], 0(%[mem])\n\t" :: [st] "r" (spAddr), [mem] "r" (dataAddr)
   //"lw %[st], 0(%[mem])\n\t" :: [st] "r" (val), [mem] "r" (&(data[tid]))
   VPREFETCH(spAddr, dataAddr, 0);
-  val = spAddr[0];
+  LWSPEC_RESET(val, spAddr, 0);
+  //val = spAddr[0];
   //val = data[tid];
   
   VECTOR_EPOCH(ALL_NORM);
