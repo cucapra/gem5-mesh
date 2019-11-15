@@ -303,7 +303,13 @@ class Scratchpad : public AbstractController
      * TODO TEMP? Keep a single bit to denote whether a remote store has been 
      * read by the core at this node. Sized spm_size / sizeof(uint8_t)
      */ 
-    bool *m_cpu_touched_array;
+    std::vector<int> m_fresh_array;
+    
+    /**
+     * Allow a single load packet to be waiting in the spad
+     * This is for the vector prefetching
+     */
+     std::vector<PacketPtr> m_packet_buffer;
     
     
     /**

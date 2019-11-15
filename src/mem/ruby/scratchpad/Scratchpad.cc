@@ -98,10 +98,7 @@ Scratchpad::Scratchpad(const Params* p)
       m_base_addr_p((uint64_t* const) (m_data_array + SPM_BASE_ADDR_OFFSET)),
       m_go_flag_p((uint32_t* const)(m_data_array + SPM_GO_FLAG_OFFSET)),
       m_done_flag_p((uint32_t* const)(m_data_array + SPM_DONE_FLAG_OFFSET)),
-      m_num_l2s(p->num_l2s),
-      // setup cpu touched array to keep track of divergences (TODO not sure how should be implemetned in practice?)
-      // maybe use a single bit/byte of data towards this purpose
-      m_cpu_touched_array(new bool[m_size / 8])
+      m_num_l2s(p->num_l2s)
 {
   m_num_scratchpads++;
 
@@ -116,15 +113,17 @@ Scratchpad::Scratchpad(const Params* p)
   // fill m_data_array with 0s
   std::fill_n(m_data_array, m_size, 0);
   
-  // fill touched array with 1s
-  std::fill_n(m_cpu_touched_array, m_size / 8, 1);
+  // setup cpu touched array to keep track of divergences (TODO not sure how should be implemetned in practice?)
+  // maybe use a single bit/byte of data towards this purpose
+  for (int i = 0; i < m_size / 8; i++) {
+    m_fresh_array.push_back(0);
+  }
 }
 
 Scratchpad::~Scratchpad()
 {
   delete m_cpu_port_p;
   delete[] m_data_array;
-  delete[] m_cpu_touched_array;
 }
 
 //BaseSlavePort&
@@ -240,17 +239,35 @@ Scratchpad::wakeup()
         //DPRINTF(Scratchpad, "Handling remote store from mem pkt %s from %s\n",
         //                pkt_p->print(), msg_p->getSenderID());
         
-        
-        if (pkt_p->isRead()) m_remote_loads++;
-        else if (pkt_p->isWrite()) m_remote_stores++;
+        // TODO handling desync using single bit per word
+        bool memDiv = false;
+        int &tag = m_fresh_array[getLocalAddr(pkt_p->getAddr()) / sizeof(uint32_t)];
+          
+        if (tag == 1) {
+          memDiv = true;
+        }
+          
+        // TODO high overhead
+        tag = 1;
     
-        // access data array
-        accessDataArray(pkt_p);
-        
-        
+        if (memDiv) {
+          DPRINTF(Mesh, "diverge\n");
+        }
+        else {
+          // profile, TODO should classify different than just remote load/store?
+          if (pkt_p->isRead())
+            m_remote_loads++;
+          else if (pkt_p->isWrite())
+            m_remote_stores++;
+    
+          // access data array
+          accessDataArray(pkt_p);
+        }
         // NEED TO DEQUEUE THE MESSAGE IF DONE, otherwise infinite loop
         m_mem_resp_buffer_p->dequeue(clockEdge());
         
+        
+
         
         // sanity check: make sure this request is for me
         /*assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
@@ -666,6 +683,7 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
 void
 Scratchpad::accessDataArray(Packet* pkt_p)
 {
+  // write data into this pointer in spad data array
   uint8_t* local_data_p = m_data_array + getLocalAddr(pkt_p->getAddr());
 
   if (pkt_p->cmd == MemCmd::SwapReq) {
