@@ -62,30 +62,23 @@ void kernel(
   }
   
   // specify the vlen
-  int vlenX = 2;//2;
-  int vlenY = 2;//2;
+  int vlenX = 2;
+  int vlenY = 2;
   mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
   
   // NOTE potential optimization to avoid 64bit pointer store
   // b/c spad addresses are always 32bits in this setup
   int *spAddr = &(((int*)getSpAddr(tid, 0))[4]);
   int *dataAddr = &(data[tid]);
-  printf("%d %p %p\n", tid, spAddr, dataAddr);
+  //printf("%d %p %p\n", tid, spAddr, dataAddr);
+  
+  int val;
   
   VECTOR_EPOCH(mask);
   
   // do a memory load (prob need to do static analysis to know this will be consecutive iterations?)
-  int val = -1; // for some reason asm volatile doesn't work without this
-  /*asm volatile (
-    ".insn sb 0x23, 0x2, %[st], 0(%[mem])\n\t" :: [st] "r" (spAddr), [mem] "r" (dataAddr)
-  );*/
-  //".insn sb 0x23, 0x2, %[st], 0(%[mem])\n\t" :: [st] "r" (spAddr), [mem] "r" (dataAddr)
-  //"sw %[st], 0(%[mem])\n\t" :: [st] "r" (spAddr), [mem] "r" (dataAddr)
-  //"lw %[st], 0(%[mem])\n\t" :: [st] "r" (val), [mem] "r" (&(data[tid]))
   VPREFETCH(spAddr, dataAddr, 0);
   LWSPEC_RESET(val, spAddr, 0);
-  //val = spAddr[0];
-  //val = data[tid];
   
   VECTOR_EPOCH(ALL_NORM);
   
