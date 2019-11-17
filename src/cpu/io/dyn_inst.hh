@@ -527,6 +527,12 @@ public:
     // also helps to determine whether 32 bit or not
     bool replaced;
     
+    // keep track of epoch, TODO is this too much to keep track of
+    // 32bits done pipeline, anyway to optimize? Like have a single counter in issue (see revec-in-issue branch)
+    // I feel like you probably can get away with the diff here
+    // and then send a diff to the spad so it can update
+    int epoch;
+    
     // check whether trace sent by master core is valid
     bool checkTrace(bool local_taken, TheISA::PCState local_targ);
 };

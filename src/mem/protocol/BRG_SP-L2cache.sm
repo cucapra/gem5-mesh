@@ -449,7 +449,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // 0x10000010, 0x10001010, ....
       Addr spadAddr := intToAddress(addressToInt(in_msg.PrefetchAddress) + (spadIdx << 12)); //intToAddress(268435472 + (spadIdx << 12));
       
-      DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x\n", spadIdx, spadAddr, in_msg.WordAddress);
+      DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x epoch %d\n", 
+        spadIdx, spadAddr, in_msg.WordAddress, in_msg.Epoch);
       
       // if vector then send REVDATA, otherwise REDATA
       // TODO maybe should just be seperate

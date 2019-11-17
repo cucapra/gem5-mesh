@@ -72,7 +72,7 @@ void kernel(
   
   VECTOR_EPOCH(mask);
   
-  // divergent before prefetch case, no prefetch in detached path
+  /*// divergent before prefetch case, no prefetch in detached path
   if (tid < 2) {
     VPREFETCH(spAddr, a + tid, 0);
     LWSPEC(val, spAddr, 0);
@@ -94,7 +94,7 @@ void kernel(
   // in which case detached trace needs some way to avoid??
   
   
-  REVEC(0);
+  REVEC(0);*/
   
   // convergent loop
   for (int i = 0; i < n / dim; i++) {

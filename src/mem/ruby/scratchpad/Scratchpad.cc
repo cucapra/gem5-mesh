@@ -100,7 +100,8 @@ Scratchpad::Scratchpad(const Params* p)
       m_done_flag_p((uint32_t* const)(m_data_array + SPM_DONE_FLAG_OFFSET)),
       m_num_l2s(p->num_l2s),
       m_spec_buf_size(p->spec_buf_size),
-      m_cpu_p(p->cpu)
+      m_cpu_p(p->cpu),
+      m_proc_epoch(0)
 {
   m_num_scratchpads++;
 
@@ -235,7 +236,8 @@ Scratchpad::wakeup()
         const uint8_t *word = llc_msg_p->m_DataBlk.getData(sizeof(uint32_t) * blkIdx, sizeof(uint32_t));
         pkt_p->dataStatic(word);
         
-        DPRINTF(Mesh, "Recv remote store %#x from cache %d %d %d %d\n", llc_msg_p->m_LineAddress, word[3], word[2], word[1], word[0]);
+        DPRINTF(Mesh, "Recv remote store %#x from cache epoch %d data %d %d %d %d\n", 
+          llc_msg_p->m_LineAddress, llc_msg_p->m_Epoch, word[3], word[2], word[1], word[0]);
         
         assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
 
@@ -251,6 +253,7 @@ Scratchpad::wakeup()
           DPRINTF(Mesh, "[[WARNING]] diverge\n");
         }
         else if (controlDiv && !isSelfResp) {
+          DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
           // just drop the packet if there's divergence and this is from vector prefetch
           m_mem_resp_buffer_p->dequeue(clockEdge());
         }
@@ -267,6 +270,8 @@ Scratchpad::wakeup()
           // TODO this needs to not accept from the network if epoch wrong
           // needs to not accept from the network to get realistic back pressuer
           m_mem_resp_buffer_p->dequeue(clockEdge());
+          
+          DPRINTF(Mesh, "store spec prefetch %#x\n", pkt_p->getAddr());
           
           // set the word as ready for future packets
           setWordRdy(pkt_p->getAddr());
@@ -488,7 +493,13 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       return true;
     }
     else if (pkt_p->getSpadReset()) {
-      setWordNotRdy(pkt_p->getAddr());
+      assert(false); // this generally won't be a local access, but look like a global one
+      setWordNotRdy(pkt_p->getPrefetchAddr());
+      
+      // TODO potential problem if issue two spec loads to sp
+      // I think should not allow this at all!! b/c sp accesses are fast
+      // enough don't need to buffer a lot
+      m_proc_epoch = pkt_p->getEpoch();
       return true;
     }
     
@@ -523,6 +534,14 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
   MachineID dst_port;
 
   if (dst_sp_id == m_num_scratchpads) {
+    // this packet can be modified to not access global memory in case of slave
+    // core but rather just update info in the spad
+    if (pkt_p->getSpadReset()) {
+      setWordNotRdy(pkt_p->getPrefetchAddr());
+      m_proc_epoch = pkt_p->getEpoch();
+      return true;
+    }
+    
     // This packet will be delivered to LLC
     if (m_pending_pkt_map.size() == m_max_num_pending_pkts) {
       DPRINTF(Scratchpad, "Blocking. Pending pkt buffer is full\n");
@@ -855,8 +874,9 @@ Scratchpad::getL2BankFromAddr(Addr addr) const
 
 int
 Scratchpad::getCoreEpoch() {
-  Vector *vec = m_cpu_p->getEarlyVector();
-  int coreEpoch = vec->getRevecEpoch();
+  //Vector *vec = m_cpu_p->getEarlyVector();
+  //int coreEpoch = vec->getRevecEpoch();
+  int coreEpoch = m_proc_epoch;
   return coreEpoch;
 }
 

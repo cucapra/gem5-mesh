@@ -332,10 +332,9 @@ class Scratchpad : public AbstractController
     IOCPU *m_cpu_p;
     
     /**
-     * Store the last received epoch from the speculative coalesced loads
-     * from the memory system (master)
+     * Store the current epoch of the proccessor, given by pkt
      */ 
-    //int m_largest_epoch_recv;
+    int m_proc_epoch;
     
     /**
      * Bit array for each word tracking whether a prefetch has arrived

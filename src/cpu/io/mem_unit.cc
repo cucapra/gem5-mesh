@@ -529,11 +529,17 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     RegVal csrVal = m_s1_inst->readMiscReg(RiscvISA::MISCREG_FETCH);
     
     // a spad prefetch can be turned into a spad reset if in trace mode
-    bool spadReset = MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
+    bool spadPrefetch = m_s1_inst->static_inst_p->isSpadPrefetch();
+    bool spadReset = spadPrefetch && MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
     m_s1_inst->mem_req_p->spadReset = spadReset;
+    // give an epoch number as data if this will be a reset instruction
+    // included as seperate field, but in practice would send on data lines
+    if (spadReset) {
+      m_s1_inst->mem_req_p->epoch = m_s1_inst->epoch;
+    }
     
-    // setup load from mem to spad
-    if (m_s1_inst->static_inst_p->isSpadPrefetch() && !spadReset) {
+    // setup prefetch addr
+    if (spadPrefetch) {
       // the 'data' register for this instruction is actually an address
       // convert accordingly
       Addr spadVAddr = 0;
@@ -547,7 +553,10 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       assert(m_cpu_p->tcBase(tid)->getProcessPtr()->pTable->translate(spadVAddr, spadPAddr));
       
       m_s1_inst->mem_req_p->prefetchAddr = spadPAddr;
-      
+    }
+    
+    // only an sp load if wasn't turned into a reset
+    if (spadPrefetch && !spadReset) {
       m_s1_inst->mem_req_p->isSpLoad = true;
     }
     else {
@@ -564,7 +573,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // stores into the trace core memories
     // TODO not quite sure how to handle!
     
-    if (MeshHelper::doVecLoad(csrVal) && m_s1_inst->static_inst_p->isSpadPrefetch()) { 
+    if (MeshHelper::doVecLoad(csrVal) && spadPrefetch) { 
       m_s1_inst->mem_req_p->xDim = MeshHelper::getXLen(RiscvISA::MISCREG_FETCH, csrVal);
       m_s1_inst->mem_req_p->yDim = MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, csrVal);
       DPRINTF(Mesh, "[%s] send vec load %#x, (%d,%d)\n", m_s1_inst->toString(true), 
