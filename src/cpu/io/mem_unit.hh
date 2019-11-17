@@ -159,6 +159,12 @@ class MemUnit : public ExecUnit
 
     /** Check if SQ has inst to write back */
     bool isSQReadyToWB() const;
+    
+    /**
+     * A spad prefetch cannot issue unless speculative loads to that spad
+     * have completed
+     */ 
+    bool canIssueSpadPrefetch(IODynInstPtr tryInst);
 
   private:
     /** Name of IEW controlling this unit */

@@ -231,6 +231,7 @@ class Scratchpad : public AbstractController
      * Mem divergence. Check CPU registers
      */ 
     int getCoreEpoch();
+    void updateEpoch(int epoch);
     bool controlDiverged();
     bool memoryDiverged(int pktEpoch, Addr addr);
     bool isPrefetchAhead(int pktEpoch);
@@ -337,6 +338,11 @@ class Scratchpad : public AbstractController
     int m_proc_epoch;
     
     /**
+     * The number of outstanding sp.loads allowed
+     */ 
+    const int m_max_pending_sp_prefetches;
+    
+    /**
      * Bit array for each word tracking whether a prefetch has arrived
      * Reset on every trace prefetch, and set when recv the prefetch from master
      */ 
@@ -348,6 +354,12 @@ class Scratchpad : public AbstractController
      */
     std::vector<PacketPtr> m_packet_buffer;
     
+    /**
+     * Allow a small number of sp.load packets to be buffered
+     * We should only get these if in trace mode. If exceed size, drop all
+     * and diverge
+     */ 
+    std::vector<PacketPtr> m_sp_prefetch_buffer;
     
     /**
      * Stats to keep track of for the scratchpad

@@ -806,7 +806,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   transition({V, M}, SPLOAD) {
-    pah_prefetchAckHit; // TODO don't need this? and acutally prob bad to wait in CPU
+    //pah_prefetchAckHit; // TODO don't need this? and acutally prob bad to wait in CPU
     smu_setMRU;
     rsc_remoteStoreFromCache;
     prq_popRequestQueue;
@@ -814,7 +814,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   transition(IV, SP_Mem_Data) {
-    pam_prefetchAckMiss; // TODO overhaul this one to remove
+    //pam_prefetchAckMiss; // TODO overhaul this one to remove
     wdc_writeDataToCache;
     smu_setMRU;
     rsm_remoteStoreFromMem;
@@ -832,7 +832,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   transition({V, M}, VREAD0) {
     rsc_remoteStoreFromCache;
     ivc_incVectorCount;
-    pah_prefetchAckHit;
+    //pah_prefetchAckHit;
   }
   
   transition({V, M}, VREAD1) {
@@ -851,7 +851,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   transition(IV, VData0) {
     sdm_sendDataFromMem;
     ivt_incVectorCountTBE;
-    pam_prefetchAckMiss;
+    //pam_prefetchAckMiss;
   }
   
   transition(IV, VData1) {

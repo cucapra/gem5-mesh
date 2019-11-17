@@ -246,6 +246,8 @@ MemUnit::doMemIssue()
         return;
       } else {
         DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
+        if (inst->static_inst_p->isSpadSpeculative()) 
+          DPRINTF(Mesh, "Sent request to memory for inst [%s] %#x\n", inst->toString(true), inst->mem_req_p->getPaddr());
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
         num_issued_insts++;
@@ -270,7 +272,9 @@ MemUnit::doMemIssue()
 
     if (!inst->isExecuted() &&
         !inst->isIssuedToMem() &&
-        inst->canIssueToMem()) {
+        inst->canIssueToMem() &&
+        canIssueSpadPrefetch(inst)
+        ) {
       assert(!inst->isFault());
 
       PacketPtr pkt = Packet::createWrite(inst->mem_req_p);
@@ -290,6 +294,8 @@ MemUnit::doMemIssue()
         return;
       } else {
         DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
+        if (inst->static_inst_p->isSpadPrefetch()) 
+          DPRINTF(Mesh, "Sent request to memory for inst [%s] %#x\n", inst->toString(true), inst->mem_req_p->prefetchAddr);
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
         num_issued_insts++;
@@ -303,6 +309,11 @@ MemUnit::doMemIssue()
           }
           m_st_ld_map.erase(inst->seq_num);
         }
+        
+        // if this is a spad prefetch don't wait at all
+        if (inst->static_inst_p->isSpadPrefetch())
+          processCacheCompletion(pkt);
+        
 #ifdef DEBUG
         m_issued_insts.push_back(inst);
         m_status.set(S2_Busy);
@@ -530,7 +541,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     
     // a spad prefetch can be turned into a spad reset if in trace mode
     bool spadPrefetch = m_s1_inst->static_inst_p->isSpadPrefetch();
-    bool spadReset = spadPrefetch && MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
+    bool spadReset = spadPrefetch; // always do reset on prefetch && MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
     m_s1_inst->mem_req_p->spadReset = spadReset;
     // give an epoch number as data if this will be a reset instruction
     // included as seperate field, but in practice would send on data lines
@@ -555,13 +566,15 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->prefetchAddr = spadPAddr;
     }
     
-    // only an sp load if wasn't turned into a reset
-    if (spadPrefetch && !spadReset) {
+    // only an sp load if not a slave
+    bool diverged = MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
+    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && !diverged;
+    /*if (spadPrefetch && !spadReset) {
       m_s1_inst->mem_req_p->isSpLoad = true;
     }
     else {
       m_s1_inst->mem_req_p->isSpLoad = false;
-    }
+    }*/
     
     // setup vector memory request... if we're in vector mode and not detached
     // also send memory request as vector request (single request, multiple response)
@@ -681,6 +694,34 @@ MemUnit::checkLdStDependency(IODynInstPtr ld_inst)
   }
 
   return false;
+}
+
+// can't issue prefetches or resets to spad until loads from last iteration
+// have finished
+bool
+MemUnit::canIssueSpadPrefetch(IODynInstPtr tryInst) {
+  if (!tryInst->static_inst_p->isSpadPrefetch()) return true;
+  
+  for (auto& inst : m_ld_queue) {
+    // check that they are to the same spad address and this instruction
+    // comes after the pending one
+    if (inst->mem_req_p->spadSpec &&
+        (tryInst->mem_req_p->prefetchAddr == inst->mem_req_p->getPaddr()) &&
+        (inst->seq_num < tryInst->seq_num)) {
+      DPRINTF(Mesh, "cant issue prefetch [%s] due to [%s]\n", tryInst->toString(true), inst->toString(true));
+      return false;
+    }
+    
+    if (inst->mem_req_p->spadSpec) {
+      if (inst->seq_num < tryInst->seq_num) {
+        DPRINTF(Mesh, "potential block [%s] %#x due to [%s] %#x\n", 
+          tryInst->toString(true), tryInst->mem_req_p->prefetchAddr, 
+          inst->toString(true), tryInst->mem_req_p->getPaddr());
+      }
+    }
+  }
+  
+  return true;
 }
 
 void

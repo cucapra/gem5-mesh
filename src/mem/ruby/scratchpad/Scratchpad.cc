@@ -101,7 +101,8 @@ Scratchpad::Scratchpad(const Params* p)
       m_num_l2s(p->num_l2s),
       m_spec_buf_size(p->spec_buf_size),
       m_cpu_p(p->cpu),
-      m_proc_epoch(0)
+      m_proc_epoch(-1),
+      m_max_pending_sp_prefetches(2)
 {
   m_num_scratchpads++;
 
@@ -229,6 +230,8 @@ Scratchpad::wakeup()
                                           sizeof(uint32_t),    // size
                                           0, 0);
         
+        req->epoch = llc_msg_p->m_Epoch;
+        
         PacketPtr pkt_p = Packet::createWrite(req);
         
         // we really only sent a word of data, so extract that
@@ -250,7 +253,30 @@ Scratchpad::wakeup()
         bool isSelfResp = llc_msg_p->m_Type == LLCResponseType_REDATA;
     
         if (memDiv) {
-          DPRINTF(Mesh, "[[WARNING]] diverge\n");
+          DPRINTF(Mesh, "[[WARNING]] potential diverge\n");
+          
+          // when divergence happens need to do something with the packet to prevent
+          // other data from being locked out
+          //assert(clockEdge() == curTick());
+          //m_mem_resp_buffer_p->recycle(clockEdge(), clockEdge(Cycles(1)));
+          
+          // place packet into buffer to use later
+          // assure that this is a very small buffer otherwise actually diverge
+          // TODO going to cheat when wake these up and just do atomically rather
+          // than process cycle by cycle here b/c on the crunch!
+          m_sp_prefetch_buffer.push_back(pkt_p);
+          if (m_sp_prefetch_buffer.size() > m_max_pending_sp_prefetches) {
+            DPRINTF(Mesh, "[[WARNING]] must diverge now\n");
+            
+            // clear the pending buffer and inform cpu of divergence, to get squash
+            m_sp_prefetch_buffer.clear();
+            
+            // TODO inform CPU of divergence
+            // should be extremely rare
+          }
+          
+          m_mem_resp_buffer_p->dequeue(clockEdge());
+          
         }
         else if (controlDiv && !isSelfResp) {
           DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
@@ -538,8 +564,23 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // core but rather just update info in the spad
     if (pkt_p->getSpadReset()) {
       setWordNotRdy(pkt_p->getPrefetchAddr());
-      m_proc_epoch = pkt_p->getEpoch();
-      return true;
+      updateEpoch(pkt_p->getEpoch());
+      
+      // atomically activate any prefetch dependent on this
+      for (int i = 0; i < m_sp_prefetch_buffer.size(); i++) {
+        PacketPtr pendPkt = m_sp_prefetch_buffer[i];
+        if ((pendPkt->getEpoch() == getCoreEpoch()) &&
+            (pendPkt->getAddr() == pkt_p->getPrefetchAddr())) {
+          accessDataArray(pendPkt);
+          setWordNotRdy(pendPkt->getAddr());
+          m_sp_prefetch_buffer.erase(m_sp_prefetch_buffer.begin() + i);
+          i--;
+        }
+      }
+      
+      // stop here if this is not going to be a load b/c this is from a trace
+      if (!pkt_p->isSpLoad())
+        return true;
     }
     
     // This packet will be delivered to LLC
@@ -939,16 +980,22 @@ Scratchpad::setWordNotRdy(Addr addr) {
   // spad loads set this as not ready
   //if (!pkt->getSpecSpad()) return;
   
-  bool memDiv = false;
+  
   int &tag = m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)];
 
-  // make sure it's ready before doing
+  /*// make sure it's ready before doing
+  bool memDiv = false;
   if (tag == 0) {
     memDiv = true;
   }
-  assert(!memDiv);
+  assert(!memDiv);*/
 
   tag = 0;
+}
+
+void
+Scratchpad::updateEpoch(int epoch) {
+  m_proc_epoch = epoch;
 }
 
 /*void
