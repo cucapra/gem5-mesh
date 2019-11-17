@@ -70,7 +70,7 @@ void kernel(
   
   int val;
   
-  //VECTOR_EPOCH(mask);
+  VECTOR_EPOCH(mask);
   
   // divergent before prefetch case, no prefetch in detached path
   if (tid < 2) {
