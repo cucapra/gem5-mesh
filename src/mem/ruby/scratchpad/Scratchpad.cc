@@ -274,13 +274,15 @@ Scratchpad::wakeup()
             // TODO inform CPU of divergence
             // should be extremely rare
           }
-          
+          // NOTE make sure to clear the pending pkt map that we got it
+          m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
           m_mem_resp_buffer_p->dequeue(clockEdge());
           
         }
         else if (controlDiv && !isSelfResp) {
           DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
           // just drop the packet if there's divergence and this is from vector prefetch
+          m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
           m_mem_resp_buffer_p->dequeue(clockEdge());
         }
         else {
@@ -295,6 +297,7 @@ Scratchpad::wakeup()
           
           // TODO this needs to not accept from the network if epoch wrong
           // needs to not accept from the network to get realistic back pressuer
+          m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
           m_mem_resp_buffer_p->dequeue(clockEdge());
           
           DPRINTF(Mesh, "store spec prefetch %#x\n", pkt_p->getAddr());
