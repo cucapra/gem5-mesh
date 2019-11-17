@@ -425,6 +425,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // this will always(?) be a linearization
       // put this in the reponse packet so know what to read
       int linOffset := getLinearIdx(in_msg.XDim, in_msg.YDim);
+      if (!isVector(in_msg.XDim, in_msg.YDim)) {
+        assert(linOffset == 0);
+      }
       
       // get the spad to send this to 
       assert(machineIDToMachineType(in_msg.Requestor) == MachineType:Scratchpad);
@@ -446,8 +449,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // the storage address in the spad
       Addr spadAddr := intToAddress(addressToInt(in_msg.PrefetchAddress) + (linOffset << 12)); //intToAddress(268435472 + (spadIdx << 12));
       
-      DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x epoch %d\n", 
-        spadIdx, spadAddr, in_msg.WordAddress, in_msg.Epoch);
+      DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x lineaddr %#x offset %d epoch %d\n", 
+        spadIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset, in_msg.Epoch);
       
       // if vector then send REVDATA, otherwise REDATA
       // TODO maybe should just be seperate
