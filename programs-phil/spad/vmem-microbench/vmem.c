@@ -71,7 +71,6 @@ void kernel(
   int val;
   
   //VECTOR_EPOCH(mask);
-  VECTOR_EPOCH(ALL_NORM);
   
   // divergent before prefetch case, no prefetch in detached path
   if (tid < 2) {
@@ -83,12 +82,12 @@ void kernel(
     b[tid] = -1;
   }
   
-  /*REVEC(0);
+  REVEC(0);
   
   // divergent because of prefetch case
   
   
-  REVEC(0);
+  /*REVEC(0);
   
   // divergent prefetch, prefetch
   // worry is that master prefetch may overwrite detached trace prefetch

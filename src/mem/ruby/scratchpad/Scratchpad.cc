@@ -253,7 +253,6 @@ Scratchpad::wakeup()
         bool isSelfResp = llc_msg_p->m_Type == LLCResponseType_REDATA;
     
         if (memDiv) {
-          DPRINTF(Mesh, "[[WARNING]] potential diverge\n");
           
           // when divergence happens need to do something with the packet to prevent
           // other data from being locked out
@@ -265,9 +264,11 @@ Scratchpad::wakeup()
           // TODO going to cheat when wake these up and just do atomically rather
           // than process cycle by cycle here b/c on the crunch!
           m_sp_prefetch_buffer.push_back(pkt_p);
+          
+          DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending\n", m_sp_prefetch_buffer.size());
           if (m_sp_prefetch_buffer.size() > m_max_pending_sp_prefetches) {
             DPRINTF(Mesh, "[[WARNING]] must diverge now\n");
-            
+            assert(false);
             // clear the pending buffer and inform cpu of divergence, to get squash
             m_sp_prefetch_buffer.clear();
             
