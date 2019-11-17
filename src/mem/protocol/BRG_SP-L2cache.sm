@@ -444,10 +444,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       
       // because this mimics a remote store, the return address should be
       // the storage address in the spad
-      // TODO this needs to be communicated in the packet (the core needs an instruction w/ this field?)
-      // TODO cheat a pretend address
-      // 0x10000010, 0x10001010, ....
-      Addr spadAddr := intToAddress(addressToInt(in_msg.PrefetchAddress) + (spadIdx << 12)); //intToAddress(268435472 + (spadIdx << 12));
+      Addr spadAddr := intToAddress(addressToInt(in_msg.PrefetchAddress) + (linOffset << 12)); //intToAddress(268435472 + (spadIdx << 12));
       
       DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x epoch %d\n", 
         spadIdx, spadAddr, in_msg.WordAddress, in_msg.Epoch);
@@ -501,7 +498,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       int wordOffset := ((wordAddr - lineAddr) / 4) + linOffset;
       
       //Addr spadAddr := intToAddress(268435472 + (spadIdx << 12));
-      Addr spadAddr := intToAddress(addressToInt(tbe.PrefetchAddress) + (spadIdx << 12));
+      Addr spadAddr := intToAddress(addressToInt(tbe.PrefetchAddress) + (linOffset << 12));
       
       // if vector then send REVDATA, otherwise REDATA
       LLCResponseType respType;
