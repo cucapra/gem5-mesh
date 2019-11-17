@@ -50,16 +50,16 @@
     
 #define LWSPEC(val, spadAddr, offset)                   \
   asm volatile (                                        \
-    ".insn s 0x07, 0x5, %[val], %[off](%[mem])\n\t"     \
+    ".insn s 0x03, 0x7, %[val], %[off](%[mem])\n\t"     \
     : [val] "=r" (val)                                  \
     : [mem] "r" (spadAddr), [off] "i" (offset))         
     
-#define LWSPEC_RESET(val, spadAddr, offset)             \
+/*#define LWSPEC_RESET(val, spadAddr, offset)             \
   asm volatile (                                        \
     ".insn s 0x07, 0x6, %[val], %[off](%[mem])\n\t"     \
     : [val] "=r" (val)                                  \
     : [mem] "r" (spadAddr), [off] "i" (offset))
-
+*/
 // to ensure that the compiler doesn't place unwanted instructions
 // within the binds we enforce with a single asm volatile
 #define BINDED_EXE_SECTION(sbind, ebind, code, wr, rd)  \

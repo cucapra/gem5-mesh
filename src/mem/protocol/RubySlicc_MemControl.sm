@@ -83,13 +83,15 @@ enumeration(LLCRequestType, desc = "...", default = "LLCRequestType_NULL") {
   SC,     desc = "Store-conditional";
   ATOMIC, desc = "Atomic";
   NULL,   desc = "Invalid";
+  SPLOAD, desc = "Load directly into spad";
 }
 
 enumeration(LLCResponseType, desc = "...", default = "LLCResponseType_NULL") {
   DATA,   desc = "Data (for read request)";
   ACK,    desc = "ACK (for write request)";
   NULL,   desc = "Invalid";
-  REDATA, desc = "Remote store data (for vector request)";
+  REDATA, desc = "Remote store data from cache";
+  REVDATA,desc = "Remote store data from cache, from vec request";
 }
 
 structure(LLCRequestMsg, desc = "...", interface = "Message") {
@@ -113,6 +115,7 @@ structure(LLCRequestMsg, desc = "...", interface = "Message") {
   // rather than interpreting in Slicc, just send as an extra field, even
   // though in practice would be send on datablk transmission line
   Addr            PrefetchAddress, desc = "helper to get address from datablk, not actually needed in hardware";
+  int             Epoch,        desc = "The Epoch of the sending core or maybe a diff, TODO?";
 
   bool functionalRead(Packet* pkt) {
     return testAndRead(LineAddress, DataBlk, pkt);
@@ -132,6 +135,7 @@ structure(LLCResponseMsg, desc = "...", interface = "Message") {
   bool            SC_Success,   desc = "Is SC successful?";
   int             SeqNum,       desc = "";
   int             BlkIdx,       desc = "We functionally send a whole data blk, but really only send a word";
+  int             Epoch,        desc = "The Epoch of the sending core or maybe a diff, TODO?";
 
   bool functionalRead(Packet* pkt) {
     return testAndRead(LineAddress, DataBlk, pkt);

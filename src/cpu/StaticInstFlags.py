@@ -119,6 +119,6 @@ class StaticInstFlags(Enum):
         , 'IsRevec'
         , 'IsSpadPrefetch'
         , 'IsSpadSpeculative'
-        , 'IsSpadReset'
+        #, 'IsSpadReset'
 
         ]

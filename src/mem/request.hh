@@ -626,8 +626,21 @@ class Request
     /**
      * Flags for spec spad loads
      */
+    // load that is allowed to stall in spad
     bool spadSpec;
+    // spad op that resets the ready flag
+    // TODO create custom packet type for this?
     bool spadReset;
+    
+    /**
+     * Epoch of the packet
+     */ 
+    int epoch;
+    
+    /**
+     * Packet is doing a load from mem to spad
+     */ 
+    bool isSpLoad;
 
     /**
      *  Accessor for size.

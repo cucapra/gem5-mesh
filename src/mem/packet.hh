@@ -790,6 +790,16 @@ class Packet : public Printable
      */ 
     bool getSpecSpad() const { return req->spadSpec; }
     bool getSpadReset() const { return req->spadReset; }
+    
+    /**
+     * Accessor to epoch
+     */ 
+    int getEpoch() const { return req->epoch; }
+    
+    /**
+     * Accessor to sp load req type
+     */ 
+    bool isSpLoad() const { return req->isSpLoad; }
 
 
     /**

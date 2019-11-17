@@ -39,6 +39,8 @@
 #include "mem/ruby/system/RubySystem.hh"
 #include "params/Scratchpad.hh"
 
+#include "cpu/io/cpu.hh"
+
 //-----------------------------------------------------------------------------
 // CpuPort
 //-----------------------------------------------------------------------------
@@ -226,12 +228,24 @@ class Scratchpad : public AbstractController
     NodeID getL2BankFromAddr(Addr addr) const;
     
     /**
-     * Mem divergence
+     * Mem divergence. Check CPU registers
      */ 
-    bool setPrefetchFresh(PacketPtr pkt);
-    bool isPrefetchFresh(PacketPtr pkt);
-    bool setPrefetchRotten(PacketPtr pkt);
-
+    int getCoreEpoch();
+    bool controlDiverged();
+    bool memoryDiverged(int pktEpoch, Addr addr);
+    bool isPrefetchAhead(int pktEpoch);
+    //bool cpuIsLate(int pktEpoch);
+    //bool cpuIsEarly(int pktEpoch);
+    //bool cpuIsSynced(int pktEpoch);
+    //void updateMasterEpoch(const LLCResponseMsg *llc_msg_p);
+    
+    /**
+     * For bitarray accessign to make sure load not too early to prefetch
+     */ 
+    bool isWordRdy(Addr addr);
+    void setWordRdy(Addr addr);
+    void setWordNotRdy(Addr addr);
+    
   private:
     /**
      * Pointer to Ruby system
@@ -312,8 +326,20 @@ class Scratchpad : public AbstractController
     const int m_spec_buf_size;
     
     /**
-     * TODO TEMP? Keep a single bit to denote whether a remote store has been 
-     * read by the core at this node. Sized spm_size / sizeof(uint8_t)
+     * Keep a pointer to the local CPU to allow reading of some of its 
+     * register. This is valid according to the DJ
+     */ 
+    IOCPU *m_cpu_p;
+    
+    /**
+     * Store the last received epoch from the speculative coalesced loads
+     * from the memory system (master)
+     */ 
+    //int m_largest_epoch_recv;
+    
+    /**
+     * Bit array for each word tracking whether a prefetch has arrived
+     * Reset on every trace prefetch, and set when recv the prefetch from master
      */ 
     std::vector<int> m_fresh_array;
     

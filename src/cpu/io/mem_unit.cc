@@ -525,22 +525,15 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
                                           amo_op);
     m_s1_inst->mem_req_p->taskId(m_cpu_p->taskId());
     
-    // setup vector memory request... if we're in vector mode and not detached
-    // also send memory request as vector request (single request, multiple response)
-    // otherwise send as the usual single request, single response
-    
-    // get vec length from mesh csr
-    // NOTE Can send reqs here with wrong vector length that may be squashed in the future
-    // particularly noteworthy when send a vector request and then devec, will still do remote
-    // stores into the trace core memories
-    // TODO not quite sure how to handle!
+    // check vec status reg for how to handle the load
     RegVal csrVal = m_s1_inst->readMiscReg(RiscvISA::MISCREG_FETCH);
-    if (MeshHelper::doVecLoad(csrVal) && m_s1_inst->static_inst_p->isSpadPrefetch()) { 
-      m_s1_inst->mem_req_p->xDim = MeshHelper::getXLen(RiscvISA::MISCREG_FETCH, csrVal);
-      m_s1_inst->mem_req_p->yDim = MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, csrVal);
-      DPRINTF(Mesh, "[%s] send vec load %#x, (%d,%d)\n", m_s1_inst->toString(true), 
-          addr, m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
-          
+    
+    // a spad prefetch can be turned into a spad reset if in trace mode
+    bool spadReset = MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
+    m_s1_inst->mem_req_p->spadReset = spadReset;
+    
+    // setup load from mem to spad
+    if (m_s1_inst->static_inst_p->isSpadPrefetch() && !spadReset) {
       // the 'data' register for this instruction is actually an address
       // convert accordingly
       Addr spadVAddr = 0;
@@ -554,6 +547,28 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       assert(m_cpu_p->tcBase(tid)->getProcessPtr()->pTable->translate(spadVAddr, spadPAddr));
       
       m_s1_inst->mem_req_p->prefetchAddr = spadPAddr;
+      
+      m_s1_inst->mem_req_p->isSpLoad = true;
+    }
+    else {
+      m_s1_inst->mem_req_p->isSpLoad = false;
+    }
+    
+    // setup vector memory request... if we're in vector mode and not detached
+    // also send memory request as vector request (single request, multiple response)
+    // otherwise send as the usual single request, single response
+    
+    // get vec length from mesh csr
+    // NOTE Can send reqs here with wrong vector length that may be squashed in the future
+    // particularly noteworthy when send a vector request and then devec, will still do remote
+    // stores into the trace core memories
+    // TODO not quite sure how to handle!
+    
+    if (MeshHelper::doVecLoad(csrVal) && m_s1_inst->static_inst_p->isSpadPrefetch()) { 
+      m_s1_inst->mem_req_p->xDim = MeshHelper::getXLen(RiscvISA::MISCREG_FETCH, csrVal);
+      m_s1_inst->mem_req_p->yDim = MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, csrVal);
+      DPRINTF(Mesh, "[%s] send vec load %#x, (%d,%d)\n", m_s1_inst->toString(true), 
+          addr, m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
     }
     /*else if (m_s1_inst->static_inst_p->isSpadPrefetch()) {
       // if we won't do a vec load b/c this is a trace core then this should
@@ -571,8 +586,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->yDim = 1;
     }
     
+    // allow load to issue to spad without getting any acks the load is there
     m_s1_inst->mem_req_p->spadSpec  = m_s1_inst->static_inst_p->isSpadSpeculative();
-    m_s1_inst->mem_req_p->spadReset = m_s1_inst->static_inst_p->isSpadReset();
 
     // this memory will be deleted together with the dynamic instruction
     m_s1_inst->mem_data_p = new uint8_t[size];

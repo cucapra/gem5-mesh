@@ -99,7 +99,8 @@ Scratchpad::Scratchpad(const Params* p)
       m_go_flag_p((uint32_t* const)(m_data_array + SPM_GO_FLAG_OFFSET)),
       m_done_flag_p((uint32_t* const)(m_data_array + SPM_DONE_FLAG_OFFSET)),
       m_num_l2s(p->num_l2s),
-      m_spec_buf_size(p->spec_buf_size)
+      m_spec_buf_size(p->spec_buf_size),
+      m_cpu_p(p->cpu)
 {
   m_num_scratchpads++;
 
@@ -116,7 +117,7 @@ Scratchpad::Scratchpad(const Params* p)
   
   // setup cpu touched array to keep track of divergences (TODO not sure how should be implemetned in practice?)
   // maybe use a single bit/byte of data towards this purpose
-  for (int i = 0; i < m_size / 8; i++) {
+  for(int i = 0; i < m_size / sizeof(uint32_t); i++) {
     m_fresh_array.push_back(0);
   }
 }
@@ -215,7 +216,8 @@ Scratchpad::wakeup()
 
       // Pop the message from mem_resp_buffer
       m_mem_resp_buffer_p->dequeue(clockEdge());
-    } else if (llc_msg_p && llc_msg_p->m_Type == LLCResponseType_REDATA) {
+    } else if (llc_msg_p && ((llc_msg_p->m_Type == LLCResponseType_REVDATA) || 
+        (llc_msg_p->m_Type == LLCResponseType_REDATA))) {
         // data from a vector request on this scratchpads behalf
         // mimic as a remote store from the master core
         
@@ -239,22 +241,18 @@ Scratchpad::wakeup()
 
         //DPRINTF(Scratchpad, "Handling remote store from mem pkt %s from %s\n",
         //                pkt_p->print(), msg_p->getSenderID());
-        
-        // TODO handling desync using single bit per word
-        /*bool memDiv = false;
-        int &tag = m_fresh_array[getLocalAddr(pkt_p->getAddr()) / sizeof(uint32_t)];
-          
-        if (tag == 1) {
-          memDiv = true;
-        }
-          
-        // TODO high overhead
-        tag = 1;*/
     
-        bool memDiv = setPrefetchFresh(pkt_p);
+        bool memDiv = memoryDiverged(llc_msg_p->m_Epoch, llc_msg_p->m_LineAddress); //setPrefetchFresh(pkt_p);
+        bool controlDiv = controlDiverged();
+    
+        bool isSelfResp = llc_msg_p->m_Type == LLCResponseType_REDATA;
     
         if (memDiv) {
           DPRINTF(Mesh, "[[WARNING]] diverge\n");
+        }
+        else if (controlDiv && !isSelfResp) {
+          // just drop the packet if there's divergence and this is from vector prefetch
+          m_mem_resp_buffer_p->dequeue(clockEdge());
         }
         else {
           // profile, TODO should classify different than just remote load/store?
@@ -265,11 +263,17 @@ Scratchpad::wakeup()
     
           // access data array
           accessDataArray(pkt_p);
+          
+          // TODO this needs to not accept from the network if epoch wrong
+          // needs to not accept from the network to get realistic back pressuer
+          m_mem_resp_buffer_p->dequeue(clockEdge());
+          
+          // set the word as ready for future packets
+          setWordRdy(pkt_p->getAddr());
         }
-        // NEED TO DEQUEUE THE MESSAGE IF DONE, otherwise infinite loop
-        m_mem_resp_buffer_p->dequeue(clockEdge());
         
         // check if there is a packet waiting on this prefetch
+        // TODO in new scheme might just be able to hold locally in CPU
         if (!memDiv) {
           for (int i = 0; i < m_packet_buffer.size(); i++) {
             assert(m_packet_buffer[i]->getSpecSpad());
@@ -287,27 +291,12 @@ Scratchpad::wakeup()
               accessDataArray(wokePkt);
               
               // if the packet is a recycler, then clear the prefetch flag
-              if (wokePkt->getSpadReset())
-                setPrefetchRotten(wokePkt);
+              //if (wokePkt->getSpadReset())
+              //  setPrefetchRotten(wokePkt);
             }
           }
         }
-
         
-        // sanity check: make sure this request is for me
-        /*assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
-
-        DPRINTF(Scratchpad, "Handling remote store from mem pkt %s from %s\n",
-                        pkt_p->print(), msg_p->getSenderID());
-
-        if (!handleRemoteReq(pkt_p, msg_p->getSenderID())) {
-          DPRINTF(Scratchpad, "Not able to handle remote req. \
-                            Will retry to handle it later\n");
-          scheduleEvent(Cycles(1));
-        } else {
-          DPRINTF(Scratchpad, "Finished a remote req\n");
-          //m_remote_req_buffer_p->dequeue(clockEdge());
-        }*/
     } else {
       // sanity check: make sure this is the response we're waiting for
       assert(m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 1);
@@ -318,10 +307,6 @@ Scratchpad::wakeup()
                             makeLineAddress(pending_mem_pkt_p->getAddr()));
 
       if (llc_msg_p->m_Type == LLCResponseType_DATA) {
-        // any prefetch that was here is now forced out
-        // TODO not sure this is needed
-        setPrefetchRotten(pending_mem_pkt_p);
-        
         // copy data from DataBlock to pending_mem_pkt_p
         // just pulls out a single word from the block and discards the rest?
         int offset = pending_mem_pkt_p->getAddr() - llc_msg_p->m_LineAddress;
@@ -495,15 +480,16 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
   if (dst_sp_id == m_version) {
     
     // If this is a speculative load and the data isn't present, then
-    // allow the single packet to be stored
-    if (pkt_p->getSpecSpad() && !isPrefetchFresh(pkt_p)) {
+    // allow the packets equal to ld queue size be buffered here
+    if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
       m_packet_buffer.push_back(pkt_p);
       assert(m_packet_buffer.size() <= m_spec_buf_size);
       DPRINTF(Mesh, "buffering packet to addr %#x\n", pkt_p->getAddr());
       return true;
     }
     else if (pkt_p->getSpadReset()) {
-      setPrefetchRotten(pkt_p);
+      setWordNotRdy(pkt_p->getAddr());
+      return true;
     }
     
     // TODO stats might be incorrect with these stalls
@@ -560,6 +546,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // for prefetches instead of sending data blk we send an address
       // pre-interpret it here, but not actually an additional field
       msg_p->m_PrefetchAddress = pkt_p->getPrefetchAddr();
+      // send local epoch so mem can sync
+      msg_p->m_Epoch = pkt_p->getEpoch();
 
       if (pkt_p->isAtomicOp()) {  // Atomic ops
         msg_p->m_Type = LLCRequestType_ATOMIC;
@@ -582,6 +570,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
         } else {
           panic("Invalid LLSC packet\n");
         }
+      } else if (pkt_p->isSpLoad()) {
+        msg_p->m_Type = LLCRequestType_SPLOAD;
       } else if (pkt_p->isRead()) {   // Read
         assert(!pkt_p->isWrite());
         msg_p->m_Type = LLCRequestType_READ;
@@ -863,45 +853,94 @@ Scratchpad::getL2BankFromAddr(Addr addr) const
   return l2_node_id;
 }
 
-bool
-Scratchpad::setPrefetchFresh(PacketPtr pkt) {
-  // TODO have bit per word to set if fresh or not
-  bool memDiv = false;
-  int &tag = m_fresh_array[getLocalAddr(pkt->getAddr()) / sizeof(uint32_t)];
+int
+Scratchpad::getCoreEpoch() {
+  Vector *vec = m_cpu_p->getEarlyVector();
+  int coreEpoch = vec->getRevecEpoch();
+  return coreEpoch;
+}
 
-  // if was already fresh then we have diverged
+bool
+Scratchpad::controlDiverged() {
+  Vector *vec = m_cpu_p->getEarlyVector();
+  return vec->isCurDiverged();
+}
+
+bool
+Scratchpad::memoryDiverged(int pktEpoch, Addr addr) {
+  // if ahead of current local epoch or the word ready flag has not been
+  // reset yet, then memory can't be accepted
+  return (isPrefetchAhead(pktEpoch) || isWordRdy(addr));
+}
+
+bool
+Scratchpad::isPrefetchAhead(int pktEpoch) {
+  int coreEpoch = getCoreEpoch();
+  return (coreEpoch < pktEpoch);
+}
+
+/*
+bool
+Scratchpad::cpuIsEarly(int pktEpoch) {
+  int coreEpoch = getCoreEpoch();
+  return (coreEpoch > pktEpoch);
+}
+
+bool
+Scratchpad::cpuIsSynced(int pktEpoch) {
+  int coreEpoch = getCoreEpoch();
+  return (coreEpoch == pktEpoch);
+}
+*/
+
+bool
+Scratchpad::isWordRdy(Addr addr) {
+  //if (!pkt->getSpecSpad()) return true;
+  
+  return (bool)m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)];
+}
+
+void
+Scratchpad::setWordRdy(Addr addr) {
+  bool memDiv = false;
+  int &tag = m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)];
+
+  // if was already ready then something wrong
   if (tag == 1) {
     memDiv = true;
   }
+  assert(!memDiv);
 
   tag = 1;
-  
-  return memDiv;
 }
 
-bool
-Scratchpad::isPrefetchFresh(PacketPtr pkt) {
-  //if (!pkt->getSpecSpad()) return true;
-  
-  return (bool)m_fresh_array[getLocalAddr(pkt->getAddr()) / sizeof(uint32_t)];
-}
-
-bool
-Scratchpad::setPrefetchRotten(PacketPtr pkt) {
-  if (!pkt->getSpadReset() || !pkt->getSpecSpad()) return false;
+void
+Scratchpad::setWordNotRdy(Addr addr) {
+  // spad loads set this as not ready
+  //if (!pkt->getSpecSpad()) return;
   
   bool memDiv = false;
-  int &tag = m_fresh_array[getLocalAddr(pkt->getAddr()) / sizeof(uint32_t)];
+  int &tag = m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)];
 
-  // if was already rotten then we have diverged(??)
+  // make sure it's ready before doing
   if (tag == 0) {
     memDiv = true;
   }
+  assert(!memDiv);
 
   tag = 0;
-  
-  return memDiv;
 }
+
+/*void
+Scratchpad::updateMasterEpoch(const LLCResponseMsg *llc_msg_p) {
+  // check if this packet brings a new epoch
+  // in a real system could do like mod4 or something to reduce the bitwidth of this field
+  // and would still probably work
+  // or just send a diff over the network
+  if (llc_msg_p->m_Epoch > m_largest_epoch_recv) {
+    m_largest_epoch_recv = llc_msg_p->m_Epoch;
+  }
+}*/
 
 void
 Scratchpad::regStats()

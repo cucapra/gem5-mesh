@@ -207,7 +207,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isRevec() const { return flags[IsRevec]; }
     bool isSpadPrefetch() const { return flags[IsSpadPrefetch]; }
     bool isSpadSpeculative() const { return flags[IsSpadSpeculative]; }
-    bool isSpadReset() const { return flags[IsSpadReset]; }
+    //bool isSpadReset() const { return flags[IsSpadReset]; }
 
     void setFirstMicroop() { flags[IsFirstMicroop] = true; }
     void setLastMicroop() { flags[IsLastMicroop] = true; }

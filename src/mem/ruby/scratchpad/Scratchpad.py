@@ -21,3 +21,5 @@ class Scratchpad(RubyController):
   maxNumPendingReqs = Param.Int(8, "Max number of pending requests")
   
   spec_buf_size     = Param.Int(2, "Allowed number of speculative requests")
+  
+  cpu               = Param.IOCPU("")

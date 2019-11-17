@@ -385,6 +385,9 @@ decode QUADRANT default Unknown::unknown() {
                 0x6: lwu({{
                     Rd = Mem_uw;
                 }});
+                0x7: lwspec({{
+                    Rd_sd = Mem_sw;
+                }}, inst_flags=IsSpadSpeculative);
             }
         }
 
@@ -402,13 +405,13 @@ decode QUADRANT default Unknown::unknown() {
                 // speculative loads, these are issue without knowing whether
                 // data has arrived in spads. wait until it does
                 // this does not reset there recv flag
-                0x5: lwspec({{
-                    Rd_sd = Mem_sw;
-                }}, inst_flags=IsSpadSpeculative);
-                // this does reset the recv flag
-                0x6: lwspecr({{
-                    Rd_sd = Mem_sw;
-                }}, inst_flags=[IsSpadSpeculative, IsSpadReset]);
+                //0x5: lwspec({{
+                    //Rd_sd = Mem_sw;
+                //}}, inst_flags=IsSpadSpeculative);
+                //// this does reset the recv flag
+                //0x6: lwspecr({{
+                    //Rd_sd = Mem_sw;
+                //}}, inst_flags=[IsSpadSpeculative, IsSpadReset]);
             }
         }
 

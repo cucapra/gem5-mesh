@@ -19,7 +19,8 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, size_t in_size, size_t out_size,
     _numInstructions(0),
     _vecPassThrough(false),
     _meshRevecId(-1),
-    _pipeRevecId(-1)
+    _pipeRevecId(-1),
+    _revecCntr(0)
 {
 }
 
@@ -756,6 +757,9 @@ Vector::handleRevec(const IODynInstPtr pipeInst, const IODynInstPtr meshInst) {
     // if there was a revec before from pipe, then unstall
     if (pipeHasRevec()) {
       restoreCredits();
+      
+      // update epoch
+      incRevecEpoch();
     }
   }
   
@@ -769,6 +773,10 @@ Vector::handleRevec(const IODynInstPtr pipeInst, const IODynInstPtr meshInst) {
     if (!meshHasRevec()) {
       DPRINTF(Mesh, "[[INFO]] Stall due to REVEC\n");
       stealCredits();
+    }
+    // if there already was then update epoch
+    else {
+      incRevecEpoch();
     }
   }
   
@@ -850,6 +858,21 @@ Vector::resetPipeRevec() {
 void
 Vector::resetMeshRevec() {
   _meshRevecId = -1;
+}
+
+int
+Vector::getRevecEpoch() {
+  return _revecCntr;
+}
+
+void
+Vector::incRevecEpoch() {
+  _revecCntr++;
+}
+
+bool
+Vector::isCurDiverged() {
+  return _vecPassThrough;
 }
 
 std::vector<ToMeshPort>&

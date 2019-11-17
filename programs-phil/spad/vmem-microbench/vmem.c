@@ -75,7 +75,7 @@ void kernel(
   // divergent before prefetch case, no prefetch in detached path
   if (tid < 2) {
     VPREFETCH(spAddr, a + tid, 0);
-    LWSPEC_RESET(val, spAddr, 0);
+    LWSPEC(val, spAddr, 0);
     b[tid] = val;
   }
   else {
@@ -100,7 +100,7 @@ void kernel(
   for (int i = 0; i < n / dim; i++) {
     int stride = dim;
     VPREFETCH(spAddr,     a + stride * i,      0);
-    LWSPEC_RESET(val, spAddr, 0);
+    LWSPEC(val, spAddr, 0);
     c[tid] += val;
   }
   

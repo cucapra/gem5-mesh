@@ -56,6 +56,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     VREAD0, desc = "The initial vec read";
     VREAD1, desc = "The middle vec read(s)";
     VREAD2, desc = "The last vec read";
+    SPLOAD, desc = "Store to spad instead of CPU";
     WRITE,  desc = "A WRITE request arrives";
     LL,     desc = "A LL request arrives";
     SC,     desc = "A SC request arrives";
@@ -67,6 +68,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     VData0,       desc = "Fetched data from memory arrives and do vec op"; // kinda hacky
     VData1,       desc = "Fetched data from memory arrives and do vec op";
     VData2,       desc = "Fetched data from memory arrives and do vec op";
+    SP_Mem_Data,  desc = "Fetched data from memory arrives and single sp load";
     Memory_Ack,   desc = "Writeback Ack from memory arrives";
   }
 
@@ -96,6 +98,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
     int       YDim,       desc = "Y dimension to access for";
     Addr      WordAddress,desc = "Word address of element request";
     Addr      PrefetchAddress, desc = "Prefetch address, same wire as datablk";
+    int       Epoch,      desc = "Epoch of the requester";
+    LLCRequestType InType, desc = "Keep track of input event to know what to do when get mem";
   }
 
   structure(TBETable, external = "yes") {
@@ -264,20 +268,24 @@ machine(MachineType:L2Cache, "SP LLC cache")
           // being worse than the baseline because blocking mem reqs more due to
           // multiple reqs.... 
           // See transitions_per_cycle in Controller.py
-          if (isVector(in_msg.XDim, in_msg.YDim)) {
-            DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromMem, getState(tbe, cache_entry, LineAddress));
-            if (!_vecFromMem) {
-              if (_xCnt == 0 && _yCnt == 0) {
-                trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
+          if (in_msg.Type == LLCRequestType:SPLOAD) {
+            if (isVector(in_msg.XDim, in_msg.YDim)) {
+              DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromMem, getState(tbe, cache_entry, LineAddress));
+              if (!_vecFromMem) {
+                if (_xCnt == 0 && _yCnt == 0) { // TODO need to support non-vec sp load, need special req type
+                  trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
+                }
+                else if (_xCnt != in_msg.XDim - 1 || _yCnt != in_msg.YDim - 1) {
+                  trigger(Event:VREAD1, LineAddress, cache_entry, tbe);
+                }
+                else {
+                  trigger(Event:VREAD2, LineAddress, cache_entry, tbe);
+                }
+              } else {
+                // stall bro
               }
-              else if (_xCnt != in_msg.XDim - 1 || _yCnt != in_msg.YDim - 1) {
-                trigger(Event:VREAD1, LineAddress, cache_entry, tbe);
-              }
-              else {
-                trigger(Event:VREAD2, LineAddress, cache_entry, tbe);
-              }
-            } else {
-              // stall bro
+            } else { // single remote store
+              trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
             }
           } else if (in_msg.Type == LLCRequestType:READ) {
             trigger(Event:READ, LineAddress, cache_entry, tbe);
@@ -306,22 +314,27 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
         Entry cache_entry := getCacheEntry(in_msg.addr);
 
-        if (isVector(tbe.XDim, tbe.YDim)) {
-          if (!_vecFromLLC) {
-            assert(is_valid(cache_entry));
-            DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromLLC, getState(tbe, cache_entry, in_msg.addr));
-            if (_xCnt == 0 && _yCnt == 0) {
-              trigger(Event:VData0, in_msg.addr, cache_entry, tbe);
-            }
-            else if (_xCnt != tbe.XDim - 1 || _yCnt != tbe.YDim - 1) {
-              trigger(Event:VData1, in_msg.addr, cache_entry, tbe);
+        if (tbe.InType == LLCRequestType:SPLOAD) {
+          if (isVector(tbe.XDim, tbe.YDim)) {
+            if (!_vecFromLLC) {
+              assert(is_valid(cache_entry));
+              DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromLLC, getState(tbe, cache_entry, in_msg.addr));
+              if (_xCnt == 0 && _yCnt == 0) {
+                trigger(Event:VData0, in_msg.addr, cache_entry, tbe);
+              }
+              else if (_xCnt != tbe.XDim - 1 || _yCnt != tbe.YDim - 1) {
+                trigger(Event:VData1, in_msg.addr, cache_entry, tbe);
+              }
+              else {
+                trigger(Event:VData2, in_msg.addr, cache_entry, tbe);
+              }
             }
             else {
-              trigger(Event:VData2, in_msg.addr, cache_entry, tbe);
+              // stall bro
             }
-          }
-          else {
-            // stall bro
+          } else {
+            // single spread
+            trigger(Event:SP_Mem_Data, in_msg.addr, cache_entry, tbe);
           }
         } else if (in_msg.Type == MemoryRequestType:MEMORY_READ) {
           assert(is_valid(cache_entry));
@@ -438,13 +451,23 @@ machine(MachineType:L2Cache, "SP LLC cache")
       
       DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x\n", spadIdx, spadAddr, in_msg.WordAddress);
       
+      // if vector then send REVDATA, otherwise REDATA
+      // TODO maybe should just be seperate
+      LLCResponseType respType;
+      if (isVector(in_msg.XDim, in_msg.YDim)) {
+        respType := LLCResponseType:REVDATA;
+      }
+      else {
+        respType := LLCResponseType:REDATA;
+      }
+      
       // This functionally sends the whole packet, but the ruby network (garnet)
       // acutally looks at MessageSize to deteremine how many flits are needed
       // to serially send the data over the network.
       // TODO Shouldn't ICACHE response be larger than a singleword? 
       // and shouldn't use this same mechanism??
       enqueue(responseNetwork_out, LLCResponseMsg, 1) {
-        out_msg.Type        := LLCResponseType:REDATA;
+        out_msg.Type        := respType;
         out_msg.LineAddress := spadAddr;
         out_msg.Destination.add(spad);
         out_msg.DataBlk     := cache_entry.DataBlk;
@@ -453,6 +476,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         // this is gem5 only meta-data, in reality would just send the single
         // word, so no need to pick out the element from the whole block
         out_msg.BlkIdx      := wordOffset;
+        out_msg.Epoch       := in_msg.Epoch;
       }
     }
   }
@@ -478,15 +502,25 @@ machine(MachineType:L2Cache, "SP LLC cache")
       //Addr spadAddr := intToAddress(268435472 + (spadIdx << 12));
       Addr spadAddr := intToAddress(addressToInt(tbe.PrefetchAddress) + (spadIdx << 12));
       
+      // if vector then send REVDATA, otherwise REDATA
+      LLCResponseType respType;
+      if (isVector(tbe.XDim, tbe.YDim)) {
+        respType := LLCResponseType:REVDATA;
+      }
+      else {
+        respType := LLCResponseType:REDATA;
+      }
+      
       enqueue(responseNetwork_out, LLCResponseMsg, 1) {
         assert(is_valid(tbe));
-        out_msg.Type        := LLCResponseType:REDATA;
+        out_msg.Type        := respType;
         out_msg.LineAddress := spadAddr;
         out_msg.Destination.add(spad);
         out_msg.DataBlk     := cache_entry.DataBlk;
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
         out_msg.BlkIdx      := wordOffset;
+        out_msg.Epoch       := tbe.Epoch;
       }
     }
   }
@@ -552,6 +586,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
       tbe.YDim := in_msg.YDim;
       tbe.WordAddress := in_msg.WordAddress;
       tbe.PrefetchAddress := in_msg.PrefetchAddress;
+      tbe.Epoch := in_msg.Epoch;
+      tbe.InType := in_msg.Type;
     }
   }
 
@@ -734,7 +770,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   // READ requests
 
-  transition(I, { READ, VREAD0 }, IV) {
+  transition(I, { READ, SPLOAD, VREAD0}, IV) {
     atb_allocateTBE;
     art_addRequestorToTBE;
     avt_addVecInfoToTBE;
@@ -762,6 +798,25 @@ machine(MachineType:L2Cache, "SP LLC cache")
     wdc_writeDataToCache;
     smu_setMRU;
     sdm_sendDataFromMem;
+    rvm_resetVectorFromMem;
+    dtb_deallocateTBE;
+    pmq_popMemResponseQueue;
+    wua_wakeupAllDependents;
+  }
+  
+  transition({V, M}, SPLOAD) {
+    pah_prefetchAckHit; // TODO don't need this? and acutally prob bad to wait in CPU
+    smu_setMRU;
+    rsc_remoteStoreFromCache;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
+  
+  transition(IV, SP_Mem_Data) {
+    pam_prefetchAckMiss; // TODO overhaul this one to remove
+    wdc_writeDataToCache;
+    smu_setMRU;
+    rsm_remoteStoreFromMem;
     rvm_resetVectorFromMem;
     dtb_deallocateTBE;
     pmq_popMemResponseQueue;
@@ -813,7 +868,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     wua_wakeupAllDependents;
   }
 
-  transition({IV, MI, IM, IV_LL, IA}, { READ, VREAD0, VREAD1, VREAD2 }) {
+  transition({IV, MI, IM, IV_LL, IA}, { READ, SPLOAD, VREAD0, VREAD1, VREAD2 }) {
     z_stallAndWait;
   }
 
