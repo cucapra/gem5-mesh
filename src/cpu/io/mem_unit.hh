@@ -164,7 +164,8 @@ class MemUnit : public ExecUnit
      * A spad prefetch cannot issue unless speculative loads to that spad
      * have completed
      */ 
-    bool canIssueSpadPrefetch(IODynInstPtr tryInst);
+    //bool canIssueSpadPrefetch(IODynInstPtr tryInst);
+    //bool canIssueSpecLoad(IODynInstPtr tryInst);
 
   private:
     /** Name of IEW controlling this unit */

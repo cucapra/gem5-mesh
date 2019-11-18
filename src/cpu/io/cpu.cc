@@ -15,6 +15,8 @@
 #include "debug/IOCPU.hh"
 //#include "debug/LineTrace.hh"
 
+#include "debug/Mesh.hh"
+
 //-----------------------------------------------------------------------------
 // IOCPU::IcachePort
 //-----------------------------------------------------------------------------
@@ -176,7 +178,9 @@ IOCPU::IOCPU(IOCPUParams* params)
       m_active_thread_ids(),
       m_isa_list(),
       m_global_seq_num(1),
+      m_revec_cntr(0),
       m_last_active_cycle(0)
+      
 {
   // IOCPU does not support FullSystem mode yet
   assert(!FullSystem);
@@ -1010,6 +1014,17 @@ IOCPU::setArchCCReg(int reg_idx, RegVal val, ThreadID tid)
   PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
                                   lookup(RegId(CCRegClass, reg_idx));
   m_reg_file.setCCReg(phys_reg, val);
+}
+
+int
+IOCPU::getRevecEpoch() {
+  return m_revec_cntr;
+}
+
+void
+IOCPU::incRevecEpoch() {
+  m_revec_cntr++;
+  DPRINTF(Mesh, "increment revec %d\n", m_revec_cntr);
 }
 
 void

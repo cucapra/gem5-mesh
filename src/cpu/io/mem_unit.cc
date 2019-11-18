@@ -167,7 +167,7 @@ MemUnit::doTranslation()
   assert(m_st_queue.size() <= m_num_sq_entries);
 
   // check if S1 needs to stall this cycle b/c LQ is full
-  if (m_s1_inst->isLoad() && m_ld_queue.size() == m_num_lq_entries) {
+  if ((m_s1_inst->isLoad() || m_s1_inst->static_inst_p->isSpadPrefetch()) && m_ld_queue.size() == m_num_lq_entries) {
     DPRINTF(LSQ, "LQ is full. Stalling\n");
 #ifdef DEBUG
     m_status.set(Status::S1_Stalled);
@@ -226,7 +226,8 @@ MemUnit::doMemIssue()
 
     if (!inst->isExecuted() &&
         !inst->isIssuedToMem() &&
-        inst->canIssueToMem()) {
+        inst->canIssueToMem()
+      ) {
       assert(!inst->isFault());
 
       PacketPtr pkt = Packet::createRead(inst->mem_req_p);
@@ -251,6 +252,11 @@ MemUnit::doMemIssue()
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
         num_issued_insts++;
+        
+        // if this is a spad prefetch don't wait at all
+        if (inst->static_inst_p->isSpadPrefetch())
+          processCacheCompletion(pkt);
+        
 #ifdef DEBUG
         m_issued_insts.push_back(inst);
         m_status.set(S2_Busy);
@@ -272,9 +278,7 @@ MemUnit::doMemIssue()
 
     if (!inst->isExecuted() &&
         !inst->isIssuedToMem() &&
-        inst->canIssueToMem() &&
-        canIssueSpadPrefetch(inst)
-        ) {
+        inst->canIssueToMem()) {
       assert(!inst->isFault());
 
       PacketPtr pkt = Packet::createWrite(inst->mem_req_p);
@@ -309,10 +313,6 @@ MemUnit::doMemIssue()
           }
           m_st_ld_map.erase(inst->seq_num);
         }
-        
-        // if this is a spad prefetch don't wait at all
-        if (inst->static_inst_p->isSpadPrefetch())
-          processCacheCompletion(pkt);
         
 #ifdef DEBUG
         m_issued_insts.push_back(inst);
@@ -412,7 +412,8 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
   assert(ss && ss->inst);
   DPRINTF(LSQ, "Received response pkt for inst %s\n", ss->inst->toString());
 
-  if (ss->inst->isLoad()) {
+  if (ss->inst->isLoad() ||
+      ss->inst->static_inst_p->isSpadPrefetch()) {
     // look up ss->inst in m_ld_queue. If it no longer exists, it must have
     // been squashed. If so, we simply drop the packet.
     auto it = std::find_if(m_ld_queue.begin(),
@@ -444,8 +445,7 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
     return;
   } else if (ss->inst->isStore() ||
              ss->inst->isAtomic() ||
-             ss->inst->isStoreConditional() ||
-             ss->inst->static_inst_p->isSpadPrefetch()) {
+             ss->inst->isStoreConditional()) {
     // look up ss->inst in m_st_queue. If it no longer exists, it must have
     // been squashed. If so, we simply drop the packet.
     auto it = std::find_if(m_st_queue.begin(),
@@ -536,9 +536,6 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
                                           amo_op);
     m_s1_inst->mem_req_p->taskId(m_cpu_p->taskId());
     
-    // check vec status reg for how to handle the load
-    RegVal csrVal = m_s1_inst->readMiscReg(RiscvISA::MISCREG_FETCH);
-    
     // a spad prefetch can be turned into a spad reset if in trace mode
     bool spadPrefetch = m_s1_inst->static_inst_p->isSpadPrefetch();
     bool spadReset = spadPrefetch; // always do reset on prefetch && MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
@@ -546,7 +543,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // give an epoch number as data if this will be a reset instruction
     // included as seperate field, but in practice would send on data lines
     if (spadReset) {
-      m_s1_inst->mem_req_p->epoch = m_s1_inst->epoch;
+      m_s1_inst->mem_req_p->epoch = m_cpu_p->getRevecEpoch();
     }
     
     // setup prefetch addr
@@ -567,7 +564,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     }
     
     // only an sp load if not a slave
-    bool diverged = MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
+    bool diverged = m_cpu_p->getEarlyVector()->isCurDiverged();
     m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && !diverged;
     /*if (spadPrefetch && !spadReset) {
       m_s1_inst->mem_req_p->isSpLoad = true;
@@ -585,7 +582,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // particularly noteworthy when send a vector request and then devec, will still do remote
     // stores into the trace core memories
     // TODO not quite sure how to handle!
-    
+    RegVal csrVal = m_s1_inst->readMiscReg(RiscvISA::MISCREG_FETCH);
     if (MeshHelper::doVecLoad(csrVal) && spadPrefetch) { 
       m_s1_inst->mem_req_p->xDim = MeshHelper::getXLen(RiscvISA::MISCREG_FETCH, csrVal);
       m_s1_inst->mem_req_p->yDim = MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, csrVal);
@@ -610,6 +607,11 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     
     // allow load to issue to spad without getting any acks the load is there
     m_s1_inst->mem_req_p->spadSpec  = m_s1_inst->static_inst_p->isSpadSpeculative();
+
+    // treat this as a load in terms of placing into the queue
+    if (spadPrefetch)
+      is_load = true;
+    
 
     // this memory will be deleted together with the dynamic instruction
     m_s1_inst->mem_data_p = new uint8_t[size];
@@ -696,6 +698,7 @@ MemUnit::checkLdStDependency(IODynInstPtr ld_inst)
   return false;
 }
 
+/*
 // can't issue prefetches or resets to spad until loads from last iteration
 // have finished
 bool
@@ -723,6 +726,24 @@ MemUnit::canIssueSpadPrefetch(IODynInstPtr tryInst) {
   
   return true;
 }
+
+bool
+MemUnit::canIssueSpecLoad(IODynInstPtr tryInst) {
+  if (!tryInst->static_inst_p->isSpadSpeculative()) return true;
+  
+  for (auto& inst : m_st_queue) {
+    // check for reseters, TODO maybe should merge the queues into one
+    if (inst->mem_req_p->spadReset &&
+        (tryInst->mem_req_p->getPaddr() == inst->mem_req_p->prefetchAddr) &&
+        (inst->seq_num < tryInst->seq_num)) {
+      DPRINTF(Mesh, "cant issue prefetch [%s] due to [%s]\n", tryInst->toString(true), inst->toString(true));
+      return false;
+    }
+  }
+  
+  return true;
+}
+*/
 
 void
 MemUnit::linetrace(std::stringstream& ss)

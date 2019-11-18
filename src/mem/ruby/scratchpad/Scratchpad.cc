@@ -101,7 +101,6 @@ Scratchpad::Scratchpad(const Params* p)
       m_num_l2s(p->num_l2s),
       m_spec_buf_size(p->spec_buf_size),
       m_cpu_p(p->cpu),
-      m_proc_epoch(-1),
       m_max_pending_sp_prefetches(2)
 {
   m_num_scratchpads++;
@@ -529,7 +528,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // TODO potential problem if issue two spec loads to sp
       // I think should not allow this at all!! b/c sp accesses are fast
       // enough don't need to buffer a lot
-      m_proc_epoch = pkt_p->getEpoch();
+      //m_proc_epoch = pkt_p->getEpoch();
       return true;
     }
     
@@ -568,7 +567,9 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // core but rather just update info in the spad
     if (pkt_p->getSpadReset()) {
       setWordNotRdy(pkt_p->getPrefetchAddr());
-      updateEpoch(pkt_p->getEpoch());
+      //updateEpoch(pkt_p->getEpoch());
+      
+      DPRINTF(Mesh, "reset word %#x\n", pkt_p->getPrefetchAddr());
       
       // atomically activate any prefetch dependent on this
       for (int i = 0; i < m_sp_prefetch_buffer.size(); i++) {
@@ -920,8 +921,8 @@ Scratchpad::getL2BankFromAddr(Addr addr) const
 int
 Scratchpad::getCoreEpoch() {
   //Vector *vec = m_cpu_p->getEarlyVector();
-  //int coreEpoch = vec->getRevecEpoch();
-  int coreEpoch = m_proc_epoch;
+  int coreEpoch = m_cpu_p->getRevecEpoch();
+  //int coreEpoch = m_proc_epoch;
   return coreEpoch;
 }
 
@@ -997,10 +998,10 @@ Scratchpad::setWordNotRdy(Addr addr) {
   tag = 0;
 }
 
-void
+/*void
 Scratchpad::updateEpoch(int epoch) {
   m_proc_epoch = epoch;
-}
+}*/
 
 /*void
 Scratchpad::updateMasterEpoch(const LLCResponseMsg *llc_msg_p) {

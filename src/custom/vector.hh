@@ -190,11 +190,11 @@ class Vector : public Stage {
     // get the absolute revec # (epoch)
     // thanks to dj khalid
   public:
-    int getRevecEpoch();
+    //int getRevecEpoch();
     // currently diverged
     bool isCurDiverged();
-  protected:
-    void incRevecEpoch();
+  //protected:
+  //  void incRevecEpoch();
      
   protected:
   
@@ -233,7 +233,7 @@ class Vector : public Stage {
     int _pipeRevecId;
     
     // count the number of revecs we've recved in the past
-    int _revecCntr;
+    //int _revecCntr;
     
     // TEMP to make all relevant info available
     struct SenderState : public Packet::SenderState

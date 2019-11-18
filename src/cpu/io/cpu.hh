@@ -244,12 +244,18 @@ class IOCPU : public BaseCPU
     void setArchCCReg(int reg_idx, RegVal val, ThreadID tid);
 
     /**
+     * Revec counter functions
+     */ 
+    int getRevecEpoch();
+    void incRevecEpoch();
+
+    /**
      * Stats-related functions
      */
 
     /** Increment the number of committed insts */
     void incrNumCommittedInsts(ThreadID tid);
-
+    
   private:
     /**
      * Icache port
@@ -400,6 +406,9 @@ class IOCPU : public BaseCPU
 
     /** This CPU's sequence number counter */
     InstSeqNum m_global_seq_num;
+
+    /** Count the number of revecs we've recved in the past */ 
+    int m_revec_cntr;
 
     /**
      * Stats variables

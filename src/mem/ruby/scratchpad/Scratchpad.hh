@@ -231,7 +231,7 @@ class Scratchpad : public AbstractController
      * Mem divergence. Check CPU registers
      */ 
     int getCoreEpoch();
-    void updateEpoch(int epoch);
+    //void updateEpoch(int epoch);
     bool controlDiverged();
     bool memoryDiverged(int pktEpoch, Addr addr);
     bool isPrefetchAhead(int pktEpoch);
@@ -335,7 +335,7 @@ class Scratchpad : public AbstractController
     /**
      * Store the current epoch of the proccessor, given by pkt
      */ 
-    int m_proc_epoch;
+    //int m_proc_epoch;
     
     /**
      * The number of outstanding sp.loads allowed

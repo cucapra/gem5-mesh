@@ -19,8 +19,7 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, size_t in_size, size_t out_size,
     _numInstructions(0),
     _vecPassThrough(false),
     _meshRevecId(-1),
-    _pipeRevecId(-1),
-    _revecCntr(0)
+    _pipeRevecId(-1)
 {
 }
 
@@ -352,9 +351,6 @@ Vector::createInstruction(const MasterData &instInfo) {
   inst->from_trace = true;
   inst->replaced = force32bit;
   
-  // set the epoch (TODO epoch diff)
-  inst->epoch = getRevecEpoch();
-  
   // iew will pass a mispredicted branch forward, we don't want to send 
   // this to slave core because it will be wasted work, however you still need
   // to check the branch here. if it fails with update then we know there is divergence
@@ -394,6 +390,10 @@ Vector::pushMeshInstToNextStage(const MasterData &instInfo) {
 void
 Vector::sendInstToNextStage(IODynInstPtr dynInst) {
   //DPRINTF(Mesh, "push instruction to decode %s\n", dynInst->toString(true));
+  
+  // TODO add epoch # here, but really shouldn't be because these things can be squashed
+  //dynInst->epoch = getRevecEpoch();
+  //DPRINTF(Mesh, "revec # %d\n", dynInst->epoch);
   
   Stage::sendInstToNextStage(dynInst);
   
@@ -749,10 +749,13 @@ Vector::getConfigured() {
   return !MeshHelper::isCSRDefault(_curCsrVal);
 }
 
+// TODO should revec be updated in this stage?? can potentially be squashed...
 void
 Vector::handleRevec(const IODynInstPtr pipeInst, const IODynInstPtr meshInst) {
   // if already in trace mode, or can't be trace mode, then just ignore
-  if (!canReadMesh() || !_vecPassThrough || isRootMaster()) return;
+  if (!canReadMesh() || !_vecPassThrough || isRootMaster()) {
+    return;
+  }
   
   if (meshInst && meshInst->static_inst_p->isRevec()) {
     // set revec, TODO how to check value, or it even appropriate to check here?
@@ -763,9 +766,6 @@ Vector::handleRevec(const IODynInstPtr pipeInst, const IODynInstPtr meshInst) {
     // if there was a revec before from pipe, then unstall
     if (pipeHasRevec()) {
       restoreCredits();
-      
-      // update epoch
-      incRevecEpoch();
     }
   }
   
@@ -779,10 +779,6 @@ Vector::handleRevec(const IODynInstPtr pipeInst, const IODynInstPtr meshInst) {
     if (!meshHasRevec()) {
       DPRINTF(Mesh, "[[INFO]] Stall due to REVEC\n");
       stealCredits();
-    }
-    // if there already was then update epoch
-    else {
-      incRevecEpoch();
     }
   }
   
@@ -866,7 +862,7 @@ Vector::resetMeshRevec() {
   _meshRevecId = -1;
 }
 
-int
+/*int
 Vector::getRevecEpoch() {
   return _revecCntr;
 }
@@ -874,11 +870,11 @@ Vector::getRevecEpoch() {
 void
 Vector::incRevecEpoch() {
   _revecCntr++;
-}
+}*/
 
 bool
 Vector::isCurDiverged() {
-  return _vecPassThrough;
+  return MeshHelper::isVectorSlave(_curCsrVal) && _vecPassThrough;
 }
 
 std::vector<ToMeshPort>&
