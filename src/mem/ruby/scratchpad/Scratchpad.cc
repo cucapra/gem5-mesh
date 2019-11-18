@@ -102,7 +102,8 @@ Scratchpad::Scratchpad(const Params* p)
       m_spec_buf_size(p->spec_buf_size),
       m_cpu_p(p->cpu),
       m_max_pending_sp_prefetches(2),
-      m_process_resp_event([this]{ processRespToSpad(); }, "Process a resp to spad", false)
+      m_process_resp_event([this]{ processRespToSpad(); }, "Process a resp to spad", false),
+      m_proc_ruby_last(false)
 {
   m_num_scratchpads++;
 
@@ -188,12 +189,157 @@ Scratchpad::initNetQueues()
 // event called from both wakeup (ruby) and internally to handle locally buffered pkts
 void
 Scratchpad::processRespToSpad() {
+  // pull a packet off the queue
+  // every packet on this queue should be ready as long as only do once
+  // per cycle
+  
+  // pick a resp from either the ruby queue or internal buffer queue to process
+  // Aribtration logic here!
+  bool hasBufPkt = !m_prefetch_resp_queue.empty();
+  bool hasMemPkt = !m_ruby_resp_queue.empty();
+  assert(hasBufPkt || hasMemPkt);
+  
+  PacketPtr pkt_p;
+  if (hasBufPkt && (!hasMemPkt || m_proc_ruby_last)) {
+    pkt_p = m_prefetch_resp_queue.front();
+    m_prefetch_resp_queue.pop();
+    m_proc_ruby_last = false;
+  }
+  else {
+    pkt_p = m_ruby_resp_queue.front();
+    m_ruby_resp_queue.pop();
+    m_proc_ruby_last = true;
+  }
+  
+  switch (pkt_p->spRespType) {
+    case Packet::RespPktType::LLC_Data_Resp:
+    case Packet::RespPktType::Remote_Resp: {
+      // Save the response packet and schedule an event in the next cycle to
+      // send it to CPU. In scratchpads, don't directly store this. Need CPU to explicitly write later on
+      m_cpu_resp_pkts.push_back(pkt_p);
+      if (!m_cpu_resp_event.scheduled())
+        schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+        
+      break;
+    }
+    case Packet::RespPktType::Prefetch_Self_Resp:
+    case Packet::RespPktType::Prefetch_Patron_Resp: {
+      bool memDiv = memoryDiverged(pkt_p->getEpoch(), pkt_p->getAddr()); //setPrefetchFresh(pkt_p);
+      bool controlDiv = controlDiverged();
+  
+      bool isSelfResp = pkt_p->spRespType == Packet::RespPktType::Prefetch_Self_Resp;
+  
+      if (memDiv) {
+        
+        // place packet into buffer to use later
+        // assure that this is a very small buffer otherwise actually diverge
+        // in wakeup check this buffer too to see if rdy and can place into queue (or maybe somehwere else
+        //m_sp_prefetch_buffer.push_back(pkt_p);
+        enqueueStallRespToSp(pkt_p);
+        
+        DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending\n", m_prefetch_resp_queue.size());
+        
+        // TODO I don't think it's possible for this to be active? even when there is
+        // tons or unhandled reqs?
+        if (m_prefetch_resp_queue.size() > m_max_pending_sp_prefetches) {
+          DPRINTF(Mesh, "[[WARNING]] must diverge now\n");
+          assert(false);
+          // clear the pending buffer and inform cpu of divergence, to get squash
+          //m_sp_prefetch_buffer.clear();
+          
+          // TODO inform CPU of divergence
+          // should be extremely rare
+        }
+      }
+      else if (controlDiv && !isSelfResp) {
+        DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
+        // just drop the packet if there's divergence and this is from vector prefetch
+        delete pkt_p;
+      }
+      else {
+        // profile, TODO should classify different than just remote load/store?
+        if (pkt_p->isRead())
+          m_remote_loads++;
+        else if (pkt_p->isWrite())
+          m_remote_stores++;
+  
+        // access data array
+        accessDataArray(pkt_p);
+        
+        DPRINTF(Mesh, "store spec prefetch %#x\n", pkt_p->getAddr());
+        
+        // set the word as ready for future packets
+        setWordRdy(pkt_p->getAddr());
+        delete pkt_p;
+      }
+      break;
+    }
+    default: {
+      
+      break;
+    }
+        
+        
+  }
+  
+  
+  
+  
+}
+
+/*void
+Scratchpad::enqueueRespToSp(PacketPtr pkt_p, Packet::RespPktType type) {
+  pkt_p->spRespType = type;
+  m_resp_val_queue.push(pkt_p);
+  
+  // schedule for next cycle if not already scheduled
+  if (!m_process_resp_event.scheduled())
+    schedule(m_process_resp_event, clockEdge(Cycles(1)));
+}*/
+
+void
+Scratchpad::enqueueRubyRespToSp(PacketPtr pkt_p, Packet::RespPktType type) {
+  pkt_p->spRespType = type;
+  m_ruby_resp_queue.push(pkt_p);
+  
+  // schedule for next cycle if not already scheduled
+  if (!m_process_resp_event.scheduled())
+    schedule(m_process_resp_event, clockEdge(Cycles(1)));
+}
+
+void
+Scratchpad::enqueueStallRespToSp(PacketPtr pkt_p) {
+  m_prefetch_resp_queue.push(pkt_p);
+  
+  // schedule for next cycle if not already scheduled
+  if (!m_process_resp_event.scheduled())
+    schedule(m_process_resp_event, clockEdge(Cycles(1)));
+}
+
+/*void
+Scratchpad::arbitrate() {
+}*/
+
+// Handles response from LLC or remote load
+// NOTE memory loads through the spad go directly to the CPU and not to the scratchpad
+// you need to add an explicit write to the spad afterwards in order to get from CPU to spad
+
+// This just places a packet into another queue to be processed later
+void
+Scratchpad::wakeup()
+{
+  
+  // handle this cycle, TODO but need to say next cycle so don't double schedule...
+  //if (!m_process_resp_event.scheduled())
+  //  schedule(m_process_resp_event, clockEdge(Cycles(0)));
   // Check if we have any response from the network
   if (m_mem_resp_buffer_p->isReady(clockEdge())) {
     const MemMessage* mem_msg_p =
             dynamic_cast<const MemMessage*>(m_mem_resp_buffer_p->peek());
     const LLCResponseMsg* llc_msg_p =
             dynamic_cast<const LLCResponseMsg*>(m_mem_resp_buffer_p->peek());
+            
+
 
     // sanity check: either MemMessage or LLCResponseMsg but not both
     assert(mem_msg_p || llc_msg_p);
@@ -207,14 +353,11 @@ Scratchpad::processRespToSpad() {
       DPRINTF(Scratchpad, "Handling mem resp pkt %s from a remote "
                           "scratchpad\n", pkt_p->print());
 
-      // Save the response packet and schedule an event in the next cycle to
-      // send it to CPU. In scratchpads, don't directly store this. Need CPU to explicitly write later on
-      m_cpu_resp_pkts.push_back(pkt_p);
-      if (!m_cpu_resp_event.scheduled())
-        schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-
       // Pop the message from mem_resp_buffer
       m_mem_resp_buffer_p->dequeue(clockEdge());
+      
+      enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Remote_Resp);
+      
     } else if (llc_msg_p && ((llc_msg_p->m_Type == LLCResponseType_REVDATA) || 
         (llc_msg_p->m_Type == LLCResponseType_REDATA))) {
         // data from a vector request on this scratchpads behalf
@@ -244,71 +387,16 @@ Scratchpad::processRespToSpad() {
           llc_msg_p->m_LineAddress, llc_msg_p->m_Epoch, data[3], data[2], data[1], data[0]);
         
         assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
+      
+        // delete the pending packet
+        m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
+        m_mem_resp_buffer_p->dequeue(clockEdge());
+        
+        if (llc_msg_p->m_Type == LLCResponseType_REDATA)
+          enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Self_Resp);
+        else
+          enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Patron_Resp);
 
-        //DPRINTF(Scratchpad, "Handling remote store from mem pkt %s from %s\n",
-        //                pkt_p->print(), msg_p->getSenderID());
-    
-        bool memDiv = memoryDiverged(llc_msg_p->m_Epoch, llc_msg_p->m_LineAddress); //setPrefetchFresh(pkt_p);
-        bool controlDiv = controlDiverged();
-    
-        bool isSelfResp = llc_msg_p->m_Type == LLCResponseType_REDATA;
-    
-        if (memDiv) {
-          
-          // when divergence happens need to do something with the packet to prevent
-          // other data from being locked out
-          //assert(clockEdge() == curTick());
-          //m_mem_resp_buffer_p->recycle(clockEdge(), clockEdge(Cycles(1)));
-          
-          // place packet into buffer to use later
-          // assure that this is a very small buffer otherwise actually diverge
-          // TODO going to cheat when wake these up and just do atomically rather
-          // than process cycle by cycle here b/c on the crunch!
-          m_sp_prefetch_buffer.push_back(pkt_p);
-          
-          DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending\n", m_sp_prefetch_buffer.size());
-          if (m_sp_prefetch_buffer.size() > m_max_pending_sp_prefetches) {
-            DPRINTF(Mesh, "[[WARNING]] must diverge now\n");
-            assert(false);
-            // clear the pending buffer and inform cpu of divergence, to get squash
-            m_sp_prefetch_buffer.clear();
-            
-            // TODO inform CPU of divergence
-            // should be extremely rare
-          }
-          // NOTE make sure to clear the pending pkt map that we got it
-          m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
-          m_mem_resp_buffer_p->dequeue(clockEdge());
-          
-        }
-        else if (controlDiv && !isSelfResp) {
-          DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
-          // just drop the packet if there's divergence and this is from vector prefetch
-          m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
-          m_mem_resp_buffer_p->dequeue(clockEdge());
-          delete pkt_p;
-        }
-        else {
-          // profile, TODO should classify different than just remote load/store?
-          if (pkt_p->isRead())
-            m_remote_loads++;
-          else if (pkt_p->isWrite())
-            m_remote_stores++;
-    
-          // access data array
-          accessDataArray(pkt_p);
-          
-          // TODO this needs to not accept from the network if epoch wrong
-          // needs to not accept from the network to get realistic back pressuer
-          m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
-          m_mem_resp_buffer_p->dequeue(clockEdge());
-          
-          DPRINTF(Mesh, "store spec prefetch %#x\n", pkt_p->getAddr());
-          
-          // set the word as ready for future packets
-          setWordRdy(pkt_p->getAddr());
-          delete pkt_p;
-        }
     } else {
       // sanity check: make sure this is the response we're waiting for
       assert(m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 1);
@@ -341,17 +429,13 @@ Scratchpad::processRespToSpad() {
       DPRINTF(Scratchpad, "Handling mem resp pkt %s from LLC seq_num %d\n",
                           pending_mem_pkt_p->print(), llc_msg_p->m_SeqNum);
 
-      // Save the response packet and schedule an event in the next cycle to
-      // send it to CPU
-      m_cpu_resp_pkts.push_back(pending_mem_pkt_p);
-      if (!m_cpu_resp_event.scheduled())
-        schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-
       // remove pending_mem_pkt_p from the pending pkt map
       m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
 
       // Pop the message from mem_resp_buffer
       m_mem_resp_buffer_p->dequeue(clockEdge());
+      
+      enqueueRubyRespToSp(pending_mem_pkt_p, Packet::RespPktType::LLC_Data_Resp);
     }
   }
 
@@ -389,18 +473,6 @@ Scratchpad::processRespToSpad() {
   // if input buffers are not empty, schedule an event in the next cycle
   if (!m_mem_resp_buffer_p->isEmpty() || !m_remote_req_buffer_p->isEmpty())
     scheduleEvent(Cycles(1));
-}
-
-// Handles response from LLC or remote load
-// NOTE memory loads through the spad go directly to the CPU and not to the scratchpad
-// you need to add an explicit write to the spad afterwards in order to get from CPU to spad
-
-void
-Scratchpad::wakeup()
-{
-  // handle this cycle
-  if (!m_process_resp_event.scheduled())
-    schedule(m_process_resp_event, clockEdge(Cycles(0)));
 }
 
 bool
@@ -509,7 +581,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       //m_packet_buffer.push_back(pkt_p);
       //assert(m_packet_buffer.size() <= m_spec_buf_size);
       // just say not rdy actually
-      DPRINTF(Mesh, "rejecting packet to addr %#x\n", pkt_p->getAddr());
+      DPRINTF(Mesh, "not rdy for packet to addr %#x\n", pkt_p->getAddr());
       return false;
     }
     
@@ -525,14 +597,14 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     
     accessDataArray(pkt_p);
     
-    if (pkt_p->getSpecSpad()) {
+    /*if (pkt_p->getSpecSpad()) {
       assert(pkt_p->isRead());
       uint8_t tmp_buf[pkt_p->getSize()];
       uint32_t *temp;
       temp = (uint32_t*)&(tmp_buf[0]);
       pkt_p->writeData(tmp_buf);
       DPRINTF(Mesh, "sending pkt back for %#x -- %d \n", pkt_p->getAddr(), *temp);
-    }
+    }*/
     
     // Save the response packet and schedule an event in the next cycle to send
     // it to CPU
@@ -565,7 +637,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // FIXME atomically activate any prefetch dependent on this
       // B/C not doing queue based need to kill all form this epoch when detect divergence
       // if had in the queue done in wakeup would be handled naturally
-      for (int i = 0; i < m_sp_prefetch_buffer.size(); i++) {
+      /*for (int i = 0; i < m_sp_prefetch_buffer.size(); i++) {
         PacketPtr pendPkt = m_sp_prefetch_buffer[i];
         if ((pendPkt->getEpoch() <= getCoreEpoch()) &&
             (controlDiverged())) {
@@ -581,7 +653,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
           delete pendPkt;
           i--;
         }
-      }
+      }*/
       
       // stop here if this is not going to be a load b/c this is from a trace
       if (!pkt_p->isSpLoad()) {

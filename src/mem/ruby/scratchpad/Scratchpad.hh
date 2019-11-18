@@ -254,6 +254,9 @@ class Scratchpad : public AbstractController
      */ 
     void processRespToSpad();
     
+    void enqueueRubyRespToSp(PacketPtr pkt_p, Packet::RespPktType type);
+    void enqueueStallRespToSp(PacketPtr pkt_p);
+    
   private:
     /**
      * Pointer to Ruby system
@@ -361,11 +364,36 @@ class Scratchpad : public AbstractController
     EventFunctionWrapper m_process_resp_event;
     
     /**
+     * For arbitration keep track of last process resp
+     */ 
+    bool m_proc_ruby_last;
+    
+    /**
+     * Keep track of the last cycle we processed a packet
+     * Because wakeup does the event in the same cycle (b/c already delayed)
+     * Possible that one already fired from the stored buffer
+     */ 
+    
+    /**
      * Allow a small number of sp.load packets to be buffered
      * We should only get these if in trace mode. If exceed size, drop all
      * and diverge
      */ 
-    std::vector<PacketPtr> m_sp_prefetch_buffer;
+    std::queue<PacketPtr> m_prefetch_resp_queue;
+    
+    /**
+     * Incoming queue from ruby
+     */
+    std::queue<PacketPtr> m_ruby_resp_queue;
+    
+    /**
+     * Unified resp queue to be processed. All packets on this queue are
+     * ready to be processed.
+     * 
+     * You can easily pretend this is multiple queues depending on dequeue logic
+     */ 
+    //std::queue<PacketPtr> m_resp_val_queue;
+    
     
     /**
      * Stats to keep track of for the scratchpad

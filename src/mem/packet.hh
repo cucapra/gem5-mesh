@@ -801,6 +801,16 @@ class Packet : public Printable
      */ 
     bool isSpLoad() const { return req->isSpLoad; }
 
+    // packet type for processing scratchpad
+    typedef enum RespPktType {
+        NotVal = 0,
+        LLC_Data_Resp,
+        Remote_Resp,
+        Prefetch_Patron_Resp,
+        Prefetch_Self_Resp
+    } RespPktType;
+
+    RespPktType spRespType;
 
     /**
      * It has been determined that the SC packet should successfully update
