@@ -154,7 +154,7 @@ class Vector : public Stage {
     // get references to the master and slave ports owned by CPU
     std::vector<ToMeshPort>& getMeshMasterPorts();
     std::vector<FromMeshPort>& getMeshSlavePorts();
-    
+   public:
     // helpers to figure out settings of this stage
     bool isRootMaster();
     bool isMaster();
@@ -165,7 +165,7 @@ class Vector : public Stage {
     bool isInPipeStalled();
     bool isOutMeshStalled();
     bool isInMeshStalled();
-    
+protected:
     // instructions can come from either I$ or mesh and can be send to mesh or pipe (fully connected)
     typedef enum InstSource {
         None = 0,

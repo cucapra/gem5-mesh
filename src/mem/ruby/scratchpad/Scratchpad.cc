@@ -571,7 +571,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       
       DPRINTF(Mesh, "reset word %#x\n", pkt_p->getPrefetchAddr());
       
-      // atomically activate any prefetch dependent on this
+      // FIXME atomically activate any prefetch dependent on this
       for (int i = 0; i < m_sp_prefetch_buffer.size(); i++) {
         PacketPtr pendPkt = m_sp_prefetch_buffer[i];
         if ((pendPkt->getEpoch() == getCoreEpoch()) &&

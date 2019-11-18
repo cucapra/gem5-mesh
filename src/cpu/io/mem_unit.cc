@@ -542,7 +542,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     m_s1_inst->mem_req_p->spadReset = spadReset;
     // give an epoch number as data if this will be a reset instruction
     // included as seperate field, but in practice would send on data lines
-    if (spadReset) {
+    if (spadPrefetch) {
       m_s1_inst->mem_req_p->epoch = m_cpu_p->getRevecEpoch();
     }
     
@@ -565,7 +565,10 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     
     // only an sp load if not a slave
     bool diverged = m_cpu_p->getEarlyVector()->isCurDiverged();
-    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && !diverged;
+    bool master   = m_cpu_p->getEarlyVector()->isRootMaster();
+    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || master );
+    
+    
     /*if (spadPrefetch && !spadReset) {
       m_s1_inst->mem_req_p->isSpLoad = true;
     }

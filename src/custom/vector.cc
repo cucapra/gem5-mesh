@@ -874,7 +874,7 @@ Vector::incRevecEpoch() {
 
 bool
 Vector::isCurDiverged() {
-  return MeshHelper::isVectorSlave(_curCsrVal) && _vecPassThrough;
+  return _vecPassThrough;
 }
 
 std::vector<ToMeshPort>&
