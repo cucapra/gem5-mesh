@@ -318,34 +318,6 @@ Scratchpad::wakeup()
           setWordRdy(pkt_p->getAddr());
           delete pkt_p;
         }
-        
-        // check if there is a packet waiting on this prefetch
-        // TODO in new scheme might just be able to hold locally in CPU
-        /*if (!memDiv) {
-          for (int i = 0; i < m_packet_buffer.size(); i++) {
-            assert(m_packet_buffer[i]->getSpecSpad());
-            if (m_packet_buffer[i]->getAddr() == pkt_p->getAddr()) {
-              PacketPtr wokePkt = m_packet_buffer[i];
-              //wokePkt->makeResponse();
-              DPRINTF(Mesh, "sending stored pkt %#x\n", wokePkt->getAddr());
-              m_packet_buffer.erase(m_packet_buffer.begin());
-              m_cpu_resp_pkts.push_back(wokePkt);
-              if (!m_cpu_resp_event.scheduled()) {
-                schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-              }
-              
-              // put the data into this packet
-              accessDataArray(wokePkt);
-              
-              // if the packet is a recycler, then clear the prefetch flag
-              //if (wokePkt->getSpadReset())
-              //  setPrefetchRotten(wokePkt);
-            }
-          }
-        }*/
-        
-        
-        
     } else {
       // sanity check: make sure this is the response we're waiting for
       assert(m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 1);
@@ -588,10 +560,17 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       DPRINTF(Mesh, "reset word %#x\n", pkt_p->getPrefetchAddr());
       
       // FIXME atomically activate any prefetch dependent on this
-      // TODO real bad. can may not wake up packet in certain cirumstances
+      // B/C not doing queue based need to kill all form this epoch when detect divergence
+      // if had in the queue done in wakeup would be handled naturally
       for (int i = 0; i < m_sp_prefetch_buffer.size(); i++) {
         PacketPtr pendPkt = m_sp_prefetch_buffer[i];
         if ((pendPkt->getEpoch() == getCoreEpoch()) &&
+            (controlDiverged())) {
+          m_sp_prefetch_buffer.erase(m_sp_prefetch_buffer.begin() + i);
+          delete pendPkt;
+          i--;
+        }
+        else if ((pendPkt->getEpoch() == getCoreEpoch()) &&
             (pendPkt->getAddr() == pkt_p->getPrefetchAddr())) {
           accessDataArray(pendPkt);
           setWordRdy(pendPkt->getAddr());
