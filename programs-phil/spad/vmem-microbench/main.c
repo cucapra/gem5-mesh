@@ -89,8 +89,8 @@ int main(int argc, char *argv[]) {
 
   for (int i = 0; i < 4; i++) {
     printf("%d %d\n", b[i], c[i]);
-    if ((c[i] != (i + 1) * n / num_cores) &&
-        (b[i] == i < 2 ? (i + 1) : -1)
+    if ((c[i] != (i + 1) * n / num_cores) /*&&
+        (b[i] == i < 2 ? (i + 1) : -1)*/
     
     ) {
       printf("[[FAIL]]\n");

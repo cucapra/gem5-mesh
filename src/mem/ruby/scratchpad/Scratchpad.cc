@@ -119,7 +119,7 @@ Scratchpad::Scratchpad(const Params* p)
   // setup cpu touched array to keep track of divergences (TODO not sure how should be implemetned in practice?)
   // maybe use a single bit/byte of data towards this purpose
   for(int i = 0; i < m_size / sizeof(uint32_t); i++) {
-    m_fresh_array.push_back(0);
+    m_fresh_array.push_back(1);
   }
 }
 
@@ -182,6 +182,13 @@ Scratchpad::initNetQueues()
                              "response",
                              m_mem_resp_buffer_p);
 }
+
+
+// event called from both wakeup (ruby) and internally to handle locally buffered pkts
+/*void
+Scratchpad::processMemReq() {
+  
+}*/
 
 // Handles response from LLC or remote load
 // NOTE memory loads through the spad go directly to the CPU and not to the scratchpad
@@ -304,6 +311,7 @@ Scratchpad::wakeup()
           
           // set the word as ready for future packets
           setWordRdy(pkt_p->getAddr());
+          
         }
         
         // check if there is a packet waiting on this prefetch
@@ -329,7 +337,10 @@ Scratchpad::wakeup()
               //  setPrefetchRotten(wokePkt);
             }
           }
+          delete pkt_p;
         }
+        
+        
         
     } else {
       // sanity check: make sure this is the response we're waiting for
@@ -521,16 +532,6 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       DPRINTF(Mesh, "buffering packet to addr %#x\n", pkt_p->getAddr());
       return true;
     }
-    else if (pkt_p->getSpadReset()) {
-      assert(false); // this generally won't be a local access, but look like a global one
-      setWordNotRdy(pkt_p->getPrefetchAddr());
-      
-      // TODO potential problem if issue two spec loads to sp
-      // I think should not allow this at all!! b/c sp accesses are fast
-      // enough don't need to buffer a lot
-      //m_proc_epoch = pkt_p->getEpoch();
-      return true;
-    }
     
     // TODO stats might be incorrect with these stalls
     // should move into accessDataArray rather than keep out here
@@ -572,20 +573,24 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       DPRINTF(Mesh, "reset word %#x\n", pkt_p->getPrefetchAddr());
       
       // FIXME atomically activate any prefetch dependent on this
+      // TODO real bad. can may not wake up packet in certain cirumstances
       for (int i = 0; i < m_sp_prefetch_buffer.size(); i++) {
         PacketPtr pendPkt = m_sp_prefetch_buffer[i];
         if ((pendPkt->getEpoch() == getCoreEpoch()) &&
             (pendPkt->getAddr() == pkt_p->getPrefetchAddr())) {
           accessDataArray(pendPkt);
-          setWordNotRdy(pendPkt->getAddr());
+          setWordRdy(pendPkt->getAddr());
           m_sp_prefetch_buffer.erase(m_sp_prefetch_buffer.begin() + i);
+          delete pendPkt;
           i--;
         }
       }
       
       // stop here if this is not going to be a load b/c this is from a trace
-      if (!pkt_p->isSpLoad())
+      if (!pkt_p->isSpLoad()) {
+        //delete pkt_p;
         return true;
+      }
     }
     
     // This packet will be delivered to LLC
@@ -963,7 +968,7 @@ bool
 Scratchpad::isWordRdy(Addr addr) {
   //if (!pkt->getSpecSpad()) return true;
   
-  return (bool)m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)];
+  return m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)] != 0;
 }
 
 void
