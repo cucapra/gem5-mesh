@@ -7,7 +7,8 @@
 #include "../../common/bind_defs.h"
 
 // actual kernel
-void kernel(
+void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
+  kernel(
     int *a, int *b, int *c, int *d, int n,
     int tid_x, int tid_y, int dim_x, int dim_y) {
   
@@ -83,7 +84,7 @@ void kernel(
   }
   
   REVEC(0);
-  /*
+  
   // divergent and does seperate loads
   if (tid == 1) {
     VPREFETCH(spAddr, a + tid, 0);
@@ -94,10 +95,9 @@ void kernel(
     VPREFETCH(spAddr, a + tid + dim, 0);
     LWSPEC(val, spAddr, 0);
     c[tid] += val;
-  }*/
+  }
   
-  
-  //REVEC(0);
+  REVEC(0);
   
   // TODO divergent because of prefetch case
   

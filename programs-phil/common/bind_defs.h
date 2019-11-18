@@ -37,9 +37,16 @@
   asm volatile (".insn i 0x77, 0, x0, %[x], 0x401\n\t" :: [x] "r" (val))
 
 // revec instruction with unique hash id
-#define REVEC(hash) \
+#define REVEC(hash)                                                           \
   asm volatile (".insn u 0x7b, x0, %[id]\n\t" :: [id] "i" (hash))
-
+  
+  /*
+  // revec instruction with unique hash id
+#define REVEC(hash)                                                           \
+  asm volatile ("" ::: "memory");                                             \
+  asm volatile (".insn u 0x7b, x0, %[id]\n\t" :: [id] "i" (hash) : "memory"); \
+  asm volatile ("" ::: "memory");
+*/
 // 0x0f << 2 & 0x3 = 0x3f
 // actually use, unused sw funct3
 // if don't do this then compiler thinks its a 64bit instructions which

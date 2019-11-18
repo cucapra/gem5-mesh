@@ -46,6 +46,10 @@ class ROB
 
     /** Return the number of memory instructions in ROB */
     size_t getMemInstCount() const;
+    
+    /** Return the number of revec instructions in ROB */
+    size_t getRevecInstCount() const;
+    
 
   private:
     /** ROB size */

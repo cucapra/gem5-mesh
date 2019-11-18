@@ -591,6 +591,7 @@ Fetch::processCacheCompletion(PacketPtr pkt)
   // Check if this response packet is still needed. If not (i.e., probably due
   // to an early squash), just drop and delete it.
   if (pkt->req != m_mem_reqs[tid]) {
+    DPRINTF(Fetch, "[tid:%d] Dropping icache response\n", tid);
     delete pkt;
     return;
   }

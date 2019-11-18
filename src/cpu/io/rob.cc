@@ -86,3 +86,11 @@ ROB::getMemInstCount() const
   return std::count_if(m_inst_list.begin(), m_inst_list.end(),
                     [](const IODynInstPtr& inst) { return inst->isMemRef(); });
 }
+
+size_t
+ROB::getRevecInstCount() const
+{
+  return std::count_if(m_inst_list.begin(), m_inst_list.end(),
+                    [](const IODynInstPtr& inst) { return inst->static_inst_p->isRevec(); });
+}
+

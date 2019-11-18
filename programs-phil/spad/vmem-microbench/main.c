@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
     printf("%d %d %d\n", b[i], c[i], d[i]);
     
     int expD = 4 + 4 * i + 6 * num_cores;
-    int expC = 0; // i != 1 ? i + 1 + num_cores : i + 1;
+    int expC = i != 1 ? i + 1 + num_cores : i + 1;
     int expB = i < 2 ? (i + 1) : -1;
     if ((d[i] != expD) ||
         (c[i] != expC) ||

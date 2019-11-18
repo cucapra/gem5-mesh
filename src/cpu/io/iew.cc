@@ -358,6 +358,13 @@ IEW::doIssue()
 #endif
       return;
     }
+    
+    if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getRevecInstCount() > 0) {
+      DPRINTF(IEW, "[sn:%d] Can't issue prelw due to pending younger "
+                   "revec instructions\n", inst->seq_num);
+                   
+      return;
+    }
 
     // Check if ROB is full
     if (m_robs[tid]->isFull()) {
