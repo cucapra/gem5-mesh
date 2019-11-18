@@ -352,7 +352,7 @@ class Scratchpad : public AbstractController
      * Allow a single load packet to be waiting in the spad
      * This is for the vector prefetching
      */
-    std::vector<PacketPtr> m_packet_buffer;
+    //std::vector<PacketPtr> m_packet_buffer;
     
     /**
      * Allow a small number of sp.load packets to be buffered

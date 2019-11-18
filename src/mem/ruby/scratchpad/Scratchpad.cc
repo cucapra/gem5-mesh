@@ -291,6 +291,7 @@ Scratchpad::wakeup()
           // just drop the packet if there's divergence and this is from vector prefetch
           m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
           m_mem_resp_buffer_p->dequeue(clockEdge());
+          delete pkt_p;
         }
         else {
           // profile, TODO should classify different than just remote load/store?
@@ -311,12 +312,12 @@ Scratchpad::wakeup()
           
           // set the word as ready for future packets
           setWordRdy(pkt_p->getAddr());
-          
+          delete pkt_p;
         }
         
         // check if there is a packet waiting on this prefetch
         // TODO in new scheme might just be able to hold locally in CPU
-        if (!memDiv) {
+        /*if (!memDiv) {
           for (int i = 0; i < m_packet_buffer.size(); i++) {
             assert(m_packet_buffer[i]->getSpecSpad());
             if (m_packet_buffer[i]->getAddr() == pkt_p->getAddr()) {
@@ -337,8 +338,7 @@ Scratchpad::wakeup()
               //  setPrefetchRotten(wokePkt);
             }
           }
-          delete pkt_p;
-        }
+        }*/
         
         
         
@@ -527,10 +527,11 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // If this is a speculative load and the data isn't present, then
     // allow the packets equal to ld queue size be buffered here
     if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
-      m_packet_buffer.push_back(pkt_p);
-      assert(m_packet_buffer.size() <= m_spec_buf_size);
-      DPRINTF(Mesh, "buffering packet to addr %#x\n", pkt_p->getAddr());
-      return true;
+      //m_packet_buffer.push_back(pkt_p);
+      //assert(m_packet_buffer.size() <= m_spec_buf_size);
+      // just say not rdy actually
+      DPRINTF(Mesh, "rejecting packet to addr %#x\n", pkt_p->getAddr());
+      return false;
     }
     
     // TODO stats might be incorrect with these stalls
