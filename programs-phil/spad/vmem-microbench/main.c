@@ -44,9 +44,11 @@ int main(int argc, char *argv[]) {
   size_t sizeA = n;
   size_t sizeB = n;
   size_t sizeC = n;
+  size_t sizeD = n;
   int *a = (int*)malloc(sizeof(int) * sizeA);
   int *b = (int*)malloc(sizeof(int) * sizeB);
   int *c = (int*)malloc(sizeof(int) * sizeC);
+  int *d = (int*)malloc(sizeof(int) * sizeD);
   
   // generate a synthetic distribution to branch based on
   #ifdef RANDOM_DIST
@@ -55,11 +57,13 @@ int main(int argc, char *argv[]) {
   #endif
   
   for (int i = 0; i < sizeA; i++)
-    a[i] = (i % num_cores) + 1;
+    a[i] = i + 1;
   for (int i = 0; i < sizeB; i++)
     b[i] = 0;
   for (int i = 0; i < sizeC; i++)
     c[i] = 0;
+  for (int i = 0; i < sizeD; i++)
+    d[i] = 0;
   
   /*--------------------------------------------------------------------
   * Pack argument for kernel
@@ -72,7 +76,7 @@ int main(int argc, char *argv[]) {
     for (int x = 0; x < cores_x; x++){
       int i = x + y * cores_x;
       
-      kern_args[i] = construct_args(a, b, c, n, x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(a, b, c, d, n, x, y, cores_x, cores_y);
     }  
   }
 
@@ -89,7 +93,7 @@ int main(int argc, char *argv[]) {
 
   for (int i = 0; i < 4; i++) {
     printf("%d %d\n", b[i], c[i]);
-    if ((c[i] != (i + 1) * n / num_cores) &&
+    if ((c[i] != (4 + 4 * i + 6 * num_cores)) &&
         (b[i] == i < 2 ? (i + 1) : -1)
     
     ) {
@@ -101,6 +105,7 @@ int main(int argc, char *argv[]) {
   free(a);
   free(b);
   free(c);
+  free(d);
   
   printf("[[SUCCESS]]\n");
   

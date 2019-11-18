@@ -8,7 +8,7 @@
 
 // actual kernel
 void kernel(
-    int *a, int *b, int *c, int n,
+    int *a, int *b, int *c, int *d, int n,
     int tid_x, int tid_y, int dim_x, int dim_y) {
   
   // start recording all stats (all cores)
@@ -118,7 +118,7 @@ void kernel(
 
 
 // helper functions
-Kern_Args *construct_args(int *a, int *b, int *c, int n,
+Kern_Args *construct_args(int *a, int *b, int *c, int *d, int n,
   int tid_x, int tid_y, int dim_x, int dim_y) {
       
   Kern_Args *args = (Kern_Args*)malloc(sizeof(Kern_Args));
@@ -126,6 +126,7 @@ Kern_Args *construct_args(int *a, int *b, int *c, int n,
   args->a = a;
   args->b = b;
   args->c = c;
+  args->d = d;
   args->n = n;
   args->tid_x = tid_x;
   args->tid_y = tid_y;
@@ -144,7 +145,7 @@ void *pthread_kernel(void *args) {
   // call the spmd kernel
   Kern_Args *a = (Kern_Args*)args;
   
-  kernel(a->a, a->b, a->c, a->n,
+  kernel(a->a, a->b, a->c, a->d, a->n,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
       
   return NULL;
