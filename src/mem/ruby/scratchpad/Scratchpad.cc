@@ -288,6 +288,12 @@ Scratchpad::processRespToSpad() {
         
   }
   
+  // if CPU needs to retry, wake it up
+  if (m_cpu_port_p->needRetry()) {
+    m_cpu_port_p->sendRetryReq();
+    m_cpu_port_p->clearRetry();
+  }
+  
   
   
   

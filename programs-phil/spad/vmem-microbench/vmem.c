@@ -73,14 +73,14 @@ void kernel(
   VECTOR_EPOCH(mask);
   
   // divergent before prefetch case, no prefetch in detached path
-  if (tid < 2) {
+  /*if (tid < 2) {
     VPREFETCH(spAddr, a + tid, 0);
     LWSPEC(val, spAddr, 0);
     b[tid] = val;
   }
   else {
     b[tid] = -1;
-  }
+  }*/
   
   /*REVEC(0);
   
@@ -97,7 +97,7 @@ void kernel(
   }*/
   
   
-  REVEC(0);
+  //REVEC(0);
   
   // TODO divergent because of prefetch case
   
