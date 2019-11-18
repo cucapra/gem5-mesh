@@ -211,6 +211,12 @@ Scratchpad::processRespToSpad() {
     m_proc_ruby_last = true;
   }
   
+  // if either buffer has a packet not used then schedule again for next cycle
+  if (!m_prefetch_resp_queue.empty() || !m_ruby_resp_queue.empty()) {
+    if (!m_process_resp_event.scheduled())
+      schedule(m_process_resp_event, clockEdge(Cycles(1)));
+  }
+  
   switch (pkt_p->spRespType) {
     case Packet::RespPktType::LLC_Data_Resp:
     case Packet::RespPktType::Remote_Resp: {
