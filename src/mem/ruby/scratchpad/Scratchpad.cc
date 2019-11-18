@@ -229,6 +229,8 @@ Scratchpad::wakeup()
         // data from a vector request on this scratchpads behalf
         // mimic as a remote store from the master core
         
+        DPRINTF(Mesh, "ruby pkt %s\n", *llc_msg_p);
+        
         // need to 'fake' a Packet from the LLC response and then go
         // through the regular remote store channels
         std::shared_ptr<Request> req =
@@ -242,11 +244,13 @@ Scratchpad::wakeup()
         
         // we really only sent a word of data, so extract that
         int blkIdx = llc_msg_p->m_BlkIdx;
-        const uint8_t *word = llc_msg_p->m_DataBlk.getData(sizeof(uint32_t) * blkIdx, sizeof(uint32_t));
-        pkt_p->dataStatic(word);
+        uint8_t *buff = new uint8_t[sizeof(uint32_t)];
+        const uint8_t *data = llc_msg_p->m_DataBlk.getData(sizeof(uint32_t) * blkIdx, sizeof(uint32_t));
+        memcpy(buff, data, sizeof(uint32_t));
+        pkt_p->dataDynamic(buff);
         
         DPRINTF(Mesh, "Recv remote store %#x from cache epoch %d data %d %d %d %d\n", 
-          llc_msg_p->m_LineAddress, llc_msg_p->m_Epoch, word[3], word[2], word[1], word[0]);
+          llc_msg_p->m_LineAddress, llc_msg_p->m_Epoch, data[3], data[2], data[1], data[0]);
         
         assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
 
@@ -545,6 +549,16 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     else if (pkt_p->isWrite()) m_local_stores++;
     
     accessDataArray(pkt_p);
+    
+    if (pkt_p->getSpecSpad()) {
+      assert(pkt_p->isRead());
+      uint8_t tmp_buf[pkt_p->getSize()];
+      uint32_t *temp;
+      temp = (uint32_t*)&(tmp_buf[0]);
+      pkt_p->writeData(tmp_buf);
+      DPRINTF(Mesh, "sending pkt back for %#x -- %d \n", pkt_p->getAddr(), *temp);
+    }
+    
     // Save the response packet and schedule an event in the next cycle to send
     // it to CPU
     m_cpu_resp_pkts.push_back(pkt_p);
