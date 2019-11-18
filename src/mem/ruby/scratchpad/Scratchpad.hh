@@ -247,6 +247,13 @@ class Scratchpad : public AbstractController
     void setWordRdy(Addr addr);
     void setWordNotRdy(Addr addr);
     
+    /**
+     * Logic for handling any resp packet to spad
+     * Have a seperate method from wakeup() because we want to handle 
+     * packets not from ruby
+     */ 
+    void processRespToSpad();
+    
   private:
     /**
      * Pointer to Ruby system
@@ -349,10 +356,9 @@ class Scratchpad : public AbstractController
     std::vector<int> m_fresh_array;
     
     /**
-     * Allow a single load packet to be waiting in the spad
-     * This is for the vector prefetching
+     * Event to process a mem resp packet
      */
-    //std::vector<PacketPtr> m_packet_buffer;
+    EventFunctionWrapper m_process_resp_event;
     
     /**
      * Allow a small number of sp.load packets to be buffered

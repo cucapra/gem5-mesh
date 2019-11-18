@@ -101,7 +101,8 @@ Scratchpad::Scratchpad(const Params* p)
       m_num_l2s(p->num_l2s),
       m_spec_buf_size(p->spec_buf_size),
       m_cpu_p(p->cpu),
-      m_max_pending_sp_prefetches(2)
+      m_max_pending_sp_prefetches(2),
+      m_process_resp_event([this]{ processRespToSpad(); }, "Process a resp to spad", false)
 {
   m_num_scratchpads++;
 
@@ -185,18 +186,8 @@ Scratchpad::initNetQueues()
 
 
 // event called from both wakeup (ruby) and internally to handle locally buffered pkts
-/*void
-Scratchpad::processMemReq() {
-  
-}*/
-
-// Handles response from LLC or remote load
-// NOTE memory loads through the spad go directly to the CPU and not to the scratchpad
-// you need to add an explicit write to the spad afterwards in order to get from CPU to spad
-
 void
-Scratchpad::wakeup()
-{
+Scratchpad::processRespToSpad() {
   // Check if we have any response from the network
   if (m_mem_resp_buffer_p->isReady(clockEdge())) {
     const MemMessage* mem_msg_p =
@@ -400,6 +391,18 @@ Scratchpad::wakeup()
     scheduleEvent(Cycles(1));
 }
 
+// Handles response from LLC or remote load
+// NOTE memory loads through the spad go directly to the CPU and not to the scratchpad
+// you need to add an explicit write to the spad afterwards in order to get from CPU to spad
+
+void
+Scratchpad::wakeup()
+{
+  // handle this cycle
+  if (!m_process_resp_event.scheduled())
+    schedule(m_process_resp_event, clockEdge(Cycles(0)));
+}
+
 bool
 Scratchpad::handleCpuReq(Packet* pkt_p)
 {
@@ -564,7 +567,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // if had in the queue done in wakeup would be handled naturally
       for (int i = 0; i < m_sp_prefetch_buffer.size(); i++) {
         PacketPtr pendPkt = m_sp_prefetch_buffer[i];
-        if ((pendPkt->getEpoch() == getCoreEpoch()) &&
+        if ((pendPkt->getEpoch() <= getCoreEpoch()) &&
             (controlDiverged())) {
           m_sp_prefetch_buffer.erase(m_sp_prefetch_buffer.begin() + i);
           delete pendPkt;
