@@ -187,14 +187,12 @@ protected:
     void resetMeshRevec();
     bool getRevecStall();
     
-    // get the absolute revec # (epoch)
-    // thanks to dj khalid
   public:
-    //int getRevecEpoch();
-    // currently diverged
     bool isCurDiverged();
-  //protected:
-  //  void incRevecEpoch();
+    
+    // get current vector length
+    int getXLen();
+    int getYLen();
      
   protected:
   

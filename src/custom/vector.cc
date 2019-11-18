@@ -877,6 +877,32 @@ Vector::isCurDiverged() {
   return _vecPassThrough;
 }
 
+int
+Vector::getXLen() {
+  return MeshHelper::getXLen(RiscvISA::MISCREG_FETCH, _curCsrVal);
+}
+
+int
+Vector::getYLen() {
+  return MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, _curCsrVal);
+}
+
+/*int
+Vector::getPrefetchXLen() {
+  if (isRootMaster())
+    return getXLen();
+  else
+    return 1;
+}
+
+int
+Vector::getPrefetchYLen() {
+  if (isRootMaster())
+    return getYLen();
+  else
+    return 1;
+}*/
+
 std::vector<ToMeshPort>&
 Vector::getMeshMasterPorts() {
   return m_cpu_p->getMeshMasterPorts();

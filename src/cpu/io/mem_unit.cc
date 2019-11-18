@@ -249,6 +249,9 @@ MemUnit::doMemIssue()
         DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
         if (inst->static_inst_p->isSpadSpeculative()) 
           DPRINTF(Mesh, "Sent request to memory for inst [%s] %#x\n", inst->toString(true), inst->mem_req_p->getPaddr());
+        else if (inst->static_inst_p->isSpadPrefetch())
+          DPRINTF(Mesh, "Sent preload request to memory for inst [%s] %#x, live %d\n", inst->toString(true), inst->mem_req_p->prefetchAddr, inst->mem_req_p->isSpLoad);
+
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
         num_issued_insts++;
@@ -298,8 +301,6 @@ MemUnit::doMemIssue()
         return;
       } else {
         DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
-        if (inst->static_inst_p->isSpadPrefetch()) 
-          DPRINTF(Mesh, "Sent request to memory for inst [%s] %#x\n", inst->toString(true), inst->mem_req_p->prefetchAddr);
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
         num_issued_insts++;
@@ -566,7 +567,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // only an sp load if not a slave
     bool diverged = m_cpu_p->getEarlyVector()->isCurDiverged();
     bool master   = m_cpu_p->getEarlyVector()->isRootMaster();
-    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || master );
+    bool solo     = !m_cpu_p->getEarlyVector()->getConfigured();
+    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || master || solo );
     
     
     /*if (spadPrefetch && !spadReset) {
@@ -580,29 +582,14 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // also send memory request as vector request (single request, multiple response)
     // otherwise send as the usual single request, single response
     
-    // get vec length from mesh csr
-    // NOTE Can send reqs here with wrong vector length that may be squashed in the future
-    // particularly noteworthy when send a vector request and then devec, will still do remote
-    // stores into the trace core memories
-    // TODO not quite sure how to handle!
-    RegVal csrVal = m_s1_inst->readMiscReg(RiscvISA::MISCREG_FETCH);
-    if (MeshHelper::doVecLoad(csrVal) && spadPrefetch) { 
-      m_s1_inst->mem_req_p->xDim = MeshHelper::getXLen(RiscvISA::MISCREG_FETCH, csrVal);
-      m_s1_inst->mem_req_p->yDim = MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, csrVal);
+    
+    
+    if (spadPrefetch && master) { 
+      m_s1_inst->mem_req_p->xDim = m_cpu_p->getEarlyVector()->getXLen();
+      m_s1_inst->mem_req_p->yDim = m_cpu_p->getEarlyVector()->getYLen();
       DPRINTF(Mesh, "[%s] send vec load %#x, (%d,%d)\n", m_s1_inst->toString(true), 
           addr, m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
     }
-    /*else if (m_s1_inst->static_inst_p->isSpadPrefetch()) {
-      // if we won't do a vec load b/c this is a trace core then this should
-      // not fire
-      // TODO this just do a normal load if this is detached, but that would require
-      // some more complexity
-      
-      m_s1_inst->setExecuted();
-      return NoFault;
-      
-      // then need someway to push this out of mem unit
-    }*/
     else {
       m_s1_inst->mem_req_p->xDim = 1;
       m_s1_inst->mem_req_p->yDim = 1;

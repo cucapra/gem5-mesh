@@ -229,7 +229,7 @@ Scratchpad::wakeup()
         // data from a vector request on this scratchpads behalf
         // mimic as a remote store from the master core
         
-        DPRINTF(Mesh, "ruby pkt %s\n", *llc_msg_p);
+        //DPRINTF(Mesh, "ruby pkt %s\n", *llc_msg_p);
         
         // need to 'fake' a Packet from the LLC response and then go
         // through the regular remote store channels
