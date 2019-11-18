@@ -84,23 +84,29 @@ void kernel(
   
   REVEC(0);
   
-  // divergent because of prefetch case
+  // divergent and does seperate loads
+  if (tid == 1) {
+    VPREFETCH(spAddr, a + tid, 0);
+    LWSPEC(val, spAddr, 0);
+    c[tid] += val;
+  }
+  else {
+    VPREFETCH(spAddr, a + tid + dim, 0);
+    LWSPEC(val, spAddr, 0);
+    c[tid] += val;
+  }
   
   
-  /*REVEC(0);
+  REVEC(0);
   
-  // divergent prefetch, prefetch
-  // worry is that master prefetch may overwrite detached trace prefetch
-  // in which case detached trace needs some way to avoid??
+  // TODO divergent because of prefetch case
   
-  
-  REVEC(0);*/
   
   // convergent loop
   for (int i = tid; i < n; i+=dim) {
-    VPREFETCH(spAddr,     a + i,      0);
+    VPREFETCH(spAddr, a + i, 0);
     LWSPEC(val, spAddr, 0);
-    c[tid] += val;
+    d[tid] += val;
     
     REVEC(0);
   }

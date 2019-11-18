@@ -92,8 +92,9 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
 
   for (int i = 0; i < 4; i++) {
-    printf("%d %d\n", b[i], c[i]);
-    if ((c[i] != (4 + 4 * i + 6 * num_cores)) &&
+    printf("%d %d %d\n", b[i], c[i], d[i]);
+    if ((d[i] != (4 + 4 * i + 6 * num_cores)) &&
+        (c[i] == i == 1 ? i + 1 + num_cores : i + 1) &&
         (b[i] == i < 2 ? (i + 1) : -1)
     
     ) {
