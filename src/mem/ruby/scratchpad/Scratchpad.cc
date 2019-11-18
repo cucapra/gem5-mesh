@@ -200,15 +200,15 @@ Scratchpad::processRespToSpad() {
   assert(hasBufPkt || hasMemPkt);
   
   PacketPtr pkt_p;
-  if (hasBufPkt && (!hasMemPkt || m_proc_ruby_last)) {
-    pkt_p = m_prefetch_resp_queue.front();
-    m_prefetch_resp_queue.pop();
-    m_proc_ruby_last = false;
-  }
-  else {
+  if (hasMemPkt && (!hasBufPkt || !m_proc_ruby_last)) {
     pkt_p = m_ruby_resp_queue.front();
     m_ruby_resp_queue.pop();
     m_proc_ruby_last = true;
+  }
+  else {
+    pkt_p = m_prefetch_resp_queue.front();
+    m_prefetch_resp_queue.pop();
+    m_proc_ruby_last = false;
   }
   
   // if either buffer has a packet not used then schedule again for next cycle
@@ -232,10 +232,16 @@ Scratchpad::processRespToSpad() {
     case Packet::RespPktType::Prefetch_Patron_Resp: {
       bool memDiv = memoryDiverged(pkt_p->getEpoch(), pkt_p->getAddr()); //setPrefetchFresh(pkt_p);
       bool controlDiv = controlDiverged();
-  
       bool isSelfResp = pkt_p->spRespType == Packet::RespPktType::Prefetch_Self_Resp;
+      // throw away if diverged and its not for future epochs
+      bool throwAway = controlDiv && !isSelfResp && !isPrefetchAhead(pkt_p->getEpoch());
   
-      if (memDiv) {
+      if (throwAway) {
+        DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
+        // just drop the packet if there's divergence and this is from vector prefetch
+        delete pkt_p;
+      }
+      else if (memDiv) {
         
         // place packet into buffer to use later
         // assure that this is a very small buffer otherwise actually diverge
@@ -256,11 +262,6 @@ Scratchpad::processRespToSpad() {
           // TODO inform CPU of divergence
           // should be extremely rare
         }
-      }
-      else if (controlDiv && !isSelfResp) {
-        DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
-        // just drop the packet if there's divergence and this is from vector prefetch
-        delete pkt_p;
       }
       else {
         // profile, TODO should classify different than just remote load/store?
