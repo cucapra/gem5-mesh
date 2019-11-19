@@ -6,25 +6,49 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
+#define _USE_VLOAD 1
+
 // if don't have this attribute potentially will duplicate inline assembly due
 // to code layout reordering. this happens in -O2+ with -freorder-blocks-algorithm=stc
 // this is problematic with revec call which needs to sync pc between multiple traces on a revec
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-synthetic(int *a, int *b, int *c, int start, int end) {
-  for (int i = start; i < end; i++) {
+synthetic(int *a, int *b, int *c, int n, int tid, int dim) {
+  int *spAddr = getSpAddr(tid, 0);
+  
+  for (int i = tid; i < n; i+=dim) {
     
-    if (a[i] == 0) {
-      int b_ = b[i];
-      c[i] = b_ * b_ * b_ * b_;
+    int a_;
+    #ifdef _USE_VLOAD
+    VPREFETCH(spAddr, a + i, 0);
+    LWSPEC(a_, spAddr, 0);
+    #else
+    a_ = a[i];
+    #endif
+    
+    if (a_ == 0) {
+      int b_;
+      #ifdef _USE_VLOAD
+      VPREFETCH(spAddr + 1, b + i, 0);
+      LWSPEC(b_, spAddr + 1, 0);
+      #else
+      b_ = b[i];
+      #endif
+      c[i] = b_ * b_ * b_ * b_ * b_ + b_;
     }
     else {
-      int b_ = b[i];
-      c[i] = b_ * b_ * b_;
+      int b_;
+      #ifdef _USE_VLOAD
+      VPREFETCH(spAddr + 1, b + i + 1, 0);
+      LWSPEC(b_, spAddr + 1,  0);
+      #else
+      b_ = b[i + 1];
+      #endif
+      c[i] = b_ * b_ + b_ + a_;
     }
     
     
     // try to revec at the end of loop iteration
-    REVEC(0x0);
+    REVEC(0);
   }
 }
 
@@ -43,14 +67,14 @@ void kernel(
   int dim = dim_x * dim_y;
   
   // figure out which work this thread should do
-  int start = tid * (n / dim);  
+  /*int start = tid * (n / dim);  
 
   // get end with remainders
   int chunk = (int)(n / dim);
   if (tid_x == dim - 1) {
     chunk += n % dim;
   }
-  int end = start + chunk;
+  int end = start + chunk;*/
   
   //printf("iterations %d->%d\n", start, end);
   
@@ -85,9 +109,14 @@ void kernel(
     mask = FET_I_INST_LEFT | FET_O_INST_RIGHT_SEND;
   }
   
+  // specify the vlen
+  int vlenX = 2;
+  int vlenY = 2;
+  mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
+  
   VECTOR_EPOCH(mask);
   
-  synthetic(a, b, c, start, end);
+  synthetic(a, b, c, n, tid, dim);
   
   VECTOR_EPOCH(ALL_NORM);
   

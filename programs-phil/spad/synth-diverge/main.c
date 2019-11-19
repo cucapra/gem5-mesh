@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
  
   size_t sizeA = n;
-  size_t sizeB = n;
+  size_t sizeB = n + 1;
   size_t sizeC = n;
   int *a = (int*)malloc(sizeof(int) * sizeA);
   int *b = (int*)malloc(sizeof(int) * sizeB);
@@ -103,13 +103,13 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < sizeC; i++) {
     
     if (a[i] == 0) {
-      if (c[i] != 16) {
+      if (c[i] != 34) {
         printf("[[FAIL]]\n");
         return 1;
       }
     }
     else if (a[i] == 1) {
-      if (c[i] != 8) {
+      if (c[i] != 7) {
         printf("[[FAIL]]\n");
         return 1;
       }
