@@ -46,7 +46,9 @@ int main(int argc, char *argv[]) {
     srand(140129302);
   #endif
   
-  printf("Problem size is %d\n", n);
+  #ifdef RANDOM_DIST
+  printf("Problem size is %d and shared branch fraction is %f\n", n, fraction);
+  #endif
 
   /*--------------------------------------------------------------------
   * Data initialization

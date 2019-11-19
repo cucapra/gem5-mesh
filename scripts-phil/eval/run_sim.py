@@ -10,7 +10,7 @@
   Also need to be able to recompile the program when want to add more cores or disable/enable vector
 '''
 
-import os, subprocess, time, argparse, re
+import os, subprocess, time, argparse, re, random
 
 # cmd line arguments
 parser = argparse.ArgumentParser(description='Run gem5 simulation and output informative stats files')
@@ -24,11 +24,16 @@ progDir0 = '/home/pbb59/hammerblade/gem5/programs-phil/spad/'
 programs = {
 
   'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd-big/vvadd', 
-    'options' : lambda psize: str(psize), 
+    'options' : lambda argv: str(psize), 
     'success' : '\[\[SUCCESS\]\]'},
     
   'gemm'  : { 'name': 'gemm',  'path' : progDir0 + 'gemm/gemm', 
-    'options' : lambda psize: '{0} {0} {0}'.format(str(psize)),
+    'options' : lambda argv: '{0} {0} {0}'.format(str(argv[0])),
+    'success' : '\[\[SUCCESS\]\]'},
+    
+  'synth' : { 'name': 'synth', 'path' : progDir0 + 'synth-diverge/synth', 
+    'options' : lambda argv: '{0} {1} {2}'.format(str(argv[0]), str(argv[1]), str(argv[2])),
+    'serialize' : lambda argv: '-size{0}-frac{1}-run{2}'.format(str(argv[0]), str(argv[1]), str(argv[3])),
     'success' : '\[\[SUCCESS\]\]'}
 
 }
@@ -51,35 +56,33 @@ def compile_cmd(program_dir, cpus, use_sp, use_vec):
   cmd += 'ENV_N_SPS={} make -C {}'.format(cpus, program_dir)
   return cmd
 
-def run_prog(numCpus, use_vec, use_sps, prog_name):
-  
-  # check if the success flag was asserted using regex checking on the gem5 output
-  success_regex = re.compile(programs[prog_name]['success'])
-  
+
+# just compile with args needed for makefile (#cores, and whether vec enabled...etc)
+def compile_prog(numCpus, use_vec, use_sps, prog_name):
   cmplCmd = compile_cmd(os.path.dirname(programs[prog_name]['path']), numCpus, use_sps, use_vec)
   result = subprocess.check_output(cmplCmd, shell=True)
   print(result)
 
-  # run program with increasing problem sizes in factors of 2
-  minSize = 16
-  maxSize = 64 # 256
-  currSize = minSize
-  while currSize <= maxSize:
-    # run with currSize
-    optionsStr = programs[prog_name]['options'](currSize)
-    resultsAnno = '-vec' + str(int(use_vec)) + '-sp' + str(int(use_sps)) + '-size' + str(currSize)
-    resultsDir = programs[prog_name]['name'] + resultsAnno
-    cmd = gem5_cmd(programs[prog_name]['path'], optionsStr, resultsDir, numCpus, use_vec)
-    print(cmd)
-    result = subprocess.check_output(cmd, shell=True)
-    print(result)
+def run_prog(numCpus, use_vec, use_sps, prog_name, argv):
   
-    # double the size for future runs
-    currSize *= 2
+  # check if the success flag was asserted using regex checking on the gem5 output
+  success_regex = re.compile(programs[prog_name]['success'])
+
+  # run with currSize
+  optionsStr = programs[prog_name]['options'](argv)
   
-    # make sure that the run passed
-    success = success_regex.search(result)
-    assert(success)
+  # serialize arguments
+  serialArgs = programs[prog_name]['serialize'](argv)
+  resultsAnno = '-vec' + str(int(use_vec)) + '-sp' + str(int(use_sps)) + serialArgs
+  resultsDir = programs[prog_name]['name'] + resultsAnno
+  cmd = gem5_cmd(programs[prog_name]['path'], optionsStr, resultsDir, numCpus, use_vec)
+  print(cmd)
+  result = subprocess.check_output(cmd, shell=True)
+  print(result)
+
+  # make sure that the run passed
+  success = success_regex.search(result)
+  assert(success)
 
   
 # choose which programs to run with diff parameters
@@ -89,6 +92,18 @@ numCpus = 4
 use_vec = True
 use_sps = True
 
-# run a program from the list above
-run_prog(numCpus, use_vec, use_sps, 'gemm')
+size = 256
+# not sure gem5 se would produce diff ranodm seed each time so do here
+random.seed()
+seed = random.randint(1,2**20) 
+
+# run a program from the list above with different parameters
+compile_prog(numCpus, use_vec, use_sps, 'synth')
+
+#for frac in range(1, 0.5, -0.1):
+frac = 0.8
+# run multiple times b/c random
+run = 0 
+argv = [ size, frac, seed, run ]
+run_prog(numCpus, use_vec, use_sps, 'synth', argv)
 
