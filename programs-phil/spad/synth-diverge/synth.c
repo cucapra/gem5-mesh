@@ -79,40 +79,11 @@ void kernel(
   //printf("iterations %d->%d\n", start, end);
   
   #ifndef _VEC
-  synthetic(a, b, c, start, end);
+  synthetic(a, b, c, n, tid, dim);
   #else
   
-  int mask = ALL_NORM;
-  
-  // upper left corner is the master
-  if (tid_x == 0 && tid_y == 0) {
-    mask = FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
-  }
-  
-  // right edge does not send to anyone
-  else if (tid_x == dim_x - 1) {
-    mask = FET_I_INST_LEFT;
-  }
-  
-  // bottom left corner just sends to the right
-  else if (tid_x == 0 && tid_y == dim_y - 1) {
-    mask = FET_I_INST_UP | FET_O_INST_RIGHT_SEND;
-  }
-  
-  // the left edge (besides corners) sends down and to the right
-  else if (tid_x == 0) {
-    mask = FET_I_INST_UP | FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
-  }
-  
-  // otherwise we're just forwarding to the right in the middle area
-  else {
-    mask = FET_I_INST_LEFT | FET_O_INST_RIGHT_SEND;
-  }
-  
-  // specify the vlen
-  int vlenX = 2;
-  int vlenY = 2;
-  mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
+  // get a standard vector mask
+  int mask = getVecMask(tid_x, tid_y, dim_x, dim_y);
   
   VECTOR_EPOCH(mask);
   

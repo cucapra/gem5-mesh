@@ -193,5 +193,45 @@ static inline void stats_off()
 #endif
 }
 
+int getVecMask(int tid_x, int tid_y, int dim_x, int dim_y) {
+  int mask = ALL_NORM;
+  
+  #ifndef _VEC
+  return mask;
+  #else
+  
+  // upper left corner is the master
+  if (tid_x == 0 && tid_y == 0) {
+    mask = FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
+  }
+  
+  // right edge does not send to anyone
+  else if (tid_x == dim_x - 1) {
+    mask = FET_I_INST_LEFT;
+  }
+  
+  // bottom left corner just sends to the right
+  else if (tid_x == 0 && tid_y == dim_y - 1) {
+    mask = FET_I_INST_UP | FET_O_INST_RIGHT_SEND;
+  }
+  
+  // the left edge (besides corners) sends down and to the right
+  else if (tid_x == 0) {
+    mask = FET_I_INST_UP | FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
+  }
+  
+  // otherwise we're just forwarding to the right in the middle area
+  else {
+    mask = FET_I_INST_LEFT | FET_O_INST_RIGHT_SEND;
+  }
+  
+  // specify the vlen
+  int vlenX = dim_x;
+  int vlenY = dim_y;
+  mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
+
+  return mask;
+  #endif
+}
 
 #endif
