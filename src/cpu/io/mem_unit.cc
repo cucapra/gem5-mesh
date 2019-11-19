@@ -11,6 +11,7 @@
 #include "debug/LSQ.hh"
 
 #include "mem/page_table.hh"
+#include "mem/ruby/scratchpad/Scratchpad.hh"
 #include "debug/Mesh.hh"
 
 MemUnit::MemUnit(const char* _iew_name, const char* _name,
@@ -237,6 +238,7 @@ MemUnit::doMemIssue()
       // send request
       if (!m_cpu_p->getDataPort().sendTimingReq(pkt)) {
         DPRINTF(LSQ, "dcache is busy\n");
+        DPRINTF(Mesh, "failed to send [%s]\n", inst->toString(true));
         // delete the pkt and we'll retry later
         delete pkt->popSenderState();
         delete pkt;
@@ -255,10 +257,6 @@ MemUnit::doMemIssue()
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
         num_issued_insts++;
-        
-        // if this is a spad prefetch don't wait at all
-        //if (inst->static_inst_p->isSpadPrefetch())
-        //  processCacheCompletion(pkt);
         
 #ifdef DEBUG
         m_issued_insts.push_back(inst);
@@ -362,6 +360,7 @@ MemUnit::doSquash(IODynInstPtr squash_inst)
     m_s1_inst = nullptr;
   }
 
+  int inst_num = 0;
   // squash insts in m_ld_queue
   for (auto& inst : m_ld_queue) {
     assert(inst);
@@ -369,7 +368,15 @@ MemUnit::doSquash(IODynInstPtr squash_inst)
         inst->seq_num > squash_inst->seq_num) {
       DPRINTF(LSQ, "Squashing %s\n", inst->toString());
       inst->setSquashed();
+      
+      // TODO if this was a lwspec and at the head of the queue we need to clear
+      // the pending retry in the spad or else problems
+      if (inst_num == 0 && inst->static_inst_p->isSpadSpeculative())
+        clearPortRetry();
+      
+      
     }
+    inst_num++;
   }
 
   // squash insts in m_st_queue
@@ -688,52 +695,17 @@ MemUnit::checkLdStDependency(IODynInstPtr ld_inst)
   return false;
 }
 
-/*
-// can't issue prefetches or resets to spad until loads from last iteration
-// have finished
-bool
-MemUnit::canIssueSpadPrefetch(IODynInstPtr tryInst) {
-  if (!tryInst->static_inst_p->isSpadPrefetch()) return true;
-  
-  for (auto& inst : m_ld_queue) {
-    // check that they are to the same spad address and this instruction
-    // comes after the pending one
-    if (inst->mem_req_p->spadSpec &&
-        (tryInst->mem_req_p->prefetchAddr == inst->mem_req_p->getPaddr()) &&
-        (inst->seq_num < tryInst->seq_num)) {
-      DPRINTF(Mesh, "cant issue prefetch [%s] due to [%s]\n", tryInst->toString(true), inst->toString(true));
-      return false;
-    }
-    
-    if (inst->mem_req_p->spadSpec) {
-      if (inst->seq_num < tryInst->seq_num) {
-        DPRINTF(Mesh, "potential block [%s] %#x due to [%s] %#x\n", 
-          tryInst->toString(true), tryInst->mem_req_p->prefetchAddr, 
-          inst->toString(true), tryInst->mem_req_p->getPaddr());
-      }
-    }
+// if the head of either queue squashes and they had a spad retry set 
+// for them, then this retry if void... and can actually cause assert fails in
+// some cases
+// annoying have to define scratchpad here, removing modularity, but watevs
+void
+MemUnit::clearPortRetry() {
+  BaseSlavePort *slave_port = &(m_cpu_p->getDataPort().getSlavePort());
+  if (CpuPort *slaveSpadPort = dynamic_cast<CpuPort*>(slave_port)) {
+    return slaveSpadPort->clearRetry();
   }
-  
-  return true;
 }
-
-bool
-MemUnit::canIssueSpecLoad(IODynInstPtr tryInst) {
-  if (!tryInst->static_inst_p->isSpadSpeculative()) return true;
-  
-  for (auto& inst : m_st_queue) {
-    // check for reseters, TODO maybe should merge the queues into one
-    if (inst->mem_req_p->spadReset &&
-        (tryInst->mem_req_p->getPaddr() == inst->mem_req_p->prefetchAddr) &&
-        (inst->seq_num < tryInst->seq_num)) {
-      DPRINTF(Mesh, "cant issue prefetch [%s] due to [%s]\n", tryInst->toString(true), inst->toString(true));
-      return false;
-    }
-  }
-  
-  return true;
-}
-*/
 
 void
 MemUnit::linetrace(std::stringstream& ss)

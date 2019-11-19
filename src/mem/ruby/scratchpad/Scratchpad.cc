@@ -61,7 +61,15 @@ CpuPort::recvTimingReq(Packet *pkt)
     assert(!needRetry());
     return true;
   }
-
+  
+  // TODO better if just clearRetry on cpu squash. doesnt work, need to send somtimes
+  // an lwspec (spad specific load) only stalls due to bit not being set
+  // possible that no packet will come from llc to this spad will trigger a wakeup for it if squashed 
+  // (the typical way to clearRetry())
+  // thus we should not check the retry otherwise will have issues, so dont set here
+  //if (!pkt->getSpecSpad())
+  //  setRetry();
+  
   setRetry();
   return false;
 }

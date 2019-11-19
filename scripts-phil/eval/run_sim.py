@@ -92,10 +92,11 @@ numCpus = 4
 use_vec = True
 use_sps = True
 
-size = 256
+size = 16
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 seed = random.randint(1,2**20) 
+seed = 566925 # when detect a bug can look at causual seed
 
 # run a program from the list above with different parameters
 compile_prog(numCpus, use_vec, use_sps, 'synth')
