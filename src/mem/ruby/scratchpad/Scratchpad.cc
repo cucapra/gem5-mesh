@@ -647,32 +647,20 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       
       DPRINTF(Mesh, "reset word %#x\n", pkt_p->getPrefetchAddr());
       
-      // FIXME atomically activate any prefetch dependent on this
-      // B/C not doing queue based need to kill all form this epoch when detect divergence
-      // if had in the queue done in wakeup would be handled naturally
-      /*for (int i = 0; i < m_sp_prefetch_buffer.size(); i++) {
-        PacketPtr pendPkt = m_sp_prefetch_buffer[i];
-        if ((pendPkt->getEpoch() <= getCoreEpoch()) &&
-            (controlDiverged())) {
-          m_sp_prefetch_buffer.erase(m_sp_prefetch_buffer.begin() + i);
-          delete pendPkt;
-          i--;
-        }
-        else if ((pendPkt->getEpoch() == getCoreEpoch()) &&
-            (pendPkt->getAddr() == pkt_p->getPrefetchAddr())) {
-          accessDataArray(pendPkt);
-          setWordRdy(pendPkt->getAddr());
-          m_sp_prefetch_buffer.erase(m_sp_prefetch_buffer.begin() + i);
-          delete pendPkt;
-          i--;
-        }
-      }*/
+      // deliver a response packet to the core that this was completed
+      // but need to copy it because will be delete there
+      PacketPtr resp_pkt_p = new Packet(pkt_p, true, false);
+      resp_pkt_p->makeResponse();
+      m_cpu_resp_pkts.push_back(resp_pkt_p);
+      if (!m_cpu_resp_event.scheduled())
+        schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
       
       // stop here if this is not going to be a load b/c this is from a trace
       if (!pkt_p->isSpLoad()) {
         //delete pkt_p;
         return true;
       }
+      
     }
     
     // This packet will be delivered to LLC

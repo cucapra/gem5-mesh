@@ -257,8 +257,8 @@ MemUnit::doMemIssue()
         num_issued_insts++;
         
         // if this is a spad prefetch don't wait at all
-        if (inst->static_inst_p->isSpadPrefetch())
-          processCacheCompletion(pkt);
+        //if (inst->static_inst_p->isSpadPrefetch())
+        //  processCacheCompletion(pkt);
         
 #ifdef DEBUG
         m_issued_insts.push_back(inst);
