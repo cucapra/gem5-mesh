@@ -38,10 +38,13 @@ synthetic(int *a, int *b, int *c, int n, int tid, int dim) {
     else {
       int b_;
       #ifdef _USE_VLOAD
-      VPREFETCH(spAddr + 1, b + i + 1, 0);
+      // need memory alignment, so needs to be divisible by vlen now
+      // if no alignment would need to send two seperate packets to different
+      // cache banks
+      VPREFETCH(spAddr + 1, b + i + dim, 0);
       LWSPEC(b_, spAddr + 1,  0);
       #else
-      b_ = b[i + 1];
+      b_ = b[i + dim];
       #endif
       c[i] = b_ * b_ + b_ + a_;
     }

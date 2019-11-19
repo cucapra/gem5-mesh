@@ -7,7 +7,7 @@
 #include "pthread_launch.h"
 #include "synth.h"
 
-//#define RANDOM_DIST 1
+#define RANDOM_DIST 1
 
 int main(int argc, char *argv[]) {
   
@@ -34,6 +34,17 @@ int main(int argc, char *argv[]) {
   // parse positional arguments
   if (argc > 1)
     n = atoi(argv[1]);
+    
+  // info for rng if using
+  #ifdef RANDOM_DIST
+  float fraction = 0.8f;
+  if (argc > 2)
+    fraction = atof(argv[2]);
+  if (argc > 3)
+    srand(atoi(argv[3]));
+  else
+    srand(140129302);
+  #endif
   
   printf("Problem size is %d\n", n);
 
@@ -42,18 +53,13 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
  
   size_t sizeA = n;
-  size_t sizeB = n + 1;
+  size_t sizeB = n + num_cores;
   size_t sizeC = n;
   int *a = (int*)malloc(sizeof(int) * sizeA);
   int *b = (int*)malloc(sizeof(int) * sizeB);
   int *c = (int*)malloc(sizeof(int) * sizeC);
   
   // generate a synthetic distribution to branch based on
-  #ifdef RANDOM_DIST
-  float fraction = 0.8f;
-  srand(140129302);
-  #endif
-  
   for (int i = 0; i < sizeA; i++) {
     #ifdef RANDOM_DIST
     float num = (float)rand() / (float)RAND_MAX;
@@ -67,7 +73,9 @@ int main(int argc, char *argv[]) {
     else
       a[i] = 1;
     #endif
+    //printf("%d ", a[i]);
   }
+  //printf("\n");
   
   for (int i = 0; i < sizeB; i++)
     b[i] = 2;
