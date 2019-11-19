@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
     else val = 0;
     a[i] = val;
     #else
-    if (i == 0)
+    if (i == 0 || i == 9)
       a[i] = 0;
     else
       a[i] = 1;
