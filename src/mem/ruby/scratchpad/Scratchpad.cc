@@ -401,14 +401,14 @@ Scratchpad::wakeup()
         
         assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
       
-        // delete the pending packet
-        m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
-        m_mem_resp_buffer_p->dequeue(clockEdge());
-        
         if (llc_msg_p->m_Type == LLCResponseType_REDATA)
           enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Self_Resp);
         else
           enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Patron_Resp);
+      
+        // delete the pending packet
+        m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
+        m_mem_resp_buffer_p->dequeue(clockEdge());
 
     } else {
       // sanity check: make sure this is the response we're waiting for

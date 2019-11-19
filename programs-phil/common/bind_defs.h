@@ -40,9 +40,9 @@
 #define REVEC(hash)                                                           \
   asm volatile (".insn u 0x7b, x0, %[id]\n\t" :: [id] "i" (hash))
   
-  /*
+  
   // revec instruction with unique hash id
-#define REVEC(hash)                                                           \
+/*#define REVEC(hash)                                                           \
   asm volatile ("" ::: "memory");                                             \
   asm volatile (".insn u 0x7b, x0, %[id]\n\t" :: [id] "i" (hash) : "memory"); \
   asm volatile ("" ::: "memory");
