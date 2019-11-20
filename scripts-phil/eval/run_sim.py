@@ -12,6 +12,8 @@
 
 import os, subprocess, time, argparse, re, random
 
+from multiprocessing import Pool
+
 # cmd line arguments
 parser = argparse.ArgumentParser(description='Run gem5 simulation and output informative stats files')
 parser.add_argument('--build', default='/home/pbb59/hammerblade/gem5/build/RVSP/gem5.opt', help='Path to gem5 build')
@@ -88,26 +90,53 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv):
 # choose which programs to run with diff parameters
 
 # fixed parameters for the run, compile the binary for these
-numCpus = 4
+numCpus = 16
 use_vec = False
 use_sps = True
 
-size = 8196*8
+size = 8192
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
-seed = random.randint(1,2**20) 
-#seed = 566925 # when detect a bug can look at causual seed
-
-# run a program from the list above with different parameters
-compile_prog(numCpus, use_vec, use_sps, 'synth')
+#seed = random.randint(1,2**20) 
+seed = 566925 # when detect a bug can look at causual seed
 
 #for frac in range(1, 0.5, -0.1):
 frac = 0.8
 # run multiple times b/c random
-run = 0 
+run = 1
 
-for i in range(5):
+
+
+def pack_and_run(numCpus, use_vec, use_sps, prog, i):
   frac = 1.0 - float(i) / 10.0
   argv = [ size, frac, seed, run ]
   run_prog(numCpus, use_vec, use_sps, 'synth', argv)
+
+pool = Pool(processes=16)
+
+
+for use_vec in [True, False]:
+  # run a program from the list above with different parameters
+  compile_prog(numCpus, use_vec, use_sps, 'synth')
+  
+  jobs = []
+  
+  for i in range(5):
+    #frac = 1.0 - float(i) / 10.0
+    #argv = [ size, frac, seed, run ]
+    #run_prog(numCpus, use_vec, use_sps, 'synth', argv)
+    #pack_and_run(numCpus, use_vec, use_sps, 'synth', i)
+    # the new file will have the same name as the old file, but also specify the new dir
+    proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, 'synth', i,))
+    jobs.append(proc)
+
+  # Wait for jobs to complete before exiting
+  while(not all([p.ready() for p in jobs])):
+    time.sleep(5)
+
+# Safely terminate the pool
+pool.close()
+pool.join()
+
+
 

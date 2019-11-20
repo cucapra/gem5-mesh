@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
   
   int cores_x, cores_y;
   int num_cores = get_dimensions(&cores_x, &cores_y);
-
+printf("%d %d %d\n", cores_x, cores_y, num_cores);
   /*--------------------------------------------------------------------
   * Put the command line arguments into variables
   *-------------------------------------------------------------------*/
@@ -58,10 +58,20 @@ int main(int argc, char *argv[]) {
   size_t sizeB = n;
   size_t sizeC = n;
   size_t sizeD = n;
-  int *a = (int*)malloc(sizeof(int) * sizeA);
-  int *b = (int*)malloc(sizeof(int) * sizeB);
-  int *c = (int*)malloc(sizeof(int) * sizeC);
-  int *d = (int*)malloc(sizeof(int) * sizeD);
+  int *a = (int*)malloc(sizeof(int) * (sizeA + 64));
+  int *b = (int*)malloc(sizeof(int) * (sizeB + 64));
+  int *c = (int*)malloc(sizeof(int) * (sizeC + 64));
+  int *d = (int*)malloc(sizeof(int) * (sizeD + 64));
+  
+  int *_a = a;
+  int *_b = b;
+  int *_c = c;
+  int *_d = d;
+  
+  a = (int*)((unsigned long long)(a + 64) & ~((1ULL << 6) - 1));
+  b = (int*)((unsigned long long)(b + 64) & ~((1ULL << 6) - 1));
+  c = (int*)((unsigned long long)(c + 64) & ~((1ULL << 6) - 1));
+  d = (int*)((unsigned long long)(d + 64) & ~((1ULL << 6) - 1));
   
   // generate a synthetic distribution to branch based on
   for (int i = 0; i < sizeA; i++) {
@@ -102,6 +112,24 @@ int main(int argc, char *argv[]) {
       kern_args[i] = construct_args(a, b, c, d, n, x, y, cores_x, cores_y);
     }  
   }
+  
+  /*for (int y = 0; y < cores_y; y++) {
+    for (int x = 0; x < cores_x; x++){
+      int i = x + y * cores_x;
+      printf("kern_args[%d] = [", i);
+      printf("%p, ", kern_args[i]->a);
+      printf("%p, ", kern_args[i]->b);
+      printf("%p, ", kern_args[i]->c);
+      printf("%p, ", kern_args[i]->d);
+      printf("%d, ", kern_args[i]->n);
+      printf("%d, ", kern_args[i]->tid_x);
+      printf("%d, ", kern_args[i]->tid_y);
+      printf("%d, ", kern_args[i]->dim_x);
+      printf("%d"  , kern_args[i]->dim_y);
+      printf("]\n");
+    }  
+  }*/
+
 
   /*--------------------------------------------------------------------
   * Run the kernel
@@ -117,13 +145,13 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < sizeC; i++) {
     
     if (a[i] == 0) {
-      if (c[i] != 34) {
+      if (c[i] != pow(2, 3)) {
         printf("[[FAIL]]\n");
         return 1;
       }
     }
     else if (a[i] == 1) {
-      if (c[i] != 13) {
+      if (c[i] != pow(3, 3)) {
         printf("[[FAIL]]\n");
         return 1;
       }
@@ -134,10 +162,10 @@ int main(int argc, char *argv[]) {
     }
   }
   
-  free(a);
-  free(b);
-  free(c);
-  free(d);
+  free(_a);
+  free(_b);
+  free(_c);
+  free(_d);
   
   printf("[[SUCCESS]]\n");
   

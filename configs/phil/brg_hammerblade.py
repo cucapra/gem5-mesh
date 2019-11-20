@@ -391,7 +391,7 @@ CPUClass = IOCPU (
 system = System(cpu = [ CPUClass(cpu_id = i) for i in xrange(n_cpus) ],
                         mem_mode = CPUClass.memory_mode(),
                         mem_ranges = [ AddrRange(options.mem_size) ],
-                        cache_line_size = 32) #options.cacheline_size)
+                        cache_line_size = 64) #options.cacheline_size)
 
 # Create a top-level voltage domain
 system.voltage_domain = VoltageDomain(voltage = options.sys_voltage)
@@ -514,8 +514,9 @@ for i in xrange(n_l2s):
   l2_cache = RubyCache(size = l2_size, assoc = 4)
   l2_cntrl = L2Cache_Controller(version = i,
                                 cacheMemory = l2_cache,
-                                transitions_per_cycle = options.ports,
-                                ruby_system = system.ruby)
+                                transitions_per_cycle = 4,
+                                ruby_system = system.ruby,
+                                number_of_TBEs = 1)
 
   l2_cntrl.requestToLLC           = MessageBuffer(ordered = True)
   l2_cntrl.requestToLLC.slave     = network.master
@@ -526,6 +527,7 @@ for i in xrange(n_l2s):
   l2_cntrl.responseFromMemory     = MessageBuffer(ordered = True)
 
   l2_cntrls.append(l2_cntrl)
+
 
 system.l2_cntrls = l2_cntrls
 

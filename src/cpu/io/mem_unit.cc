@@ -238,8 +238,8 @@ MemUnit::doMemIssue()
       // send request
       if (!m_cpu_p->getDataPort().sendTimingReq(pkt)) {
         DPRINTF(LSQ, "dcache is busy\n");
-        if (inst->static_inst_p->isSpadSpeculative() || inst->static_inst_p->isSpadPrefetch()) 
-          DPRINTF(Mesh, "failed to send [%s]\n", inst->toString(true));
+        //if (inst->static_inst_p->isSpadSpeculative() || inst->static_inst_p->isSpadPrefetch()) 
+        //  DPRINTF(Mesh, "failed to send [%s]\n", inst->toString(true));
         // delete the pkt and we'll retry later
         delete pkt->popSenderState();
         delete pkt;
@@ -250,11 +250,11 @@ MemUnit::doMemIssue()
         return;
       } else {
         DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
-        if (inst->static_inst_p->isSpadSpeculative()) 
+        /*if (inst->static_inst_p->isSpadSpeculative()) 
           DPRINTF(Mesh, "Sent request to memory for inst [%s] %#x\n", inst->toString(true), inst->mem_req_p->getPaddr());
         else if (inst->static_inst_p->isSpadPrefetch())
           DPRINTF(Mesh, "Sent preload request to memory for inst [%s] %#x, live %d\n", inst->toString(true), inst->mem_req_p->prefetchAddr, inst->mem_req_p->isSpLoad);
-
+*/
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
         num_issued_insts++;

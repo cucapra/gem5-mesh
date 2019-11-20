@@ -108,6 +108,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     void allocate(Addr);
     void deallocate(Addr);
     bool isPresent(Addr);
+    bool areNSlotsAvailable(int, Tick);
   }
 
   //---------------------------------------------------------------------------
@@ -250,59 +251,65 @@ machine(MachineType:L2Cache, "SP LLC cache")
         Entry cache_entry := getCacheEntry(LineAddress);
         
         DPRINTF(RubySlicc, "%s arrived\n", in_msg);
-
-        if (is_invalid(cache_entry) &&
-            cacheMemory.cacheAvail(LineAddress) == false) {
-          // No available cache line for this address -> trigger cache
-          // replacement
-          Addr victim := cacheMemory.cacheProbe(LineAddress);
-          trigger(Event:Repl, victim, getCacheEntry(victim), TBEs.lookup(victim));
-        } else {
-          // There's an available slot
-          TBE tbe := TBEs[LineAddress];
-
-          // check if vector or not (TODO should prob check RequestType rather than vlen)
-          // TODO on vector, taking multiple 'transitions' to send
-          // potentially blocking other things like mem req from happening for
-          // a few cycles. Not really sure how faithfully any of this is modeled
-          // just going to do the easiest to implement thing, which may end up
-          // being worse than the baseline because blocking mem reqs more due to
-          // multiple reqs.... 
-          // See transitions_per_cycle in Controller.py
-          if (in_msg.Type == LLCRequestType:SPLOAD) {
-            if (isVector(in_msg.XDim, in_msg.YDim)) {
-              DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromMem, getState(tbe, cache_entry, LineAddress));
-              if (!_vecFromMem) {
-                if (_xCnt == 0 && _yCnt == 0) { // TODO need to support non-vec sp load, need special req type
-                  trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
-                }
-                else if (_xCnt != in_msg.XDim - 1 || _yCnt != in_msg.YDim - 1) {
-                  trigger(Event:VREAD1, LineAddress, cache_entry, tbe);
-                }
-                else {
-                  trigger(Event:VREAD2, LineAddress, cache_entry, tbe);
-                }
-              } else {
-                DPRINTF(Mesh, "[[WARNING]] stalling req pkt %#x\n", in_msg.WordAddress);
-                // stall bro
-                trigger(Event:STALL, LineAddress, cache_entry, tbe);
-              }
-            } else { // single remote store
-              trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
-            }
-          } else if (in_msg.Type == LLCRequestType:READ) {
-            trigger(Event:READ, LineAddress, cache_entry, tbe);
-          } else if (in_msg.Type == LLCRequestType:WRITE) {
-            trigger(Event:WRITE, LineAddress, cache_entry, tbe);
-          } else if (in_msg.Type == LLCRequestType:LL) {
-            trigger(Event:LL, LineAddress, cache_entry, tbe);
-          } else if (in_msg.Type == LLCRequestType:SC) {
-            trigger(Event:SC, LineAddress, cache_entry, tbe);
-          } else if (in_msg.Type == LLCRequestType:ATOMIC) {
-            trigger(Event:ATOMIC, LineAddress, cache_entry, tbe);
+        //DPRINTF(Mesh, "slots available %d\n", TBEs.areNSlotsAvailable(1, clockEdge()));
+        if (TBEs.areNSlotsAvailable(1, clockEdge())) {
+          if (is_invalid(cache_entry) &&
+              cacheMemory.cacheAvail(LineAddress) == false) {
+            // No available cache line for this address -> trigger cache
+            // replacement
+            Addr victim := cacheMemory.cacheProbe(LineAddress);
+            trigger(Event:Repl, victim, getCacheEntry(victim), TBEs.lookup(victim));
           } else {
-            error("Invalid message");
+            
+            // There's an available slot
+            TBE tbe := TBEs[LineAddress];
+          
+            // check if vector or not (TODO should prob check RequestType rather than vlen)
+            // TODO on vector, taking multiple 'transitions' to send
+            // potentially blocking other things like mem req from happening for
+            // a few cycles. Not really sure how faithfully any of this is modeled
+            // just going to do the easiest to implement thing, which may end up
+            // being worse than the baseline because blocking mem reqs more due to
+            // multiple reqs.... 
+            // See transitions_per_cycle in Controller.py
+            if (in_msg.Type == LLCRequestType:SPLOAD) {
+              if (isVector(in_msg.XDim, in_msg.YDim)) {
+                DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromMem, getState(tbe, cache_entry, LineAddress));
+                if (!_vecFromMem) {
+                  if (_xCnt == 0 && _yCnt == 0) { // TODO need to support non-vec sp load, need special req type
+                    trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
+                  }
+                  else if (_xCnt != in_msg.XDim - 1 || _yCnt != in_msg.YDim - 1) {
+                    trigger(Event:VREAD1, LineAddress, cache_entry, tbe);
+                  }
+                  else {
+                    trigger(Event:VREAD2, LineAddress, cache_entry, tbe);
+                  }
+                } else {
+                  DPRINTF(Mesh, "[[WARNING]] stalling req pkt %#x\n", in_msg.WordAddress);
+                  // stall bro
+                  trigger(Event:STALL, LineAddress, cache_entry, tbe);
+                }
+              } else { // single remote store
+                trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
+              }
+            } else if (in_msg.Type == LLCRequestType:READ) {
+              trigger(Event:READ, LineAddress, cache_entry, tbe);
+            } else if (in_msg.Type == LLCRequestType:WRITE) {
+              trigger(Event:WRITE, LineAddress, cache_entry, tbe);
+            } else if (in_msg.Type == LLCRequestType:LL) {
+              trigger(Event:LL, LineAddress, cache_entry, tbe);
+            } else if (in_msg.Type == LLCRequestType:SC) {
+              trigger(Event:SC, LineAddress, cache_entry, tbe);
+            } else if (in_msg.Type == LLCRequestType:ATOMIC) {
+              trigger(Event:ATOMIC, LineAddress, cache_entry, tbe);
+            } else {
+              error("Invalid message");
+            }
           }
+        } else {
+          TBE tbe := TBEs[LineAddress];
+          trigger(Event:STALL, LineAddress, cache_entry, tbe);
         }
       }
     }

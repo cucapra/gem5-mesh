@@ -33,7 +33,11 @@ synthetic(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
       #else
       b_ = b[i];
       #endif
-      c[i] = b_ * b_ * b_ * b_ * b_ + b_;
+      int c_ = b_;
+      for (int j = 0; j < 2; j++) {
+        c_ *= b_;
+      }
+      c[i] = c_;
     }
     else {
       int b_;
@@ -44,9 +48,13 @@ synthetic(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
       VPREFETCH(spAddr + 1, d + i, 0);
       LWSPEC(b_, spAddr + 1,  0);
       #else
-      b_ = d[i + dim];
+      b_ = d[i];
       #endif
-      c[i] = b_ * b_ + b_ + a_;
+      int c_ = b_;
+      for (int j = 0; j < 2; j++) {
+        c_ *= b_;
+      }
+      c[i] = c_;
     }
     
     
@@ -68,6 +76,8 @@ void kernel(
   // linearize tid and dim
   int tid = tid_x + tid_y * dim_x;
   int dim = dim_x * dim_y;
+  
+  
   
   // figure out which work this thread should do
   /*int start = tid * (n / dim);  
