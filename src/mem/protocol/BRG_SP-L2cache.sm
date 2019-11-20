@@ -856,6 +856,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   transition(IV, VData0) {
+    wdc_writeDataToCache
     rsm_remoteStoreFromMem;
     ivt_incVectorCountTBE;
     //pam_prefetchAckMiss;
@@ -867,7 +868,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   transition(IV, VData2, V) {
-    wdc_writeDataToCache;
+    //wdc_writeDataToCache;
     smu_setMRU;
     rsm_remoteStoreFromMem;
     rvm_resetVectorFromMem;
