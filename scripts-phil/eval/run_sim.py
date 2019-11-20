@@ -89,10 +89,10 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv):
 
 # fixed parameters for the run, compile the binary for these
 numCpus = 4
-use_vec = True
+use_vec = False
 use_sps = True
 
-size = 4096
+size = 8196*8
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 seed = random.randint(1,2**20) 
@@ -105,6 +105,9 @@ compile_prog(numCpus, use_vec, use_sps, 'synth')
 frac = 0.8
 # run multiple times b/c random
 run = 0 
-argv = [ size, frac, seed, run ]
-run_prog(numCpus, use_vec, use_sps, 'synth', argv)
+
+for i in range(5):
+  frac = 1.0 - float(i) / 10.0
+  argv = [ size, frac, seed, run ]
+  run_prog(numCpus, use_vec, use_sps, 'synth', argv)
 

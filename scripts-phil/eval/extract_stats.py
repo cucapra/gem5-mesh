@@ -18,11 +18,15 @@ args = parser.parse_args()
 
 dirPaths = []
 
+prog = 'synth'
+
 # created by top/eval/run_sim.py
-nameConv = 'gemm([-a-zA-Z0-9]+)'
-annoConv = '-([a-zA-Z]+)([0-9]+)'
+nameConv = r'^' + prog + r'(.*)$'
+annoConv = r'-([a-zA-Z]+)(\d+\.?\d*)'
 dirRegex = re.compile(nameConv)
 annoRegex = re.compile(annoConv)
+
+
 
 #
 # Get avg of each of these stats
@@ -46,7 +50,7 @@ stats = OrderedDict([
 # Function defs
 
 # parse results directory name
-def parse_dir_name(dirName):
+def parse_dir_name(prog, dirName):
   # parse the name of the file
   nameMatch = dirRegex.search(dirName)
   if (nameMatch):
@@ -56,11 +60,11 @@ def parse_dir_name(dirName):
     
   # parse annotation
   annos = {}
-  annos['prog'] = 'gemm'
+  annos['prog'] = prog
   
   for match in annoRegex.finditer(annotation):
     field = match.group(1)
-    value = int(match.group(2))
+    value = match.group(2)
     
     annos[field] = value
     
@@ -136,7 +140,7 @@ for root, dirs, files in os.walk(args.sims):
 
 parameters = []
 for dirPath in dirPaths:
-  annos = parse_dir_name(os.path.basename(dirPath))
+  annos = parse_dir_name(prog, os.path.basename(dirPath))
   for k, v in annos.items():
     exists = False
     for param in parameters:
@@ -155,7 +159,7 @@ for dirPath in dirPaths:
   # parse dir and stats
   
   # get size of file, TODO should try to do on first check and insert into a dict
-  annos = parse_dir_name(os.path.basename(dirPath))
+  annos = parse_dir_name(prog, os.path.basename(dirPath))
   
   # get path to stats
   statsFile = os.path.join(dirPath, 'stats.txt')
@@ -177,6 +181,8 @@ for dirPath in dirPaths:
   # 
   # serialize parameters and data into string row by row
   
+  dataCSV += '\n'
+  
   # parameters (might not have been annotated with parameter)
   for param in parameters:
     if (param in annos):
@@ -187,7 +193,7 @@ for dirPath in dirPaths:
   for k, v in stats.items():
     dataCSV += '{0}, '.format(str(v['avg']))
     
-  dataCSV += '\n'
+  #dataCSV += '\n'
   
 #
 # write output to a csv
@@ -199,7 +205,7 @@ with open(args.outfile, 'w+') as fout:
   for k, v in stats.items():
     fout.write('{0}, '.format(v['name']))
       
-  fout.write('\n')
+  #fout.write('\n')
   
   # add all of the data
   fout.write(dataCSV)
