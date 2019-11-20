@@ -250,6 +250,7 @@ Scratchpad::processRespToSpad() {
         DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
         // just drop the packet if there's divergence and this is from vector prefetch
         delete pkt_p;
+        pkt_p = nullptr;
       }
       else if (memDiv) {
         
@@ -291,6 +292,7 @@ Scratchpad::processRespToSpad() {
         // set the word as ready for future packets
         setWordRdy(pkt_p->getAddr());
         delete pkt_p;
+        pkt_p = nullptr;
       }
       break;
     }
@@ -438,6 +440,7 @@ Scratchpad::wakeup()
         int offset = pending_mem_pkt_p->getAddr() - llc_msg_p->m_LineAddress;
         int len = pending_mem_pkt_p->getSize();
         const uint8_t* data_p = (llc_msg_p->m_DataBlk).getData(offset, len);
+        //DPRINTF(Mesh, "%d %d %#x %#x\n", offset, len, pending_mem_pkt_p->getAddr(), llc_msg_p->m_LineAddress);
         pending_mem_pkt_p->setData(data_p);
       } else if (llc_msg_p->m_Type == LLCResponseType_ACK) {
         if (pending_mem_pkt_p->isLLSC()) {
@@ -893,6 +896,7 @@ Scratchpad::sendCPUResponse()
 {
   assert(!m_cpu_resp_pkts.empty());
   assert(!m_cpu_resp_event.scheduled());
+  assert(m_cpu_resp_pkts.front() != nullptr);
 
   DPRINTF(Scratchpad, "Sending %s to CPU\n", m_cpu_resp_pkts.front()->print());
 
@@ -1017,7 +1021,7 @@ Scratchpad::getCoreEpoch() {
 bool
 Scratchpad::controlDiverged() {
   Vector *vec = m_cpu_p->getEarlyVector();
-  return vec->isCurDiverged();
+  return vec && vec->isCurDiverged();
 }
 
 bool

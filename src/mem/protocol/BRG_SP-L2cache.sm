@@ -62,6 +62,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     SC,     desc = "A SC request arrives";
     ATOMIC, desc = "An ATOMIC request arrives";
     Repl,   desc = "Replacement";
+    STALL,  desc = "Just stall for the cycle";
 
     // from memory
     Memory_Data,  desc = "Fetched data from memory arrives";
@@ -282,7 +283,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
                   trigger(Event:VREAD2, LineAddress, cache_entry, tbe);
                 }
               } else {
+                DPRINTF(Mesh, "[[WARNING]] stalling req pkt %#x\n", in_msg.WordAddress);
                 // stall bro
+                trigger(Event:STALL, LineAddress, cache_entry, tbe);
               }
             } else { // single remote store
               trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
@@ -331,6 +334,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
             }
             else {
               // stall bro
+              trigger(Event:STALL, in_msg.addr, cache_entry, tbe);
             }
           } else {
             // single spread
@@ -512,6 +516,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
         respType := LLCResponseType:REDATA;
       }
       
+      DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x prefetch %#x offset %d epoch %d\n", 
+        spadIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.Epoch);
+      
       enqueue(responseNetwork_out, LLCResponseMsg, 1) {
         assert(is_valid(tbe));
         out_msg.Type        := respType;
@@ -527,7 +534,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   // acknoweldge a prefetch was send (was a hit
-  action(pah_prefetchAckHit, "pah", desc = "Send prefetch ack on hit") {
+  /*action(pah_prefetchAckHit, "pah", desc = "Send prefetch ack on hit") {
     peek(requestNetwork_in, LLCRequestMsg) {
       enqueue(responseNetwork_out, LLCResponseMsg, 1) {
         out_msg.Type        := LLCResponseType:ACK;
@@ -548,7 +555,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       out_msg.MessageSize := MessageSizeType:Response_Control;
       out_msg.SeqNum      := tbe.SeqNum;
     }
-  }
+  }*/
 
   action(wdc_writeDataToCache, "wdc", desc = "Write data from mem to cache") {
     peek(memQueue_in, MemoryMsg) {
@@ -771,7 +778,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   // READ requests
 
-  transition(I, { READ, SPLOAD, VREAD0}, IV) {
+  transition(I, { READ, SPLOAD, VREAD0 }, IV) {
     atb_allocateTBE;
     art_addRequestorToTBE;
     avt_addVecInfoToTBE;
@@ -813,7 +820,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     pht_profileHitAccess;
   }
   
-  transition(IV, SP_Mem_Data) {
+  transition(IV, SP_Mem_Data, V) {
     //pam_prefetchAckMiss; // TODO overhaul this one to remove
     wdc_writeDataToCache;
     smu_setMRU;
@@ -849,7 +856,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   transition(IV, VData0) {
-    sdm_sendDataFromMem;
+    rsm_remoteStoreFromMem;
     ivt_incVectorCountTBE;
     //pam_prefetchAckMiss;
   }
@@ -859,7 +866,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     ivt_incVectorCountTBE;
   }
   
-  transition(IV, VData2) {
+  transition(IV, VData2, V) {
     wdc_writeDataToCache;
     smu_setMRU;
     rsm_remoteStoreFromMem;
@@ -1056,5 +1063,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   transition({IV, MI, IM, IV_LL, IA}, Repl) {
     z_stallAndWait;
+  }
+  
+  transition({V, I, M, IV, MI, IM, IV_LL, IA}, STALL) {
+    z_stall;
   }
 }

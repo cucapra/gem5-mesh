@@ -573,9 +573,10 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     }
     
     // only an sp load if not a slave
-    bool diverged = m_cpu_p->getEarlyVector()->isCurDiverged();
-    bool master   = m_cpu_p->getEarlyVector()->isRootMaster();
-    bool solo     = !m_cpu_p->getEarlyVector()->getConfigured();
+    Vector* vec = m_cpu_p->getEarlyVector();
+    bool diverged = vec && vec->isCurDiverged();
+    bool master   = vec && vec->isRootMaster();
+    bool solo     = !(vec && vec->getConfigured());
     m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || master || solo );
     
     
