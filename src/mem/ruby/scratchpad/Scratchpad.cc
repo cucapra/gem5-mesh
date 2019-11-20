@@ -57,7 +57,7 @@ CpuPort::recvTimingReq(Packet *pkt)
 {
   assert(pkt);
 
-  if (m_scratchpad_p->handleCpuReq(pkt)) {
+  /*if (m_scratchpad_p->handleCpuReq(pkt)) {
     assert(!needRetry());
     return true;
   }
@@ -71,7 +71,9 @@ CpuPort::recvTimingReq(Packet *pkt)
   //  setRetry();
   
   setRetry();
-  return false;
+  return false;*/
+  
+  return m_scratchpad_p->handleCpuReq(pkt);
 }
 
 void
@@ -257,7 +259,10 @@ Scratchpad::processRespToSpad() {
         //m_sp_prefetch_buffer.push_back(pkt_p);
         enqueueStallRespToSp(pkt_p);
         
-        DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending\n", m_prefetch_resp_queue.size());
+        DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending epoch %d addr %#x\n", 
+          m_prefetch_resp_queue.size(), m_prefetch_resp_queue.front()->getEpoch(), 
+          m_prefetch_resp_queue.front()->getAddr()
+          );
         
         // TODO I don't think it's possible for this to be active? even when there is
         // tons or unhandled reqs?

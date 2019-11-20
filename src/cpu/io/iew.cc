@@ -195,8 +195,10 @@ IEW::doWriteback()
         // whether the branch was locally taken to compare to the trace
         // TODO for some reason can get cases where mispredict is wrong due to target not taken flag
         bool local_taken = false;
-        if (inst->isControl())
+        if (inst->isControl()) {
           local_taken = inst->pc.npc() == inst->branchTarget().pc();
+        }
+        
         //if (inst->predicted_taken && inst->branchTarget() != temp_pc) local_taken = false;
         //else if (!inst->predicted_taken && (inst->pc.npc() != temp_pc.pc())) local_taken = true;
         
@@ -221,6 +223,9 @@ IEW::doWriteback()
             // initiate a squash signal
             initiateSquash(inst);
         }
+        
+        inst->setCondResolved();
+        
         
         if (!inst->from_trace) {
           // update some fields in case send to slave
@@ -362,6 +367,13 @@ IEW::doIssue()
     if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getRevecInstCount() > 0) {
       DPRINTF(IEW, "[sn:%d] Can't issue prelw due to pending younger "
                    "revec instructions\n", inst->seq_num);
+                   
+      return;
+    }
+    
+    if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getUnresolvedCondInstCount() > 0) {
+      DPRINTF(IEW, "[sn:%d] Can't issue prelw due to pending younger "
+                   "unresolved cond ctrl instructions\n", inst->seq_num);
                    
       return;
     }

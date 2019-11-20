@@ -55,11 +55,13 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
  
   size_t sizeA = n;
-  size_t sizeB = n + num_cores;
+  size_t sizeB = n;
   size_t sizeC = n;
+  size_t sizeD = n;
   int *a = (int*)malloc(sizeof(int) * sizeA);
   int *b = (int*)malloc(sizeof(int) * sizeB);
   int *c = (int*)malloc(sizeof(int) * sizeC);
+  int *d = (int*)malloc(sizeof(int) * sizeD);
   
   // generate a synthetic distribution to branch based on
   for (int i = 0; i < sizeA; i++) {
@@ -83,6 +85,8 @@ int main(int argc, char *argv[]) {
     b[i] = 2;
   for (int i = 0; i < sizeC; i++)
     c[i] = 0;
+  for (int i = 0; i < sizeD; i++)
+    d[i] = 3;
   
   /*--------------------------------------------------------------------
   * Pack argument for kernel
@@ -95,7 +99,7 @@ int main(int argc, char *argv[]) {
     for (int x = 0; x < cores_x; x++){
       int i = x + y * cores_x;
       
-      kern_args[i] = construct_args(a, b, c, n, x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(a, b, c, d, n, x, y, cores_x, cores_y);
     }  
   }
 
@@ -119,7 +123,7 @@ int main(int argc, char *argv[]) {
       }
     }
     else if (a[i] == 1) {
-      if (c[i] != 7) {
+      if (c[i] != 13) {
         printf("[[FAIL]]\n");
         return 1;
       }
@@ -133,6 +137,7 @@ int main(int argc, char *argv[]) {
   free(a);
   free(b);
   free(c);
+  free(d);
   
   printf("[[SUCCESS]]\n");
   

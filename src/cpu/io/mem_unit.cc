@@ -238,7 +238,8 @@ MemUnit::doMemIssue()
       // send request
       if (!m_cpu_p->getDataPort().sendTimingReq(pkt)) {
         DPRINTF(LSQ, "dcache is busy\n");
-        DPRINTF(Mesh, "failed to send [%s]\n", inst->toString(true));
+        if (inst->static_inst_p->isSpadSpeculative() || inst->static_inst_p->isSpadPrefetch()) 
+          DPRINTF(Mesh, "failed to send [%s]\n", inst->toString(true));
         // delete the pkt and we'll retry later
         delete pkt->popSenderState();
         delete pkt;
@@ -701,10 +702,10 @@ MemUnit::checkLdStDependency(IODynInstPtr ld_inst)
 // annoying have to define scratchpad here, removing modularity, but watevs
 void
 MemUnit::clearPortRetry() {
-  BaseSlavePort *slave_port = &(m_cpu_p->getDataPort().getSlavePort());
+  /*BaseSlavePort *slave_port = &(m_cpu_p->getDataPort().getSlavePort());
   if (CpuPort *slaveSpadPort = dynamic_cast<CpuPort*>(slave_port)) {
     return slaveSpadPort->clearRetry();
-  }
+  }*/
 }
 
 void

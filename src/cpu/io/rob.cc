@@ -94,3 +94,10 @@ ROB::getRevecInstCount() const
                     [](const IODynInstPtr& inst) { return inst->static_inst_p->isRevec(); });
 }
 
+size_t
+ROB::getUnresolvedCondInstCount() const
+{
+  return std::count_if(m_inst_list.begin(), m_inst_list.end(),
+                    [](const IODynInstPtr& inst) { return inst->isCondResolved(); });
+}
+

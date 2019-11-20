@@ -50,6 +50,9 @@ class ROB
     /** Return the number of revec instructions in ROB */
     size_t getRevecInstCount() const;
     
+    /** Return the number of unresolved cond ctrl instructions in ROB */
+    size_t getUnresolvedCondInstCount() const;
+    
 
   private:
     /** ROB size */

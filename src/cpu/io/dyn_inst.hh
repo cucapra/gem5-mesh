@@ -164,6 +164,10 @@ class IODynInst : public ExecContext
 
     /** Returns whether the instruction is mispredicted */
     bool isMispredicted();
+    
+    /** Whether branch resolved */
+    bool isCondResolved() const { return cond_resolved || !isControl(); }
+    void setCondResolved() { cond_resolved = true; }
 
     /**
      * Renamed regs
@@ -532,6 +536,8 @@ public:
     // I feel like you probably can get away with the diff here
     // and then send a diff to the spad so it can update
     //int epoch;
+    
+    bool cond_resolved;
     
     // check whether trace sent by master core is valid
     bool checkTrace(bool local_taken, TheISA::PCState local_targ);

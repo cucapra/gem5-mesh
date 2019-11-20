@@ -12,7 +12,7 @@
 // to code layout reordering. this happens in -O2+ with -freorder-blocks-algorithm=stc
 // this is problematic with revec call which needs to sync pc between multiple traces on a revec
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-synthetic(int *a, int *b, int *c, int n, int tid, int dim) {
+synthetic(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
   int *spAddr = getSpAddr(tid, 0);
   
   for (int i = tid; i < n; i+=dim) {
@@ -41,10 +41,10 @@ synthetic(int *a, int *b, int *c, int n, int tid, int dim) {
       // need memory alignment, so needs to be divisible by vlen now
       // if no alignment would need to send two seperate packets to different
       // cache banks
-      VPREFETCH(spAddr + 1, b + i + dim, 0);
+      VPREFETCH(spAddr + 1, d + i, 0);
       LWSPEC(b_, spAddr + 1,  0);
       #else
-      b_ = b[i + dim];
+      b_ = d[i + dim];
       #endif
       c[i] = b_ * b_ + b_ + a_;
     }
@@ -57,7 +57,7 @@ synthetic(int *a, int *b, int *c, int n, int tid, int dim) {
 
 // actual kernel
 void kernel(
-    int *a, int *b, int *c, int n,
+    int *a, int *b, int *c, int *d, int n,
     int tid_x, int tid_y, int dim_x, int dim_y) {
   
   // start recording all stats (all cores)
@@ -82,7 +82,7 @@ void kernel(
   //printf("iterations %d->%d\n", start, end);
   
   #ifndef _VEC
-  synthetic(a, b, c, n, tid, dim);
+  synthetic(a, b, c, d, n, tid, dim);
   #else
   
   // get a standard vector mask
@@ -90,7 +90,7 @@ void kernel(
   
   VECTOR_EPOCH(mask);
   
-  synthetic(a, b, c, n, tid, dim);
+  synthetic(a, b, c, d, n, tid, dim);
   
   VECTOR_EPOCH(ALL_NORM);
   
@@ -104,7 +104,7 @@ void kernel(
 
 
 // helper functions
-Kern_Args *construct_args(int *a, int *b, int *c, int n,
+Kern_Args *construct_args(int *a, int *b, int *c, int *d, int n,
   int tid_x, int tid_y, int dim_x, int dim_y) {
       
   Kern_Args *args = (Kern_Args*)malloc(sizeof(Kern_Args));
@@ -112,6 +112,7 @@ Kern_Args *construct_args(int *a, int *b, int *c, int n,
   args->a = a;
   args->b = b;
   args->c = c;
+  args->d = d;
   args->n = n;
   args->tid_x = tid_x;
   args->tid_y = tid_y;
@@ -130,7 +131,7 @@ void *pthread_kernel(void *args) {
   // call the spmd kernel
   Kern_Args *a = (Kern_Args*)args;
   
-  kernel(a->a, a->b, a->c, a->n,
+  kernel(a->a, a->b, a->c, a->d, a->n,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
       
   return NULL;
