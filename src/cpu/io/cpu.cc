@@ -1103,6 +1103,9 @@ IOCPU::regStats()
       .desc("number of misc regfile writes")
       .prereq(m_misc_regfile_writes);
 
+  for (int i = 0; i < m_pipeline.getLen(); i++)
+    m_pipeline[i]->regStats();
+
 //  m_fetch.regStats();
 //  m_decode.regStats();
 //  m_rename.regStats();
