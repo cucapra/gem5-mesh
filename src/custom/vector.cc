@@ -126,12 +126,34 @@ Vector::tick() {
       pushMeshInstToNextStage(meshInfo);
     }
   }
-  
+
   // if the instruction is a revec we need to handle it
   // IMPORTANT that this updates the config on the next cycle, not the current one
   // so that's why we put this after the stalls have been considered for this cycle
   // also prevents revec from being sent twice
   handleRevec(pipeInfo.inst, meshInfo.inst);
+
+  // profile any stalling
+
+  // no instruction from mesh and want to get
+  if (canReadMesh() && isInMeshStalled() && !isCurDiverged()){
+    m_no_mesh_stalls++;
+  }
+
+  // no instruction from pipe and want to get
+  else if (isInPipeStalled() && (!canReadMesh() || (canReadMesh() && isCurDiverged()))) {
+    m_no_pipe_stalls++;
+  }
+
+  // holding up due to revec not recv by mesh yet
+  else if (pipeHasRevec() && !meshHasRevec()) {
+    m_revec_stalls++;
+  }
+
+  // stall due to back pressure
+  else if (isOutMeshStalled() && !isInMeshStalled() && canWriteMesh()) {
+    m_backpressure_stalls++;
+  }
   
 }
 
@@ -149,7 +171,25 @@ Vector::init() {
 
 void
 Vector::regStats() {
+    m_revec_stalls
+      .name(name() + ".revec_stalls")
+      .desc("number of stalls due to revec")
+    ;
 
+    m_backpressure_stalls
+      .name(name() + ".backpressure_stalls")
+      .desc("number of stalls due to backpressure")
+    ;
+
+    m_no_mesh_stalls
+      .name(name() + ".mesh_input_stalls")
+      .desc("number of stalls due to no input from mesh")
+    ;
+
+    m_no_pipe_stalls
+      .name(name() + ".pipe_input_stalls")
+      .desc("number of stalls due to no input from fetch")
+    ;
 }
 
 void

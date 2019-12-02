@@ -90,7 +90,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv):
 # choose which programs to run with diff parameters
 
 # fixed parameters for the run, compile the binary for these
-numCpus = 16
+numCpus = 4
 use_vec = False
 use_sps = True
 
@@ -103,28 +103,26 @@ seed = 566925 # when detect a bug can look at causual seed
 #for frac in range(1, 0.5, -0.1):
 frac = 0.8
 # run multiple times b/c random
-run = 1
+runs = 1
+run_id = 1
 
+use_vec_arr = [True] #[True, False]
 
 
 def pack_and_run(numCpus, use_vec, use_sps, prog, i):
   frac = 1.0 - float(i) / 10.0
-  argv = [ size, frac, seed, run ]
+  argv = [ size, frac, seed, run_id ]
   run_prog(numCpus, use_vec, use_sps, 'synth', argv)
 
 pool = Pool(processes=16)
 
-
-for use_vec in [True, False]:
+for use_vec in use_vec_arr:
   # run a program from the list above with different parameters
   compile_prog(numCpus, use_vec, use_sps, 'synth')
   
   jobs = []
   
-  for i in range(5):
-    #frac = 1.0 - float(i) / 10.0
-    #argv = [ size, frac, seed, run ]
-    #run_prog(numCpus, use_vec, use_sps, 'synth', argv)
+  for i in range(runs):
     #pack_and_run(numCpus, use_vec, use_sps, 'synth', i)
     # the new file will have the same name as the old file, but also specify the new dir
     proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, 'synth', i,))

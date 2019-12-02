@@ -242,6 +242,13 @@ protected:
         : master_data(_master_data)
       { }
     };
+
+  private:
+    /** stats */
+    Stats::Scalar m_revec_stalls;
+    Stats::Scalar m_backpressure_stalls;
+    Stats::Scalar m_no_mesh_stalls;
+    Stats::Scalar m_no_pipe_stalls;
   
 };
 
