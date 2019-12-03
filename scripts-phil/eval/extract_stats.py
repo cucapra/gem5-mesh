@@ -5,7 +5,7 @@
 '''
 
 import os, subprocess, time, argparse, re
-from collections import OrderedDict
+from stat_list import stats
 
 # cmd line arguments
 parser = argparse.ArgumentParser(description='Analyze stats file in a given directory')
@@ -25,33 +25,6 @@ nameConv = r'^' + prog + r'(.*)$'
 annoConv = r'-([a-zA-Z]+)(\d+\.?\d*)'
 dirRegex = re.compile(nameConv)
 annoRegex = re.compile(annoConv)
-
-
-
-#
-# Get avg of each of these stats
-
-floatRegexStr = '([+-]?([0-9]*[.])?[0-9]+)'
-intRegexStr = '([0-9]+)'
-
-stats = OrderedDict([ 
-  ('cycles' , { 'name' : 'cycles',           'regex' : re.compile('system.cpu0+.numCycles\s*' + intRegexStr) }), 
-  ('icache' , { 'name' : 'icache_access',    'regex' : re.compile('system.icaches[0-9]+.L1cache.demand_accesses\s*' + intRegexStr) }), 
-  ('locsp'  , { 'name' : 'local_sp_access',  'regex' : re.compile('system.scratchpads[0-9]+.local_accesses\s*' + intRegexStr) }), 
-  ('remsp'  , { 'name' : 'remote_sp_access', 'regex' : re.compile('system.scratchpads[0-9]+.remote_accesses\s*' + intRegexStr) }),
-  ('l2'     , { 'name' : 'llc_access',       'regex' : re.compile('system.l2_cntrls[0-9]+.cacheMemory.demand_accesses\s*' + intRegexStr) }),
-  ('dramrd' , { 'name' : 'dram_reads',       'regex' : re.compile('system.mem_ctrl.num_reads::total\s*' + intRegexStr) }),
-  ('dramwr' , { 'name' : 'dram_writes',      'regex' : re.compile('system.mem_ctrl.num_writes::total\s*' + intRegexStr) }),
-  
-  # exclude cpu0 on this? maybe exclude the count if its 0
-  ('inMesh' , { 'name' : 'mesh_stall',       'regex' : re.compile('system.cpu[0-9]+.vector.mesh_input_stalls\s*' + intRegexStr) }),
-  # this stat is broken
-  ('inPipe' , { 'name' : 'pipe_stall',       'regex' : re.compile('system.cpu[0-9]+.vector.pipe_input_stalls\s*' + intRegexStr) }),
-  # backpressure
-  ('backHg' , { 'name' : 'backpress_stall',  'regex' : re.compile('system.cpu[0-9]+.late_vector.backpressure_stalls\s*' + intRegexStr) }),
-  ('revec' ,  { 'name' : 'wait_revec_stall', 'regex' : re.compile('system.cpu[0-9]+.vector.revec_stalls\s*' + intRegexStr) }),
-
-])
 
 
 #
@@ -93,11 +66,16 @@ def parse_file(fileName):
         if (match):
           # get value (always int?)
           val = match.group(1)
-          v['avg'] += int(val)
-          v['count'] += 1
+
+          # setting in stat to ignore in avg when value is 0
+          # generally this means this condition is not possible (like in vector config)
+          ignore_zero = v['ignore-zero']
+          if (not (ignore_zero and (int(val) == 0))):
+            v['avg'] += int(val)
+            v['count'] += 1
           
           # no reason to search for other values
-          break
+          #break
           
   # get avg
   for k, v in stats.items():
