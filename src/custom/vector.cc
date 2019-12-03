@@ -38,6 +38,28 @@ Vector::tick() {
     return;
   }
   
+  // profile any stalling
+
+  // holding up due to revec not recv by mesh yet
+  if (pipeHasRevec() && !meshHasRevec()) {
+    m_revec_stalls++;
+  }
+
+  // no instruction from mesh and want to get
+  else if (canReadMesh() && isInMeshStalled() && !isCurDiverged()){
+    m_no_mesh_stalls++;
+  }
+
+  // no instruction from pipe and want to get
+  else if (isInPipeStalled() && (!canReadMesh() || (canReadMesh() && isCurDiverged()))) {
+    m_no_pipe_stalls++;
+  }
+
+  // stall due to back pressure
+  else if (isOutMeshStalled() && !isInMeshStalled() && canWriteMesh()) {
+    m_backpressure_stalls++;
+  }
+
   // if IOCPU implements activity monitor the need to have something like this
   bool update = true; //_fsm->tick();
   if (update) {
@@ -132,28 +154,6 @@ Vector::tick() {
   // so that's why we put this after the stalls have been considered for this cycle
   // also prevents revec from being sent twice
   handleRevec(pipeInfo.inst, meshInfo.inst);
-
-  // profile any stalling
-
-  // holding up due to revec not recv by mesh yet
-  if (pipeHasRevec() && !meshHasRevec()) {
-    m_revec_stalls++;
-  }
-
-  // no instruction from mesh and want to get
-  else if (canReadMesh() && isInMeshStalled() && !isCurDiverged()){
-    m_no_mesh_stalls++;
-  }
-
-  // no instruction from pipe and want to get
-  else if (isInPipeStalled() && (!canReadMesh() || (canReadMesh() && isCurDiverged()))) {
-    m_no_pipe_stalls++;
-  }
-
-  // stall due to back pressure
-  else if (isOutMeshStalled() && !isInMeshStalled() && canWriteMesh()) {
-    m_backpressure_stalls++;
-  }
   
 }
 
