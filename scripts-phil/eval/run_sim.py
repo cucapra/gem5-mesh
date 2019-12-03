@@ -91,7 +91,6 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv):
 
 # fixed parameters for the run, compile the binary for these
 numCpus = 4
-use_vec = False
 use_sps = True
 
 size = 8192
@@ -100,12 +99,11 @@ random.seed()
 #seed = random.randint(1,2**20) 
 seed = 566925 # when detect a bug can look at causual seed
 
-#for frac in range(1, 0.5, -0.1):
-frac = 0.8
-# run multiple times b/c random
-runs = 1
+# run different fractions for synth
+runs = 5
+# in case want to run the same multiple times w/ diff random seed (not working yet)
 run_id = 1
-
+# whether to use vector or not
 use_vec_arr = [True] #[True, False]
 
 

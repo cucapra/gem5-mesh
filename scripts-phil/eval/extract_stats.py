@@ -42,6 +42,14 @@ stats = OrderedDict([
   ('l2'     , { 'name' : 'llc_access',       'regex' : re.compile('system.l2_cntrls[0-9]+.cacheMemory.demand_accesses\s*' + intRegexStr) }),
   ('dramrd' , { 'name' : 'dram_reads',       'regex' : re.compile('system.mem_ctrl.num_reads::total\s*' + intRegexStr) }),
   ('dramwr' , { 'name' : 'dram_writes',      'regex' : re.compile('system.mem_ctrl.num_writes::total\s*' + intRegexStr) }),
+  
+  # exclude cpu0 on this? maybe exclude the count if its 0
+  ('inMesh' , { 'name' : 'mesh_stall',       'regex' : re.compile('system.cpu[0-9]+.vector.mesh_input_stalls\s*' + intRegexStr) }),
+  # this stat is broken
+  ('inPipe' , { 'name' : 'pipe_stall',       'regex' : re.compile('system.cpu[0-9]+.vector.pipe_input_stalls\s*' + intRegexStr) }),
+  # backpressure
+  ('backHg' , { 'name' : 'backpress_stall',  'regex' : re.compile('system.cpu[0-9]+.late_vector.backpressure_stalls\s*' + intRegexStr) }),
+  ('revec' ,  { 'name' : 'wait_revec_stall', 'regex' : re.compile('system.cpu[0-9]+.vector.revec_stalls\s*' + intRegexStr) }),
 
 ])
 
