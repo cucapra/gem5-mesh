@@ -135,19 +135,19 @@ Vector::tick() {
 
   // profile any stalling
 
+  // holding up due to revec not recv by mesh yet
+  if (pipeHasRevec() && !meshHasRevec()) {
+    m_revec_stalls++;
+  }
+
   // no instruction from mesh and want to get
-  if (canReadMesh() && isInMeshStalled() && !isCurDiverged()){
+  else if (canReadMesh() && isInMeshStalled() && !isCurDiverged()){
     m_no_mesh_stalls++;
   }
 
   // no instruction from pipe and want to get
   else if (isInPipeStalled() && (!canReadMesh() || (canReadMesh() && isCurDiverged()))) {
     m_no_pipe_stalls++;
-  }
-
-  // holding up due to revec not recv by mesh yet
-  else if (pipeHasRevec() && !meshHasRevec()) {
-    m_revec_stalls++;
   }
 
   // stall due to back pressure
