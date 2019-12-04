@@ -12,7 +12,7 @@
 
 import os, subprocess, time, argparse, re, random
 
-from multiprocessing import Pool
+import multiprocessing
 
 # cmd line arguments
 parser = argparse.ArgumentParser(description='Run gem5 simulation and output informative stats files')
@@ -84,7 +84,10 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv):
 
   # make sure that the run passed
   success = success_regex.search(result)
-  assert(success)
+  if (success):
+    return True
+  else:
+    return False
 
   
 # choose which programs to run with diff parameters
@@ -106,13 +109,12 @@ run_id = 1
 # whether to use vector or not
 use_vec_arr = [True] #[True, False]
 
-
 def pack_and_run(numCpus, use_vec, use_sps, prog, i):
   frac = 1.0 - float(i) / 10.0
   argv = [ size, frac, seed, run_id ]
-  run_prog(numCpus, use_vec, use_sps, 'synth', argv)
+  return run_prog(numCpus, use_vec, use_sps, 'synth', argv)
 
-pool = Pool(processes=16)
+pool = multiprocessing.Pool(processes=16)
 
 for use_vec in use_vec_arr:
   # run a program from the list above with different parameters
@@ -123,12 +125,23 @@ for use_vec in use_vec_arr:
   for i in range(runs):
     #pack_and_run(numCpus, use_vec, use_sps, 'synth', i)
     # the new file will have the same name as the old file, but also specify the new dir
-    proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, 'synth', i,))
+    proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, 'synth', i, ))
     jobs.append(proc)
+    pass
 
   # Wait for jobs to complete before exiting
   while(not all([p.ready() for p in jobs])):
     time.sleep(5)
+
+  # Check if any jobs failed
+  failed_runs = 0
+  for p in jobs:
+    if (p.get() == False):
+      failed_runs += 1
+
+  if (failed_runs > 0):
+    print('{} runs failed'.format(failed_runs))
+    assert(False)
 
 # Safely terminate the pool
 pool.close()
