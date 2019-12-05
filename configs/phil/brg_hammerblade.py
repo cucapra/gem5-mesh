@@ -322,7 +322,7 @@ parser.add_option("--spm-size", action="store", type="string",
   default="4kB", help="Specify the scratchpad memory size")
 
 # number of pending requests allowed by scratchpad
-parser.add_option("--stream-width", type = "int", default = 2)
+parser.add_option("--stream-width", type = "int", default = 8)
 
 # whether to use vector stage or not
 parser.add_option("--vector", action="store_true", default=False,
