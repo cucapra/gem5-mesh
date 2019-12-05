@@ -23,7 +23,7 @@ int main(int argc, char *argv[]) {
   
   int cores_x, cores_y;
   int num_cores = get_dimensions(&cores_x, &cores_y);
-printf("%d %d %d\n", cores_x, cores_y, num_cores);
+
   /*--------------------------------------------------------------------
   * Put the command line arguments into variables
   *-------------------------------------------------------------------*/
