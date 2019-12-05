@@ -73,7 +73,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
     if (a == 0) {
       int b_;
       VPREFETCH(spAddr + 4, b + i, 0);
-      LWSPEC(b_, spAddr + 1, 0);
+      LWSPEC(b_, spAddr + 4, 0);
 
       int c_ = b_;
       for (int j = 0; j < 2; j++) {
@@ -83,7 +83,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
     }
     else {
       int b_;
-      VPREFETCH(spAddr + 1, d + i, 0);
+      VPREFETCH(spAddr + 4, d + i, 0);
       LWSPEC(b_, spAddr + 4,  0);
 
       int c_ = b_;
@@ -103,30 +103,35 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
   
   for (int i = tid; i < n; i+=4*dim) {
     
+    int idx0 = i;
+    int idx1 = i + dim;
+    int idx2 = i + 2 * dim;
+    int idx3 = i + 3 * dim;
+
     int a_;
     // load everybody up front, cheap temporal multithreading
     // maybe the non-vector version can't handle this increased mem traffic?
-    VPREFETCH(spAddr, a + i, 0);
-    VPREFETCH(spAddr + 1, a + i + dim, 0);
-    VPREFETCH(spAddr + 2, a + i + 2 * dim, 0);
-    VPREFETCH(spAddr + 3, a + i + 3 * dim, 0);
+    VPREFETCH(spAddr,     a + idx0, 0);
+    VPREFETCH(spAddr + 1, a + idx1, 0);
+    VPREFETCH(spAddr + 2, a + idx2, 0);
+    VPREFETCH(spAddr + 3, a + idx3, 0);
 
     // then get data as needed, this procedure is a little more compilcated than unrolling
     // because need to do some load reordering (but maybe that's automatic in compiler after unroll?)
     LWSPEC(a_, spAddr, 0);
-    loop_body(a_, b, c, d, i, spAddr);
+    loop_body(a_, b, c, d, idx0, spAddr);
     //REVEC(0);
 
     LWSPEC(a_, spAddr + 1, 0);
-    loop_body(a_, b, c, d, i, spAddr);
+    loop_body(a_, b, c, d, idx1, spAddr);
     //REVEC(0);
 
     LWSPEC(a_, spAddr + 2, 0);
-    loop_body(a_, b, c, d, i, spAddr);
+    loop_body(a_, b, c, d, idx2, spAddr);
     //REVEC(0);
 
     LWSPEC(a_, spAddr + 3, 0);
-    loop_body(a_, b, c, d, i, spAddr);
+    loop_body(a_, b, c, d, idx3, spAddr);
 
     // TODO problem if revec each time, b/c then the epoch of the shared loads
     // up top will be wrong even though fine ... need to fix this mechanism b/c
