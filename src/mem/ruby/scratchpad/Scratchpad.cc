@@ -657,7 +657,10 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
   if (dst_sp_id == m_num_scratchpads) {
     // this packet can be modified to not access global memory in case of slave
     // core but rather just update info in the spad
-    if (pkt_p->getSpadReset()) {
+    // TODO currently checking normal pkt map, should we make our own so that can be
+    // unlimited pending? doesn't seem like the spad has to track anything for a pending load?
+    bool pendingPktSpad = (m_pending_pkt_map.size() < m_max_num_pending_pkts) || !pkt_p->isSpLoad();
+    if (pkt_p->getSpadReset() && pendingPktSpad) {
       setWordNotRdy(pkt_p->getPrefetchAddr());
       //updateEpoch(pkt_p->getEpoch());
       

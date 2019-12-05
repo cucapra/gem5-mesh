@@ -96,14 +96,14 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv):
 numCpus = 4
 use_sps = True
 
-size = 8192
+size = 16 #8192
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 #seed = random.randint(1,2**20) 
 seed = 566925 # when detect a bug can look at causual seed
 
 # run different fractions for synth
-runs = 5
+runs = 1
 # in case want to run the same multiple times w/ diff random seed (not working yet)
 run_id = 1
 # whether to use vector or not
