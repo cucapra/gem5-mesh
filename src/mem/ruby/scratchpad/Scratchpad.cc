@@ -267,6 +267,9 @@ Scratchpad::processRespToSpad() {
         
         // TODO I don't think it's possible for this to be active? even when there is
         // tons or unhandled reqs?
+        // TODO this is limiting number of prefetch requests that can be active in a single
+        // epoch.... need to fix. Either remove since never run into problem here??? or 
+        // somehow detect which epochs are still active
         if (m_prefetch_resp_queue.size() > m_max_pending_sp_prefetches) {
           DPRINTF(Mesh, "[[WARNING]] must diverge now\n");
           assert(false);

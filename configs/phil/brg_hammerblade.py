@@ -515,8 +515,9 @@ for i in xrange(n_l2s):
   l2_cntrl = L2Cache_Controller(version = i,
                                 cacheMemory = l2_cache,
                                 transitions_per_cycle = 4,
-                                ruby_system = system.ruby,
-                                number_of_TBEs = 1)
+                                ruby_system = system.ruby
+                                )
+                                #number_of_TBEs = 1)
 
   l2_cntrl.requestToLLC           = MessageBuffer(ordered = True)
   l2_cntrl.requestToLLC.slave     = network.master

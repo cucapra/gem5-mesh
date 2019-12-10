@@ -9,6 +9,7 @@
 #define _USE_VLOAD 1
 
 #define UNROLL 1
+//#define SPEC_PREFETCH 1
 
 // if don't have this attribute potentially will duplicate inline assembly due
 // to code layout reordering. this happens in -O2+ with -freorder-blocks-algorithm=stc
@@ -72,8 +73,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
     // presumably there is a hot path known so should get perf improvement doing so!
     if (a == 0) {
       int b_;
-      VPREFETCH(spAddr + 4, b + i, 0);
-      LWSPEC(b_, spAddr + 4, 0);
+      VPREFETCH(spAddr, b + i, 0);
+      LWSPEC(b_, spAddr, 0);
 
       int c_ = b_;
       for (int j = 0; j < 2; j++) {
@@ -83,8 +84,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
     }
     else {
       int b_;
-      VPREFETCH(spAddr + 4, d + i, 0);
-      LWSPEC(b_, spAddr + 4,  0);
+      VPREFETCH(spAddr, d + i, 0);
+      LWSPEC(b_, spAddr,  0);
 
       int c_ = b_;
       for (int j = 0; j < 2; j++) {
@@ -116,54 +117,50 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
     VPREFETCH(spAddr + 2, a + idx2, 0);
     VPREFETCH(spAddr + 3, a + idx3, 0);
 
+#ifdef SPEC_PREFETCH
+    // speculate on load for the hot path
+    // not only assuming threads will do the same thing across space, but
+    // also speculating will do the same thing across time
+    // Would normal vector prefetching do this?
+    VPREFETCH(spAddr + 4, b + idx0, 0);
+    VPREFETCH(spAddr + 5, b + idx1, 0);
+    VPREFETCH(spAddr + 6, b + idx2, 0);
+    VPREFETCH(spAddr + 7, b + idx3, 0);
+#endif
+
     // then get data as needed, this procedure is a little more compilcated than unrolling
     // because need to do some load reordering (but maybe that's automatic in compiler after unroll?)
     LWSPEC(a_, spAddr, 0);
-    loop_body(a_, b, c, d, idx0, spAddr);
+    loop_body(a_, b, c, d, idx0, spAddr + 4);
     //REVEC(0);
 
     LWSPEC(a_, spAddr + 1, 0);
-    loop_body(a_, b, c, d, idx1, spAddr);
+    #ifdef SPEC_PREFETCH
+    loop_body(a_, b, c, d, idx1, spAddr + 5);
+    #else
+    loop_body(a_, b, c, d, idx1, spAddr + 4);
+    #endif
     //REVEC(0);
 
     LWSPEC(a_, spAddr + 2, 0);
-    loop_body(a_, b, c, d, idx2, spAddr);
+    #ifdef SPEC_PREFETCH
+    loop_body(a_, b, c, d, idx2, spAddr + 6);
+    #else
+    loop_body(a_, b, c, d, idx2, spAddr + 4);
+    #endif
     //REVEC(0);
 
     LWSPEC(a_, spAddr + 3, 0);
-    loop_body(a_, b, c, d, idx3, spAddr);
+    #ifdef SPEC_PREFETCH
+    loop_body(a_, b, c, d, idx3, spAddr + 7);
+    #else
+    loop_body(a_, b, c, d, idx3, spAddr + 4);
+    #endif
 
     // TODO problem if revec each time, b/c then the epoch of the shared loads
     // up top will be wrong even though fine ... need to fix this mechanism b/c
     // might want to revec each time
     REVEC(0);
-
-    // TODO can we unroll the loads for these somehow? potentially speculatively?
-    // presumably there is a hot path known so should get perf improvement doing so!
-    // if (a_ == 0) {
-    //   int b_;
-    //   VPREFETCH(spAddr + 4, b + i, 0);
-    //   LWSPEC(b_, spAddr + 1, 0);
-
-    //   int c_ = b_;
-    //   for (int j = 0; j < 2; j++) {
-    //     c_ *= b_;
-    //   }
-    //   c[i] = c_;
-    // }
-    // else {
-    //   int b_;
-    //   VPREFETCH(spAddr + 1, d + i, 0);
-    //   LWSPEC(b_, spAddr + 4,  0);
-
-    //   int c_ = b_;
-    //   for (int j = 0; j < 2; j++) {
-    //     c_ *= b_;
-    //   }
-    //   c[i] = c_;
-    // }
-    // // try to revec at the end of loop iteration
-    // REVEC(0);
   }
 }
 
@@ -180,40 +177,28 @@ void kernel(
   // linearize tid and dim
   int tid = tid_x + tid_y * dim_x;
   int dim = dim_x * dim_y;
-  
-  
-  
-  // figure out which work this thread should do
-  /*int start = tid * (n / dim);  
 
-  // get end with remainders
-  int chunk = (int)(n / dim);
-  if (tid_x == dim - 1) {
-    chunk += n % dim;
-  }
-  int end = start + chunk;*/
-  
-  //printf("iterations %d->%d\n", start, end);
-  
-  #ifndef _VEC
-  synthetic(a, b, c, d, n, tid, dim);
-  #else
-  
+  // configure vector is enabled
+  #ifdef _VEC
   // get a standard vector mask
   int mask = getVecMask(tid_x, tid_y, dim_x, dim_y);
   
   VECTOR_EPOCH(mask);
-  
+  #endif
+
+  // run the actual kernel with the configuration
   #ifdef UNROLL
   synthetic_uthread(a, b, c, d, n, tid, dim);
   #else
   synthetic(a, b, c, d, n, tid, dim);
   #endif
 
+  // deconfigure
+  #ifdef _VEC
   VECTOR_EPOCH(ALL_NORM);
-  
   #endif
-  
+
+  // commit stats
   if (tid_x == 0 && tid_y == 0) {
     stats_off();
   }
