@@ -109,9 +109,8 @@ Scratchpad::Scratchpad(const Params* p)
       m_go_flag_p((uint32_t* const)(m_data_array + SPM_GO_FLAG_OFFSET)),
       m_done_flag_p((uint32_t* const)(m_data_array + SPM_DONE_FLAG_OFFSET)),
       m_num_l2s(p->num_l2s),
-      m_spec_buf_size(p->spec_buf_size),
       m_cpu_p(p->cpu),
-      m_max_pending_sp_prefetches(2),
+      m_max_pending_sp_prefetches(p->prefetchBufSize),
       m_process_resp_event([this]{ processRespToSpad(); }, "Process a resp to spad", false),
       m_proc_ruby_last(false)
 {

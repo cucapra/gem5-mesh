@@ -9,7 +9,7 @@
 #define _USE_VLOAD 1
 
 #define UNROLL 1
-//#define SPEC_PREFETCH 1
+#define SPEC_PREFETCH 1
 
 // if don't have this attribute potentially will duplicate inline assembly due
 // to code layout reordering. this happens in -O2+ with -freorder-blocks-algorithm=stc

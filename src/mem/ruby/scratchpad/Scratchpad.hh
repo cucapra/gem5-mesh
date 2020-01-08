@@ -332,11 +332,6 @@ class Scratchpad : public AbstractController
     const int m_num_l2s;
     
     /**
-     * Allowed to store # of inflight loads from core
-     */ 
-    const int m_spec_buf_size;
-    
-    /**
      * Keep a pointer to the local CPU to allow reading of some of its 
      * register. This is valid according to the DJ
      */ 

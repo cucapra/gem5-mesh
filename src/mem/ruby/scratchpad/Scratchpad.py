@@ -20,6 +20,6 @@ class Scratchpad(RubyController):
   num_l2s           = Param.Int(1, "Number of L2 banks")
   maxNumPendingReqs = Param.Int(8, "Max number of pending requests")
   
-  spec_buf_size     = Param.Int(2, "Allowed number of speculative requests")
+  prefetchBufSize   = Param.Int(2, "Allowed number of pending prefetches from master core")
   
   cpu               = Param.IOCPU("")
