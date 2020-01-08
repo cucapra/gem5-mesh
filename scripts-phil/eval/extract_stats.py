@@ -71,7 +71,10 @@ def parse_file(fileName):
           # generally this means this condition is not possible (like in vector config)
           ignore_zero = v['ignore-zero']
           if (not (ignore_zero and (int(val) == 0))):
-            v['avg'] += int(val)
+            try:
+              v['avg'] += int(val)
+            except:
+              v['avg'] += float(val)
             v['count'] += 1
           
           # no reason to search for other values

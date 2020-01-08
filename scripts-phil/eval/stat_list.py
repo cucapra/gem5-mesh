@@ -74,5 +74,15 @@ stats = OrderedDict([
     'regex' : re.compile('system.cpu[0-9]+.vector.revec_stalls\s*' + intRegexStr), 
     'ignore-zero' : True,
   }),
+  ('cpi' ,  { 
+    'name' : 'cpi', 
+    'regex' : re.compile('system.cpu[0-9]+.cpi\s*' + floatRegexStr), 
+    'ignore-zero' : False,
+  }),
+  ('llc-misses' ,  { 
+    'name' : 'llc-misses', 
+    'regex' : re.compile('system.l2_cntrls[0-9]+.cacheMemory.demand_misses\s*' + intRegexStr), 
+    'ignore-zero' : False,
+  }),
 
 ])

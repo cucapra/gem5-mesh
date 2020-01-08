@@ -98,11 +98,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
     //REVEC(0);
 }
 
+// don't want to unroll b/c then need to use the stack, which currently skips spad so will get more
+// LLC accesses when do more prefetching
+// although doesn't seem to respect hint @ 8
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
+synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
   int *spAddr = getSpAddr(tid, 0);
-  
-  int unroll_len = 4;
 
   for (int i = tid; i < n; i+=unroll_len*dim) {
     
@@ -111,15 +112,18 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
     for (int j = 0; j < unroll_len; j++) {
       int idx = i + j * dim;
       VPREFETCH(spAddr + j, a + idx, 0);
+    }
 
-      #ifdef SPEC_PREFETCH
+    #ifdef SPEC_PREFETCH
+    for (int j = 0; j < unroll_len; j++) {
       // speculate on load for the hot path
       // not only assuming threads will do the same thing across space, but
       // also speculating will do the same thing across time
       // Would normal vector prefetching do this?
+      int idx = i + j * dim;
       VPREFETCH(spAddr + j + unroll_len, b + idx, 0);
-      #endif
     }
+    #endif
 
 
 
@@ -144,15 +148,15 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
         c[idx] = c_;
       }
       else { // unused in convergent example
-        int b_;
-        VPREFETCH(spAddr + unroll_len, d + idx, 0);
-        LWSPEC(b_, spAddr + unroll_len,  0);
+        // int b_;
+        // VPREFETCH(spAddr + unroll_len, d + idx, 0);
+        // LWSPEC(b_, spAddr + unroll_len,  0);
 
-        int c_ = b_;
-        for (int k = 0; k < 2; k++) {
-          c_ *= b_;
-        }
-        c[idx] = c_;
+        // int c_ = b_;
+        // for (int k = 0; k < 2; k++) {
+        //   c_ *= b_;
+        // }
+        // c[idx] = c_;
       }
     }
 
@@ -187,7 +191,8 @@ void kernel(
 
   // run the actual kernel with the configuration
   #ifdef UNROLL
-  synthetic_uthread(a, b, c, d, n, tid, dim);
+  volatile int unroll_len = 4;
+  synthetic_uthread(a, b, c, d, n, tid, dim, unroll_len);
   #else
   synthetic(a, b, c, d, n, tid, dim);
   #endif
