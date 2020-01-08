@@ -102,60 +102,59 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
 synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
   int *spAddr = getSpAddr(tid, 0);
   
-  for (int i = tid; i < n; i+=4*dim) {
-    
-    int idx0 = i;
-    int idx1 = i + dim;
-    int idx2 = i + 2 * dim;
-    int idx3 = i + 3 * dim;
+  int unroll_len = 4;
 
-    int a_;
+  for (int i = tid; i < n; i+=unroll_len*dim) {
+    
     // load everybody up front, cheap temporal multithreading
     // maybe the non-vector version can't handle this increased mem traffic?
-    VPREFETCH(spAddr,     a + idx0, 0);
-    VPREFETCH(spAddr + 1, a + idx1, 0);
-    VPREFETCH(spAddr + 2, a + idx2, 0);
-    VPREFETCH(spAddr + 3, a + idx3, 0);
+    for (int j = 0; j < unroll_len; j++) {
+      int idx = i + j * dim;
+      VPREFETCH(spAddr + j, a + idx, 0);
 
-#ifdef SPEC_PREFETCH
-    // speculate on load for the hot path
-    // not only assuming threads will do the same thing across space, but
-    // also speculating will do the same thing across time
-    // Would normal vector prefetching do this?
-    VPREFETCH(spAddr + 4, b + idx0, 0);
-    VPREFETCH(spAddr + 5, b + idx1, 0);
-    VPREFETCH(spAddr + 6, b + idx2, 0);
-    VPREFETCH(spAddr + 7, b + idx3, 0);
-#endif
+      #ifdef SPEC_PREFETCH
+      // speculate on load for the hot path
+      // not only assuming threads will do the same thing across space, but
+      // also speculating will do the same thing across time
+      // Would normal vector prefetching do this?
+      VPREFETCH(spAddr + j + unroll_len, b + idx, 0);
+      #endif
+    }
 
-    // then get data as needed, this procedure is a little more compilcated than unrolling
-    // because need to do some load reordering (but maybe that's automatic in compiler after unroll?)
-    LWSPEC(a_, spAddr, 0);
-    loop_body(a_, b, c, d, idx0, spAddr + 4);
-    //REVEC(0);
 
-    LWSPEC(a_, spAddr + 1, 0);
-    #ifdef SPEC_PREFETCH
-    loop_body(a_, b, c, d, idx1, spAddr + 5);
-    #else
-    loop_body(a_, b, c, d, idx1, spAddr + 4);
-    #endif
-    //REVEC(0);
 
-    LWSPEC(a_, spAddr + 2, 0);
-    #ifdef SPEC_PREFETCH
-    loop_body(a_, b, c, d, idx2, spAddr + 6);
-    #else
-    loop_body(a_, b, c, d, idx2, spAddr + 4);
-    #endif
-    //REVEC(0);
+    for (int j = 0; j < unroll_len; j++) {
+      int idx = i + j * dim;
+      int a_;
+      LWSPEC(a_, spAddr + j, 0);
+      if (a_ == 0) {
+        int b_;
 
-    LWSPEC(a_, spAddr + 3, 0);
-    #ifdef SPEC_PREFETCH
-    loop_body(a_, b, c, d, idx3, spAddr + 7);
-    #else
-    loop_body(a_, b, c, d, idx3, spAddr + 4);
-    #endif
+        #ifndef SPEC_PREFETCH
+        VPREFETCH(spAddr + unroll_len, b + idx, 0);
+        LWSPEC(b_, spAddr + unroll_len, 0);
+        #else
+        LWSPEC(b_, spAddr + j + unroll_len, 0);
+        #endif
+
+        int c_ = b_;
+        for (int k = 0; k < 2; k++) {
+          c_ *= b_;
+        }
+        c[idx] = c_;
+      }
+      else { // unused in convergent example
+        int b_;
+        VPREFETCH(spAddr + unroll_len, d + idx, 0);
+        LWSPEC(b_, spAddr + unroll_len,  0);
+
+        int c_ = b_;
+        for (int k = 0; k < 2; k++) {
+          c_ *= b_;
+        }
+        c[idx] = c_;
+      }
+    }
 
     // TODO problem if revec each time, b/c then the epoch of the shared loads
     // up top will be wrong even though fine ... need to fix this mechanism b/c
