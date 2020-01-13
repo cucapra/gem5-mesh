@@ -176,11 +176,13 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
   for (int i = tid; i < n; i+=dim) {
     
     int a_;
-    // TODO you still have to mark spad entry as 0? otherwise won't stop
+    // TODO you still have to mark spad entry as 0, otherwise don't know to wait?
+    VPREFETCH(spAddr, a + i, 0);
     LWSPEC(a_, spAddr, 0);
     
     if (a_ == 0) {
       int b_;
+      VPREFETCH(spAddr + 1, b + i, 0);
       LWSPEC(b_, spAddr + 1, 0);
       int c_ = b_;
       for (int j = 0; j < 2; j++) {

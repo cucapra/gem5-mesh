@@ -52,8 +52,9 @@ class MeshHelper {
     static bool isVectorSlave(uint64_t csrVal);
     static bool fetCsrToInSrc(uint64_t csrVal, Mesh_Dir &dir);
     static bool fetCsrToOutDests(uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
-    static bool fetCsrToCount(uint64_t csrVal, int &count);
-    static bool fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst);
+    //static bool fetCsrToCount(uint64_t csrVal, int &count);
+    //static bool fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst);
+    static bool isDecoupledAccess(RegVal csrVal);
     
     static bool csrToInSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
     static bool csrToOutDests(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs);

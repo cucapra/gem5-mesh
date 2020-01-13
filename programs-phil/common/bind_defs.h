@@ -230,6 +230,9 @@ int getVecMask(int tid_x, int tid_y, int dim_x, int dim_y) {
   int vlenY = dim_y;
   mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
 
+  // specify each core is an execute core
+  mask |= (0 << FET_DAE_SHAMT);
+
   return mask;
   #endif
 }
@@ -279,11 +282,18 @@ int getDAEMask(int tid_x, int tid_y, int dim_x, int dim_y) {
   else {
     mask = FET_I_INST_UP | FET_O_INST_DOWN_SEND;
   }
-  
+
   // specify the vlen
   int vlenX = dim_x;
   int vlenY = dim_y;
   mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
+
+  // specify which core is a special decouple access core
+  // and all other cores are 'normal' execute cores
+  if (tid_x == 0 && tid_y == 0) 
+    mask |= (1 << FET_DAE_SHAMT);
+  else
+    mask |= (0 << FET_DAE_SHAMT);
 
   return mask;
   #endif

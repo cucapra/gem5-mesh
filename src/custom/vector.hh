@@ -165,6 +165,7 @@ class Vector : public Stage {
     bool isInPipeStalled();
     bool isOutMeshStalled();
     bool isInMeshStalled();
+    bool isDecoupledAccess() { return MeshHelper::isDecoupledAccess(_curCsrVal); };
 protected:
     // instructions can come from either I$ or mesh and can be send to mesh or pipe (fully connected)
     typedef enum InstSource {

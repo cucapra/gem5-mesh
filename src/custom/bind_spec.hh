@@ -200,9 +200,9 @@ typedef enum Locked_Insts {
 #define FET_YLEN_SHAMT (FET_XLEN_SHAMT + FET_XLEN_BITS)
 
 
-// remaining bits goes to the count amt (7 bits)
-#define FET_COUNT_BITS     (7)
-#define FET_COUNT_SHAMT    (FET_YLEN_SHAMT + FET_YLEN_BITS)
+// encode whether this is a decoupled access core (1 bit)
+#define FET_DAE_BITS     (1)
+#define FET_DAE_SHAMT    (FET_YLEN_SHAMT + FET_YLEN_BITS)
 
 
 // explicilty determine bitranges for decoding
@@ -213,8 +213,8 @@ typedef enum Locked_Insts {
 #define FET_OUT_HI (FET_O_INST_RIGHT_SHAMT + FET_O_INST_RIGHT_BITS - 1)
 #define FET_OUT_LO (FET_O_INST_RIGHT_SHAMT)
 
-#define FET_COUNT_HI (FET_COUNT_SHAMT + FET_COUNT_BITS - 1)
-#define FET_COUNT_LO (FET_COUNT_SHAMT)
+#define FET_DAE_HI (FET_DAE_SHAMT + FET_DAE_BITS - 1)
+#define FET_DAE_LO (FET_DAE_SHAMT)
 
 #define FET_INST_HI (FET_LOCKED_SHAMT + FET_LOCKED_INST_BITS - 1)
 #define FET_INST_LO (FET_LOCKED_SHAMT)

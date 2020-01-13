@@ -573,27 +573,28 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     }
     
     // only an sp load if not a slave
+    // Vector* vec = m_cpu_p->getEarlyVector();
+    // bool diverged = vec && vec->isCurDiverged();
+    // bool master   = vec && vec->isRootMaster();
+    // bool solo     = !(vec && vec->getConfigured());
+    // m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || master || solo );
+    
     Vector* vec = m_cpu_p->getEarlyVector();
     bool diverged = vec && vec->isCurDiverged();
-    bool master   = vec && vec->isRootMaster();
+    bool dAccess  = vec && vec->isDecoupledAccess(); // or master determine decouple access was wrong? or just let everyone do seperately then?
     bool solo     = !(vec && vec->getConfigured());
-    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || master || solo );
-    
-    
-    /*if (spadPrefetch && !spadReset) {
-      m_s1_inst->mem_req_p->isSpLoad = true;
-    }
-    else {
-      m_s1_inst->mem_req_p->isSpLoad = false;
-    }*/
+    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || dAccess || solo );
+
+
+
     
     // setup vector memory request... if we're in vector mode and not detached
     // also send memory request as vector request (single request, multiple response)
     // otherwise send as the usual single request, single response
     
     
-    
-    if (spadPrefetch && master) { 
+    // if (spadPrefetch && master) {
+    if (spadPrefetch && dAccess) { 
       m_s1_inst->mem_req_p->xDim = m_cpu_p->getEarlyVector()->getXLen();
       m_s1_inst->mem_req_p->yDim = m_cpu_p->getEarlyVector()->getYLen();
       DPRINTF(Mesh, "[%s] send vec load %#x, (%d,%d)\n", m_s1_inst->toString(true), 

@@ -157,18 +157,24 @@ MeshHelper::isVectorMaster(uint64_t csrVal) {
   return (fetCsrToOutDests(csrVal, dirs));
 }
 
-bool
-MeshHelper::fetCsrToCount(uint64_t csrVal, int &count) {
-  count = bits(csrVal, FET_COUNT_HI, FET_COUNT_LO);
-  return (count > 0);
-}
+// bool
+// MeshHelper::fetCsrToCount(uint64_t csrVal, int &count) {
+//   count = bits(csrVal, FET_COUNT_HI, FET_COUNT_LO);
+//   return (count > 0);
+// }
+
+// bool
+// MeshHelper::fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst) {
+//   // only does anything if dir set to lock
+//   inst = (Locked_Insts)bits(csrVal, FET_INST_HI, FET_INST_LO);
+//   int lockedInt = bits(csrVal, FET_IN_SRC_HI, FET_IN_SRC_LO);
+//   return (lockedInt == (FET_I_INST_LOCK >> FET_I_INST_SHAMT));
+// }
 
 bool
-MeshHelper::fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst) {
-  // only does anything if dir set to lock
-  inst = (Locked_Insts)bits(csrVal, FET_INST_HI, FET_INST_LO);
-  int lockedInt = bits(csrVal, FET_IN_SRC_HI, FET_IN_SRC_LO);
-  return (lockedInt == (FET_I_INST_LOCK >> FET_I_INST_SHAMT));
+MeshHelper::isDecoupledAccess(RegVal csrVal) {
+  uint64_t ret = bits(csrVal, FET_DAE_HI, FET_DAE_LO);
+  return (ret == 1);
 }
 
 
