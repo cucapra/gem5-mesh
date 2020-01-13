@@ -234,4 +234,60 @@ int getVecMask(int tid_x, int tid_y, int dim_x, int dim_y) {
   #endif
 }
 
+int getDAEMask(int tid_x, int tid_y, int dim_x, int dim_y) {
+  int mask = ALL_NORM;
+  
+  #ifndef _VEC
+  return mask;
+  #else
+  
+  // upper left corner is the decoupled access core
+  if (tid_x == 0 && tid_y == 0) {
+    mask = ALL_NORM;
+    // mask = FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
+  }
+
+  // top row (besides DA)
+  else if (tid_y == 0) {
+    // all send down
+    mask = FET_O_INST_DOWN_SEND;
+
+    // everyone but the first (master recv from left)
+    if (tid_x > 1) {
+      mask |= FET_I_INST_LEFT;
+    }
+
+    // the top row besides DA and edge send to the right
+    if (tid_x != dim_x - 1) {
+      mask |= FET_O_INST_RIGHT_SEND;
+    }
+  }
+
+  // the leftmost column (besides DA)
+  else if (tid_x == 0) {
+    // always recv from right
+    mask = FET_I_INST_RIGHT;
+  }
+
+  // the column to the right of DA (besides top)
+  else if (tid_x == 1) {
+    // send down and to the left and recv from above
+    mask = FET_I_INST_UP | FET_O_INST_LEFT_SEND | FET_O_INST_DOWN_SEND;
+  }
+
+  // the rest recvs from above and sends down
+  else {
+    mask = FET_I_INST_UP | FET_O_INST_DOWN_SEND;
+  }
+  
+  // specify the vlen
+  int vlenX = dim_x;
+  int vlenY = dim_y;
+  mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
+
+  return mask;
+  #endif
+}
+
+
 #endif

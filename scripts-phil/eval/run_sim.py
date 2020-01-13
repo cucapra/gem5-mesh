@@ -107,7 +107,7 @@ runs = 1
 # in case want to run the same multiple times w/ diff random seed (not working yet)
 run_id = 1
 # whether to use vector or not
-use_vec_arr = [True, False]
+use_vec_arr = [True]
 
 def pack_and_run(numCpus, use_vec, use_sps, prog, i):
   frac = 1.0 - float(i) / 10.0
