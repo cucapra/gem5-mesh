@@ -444,7 +444,7 @@ for i in xrange(n_scratchpads):
                   dram_size         = AddrRange(options.mem_size).size(),
                   num_l2s           = n_l2s,
                   maxNumPendingReqs = options.stream_width,
-                  prefetchBufSize   = 100, # make ridic number
+                  prefetchBufSize   = 10000, # make ridic number
                   cpu               = system.cpu[i])
 
   sp.memReqBuffer             = MessageBuffer(ordered = True)
