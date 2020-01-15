@@ -170,48 +170,56 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int u
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
+synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
   int *spAddr = getSpAddr(tid, 0);
   
-  for (int i = tid; i < n; i+=dim) {
+  for (int i = tid; i < n; i+=unroll_len*dim) {
     
-    int a_;
-    // TODO you still have to mark spad entry as 0, otherwise don't know to wait?
-    VPREFETCH(spAddr, a + i, 0);
-    LWSPEC(a_, spAddr, 0);
-    
-    if (a_ == 0) {
-      int b_;
-      VPREFETCH(spAddr + 1, b + i, 0);
-      LWSPEC(b_, spAddr + 1, 0);
-      int c_ = b_;
-      for (int j = 0; j < 2; j++) {
-        c_ *= b_;
+    for (int j = 0; j < unroll_len; j++) {
+
+      int* spAddrA = spAddr + j * 2;
+      int* spAddrB = spAddr + j * 2 + 1;
+
+      int a_;
+      // TODO you still have to mark spad entry as 0, otherwise don't know to wait?
+      //VPREFETCH(spAddr, a + i, 0); 
+      VPREFETCH(spAddrA, a, 0); // don't have to do address calc on expected path
+      LWSPEC(a_, spAddrA, 0);
+      
+      if (a_ == 0) {
+        int b_;
+        //VPREFETCH(spAddr + 1, b + i, 0);
+        VPREFETCH(spAddrB, b, 0); // don't have to do address calc on expected path
+        LWSPEC(b_, spAddrB, 0);
+        int c_ = b_;
+        for (int k = 0; k < 2; k++) {
+          c_ *= b_;
+        }
+        c[i + j * dim] = c_;
       }
-      c[i] = c_;
-    }
-    else {
-      int b_;
-      VPREFETCH(spAddr + 1, d + i, 0); // need to load when on the off path, although should prob be regular load?
-      LWSPEC(b_, spAddr + 1,  0);
-      int c_ = b_;
-      for (int j = 0; j < 2; j++) {
-        c_ *= b_;
+      else {
+        int b_;
+        VPREFETCH(spAddrB, d + i, 0); // need to load when on the off path, although should prob be regular load?
+        LWSPEC(b_, spAddrB,  0);
+        int c_ = b_;
+        for (int k = 0; k < 2; k++) {
+          c_ *= b_;
+        }
+        c[i + j * dim] = c_;
       }
-      c[i] = c_;
     }
     
     
     // try to revec at the end of loop iteration
-    REVEC(0);
+    //REVEC(0);
   }
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
+synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
   int *spAddr = getSpAddr(tid, 0);
   
-  for (int i = tid; i < n; i+=dim) {
+  for (int i = 0; i < n; i+=unroll_len*dim) {
     
     // TODO, for now just assuming a path
     // int a_;
@@ -231,19 +239,28 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
     // // try to revec at the end of loop iteration
     // REVEC(0);
 
-    VPREFETCH(spAddr, a + i, 0);
-    VPREFETCH(spAddr + 1, b + i, 0);
+    for (int j = 0; j < unroll_len; j++) {
+      VPREFETCH(spAddr + j * 2,     a + i + j * dim, 0);
+      VPREFETCH(spAddr + j * 2 + 1, b + i + j * dim, 0);
+    }
+
+    // specify a number here for how many until need to stall?
+    // presumably there is some give for prefetching, but needs to have
+    // some loose syncronization to not overfetch
+    // also we'll want to do unrolling across all the addresses of the spad, but
+    // watch out for stack usage (unroll can't be a constant, must be an actual loop)
+    //REVEC(0);
 
   }
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-synthetic_dae(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
+synthetic_dae(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
   if (tid == 0) {
-    synthetic_dae_access(a, b, c, d, n, tid, dim);
+    synthetic_dae_access(a, b, c, d, n, tid, dim, unroll_len);
   }
   else {
-    synthetic_dae_execute(a, b, c, d, n, tid, dim);
+    synthetic_dae_execute(a, b, c, d, n, tid, dim, unroll_len);
   }
 }
 
@@ -275,7 +292,8 @@ void kernel(
 
   // run the actual kernel with the configuration
   #ifdef DAE
-  synthetic_dae(a, b, c, d, n, tid, dim);
+  volatile int unroll_len = 8;
+  synthetic_dae(a, b, c, d, n, tid, dim, unroll_len);
   #elif defined(UNROLL)
   volatile int unroll_len = 4;
   synthetic_uthread(a, b, c, d, n, tid, dim, unroll_len);
