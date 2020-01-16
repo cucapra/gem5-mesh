@@ -182,14 +182,15 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim, i
 
       int a_;
       // TODO you still have to mark spad entry as 0, otherwise don't know to wait?
+      // have mechanism to reset all when do revec
       //VPREFETCH(spAddr, a + i, 0); 
-      VPREFETCH(spAddrA, a, 0); // don't have to do address calc on expected path
+      // VPREFETCH(spAddrA, a, 0); // don't have to do address calc on expected path
       LWSPEC(a_, spAddrA, 0);
       
       if (a_ == 0) {
         int b_;
         //VPREFETCH(spAddr + 1, b + i, 0);
-        VPREFETCH(spAddrB, b, 0); // don't have to do address calc on expected path
+        // VPREFETCH(spAddrB, b, 0); // don't have to do address calc on expected path
         LWSPEC(b_, spAddrB, 0);
         int c_ = b_;
         for (int k = 0; k < 2; k++) {
@@ -211,7 +212,7 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim, i
     
     
     // try to revec at the end of loop iteration
-    //REVEC(0);
+    REVEC(0);
   }
 }
 
@@ -249,7 +250,7 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim, in
     // some loose syncronization to not overfetch
     // also we'll want to do unrolling across all the addresses of the spad, but
     // watch out for stack usage (unroll can't be a constant, must be an actual loop)
-    //REVEC(0);
+    REVEC(0);
 
   }
 }
@@ -291,12 +292,16 @@ void kernel(
   #endif
 
   // run the actual kernel with the configuration
+  #ifdef _VEC
   #ifdef DAE
-  volatile int unroll_len = 8;
+  volatile int unroll_len = 256;
   synthetic_dae(a, b, c, d, n, tid, dim, unroll_len);
   #elif defined(UNROLL)
   volatile int unroll_len = 4;
   synthetic_uthread(a, b, c, d, n, tid, dim, unroll_len);
+  #else
+  synthetic(a, b, c, d, n, tid, dim);
+  #endif
   #else
   synthetic(a, b, c, d, n, tid, dim);
   #endif

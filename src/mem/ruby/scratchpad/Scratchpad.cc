@@ -130,7 +130,7 @@ Scratchpad::Scratchpad(const Params* p)
   // setup cpu touched array to keep track of divergences (TODO not sure how should be implemetned in practice?)
   // maybe use a single bit/byte of data towards this purpose
   for(int i = 0; i < m_size / sizeof(uint32_t); i++) {
-    m_fresh_array.push_back(1);
+    m_fresh_array.push_back(0);
   }
 }
 
@@ -663,8 +663,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // unlimited pending? doesn't seem like the spad has to track anything for a pending load?
     bool pendingPktSpad = (m_pending_pkt_map.size() < m_max_num_pending_pkts) || !pkt_p->isSpLoad();
     if (pkt_p->getSpadReset() && pendingPktSpad) {
-      setWordNotRdy(pkt_p->getPrefetchAddr());
-      //updateEpoch(pkt_p->getEpoch());
+      // setWordNotRdy(pkt_p->getPrefetchAddr());
       
       DPRINTF(Mesh, "reset word %#x\n", pkt_p->getPrefetchAddr());
       
@@ -1093,6 +1092,13 @@ Scratchpad::setWordNotRdy(Addr addr) {
   assert(!memDiv);*/
 
   tag = 0;
+}
+
+void
+Scratchpad::resetRdyArray() {
+  for (int i = 0; i < m_fresh_array.size(); i++) {
+    m_fresh_array[i] = 0;
+  }
 }
 
 /*void

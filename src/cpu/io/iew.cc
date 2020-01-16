@@ -337,6 +337,9 @@ IEW::doIssue()
     ThreadID tid = inst->thread_id;
     OpClass op_class = inst->static_inst_p->opClass();
 
+    if (inst->static_inst_p->isSpadPrefetch())
+        DPRINTF(Mesh, "[sn:%d] try issue prelw\n", inst->seq_num);
+
     // Check this instruction's dependencies are cleared
     for (int i = 0; i < inst->numSrcRegs(); ++i) {
       if (!m_scoreboard_p->getReg(inst->renamedSrcRegIdx(i))) {
@@ -365,14 +368,14 @@ IEW::doIssue()
     }
     
     if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getRevecInstCount() > 0) {
-      DPRINTF(IEW, "[sn:%d] Can't issue prelw due to pending younger "
+      DPRINTF(Mesh, "[sn:%d] Can't issue prelw due to pending younger "
                    "revec instructions\n", inst->seq_num);
                    
       return;
     }
     
     if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getUnresolvedCondInstCount() > 0) {
-      DPRINTF(IEW, "[sn:%d] Can't issue prelw due to pending younger "
+      DPRINTF(Mesh, "[sn:%d] Can't issue prelw due to pending younger "
                    "unresolved cond ctrl instructions\n", inst->seq_num);
                    
       return;
@@ -386,6 +389,8 @@ IEW::doIssue()
       // record
       m_stage_status.set(IEWStatus::IssueInitStall);
 #endif
+      if (inst->static_inst_p->isSpadPrefetch())
+        DPRINTF(Mesh, "[sn:%d] rob full for prelw\n", inst->seq_num);
       return;
     }
 
@@ -404,8 +409,13 @@ IEW::doIssue()
       // record
       m_stage_status.set(IEWStatus::IssueInitStall);
 #endif
+      if (inst->static_inst_p->isSpadPrefetch())
+        DPRINTF(Mesh, "[sn:%d] exec unit busy for prelw\n", inst->seq_num);
       return;
     }
+
+    if (inst->static_inst_p->isSpadPrefetch())
+      DPRINTF(Mesh, "[sn:%d] issue prelw\n", inst->seq_num);
 
     // issue the instruction now
     exec_unit_p->insert(inst);

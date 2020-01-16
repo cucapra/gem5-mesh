@@ -89,6 +89,10 @@ class CpuPort : public SlavePort
     AddrRangeList getAddrRanges() const override
     { panic("getAddrRanges Not implemented!\n"); }
 
+    Scratchpad *getAttachedSpad() const {
+      return m_scratchpad_p;
+    }
+
   private:
     Scratchpad* m_scratchpad_p;
     bool m_need_retry;
@@ -197,6 +201,11 @@ class Scratchpad : public AbstractController
 
     void collateStats() override
     { warn("Scratchpad does not support collateStats()\n"); }
+
+    // reset all tags in rdy array
+    // TODO called from CPU, not sure how realistic? it's a 1bit wire
+    // or maybe it could be a special packet...
+    void resetRdyArray();
 
   private:
     /**
