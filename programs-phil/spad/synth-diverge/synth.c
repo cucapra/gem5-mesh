@@ -245,6 +245,14 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim, in
       VPREFETCH(spAddr + j * 2 + 1, b + i + j * dim, 0);
     }
 
+    // add throttling for a little bit to reduce overfetching
+    // but this either seems to miss by a lot or too slow b/c 
+    // need burst of loads with the epoch system
+    int throttle_insts = 2500;
+    for (int j = 0; j < throttle_insts; j++) {
+      asm volatile("nop\n\t"::);
+    }
+
     // specify a number here for how many until need to stall?
     // presumably there is some give for prefetching, but needs to have
     // some loose syncronization to not overfetch
