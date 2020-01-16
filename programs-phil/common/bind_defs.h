@@ -40,6 +40,19 @@
 #define REVEC(hash)                                                           \
   asm volatile (".insn u 0x7b, x0, %[id]\n\t" :: [id] "i" (hash))
   
+// remem instruction with unique hash id (mem barrier instead of control barrier)
+#define REMEM(hash)                                                           \
+  asm volatile ("nop\n\t"::)
+
+// do a csr read on register containing the number of open regions
+#define READ_OPEN_REGIONS(ret) \
+  asm volatile ("csrr %[rdest], <csrreg>\n\t" : [rdest] "=r" (ret) :)
+
+static int __readOpenRegions() {
+  int ret;
+  READ_OPEN_REGIONS(ret);
+  return ret;
+}
   
   // revec instruction with unique hash id
 /*#define REVEC(hash)                                                           \

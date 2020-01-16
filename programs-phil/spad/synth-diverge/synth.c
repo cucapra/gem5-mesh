@@ -173,8 +173,14 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
 synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
   int *spAddr = getSpAddr(tid, 0);
   
+  int numRegions = 4;
+  int memEpoch = 0;
+
   for (int i = tid; i < n; i+=unroll_len*dim) {
     
+    // region of spad memory we can use
+    int *spAddrRegion = spAddr + (memEpoch % numRegions);
+
     for (int j = 0; j < unroll_len; j++) {
 
       int* spAddrA = spAddr + j * 2;
@@ -210,6 +216,11 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim, i
       }
     }
     
+    // increment mem epoch to know which region to fetch mem from
+    memEpoch++;
+
+    // TODO also put REMEM here, REVEC should prob be within the inner loop to try to revec each time??
+    // inform DA we are done with region, so it can start to prefetch for that region
     
     // try to revec at the end of loop iteration
     REVEC(0);
@@ -220,6 +231,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
 synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
   int *spAddr = getSpAddr(tid, 0);
   
+  int numRegions = 4;
+  int memEpoch = 0;
+
   for (int i = 0; i < n; i+=unroll_len*dim) {
     
     // TODO, for now just assuming a path
@@ -240,18 +254,26 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim, in
     // // try to revec at the end of loop iteration
     // REVEC(0);
 
+
+    // how many regions are available for prefetch
+    // this requires a csr read to get probably
+    while (__readOpenRegions() == 0) {}
+
+    // region of spad memory we can use
+    int *spAddrRegion = spAddr + (memEpoch % numRegions);
+
     for (int j = 0; j < unroll_len; j++) {
-      VPREFETCH(spAddr + j * 2,     a + i + j * dim, 0);
-      VPREFETCH(spAddr + j * 2 + 1, b + i + j * dim, 0);
+      VPREFETCH(spAddrRegion + j * 2    , a + i + j * dim, 0);
+      VPREFETCH(spAddrRegion + j * 2 + 1, b + i + j * dim, 0);
     }
 
-    // add throttling for a little bit to reduce overfetching
-    // but this either seems to miss by a lot or too slow b/c 
-    // need burst of loads with the epoch system
-    int throttle_insts = 2500;
-    for (int j = 0; j < throttle_insts; j++) {
-      asm volatile("nop\n\t"::);
-    }
+    // // add throttling for a little bit to reduce overfetching
+    // // but this either seems to miss by a lot or too slow b/c 
+    // // need burst of loads with the epoch system
+    // int throttle_insts = 2500;
+    // for (int j = 0; j < throttle_insts; j++) {
+    //   asm volatile("nop\n\t"::);
+    // }
 
     // specify a number here for how many until need to stall?
     // presumably there is some give for prefetching, but needs to have
