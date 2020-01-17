@@ -169,22 +169,28 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int u
   }
 }
 
+#define SYNC_ADDR 1000
+#define DA_SPAD 0
+#define SP_INTS 512
+
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
 synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
   int *spAddr = getSpAddr(tid, 0);
+  // int *daeSpad = getSpAddr(DA_SPAD, 0);
   
   int numRegions = 4;
+  int regionSize = 32;
   int memEpoch = 0;
 
   for (int i = tid; i < n; i+=unroll_len*dim) {
     
     // region of spad memory we can use
-    int *spAddrRegion = spAddr + (memEpoch % numRegions);
+    int *spAddrRegion = spAddr + (memEpoch % numRegions) * regionSize;
 
     for (int j = 0; j < unroll_len; j++) {
 
-      int* spAddrA = spAddr + j * 2;
-      int* spAddrB = spAddr + j * 2 + 1;
+      int* spAddrA = spAddrRegion + j * 2;
+      int* spAddrB = spAddrRegion + j * 2 + 1;
 
       int a_;
       // TODO you still have to mark spad entry as 0, otherwise don't know to wait?
@@ -221,7 +227,10 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim, i
 
     // TODO also put REMEM here, REVEC should prob be within the inner loop to try to revec each time??
     // inform DA we are done with region, so it can start to prefetch for that region
-    
+    // if (tid == 1)
+      // daeSpad[SYNC_ADDR] = memEpoch;
+    spAddr[SYNC_ADDR] = memEpoch;
+
     // try to revec at the end of loop iteration
     REVEC(0);
   }
@@ -232,6 +241,7 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim, in
   int *spAddr = getSpAddr(tid, 0);
   
   int numRegions = 4;
+  int regionSize = 32;
   int memEpoch = 0;
 
   for (int i = 0; i < n; i+=unroll_len*dim) {
@@ -257,15 +267,27 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim, in
 
     // how many regions are available for prefetch
     // this requires a csr read to get probably
-    while (__readOpenRegions() == 0) {}
+    // or can wait for remote stores?
+    // while (__readOpenRegions() == 0) {}
+
+    // int *masterSpad = getSpAddr(1, 0);
+    // while (memEpoch >= masterSpad[SYNC_ADDR] + numRegions) {}
+    volatile int loadedEpoch;
+    do {
+      loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
+    } while(memEpoch >= loadedEpoch + numRegions);
+
+    // printf("do epoch %d\n", memEpoch);
 
     // region of spad memory we can use
-    int *spAddrRegion = spAddr + (memEpoch % numRegions);
+    int *spAddrRegion = spAddr + (memEpoch % numRegions) * regionSize;
 
     for (int j = 0; j < unroll_len; j++) {
       VPREFETCH(spAddrRegion + j * 2    , a + i + j * dim, 0);
       VPREFETCH(spAddrRegion + j * 2 + 1, b + i + j * dim, 0);
     }
+
+    memEpoch++;
 
     // // add throttling for a little bit to reduce overfetching
     // // but this either seems to miss by a lot or too slow b/c 
@@ -324,7 +346,7 @@ void kernel(
   // run the actual kernel with the configuration
   #ifdef _VEC
   #ifdef DAE
-  volatile int unroll_len = 256;
+  volatile int unroll_len = 16;
   synthetic_dae(a, b, c, d, n, tid, dim, unroll_len);
   #elif defined(UNROLL)
   volatile int unroll_len = 4;
