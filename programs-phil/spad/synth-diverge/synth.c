@@ -172,14 +172,17 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int u
 #define SYNC_ADDR 1000
 #define DA_SPAD 0
 #define SP_INTS 512
+#define NUM_REGIONS 16
+#define REGION_SIZE 32
+
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
 synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
   int *spAddr = getSpAddr(tid, 0);
   // int *daeSpad = getSpAddr(DA_SPAD, 0);
   
-  int numRegions = 4;
-  int regionSize = 32;
+  int numRegions = NUM_REGIONS;
+  int regionSize = REGION_SIZE;
   int memEpoch = 0;
 
   for (int i = tid; i < n; i+=unroll_len*dim) {
@@ -240,8 +243,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
 synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
   int *spAddr = getSpAddr(tid, 0);
   
-  int numRegions = 4;
-  int regionSize = 32;
+  int numRegions = NUM_REGIONS;
+  int regionSize = REGION_SIZE;
   int memEpoch = 0;
 
   for (int i = 0; i < n; i+=unroll_len*dim) {

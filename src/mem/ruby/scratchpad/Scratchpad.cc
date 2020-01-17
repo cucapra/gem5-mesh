@@ -264,6 +264,11 @@ Scratchpad::processRespToSpad() {
           m_prefetch_resp_queue.front()->getAddr(),
           getLocalAddr(m_prefetch_resp_queue.front()->getAddr()) / sizeof(uint32_t)
           );
+
+        // record the max size ever seen for stats
+        if (m_prefetch_resp_queue.size() > (int)m_max_queue_size.total()) {
+          m_max_queue_size = m_prefetch_resp_queue.size();
+        }
         
         // TODO I don't think it's possible for this to be active? even when there is
         // tons or unhandled reqs?
@@ -1026,7 +1031,7 @@ Scratchpad::getCoreEpoch() {
 int
 Scratchpad::getNumRegions() {
   // TODO don't hardcode and get from CSR on CPU
-  return 4;
+  return 16;
 }
 
 int
@@ -1115,27 +1120,11 @@ Scratchpad::resetRdyArray() {
   // TODO potentially can get away with only marking region as being ready?
   // or having the first spad entry at the beginning of each region mark whether ready or not
   int regionIdx = (getCoreEpoch() - 1) % getNumRegions(); // epoch will have update so use the last one
-  int startOffset = 4; // 4 * 32bits 
+  int startOffset = SPM_DATA_WORD_OFFSET; // 4 * 32bits 
   for (int i = regionIdx * getRegionElements() + startOffset; i < (regionIdx + 1) * getRegionElements() + startOffset; i++) {
     m_fresh_array[i] = 0;
   }
 }
-
-/*void
-Scratchpad::updateEpoch(int epoch) {
-  m_proc_epoch = epoch;
-}*/
-
-/*void
-Scratchpad::updateMasterEpoch(const LLCResponseMsg *llc_msg_p) {
-  // check if this packet brings a new epoch
-  // in a real system could do like mod4 or something to reduce the bitwidth of this field
-  // and would still probably work
-  // or just send a diff over the network
-  if (llc_msg_p->m_Epoch > m_largest_epoch_recv) {
-    m_largest_epoch_recv = llc_msg_p->m_Epoch;
-  }
-}*/
 
 void
 Scratchpad::regStats()
@@ -1175,6 +1164,11 @@ Scratchpad::regStats()
   m_total_accesses
         .name(name() + ".total_accesses")
         .desc("Number of accesses completed")
+        ;
+
+  m_max_queue_size
+        .name(name() + ".max_queue_size")
+        .desc("The larget amount of pending entries in this queue")
         ;
 
   m_local_accesses = m_local_loads + m_local_stores;

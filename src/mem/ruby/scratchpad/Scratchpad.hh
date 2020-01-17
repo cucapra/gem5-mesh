@@ -110,6 +110,7 @@ class CpuPort : public SlavePort
 #define SPM_GO_FLAG_OFFSET    (SPM_BASE_ADDR_OFFSET + sizeof(uint64_t))
 #define SPM_DONE_FLAG_OFFSET  (SPM_GO_FLAG_OFFSET   + sizeof(uint32_t))
 #define SPM_ARGS_OFFSET       (SPM_DONE_FLAG_OFFSET + sizeof(uint32_t))
+#define SPM_DATA_WORD_OFFSET  4
 
 class Scratchpad : public AbstractController
 {
@@ -412,6 +413,8 @@ class Scratchpad : public AbstractController
     Stats::Formula m_local_accesses;
     Stats::Formula m_remote_accesses;
     Stats::Formula m_total_accesses;
+
+    Stats::Scalar m_max_queue_size;
 };
 
 #endif // MEM_RUBY_SCRATCHPAD_HH
