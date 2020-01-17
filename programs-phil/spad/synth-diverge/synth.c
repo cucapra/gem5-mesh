@@ -276,10 +276,14 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim, in
     // int *masterSpad = getSpAddr(1, 0);
     // while (memEpoch >= masterSpad[SYNC_ADDR] + numRegions) {}
     volatile int loadedEpoch;
-    do {
+    loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
+    while(memEpoch >= loadedEpoch + numRegions) {
+      // wait a little bit before trying to re-issue, but doesn't really change much
+      // for (int w = 0; w < 1000; w++) {
+      //   asm volatile("nop\n\t");
+      // }
       loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
-    } while(memEpoch >= loadedEpoch + numRegions);
-
+    }
     // printf("do epoch %d\n", memEpoch);
 
     // region of spad memory we can use
