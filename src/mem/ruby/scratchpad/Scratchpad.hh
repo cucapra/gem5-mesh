@@ -240,6 +240,8 @@ class Scratchpad : public AbstractController
      * Mem divergence. Check CPU registers
      */ 
     int getCoreEpoch();
+    int getNumRegions();
+    int getRegionElements();
     //void updateEpoch(int epoch);
     bool controlDiverged();
     bool memoryDiverged(int pktEpoch, Addr addr);

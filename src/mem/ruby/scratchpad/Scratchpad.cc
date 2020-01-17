@@ -259,9 +259,10 @@ Scratchpad::processRespToSpad() {
         //m_sp_prefetch_buffer.push_back(pkt_p);
         enqueueStallRespToSp(pkt_p);
         
-        DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending epoch %d addr %#x\n", 
-          m_prefetch_resp_queue.size(), m_prefetch_resp_queue.front()->getEpoch(), 
-          m_prefetch_resp_queue.front()->getAddr()
+        DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending epoch %d core epoch %d addr %#x spadEntry %d\n", 
+          m_prefetch_resp_queue.size(), m_prefetch_resp_queue.front()->getEpoch(), getCoreEpoch(),
+          m_prefetch_resp_queue.front()->getAddr(),
+          getLocalAddr(m_prefetch_resp_queue.front()->getAddr()) / sizeof(uint32_t)
           );
         
         // TODO I don't think it's possible for this to be active? even when there is
@@ -1022,6 +1023,19 @@ Scratchpad::getCoreEpoch() {
   return coreEpoch;
 }
 
+int
+Scratchpad::getNumRegions() {
+  // TODO don't hardcode and get from CSR on CPU
+  return 4;
+}
+
+int
+Scratchpad::getRegionElements() {
+  // TODO hardcoded, either calculate or get from CSR
+  // TODO may not even need if can remove the rdy array
+  return 32;
+}
+
 bool
 Scratchpad::controlDiverged() {
   Vector *vec = m_cpu_p->getEarlyVector();
@@ -1038,7 +1052,8 @@ Scratchpad::memoryDiverged(int pktEpoch, Addr addr) {
 bool
 Scratchpad::isPrefetchAhead(int pktEpoch) {
   int coreEpoch = getCoreEpoch();
-  return (coreEpoch < pktEpoch);
+  return (pktEpoch - coreEpoch >= getNumRegions());
+  // return (coreEpoch < pktEpoch);
 }
 
 /*
@@ -1096,7 +1111,12 @@ Scratchpad::setWordNotRdy(Addr addr) {
 
 void
 Scratchpad::resetRdyArray() {
-  for (int i = 0; i < m_fresh_array.size(); i++) {
+  // just reset for the current region
+  // TODO potentially can get away with only marking region as being ready?
+  // or having the first spad entry at the beginning of each region mark whether ready or not
+  int regionIdx = (getCoreEpoch() - 1) % getNumRegions(); // epoch will have update so use the last one
+  int startOffset = 4; // 4 * 32bits 
+  for (int i = regionIdx * getRegionElements() + startOffset; i < (regionIdx + 1) * getRegionElements() + startOffset; i++) {
     m_fresh_array[i] = 0;
   }
 }
