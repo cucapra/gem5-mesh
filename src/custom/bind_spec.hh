@@ -204,6 +204,11 @@ typedef enum Locked_Insts {
 #define FET_DAE_BITS     (1)
 #define FET_DAE_SHAMT    (FET_YLEN_SHAMT + FET_YLEN_BITS)
 
+// encode if the vector order is in reverse this is to increase
+// the utilization of awkward shapes caused by DAE core
+#define FET_VEC_REV_BITS  (1)
+#define FET_VEC_REV_SHAMT (FET_DAE_SHAMT + FET_DAE_BITS)
+
 
 // explicilty determine bitranges for decoding
 
@@ -224,6 +229,9 @@ typedef enum Locked_Insts {
 
 #define FET_YLEN_HI (FET_YLEN_SHAMT + FET_YLEN_BITS - 1)
 #define FET_YLEN_LO (FET_YLEN_SHAMT)
+
+#define FET_VEC_REV_HI (FET_VEC_REV_SHAMT + FET_VEC_REV_BITS - 1)
+#define FET_VEC_REV_LO (FET_VEC_REV_SHAMT)
 
 
 #endif

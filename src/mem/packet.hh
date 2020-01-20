@@ -779,6 +779,16 @@ class Packet : public Printable
      */
     int getXDim() const { return req->xDim; }
     int getYDim() const { return req->yDim; }
+
+    /**
+     * Accessor to vlen offset
+     */ 
+    int getVecOffset() const { return req->vecOffset; }
+
+    /**
+     * Accessor to whether req from decoupled access core
+     */ 
+    bool getFromDecoupledAccess() const { return req->fromDecoupledAccess; }
     
     /**
      * Accessor to prefetch address

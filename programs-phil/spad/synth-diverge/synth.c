@@ -338,6 +338,11 @@ void kernel(
   int tid = tid_x + tid_y * dim_x;
   int dim = dim_x * dim_y;
 
+  // only let certain tids continue
+  if (tid_x > 1) return;
+  if (tid_x == 1 && tid_y == 2) return;
+  if (tid_y > 2) return;
+
   // configure vector is enabled
   #ifdef _VEC
   // get a standard vector mask

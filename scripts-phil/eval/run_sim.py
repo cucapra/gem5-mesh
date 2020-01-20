@@ -93,7 +93,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv):
 # choose which programs to run with diff parameters
 
 # fixed parameters for the run, compile the binary for these
-numCpus = 4
+numCpus = 16
 use_sps = True
 
 size = 8192

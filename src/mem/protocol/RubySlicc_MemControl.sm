@@ -106,6 +106,8 @@ structure(LLCRequestMsg, desc = "...", interface = "Message") {
   // for vector mem ops
   int             XDim,         desc = "";
   int             YDim,         desc = "";
+  int             VecOffset,    desc = "Due to DA, may have offset of 1 in the group, (1bit?)";
+  bool            FromDA,       desc = "whether this request is from decoupled access core";
   Addr            WordAddress,  desc = "address for 32 bit mem element";
   // TODO when value across cache lines, need to send multiple requests
   // so the first element won't always be the master core and all should get

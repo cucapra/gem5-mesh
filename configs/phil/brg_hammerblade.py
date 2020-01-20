@@ -515,6 +515,8 @@ for i in xrange(n_l2s):
   l2_cntrl = L2Cache_Controller(version = i,
                                 cacheMemory = l2_cache,
                                 transitions_per_cycle = 4,
+                                meshDimX = n_cols,
+                                meshDimY = n_cols,
                                 ruby_system = system.ruby
                                 )
                                 #number_of_TBEs = 1)
