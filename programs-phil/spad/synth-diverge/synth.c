@@ -343,11 +343,14 @@ void kernel(
   if (tid_x == 1 && tid_y == 2) return;
   if (tid_y > 2) return;
 
+  int daeDim = 2;
+  dim = daeDim * daeDim;
+
   // configure vector is enabled
   #ifdef _VEC
   // get a standard vector mask
   #ifdef DAE
-  int mask = getDAEMask(tid_x, tid_y, dim_x, dim_y);
+  int mask = getDAEMask(tid_x, tid_y, daeDim, daeDim);
   #else
   int mask = getVecMask(tid_x, tid_y, dim_x, dim_y);
   #endif

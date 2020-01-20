@@ -237,10 +237,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
   // currently doing by x first
   int getCoreIdx(int coreIdx, int coreOffset, int vecDimX, int vecDimY, bool fromDA) {
     // get the starting core idx
-    // only add offset if from DA
+    // substract offset if originating from master??
     int startingCoreIdx := coreIdx;
-    if (fromDA == true) {
-      startingCoreIdx := startingCoreIdx + coreOffset;
+    if (fromDA == false) {
+      startingCoreIdx := startingCoreIdx - coreOffset;
     }
 
     // add flat offset to vec cnt
@@ -521,8 +521,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // the storage address in the spad
       Addr spadAddr := intToAddress(addressToInt(in_msg.PrefetchAddress) + (coreOffset << 12)); //intToAddress(268435472 + (spadIdx << 12));
       
-      DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x lineaddr %#x offset %d epoch %d\n", 
-        spadIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset, in_msg.Epoch);
+      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d epoch %d\n", 
+        spadIdx, coreIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset, in_msg.Epoch);
       
       // if vector then send REVDATA, otherwise REDATA
       // TODO maybe should just be seperate
@@ -586,8 +586,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
         respType := LLCResponseType:REDATA;
       }
       
-      DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x prefetch %#x offset %d epoch %d\n", 
-        spadIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.Epoch);
+      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d epoch %d\n", 
+        spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.Epoch);
       
       enqueue(responseNetwork_out, LLCResponseMsg, 1) {
         assert(is_valid(tbe));
