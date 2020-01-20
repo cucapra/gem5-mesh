@@ -350,10 +350,31 @@ void kernel(
   #ifdef _VEC
   // get a standard vector mask
   #ifdef DAE
-  int mask = getDAEMask(tid_x, tid_y, daeDim, daeDim);
+  int mask = getDAEMask(tid_x, tid_y, dim_x, dim_y);
   #else
   int mask = getVecMask(tid_x, tid_y, dim_x, dim_y);
   #endif
+
+  // construct special mask for dae example
+  mask = (daeDim << FET_XLEN_SHAMT) | (daeDim << FET_YLEN_SHAMT);
+  if (tid_x == 0 && tid_y == 0) {
+    mask |= (1 << FET_DAE_SHAMT);
+  }
+  else {
+    mask |= (0 << FET_DAE_SHAMT);
+  }
+  if (tid_x == 1 && tid_y == 0) {
+    mask |= FET_O_INST_DOWN_SEND;
+  }
+  else if (tid_x == 1 && tid_y == 1) {
+    mask |= FET_I_INST_UP | FET_O_INST_LEFT_SEND;
+  }
+  else if (tid_x == 0 && tid_y == 1) {
+    mask |= FET_I_INST_RIGHT | FET_O_INST_DOWN_SEND;
+  }
+  else if (tid_x == 0 && tid_y == 2) {
+    mask |= FET_I_INST_UP;
+  }
 
   VECTOR_EPOCH(mask);
   #endif
