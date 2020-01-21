@@ -667,8 +667,10 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // core but rather just update info in the spad
     // TODO currently checking normal pkt map, should we make our own so that can be
     // unlimited pending? doesn't seem like the spad has to track anything for a pending load?
-    bool pendingPktSpad = (m_pending_pkt_map.size() < m_max_num_pending_pkts) || !pkt_p->isSpLoad();
-    if (pkt_p->getSpadReset() && pendingPktSpad) {
+    bool isPrefetch = pkt_p->getSpadReset();
+    bool noLLCAck = pkt_p->getFromDecoupledAccess() && isPrefetch;
+    bool pendingPktSpad = (m_pending_pkt_map.size() < m_max_num_pending_pkts) || !pkt_p->isSpLoad() || noLLCAck;
+    if (isPrefetch && pendingPktSpad) {
       // setWordNotRdy(pkt_p->getPrefetchAddr());
       
       DPRINTF(Mesh, "reset word %#x\n", pkt_p->getPrefetchAddr());
@@ -690,7 +692,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     }
     
     // This packet will be delivered to LLC
-    if (m_pending_pkt_map.size() == m_max_num_pending_pkts) {
+    if (m_pending_pkt_map.size() == m_max_num_pending_pkts && !noLLCAck) {
       DPRINTF(Scratchpad, "Blocking. Pending pkt buffer is full\n");
       return false;
     } else {
@@ -756,9 +758,11 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
                                   clockEdge(),
                                   cyclesToTicks(Cycles(1)));
 
-      // set the pending packet
-      m_pending_pkt_map[m_cur_seq_num] = pkt_p;
-      m_cur_seq_num++;
+      // set the pending packet only if requires an ack (prefetch does not)
+      if (!noLLCAck) {
+        m_pending_pkt_map[m_cur_seq_num] = pkt_p;
+        m_cur_seq_num++;
+      }
 
       DPRINTF(Scratchpad, "Sent pkt %s to LLC seq_num %d\n",
                         pkt_p->print(), m_cur_seq_num - 1);

@@ -290,10 +290,11 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim, in
     int *spAddrRegion = spAddr + (memEpoch % numRegions) * regionSize;
 
     for (int j = 0; j < unroll_len; j++) {
+      // printf("start spAddr %#x from addr %#x\n", spAddrRegion + j * 2, a + i + j * dim);
       VPREFETCH(spAddrRegion + j * 2    , a + i + j * dim, 0);
       VPREFETCH(spAddrRegion + j * 2 + 1, b + i + j * dim, 0);
     }
-
+    // printf("complete mem epoch %d\n", memEpoch);
     memEpoch++;
 
     // // add throttling for a little bit to reduce overfetching
