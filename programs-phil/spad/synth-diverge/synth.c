@@ -177,15 +177,15 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int u
 
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
-  int *spAddr = getSpAddr(tid, 0);
+synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, int dim, int unroll_len) {
+  int *spAddr = getSpAddr(ptid, 0);
   // int *daeSpad = getSpAddr(DA_SPAD, 0);
   
   int numRegions = NUM_REGIONS;
   int regionSize = REGION_SIZE;
   int memEpoch = 0;
 
-  for (int i = tid; i < n; i+=unroll_len*dim) {
+  for (int i = vtid; i < n; i+=unroll_len*dim) {
     
     // region of spad memory we can use
     int *spAddrRegion = spAddr + (memEpoch % numRegions) * regionSize;
@@ -240,8 +240,8 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim, i
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
-  int *spAddr = getSpAddr(tid, 0);
+synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, int dim, int unroll_len) {
+  int *spAddr = getSpAddr(ptid, 0);
   
   int numRegions = NUM_REGIONS;
   int regionSize = REGION_SIZE;
@@ -316,12 +316,12 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim, in
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-synthetic_dae(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
-  if (tid == 0) {
-    synthetic_dae_access(a, b, c, d, n, tid, dim, unroll_len);
+synthetic_dae(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, int dim, int unroll_len) {
+  if (ptid == 0) {
+    synthetic_dae_access(a, b, c, d, n, ptid, vtid, dim, unroll_len);
   }
   else {
-    synthetic_dae_execute(a, b, c, d, n, tid, dim, unroll_len);
+    synthetic_dae_execute(a, b, c, d, n, ptid, vtid, dim, unroll_len);
   }
 }
 
@@ -377,6 +377,15 @@ void kernel(
     mask |= FET_I_INST_UP;
   }
 
+  // also need to change the tids to reflect position in the group
+  int ptid = tid;
+  int vtid = 0;
+
+  if (ptid == 1) vtid = 0;
+  else if (ptid == 4) vtid = 1;
+  else if (ptid == 5) vtid = 2;
+  else if (ptid == 8) vtid = 3;
+
   VECTOR_EPOCH(mask);
   #endif
 
@@ -384,7 +393,7 @@ void kernel(
   #ifdef _VEC
   #ifdef DAE
   volatile int unroll_len = 16;
-  synthetic_dae(a, b, c, d, n, tid, dim, unroll_len);
+  synthetic_dae(a, b, c, d, n, ptid, vtid, dim, unroll_len);
   #elif defined(UNROLL)
   volatile int unroll_len = 4;
   synthetic_uthread(a, b, c, d, n, tid, dim, unroll_len);

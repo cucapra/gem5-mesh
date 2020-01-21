@@ -141,17 +141,12 @@ int main(int argc, char *argv[]) {
   /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
-  int numFail = 0;
   for (int i = 0; i < sizeC; i++) {
     if (a[i] == 0) {
       if (c[i] != pow(2, 3)) {
-        numFail++;
-        // TODO for now only check 1,2,3 slots as first is DAE
-        // if (i % 4 != 0) {
-        // printf("[[FAIL]]\n");
-        // printf("i=%d c=%d exp=%d\n", i, c[i], (int)pow(2, 3));
-        // return 1;
-        // }
+        printf("[[FAIL]]\n");
+        printf("i=%d c=%d exp=%d\n", i, c[i], (int)pow(2, 3));
+        return 1;
       }
     }
     else if (a[i] == 1) {
@@ -170,12 +165,6 @@ int main(int argc, char *argv[]) {
   free(_b);
   free(_c);
   free(_d);
-  
-  printf("NumFail: %d\n", numFail);
-  if (numFail > sizeC / 4) {
-    printf("[[FAIL]]\n");
-    return 1;
-  }
 
   printf("[[SUCCESS]]\n");
   
