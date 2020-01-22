@@ -111,7 +111,32 @@ IEW::name() const
 void
 IEW::regStats()
 {
+  m_dep_stalls
+    .name(name() + ".issue_dep_stalls")
+    .desc("number of stalls issue dep")
+  ;
 
+  m_commit_buf_stalls
+    .name(name() + ".issue_rob_stalls")
+    .desc("number of stalls no space in rob on issue")
+  ;
+
+  m_exe_unit_busy_stalls
+    .name(name() + ".issue_exe_busy")
+    .desc("number of stalls due to exe unit busy")
+  ;
+
+  m_mem_barrier_stalls
+    .name(name() + ".issue_mem_barrier")
+    .desc("number of stalls due to pending mem barrier in issue")
+  ;
+
+  m_stall_rob_head_insts
+    .init(1, Enums::Num_OpClass)
+    .name(name() + ".rob_head_stall_class")
+    .desc("Class of instruction blocking at head of ROB")
+    .flags(Stats::total | Stats::pdf | Stats::dist);
+  m_stall_rob_head_insts.ysubnames(Enums::OpClassStrings);
 }
 
 void
@@ -351,6 +376,7 @@ IEW::doIssue()
         // record
         m_stage_status.set(IEWStatus::IssueInitStall);
 #endif
+        m_dep_stalls++;
         return;
       }
     }
@@ -364,6 +390,7 @@ IEW::doIssue()
       // record
       m_stage_status.set(IEWStatus::IssueInitStall);
 #endif
+      m_mem_barrier_stalls++;
       return;
     }
     
@@ -391,6 +418,13 @@ IEW::doIssue()
 #endif
       if (inst->static_inst_p->isSpadPrefetch())
         DPRINTF(Mesh, "[sn:%d] rob full for prelw\n", inst->seq_num);
+      m_commit_buf_stalls++;
+
+      // record which instruction is on the head of the queue that is causing this blockage
+      auto rob = m_cpu_p->getROBPtr(0);
+      auto head_inst = rob->getHead();
+      m_stall_rob_head_insts[0][head_inst->static_inst_p->opClass()]++;
+
       return;
     }
 
@@ -411,6 +445,7 @@ IEW::doIssue()
 #endif
       if (inst->static_inst_p->isSpadPrefetch())
         DPRINTF(Mesh, "[sn:%d] exec unit busy for prelw\n", inst->seq_num);
+      m_exe_unit_busy_stalls++;
       return;
     }
 
