@@ -381,7 +381,8 @@ CPUClass = MinorCPU(
 
 CPUClass = IOCPU (
   includeVector = options.vector
-
+  ,
+  numROBEntries = 8
 
 )
 

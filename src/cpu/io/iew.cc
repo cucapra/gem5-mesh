@@ -473,6 +473,8 @@ IEW::doIssue()
     m_issued_insts.push_back(inst);
 #endif
   }
+
+  
 }
 
 void

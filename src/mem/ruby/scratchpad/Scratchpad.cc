@@ -618,6 +618,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       //m_packet_buffer.push_back(pkt_p);
       //assert(m_packet_buffer.size() <= m_spec_buf_size);
       // just say not rdy actually
+      m_not_rdy_stalls++;
       DPRINTF(Mesh, "not rdy for packet to addr %#x\n", pkt_p->getAddr());
       return false;
     }
@@ -1175,6 +1176,11 @@ Scratchpad::regStats()
   m_max_queue_size
         .name(name() + ".max_queue_size")
         .desc("The larget amount of pending entries in this queue")
+        ;
+
+  m_not_rdy_stalls
+        .name(name() + ".lwspec_not_rdy")
+        .desc("lwspec can't proceed due to rdy bit not set")
         ;
 
   m_local_accesses = m_local_loads + m_local_stores;

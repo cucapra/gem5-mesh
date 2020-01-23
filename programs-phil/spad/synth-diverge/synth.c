@@ -213,16 +213,16 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int ptid, int vtid,
         }
         c[i + j * dim] = c_;
       }
-      else {
-        int b_;
-        VPREFETCH(spAddrB, d + i, 0); // need to load when on the off path, although should prob be regular load?
-        LWSPEC(b_, spAddrB,  0);
-        int c_ = b_;
-        for (int k = 0; k < 2; k++) {
-          c_ *= b_;
-        }
-        c[i + j * dim] = c_;
-      }
+      // else {
+      //   int b_;
+      //   VPREFETCH(spAddrB, d + i, 0); // need to load when on the off path, although should prob be regular load?
+      //   LWSPEC(b_, spAddrB,  0);
+      //   int c_ = b_;
+      //   for (int k = 0; k < 2; k++) {
+      //     c_ *= b_;
+      //   }
+      //   c[i + j * dim] = c_;
+      // }
     }
     
     // increment mem epoch to know which region to fetch mem from
@@ -248,42 +248,13 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, 
   int memEpoch = 0;
 
   for (int i = 0; i < n; i+=unroll_len*dim) {
-    
-    // TODO, for now just assuming a path
-    // int a_;
-    // VPREFETCH(spAddr, a + i, 0);
-    // LWSPEC(a_, spAddr, 0);
-    
-    // if (a_ == 0) {
-    //   int b_;
-    //   VPREFETCH(spAddr + 1, b + i, 0);
-    //   LWSPEC(b_, spAddr + 1, 0);
+    // check how many regions are available for prefetch by doing a remote load
+    // to master cores scratchpad to get stored epoch number there
+    // volatile int loadedEpoch;
+    // loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
+    // while(memEpoch >= loadedEpoch + numRegions) {
+    //   loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
     // }
-    // else {
-    //   int b_;
-    //   VPREFETCH(spAddr + 1, d + i, 0);
-    //   LWSPEC(b_, spAddr + 1,  0);
-    // }
-    // // try to revec at the end of loop iteration
-    // REVEC(0);
-
-
-    // how many regions are available for prefetch
-    // this requires a csr read to get probably
-    // or can wait for remote stores?
-    // while (__readOpenRegions() == 0) {}
-
-    // int *masterSpad = getSpAddr(1, 0);
-    // while (memEpoch >= masterSpad[SYNC_ADDR] + numRegions) {}
-    volatile int loadedEpoch;
-    loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
-    while(memEpoch >= loadedEpoch + numRegions) {
-      // wait a little bit before trying to re-issue, but doesn't really change much
-      // for (int w = 0; w < 1000; w++) {
-      //   asm volatile("nop\n\t");
-      // }
-      loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
-    }
     // printf("do epoch %d\n", memEpoch);
 
     // region of spad memory we can use
@@ -297,19 +268,7 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, 
     // printf("complete mem epoch %d\n", memEpoch);
     memEpoch++;
 
-    // // add throttling for a little bit to reduce overfetching
-    // // but this either seems to miss by a lot or too slow b/c 
-    // // need burst of loads with the epoch system
-    // int throttle_insts = 2500;
-    // for (int j = 0; j < throttle_insts; j++) {
-    //   asm volatile("nop\n\t"::);
-    // }
-
-    // specify a number here for how many until need to stall?
-    // presumably there is some give for prefetching, but needs to have
-    // some loose syncronization to not overfetch
-    // also we'll want to do unrolling across all the addresses of the spad, but
-    // watch out for stack usage (unroll can't be a constant, must be an actual loop)
+    // up memory epoch in the core
     REVEC(0);
 
   }
@@ -409,8 +368,8 @@ void kernel(
   VECTOR_EPOCH(ALL_NORM);
   #endif
 
-  // commit stats
-  if (tid_x == 0 && tid_y == 0) {
+  // commit stats (don't have core 0 do this especially when its the Decoupled Access core)
+  if (tid_x == 1 && tid_y == 0) {
     stats_off();
   }
   
@@ -444,9 +403,9 @@ void *pthread_kernel(void *args) {
   
   // call the spmd kernel
   Kern_Args *a = (Kern_Args*)args;
-  
+
   kernel(a->a, a->b, a->c, a->d, a->n,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
-      
+
   return NULL;
 }

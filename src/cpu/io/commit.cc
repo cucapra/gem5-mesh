@@ -40,7 +40,10 @@ Commit::name() const
 void
 Commit::regStats()
 {
-
+  m_stall_due_to_vector
+    .name(name() + ".stall_from_late_vector")
+    .desc("number of stalls before try commit due to late vector")
+  ;
 }
 
 void
@@ -80,7 +83,10 @@ Commit::doCommit()
 {
 
   // TODO need to refactor this into parent?
-  if (checkStall()) return;
+  if (checkStall()) {
+    m_stall_due_to_vector++;
+    return;
+  }
   
   // Try to mark as many instructions coming from IEW as possible as ready to
   // commit.
