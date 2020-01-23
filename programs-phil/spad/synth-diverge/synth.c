@@ -211,7 +211,8 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int ptid, int vtid,
         for (int k = 0; k < 2; k++) {
           c_ *= b_;
         }
-        c[i + j * dim] = c_;
+        // c[i + j * dim] = c_;
+        spAddr[SYNC_ADDR + 1] = c_;
       }
       // else {
       //   int b_;
