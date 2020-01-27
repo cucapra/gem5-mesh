@@ -253,11 +253,11 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, 
   for (int i = 0; i < n; i+=unroll_len*dim) {
     // check how many regions are available for prefetch by doing a remote load
     // to master cores scratchpad to get stored epoch number there
-    // volatile int loadedEpoch;
-    // loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
-    // while(memEpoch >= loadedEpoch + numRegions) {
-    //   loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
-    // }
+    volatile int loadedEpoch;
+    loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
+    while(memEpoch >= loadedEpoch + numRegions) {
+      loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
+    }
     // printf("do epoch %d\n", memEpoch);
 
     // region of spad memory we can use
