@@ -34,10 +34,10 @@ Vector::tick() {
 
   // if not configured just pass the instruction through
   // not needed, still seems to work w/o, but will go faster through non-vec code
-  if (!getConfigured()) {
-    passInstructions();
-    return;
-  }
+  // if (!getConfigured()) {
+  //   passInstructions();
+  //   return;
+  // }
   
   // profile any stalling
 

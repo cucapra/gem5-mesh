@@ -94,6 +94,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
         c_ *= b_;
       }
       c[i] = c_;
+      // STORE_NOACK(c_, c + i, 0);
     }
 
     // try to revec at the end of loop iteration
@@ -308,6 +309,15 @@ void kernel(
   int daeDim = 2;
   dim = daeDim * daeDim;
 
+   // also need to change the tids to reflect position in the group
+  int ptid = tid;
+  int vtid = 0;
+
+  if (ptid == 1) vtid = 0;
+  else if (ptid == 4) vtid = 1;
+  else if (ptid == 5) vtid = 2;
+  else if (ptid == 8) vtid = 3;
+
   // configure vector is enabled
   #ifdef _VEC
   // get a standard vector mask
@@ -338,14 +348,25 @@ void kernel(
     mask |= FET_I_INST_UP;
   }
 
-  // also need to change the tids to reflect position in the group
-  int ptid = tid;
-  int vtid = 0;
+  // // also need to change the tids to reflect position in the group
+  // int ptid = tid;
+  // int vtid = 0;
 
-  if (ptid == 1) vtid = 0;
-  else if (ptid == 4) vtid = 1;
-  else if (ptid == 5) vtid = 2;
-  else if (ptid == 8) vtid = 3;
+  // if (ptid == 1) vtid = 0;
+  // else if (ptid == 4) vtid = 1;
+  // else if (ptid == 5) vtid = 2;
+  // else if (ptid == 8) vtid = 3;
+
+  VECTOR_EPOCH(mask);
+  #else
+  int mask = ALL_NORM;
+  if (tid_x == 0 && tid_y == 0) {
+    mask |= (1 << FET_DAE_SHAMT);
+    mask |= (daeDim << FET_XLEN_SHAMT) | (daeDim << FET_YLEN_SHAMT);
+  }
+  else {
+    mask |= (0 << FET_DAE_SHAMT);
+  }
 
   VECTOR_EPOCH(mask);
   #endif
@@ -362,13 +383,16 @@ void kernel(
   synthetic(a, b, c, d, n, tid, dim);
   #endif
   #else
-  synthetic(a, b, c, d, n, tid, dim);
+  // synthetic(a, b, c, d, n, tid, dim);
+  // NEED --vector enabled if you want this to work!
+  volatile int unroll_len = 16;
+  synthetic_dae(a, b, c, d, n, ptid, vtid, dim, unroll_len);
   #endif
 
   // deconfigure
-  #ifdef _VEC
+  // #ifdef _VEC
   VECTOR_EPOCH(ALL_NORM);
-  #endif
+  // #endif
 
   // commit stats (don't have core 0 do this especially when its the Decoupled Access core)
   if (tid_x == 1 && tid_y == 0) {

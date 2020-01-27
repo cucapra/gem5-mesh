@@ -109,6 +109,8 @@ run_id = 1
 # whether to use vector or not
 use_vec_arr = [True]
 
+# TODO need a struct describing the experiment. Not all settings match idenpendently
+
 def pack_and_run(numCpus, use_vec, use_sps, prog, i):
   frac = 1.0 - float(i) / 10.0
   argv = [ size, frac, seed, run_id ]
