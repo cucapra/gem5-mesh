@@ -612,6 +612,9 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // allow load to issue to spad without getting any acks the load is there
     m_s1_inst->mem_req_p->spadSpec  = m_s1_inst->static_inst_p->isSpadSpeculative();
 
+    // denote whether this is an ack free load
+    m_s1_inst->mem_req_p->ackFree = m_s1_inst->static_inst_p->isAckFree();
+
     // treat this as a load in terms of placing into the queue
     if (spadPrefetch)
       is_load = true;

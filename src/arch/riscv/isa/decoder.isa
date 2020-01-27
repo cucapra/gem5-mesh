@@ -500,6 +500,9 @@ decode QUADRANT default Unknown::unknown() {
                     // called in brg io. However, the bitwidths here are important
                     Mem_uw = Rs2_uw;
                 }}, inst_flags=IsSpadPrefetch);
+                0x5: sw_noack({{
+                    Mem_uw = Rs2_uw;
+                }}, inst_flags=IsAckFree);
             }
         }
 

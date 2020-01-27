@@ -104,6 +104,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     int       YDim,       desc = "Y dimension to access for";
     int       VecOffset,  desc = "Offset to the vector group due to decoupled access (1bit?)";
     bool      FromDA,     desc = "Is access from a decoupled access core";
+    bool      AckFree,    desc = "Does store from core require ack response";
     Addr      WordAddress,desc = "Word address of element request";
     Addr      PrefetchAddress, desc = "Prefetch address, same wire as datablk";
     int       Epoch,      desc = "Epoch of the requester";
@@ -646,6 +647,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       assert(is_valid(tbe));
       tbe.Requestor := in_msg.Requestor;
       tbe.SeqNum := in_msg.SeqNum;
+      tbe.AckFree := in_msg.AckFree;
     }
   }
 
@@ -687,6 +689,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
 
   action(swa_sendWriteAck, "swa", desc = "Send write ack") {
+    if (tbe.AckFree == false) {
     enqueue(responseNetwork_out, LLCResponseMsg, 1) {
       assert(is_valid(tbe));
       out_msg.Type        := LLCResponseType:ACK;
@@ -694,6 +697,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       out_msg.Destination.add(tbe.Requestor);
       out_msg.MessageSize := MessageSizeType:Response_Control;
       out_msg.SeqNum      := tbe.SeqNum;
+    }
     }
   }
 

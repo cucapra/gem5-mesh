@@ -642,6 +642,8 @@ class Request
     // spad op that resets the ready flag
     // TODO create custom packet type for this?
     bool spadReset;
+    // don't return an ack if this is a store
+    bool ackFree;
     
     /**
      * Epoch of the packet

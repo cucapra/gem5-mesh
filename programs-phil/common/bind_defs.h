@@ -80,6 +80,11 @@ static int __readOpenRegions() {
     : [val] "=r" (val)                                  \
     : [mem] "r" (spadAddr), [off] "i" (offset))
 */
+
+#define STORE_NOACK(data, memAddr, offset) \
+  asm volatile (".insn sb 0x23, 0x5, %[dataReg], %[off](%[mem])\n\t" :: \
+    [dataReg] "r" (data), [mem] "r" (memAddr), [off] "i" (offset))     
+
 // to ensure that the compiler doesn't place unwanted instructions
 // within the binds we enforce with a single asm volatile
 #define BINDED_EXE_SECTION(sbind, ebind, code, wr, rd)  \

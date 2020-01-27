@@ -691,6 +691,16 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       }
       
     }
+    // immedietly send an ACK back for a write if no syncronization is needed
+    // TODO mark writes as need sync or no need sync
+    else if (pkt_p->getStoreAckFree() && pkt_p->isWrite()) {
+      noLLCAck |= (pkt_p->getStoreAckFree() && pkt_p->isWrite());
+      PacketPtr resp_pkt_p = new Packet(pkt_p, true, false);
+      resp_pkt_p->makeResponse();
+      m_cpu_resp_pkts.push_back(resp_pkt_p);
+      if (!m_cpu_resp_event.scheduled())
+        schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+    }
     
     // This packet will be delivered to LLC
     if (m_pending_pkt_map.size() == m_max_num_pending_pkts && !noLLCAck) {
@@ -719,6 +729,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       msg_p->m_PrefetchAddress = pkt_p->getPrefetchAddr();
       // send local epoch so mem can sync
       msg_p->m_Epoch = pkt_p->getEpoch();
+      // whether a store requires an ack
+      msg_p->m_AckFree = pkt_p->getStoreAckFree();
 
       if (pkt_p->isAtomicOp()) {  // Atomic ops
         msg_p->m_Type = LLCRequestType_ATOMIC;

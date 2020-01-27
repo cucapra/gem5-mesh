@@ -212,7 +212,8 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int ptid, int vtid,
           c_ *= b_;
         }
         // c[i + j * dim] = c_;
-        spAddr[SYNC_ADDR + 1] = c_;
+        // spAddr[SYNC_ADDR + 1] = c_;
+        STORE_NOACK(c_, c + i + j * dim, 0);
       }
       // else {
       //   int b_;
