@@ -197,16 +197,12 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int ptid, int vtid,
       int* spAddrB = spAddrRegion + j * 2 + 1;
 
       int a_;
-      // TODO you still have to mark spad entry as 0, otherwise don't know to wait?
-      // have mechanism to reset all when do revec
-      //VPREFETCH(spAddr, a + i, 0); 
-      // VPREFETCH(spAddrA, a, 0); // don't have to do address calc on expected path
+      // VPREFETCH(spAddrA, a + i + j * dim, 0); 
       LWSPEC(a_, spAddrA, 0);
       
       if (a_ == 0) {
         int b_;
-        //VPREFETCH(spAddr + 1, b + i, 0);
-        // VPREFETCH(spAddrB, b, 0); // don't have to do address calc on expected path
+        // VPREFETCH(spAddrB, b + i + j * dim, 0);
         LWSPEC(b_, spAddrB, 0);
         int c_ = b_;
         for (int k = 0; k < 2; k++) {

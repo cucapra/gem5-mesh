@@ -68,6 +68,7 @@ int main(int argc, char *argv[]) {
   int *_c = c;
   int *_d = d;
   
+  // align data to cache lines
   a = (int*)((unsigned long long)(a + 64) & ~((1ULL << 6) - 1));
   b = (int*)((unsigned long long)(b + 64) & ~((1ULL << 6) - 1));
   c = (int*)((unsigned long long)(c + 64) & ~((1ULL << 6) - 1));

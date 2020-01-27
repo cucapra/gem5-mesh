@@ -107,7 +107,7 @@ runs = 1
 # in case want to run the same multiple times w/ diff random seed (not working yet)
 run_id = 1
 # whether to use vector or not
-use_vec_arr = [False]
+use_vec_arr = [True]
 
 # TODO need a struct describing the experiment. Not all settings match idenpendently
 

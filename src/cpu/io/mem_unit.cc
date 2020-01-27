@@ -581,9 +581,10 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     
     Vector* vec = m_cpu_p->getEarlyVector();
     bool diverged = vec && vec->isCurDiverged();
-    bool dAccess  = vec && vec->isDecoupledAccess(); // or master determine decouple access was wrong? or just let everyone do seperately then?
+    bool dAccess  = vec && vec->isDecoupledAccess();
+    bool master   = vec && vec->isRootMaster();
     bool solo     = !(vec && vec->getConfigured());
-    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || dAccess || solo );
+    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || dAccess || master || solo );
 
 
 
@@ -594,7 +595,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     
     
     // if (spadPrefetch && master) {
-    if (spadPrefetch && dAccess) { 
+    if (spadPrefetch && (dAccess || master)) { 
       m_s1_inst->mem_req_p->xDim = m_cpu_p->getEarlyVector()->getXLen();
       m_s1_inst->mem_req_p->yDim = m_cpu_p->getEarlyVector()->getYLen();
       m_s1_inst->mem_req_p->vecOffset = 1; // TODO encode in group config
