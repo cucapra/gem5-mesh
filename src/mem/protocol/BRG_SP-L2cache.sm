@@ -102,8 +102,6 @@ machine(MachineType:L2Cache, "SP LLC cache")
     int       SeqNum,     desc = "Sequence number";
     int       XDim,       desc = "X dimension to access for";
     int       YDim,       desc = "Y dimension to access for";
-    int       VecOffset,  desc = "Offset to the vector group due to decoupled access (1bit?)";
-    bool      FromDA,     desc = "Is access from a decoupled access core";
     bool      AckFree,    desc = "Does store from core require ack response";
     Addr      WordAddress,desc = "Word address of element request";
     Addr      PrefetchAddress, desc = "Prefetch address, same wire as datablk";
@@ -236,16 +234,12 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   // can linearize with respect to x or y and get diff sends
   // currently doing by x first
-  int getCoreIdx(int coreIdx, int coreOffset, int vecDimX, int vecDimY, bool fromDA) {
-    // get the starting core idx
-    // substract offset if originating from master??
-    int startingCoreIdx := coreIdx;
-    if (fromDA == false) {
-      startingCoreIdx := startingCoreIdx - coreOffset;
-    }
+  int getCoreIdx(int coreIdx, int vecDimX, int vecDimY) {
+    // get the starting core idx, always 0 in our encoding (no offset for DA core)
+    int startingCoreIdx := 0;
 
     // add flat offset to vec cnt
-    int vecFlat := _vecCnt + coreOffset;
+    int vecFlat := _vecCnt;
 
     // get the x y of the current vec count
     int vecX := mod(vecFlat, vecDimX);
@@ -504,7 +498,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       NodeID baseId := machineIDToNodeID(in_msg.Requestor);
       // int spadIdx := IDToInt(baseId) + linOffset;
       int coreIdx := IDToInt(baseId);
-      int spadIdx := getCoreIdx(coreIdx, in_msg.VecOffset, in_msg.XDim, in_msg.YDim, in_msg.FromDA);
+      int spadIdx := getCoreIdx(coreIdx, in_msg.XDim, in_msg.YDim);
       int coreOffset := spadIdx - coreIdx;
       MachineID spad := createMachineID(MachineType:Scratchpad, intToID(spadIdx));
       
@@ -565,7 +559,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       assert(machineIDToMachineType(tbe.Requestor) == MachineType:Scratchpad);
       NodeID baseId := machineIDToNodeID(tbe.Requestor);
       int coreIdx := IDToInt(baseId);
-      int spadIdx := getCoreIdx(coreIdx, tbe.VecOffset, tbe.XDim, tbe.YDim, tbe.FromDA);
+      int spadIdx := getCoreIdx(coreIdx, tbe.XDim, tbe.YDim);
       int coreOffset := spadIdx - coreIdx;
       MachineID spad := createMachineID(MachineType:Scratchpad, intToID(spadIdx));
       
@@ -664,8 +658,6 @@ machine(MachineType:L2Cache, "SP LLC cache")
       assert(is_valid(tbe));
       tbe.XDim := in_msg.XDim;
       tbe.YDim := in_msg.YDim;
-      tbe.VecOffset := in_msg.VecOffset;
-      tbe.FromDA := in_msg.FromDA;
       tbe.WordAddress := in_msg.WordAddress;
       tbe.PrefetchAddress := in_msg.PrefetchAddress;
       tbe.Epoch := in_msg.Epoch;

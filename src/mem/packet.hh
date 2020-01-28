@@ -781,9 +781,10 @@ class Packet : public Printable
     int getYDim() const { return req->yDim; }
 
     /**
-     * Accessor to vlen offset
+     * Accessor function to vector group origin
      */ 
-    int getVecOffset() const { return req->vecOffset; }
+    int getXOrigin() const { return req->xOrigin; }
+    int getYOrigin() const { return req->yOrigin; }
 
     /**
      * Accessor to whether req from decoupled access core

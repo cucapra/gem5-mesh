@@ -275,7 +275,7 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, 
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
 synthetic_dae(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, int dim, int unroll_len) {
-  if (ptid == 0) {
+  if (ptid == 8) {
     synthetic_dae_access(a, b, c, d, n, ptid, vtid, dim, unroll_len);
   }
   else {
@@ -302,63 +302,49 @@ void kernel(
   if (tid_x == 1 && tid_y == 2) return;
   if (tid_y > 2) return;
 
-  int daeDim = 2;
-  dim = daeDim * daeDim;
+  int vdim_x = 2;
+  int vdim_y = 2;
+  int vdim = vdim_x * vdim_y;
 
    // also need to change the tids to reflect position in the group
-  int ptid = tid;
+  int ptid_x = tid_x;
+  int ptid_y = tid_y;
+  int ptid   = tid;
   int vtid = 0;
 
-  if (ptid == 1) vtid = 0;
-  else if (ptid == 4) vtid = 1;
-  else if (ptid == 5) vtid = 2;
-  else if (ptid == 8) vtid = 3;
+  if (ptid ==  0) vtid = 0;
+  else if (ptid == 1) vtid = 1;
+  else if (ptid == 4) vtid = 2;
+  else if (ptid == 5) vtid = 3;
+
+  int vtid_x = vtid % vdim_x;
+  int vtid_y = vtid / vdim_y;
 
   // configure vector is enabled
   #ifdef _VEC
-  // get a standard vector mask
-  #ifdef DAE
-  int mask = getDAEMask(tid_x, tid_y, dim_x, dim_y);
-  #else
-  int mask = getVecMask(tid_x, tid_y, dim_x, dim_y);
-  #endif
+  // // get a standard vector mask
+  // #ifdef DAE
+  // int mask = getDAEMask(tid_x, tid_y, dim_x, dim_y);
+  // #else
+  // int mask = getVecMask(tid_x, tid_y, dim_x, dim_y);
+  // #endif
 
   // construct special mask for dae example
-  mask = (daeDim << FET_XLEN_SHAMT) | (daeDim << FET_YLEN_SHAMT);
-  if (tid_x == 0 && tid_y == 0) {
-    mask |= (1 << FET_DAE_SHAMT);
+  int mask = ALL_NORM;
+  if (ptid == 8) {
+    mask = (1 << FET_DAE_SHAMT) | (0 << FET_XORIGIN_SHAMT) | (0 << FET_YORIGIN_SHAMT) | (vdim_x << FET_XLEN_SHAMT) | (vdim_y << FET_YLEN_SHAMT);
   }
   else {
-    mask |= (0 << FET_DAE_SHAMT);
+    mask = getVecMask(vtid_x, vtid_y, vdim_x, vdim_y);
   }
-  if (tid_x == 1 && tid_y == 0) {
-    mask |= FET_O_INST_DOWN_SEND;
-  }
-  else if (tid_x == 1 && tid_y == 1) {
-    mask |= FET_I_INST_UP | FET_O_INST_LEFT_SEND;
-  }
-  else if (tid_x == 0 && tid_y == 1) {
-    mask |= FET_I_INST_RIGHT | FET_O_INST_DOWN_SEND;
-  }
-  else if (tid_x == 0 && tid_y == 2) {
-    mask |= FET_I_INST_UP;
-  }
-
-  // // also need to change the tids to reflect position in the group
-  // int ptid = tid;
-  // int vtid = 0;
-
-  // if (ptid == 1) vtid = 0;
-  // else if (ptid == 4) vtid = 1;
-  // else if (ptid == 5) vtid = 2;
-  // else if (ptid == 8) vtid = 3;
+  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) mask %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, mask); 
 
   VECTOR_EPOCH(mask);
   #else
   int mask = ALL_NORM;
   if (tid_x == 0 && tid_y == 0) {
     mask |= (1 << FET_DAE_SHAMT);
-    mask |= (daeDim << FET_XLEN_SHAMT) | (daeDim << FET_YLEN_SHAMT);
+    mask |= (vdim_x << FET_XLEN_SHAMT) | (vdim_y << FET_YLEN_SHAMT);
   }
   else {
     mask |= (0 << FET_DAE_SHAMT);
@@ -371,7 +357,7 @@ void kernel(
   #ifdef _VEC
   #ifdef DAE
   volatile int unroll_len = 16;
-  synthetic_dae(a, b, c, d, n, ptid, vtid, dim, unroll_len);
+  synthetic_dae(a, b, c, d, n, ptid, vtid, vdim, unroll_len);
   #elif defined(UNROLL)
   volatile int unroll_len = 4;
   synthetic_uthread(a, b, c, d, n, tid, dim, unroll_len);
@@ -382,7 +368,7 @@ void kernel(
   // synthetic(a, b, c, d, n, tid, dim);
   // NEED --vector enabled if you want this to work!
   volatile int unroll_len = 16;
-  synthetic_dae(a, b, c, d, n, ptid, vtid, dim, unroll_len);
+  synthetic_dae(a, b, c, d, n, ptid, vtid, vdim, unroll_len);
   #endif
 
   // deconfigure

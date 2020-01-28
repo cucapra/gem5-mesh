@@ -231,6 +231,18 @@ MeshHelper::csrToOutSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_DS_t> &
 }
 
 int
+MeshHelper::getXOrigin(RegVal csrVal) {
+  auto val = bits(csrVal, FET_XORIGIN_HI, FET_XORIGIN_LO);
+  return val;
+}
+
+int
+MeshHelper::getYOrigin(RegVal csrVal) {
+  auto val = bits(csrVal, FET_YORIGIN_HI, FET_YORIGIN_LO);
+  return val;
+}
+
+int
 MeshHelper::getXLen(uint64_t csr, uint64_t csrVal) {
   auto val = bits(csrVal, FET_XLEN_HI, FET_XLEN_LO);
   if (val == 0) return 1;

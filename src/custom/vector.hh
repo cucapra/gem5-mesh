@@ -194,6 +194,10 @@ protected:
     // get current vector length
     int getXLen();
     int getYLen();
+
+    // get current vector group origin
+    int getXOrigin();
+    int getYOrigin();
      
   protected:
   

@@ -342,6 +342,10 @@ class Scratchpad : public AbstractController
 
     // Number of L2 banks
     const int m_num_l2s;
+
+    // The grid dimensions of the mesh
+    const int m_grid_dim_x;
+    const int m_grid_dim_y;
     
     /**
      * Keep a pointer to the local CPU to allow reading of some of its 

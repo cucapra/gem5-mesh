@@ -109,6 +109,8 @@ Scratchpad::Scratchpad(const Params* p)
       m_go_flag_p((uint32_t* const)(m_data_array + SPM_GO_FLAG_OFFSET)),
       m_done_flag_p((uint32_t* const)(m_data_array + SPM_DONE_FLAG_OFFSET)),
       m_num_l2s(p->num_l2s),
+      m_grid_dim_x(p->grid_dim_x),
+      m_grid_dim_y(p->grid_dim_y),
       m_cpu_p(p->cpu),
       m_max_pending_sp_prefetches(p->prefetchBufSize),
       m_process_resp_event([this]{ processRespToSpad(); }, "Process a resp to spad", false),
@@ -720,8 +722,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // access length in x,y -- prob always linearized
       msg_p->m_XDim = pkt_p->getXDim();
       msg_p->m_YDim = pkt_p->getYDim();
-      msg_p->m_FromDA = pkt_p->getFromDecoupledAccess();
-      msg_p->m_VecOffset = pkt_p->getVecOffset();
+      // msg_p->m_FromDA = pkt_p->getFromDecoupledAccess();
+      // msg_p->m_VecOffset = pkt_p->getVecOffset();
       // can't just use line address when doing vec load, need to know start and offsets from it
       msg_p->m_WordAddress = pkt_p->getAddr();
       // for prefetches instead of sending data blk we send an address
@@ -731,6 +733,17 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       msg_p->m_Epoch = pkt_p->getEpoch();
       // whether a store requires an ack
       msg_p->m_AckFree = pkt_p->getStoreAckFree();
+
+      // fake this to another scratchpad if decoupled access prefetch
+      // m_machineID.num is just the flat scratchpad idx (0-numCores)
+      // you also need to change PrefetchAddr to appropriate spad location of that core
+      if (pkt_p->getFromDecoupledAccess() && isPrefetch) {
+        int padOriginIdx = pkt_p->getXOrigin() + pkt_p->getYOrigin() * m_grid_dim_x;
+        msg_p->m_Requestor.num = padOriginIdx;
+        // add coreOffset << 12 to get the right spad address
+        int coreOffset = padOriginIdx - m_machineID.num;
+        msg_p->m_PrefetchAddress += (coreOffset << 12);
+      }
 
       if (pkt_p->isAtomicOp()) {  // Atomic ops
         msg_p->m_Type = LLCRequestType_ATOMIC;

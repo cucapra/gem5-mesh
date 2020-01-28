@@ -34,10 +34,10 @@ Vector::tick() {
 
   // if not configured just pass the instruction through
   // not needed, still seems to work w/o, but will go faster through non-vec code
-  // if (!getConfigured()) {
-  //   passInstructions();
-  //   return;
-  // }
+  if (!getConfigured()) {
+    passInstructions();
+    return;
+  }
   
   // profile any stalling
 
@@ -926,6 +926,16 @@ Vector::getXLen() {
 int
 Vector::getYLen() {
   return MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, _curCsrVal);
+}
+
+int
+Vector::getXOrigin() {
+  return MeshHelper::getXOrigin(_curCsrVal);
+}
+
+int
+Vector::getYOrigin() {
+  return MeshHelper::getYOrigin(_curCsrVal);
 }
 
 /*int

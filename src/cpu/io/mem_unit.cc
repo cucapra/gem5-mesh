@@ -598,7 +598,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     if (spadPrefetch && (dAccess || master)) { 
       m_s1_inst->mem_req_p->xDim = m_cpu_p->getEarlyVector()->getXLen();
       m_s1_inst->mem_req_p->yDim = m_cpu_p->getEarlyVector()->getYLen();
-      m_s1_inst->mem_req_p->vecOffset = 1; // TODO encode in group config
+      m_s1_inst->mem_req_p->xOrigin = m_cpu_p->getEarlyVector()->getXOrigin();
+      m_s1_inst->mem_req_p->yOrigin = m_cpu_p->getEarlyVector()->getYOrigin();
       m_s1_inst->mem_req_p->fromDecoupledAccess = dAccess;
       DPRINTF(Mesh, "[%s] send vec load %#x, (%d,%d)\n", m_s1_inst->toString(true), 
           addr, m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
@@ -606,7 +607,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     else {
       m_s1_inst->mem_req_p->xDim = 1;
       m_s1_inst->mem_req_p->yDim = 1;
-      m_s1_inst->mem_req_p->vecOffset = 0;
+      m_s1_inst->mem_req_p->xOrigin = 0;
+      m_s1_inst->mem_req_p->yOrigin = 0;
       m_s1_inst->mem_req_p->fromDecoupledAccess = false;
     }
     

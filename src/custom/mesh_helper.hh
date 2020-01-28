@@ -60,6 +60,10 @@ class MeshHelper {
     static bool csrToOutDests(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
     static bool csrToOutSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_DS_t> &out);
 
+    // get vector origin
+    static int getXOrigin(RegVal csrVal);
+    static int getYOrigin(RegVal csrVal);
+
     // get vector lengths
     static int getXLen(uint64_t csr, uint64_t csrVal);
     static int getYLen(uint64_t csr, uint64_t csrVal);
