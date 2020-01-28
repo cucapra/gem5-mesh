@@ -250,9 +250,9 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, 
     // check how many regions are available for prefetch by doing a remote load
     // to master cores scratchpad to get stored epoch number there
     volatile int loadedEpoch;
-    loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
+    loadedEpoch = ((int*)getSpAddr(0, 0))[SYNC_ADDR];
     while(memEpoch >= loadedEpoch + numRegions) {
-      loadedEpoch = ((int*)getSpAddr(1, 0))[SYNC_ADDR];
+      loadedEpoch = ((int*)getSpAddr(0, 0))[SYNC_ADDR];
     }
     // printf("do epoch %d\n", memEpoch);
 
@@ -273,7 +273,8 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, 
   }
 }
 
-void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
+// NO-INLINE seems to be needed here... and works??
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
 synthetic_dae(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, int dim, int unroll_len) {
   if (ptid == 8) {
     synthetic_dae_access(a, b, c, d, n, ptid, vtid, dim, unroll_len);
@@ -283,8 +284,14 @@ synthetic_dae(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, int dim
   }
 }
 
+// TODO you add this __attribute__((optimize("-freorder-blocks-algorithm=simple"))), starts to fail
+// 1388841000: system.cpu01.vector: Squash from IEW: squash inst [tid:0] [sn:296]
+// 1388841000: system.cpu01.vector: [[INFO]] trace divergence [[sn:296/tid=0/0x10a5a/jal ra, -220]]
+// for some reason squashing jal in IEW? expected to be from Decode??
+// then if take that out get a problem looking up register, so something is severely wrong...
+
 // actual kernel
-void kernel(
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     int *a, int *b, int *c, int *d, int n,
     int tid_x, int tid_y, int dim_x, int dim_y) {
   
@@ -320,57 +327,21 @@ void kernel(
   int vtid_x = vtid % vdim_x;
   int vtid_y = vtid / vdim_y;
 
-  // configure vector is enabled
-  #ifdef _VEC
-  // // get a standard vector mask
-  // #ifdef DAE
-  // int mask = getDAEMask(tid_x, tid_y, dim_x, dim_y);
-  // #else
-  // int mask = getVecMask(tid_x, tid_y, dim_x, dim_y);
-  // #endif
-
   // construct special mask for dae example
   int mask = ALL_NORM;
   if (ptid == 8) {
-    mask = (1 << FET_DAE_SHAMT) | (0 << FET_XORIGIN_SHAMT) | (0 << FET_YORIGIN_SHAMT) | (vdim_x << FET_XLEN_SHAMT) | (vdim_y << FET_YLEN_SHAMT);
+    mask = getDAEMask(0, 0, vtid_x, vtid_y, vdim_x, vdim_y);
   }
   else {
-    mask = getVecMask(vtid_x, vtid_y, vdim_x, vdim_y);
+    mask = getVecMask(0, 0, vtid_x, vtid_y, vdim_x, vdim_y);
   }
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) mask %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, mask); 
 
   VECTOR_EPOCH(mask);
-  #else
-  int mask = ALL_NORM;
-  if (tid_x == 0 && tid_y == 0) {
-    mask |= (1 << FET_DAE_SHAMT);
-    mask |= (vdim_x << FET_XLEN_SHAMT) | (vdim_y << FET_YLEN_SHAMT);
-  }
-  else {
-    mask |= (0 << FET_DAE_SHAMT);
-  }
-
-  VECTOR_EPOCH(mask);
-  #endif
 
   // run the actual kernel with the configuration
-  #ifdef _VEC
-  #ifdef DAE
   volatile int unroll_len = 16;
   synthetic_dae(a, b, c, d, n, ptid, vtid, vdim, unroll_len);
-  #elif defined(UNROLL)
-  volatile int unroll_len = 4;
-  synthetic_uthread(a, b, c, d, n, tid, dim, unroll_len);
-  #else
-  synthetic(a, b, c, d, n, tid, dim);
-  #endif
-  #else
-  // synthetic(a, b, c, d, n, tid, dim);
-  // NEED --vector enabled if you want this to work!
-  volatile int unroll_len = 16;
-  synthetic_dae(a, b, c, d, n, ptid, vtid, vdim, unroll_len);
-  #endif
-
   // deconfigure
   // #ifdef _VEC
   VECTOR_EPOCH(ALL_NORM);

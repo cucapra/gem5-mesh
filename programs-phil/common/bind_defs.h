@@ -211,7 +211,7 @@ static inline void stats_off()
 #endif
 }
 
-int getVecMask(int tid_x, int tid_y, int dim_x, int dim_y) {
+int getVecMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
   int mask = ALL_NORM;
   
   #ifndef _VEC
@@ -246,7 +246,7 @@ int getVecMask(int tid_x, int tid_y, int dim_x, int dim_y) {
   // specify the vlen
   int vlenX = dim_x;
   int vlenY = dim_y;
-  mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
+  mask |= (origin_x << FET_XORIGIN_SHAMT) | (origin_y << FET_YORIGIN_SHAMT) | (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
 
   // specify each core is an execute core
   mask |= (0 << FET_DAE_SHAMT);
@@ -255,67 +255,13 @@ int getVecMask(int tid_x, int tid_y, int dim_x, int dim_y) {
   #endif
 }
 
-int getDAEMask(int tid_x, int tid_y, int dim_x, int dim_y) {
-  int mask = ALL_NORM;
-  
-  #ifndef _VEC
+int getDAEMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
+  int mask = (1 << FET_DAE_SHAMT) | 
+            (origin_x << FET_XORIGIN_SHAMT) | 
+            (origin_y << FET_YORIGIN_SHAMT) | 
+            (dim_x << FET_XLEN_SHAMT) | 
+            (dim_y << FET_YLEN_SHAMT);
   return mask;
-  #else
-  
-  // upper left corner is the decoupled access core
-  if (tid_x == 0 && tid_y == 0) {
-    mask = ALL_NORM;
-    // mask = FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
-  }
-
-  // top row (besides DA)
-  else if (tid_y == 0) {
-    // all send down
-    mask = FET_O_INST_DOWN_SEND;
-
-    // everyone but the first (master recv from left)
-    if (tid_x > 1) {
-      mask |= FET_I_INST_LEFT;
-    }
-
-    // the top row besides DA and edge send to the right
-    if (tid_x != dim_x - 1) {
-      mask |= FET_O_INST_RIGHT_SEND;
-    }
-  }
-
-  // the leftmost column (besides DA)
-  else if (tid_x == 0) {
-    // always recv from right
-    mask = FET_I_INST_RIGHT;
-  }
-
-  // the column to the right of DA (besides top)
-  else if (tid_x == 1) {
-    // send down and to the left and recv from above
-    mask = FET_I_INST_UP | FET_O_INST_LEFT_SEND | FET_O_INST_DOWN_SEND;
-  }
-
-  // the rest recvs from above and sends down
-  else {
-    mask = FET_I_INST_UP | FET_O_INST_DOWN_SEND;
-  }
-
-  // specify the vlen
-  int vlenX = dim_x;
-  int vlenY = dim_y;
-  mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
-
-  // specify which core is a special decouple access core
-  // and all other cores are 'normal' execute cores
-  if (tid_x == 0 && tid_y == 0) 
-    mask |= (1 << FET_DAE_SHAMT);
-  else
-    mask |= (0 << FET_DAE_SHAMT);
-
-  return mask;
-  #endif
 }
-
 
 #endif
