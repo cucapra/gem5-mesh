@@ -743,6 +743,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
         // add coreOffset << 12 to get the right spad address
         int coreOffset = padOriginIdx - m_machineID.num;
         msg_p->m_PrefetchAddress += (coreOffset << 12);
+        // DPRINTF(Mesh, "send prelw from spad %d to origin %d offset %d\n", m_machineID.num, padOriginIdx, coreOffset << 12);
       }
 
       if (pkt_p->isAtomicOp()) {  // Atomic ops

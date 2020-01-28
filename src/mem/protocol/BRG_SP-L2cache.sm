@@ -236,7 +236,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   // currently doing by x first
   int getCoreIdx(int coreIdx, int vecDimX, int vecDimY) {
     // get the starting core idx, always 0 in our encoding (no offset for DA core)
-    int startingCoreIdx := 0;
+    int startingCoreIdx := coreIdx;
 
     // add flat offset to vec cnt
     int vecFlat := _vecCnt;

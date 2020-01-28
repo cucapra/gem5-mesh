@@ -178,7 +178,7 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int u
 
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, int dim, int unroll_len) {
+synthetic_dae_execute(int *a, int *b, int *c, int *d, int start, int end, int ptid, int vtid, int dim, int unroll_len) {
   int *spAddr = getSpAddr(ptid, 0);
   // int *daeSpad = getSpAddr(DA_SPAD, 0);
   
@@ -186,7 +186,7 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int ptid, int vtid,
   int regionSize = REGION_SIZE;
   int memEpoch = 0;
 
-  for (int i = vtid; i < n; i+=unroll_len*dim) {
+  for (int i = start + vtid; i < end; i+=unroll_len*dim) {
     
     // region of spad memory we can use
     int *spAddrRegion = spAddr + (memEpoch % numRegions) * regionSize;
@@ -239,20 +239,20 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int ptid, int vtid,
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, int dim, int unroll_len) {
+synthetic_dae_access(int *a, int *b, int *c, int *d, int start, int end, int ptid, int vtid, int dim, int unroll_len, int spadCheckIdx) {
   int *spAddr = getSpAddr(ptid, 0);
   
   int numRegions = NUM_REGIONS;
   int regionSize = REGION_SIZE;
   int memEpoch = 0;
 
-  for (int i = 0; i < n; i+=unroll_len*dim) {
+  for (int i = start; i < end; i+=unroll_len*dim) {
     // check how many regions are available for prefetch by doing a remote load
     // to master cores scratchpad to get stored epoch number there
     volatile int loadedEpoch;
-    loadedEpoch = ((int*)getSpAddr(0, 0))[SYNC_ADDR];
+    loadedEpoch = ((int*)getSpAddr(spadCheckIdx, 0))[SYNC_ADDR];
     while(memEpoch >= loadedEpoch + numRegions) {
-      loadedEpoch = ((int*)getSpAddr(0, 0))[SYNC_ADDR];
+      loadedEpoch = ((int*)getSpAddr(spadCheckIdx, 0))[SYNC_ADDR];
     }
     // printf("do epoch %d\n", memEpoch);
 
@@ -275,12 +275,15 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, 
 
 // NO-INLINE seems to be needed here... and works??
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
-synthetic_dae(int *a, int *b, int *c, int *d, int n, int ptid, int vtid, int dim, int unroll_len) {
+synthetic_dae(int *a, int *b, int *c, int *d, int start, int end, int ptid, int vtid, int dim, int unroll_len) {
   if (ptid == 8) {
-    synthetic_dae_access(a, b, c, d, n, ptid, vtid, dim, unroll_len);
+    synthetic_dae_access(a, b, c, d, start, end, ptid, vtid, dim, unroll_len, 0);
+  }
+  else if (ptid == 11) {
+    synthetic_dae_access(a, b, c, d, start, end, ptid, vtid, dim, unroll_len, 2);
   }
   else {
-    synthetic_dae_execute(a, b, c, d, n, ptid, vtid, dim, unroll_len);
+    synthetic_dae_execute(a, b, c, d, start, end, ptid, vtid, dim, unroll_len);
   }
 }
 
@@ -305,9 +308,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int dim = dim_x * dim_y;
 
   // only let certain tids continue
-  if (tid_x > 1) return;
-  if (tid_x == 1 && tid_y == 2) return;
-  if (tid_y > 2) return;
+  if (tid == 12) return;
+  if (tid == 9 || tid == 10 || tid == 13 || tid == 14 || tid == 15) return;
 
   int vdim_x = 2;
   int vdim_y = 2;
@@ -318,11 +320,32 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int ptid_y = tid_y;
   int ptid   = tid;
   int vtid = 0;
+  int start = 0;
+  int end = 0;
 
-  if (ptid ==  0) vtid = 0;
-  else if (ptid == 1) vtid = 1;
-  else if (ptid == 4) vtid = 2;
-  else if (ptid == 5) vtid = 3;
+  // construct 2 groups
+
+  // group 1 top left (da == 8)
+  if (ptid == 0) vtid = 0;
+  if (ptid == 1) vtid = 1;
+  if (ptid == 4) vtid = 2;
+  if (ptid == 5) vtid = 3;
+  if (ptid == 0 || ptid == 1 || ptid == 4 || ptid == 5 || ptid == 8) {
+    start = 0;
+    end = n / 2;
+  }
+
+  // group 2 top right (da == 11)
+  if (ptid == 2) vtid = 0;
+  if (ptid == 3) vtid = 1;
+  if (ptid == 6) vtid = 2;
+  if (ptid == 7) vtid = 3;
+  if (ptid == 2 || ptid == 3 || ptid == 6 || ptid == 7 || ptid == 11) {
+    start = n / 2;
+    end = n;
+  }
+
+  // TODO group 3, bot mid
 
   int vtid_x = vtid % vdim_x;
   int vtid_y = vtid / vdim_y;
@@ -332,7 +355,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 8) {
     mask = getDAEMask(0, 0, vtid_x, vtid_y, vdim_x, vdim_y);
   }
-  else {
+  else if (ptid == 11) {
+    mask = getDAEMask(2, 0, vtid_x, vtid_y, vdim_x, vdim_y);
+  }
+  else { // origin doesn't really matter for these, so set all the same
     mask = getVecMask(0, 0, vtid_x, vtid_y, vdim_x, vdim_y);
   }
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) mask %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, mask); 
@@ -341,7 +367,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // run the actual kernel with the configuration
   volatile int unroll_len = 16;
-  synthetic_dae(a, b, c, d, n, ptid, vtid, vdim, unroll_len);
+  synthetic_dae(a, b, c, d, start, end, ptid, vtid, vdim, unroll_len);
   // deconfigure
   // #ifdef _VEC
   VECTOR_EPOCH(ALL_NORM);
