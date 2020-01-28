@@ -275,12 +275,10 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int start, int end, int pti
 
 // NO-INLINE seems to be needed here... and works??
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
-synthetic_dae(int *a, int *b, int *c, int *d, int start, int end, int ptid, int vtid, int dim, int unroll_len) {
-  if (ptid == 8) {
-    synthetic_dae_access(a, b, c, d, start, end, ptid, vtid, dim, unroll_len, 0);
-  }
-  else if (ptid == 11) {
-    synthetic_dae_access(a, b, c, d, start, end, ptid, vtid, dim, unroll_len, 2);
+synthetic_dae(int *a, int *b, int *c, int *d, int start, int end, 
+    int ptid, int vtid, int dim, int unroll_len, int is_da, int origin) {
+  if (is_da) {
+    synthetic_dae_access(a, b, c, d, start, end, ptid, vtid, dim, unroll_len, origin);
   }
   else {
     synthetic_dae_execute(a, b, c, d, start, end, ptid, vtid, dim, unroll_len);
@@ -322,6 +320,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int vtid = 0;
   int start = 0;
   int end = 0;
+  int origin_x = 0;
+  int origin_y = 0;
 
   // construct 2 groups
 
@@ -333,6 +333,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0 || ptid == 1 || ptid == 4 || ptid == 5 || ptid == 8) {
     start = 0;
     end = n / 2;
+    origin_x = 0;
+    origin_y = 0;
   }
 
   // group 2 top right (da == 11)
@@ -343,23 +345,31 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 2 || ptid == 3 || ptid == 6 || ptid == 7 || ptid == 11) {
     start = n / 2;
     end = n;
+    origin_x = 2;
+    origin_y = 0;
   }
 
+  
+
   // TODO group 3, bot mid
+
+  int origin = origin_x + origin_y * dim_x;
 
   int vtid_x = vtid % vdim_x;
   int vtid_y = vtid / vdim_y;
 
+  int is_da = 0;
+  if (ptid == 8 || ptid == 11) {
+    is_da = 1;
+  }
+
   // construct special mask for dae example
   int mask = ALL_NORM;
-  if (ptid == 8) {
-    mask = getDAEMask(0, 0, vtid_x, vtid_y, vdim_x, vdim_y);
+  if (is_da) {
+    mask = getDAEMask(origin_x, origin_y, vtid_x, vtid_y, vdim_x, vdim_y);
   }
-  else if (ptid == 11) {
-    mask = getDAEMask(2, 0, vtid_x, vtid_y, vdim_x, vdim_y);
-  }
-  else { // origin doesn't really matter for these, so set all the same
-    mask = getVecMask(0, 0, vtid_x, vtid_y, vdim_x, vdim_y);
+  else {
+    mask = getVecMask(origin_x, origin_y, vtid_x, vtid_y, vdim_x, vdim_y);
   }
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) mask %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, mask); 
 
@@ -367,7 +377,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // run the actual kernel with the configuration
   volatile int unroll_len = 16;
-  synthetic_dae(a, b, c, d, start, end, ptid, vtid, vdim, unroll_len);
+  synthetic_dae(a, b, c, d, start, end, ptid, vtid, vdim, unroll_len, is_da, origin);
   // deconfigure
   // #ifdef _VEC
   VECTOR_EPOCH(ALL_NORM);
