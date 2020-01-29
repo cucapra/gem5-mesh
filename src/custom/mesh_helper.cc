@@ -282,6 +282,16 @@ MeshHelper::stageToCsr(SensitiveStage stage) {
   }
 }
 
+int
+MeshHelper::numPrefetchRegions(RegVal csrVal) {
+  return bits(csrVal, PREFETCH_NUM_REGION_HI, PREFETCH_NUM_REGION_LO);
+}
+
+int
+MeshHelper::prefetchRegionSize(RegVal csrVal) {
+  return bits(csrVal, PREFETCH_REGION_SIZE_HI, PREFETCH_REGION_SIZE_LO);
+}
+
 // reproduce the isa file here, b/c not sure how to get the info from the
 // weirdo isa language
 /*

@@ -44,15 +44,18 @@
 #define REMEM(hash)                                                           \
   asm volatile ("nop\n\t"::)
 
-// do a csr read on register containing the number of open regions
-#define READ_OPEN_REGIONS(ret) \
-  asm volatile ("csrr %[rdest], <csrreg>\n\t" : [rdest] "=r" (ret) :)
+// // do a csr read on register containing the number of open regions
+// #define READ_OPEN_REGIONS(ret) \
+//   asm volatile ("csrr %[rdest], <csrreg>\n\t" : [rdest] "=r" (ret) :)
 
-static int __readOpenRegions() {
-  int ret;
-  READ_OPEN_REGIONS(ret);
-  return ret;
-}
+// static int __readOpenRegions() {
+//   int ret;
+//   READ_OPEN_REGIONS(ret);
+//   return ret;
+// }
+
+#define PREFETCH_EPOCH(val) \
+  asm volatile ("csrw 0x402, %[x]\n\t" :: [x] "r" (val))
   
   // revec instruction with unique hash id
 /*#define REVEC(hash)                                                           \

@@ -238,4 +238,21 @@ typedef struct Mesh_DS_t {
 #define FET_YORIGIN_HI (FET_YORIGIN_SHAMT + FET_YORIGIN_BITS - 1)
 #define FET_YORIGIN_LO (FET_YORIGIN_SHAMT)
 
+
+/*----------------------------------------------------------------------
+ * Prefetch encodings
+ *--------------------------------------------------------------------*/
+
+#define PREFETCH_NUM_REGION_BITS (10)
+#define PREFETCH_NUM_REGION_SHAMT (0)
+
+#define PREFETCH_REGION_SIZE_BITS (10)
+#define PREFETCH_REGION_SIZE_SHAMT (PREFETCH_NUM_REGION_SHAMT + PREFETCH_NUM_REGION_BITS)
+
+#define PREFETCH_NUM_REGION_HI (PREFETCH_NUM_REGION_SHAMT + PREFETCH_NUM_REGION_BITS - 1)
+#define PREFETCH_NUM_REGION_LO (PREFETCH_NUM_REGION_SHAMT)
+
+#define PREFETCH_REGION_SIZE_HI (PREFETCH_REGION_SIZE_SHAMT + PREFETCH_REGION_SIZE_BITS - 1)
+#define PREFETCH_REGION_SIZE_LO (PREFETCH_REGION_SIZE_SHAMT)
+
 #endif

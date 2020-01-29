@@ -73,6 +73,10 @@ class MeshHelper {
   
     static SensitiveStage csrToStage(uint64_t csr);
     static uint64_t stageToCsr(SensitiveStage stage);
+
+    // get info from prefetch csr
+    static int numPrefetchRegions(RegVal csrVal);
+    static int prefetchRegionSize(RegVal csrVal);
     
   private:
     static bool rangeToMeshDir(uint64_t csrVal, int hi, int lo, Mesh_Dir &dir);

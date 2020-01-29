@@ -1034,15 +1034,20 @@ IOCPU::incRevecEpoch() {
   }*/
 }
 
-// TODO read RiscvISA::MISCREG_PREFETCH CSR
 int
 IOCPU::getSpadNumRegions() {
-  return 16;
+  // return 16;
+  int tid = 0;
+  RegVal csrVal = readMiscRegNoEffect(RiscvISA::MISCREG_PREFETCH, tid);
+  return MeshHelper::numPrefetchRegions(csrVal);
 }
 
 int
 IOCPU::getSpadRegionSize() {
-  return 32;
+  // return 32;
+  int tid = 0;
+  RegVal csrVal = readMiscRegNoEffect(RiscvISA::MISCREG_PREFETCH, tid);
+  return MeshHelper::prefetchRegionSize(csrVal);
 }
 
 void

@@ -300,15 +300,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (tid_x == 0 && tid_y == 0) {
     stats_on();
   }
-  
+
   // linearize tid and dim
   int tid = tid_x + tid_y * dim_x;
   int dim = dim_x * dim_y;
 
-  // only let certain tids continue
-  if (tid == 12) return;
-  if (tid == 9 || tid == 10 || tid == 13 || tid == 14 || tid == 15) return;
-  // if (tid == 2 || tid == 3 || tid == 6 || tid == 7 || tid == 11)  return;
+  // // only let certain tids continue
+  // if (tid == 12) return;
+  // if (tid == 9 || tid == 10 || tid == 13 || tid == 14 || tid == 15) return;
+  // // if (tid == 2 || tid == 3 || tid == 6 || tid == 7 || tid == 11)  return;
 
   int vdim_x = 2;
   int vdim_y = 2;
@@ -374,6 +374,18 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   }
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) mask %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, mask); 
 
+  int prefetchMask = (16 << PREFETCH_NUM_REGION_SHAMT) | (32 << PREFETCH_REGION_SIZE_SHAMT);
+  PREFETCH_EPOCH(prefetchMask);
+
+  // make sure all cores have done this before begin kernel section --> do thread barrier for now
+  // TODO hoping for a cleaner way to do this
+  pthread_barrier_wait(&start_barrier);
+
+  // only let certain tids continue
+  if (tid == 12) return;
+  if (tid == 9 || tid == 10 || tid == 13 || tid == 14 || tid == 15) return;
+  // if (tid == 2 || tid == 3 || tid == 6 || tid == 7 || tid == 11)  return;
+
   VECTOR_EPOCH(mask);
 
   // run the actual kernel with the configuration
@@ -385,9 +397,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // #endif
 
   // commit stats (don't have core 0 do this especially when its the Decoupled Access core)
-  if (tid_x == 1 && tid_y == 0) {
-    stats_off();
-  }
+  // if (tid_x == 1 && tid_y == 0) {
+  //   stats_off();
+  // }
   
 }
 
@@ -422,6 +434,12 @@ void *pthread_kernel(void *args) {
 
   kernel(a->a, a->b, a->c, a->d, a->n,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
+
+  pthread_barrier_wait(&start_barrier);
+
+  if (a->tid_x == 0 && a->tid_y == 0) {
+    stats_off();
+  }
 
   return NULL;
 }
