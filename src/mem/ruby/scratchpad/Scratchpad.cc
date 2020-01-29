@@ -1065,15 +1065,12 @@ Scratchpad::getCoreEpoch() {
 
 int
 Scratchpad::getNumRegions() {
-  // TODO don't hardcode and get from CSR on CPU
-  return 16;
+  return m_cpu_p->getSpadNumRegions();
 }
 
 int
 Scratchpad::getRegionElements() {
-  // TODO hardcoded, either calculate or get from CSR
-  // TODO may not even need if can remove the rdy array
-  return 32;
+  return m_cpu_p->getSpadRegionSize();
 }
 
 bool
@@ -1091,7 +1088,8 @@ Scratchpad::memoryDiverged(int pktEpoch, Addr addr) {
 
   // you also need to prevent current region from moving into the coreepoch region
   // that would cause deadlock!
-  int coreEpochMod = getCoreEpoch() % getNumRegions();
+  // int coreEpochMod = getCoreEpoch() % getNumRegions();
+  int coreEpochMod = getCoreEpoch();
   int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
   bool wouldOverlap = (nextPrefectchRegion == coreEpochMod) && (m_region_cntr + 1 == getRegionElements());
   return ahead || wouldOverlap;
@@ -1100,10 +1098,14 @@ Scratchpad::memoryDiverged(int pktEpoch, Addr addr) {
 bool
 Scratchpad::isPrefetchAhead(int pktEpoch) {
   int coreEpoch = getCoreEpoch(); // TODO can we just mod everything to keep numbers cycling rather than go on forever?
-  bool overlap = (pktEpoch - coreEpoch >= getNumRegions());
-  bool aheadCntr = ((pktEpoch % getNumRegions()) != m_cur_prefetch_region);
+  // bool overlap = (pktEpoch - coreEpoch >= getNumRegions());
+  // TODO there is no overlap check when do cycle, but should be treated like sync thing where core sending needs to wait
+  // for software based synchronization'
+  bool overlap = false; 
+  int pktEpochMod = pktEpoch;
+  bool aheadCntr = (pktEpochMod != m_cur_prefetch_region);
   DPRINTF(Mesh, "overlap %d ahead %d pktEpoch %d coreEpoch %d pktEpochMod %d prefetchRegion %d region cntr %d\n", 
-    overlap, aheadCntr, pktEpoch, coreEpoch, pktEpoch % getNumRegions(), m_cur_prefetch_region, m_region_cntr);
+    overlap, aheadCntr, pktEpoch, coreEpoch, pktEpochMod, m_cur_prefetch_region, m_region_cntr);
   return overlap || aheadCntr;
 }
 
@@ -1129,7 +1131,8 @@ Scratchpad::isWordRdy(Addr addr) {
   // TODO prefetch region can't go into the current epoch region for this to work
   // i.e. prefetch all 8 regions then move prefetch region into coreepoch, even if don't
   // overfetch will still prevent this condition
-  int epochModRegion = getCoreEpoch() % getNumRegions();
+  // int epochModRegion = getCoreEpoch() % getNumRegions();
+  int epochModRegion = getCoreEpoch();
   bool ret = (epochModRegion != m_cur_prefetch_region);
   return ret;
 

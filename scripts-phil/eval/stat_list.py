@@ -84,5 +84,10 @@ stats = OrderedDict([
     'regex' : re.compile('system.l2_cntrls[0-9]+.cacheMemory.demand_misses\s*' + intRegexStr), 
     'ignore-zero' : False,
   }),
+  ('prefetch-queue-size' ,  { 
+    'name' : 'prefetch-queue-size', 
+    'regex' : re.compile('system.scratchpads[0-9]+.max_queue_size\s*' + intRegexStr), 
+    'ignore-zero' : False,
+  }),
 
 ])

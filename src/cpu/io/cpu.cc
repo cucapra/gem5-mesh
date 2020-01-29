@@ -1025,13 +1025,24 @@ IOCPU::getRevecEpoch() {
 
 void
 IOCPU::incRevecEpoch() {
-  m_revec_cntr++;
+  m_revec_cntr = (m_revec_cntr + 1) % getSpadNumRegions();
   DPRINTF(Mesh, "increment revec %d\n", m_revec_cntr);
 
   // get scratchpad to reset all of the rdy bits (on the next cycle?)
   /*if (CpuPort* spadPort = dynamic_cast<CpuPort*>(&(m_dcache_port.getSlavePort()))) {
     spadPort->getAttachedSpad()->resetRdyArray();
   }*/
+}
+
+// TODO read RiscvISA::MISCREG_PREFETCH CSR
+int
+IOCPU::getSpadNumRegions() {
+  return 16;
+}
+
+int
+IOCPU::getSpadRegionSize() {
+  return 32;
 }
 
 void

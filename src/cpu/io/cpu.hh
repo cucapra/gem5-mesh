@@ -250,6 +250,12 @@ class IOCPU : public BaseCPU
     void incRevecEpoch();
 
     /**
+     * Spad prefetch region related functions
+     */
+    int getSpadNumRegions();
+    int getSpadRegionSize();
+
+    /**
      * Stats-related functions
      */
 
