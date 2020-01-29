@@ -1087,7 +1087,14 @@ Scratchpad::memoryDiverged(int pktEpoch, Addr addr) {
   // if ahead of current local epoch or the word ready flag has not been
   // reset yet, then memory can't be accepted
   // return (isPrefetchAhead(pktEpoch) || isWordRdy(addr));
-  return isPrefetchAhead(pktEpoch);
+  bool ahead = isPrefetchAhead(pktEpoch);
+
+  // you also need to prevent current region from moving into the coreepoch region
+  // that would cause deadlock!
+  int coreEpochMod = getCoreEpoch() % getNumRegions();
+  int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
+  bool wouldOverlap = (nextPrefectchRegion == coreEpochMod) && (m_region_cntr + 1 == getRegionElements());
+  return ahead || wouldOverlap;
 }
 
 bool
@@ -1119,7 +1126,12 @@ Scratchpad::isWordRdy(Addr addr) {
   // return m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)] != 0;
 
   // prefetch region has to be ahead of core epoch to be valid region
-  return ((getCoreEpoch() % getNumRegions()) != m_cur_prefetch_region);
+  // TODO prefetch region can't go into the current epoch region for this to work
+  // i.e. prefetch all 8 regions then move prefetch region into coreepoch, even if don't
+  // overfetch will still prevent this condition
+  int epochModRegion = getCoreEpoch() % getNumRegions();
+  bool ret = (epochModRegion != m_cur_prefetch_region);
+  return ret;
 
 
 }
