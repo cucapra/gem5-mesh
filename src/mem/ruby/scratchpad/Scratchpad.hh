@@ -367,7 +367,7 @@ class Scratchpad : public AbstractController
      * Bit array for each word tracking whether a prefetch has arrived
      * Reset on every trace prefetch, and set when recv the prefetch from master
      */ 
-    std::vector<int> m_fresh_array;
+    // std::vector<int> m_fresh_array;
     
     /**
      * Event to process a mem resp packet
@@ -398,12 +398,16 @@ class Scratchpad : public AbstractController
     std::queue<PacketPtr> m_ruby_resp_queue;
     
     /**
-     * Unified resp queue to be processed. All packets on this queue are
-     * ready to be processed.
-     * 
-     * You can easily pretend this is multiple queues depending on dequeue logic
+     * Counter to keep track of how many pkts have arrived for a region
+     * Should only be a 10bit counter and adder setup
      */ 
-    //std::queue<PacketPtr> m_resp_val_queue;
+    int m_region_cntr;
+
+    /**
+     * Keep track of which region we are currently prefetching into
+     * i.e. which region the counter is associated with (<10 bits)
+     */ 
+    int m_cur_prefetch_region;
     
     
     /**

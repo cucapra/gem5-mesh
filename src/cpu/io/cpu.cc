@@ -1029,9 +1029,9 @@ IOCPU::incRevecEpoch() {
   DPRINTF(Mesh, "increment revec %d\n", m_revec_cntr);
 
   // get scratchpad to reset all of the rdy bits (on the next cycle?)
-  if (CpuPort* spadPort = dynamic_cast<CpuPort*>(&(m_dcache_port.getSlavePort()))) {
+  /*if (CpuPort* spadPort = dynamic_cast<CpuPort*>(&(m_dcache_port.getSlavePort()))) {
     spadPort->getAttachedSpad()->resetRdyArray();
-  }
+  }*/
 }
 
 void

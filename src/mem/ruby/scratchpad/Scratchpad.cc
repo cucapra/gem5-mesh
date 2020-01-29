@@ -131,9 +131,11 @@ Scratchpad::Scratchpad(const Params* p)
   
   // setup cpu touched array to keep track of divergences (TODO not sure how should be implemetned in practice?)
   // maybe use a single bit/byte of data towards this purpose
-  for(int i = 0; i < m_size / sizeof(uint32_t); i++) {
-    m_fresh_array.push_back(0);
-  }
+  // for(int i = 0; i < m_size / sizeof(uint32_t); i++) {
+  //   m_fresh_array.push_back(0);
+  // }
+  m_region_cntr = 0;
+  m_cur_prefetch_region = 0;
 }
 
 Scratchpad::~Scratchpad()
@@ -1084,14 +1086,18 @@ bool
 Scratchpad::memoryDiverged(int pktEpoch, Addr addr) {
   // if ahead of current local epoch or the word ready flag has not been
   // reset yet, then memory can't be accepted
-  return (isPrefetchAhead(pktEpoch) || isWordRdy(addr));
+  // return (isPrefetchAhead(pktEpoch) || isWordRdy(addr));
+  return isPrefetchAhead(pktEpoch);
 }
 
 bool
 Scratchpad::isPrefetchAhead(int pktEpoch) {
-  int coreEpoch = getCoreEpoch();
-  return (pktEpoch - coreEpoch >= getNumRegions());
-  // return (coreEpoch < pktEpoch);
+  int coreEpoch = getCoreEpoch(); // TODO can we just mod everything to keep numbers cycling rather than go on forever?
+  bool overlap = (pktEpoch - coreEpoch >= getNumRegions());
+  bool aheadCntr = ((pktEpoch % getNumRegions()) != m_cur_prefetch_region);
+  DPRINTF(Mesh, "overlap %d ahead %d pktEpoch %d coreEpoch %d pktEpochMod %d prefetchRegion %d region cntr %d\n", 
+    overlap, aheadCntr, pktEpoch, coreEpoch, pktEpoch % getNumRegions(), m_cur_prefetch_region, m_region_cntr);
+  return overlap || aheadCntr;
 }
 
 /*
@@ -1110,53 +1116,61 @@ Scratchpad::cpuIsSynced(int pktEpoch) {
 
 bool
 Scratchpad::isWordRdy(Addr addr) {
-  //if (!pkt->getSpecSpad()) return true;
-  
-  return m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)] != 0;
+  // return m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)] != 0;
+
+  // prefetch region has to be ahead of core epoch to be valid region
+  return ((getCoreEpoch() % getNumRegions()) != m_cur_prefetch_region);
+
+
 }
 
 void
 Scratchpad::setWordRdy(Addr addr) {
-  bool memDiv = false;
-  int &tag = m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)];
+  // bool memDiv = false;
+  // int &tag = m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)];
 
-  // if was already ready then something wrong
-  if (tag == 1) {
-    memDiv = true;
+  // // if was already ready then something wrong
+  // if (tag == 1) {
+  //   memDiv = true;
+  // }
+  // assert(!memDiv);
+
+  // tag = 1;
+
+  // increment the counter for number of expected loads
+  m_region_cntr++;
+
+  // if reaches number of expected then reset and move to next region 
+  if (m_region_cntr == getRegionElements()) {
+    resetRdyArray();
   }
-  assert(!memDiv);
 
-  tag = 1;
+  // DPRINTF(Mesh, "increment region wiht addr %#x cnt now %d\n", addr, m_region_cntr);
 }
 
 void
 Scratchpad::setWordNotRdy(Addr addr) {
-  // spad loads set this as not ready
-  //if (!pkt->getSpecSpad()) return;
-  
-  
-  int &tag = m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)];
-
-  /*// make sure it's ready before doing
-  bool memDiv = false;
-  if (tag == 0) {
-    memDiv = true;
-  }
-  assert(!memDiv);*/
-
-  tag = 0;
+  // // spad loads set this as not ready
+  // int &tag = m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)];
+  // tag = 0;
 }
 
 void
 Scratchpad::resetRdyArray() {
-  // just reset for the current region
-  // TODO potentially can get away with only marking region as being ready?
-  // or having the first spad entry at the beginning of each region mark whether ready or not
-  int regionIdx = (getCoreEpoch() - 1) % getNumRegions(); // epoch will have update so use the last one
-  int startOffset = SPM_DATA_WORD_OFFSET; // 4 * 32bits 
-  for (int i = regionIdx * getRegionElements() + startOffset; i < (regionIdx + 1) * getRegionElements() + startOffset; i++) {
-    m_fresh_array[i] = 0;
-  }
+  // // just reset for the current region
+  // // TODO potentially can get away with only marking region as being ready?
+  // // or having the first spad entry at the beginning of each region mark whether ready or not
+  // int regionIdx = (getCoreEpoch() - 1) % getNumRegions(); // epoch will have update so use the last one
+  // int startOffset = SPM_DATA_WORD_OFFSET; // 4 * 32bits 
+  // for (int i = regionIdx * getRegionElements() + startOffset; i < (regionIdx + 1) * getRegionElements() + startOffset; i++) {
+  //   m_fresh_array[i] = 0;
+  // }
+
+  // we can now prefetch in the next region
+  m_cur_prefetch_region = (m_cur_prefetch_region + 1) % getNumRegions();
+
+  // start counting for that next region
+  m_region_cntr = 0;
 }
 
 void

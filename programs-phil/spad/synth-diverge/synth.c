@@ -308,6 +308,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // only let certain tids continue
   if (tid == 12) return;
   if (tid == 9 || tid == 10 || tid == 13 || tid == 14 || tid == 15) return;
+  // if (tid == 2 || tid == 3 || tid == 6 || tid == 7 || tid == 11)  return;
 
   int vdim_x = 2;
   int vdim_y = 2;
