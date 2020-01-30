@@ -1057,9 +1057,8 @@ Scratchpad::getL2BankFromAddr(Addr addr) const
 
 int
 Scratchpad::getCoreEpoch() {
-  //Vector *vec = m_cpu_p->getEarlyVector();
-  int coreEpoch = m_cpu_p->getRevecEpoch();
-  //int coreEpoch = m_proc_epoch;
+  // int coreEpoch = m_cpu_p->getRevecEpoch();
+  int coreEpoch = m_cpu_p->getMemEpoch();
   return coreEpoch;
 }
 

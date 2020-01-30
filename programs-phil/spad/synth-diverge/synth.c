@@ -235,6 +235,8 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int start, int end, int pt
 
     // try to revec at the end of loop iteration
     REVEC(0);
+    // also up the memory epoch internally
+    REMEM(0);
   }
 }
 
@@ -244,6 +246,8 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int start, int end, int pti
   
   int numRegions = NUM_REGIONS;
   int regionSize = REGION_SIZE;
+
+  // variable to control rate of sending
   int memEpoch = 0;
 
   for (int i = start; i < end; i+=unroll_len*dim) {
@@ -268,7 +272,7 @@ synthetic_dae_access(int *a, int *b, int *c, int *d, int start, int end, int pti
     memEpoch++;
 
     // up memory epoch in the core
-    REVEC(0);
+    REMEM(0);
 
   }
 }

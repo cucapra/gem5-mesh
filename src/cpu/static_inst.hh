@@ -209,6 +209,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isSpadSpeculative() const { return flags[IsSpadSpeculative]; }
     //bool isSpadReset() const { return flags[IsSpadReset]; }
     bool isAckFree() const { return flags[IsAckFree]; }
+    bool isRemem() const { return flags[IsRemem]; }
 
     void setFirstMicroop() { flags[IsFirstMicroop] = true; }
     void setLastMicroop() { flags[IsLastMicroop] = true; }

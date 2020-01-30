@@ -552,7 +552,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // give an epoch number as data if this will be a reset instruction
     // included as seperate field, but in practice would send on data lines
     if (spadPrefetch) {
-      m_s1_inst->mem_req_p->epoch = m_cpu_p->getRevecEpoch();
+      m_s1_inst->mem_req_p->epoch = m_cpu_p->getMemEpoch();
     }
     
     // setup prefetch addr

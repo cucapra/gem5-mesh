@@ -181,6 +181,7 @@ IOCPU::IOCPU(IOCPUParams* params)
       m_isa_list(),
       m_global_seq_num(1),
       m_revec_cntr(0),
+      m_mem_epoch(0),
       m_last_active_cycle(0)
       
 {
@@ -1027,11 +1028,17 @@ void
 IOCPU::incRevecEpoch() {
   m_revec_cntr = (m_revec_cntr + 1) % getSpadNumRegions();
   DPRINTF(Mesh, "increment revec %d\n", m_revec_cntr);
+}
 
-  // get scratchpad to reset all of the rdy bits (on the next cycle?)
-  /*if (CpuPort* spadPort = dynamic_cast<CpuPort*>(&(m_dcache_port.getSlavePort()))) {
-    spadPort->getAttachedSpad()->resetRdyArray();
-  }*/
+int
+IOCPU::getMemEpoch() {
+  return m_mem_epoch;
+}
+
+void
+IOCPU::incMemEpoch() {
+  m_mem_epoch = (m_mem_epoch + 1) % getSpadNumRegions();
+  DPRINTF(Mesh, "increment remem %d\n", m_mem_epoch);
 }
 
 int

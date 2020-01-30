@@ -394,9 +394,16 @@ IEW::doIssue()
       return;
     }
     
-    if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getRevecInstCount() > 0) {
+    // if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getRevecInstCount() > 0) {
+    //   DPRINTF(Mesh, "[sn:%d] Can't issue prelw due to pending younger "
+    //                "revec instructions\n", inst->seq_num);
+                   
+    //   return;
+    // }
+
+    if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getRememInstCount() > 0) {
       DPRINTF(Mesh, "[sn:%d] Can't issue prelw due to pending younger "
-                   "revec instructions\n", inst->seq_num);
+                   "remem instructions\n", inst->seq_num);
                    
       return;
     }

@@ -121,5 +121,6 @@ class StaticInstFlags(Enum):
         , 'IsSpadSpeculative'
         #, 'IsSpadReset'
         , 'IsAckFree'
+        , 'IsRemem'
 
         ]

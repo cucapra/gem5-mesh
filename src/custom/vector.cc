@@ -903,16 +903,6 @@ Vector::resetMeshRevec() {
   _meshRevecId = -1;
 }
 
-/*int
-Vector::getRevecEpoch() {
-  return _revecCntr;
-}
-
-void
-Vector::incRevecEpoch() {
-  _revecCntr++;
-}*/
-
 bool
 Vector::isCurDiverged() {
   return _vecPassThrough;

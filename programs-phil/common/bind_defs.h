@@ -42,7 +42,7 @@
   
 // remem instruction with unique hash id (mem barrier instead of control barrier)
 #define REMEM(hash)                                                           \
-  asm volatile ("nop\n\t"::)
+  asm volatile (".insn u 0x0b, x0, %[id]\n\t":: [id] "i" (hash))
 
 // // do a csr read on register containing the number of open regions
 // #define READ_OPEN_REGIONS(ret) \
