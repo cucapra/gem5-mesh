@@ -1084,29 +1084,40 @@ Scratchpad::memoryDiverged(int pktEpoch, Addr addr) {
   // if ahead of current local epoch or the word ready flag has not been
   // reset yet, then memory can't be accepted
   // return (isPrefetchAhead(pktEpoch) || isWordRdy(addr));
-  bool ahead = isPrefetchAhead(pktEpoch);
+  // bool ahead = isPrefetchAhead(pktEpoch);
 
-  // you also need to prevent current region from moving into the coreepoch region
-  // that would cause deadlock!
-  // int coreEpochMod = getCoreEpoch() % getNumRegions();
-  int coreEpochMod = getCoreEpoch();
-  int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
-  bool wouldOverlap = (nextPrefectchRegion == coreEpochMod) && (m_region_cntr + 1 == getRegionElements());
-  return ahead || wouldOverlap;
+  // // you also need to prevent current region from moving into the coreepoch region
+  // // that would cause deadlock!
+  // // int coreEpochMod = getCoreEpoch() % getNumRegions();
+  // int coreEpochMod = getCoreEpoch();
+  // int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
+  // bool wouldOverlap = (nextPrefectchRegion == coreEpochMod) && (m_region_cntr + 1 == getRegionElements());
+  // return ahead || wouldOverlap;
+
+  // TODO actually don't need to send pktEpoch.
+  // can figure out which epoch it should be in just based on the address
+  return isPrefetchAhead(pktEpoch);
 }
 
 bool
 Scratchpad::isPrefetchAhead(int pktEpoch) {
-  int coreEpoch = getCoreEpoch(); // TODO can we just mod everything to keep numbers cycling rather than go on forever?
+  int coreEpochMod = getCoreEpoch(); // TODO can we just mod everything to keep numbers cycling rather than go on forever?
   // bool overlap = (pktEpoch - coreEpoch >= getNumRegions());
-  // TODO there is no overlap check when do cycle, but should be treated like sync thing where core sending needs to wait
-  // for software based synchronization'
-  bool overlap = false; 
+  // NOTE In the cirular epoch scheme there is no way to know whether you have overlapped b/c mod removes info
+  // HOWEVER We prevent overlap from ever happening by preventing the prefetch region from moving into the region currently
+  // being accessed by the core.
   int pktEpochMod = pktEpoch;
+  // packet is ahead of the prefetch region, so can't process yet
   bool aheadCntr = (pktEpochMod != m_cur_prefetch_region);
-  DPRINTF(Mesh, "overlap %d ahead %d pktEpoch %d coreEpoch %d pktEpochMod %d prefetchRegion %d region cntr %d\n", 
-    overlap, aheadCntr, pktEpoch, coreEpoch, pktEpochMod, m_cur_prefetch_region, m_region_cntr);
-  return overlap || aheadCntr;
+
+  // packet would bring prefetch region to overlap with core access region and would cause undetectable overwrite
+  // don't allow to be processed yet
+  int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
+  bool wouldOverlap = (nextPrefectchRegion == coreEpochMod) && (m_region_cntr + 1 == getRegionElements());
+
+  DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d coreEpoch %d pktEpochMod %d prefetchRegion %d region cntr %d\n", 
+    wouldOverlap, aheadCntr, pktEpoch, coreEpochMod, pktEpochMod, m_cur_prefetch_region, m_region_cntr);
+  return wouldOverlap || aheadCntr;
 }
 
 /*
