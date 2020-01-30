@@ -245,8 +245,8 @@ class Scratchpad : public AbstractController
     int getRegionElements();
     //void updateEpoch(int epoch);
     bool controlDiverged();
-    bool memoryDiverged(int pktEpoch, Addr addr);
-    bool isPrefetchAhead(int pktEpoch);
+    bool memoryDiverged(Addr addr);
+    bool isPrefetchAhead(Addr addr);
     //bool cpuIsLate(int pktEpoch);
     //bool cpuIsEarly(int pktEpoch);
     //bool cpuIsSynced(int pktEpoch);
@@ -258,6 +258,11 @@ class Scratchpad : public AbstractController
     bool isWordRdy(Addr addr);
     void setWordRdy(Addr addr);
     void setWordNotRdy(Addr addr);
+
+    /**
+     * Get expected region/epoch based on pkt address
+     */ 
+    int getDesiredRegion(Addr addr);
     
     /**
      * Logic for handling any resp packet to spad

@@ -243,11 +243,11 @@ Scratchpad::processRespToSpad() {
     }
     case Packet::RespPktType::Prefetch_Self_Resp:
     case Packet::RespPktType::Prefetch_Patron_Resp: {
-      bool memDiv = memoryDiverged(pkt_p->getEpoch(), pkt_p->getAddr()); //setPrefetchFresh(pkt_p);
+      bool memDiv = memoryDiverged(pkt_p->getAddr()); //setPrefetchFresh(pkt_p);
       bool controlDiv = controlDiverged();
       bool isSelfResp = pkt_p->spRespType == Packet::RespPktType::Prefetch_Self_Resp;
       // throw away if diverged and its not for future epochs
-      bool throwAway = controlDiv && !isSelfResp && !isPrefetchAhead(pkt_p->getEpoch());
+      bool throwAway = controlDiv && !isSelfResp && !isPrefetchAhead(pkt_p->getAddr());
   
       if (throwAway) {
         DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
@@ -1072,6 +1072,20 @@ Scratchpad::getRegionElements() {
   return m_cpu_p->getSpadRegionSize();
 }
 
+int
+Scratchpad::getDesiredRegion(Addr addr) {
+  // based on region settings, can figure out which region
+  // this addr belongs to
+  int padIdx = getLocalAddr(addr) / sizeof(uint32_t);
+  // need to consider spad offset to where the prefetch region starts
+  // NOTE currently assumed to be directly after metadata bits
+  int prefetchSectionIdx = padIdx - SPM_DATA_WORD_OFFSET;
+  int region = prefetchSectionIdx / getRegionElements();
+  DPRINTF(Mesh, "addr %#x padIdx %d region %d\n", addr, padIdx, region);
+  assert(region < getNumRegions());
+  return region;
+}
+
 bool
 Scratchpad::controlDiverged() {
   Vector *vec = m_cpu_p->getEarlyVector();
@@ -1079,7 +1093,7 @@ Scratchpad::controlDiverged() {
 }
 
 bool
-Scratchpad::memoryDiverged(int pktEpoch, Addr addr) {
+Scratchpad::memoryDiverged(Addr addr) {
   // if ahead of current local epoch or the word ready flag has not been
   // reset yet, then memory can't be accepted
   // return (isPrefetchAhead(pktEpoch) || isWordRdy(addr));
@@ -1095,17 +1109,18 @@ Scratchpad::memoryDiverged(int pktEpoch, Addr addr) {
 
   // TODO actually don't need to send pktEpoch.
   // can figure out which epoch it should be in just based on the address
-  return isPrefetchAhead(pktEpoch);
+  return isPrefetchAhead(addr);
 }
 
 bool
-Scratchpad::isPrefetchAhead(int pktEpoch) {
+Scratchpad::isPrefetchAhead(Addr addr) {
+  int pktEpochMod = getDesiredRegion(addr);
   int coreEpochMod = getCoreEpoch(); // TODO can we just mod everything to keep numbers cycling rather than go on forever?
   // bool overlap = (pktEpoch - coreEpoch >= getNumRegions());
   // NOTE In the cirular epoch scheme there is no way to know whether you have overlapped b/c mod removes info
   // HOWEVER We prevent overlap from ever happening by preventing the prefetch region from moving into the region currently
   // being accessed by the core.
-  int pktEpochMod = pktEpoch;
+
   // packet is ahead of the prefetch region, so can't process yet
   bool aheadCntr = (pktEpochMod != m_cur_prefetch_region);
 
@@ -1114,8 +1129,8 @@ Scratchpad::isPrefetchAhead(int pktEpoch) {
   int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
   bool wouldOverlap = (nextPrefectchRegion == coreEpochMod) && (m_region_cntr + 1 == getRegionElements());
 
-  DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d coreEpoch %d pktEpochMod %d prefetchRegion %d region cntr %d\n", 
-    wouldOverlap, aheadCntr, pktEpoch, coreEpochMod, pktEpochMod, m_cur_prefetch_region, m_region_cntr);
+  DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d coreEpoch %d prefetchRegion %d region cntr %d\n", 
+    wouldOverlap, aheadCntr, pktEpochMod, coreEpochMod, m_cur_prefetch_region, m_region_cntr);
   return wouldOverlap || aheadCntr;
 }
 
