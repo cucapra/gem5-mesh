@@ -112,7 +112,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     bool      AckFree,    desc = "Does store from core require ack response";
     Addr      WordAddress,desc = "Word address of element request";
     Addr      PrefetchAddress, desc = "Prefetch address, same wire as datablk";
-    int       Epoch,      desc = "Epoch of the requester";
+    // int       Epoch,      desc = "Epoch of the requester";
     LLCRequestType InType, desc = "Keep track of input event to know what to do when get mem";
   }
 
@@ -523,8 +523,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // the storage address in the spad
       Addr spadAddr := intToAddress(addressToInt(in_msg.PrefetchAddress) + (coreOffset << 12)); //intToAddress(268435472 + (spadIdx << 12));
       
-      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d epoch %d\n", 
-        spadIdx, coreIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset, in_msg.Epoch);
+      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d\n", 
+        spadIdx, coreIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset);
       
       // if vector then send REVDATA, otherwise REDATA
       // TODO maybe should just be seperate
@@ -551,7 +551,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         // this is gem5 only meta-data, in reality would just send the single
         // word, so no need to pick out the element from the whole block
         out_msg.BlkIdx      := wordOffset;
-        out_msg.Epoch       := in_msg.Epoch;
+        // out_msg.Epoch       := in_msg.Epoch;
       }
     }
   }
@@ -588,8 +588,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
         respType := LLCResponseType:REDATA;
       }
       
-      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d epoch %d\n", 
-        spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.Epoch);
+      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d\n", 
+        spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset);
       
       enqueue(responseNetwork_out, LLCResponseMsg, 1) {
         assert(is_valid(tbe));
@@ -600,7 +600,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
         out_msg.BlkIdx      := wordOffset;
-        out_msg.Epoch       := tbe.Epoch;
+        // out_msg.Epoch       := tbe.Epoch;
       }
     }
   }
@@ -667,7 +667,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       tbe.YDim := in_msg.YDim;
       tbe.WordAddress := in_msg.WordAddress;
       tbe.PrefetchAddress := in_msg.PrefetchAddress;
-      tbe.Epoch := in_msg.Epoch;
+      // tbe.Epoch := in_msg.Epoch;
       tbe.InType := in_msg.Type;
     }
   }

@@ -116,7 +116,7 @@ structure(LLCRequestMsg, desc = "...", interface = "Message") {
   // rather than interpreting in Slicc, just send as an extra field, even
   // though in practice would be send on datablk transmission line
   Addr            PrefetchAddress, desc = "helper to get address from datablk, not actually needed in hardware";
-  int             Epoch,        desc = "The Epoch of the sending core or maybe a diff, TODO?";
+  // int             Epoch,        desc = "The Epoch of the sending core or maybe a diff, TODO?";
 
   bool functionalRead(Packet* pkt) {
     return testAndRead(LineAddress, DataBlk, pkt);

@@ -806,7 +806,7 @@ class Packet : public Printable
     /**
      * Accessor to epoch
      */ 
-    int getEpoch() const { return req->epoch; }
+    // int getEpoch() const { return req->epoch; }
     
     /**
      * Accessor to sp load req type

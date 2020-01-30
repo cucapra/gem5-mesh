@@ -264,7 +264,7 @@ Scratchpad::processRespToSpad() {
         enqueueStallRespToSp(pkt_p);
         
         DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending epoch %d core epoch %d addr %#x spadEntry %d\n", 
-          m_prefetch_resp_queue.size(), m_prefetch_resp_queue.front()->getEpoch(), getCoreEpoch(),
+          m_prefetch_resp_queue.size(), getDesiredRegion(m_prefetch_resp_queue.front()->getAddr()), getCoreEpoch(),
           m_prefetch_resp_queue.front()->getAddr(),
           getLocalAddr(m_prefetch_resp_queue.front()->getAddr()) / sizeof(uint32_t)
           );
@@ -412,7 +412,7 @@ Scratchpad::wakeup()
                                           sizeof(uint32_t),    // size
                                           0, 0);
         
-        req->epoch = llc_msg_p->m_Epoch;
+        // req->epoch = llc_msg_p->m_Epoch;
         
         PacketPtr pkt_p = Packet::createWrite(req);
         
@@ -732,7 +732,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // pre-interpret it here, but not actually an additional field
       msg_p->m_PrefetchAddress = pkt_p->getPrefetchAddr();
       // send local epoch so mem can sync
-      msg_p->m_Epoch = pkt_p->getEpoch();
+      // msg_p->m_Epoch = pkt_p->getEpoch();
       // whether a store requires an ack
       msg_p->m_AckFree = pkt_p->getStoreAckFree();
 
@@ -1133,20 +1133,6 @@ Scratchpad::isPrefetchAhead(Addr addr) {
     wouldOverlap, aheadCntr, pktEpochMod, coreEpochMod, m_cur_prefetch_region, m_region_cntr);
   return wouldOverlap || aheadCntr;
 }
-
-/*
-bool
-Scratchpad::cpuIsEarly(int pktEpoch) {
-  int coreEpoch = getCoreEpoch();
-  return (coreEpoch > pktEpoch);
-}
-
-bool
-Scratchpad::cpuIsSynced(int pktEpoch) {
-  int coreEpoch = getCoreEpoch();
-  return (coreEpoch == pktEpoch);
-}
-*/
 
 bool
 Scratchpad::isWordRdy(Addr addr) {
