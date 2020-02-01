@@ -16,13 +16,13 @@ import multiprocessing
 
 # cmd line arguments
 parser = argparse.ArgumentParser(description='Run gem5 simulation and output informative stats files')
-parser.add_argument('--build', default='/home/pbb59/hammerblade/gem5/build/RVSP/gem5.opt', help='Path to gem5 build')
-parser.add_argument('--config', default='/home/pbb59/hammerblade/gem5/configs/phil/brg_hammerblade.py', help='Path to gem5 build')
-parser.add_argument('--results', default='/home/pbb59/hammerblade/gem5/results', help='Path to place to store results')
+parser.add_argument('--build', default='/home/na469/phil/gem5-mesh/build/RVSP/gem5.opt', help='Path to gem5 build')
+parser.add_argument('--config', default='/home/na469/phil/gem5-mesh/configs/phil/brg_hammerblade.py', help='Path to gem5 build')
+parser.add_argument('--results', default='/home/na469/phil/gem5-mesh/results', help='Path to place to store results')
 args = parser.parse_args()
 
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful
-progDir0 = '/home/pbb59/hammerblade/gem5/programs-phil/spad/'
+progDir0 = '/home/na469/phil/gem5-mesh/programs-phil/spad/'
 programs = {
 
   'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd-big/vvadd', 
@@ -42,7 +42,7 @@ programs = {
 
 # create a template for the gem5 command line
 gem5_cmd = lambda program, options, result, cpus, vec: \
-  '{} -d {}/{} {} --cmd={} --options=\"{}\" --num-cpus={} {}'.format(
+  '{} --debug-flags=Mesh -d {}/{} {} --cmd={} --options=\"{}\" --num-cpus={} {}'.format(
       args.build, args.results, result, args.config, program, options, str(cpus), '--vector' if vec else '')
   
 # compile command that chooses whether to use scratchpad optimizations
@@ -96,7 +96,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv):
 numCpus = 4
 use_sps = True
 
-size = 8192
+size = 25 #8192
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 #seed = random.randint(1,2**20) 
@@ -141,7 +141,7 @@ for use_vec in use_vec_arr:
 
   if (failed_runs > 0):
     print('{} runs failed'.format(failed_runs))
-    assert(False)
+    #assert(False)
 
 # Safely terminate the pool
 pool.close()
