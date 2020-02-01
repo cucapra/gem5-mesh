@@ -40,7 +40,9 @@ Commit::name() const
 void
 Commit::regStats()
 {
-
+    commit_stalls
+      .name(name() + ".commit_stalls")
+      .desc("number of stalls in the commit stage due to insufficient credits");
 }
 
 void
@@ -75,13 +77,17 @@ Commit::tick()
 #endif
 }
 
+
 void
 Commit::doCommit()
 {
 
   // TODO need to refactor this into parent?
-  if (checkStall()) return;
-  
+  if (checkStall()) {
+    commit_stalls++;
+    return;
+  }
+
   // Try to mark as many instructions coming from IEW as possible as ready to
   // commit.
   while (!m_insts.empty()) {
