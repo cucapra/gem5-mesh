@@ -193,6 +193,10 @@ protected:
     // get current vector length
     int getXLen();
     int getYLen();
+
+    // unique id for instruction for debug. Defining here because any instruction in this stage goes to all trace cores
+    int instr_id;
+
      
   protected:
   

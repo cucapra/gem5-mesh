@@ -5,6 +5,7 @@
 //#include "arch/utility.hh"
 
 #include "debug/Mesh.hh"
+#include "debug/PipelinePrint.hh"
 
 Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, size_t in_size, size_t out_size,
                StageIdx stageType, bool canRootSend, bool canRecv) : Stage(_cpu_p, in_size, out_size, stageType, false),
@@ -425,6 +426,8 @@ Vector::createInstruction(const MasterData &instInfo)
     DPRINTF(Mesh, "master targed %d %s. pred targ %d %s\n", inst->master_taken, inst->master_targ, inst->predicted_taken, inst->readPredTarg());
   }
 
+  inst->master_info[0] = instInfo.inst->master_info[6]; // to track instructions through different pipelines
+
   return inst;
 }
 
@@ -437,6 +440,8 @@ void Vector::pushPipeInstToNextStage(const MasterData &instInfo)
   {
     _numInstructions++;
     DPRINTF(Mesh, "[%s] num instructions seen %d\n", instInfo.inst->toString(true), _numInstructions);
+
+    DPRINTF(PipelinePrint, "[%s] Instruction id %d\n", instInfo.inst->toString(true), _numInstructions);
   }
 }
 
@@ -444,6 +449,17 @@ void Vector::pushMeshInstToNextStage(const MasterData &instInfo)
 {
   IODynInstPtr dynInst = createInstruction(instInfo);
   sendInstToNextStage(dynInst);
+
+
+  if (m_stage_idx == EarlyVectorIdx && isSlave()){
+
+      //dynInst->master_info[0] = dynInst->master_info[6] ; // beginning of fetch for slave is end of commit cycle for master
+      DPRINTF(PipelinePrint, "debugging [%d] \n", dynInst->master_info[0]);
+      dynInst->master_info[1] = m_cpu_p->curCycle(); // end of fetch cycle since instruction being passed to decode
+      // need master cpu cycle tick always so that relative cycles can be measured properly
+
+  }
+  
 }
 
 void Vector::sendInstToNextStage(IODynInstPtr dynInst)
