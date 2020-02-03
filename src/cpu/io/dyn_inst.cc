@@ -33,8 +33,17 @@ IODynInst::IODynInst(const StaticInstPtr& static_inst,
       master_targ(0),
       from_trace(false),
       replaced(false),
-      cond_resolved(false)
-{ }
+      cond_resolved(false),
+      fetch_cycles(0),
+      decode_cycles(0),
+      issue_cycles(0),
+      execute_cycles(0),
+      write_cycles(0),
+      commit_cycles(0)
+{ 
+
+  master_info.fill(0);
+}
 
 IODynInst::~IODynInst()
 {
@@ -146,8 +155,8 @@ std::string
 IODynInst::toString(bool full)
 {
   std::stringstream ss;
+  
   ss << "[sn:" << seq_num;
-
   if (full) {
     ss << "/" << "tid=" << std::dec << thread_id;
     ss << "/0x" << std::hex << pc.pc();
@@ -157,6 +166,14 @@ IODynInst::toString(bool full)
     ss << "]";
   }
 
+
+  ss << "start: " << std::dec <<master_info[0];
+  ss << " fetch: "<< std::dec <<master_info[1]-master_info[0];
+  ss << " decode:"<< std::dec <<master_info[2]-master_info[1];
+  ss << " issue:" << std::dec <<master_info[3]-master_info[2];
+  ss << " execute:" << std::dec <<master_info[4]-master_info[3];
+  ss << " write:" << std::dec <<master_info[5]-master_info[4];
+  ss << " commit:" << std::dec <<master_info[6]-master_info[5];
   return ss.str();
 }
 
