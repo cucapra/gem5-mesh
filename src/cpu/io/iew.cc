@@ -218,6 +218,11 @@ void IEW::doWriteback()
     {
       IODynInstPtr inst = next_unit_p->removeCompletedInst();
 
+      //at this point the instruction is removed from execution and move to write back
+      //store the clock edge at which the instruction is pushed to writeback stage
+      inst->execute_cycles = m_cpu_p->curCycle();
+      inst->master_info[4] = m_cpu_p->curCycle();
+
       // if the instruction is not squashed, process it this cycle. Otherwise,
       // just skip it
       if (!inst->isSquashed())
@@ -276,6 +281,10 @@ void IEW::doWriteback()
 
         // send instruction to Commit
         sendInstToNextStage(inst);
+
+        //store the clock edge at which the instruction is pushed to commit stage
+        inst->write_cycles = m_cpu_p->curCycle();
+        inst->master_info[5] = m_cpu_p->curCycle();
 
         // increment the number of wb insts this cycle
         num_wb_insts++;
@@ -480,6 +489,10 @@ void IEW::doIssue()
 
     // issue the instruction now
     exec_unit_p->insert(inst);
+
+    //store the clock edge at which the instruction is pushed to execute stage
+    inst->issue_cycles = m_cpu_p->curCycle();
+    inst->master_info[3] = m_cpu_p->curCycle();
 
     // Mark its dest reg not ready
     for (int i = 0; i < inst->numDestRegs(); ++i)
