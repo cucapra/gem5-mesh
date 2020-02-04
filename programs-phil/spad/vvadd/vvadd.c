@@ -12,18 +12,66 @@
 #define NUM_REGIONS 16
 #define REGION_SIZE 32
 
+// one of these should be defined to dictate config
+// #define NO_VEC 1
+// #define VEC_16 1
+// #define VEC_16_UNROLL 1
+// #define VEC_4 1
+// #define VEC_4_UNROLL 1
+#define VEC_4_DA 1
+
+// vvadd_execute config directives
+#if defined(NO_VEC)
+#define USE_NORMAL_LOAD 1
+#endif
+#if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) || defined(VEC_4_DA)
+#define USE_VEC 1
+#endif
+#if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA)
+#define UNROLL 1
+#endif
+#if defined(VEC_4_DA)
+#define USE_DA 1
+#endif
+
+// vector grouping directives
+#if defined(VEC_16) || defined(VEC_16_UNROLL)
+#define VEC_SIZE_16 1
+#endif
+#if defined(VEC_4) || defined(VEC_4_UNROLL)
+#define VEC_SIZE_4 1
+#endif
+#if defined(VEC_4_DA)
+#define VEC_SIZE_4_DA 1
+#endif
+
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
 vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vtid, int dim, int unroll_len) {
   int *spAddr = getSpAddr(ptid, 0);
   
+  #ifdef UNROLL
   int numRegions = NUM_REGIONS;
   int regionSize = REGION_SIZE;
   int memEpoch = 0;
+  #else
+  unroll_len = 1;
+  #endif
 
   for (int i = start + vtid; i < end; i+=unroll_len*dim) {
-    
+
+    #ifdef UNROLL // unroll and recv a bunch of loads into spad at once
+
     // region of spad memory we can use
     int *spAddrRegion = spAddr + (memEpoch % numRegions) * regionSize;
+
+    #ifndef USE_DA // master is the one responsible for prefetch the bunch of loads
+    for (int j = 0; j < unroll_len; j++) {
+      VPREFETCH(spAddrRegion + j * 2    , a + i + j * dim, 0);
+      VPREFETCH(spAddrRegion + j * 2 + 1, b + i + j * dim, 0);
+    }
+    // TODO might want to remem more frequently, so can start accessing some of the
+    // data earlier
+    #endif
 
     for (int j = 0; j < unroll_len; j++) {
 
@@ -41,16 +89,29 @@ vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vt
     // increment mem epoch to know which region to fetch mem from
     memEpoch++;
 
-    // TODO also put REMEM here, REVEC should prob be within the inner loop to try to revec each time??
     // inform DA we are done with region, so it can start to prefetch for that region
-    // if (tid == 1)
-      // daeSpad[SYNC_ADDR] = memEpoch;
     spAddr[SYNC_ADDR] = memEpoch;
 
     // try to revec at the end of loop iteration
-    REVEC(0);
+    // REVEC(0);
     // also up the memory epoch internally
     REMEM(0);
+    #else // don't use prefetch unrolling
+    float a_, b_, c_;
+    #ifdef USE_NORMAL_LOAD // load using standard lw
+    a_ = a[i];
+    b_ = b[i];
+    #else // load using master prefetch
+    VPREFETCH(spAddr + 0, a + i, 0);
+    VPREFETCH(spAddr + 1, b + i, 0);
+    REMEM(0); // mem region size needs to be 2??
+    LWSPEC(a_, spAddr + 0, 0);
+    LWSPEC(b_, spAddr + 1, 0);
+    #endif
+    // add and then store
+    c_ = a_ + b_;
+    STORE_NOACK(c_, c + i, 0);
+    #endif
   }
 }
 
@@ -72,17 +133,14 @@ vvadd_access(float *a, float *b, float *c, int start, int end, int ptid, int vti
     while(memEpoch >= loadedEpoch + numRegions) {
       loadedEpoch = ((int*)getSpAddr(spadCheckIdx, 0))[SYNC_ADDR];
     }
-    // printf("do epoch %d\n", memEpoch);
 
     // region of spad memory we can use
     int *spAddrRegion = spAddr + (memEpoch % numRegions) * regionSize;
 
     for (int j = 0; j < unroll_len; j++) {
-      // printf("start spAddr %#x from addr %#x\n", spAddrRegion + j * 2, a + i + j * dim);
       VPREFETCH(spAddrRegion + j * 2    , a + i + j * dim, 0);
       VPREFETCH(spAddrRegion + j * 2 + 1, b + i + j * dim, 0);
     }
-    // printf("complete mem epoch %d\n", memEpoch);
     memEpoch++;
 
     // up memory epoch in the core
@@ -92,7 +150,7 @@ vvadd_access(float *a, float *b, float *c, int start, int end, int ptid, int vti
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
-vvadd_dae(float *a, float *b, float *c, int start, int end, 
+vvadd(float *a, float *b, float *c, int start, int end, 
     int ptid, int vtid, int dim, int unroll_len, int is_da, int origin) {
   if (is_da) {
     vvadd_access(a, b, c, start, end, ptid, vtid, dim, unroll_len, origin);
@@ -115,37 +173,100 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int tid = tid_x + tid_y * dim_x;
   int dim = dim_x * dim_y;
 
-  // // only let certain tids continue
-  // if (tid == 12) return;
-  // if (tid == 9 || tid == 10 || tid == 13 || tid == 14 || tid == 15) return;
-  // // if (tid == 2 || tid == 3 || tid == 6 || tid == 7 || tid == 11)  return;
-
-  int vdim_x = 2;
-  int vdim_y = 2;
-  int vdim = vdim_x * vdim_y;
-
-   // also need to change the tids to reflect position in the group
+  // split into physical and virtual tids + dim
   int ptid_x = tid_x;
   int ptid_y = tid_y;
   int ptid   = tid;
-  int vtid = 0;
-  int start = 0;
-  int end = 0;
-  int origin_x = 0;
-  int origin_y = 0;
+  int pdim_x = dim_x;
+  int pdim_y = dim_y;
+  int pdim   = dim;
+  int vtid_x = 0;
+  int vtid_y = 0;
+  int vtid   = 0;
+  int vdim_x = 0;
+  int vdim_y = 0;
+  int vdim   = 0;
+  int start  = 0;
+  int end    = 0;
+  int orig_x = 0;
+  int orig_y = 0;
+  int is_da  = 0;
 
-  // construct 2 groups
+  // group construction
+  #ifdef VEC_SIZE_4
+  // virtual group dimension
+  vdim_x = 2;
+  vdim_y = 2;
+  
+  // tid in that group
+  vtid_x = ptid_x % vdim_x;
+  vtid_y = ptid_y % vdim_y;
+  vtid   = vtid_x + vtid_y * vdim_x;
+
+  // TODO figure out how to do get group ID
+  // origin for vector fetch and chunk of data
+  if (ptid < 4) {
+    orig_x = 0;
+    orig_y = 0;
+    start = 0;
+    end = n / 4;
+  }
+  else if (ptid < 8) {
+    orig_x = 2;
+    orig_y = 0;
+    start = n / 4;
+    end = n / 2;
+  }
+  else if (ptid < 12) {
+    orig_x = 0;
+    orig_y = 2;
+    start = n / 2;
+    end = 3 * n / 4;
+  }
+  else if (ptid < 16) {
+    orig_x = 2;
+    orig_y = 2;
+    start = 3 * n / 4;
+    end = n;
+  } 
+
+  // not decoupled access core
+  is_da = 0;
+
+  #elif defined(VEC_SIZE_16)
+  // virtual group dimension
+  vdim_x = 4;
+  vdim_y = 4;
+  
+  // tid in that group
+  vtid_x = ptid_x % vdim_x;
+  vtid_y = ptid_y % vdim_y;
+  vtid   = vtid_x + vtid_y * vdim_x;
+
+  orig_x = 0;
+  orig_y = 0;
+  start = 0;
+  end = n;
+
+  // not decoupled access core
+  is_da = 0;
+
+  #elif defined(VEC_SIZE_4_DA)
+  // virtual group dimension
+  vdim_x = 2;
+  vdim_y = 2;
 
   // group 1 top left (da == 8)
   if (ptid == 0) vtid = 0;
   if (ptid == 1) vtid = 1;
   if (ptid == 4) vtid = 2;
   if (ptid == 5) vtid = 3;
+  if (ptid == 8) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 4 || ptid == 5 || ptid == 8) {
     start = 0;
     end = n / 2;
-    origin_x = 0;
-    origin_y = 0;
+    orig_x = 0;
+    orig_y = 0;
   }
 
   // group 2 top right (da == 11)
@@ -153,56 +274,61 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 3) vtid = 1;
   if (ptid == 6) vtid = 2;
   if (ptid == 7) vtid = 3;
+  if (ptid == 11) is_da = 1;
   if (ptid == 2 || ptid == 3 || ptid == 6 || ptid == 7 || ptid == 11) {
     start = n / 2;
     end = n;
-    origin_x = 2;
-    origin_y = 0;
+    orig_x = 2;
+    orig_y = 0;
   }
 
-  
+  // TODO group 3, bot mid but what about modulo, might mess up vec
 
-  // TODO group 3, bot mid
+  vtid_x = vtid % vdim_x;
+  vtid_y = vtid / vdim_y;
 
-  int origin = origin_x + origin_y * dim_x;
 
-  int vtid_x = vtid % vdim_x;
-  int vtid_y = vtid / vdim_y;
+  #endif
 
-  int is_da = 0;
-  if (ptid == 8 || ptid == 11) {
-    is_da = 1;
-  }
+  // linearize some fields
+  vdim = vdim_x * vdim_y;
+  int orig = orig_x + orig_y * dim_x;
 
   // construct special mask for dae example
-  int mask = ALL_NORM;
+  int mask = 0;
   if (is_da) {
-    mask = getDAEMask(origin_x, origin_y, vtid_x, vtid_y, vdim_x, vdim_y);
+    mask = getDAEMask(orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y);
   }
   else {
-    mask = getVecMask(origin_x, origin_y, vtid_x, vtid_y, vdim_x, vdim_y);
+    #ifdef USE_VEC
+    mask = getVecMask(orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y);
+    #endif
   }
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) mask %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, mask); 
 
+  #ifdef USE_DA
   int prefetchMask = (16 << PREFETCH_NUM_REGION_SHAMT) | (32 << PREFETCH_REGION_SIZE_SHAMT);
   PREFETCH_EPOCH(prefetchMask);
 
   // make sure all cores have done this before begin kernel section --> do thread barrier for now
   // TODO hoping for a cleaner way to do this
   pthread_barrier_wait(&start_barrier);
+  #endif
 
   // only let certain tids continue
+  #ifdef VEC_SIZE_4_DA
   if (tid == 12) return;
   if (tid == 9 || tid == 10 || tid == 13 || tid == 14 || tid == 15) return;
+  #endif
 
   VECTOR_EPOCH(mask);
 
   // run the actual kernel with the configuration
   volatile int unroll_len = 16;
-  vvadd_dae(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, origin);
+  vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
 
   // deconfigure
-  VECTOR_EPOCH(ALL_NORM);
+  VECTOR_EPOCH(0);
   
 }
 
