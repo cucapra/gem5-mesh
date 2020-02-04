@@ -6,73 +6,54 @@
 #include "pthread_launch.h"
 #include "vvadd.h"
 
+void test() {
+
+}
+
 int main(int argc, char *argv[]) {
   
   /*--------------------------------------------------------------------
    * Setup scratchpads
    *------------------------------------------------------------------*/ 
-
+  
   initScratchpads();
 
   /*--------------------------------------------------------------------
   * Get info about manycore
   *-------------------------------------------------------------------*/  
-
+  
   int cores_x, cores_y;
   int num_cores = get_dimensions(&cores_x, &cores_y);
 
   /*--------------------------------------------------------------------
   * Put the command line arguments into variables
   *-------------------------------------------------------------------*/
-
+  
   // default values
-  int size = 16;
+  int size = 1024;
   
   // parse positional arguments
   if (argc > 1) {
     size = atoi(argv[1]);
   }
   
-  printf("Vector size is %d\n", size);
+  printf("Vector size is %d. Num cores is %d\n", size, num_cores);
 
   /*--------------------------------------------------------------------
   * Data initialization
   *-------------------------------------------------------------------*/
- 
-  size_t arrSize = sizeof(float) * size;
-  float *a = (float*)malloc(arrSize);
-  float *b = (float*)malloc(arrSize);
-  float *c = (float*)malloc(arrSize);
-  
+
+  float *a_ptr, *b_ptr, *c_ptr;
+  float *a = (float*)malloc_cache_aligned(sizeof(float), size, (void**)&a_ptr);
+  float *b = (float*)malloc_cache_aligned(sizeof(float), size, (void**)&b_ptr);
+  float *c = (float*)malloc_cache_aligned(sizeof(float), size, (void**)&c_ptr);
+
   for (int i = 0; i < size; i++) {
     a[i] = i;
     b[i] = i;
     c[i] = 0;
   }
   
-  // if we're going to be using scratchpads, simply copy the data from
-  // global to scratchpads before we start running the kernel
-  #ifdef _USE_SCRATCHPAD
-  float **sp_a; float **sp_b; float **sp_c;
-  sp_a = (float**)malloc(sizeof(float*) * num_cores);
-  sp_b = (float**)malloc(sizeof(float*) * num_cores);
-  sp_c = (float**)malloc(sizeof(float*) * num_cores);
-  for (int i = 0; i < num_cores; i++) {
-    float *sp = (float*)getSpAddr(i, 0);
-    
-    sp_a[i] = &(sp[0]);
-    sp_b[i] = &(sp[size]);
-    sp_c[i] = &(sp[2 * size]);
-    
-    // copy same data to each scratchpad
-    for (int j = 0; j < size; j++) {
-        sp_a[i][j] = a[j];
-        sp_b[i][j] = b[j];
-        sp_c[i][j] = c[j];
-    }
-  }
-  #endif
-
   /*--------------------------------------------------------------------
   * Pack argument for kernel
   *-------------------------------------------------------------------*/  
@@ -82,13 +63,8 @@ int main(int argc, char *argv[]) {
 
   for (int y = 0; y < cores_y; y++) {
     for (int x = 0; x < cores_x; x++){
-      int i = x + y * cores_x;
-      
-      #ifdef _USE_SCRATCHPAD
-      kern_args[i] = construct_args(sp_a[i], sp_b[i], sp_c[i], size, x, y, cores_x, cores_y);
-      #else
+      int i = x + y * cores_x; 
       kern_args[i] = construct_args(a, b, c, size, x, y, cores_x, cores_y);
-      #endif
     }  
   }
 
@@ -103,20 +79,6 @@ int main(int argc, char *argv[]) {
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
   
-  #ifdef _USE_SCRATCHPAD
-  for (int i = 0; i < num_cores; i++) {
-    for (int j = 0; j < size; j++) {
-      //printf("%f\n", sp_c[i][j]);
-      if (sp_c[i][j] != 2 * j) {
-        printf("[[FAIL]]\n");
-        return 1;
-      }
-    }
-  }
-  free(sp_a);
-  free(sp_b);
-  free(sp_c);
-  #else
   for (int i = 0; i < size; i++) {
     //printf("%f\n", c[i]);
     if (c[i] != 2 * i) {
@@ -124,11 +86,10 @@ int main(int argc, char *argv[]) {
       return 1;
     }
   }
-  #endif
   
-  free(a);
-  free(b);
-  free(c);
+  free(a_ptr);
+  free(b_ptr);
+  free(c_ptr);
   
   printf("[[SUCCESS]]\n");
   

@@ -71,3 +71,16 @@ int get_dimensions(int *cores_x, int *cores_y) {
   *cores_y = height;
   return width * height;
 }
+
+
+void *malloc_cache_aligned(size_t element_size, size_t num_elements, void **orig_ptr) {
+  void *ptr = malloc(element_size * (num_elements + 64));
+  *orig_ptr = ptr;
+  if (element_size == sizeof(int)) {
+    ptr = (void*)((unsigned long long)((int*)ptr + 64) & ~((1ULL << 6) - 1));
+  }
+  else {
+    return NULL;
+  }
+  return ptr;
+}

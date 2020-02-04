@@ -25,8 +25,9 @@ args = parser.parse_args()
 progDir0 = '/home/pbb59/hammerblade/gem5/programs-phil/spad/'
 programs = {
 
-  'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd-big/vvadd', 
-    'options' : lambda argv: str(psize), 
+  'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd/vvadd', 
+    'options' : lambda argv: str(argv[0]), 
+    'serialize' : lambda argv: '-size{0}'.format(str(argv[0])),
     'success' : '\[\[SUCCESS\]\]'},
     
   'gemm'  : { 'name': 'gemm',  'path' : progDir0 + 'gemm/gemm', 
@@ -109,25 +110,27 @@ run_id = 1
 # whether to use vector or not
 use_vec_arr = [True]
 
+program = 'vvadd'
+
 # TODO need a struct describing the experiment. Not all settings match idenpendently
 
 def pack_and_run(numCpus, use_vec, use_sps, prog, i):
   frac = 1.0 - float(i) / 10.0
   argv = [ size, frac, seed, run_id ]
-  return run_prog(numCpus, use_vec, use_sps, 'synth', argv)
+  return run_prog(numCpus, use_vec, use_sps, program, argv)
 
 pool = multiprocessing.Pool(processes=16)
 
 for use_vec in use_vec_arr:
   # run a program from the list above with different parameters
-  compile_prog(numCpus, use_vec, use_sps, 'synth')
+  compile_prog(numCpus, use_vec, use_sps, program)
   
   jobs = []
   
   for i in range(runs):
     #pack_and_run(numCpus, use_vec, use_sps, 'synth', i)
     # the new file will have the same name as the old file, but also specify the new dir
-    proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, 'synth', i, ))
+    proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, program, i, ))
     jobs.append(proc)
     pass
 
