@@ -15,10 +15,10 @@
 // one of these should be defined to dictate config
 // #define NO_VEC 1
 // #define VEC_16 1
-#define VEC_16_UNROLL 1
+// #define VEC_16_UNROLL 1
 // #define VEC_4 1
 // #define VEC_4_UNROLL 1
-// #define VEC_4_DA 1
+#define VEC_4_DA 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC)
@@ -217,25 +217,25 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // TODO figure out how to do get group ID
   // origin for vector fetch and chunk of data
-  if (ptid < 4) {
+  if (ptid_x < 2 && ptid_y < 2) {
     orig_x = 0;
     orig_y = 0;
     start = 0;
     end = n / 4;
   }
-  else if (ptid < 8) {
+  else if (ptid_x < 4 && ptid_y < 2) {
     orig_x = 2;
     orig_y = 0;
     start = n / 4;
     end = n / 2;
   }
-  else if (ptid < 12) {
+  else if (ptid_x < 2 && ptid_y < 4) {
     orig_x = 0;
     orig_y = 2;
     start = n / 2;
     end = 3 * n / 4;
   }
-  else if (ptid < 16) {
+  else if (ptid_x < 4 && ptid_y < 4) {
     orig_x = 2;
     orig_y = 2;
     start = 3 * n / 4;
