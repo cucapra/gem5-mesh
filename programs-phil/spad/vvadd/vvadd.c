@@ -14,8 +14,8 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-#define VEC_16 1
-// #define VEC_16_UNROLL 1
+// #define VEC_16 1
+#define VEC_16_UNROLL 1
 // #define VEC_4 1
 // #define VEC_4_UNROLL 1
 // #define VEC_4_DA 1
@@ -327,7 +327,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   }
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) mask %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, mask); 
 
-  #ifdef USE_DA
+  #ifdef UNROLL
   int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
   PREFETCH_EPOCH(prefetchMask);
 
