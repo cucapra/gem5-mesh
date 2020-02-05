@@ -280,6 +280,7 @@ Vector::passInstructions() {
     //ThreadID tid = inst->thread_id;
     //DPRINTF(Mesh, "[tid:%d] Decoding inst [sn:%lli] with PC %s\n",
     //                tid, inst->seq_num, inst->pc);
+    // DPRINTF(Mesh, "%s %#x\n", inst->toString(true), m_cpu_p->readArchIntReg(2, 0));
     
     // send out this inst
     sendInstToNextStage(inst);

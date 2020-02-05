@@ -72,7 +72,11 @@ RiscvProcess::RiscvProcess(ProcessParams *params, ObjectFile *objFile) :
 RiscvProcess64::RiscvProcess64(ProcessParams *params, ObjectFile *objFile) :
         RiscvProcess(params, objFile)
 {
+    // move stack onto spad, set to vaddr or paddr??
     const Addr stack_base = 0x7FFFFFFFFFFFFFFFL;
+    // const Addr stack_base = objFile->spmBase() + objFile->spmSize();
+    // warn("new process with stack ptr %#lx", stack_base);
+
     const Addr max_stack_size = 8 * 1024 * 1024;
     const Addr next_thread_stack_base = stack_base - max_stack_size;
     const Addr brk_point = roundUp(objFile->bssBase() + objFile->bssSize(),
@@ -109,9 +113,13 @@ RiscvProcess64::initState()
         Addr sp_base_paddr = system->memSize();
         Addr sp_base_vaddr = objFile->spmBase();
         Addr sp_size = objFile->spmSize();
-
         pTable->map(sp_base_vaddr, sp_base_paddr, sp_size,
                     EmulationPageTable::MappingFlags(0));
+        // warn("spad init vaddr %#lx paddr %#lx size %#x\n", sp_base_vaddr, sp_base_paddr, sp_size);
+        // // when setting to stack get issue
+        // // panic: panic condition !clobber occurred: EmulationPageTable::allocate: addr 0x1000f000 already mapped
+        // pTable->map(sp_base_vaddr, sp_base_paddr, sp_size,
+        //             EmulationPageTable::MappingFlags::Clobber);
     }
 }
 
