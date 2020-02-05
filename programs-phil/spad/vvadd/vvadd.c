@@ -13,8 +13,8 @@
 #define REGION_SIZE 32
 
 // one of these should be defined to dictate config
-#define NO_VEC 1
-// #define VEC_16 1
+// #define NO_VEC 1
+#define VEC_16 1
 // #define VEC_16_UNROLL 1
 // #define VEC_4 1
 // #define VEC_4_UNROLL 1
@@ -32,6 +32,9 @@
 #endif
 #if defined(VEC_4_DA)
 #define USE_DA 1
+#endif
+#if !defined(UNROLL) && !defined(USE_NORMAL_LOAD)
+#define WEIRD_PREFETCH 1
 #endif
 
 // vector grouping directives
@@ -55,6 +58,10 @@ vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vt
   int memEpoch = 0;
   #else
   unroll_len = 1;
+  #endif
+
+  #ifdef WEIRD_PREFETCH // b/c you can't have single frame scratchpad?? need to make circular
+  int spadRegion = 0;
   #endif
 
   for (int i = start + vtid; i < end; i+=unroll_len*dim) {
@@ -102,11 +109,16 @@ vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vt
     a_ = a[i];
     b_ = b[i];
     #else // load using master prefetch
-    VPREFETCH(spAddr + 0, a + i, 0);
-    VPREFETCH(spAddr + 1, b + i, 0);
-    REMEM(0); // mem region size needs to be 2??
-    LWSPEC(a_, spAddr + 0, 0);
-    LWSPEC(b_, spAddr + 1, 0);
+    // drawback of this approach is that it doesn't work for single region prefetch zones
+    // so need to add extra increment logic
+    int *spAddrA = spAddr + spadRegion*2 + 0;
+    int *spAddrB = spAddr + spadRegion*2 + 1;
+    VPREFETCH(spAddrA, a + i, 0);
+    VPREFETCH(spAddrB, b + i, 0);
+    LWSPEC(a_, spAddrA, 0);
+    LWSPEC(b_, spAddrB, 0);
+    spadRegion = (spadRegion + 1) % NUM_REGIONS;
+    REMEM(0);
     #endif
     // add and then store
     c_ = a_ + b_;
@@ -294,9 +306,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vtid_x = 0;
   vtid_y = 0;
   vtid   = 0;
-  start  = ptid * (n / pdim );
-  end    = (ptid + 1) * ( n / pdim );
-
+  start  = ptid * ( n / pdim );
+  end    = ( ptid + 1 ) * ( n / pdim );
 
   #endif
 
@@ -317,11 +328,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) mask %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, mask); 
 
   #ifdef USE_DA
-  int prefetchMask = (16 << PREFETCH_NUM_REGION_SHAMT) | (32 << PREFETCH_REGION_SIZE_SHAMT);
+  int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
   PREFETCH_EPOCH(prefetchMask);
 
   // make sure all cores have done this before begin kernel section --> do thread barrier for now
   // TODO hoping for a cleaner way to do this
+  pthread_barrier_wait(&start_barrier);
+  #elif defined(WEIRD_PREFETCH)
+  int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (2 << PREFETCH_REGION_SIZE_SHAMT);
+  PREFETCH_EPOCH(prefetchMask);
   pthread_barrier_wait(&start_barrier);
   #endif
 
@@ -331,6 +346,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (tid == 9 || tid == 10 || tid == 13 || tid == 14 || tid == 15) return;
   #endif
 
+  // configure
   VECTOR_EPOCH(mask);
 
   // run the actual kernel with the configuration
