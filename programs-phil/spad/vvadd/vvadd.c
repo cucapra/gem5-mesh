@@ -13,12 +13,12 @@
 #define REGION_SIZE 32
 
 // one of these should be defined to dictate config
-// #define NO_VEC 1
+#define NO_VEC 1
 // #define VEC_16 1
 // #define VEC_16_UNROLL 1
 // #define VEC_4 1
 // #define VEC_4_UNROLL 1
-#define VEC_4_DA 1
+// #define VEC_4_DA 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC)
@@ -286,6 +286,16 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   vtid_x = vtid % vdim_x;
   vtid_y = vtid / vdim_y;
+
+  #elif !defined(USE_VEC)
+
+  vdim_x = 1;
+  vdim_y = 1;
+  vtid_x = 0;
+  vtid_y = 0;
+  vtid   = 0;
+  start  = ptid * (n / pdim );
+  end    = (ptid + 1) * ( n / pdim );
 
 
   #endif
