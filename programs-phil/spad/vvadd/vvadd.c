@@ -14,20 +14,21 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-#define VEC_16 1
+// #define VEC_16 1
 // #define VEC_16_UNROLL 1
 // #define VEC_4 1
 // #define VEC_4_UNROLL 1
 // #define VEC_4_DA 1
+#define VEC_16_UNROLL_SERIAL 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC)
 #define USE_NORMAL_LOAD 1
 #endif
-#if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) || defined(VEC_4_DA)
+#if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL)
 #define USE_VEC 1
 #endif
-#if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA)
+#if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL)
 #define UNROLL 1
 #endif
 #if defined(VEC_4_DA)
@@ -36,9 +37,12 @@
 #if !defined(UNROLL) && !defined(USE_NORMAL_LOAD)
 #define WEIRD_PREFETCH 1
 #endif
+#if defined(VEC_16_UNROLL_SERIAL)
+#define SERIAL_MASK 1
+#endif
 
 // vector grouping directives
-#if defined(VEC_16) || defined(VEC_16_UNROLL)
+#if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_16_UNROLL_SERIAL)
 #define VEC_SIZE_16 1
 #endif
 #if defined(VEC_4) || defined(VEC_4_UNROLL)
@@ -322,7 +326,11 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   }
   else {
     #ifdef USE_VEC
+    #ifdef SERIAL_MASK
+    mask = getSerializedMask(orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y);
+    #else
     mask = getVecMask(orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y);
+    #endif
     #endif
   }
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) mask %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, mask); 
