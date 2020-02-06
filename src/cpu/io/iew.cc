@@ -362,9 +362,6 @@ IEW::doIssue()
     ThreadID tid = inst->thread_id;
     OpClass op_class = inst->static_inst_p->opClass();
 
-    if (inst->static_inst_p->isSpadPrefetch())
-        DPRINTF(Mesh, "[sn:%d] try issue prelw\n", inst->seq_num);
-
     // Check this instruction's dependencies are cleared
     for (int i = 0; i < inst->numSrcRegs(); ++i) {
       if (!m_scoreboard_p->getReg(inst->renamedSrcRegIdx(i))) {
@@ -393,16 +390,9 @@ IEW::doIssue()
       m_mem_barrier_stalls++;
       return;
     }
-    
-    // if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getRevecInstCount() > 0) {
-    //   DPRINTF(Mesh, "[sn:%d] Can't issue prelw due to pending younger "
-    //                "revec instructions\n", inst->seq_num);
-                   
-    //   return;
-    // }
 
-    if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getRememInstCount() > 0) {
-      DPRINTF(Mesh, "[sn:%d] Can't issue prelw due to pending younger "
+    if (inst->static_inst_p->isSpadSpeculative() && m_robs[tid]->getRememInstCount() > 0) {
+      DPRINTF(Mesh, "[sn:%d] Can't issue lwspec due to pending younger "
                    "remem instructions\n", inst->seq_num);
                    
       return;
