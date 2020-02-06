@@ -366,7 +366,7 @@ Vector::createInstruction(const MasterData &instInfo) {
   // 2) scalar instructions
   StaticInstPtr static_inst;
   bool force32bit;
-  /*if (instInfo.inst->static_inst_p->isSpadPrefetch()) {
+  if (instInfo.inst->static_inst_p->isSpadPrefetch()) {
     // TODO this makes pc + 2, when need pc + 4 (the prefetch is 32 bits)
     // compensate in iew logic
     static_inst = StaticInst::nopStaticInstPtr; 
@@ -377,10 +377,10 @@ Vector::createInstruction(const MasterData &instInfo) {
     TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
     static_inst = extractInstruction(machInst, cur_pc);
     force32bit = false;
-  }*/
-  TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
-  static_inst = extractInstruction(machInst, cur_pc);
-  force32bit = false;
+  }
+  // TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
+  // static_inst = extractInstruction(machInst, cur_pc);
+  // force32bit = false;
   
   int tid = 0;
   IODynInstPtr inst =

@@ -14,11 +14,11 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-// #define VEC_16 1
+#define VEC_16 1
 // #define VEC_16_UNROLL 1
 // #define VEC_4 1
 // #define VEC_4_UNROLL 1
-#define VEC_4_DA 1
+// #define VEC_4_DA 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC)
