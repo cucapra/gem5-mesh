@@ -13,9 +13,9 @@
 // #define VEC_16_UNROLL 1
 // #define VEC_4 1
 // #define VEC_4_UNROLL 1
-// #define VEC_4_DA 1
+#define VEC_4_DA 1
 // #define VEC_16_UNROLL_SERIAL 1
-#define VEC_4_DA_SMALL_FRAME 1
+// #define VEC_4_DA_SMALL_FRAME 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC)
@@ -58,6 +58,25 @@
 #define REGION_SIZE 2
 #define NUM_REGIONS 256
 #endif
+
+// https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
+int roundUp(int numToRound, int multiple) {
+  if (multiple == 0) {
+    return numToRound;
+  }
+
+  int remainder = abs(numToRound) % multiple;
+  if (remainder == 0) {
+    return numToRound;
+  }
+
+  if (numToRound < 0) {
+    return -(abs(numToRound) - remainder);
+  }
+  else {
+    return numToRound + multiple - remainder;
+  }
+}
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
 vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vtid, int dim, int unroll_len) {
@@ -288,7 +307,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 8) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 4 || ptid == 5 || ptid == 8) {
     start = 0;
-    end = n / 2;
+    end = roundUp(n / 3, 16); // make sure aligned to cacheline 
     orig_x = 0;
     orig_y = 0;
   }
@@ -300,13 +319,26 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 7) vtid = 3;
   if (ptid == 11) is_da = 1;
   if (ptid == 2 || ptid == 3 || ptid == 6 || ptid == 7 || ptid == 11) {
-    start = n / 2;
-    end = n;
+    start = roundUp(n / 3, 16);
+    end = roundUp(2 * n / 3, 16);
     orig_x = 2;
     orig_y = 0;
   }
 
-  // TODO group 3, bot mid but what about modulo, might mess up vec
+  // group 3 bottom (da == 15)
+  if (ptid == 9)  vtid = 0;
+  if (ptid == 10) vtid = 1;
+  if (ptid == 13) vtid = 2;
+  if (ptid == 14) vtid = 3;
+  if (ptid == 15) is_da = 1;
+  if (ptid == 9 || ptid == 10 || ptid == 13 || ptid == 14 || ptid == 15) {
+    start = roundUp(2 * n / 3, 16);
+    end = n;
+    orig_x = 1;
+    orig_y = 2;
+  }
+
+  // ptid/core = 12 doesn't do anything in this config
 
   vtid_x = vtid % vdim_x;
   vtid_y = vtid / vdim_y;
@@ -341,7 +373,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     #endif
     #endif
   }
-  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) mask %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, mask); 
+  printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
   #ifdef UNROLL
   int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
@@ -359,7 +391,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // only let certain tids continue
   #ifdef VEC_SIZE_4_DA
   if (tid == 12) return;
-  if (tid == 9 || tid == 10 || tid == 13 || tid == 14 || tid == 15) return;
   #endif
 
   // configure
