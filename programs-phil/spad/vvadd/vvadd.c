@@ -18,8 +18,8 @@
 // #define VEC_16_UNROLL 1
 // #define VEC_4 1
 // #define VEC_4_UNROLL 1
-// #define VEC_4_DA 1
-#define VEC_16_UNROLL_SERIAL 1
+#define VEC_4_DA 1
+// #define VEC_16_UNROLL_SERIAL 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC)
@@ -358,7 +358,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   VECTOR_EPOCH(mask);
 
   // run the actual kernel with the configuration
-  volatile int unroll_len = 16;
+  volatile int unroll_len = REGION_SIZE / 2;
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
 
   // deconfigure
