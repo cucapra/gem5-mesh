@@ -5,12 +5,7 @@
 #include "vvadd.h"
 #include "../../common/bind_defs.h"
 
-
 #define SYNC_ADDR 1000
-#define DA_SPAD 0
-#define SP_INTS 512
-#define NUM_REGIONS 16
-#define REGION_SIZE 32
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
@@ -18,20 +13,23 @@
 // #define VEC_16_UNROLL 1
 // #define VEC_4 1
 // #define VEC_4_UNROLL 1
-#define VEC_4_DA 1
+// #define VEC_4_DA 1
 // #define VEC_16_UNROLL_SERIAL 1
+#define VEC_4_DA_SMALL_FRAME 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC)
 #define USE_NORMAL_LOAD 1
 #endif
-#if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL)
+#if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) \
+  || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_4_DA_SMALL_FRAME)
 #define USE_VEC 1
 #endif
-#if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL)
+#if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) \
+  || defined(VEC_4_DA_SMALL_FRAME)
 #define UNROLL 1
 #endif
-#if defined(VEC_4_DA)
+#if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME)
 #define USE_DA 1
 #endif
 #if !defined(UNROLL) && !defined(USE_NORMAL_LOAD)
@@ -48,8 +46,17 @@
 #if defined(VEC_4) || defined(VEC_4_UNROLL)
 #define VEC_SIZE_4 1
 #endif
-#if defined(VEC_4_DA)
+#if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME)
 #define VEC_SIZE_4_DA 1
+#endif
+
+// prefetch sizings
+#if defined(VEC_4_DA)
+#define REGION_SIZE 32
+#define NUM_REGIONS 16
+#elif defined(VEC_4_DA_SMALL_FRAME)
+#define REGION_SIZE 2
+#define NUM_REGIONS 256
 #endif
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
