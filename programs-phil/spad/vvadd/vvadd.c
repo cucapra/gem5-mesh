@@ -151,6 +151,7 @@ vvadd_access(float *a, float *b, float *c, int start, int end, int ptid, int vti
   for (int i = start; i < end; i+=unroll_len*dim) {
     // check how many regions are available for prefetch by doing a remote load
     // to master cores scratchpad to get stored epoch number there
+    // THIS BECOMES THE BOTTLENECK FOR SMALL FRAMES
     volatile int loadedEpoch;
     loadedEpoch = ((int*)getSpAddr(spadCheckIdx, 0))[SYNC_ADDR];
     while(memEpoch >= loadedEpoch + numRegions) {
