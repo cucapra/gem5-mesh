@@ -52,10 +52,10 @@
 #endif
 
 // prefetch sizings
-#if defined(VEC_4_DA) || defined(NO_VEC_DA)
+#if defined(VEC_4_DA) || defined(NO_VEC_DA) || defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL)
 #define REGION_SIZE 32
 #define NUM_REGIONS 16
-#elif defined(VEC_4_DA_SMALL_FRAME)
+#elif defined(VEC_4_DA_SMALL_FRAME) || defined(WEIRD_PREFETCH)
 #define REGION_SIZE 2
 #define NUM_REGIONS 256
 #endif
@@ -81,7 +81,7 @@ int roundUp(int numToRound, int multiple) {
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
 vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vtid, int dim, int unroll_len) {
-  int *spAddr = getSpAddr(ptid, 0);
+  int *spAddr = (int*)getSpAddr(ptid, 0);
   
   #ifdef UNROLL
   int numRegions = NUM_REGIONS;
@@ -377,16 +377,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   }
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
-  #ifdef UNROLL
+  #ifdef NUM_REGIONS
   int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
   PREFETCH_EPOCH(prefetchMask);
 
   // make sure all cores have done this before begin kernel section --> do thread barrier for now
   // TODO hoping for a cleaner way to do this
-  pthread_barrier_wait(&start_barrier);
-  #elif defined(WEIRD_PREFETCH)
-  int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (2 << PREFETCH_REGION_SIZE_SHAMT);
-  PREFETCH_EPOCH(prefetchMask);
   pthread_barrier_wait(&start_barrier);
   #endif
 

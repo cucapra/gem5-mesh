@@ -97,7 +97,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv):
 numCpus = 16
 use_sps = True
 
-size = 8192
+size = 65536#32768 #8192
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 #seed = random.randint(1,2**20) 
