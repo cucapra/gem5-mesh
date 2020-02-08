@@ -157,21 +157,20 @@ vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vt
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
 vvadd_access(float *a, float *b, float *c, int start, int end, int ptid, int vtid, int dim, int unroll_len, int spadCheckIdx) {
-  int *spAddr = getSpAddr(ptid, 0);
-  
   #ifdef USE_DA
+  int *spAddr = (int*)getSpAddr(ptid, 0);
+
   int numRegions = NUM_REGIONS;
   int regionSize = REGION_SIZE;
 
   // variable to control rate of sending
   int memEpoch = 0;
+  volatile int loadedEpoch = 0;
 
   for (int i = start; i < end; i+=unroll_len*dim) {
     // check how many regions are available for prefetch by doing a remote load
     // to master cores scratchpad to get stored epoch number there
     // THIS BECOMES THE BOTTLENECK FOR SMALL FRAMES
-    volatile int loadedEpoch;
-    loadedEpoch = ((int*)getSpAddr(spadCheckIdx, 0))[SYNC_ADDR];
     while(memEpoch >= loadedEpoch + numRegions) {
       loadedEpoch = ((int*)getSpAddr(spadCheckIdx, 0))[SYNC_ADDR];
     }
