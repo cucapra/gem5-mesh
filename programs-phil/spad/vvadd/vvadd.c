@@ -86,8 +86,6 @@ vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vt
   int numRegions = NUM_REGIONS;
   int regionSize = REGION_SIZE;
   int memEpoch = 0;
-  #else
-  unroll_len = 1;
   #endif
 
   #ifdef WEIRD_PREFETCH // b/c you can't have single frame scratchpad?? need to make circular
@@ -161,6 +159,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
 vvadd_access(float *a, float *b, float *c, int start, int end, int ptid, int vtid, int dim, int unroll_len, int spadCheckIdx) {
   int *spAddr = getSpAddr(ptid, 0);
   
+  #ifdef USE_DA
   int numRegions = NUM_REGIONS;
   int regionSize = REGION_SIZE;
 
@@ -190,6 +189,7 @@ vvadd_access(float *a, float *b, float *c, int start, int end, int ptid, int vti
     REMEM(0);
 
   }
+  #endif
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
@@ -299,6 +299,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim_x = 2;
   vdim_y = 2;
 
+  int alignment = 16 * vdim_x * vdim_y;
+
   // group 1 top left (da == 8)
   if (ptid == 0) vtid = 0;
   if (ptid == 1) vtid = 1;
@@ -307,7 +309,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 8) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 4 || ptid == 5 || ptid == 8) {
     start = 0;
-    end = roundUp(n / 3, 16); // make sure aligned to cacheline 
+    end = roundUp(n / 3, alignment); // make sure aligned to cacheline 
     orig_x = 0;
     orig_y = 0;
   }
@@ -319,8 +321,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 7) vtid = 3;
   if (ptid == 11) is_da = 1;
   if (ptid == 2 || ptid == 3 || ptid == 6 || ptid == 7 || ptid == 11) {
-    start = roundUp(n / 3, 16);
-    end = roundUp(2 * n / 3, 16);
+    start = roundUp(n / 3, alignment);
+    end = roundUp(2 * n / 3, alignment);
     orig_x = 2;
     orig_y = 0;
   }
@@ -332,7 +334,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 14) vtid = 3;
   if (ptid == 15) is_da = 1;
   if (ptid == 9 || ptid == 10 || ptid == 13 || ptid == 14 || ptid == 15) {
-    start = roundUp(2 * n / 3, 16);
+    start = roundUp(2 * n / 3, alignment);
     end = n;
     orig_x = 1;
     orig_y = 2;
@@ -373,7 +375,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     #endif
     #endif
   }
-  printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
+  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
   #ifdef UNROLL
   int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
@@ -397,7 +399,11 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   VECTOR_EPOCH(mask);
 
   // run the actual kernel with the configuration
+  #ifdef UNROLL
   volatile int unroll_len = REGION_SIZE / 2;
+  #else
+  volatile int unroll_len = 1;
+  #endif
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
 
   // deconfigure
@@ -441,6 +447,9 @@ void *pthread_kernel(void *args) {
   if (a->tid_x == 0 && a->tid_y == 0) {
     stats_off();
   }
+
+  // BUG: note this printf fails if have the VECTOR_EPOCH(0), but mayber just timing thing
+  // printf("ptid (%d,%d)\n", a->tid_x, a->tid_y);
 
   return NULL;
 }

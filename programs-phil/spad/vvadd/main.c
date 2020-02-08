@@ -74,7 +74,7 @@ int main(int argc, char *argv[]) {
   
   printf("Begin kernel on %d cores\n", num_cores);
   launch_kernel(pthread_kernel, (void**)kern_args, cores_x, cores_y);
-  
+  printf("Finish kernel\n");
   /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
