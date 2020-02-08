@@ -13,9 +13,10 @@
 // #define VEC_16_UNROLL 1
 // #define VEC_4 1
 // #define VEC_4_UNROLL 1
-#define VEC_4_DA 1
+// #define VEC_4_DA 1
 // #define VEC_16_UNROLL_SERIAL 1
 // #define VEC_4_DA_SMALL_FRAME 1
+#define NO_VEC_DA 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC)
@@ -26,10 +27,10 @@
 #define USE_VEC 1
 #endif
 #if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) \
-  || defined(VEC_4_DA_SMALL_FRAME)
+  || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA)
 #define UNROLL 1
 #endif
-#if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME)
+#if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA)
 #define USE_DA 1
 #endif
 #if !defined(UNROLL) && !defined(USE_NORMAL_LOAD)
@@ -46,12 +47,12 @@
 #if defined(VEC_4) || defined(VEC_4_UNROLL)
 #define VEC_SIZE_4 1
 #endif
-#if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME)
+#if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA)
 #define VEC_SIZE_4_DA 1
 #endif
 
 // prefetch sizings
-#if defined(VEC_4_DA)
+#if defined(VEC_4_DA) || defined(NO_VEC_DA)
 #define REGION_SIZE 32
 #define NUM_REGIONS 16
 #elif defined(VEC_4_DA_SMALL_FRAME)
