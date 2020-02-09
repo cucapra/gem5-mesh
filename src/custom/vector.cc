@@ -454,7 +454,7 @@ void Vector::pushMeshInstToNextStage(const MasterData &instInfo)
   if (m_stage_idx == EarlyVectorIdx && isSlave()){
 
       //dynInst->master_info[0] = dynInst->master_info[6] ; // beginning of fetch for slave is end of commit cycle for master
-      DPRINTF(PipelinePrint, "debugging [%d] \n", dynInst->master_info[0]);
+      //DPRINTF(PipelinePrint, "debugging [%d] \n", dynInst->master_info[0]);
       dynInst->master_info[1] = m_cpu_p->curCycle(); // end of fetch cycle since instruction being passed to decode
       // need master cpu cycle tick always so that relative cycles can be measured properly
 

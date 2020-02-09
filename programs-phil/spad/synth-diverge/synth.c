@@ -6,10 +6,12 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
-//#define _USE_VLOAD 1
+#define _USE_VLOAD 1
 
-//#define UNROLL 1
-//#define SPEC_PREFETCH 1
+#define UNROLL 1
+#define SPEC_PREFETCH 1
+
+#define SPAD_STORE 1
 
 // if don't have this attribute potentially will duplicate inline assembly due
 // to code layout reordering. this happens in -O2+ with -freorder-blocks-algorithm=stc
@@ -65,7 +67,12 @@ synthetic(int *a, int *b, int *c, int *d, int n, int tid, int dim)
       {
         c_ *= b_;
       }
-      c[0] = c_;
+#ifdef SPAD_STORE
+          sp_c[0] = c_;
+#else
+          c[idx] = c_;
+#endif
+      //c[0] = c_;
       //sp_c[0] = c_;
     }
 
@@ -118,6 +125,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
 synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len)
 {
   int *spAddr = getSpAddr(tid, 0);
+  int *sp_c = getSpAddr(tid, 1000);
 
   for (int i = tid; i < n; i += unroll_len * dim)
   {
@@ -163,7 +171,11 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int u
         {
           c_ *= b_;
         }
-        c[idx] = c_;
+#ifdef SPAD_STORE
+          sp_c[0] = c_;
+#else
+          c[idx] = c_;
+#endif
       }
       else
       { // unused in convergent example

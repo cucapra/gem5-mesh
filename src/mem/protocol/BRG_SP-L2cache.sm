@@ -23,13 +23,18 @@ machine(MachineType:L2Cache, "SP LLC cache")
   // counters in the mem controller
   int _xCnt := 0;
   int _yCnt := 0;
+
+  int _vecCnt, default=0;
       
   // prevent both inports from starting vector op while other is in progress
   // TODO this prob should also prevent multiple vector ops from happening in the same
   // cycle. Currenlty allowing (just like for cache lines) where send all in 1 cycle
   // and have the network serialize it.
-  bool _vecFromMem := false;
-  bool _vecFromLLC := false;
+  //bool _vecFromMem := false;
+  //bool _vecFromLLC := false;
+
+  bool _vecFromMem, default=0;
+  bool _vecFromLLC, default=0;
   
   //---------------------------------------------------------------------------
   // States

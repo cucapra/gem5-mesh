@@ -643,7 +643,7 @@ Fetch::sendInstToNextStage(IODynInstPtr inst)
   Stage::sendInstToNextStage(inst);
 
   //store the clock edge at which the instruction is pushed to decode stage
-  inst->fetch_cycles = m_cpu_p->curCycle();
+  //inst->fetch_cycles = m_cpu_p->curCycle();
   inst->master_info[1] = m_cpu_p->curCycle();
   //DPRINTF(PipelinePrint, "Fetch [%s]\n", inst->toString(true));
 

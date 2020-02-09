@@ -22,7 +22,8 @@ IEW::IEW(IOCPU *_cpu_p, IOCPUParams *params, size_t in_size, size_t out_size)
       m_num_threads(params->numThreads),
       m_issue_width(params->issueWidth),
       m_wb_width(params->writebackWidth),
-      m_scoreboard_p(nullptr)
+      m_scoreboard_p(nullptr),
+      vecmode(params->includeVector)
 {
   // create Int ALU exec unit
   assert(params->intAluOpLatency == 1); // need branch to check in one cycle for trace
@@ -220,7 +221,7 @@ void IEW::doWriteback()
 
       //at this point the instruction is removed from execution and move to write back
       //store the clock edge at which the instruction is pushed to writeback stage
-      inst->execute_cycles = m_cpu_p->curCycle();
+      //inst->execute_cycles = m_cpu_p->curCycle();
       inst->master_info[4] = m_cpu_p->curCycle();
 
       // if the instruction is not squashed, process it this cycle. Otherwise,
@@ -283,7 +284,7 @@ void IEW::doWriteback()
         sendInstToNextStage(inst);
 
         //store the clock edge at which the instruction is pushed to commit stage
-        inst->write_cycles = m_cpu_p->curCycle();
+        //inst->write_cycles = m_cpu_p->curCycle();
         inst->master_info[5] = m_cpu_p->curCycle();
 
         // increment the number of wb insts this cycle
@@ -441,7 +442,8 @@ void IEW::doIssue()
 
 
 
-    if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getRevecInstCount() > 0)
+    
+    if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getRevecInstCount() > 0 )
     {
       DPRINTF(IEW, "[sn:%d] Can't issue prelw due to pending younger "
                    "revec instructions\n",
@@ -451,14 +453,20 @@ void IEW::doIssue()
       return;
     }
 
+   
     if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getUnresolvedCondInstCount() > 0)
     {
-      DPRINTF(IEW, "[sn:%d] Can't issue prelw due to pending younger "
-                   "unresolved cond ctrl instructions\n",
-              inst->seq_num);
 
-      iew_stalls_control++;
-      return;
+       // do not stall if trace core. We want the trace cores to issue prefetch even if there is control flow operation in the pipeline because they know its resolved
+      if (vecmode && m_cpu_p->getEarlyVector()->isSlave()){}
+      else{
+        DPRINTF(IEW, "[sn:%d] Can't issue prelw due to pending younger "
+                    "unresolved cond ctrl instructions\n",
+                inst->seq_num);
+
+        iew_stalls_control++;
+        return;
+      }
     }
 
     
@@ -491,7 +499,7 @@ void IEW::doIssue()
     exec_unit_p->insert(inst);
 
     //store the clock edge at which the instruction is pushed to execute stage
-    inst->issue_cycles = m_cpu_p->curCycle();
+    //inst->issue_cycles = m_cpu_p->curCycle();
     inst->master_info[3] = m_cpu_p->curCycle();
 
     // Mark its dest reg not ready

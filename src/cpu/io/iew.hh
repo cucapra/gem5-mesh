@@ -70,6 +70,8 @@ public:
   /** Line trace */
   void linetrace(std::stringstream &ss) override;
 
+  
+
 private:
   enum IEWStatus
   {
@@ -157,6 +159,10 @@ private:
   Stats::Scalar iew_execbusy;
   Stats::Scalar iew_robfull;
   Stats::Vector2d m_stall_rob_head_insts;
+
+public:
+  //check if vector mode
+  bool vecmode;
 
 #ifdef DEBUG
   /** Stage's status (for line trace) */
