@@ -17,7 +17,8 @@
 // #define VEC_16_UNROLL_SERIAL 1
 // #define VEC_4_DA_SMALL_FRAME 1
 // #define NO_VEC_DA 1
-#define NO_VEC_W_VLOAD 1
+// #define NO_VEC_W_VLOAD 1
+#define SIM_DA_VLOAD_SIZE_1 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC)
@@ -28,10 +29,10 @@
 #define USE_VEC 1
 #endif
 #if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) \
-  || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA)
+  || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
 #define UNROLL 1
 #endif
-#if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA)
+#if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
 #define USE_DA 1
 #endif
 #if !defined(UNROLL) && !defined(USE_NORMAL_LOAD)
@@ -51,12 +52,12 @@
 #if defined(VEC_4) || defined(VEC_4_UNROLL)
 #define VEC_SIZE_4 1
 #endif
-#if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA)
+#if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
 #define VEC_SIZE_4_DA 1
 #endif
 
 // prefetch sizings
-#if defined(VEC_4_DA) || defined(NO_VEC_DA) || defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL)
+#if defined(VEC_4_DA) || defined(NO_VEC_DA) || defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(SIM_DA_VLOAD_SIZE_1)
 #define REGION_SIZE 32
 #define NUM_REGIONS 16
 #elif defined(VEC_4_DA_SMALL_FRAME) || defined(WEIRD_PREFETCH)
@@ -192,10 +193,34 @@ vvadd_access(float *a, float *b, float *c, int start, int end, int ptid, int vti
     for (int j = 0; j < unroll_len; j++) {
       VPREFETCH(spAddrRegion + j * 2    , a + i + j * dim, 0);
       VPREFETCH(spAddrRegion + j * 2 + 1, b + i + j * dim, 0);
+      #ifdef SIM_DA_VLOAD_SIZE_1 // simulate data comes every 1/4 cycles rather than 1 to sim no vec prefetch
+      // for vtid 1
+      asm volatile(
+        "nop\n\t" // addr inc
+        "nop\n\t" // addr inc
+        "nop\n\t" // ld
+        "nop\n\t" // ld            
+      );
+      // load vtid 2
+      asm volatile(
+        "nop\n\t" // addr inc
+        "nop\n\t" // addr inc
+        "nop\n\t" // ld
+        "nop\n\t" // ld            
+      );
+      // load vtid 3
+      asm volatile(
+        "nop\n\t" // addr inc
+        "nop\n\t" // addr inc
+        "nop\n\t" // ld
+        "nop\n\t" // ld            
+      );
+      #endif
     }
     memEpoch++;
 
     // up memory epoch in the core
+    // TODO not needed here?
     REMEM(0);
 
   }
