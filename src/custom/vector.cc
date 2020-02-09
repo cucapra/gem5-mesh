@@ -628,6 +628,11 @@ Vector::isSlave() {
 }
 
 bool
+Vector::hasForwardingPath() {
+  return MeshHelper::hasForwardingPath(_curCsrVal);
+}
+
+bool
 Vector::canWriteMesh() {
   return ((_canRootSend && isRootMaster()) || (!_canRootSend && !isRootMaster()));
 }

@@ -583,7 +583,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     bool diverged = vec && vec->isCurDiverged();
     bool dAccess  = vec && vec->isDecoupledAccess();
     bool master   = vec && vec->isRootMaster();
-    bool solo     = !(vec && vec->getConfigured());
+    bool solo     = !(vec && vec->getConfigured()) || (vec && !vec->hasForwardingPath());
     m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || dAccess || master || solo );
 
 

@@ -292,6 +292,11 @@ MeshHelper::prefetchRegionSize(RegVal csrVal) {
   return bits(csrVal, PREFETCH_REGION_SIZE_HI, PREFETCH_REGION_SIZE_LO);
 }
 
+bool
+MeshHelper::hasForwardingPath(RegVal csrVal) {
+  return isVectorMaster(csrVal) || isVectorSlave(csrVal);
+}
+
 // reproduce the isa file here, b/c not sure how to get the info from the
 // weirdo isa language
 /*

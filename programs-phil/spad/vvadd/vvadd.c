@@ -16,7 +16,8 @@
 // #define VEC_4_DA 1
 // #define VEC_16_UNROLL_SERIAL 1
 // #define VEC_4_DA_SMALL_FRAME 1
-#define NO_VEC_DA 1
+// #define NO_VEC_DA 1
+#define NO_VEC_W_VLOAD 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC)
@@ -38,6 +39,9 @@
 #endif
 #if defined(VEC_16_UNROLL_SERIAL)
 #define SERIAL_MASK 1
+#endif
+#if !defined(USE_VEC) && defined(NO_VEC_W_VLOAD)
+#define FORCE_VEC_LOAD 1
 #endif
 
 // vector grouping directives
@@ -142,8 +146,14 @@ vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vt
     // so need to add extra increment logic
     int *spAddrA = spAddr + spadRegion*2 + 0;
     int *spAddrB = spAddr + spadRegion*2 + 1;
+    #ifdef FORCE_VEC_LOAD // force core with vtid 0 to do a master load even tho no systolic forwarding
+    if (vtid == 0) {
+    #endif
     VPREFETCH(spAddrA, a + i, 0);
     VPREFETCH(spAddrB, b + i, 0);
+    #ifdef FORCE_VEC_LOAD
+    }
+    #endif
     LWSPEC(a_, spAddrA, 0);
     LWSPEC(b_, spAddrB, 0);
     spadRegion = (spadRegion + 1) % NUM_REGIONS;
@@ -375,6 +385,11 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     #endif
     #endif
   }
+  #ifdef FORCE_VEC_LOAD
+  mask = (orig_x << FET_XORIGIN_SHAMT) | (orig_y << FET_YORIGIN_SHAMT) | 
+        (pdim_x << FET_XLEN_SHAMT) | (pdim_x << FET_YLEN_SHAMT);
+  #endif
+
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
   #ifdef NUM_REGIONS
