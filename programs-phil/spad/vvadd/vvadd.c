@@ -221,7 +221,7 @@ vvadd_access(float *a, float *b, float *c, int start, int end, int ptid, int vti
 
     // up memory epoch in the core
     // TODO not needed here?
-    REMEM(0);
+    // REMEM(0);
 
   }
   #endif
