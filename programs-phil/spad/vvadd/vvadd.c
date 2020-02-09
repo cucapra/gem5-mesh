@@ -14,11 +14,11 @@
 // #define VEC_4 1
 // #define VEC_4_UNROLL 1
 // #define VEC_4_DA 1
-// #define VEC_16_UNROLL_SERIAL 1
+// // #define VEC_16_UNROLL_SERIAL 1 // doesn't seem to work anymore...
 // #define VEC_4_DA_SMALL_FRAME 1
 // #define NO_VEC_DA 1
 // #define NO_VEC_W_VLOAD 1
-#define SIM_DA_VLOAD_SIZE_1 1
+// #define SIM_DA_VLOAD_SIZE_1 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC)
@@ -57,7 +57,8 @@
 #endif
 
 // prefetch sizings
-#if defined(VEC_4_DA) || defined(NO_VEC_DA) || defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(SIM_DA_VLOAD_SIZE_1)
+#if defined(VEC_4_DA) || defined(NO_VEC_DA) || defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_16_UNROLL_SERIAL) \
+ || defined(SIM_DA_VLOAD_SIZE_1)
 #define REGION_SIZE 32
 #define NUM_REGIONS 16
 #elif defined(VEC_4_DA_SMALL_FRAME) || defined(WEIRD_PREFETCH)
@@ -218,10 +219,6 @@ vvadd_access(float *a, float *b, float *c, int start, int end, int ptid, int vti
       #endif
     }
     memEpoch++;
-
-    // up memory epoch in the core
-    // TODO not needed here?
-    // REMEM(0);
 
   }
   #endif

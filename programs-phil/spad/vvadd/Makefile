@@ -27,6 +27,10 @@ else
 	EXTRA_FLAGS := $(EXTRA_FLAGS)
 endif
 
+ifneq ($(ENV_EXTRA_MAKE_FLAGS),)
+	EXTRA_FLAGS := $(EXTRA_FLAGS) $(ENV_EXTRA_MAKE_FLAGS)
+endif
+
 # installed cross compiler gcc for riscv
 RV_CC=/data/phil/riscv-build/bin/riscv64-unknown-linux-gnu-gcc
 

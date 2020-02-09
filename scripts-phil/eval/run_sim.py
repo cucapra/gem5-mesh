@@ -61,12 +61,12 @@ def compile_cmd(program_dir, cpus, use_sp, use_vec):
 
 
 # just compile with args needed for makefile (#cores, and whether vec enabled...etc)
-def compile_prog(numCpus, use_vec, use_sps, prog_name):
-  cmplCmd = compile_cmd(os.path.dirname(programs[prog_name]['path']), numCpus, use_sps, use_vec)
+def compile_prog(numCpus, use_vec, use_sps, prog_name, extra_flags):
+  cmplCmd = compile_cmd(os.path.dirname(programs[prog_name]['path']), numCpus, use_sps, use_vec) + " " + extra_flags
   result = subprocess.check_output(cmplCmd, shell=True)
   print(result)
 
-def run_prog(numCpus, use_vec, use_sps, prog_name, argv):
+def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
   
   # check if the success flag was asserted using regex checking on the gem5 output
   success_regex = re.compile(programs[prog_name]['success'])
@@ -76,7 +76,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv):
   
   # serialize arguments
   serialArgs = programs[prog_name]['serialize'](argv)
-  resultsAnno = '-vec' + str(int(use_vec)) + '-sp' + str(int(use_sps)) + serialArgs
+  resultsAnno = '-vec' + str(int(use_vec)) + "-" + extra_info + serialArgs
   resultsDir = programs[prog_name]['name'] + resultsAnno
   cmd = gem5_cmd(programs[prog_name]['path'], optionsStr, resultsDir, numCpus, use_vec)
   print(cmd)
@@ -110,27 +110,35 @@ run_id = 1
 # whether to use vector or not
 use_vec_arr = [True]
 
+# make_flags = ['NO_VEC','VEC_16','VEC_16_UNROLL','VEC_4','VEC_4_UNROLL','VEC_4_DA', \
+#   'VEC_16_UNROLL_SERIAL','VEC_4_DA_SMALL_FRAME','NO_VEC_DA','NO_VEC_W_VLOAD','SIM_DA_VLOAD_SIZE_1']
+
+make_flags = ['NO_VEC','VEC_16','VEC_16_UNROLL','VEC_4','VEC_4_UNROLL','VEC_4_DA', \
+  'VEC_4_DA_SMALL_FRAME','NO_VEC_DA','NO_VEC_W_VLOAD','SIM_DA_VLOAD_SIZE_1']
+
 program = 'vvadd'
 
 # TODO need a struct describing the experiment. Not all settings match idenpendently
 
-def pack_and_run(numCpus, use_vec, use_sps, prog, i):
+def pack_and_run(numCpus, use_vec, use_sps, prog, i, extra_info):
   frac = 1.0 - float(i) / 10.0
-  argv = [ size, frac, seed, run_id ]
-  return run_prog(numCpus, use_vec, use_sps, program, argv)
+  argv = [ size, frac, seed ]
+  return run_prog(numCpus, use_vec, use_sps, program, argv, extra_info)
 
 pool = multiprocessing.Pool(processes=16)
 
-for use_vec in use_vec_arr:
+# for use_vec in use_vec_arr:
+for make_flag in make_flags:
+  use_vec = True
   # run a program from the list above with different parameters
-  compile_prog(numCpus, use_vec, use_sps, program)
+  compile_prog(numCpus, use_vec, use_sps, program, 'ENV_EXTRA_MAKE_FLAGS=-D' + make_flag)
   
   jobs = []
   
   for i in range(runs):
     #pack_and_run(numCpus, use_vec, use_sps, 'synth', i)
     # the new file will have the same name as the old file, but also specify the new dir
-    proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, program, i, ))
+    proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, program, i, make_flag ))
     jobs.append(proc)
     pass
 
