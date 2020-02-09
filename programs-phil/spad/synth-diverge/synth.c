@@ -8,6 +8,8 @@
 
 #define _USE_VLOAD 1
 
+// ordered by priority
+#define DAE 1
 #define UNROLL 1
 #define SPEC_PREFETCH 1
 
@@ -198,6 +200,82 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int u
   }
 }
 
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
+synthetic_dae_execute(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
+  int *spAddr = getSpAddr(tid, 0);
+  
+  for (int i = tid; i < n; i+=dim) {
+    
+    int a_;
+    // TODO you still have to mark spad entry as 0? otherwise won't stop
+    LWSPEC(a_, spAddr, 0);
+    
+    if (a_ == 0) {
+      int b_;
+      LWSPEC(b_, spAddr + 1, 0);
+      int c_ = b_;
+      for (int j = 0; j < 2; j++) {
+        c_ *= b_;
+      }
+      c[i] = c_;
+    }
+    else {
+      int b_;
+      VPREFETCH(spAddr + 1, d + i, 0); // need to load when on the off path, although should prob be regular load?
+      LWSPEC(b_, spAddr + 1,  0);
+      int c_ = b_;
+      for (int j = 0; j < 2; j++) {
+        c_ *= b_;
+      }
+      c[i] = c_;
+    }
+    
+    
+    // try to revec at the end of loop iteration
+    REVEC(0);
+  }
+}
+
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
+synthetic_dae_access(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
+  int *spAddr = getSpAddr(tid, 0);
+  
+  for (int i = tid; i < n; i+=dim) {
+    
+    // TODO, for now just assuming a path
+    // int a_;
+    // VPREFETCH(spAddr, a + i, 0);
+    // LWSPEC(a_, spAddr, 0);
+    
+    // if (a_ == 0) {
+    //   int b_;
+    //   VPREFETCH(spAddr + 1, b + i, 0);
+    //   LWSPEC(b_, spAddr + 1, 0);
+    // }
+    // else {
+    //   int b_;
+    //   VPREFETCH(spAddr + 1, d + i, 0);
+    //   LWSPEC(b_, spAddr + 1,  0);
+    // }
+    // // try to revec at the end of loop iteration
+    // REVEC(0);
+
+    VPREFETCH(spAddr, a + i, 0);
+    VPREFETCH(spAddr + 1, b + i, 0);
+
+  }
+}
+
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
+synthetic_dae(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
+  if (tid == 0) {
+    synthetic_dae_access(a, b, c, d, n, tid, dim);
+  }
+  else {
+    synthetic_dae_execute(a, b, c, d, n, tid, dim);
+  }
+}
+
 // actual kernel
 void kernel(
     int *a, int *b, int *c, int *d, int n,
@@ -217,13 +295,27 @@ void kernel(
 // configure vector is enabled
 #ifdef _VEC
   // get a standard vector mask
+  #ifdef DAE
+  int mask = getDAEMask(tid_x, tid_y, dim_x, dim_y);
+  #else
   int mask = getVecMask(tid_x, tid_y, dim_x, dim_y);
+<<<<<<< HEAD
+=======
+  #endif
+>>>>>>> origin/dae
 
   VECTOR_EPOCH(mask);
 #endif
 
+<<<<<<< HEAD
 // run the actual kernel with the configuration
 #ifdef UNROLL
+=======
+  // run the actual kernel with the configuration
+  #ifdef DAE
+  synthetic_dae(a, b, c, d, n, tid, dim);
+  #elif defined(UNROLL)
+>>>>>>> origin/dae
   volatile int unroll_len = 4;
   synthetic_uthread(a, b, c, d, n, tid, dim, unroll_len);
 #else
