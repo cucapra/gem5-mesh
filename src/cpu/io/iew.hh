@@ -172,6 +172,13 @@ public:
   std::vector<IODynInstPtr> m_issued_insts;
   std::vector<IODynInstPtr> m_wb_insts;
 #endif
+
+  private:
+    Stats::Scalar m_dep_stalls;
+    Stats::Scalar m_mem_barrier_stalls;
+    Stats::Scalar m_commit_buf_stalls;
+    Stats::Scalar m_exe_unit_busy_stalls;
+    Stats::Vector2d m_stall_rob_head_insts;
 };
 
 #endif // CPU_IO_IEW_HH

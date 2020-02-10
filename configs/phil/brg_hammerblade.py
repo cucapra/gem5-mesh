@@ -381,7 +381,8 @@ CPUClass = MinorCPU(
 
 CPUClass = IOCPU (
   includeVector = options.vector
-
+  ,
+  numROBEntries = 8
 
 )
 
@@ -443,8 +444,10 @@ for i in xrange(n_scratchpads):
                   sp_size           = AddrRange(options.spm_size).size(),
                   dram_size         = AddrRange(options.mem_size).size(),
                   num_l2s           = n_l2s,
+                  grid_dim_x        = n_cols,
+                  grid_dim_y        = n_cols,
                   maxNumPendingReqs = options.stream_width,
-                  prefetchBufSize   = 100, # make ridic number
+                  prefetchBufSize   = 10000, # make ridic number
                   cpu               = system.cpu[i])
 
   sp.memReqBuffer             = MessageBuffer(ordered = True)
@@ -515,6 +518,8 @@ for i in xrange(n_l2s):
   l2_cntrl = L2Cache_Controller(version = i,
                                 cacheMemory = l2_cache,
                                 transitions_per_cycle = 4,
+                                meshDimX = n_cols,
+                                meshDimY = n_cols,
                                 ruby_system = system.ruby
                                 )
                                 #number_of_TBEs = 1)

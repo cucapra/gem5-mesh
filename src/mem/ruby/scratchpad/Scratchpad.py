@@ -18,6 +18,8 @@ class Scratchpad(RubyController):
   cpu_port          = SlavePort("cpu_port")
 
   num_l2s           = Param.Int(1, "Number of L2 banks")
+  grid_dim_x        = Param.Int(2, "XDim of core mesh")
+  grid_dim_y        = Param.Int(2, "YDim of core mesh")
   maxNumPendingReqs = Param.Int(8, "Max number of pending requests")
   
   prefetchBufSize   = Param.Int(2, "Allowed number of pending prefetches from master core")

@@ -89,6 +89,10 @@ class CpuPort : public SlavePort
     AddrRangeList getAddrRanges() const override
     { panic("getAddrRanges Not implemented!\n"); }
 
+    Scratchpad *getAttachedSpad() const {
+      return m_scratchpad_p;
+    }
+
   private:
     Scratchpad* m_scratchpad_p;
     bool m_need_retry;
@@ -106,6 +110,7 @@ class CpuPort : public SlavePort
 #define SPM_GO_FLAG_OFFSET    (SPM_BASE_ADDR_OFFSET + sizeof(uint64_t))
 #define SPM_DONE_FLAG_OFFSET  (SPM_GO_FLAG_OFFSET   + sizeof(uint32_t))
 #define SPM_ARGS_OFFSET       (SPM_DONE_FLAG_OFFSET + sizeof(uint32_t))
+#define SPM_DATA_WORD_OFFSET  4
 
 class Scratchpad : public AbstractController
 {
@@ -198,6 +203,11 @@ class Scratchpad : public AbstractController
     void collateStats() override
     { warn("Scratchpad does not support collateStats()\n"); }
 
+    // reset all tags in rdy array
+    // TODO called from CPU, not sure how realistic? it's a 1bit wire
+    // or maybe it could be a special packet...
+    void resetRdyArray();
+
   private:
     /**
      * Return NodeID of scratchpad owning the given address
@@ -231,10 +241,12 @@ class Scratchpad : public AbstractController
      * Mem divergence. Check CPU registers
      */ 
     int getCoreEpoch();
+    int getNumRegions();
+    int getRegionElements();
     //void updateEpoch(int epoch);
     bool controlDiverged();
-    bool memoryDiverged(int pktEpoch, Addr addr);
-    bool isPrefetchAhead(int pktEpoch);
+    bool memoryDiverged(Addr addr);
+    bool isPrefetchAhead(Addr addr);
     //bool cpuIsLate(int pktEpoch);
     //bool cpuIsEarly(int pktEpoch);
     //bool cpuIsSynced(int pktEpoch);
@@ -246,6 +258,11 @@ class Scratchpad : public AbstractController
     bool isWordRdy(Addr addr);
     void setWordRdy(Addr addr);
     void setWordNotRdy(Addr addr);
+
+    /**
+     * Get expected region/epoch based on pkt address
+     */ 
+    int getDesiredRegion(Addr addr);
     
     /**
      * Logic for handling any resp packet to spad
@@ -330,6 +347,10 @@ class Scratchpad : public AbstractController
 
     // Number of L2 banks
     const int m_num_l2s;
+
+    // The grid dimensions of the mesh
+    const int m_grid_dim_x;
+    const int m_grid_dim_y;
     
     /**
      * Keep a pointer to the local CPU to allow reading of some of its 
@@ -351,7 +372,7 @@ class Scratchpad : public AbstractController
      * Bit array for each word tracking whether a prefetch has arrived
      * Reset on every trace prefetch, and set when recv the prefetch from master
      */ 
-    std::vector<int> m_fresh_array;
+    // std::vector<int> m_fresh_array;
     
     /**
      * Event to process a mem resp packet
@@ -382,12 +403,16 @@ class Scratchpad : public AbstractController
     std::queue<PacketPtr> m_ruby_resp_queue;
     
     /**
-     * Unified resp queue to be processed. All packets on this queue are
-     * ready to be processed.
-     * 
-     * You can easily pretend this is multiple queues depending on dequeue logic
+     * Counter to keep track of how many pkts have arrived for a region
+     * Should only be a 10bit counter and adder setup
      */ 
-    //std::queue<PacketPtr> m_resp_val_queue;
+    int m_region_cntr;
+
+    /**
+     * Keep track of which region we are currently prefetching into
+     * i.e. which region the counter is associated with (<10 bits)
+     */ 
+    int m_cur_prefetch_region;
     
     
     /**
@@ -401,6 +426,9 @@ class Scratchpad : public AbstractController
     Stats::Formula m_local_accesses;
     Stats::Formula m_remote_accesses;
     Stats::Formula m_total_accesses;
+
+    Stats::Scalar m_max_queue_size;
+    Stats::Scalar m_not_rdy_stalls;
 };
 
 #endif // MEM_RUBY_SCRATCHPAD_HH

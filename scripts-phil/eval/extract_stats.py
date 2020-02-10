@@ -18,7 +18,7 @@ args = parser.parse_args()
 
 dirPaths = []
 
-prog = 'synth'
+prog = 'vvadd'
 
 # created by top/eval/run_sim.py
 nameConv = r'^' + prog + r'(.*)$'
@@ -172,6 +172,9 @@ for dirPath in dirPaths:
   
   dataCSV += '\n'
   
+  # add file name
+  dataCSV += os.path.basename(dirPath) + ', '
+
   # parameters (might not have been annotated with parameter)
   for param in parameters:
     if (param in annos):
@@ -189,6 +192,7 @@ for dirPath in dirPaths:
 
 with open(args.outfile, 'w+') as fout:
   # header line
+  fout.write('run' + ', ')
   for param in parameters:
     fout.write(param + ', ')
   for k, v in stats.items():

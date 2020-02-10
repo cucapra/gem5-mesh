@@ -40,6 +40,22 @@
 #define REVEC(hash)                                                           \
   asm volatile (".insn u 0x7b, x0, %[id]\n\t" :: [id] "i" (hash))
   
+// remem instruction with unique hash id (mem barrier instead of control barrier)
+#define REMEM(hash)                                                           \
+  asm volatile (".insn u 0x0b, x0, %[id]\n\t":: [id] "i" (hash))
+
+// // do a csr read on register containing the number of open regions
+// #define READ_OPEN_REGIONS(ret) \
+//   asm volatile ("csrr %[rdest], <csrreg>\n\t" : [rdest] "=r" (ret) :)
+
+// static int __readOpenRegions() {
+//   int ret;
+//   READ_OPEN_REGIONS(ret);
+//   return ret;
+// }
+
+#define PREFETCH_EPOCH(val) \
+  asm volatile ("csrw 0x402, %[x]\n\t" :: [x] "r" (val))
   
   // revec instruction with unique hash id
 /*#define REVEC(hash)                                                           \
@@ -67,6 +83,11 @@
     : [val] "=r" (val)                                  \
     : [mem] "r" (spadAddr), [off] "i" (offset))
 */
+
+#define STORE_NOACK(data, memAddr, offset) \
+  asm volatile (".insn sb 0x23, 0x5, %[dataReg], %[off](%[mem])\n\t" :: \
+    [dataReg] "r" (data), [mem] "r" (memAddr), [off] "i" (offset))     
+
 // to ensure that the compiler doesn't place unwanted instructions
 // within the binds we enforce with a single asm volatile
 #define BINDED_EXE_SECTION(sbind, ebind, code, wr, rd)  \
@@ -193,7 +214,7 @@ static inline void stats_off()
 #endif
 }
 
-int getVecMask(int tid_x, int tid_y, int dim_x, int dim_y) {
+int getVecMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
   int mask = ALL_NORM;
   
   #ifndef _VEC
@@ -228,66 +249,90 @@ int getVecMask(int tid_x, int tid_y, int dim_x, int dim_y) {
   // specify the vlen
   int vlenX = dim_x;
   int vlenY = dim_y;
-  mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
+  mask |= (origin_x << FET_XORIGIN_SHAMT) | (origin_y << FET_YORIGIN_SHAMT) | (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
+
+  // specify each core is an execute core
+  mask |= (0 << FET_DAE_SHAMT);
 
   return mask;
   #endif
 }
 
-int getDAEMask(int tid_x, int tid_y, int dim_x, int dim_y) {
+// mask that guarentees a linear chain with no fanout
+// implements a snake pattern
+// -> -> -> v
+// v <- <- <-
+// -> -> -> v
+// 0 <- <- <-
+int getSerializedMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
   int mask = ALL_NORM;
   
   #ifndef _VEC
   return mask;
   #else
   
-  // upper left corner is the decoupled access core
-  if (tid_x == 0 && tid_y == 0) {
-    mask = ALL_NORM;
-    // mask = FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
-  }
-
-  // top row (besides DA)
-  else if (tid_y == 0) {
-    // all send down
-    mask = FET_O_INST_DOWN_SEND;
-
-    // everyone but the first (master recv from left)
-    if (tid_x > 1) {
+  // each row alternates between different behavior
+  if (tid_y % 2 == 0) {
+    // if first column either recv from above or not at all
+    if (tid_x == 0) {
+      if (tid_y == 0) {
+        mask |= ALL_NORM;
+      }
+      else {
+        mask |= FET_I_INST_UP;
+      }
+    }
+    // otherwise recv from the left
+    else {
       mask |= FET_I_INST_LEFT;
     }
 
-    // the top row besides DA and edge send to the right
-    if (tid_x != dim_x - 1) {
+    // send to the right if not at edge
+    if (tid_x < dim_x - 1) {
       mask |= FET_O_INST_RIGHT_SEND;
     }
+    // if at the edge send down
+    else {
+      mask |= FET_O_INST_DOWN_SEND;
+    }
   }
-
-  // the leftmost column (besides DA)
-  else if (tid_x == 0) {
-    // always recv from right
-    mask = FET_I_INST_RIGHT;
-  }
-
-  // the column to the right of DA (besides top)
-  else if (tid_x == 1) {
-    // send down and to the left and recv from above
-    mask = FET_I_INST_UP | FET_O_INST_LEFT_SEND | FET_O_INST_DOWN_SEND;
-  }
-
-  // the rest recvs from above and sends down
   else {
-    mask = FET_I_INST_UP | FET_O_INST_DOWN_SEND;
+    // input either above if at the right edge or from the right
+    if (tid_x == dim_x - 1) {
+      mask |= FET_I_INST_UP;
+    }
+    else {
+      mask |= FET_I_INST_RIGHT;
+    }
+
+    // output either to the left or down if at left edge
+    if (tid_x == 0) {
+      mask |= FET_O_INST_DOWN_SEND;
+    }
+    else {
+      mask |= FET_O_INST_LEFT_SEND;
+    }
   }
   
   // specify the vlen
   int vlenX = dim_x;
   int vlenY = dim_y;
-  mask |= (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
+  mask |= (origin_x << FET_XORIGIN_SHAMT) | (origin_y << FET_YORIGIN_SHAMT) | (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
+
+  // specify each core is an execute core
+  mask |= (0 << FET_DAE_SHAMT);
 
   return mask;
   #endif
 }
 
+int getDAEMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
+  int mask = (1 << FET_DAE_SHAMT) | 
+            (origin_x << FET_XORIGIN_SHAMT) | 
+            (origin_y << FET_YORIGIN_SHAMT) | 
+            (dim_x << FET_XLEN_SHAMT) | 
+            (dim_y << FET_YLEN_SHAMT);
+  return mask;
+}
 
 #endif

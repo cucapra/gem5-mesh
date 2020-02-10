@@ -50,14 +50,20 @@ class MeshHelper {
     
     static bool isVectorMaster(uint64_t csrVal);
     static bool isVectorSlave(uint64_t csrVal);
+    static bool hasForwardingPath(RegVal csrVal);
     static bool fetCsrToInSrc(uint64_t csrVal, Mesh_Dir &dir);
     static bool fetCsrToOutDests(uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
-    static bool fetCsrToCount(uint64_t csrVal, int &count);
-    static bool fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst);
+    //static bool fetCsrToCount(uint64_t csrVal, int &count);
+    //static bool fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst);
+    static bool isDecoupledAccess(RegVal csrVal);
     
     static bool csrToInSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
     static bool csrToOutDests(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs);
     static bool csrToOutSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_DS_t> &out);
+
+    // get vector origin
+    static int getXOrigin(RegVal csrVal);
+    static int getYOrigin(RegVal csrVal);
 
     // get vector lengths
     static int getXLen(uint64_t csr, uint64_t csrVal);
@@ -68,6 +74,10 @@ class MeshHelper {
   
     static SensitiveStage csrToStage(uint64_t csr);
     static uint64_t stageToCsr(SensitiveStage stage);
+
+    // get info from prefetch csr
+    static int numPrefetchRegions(RegVal csrVal);
+    static int prefetchRegionSize(RegVal csrVal);
     
   private:
     static bool rangeToMeshDir(uint64_t csrVal, int hi, int lo, Mesh_Dir &dir);

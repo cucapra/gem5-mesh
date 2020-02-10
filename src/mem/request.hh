@@ -400,7 +400,7 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0), xDim(1), yDim(1)
+          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false)
     {}
 
     Request(Addr paddr, unsigned size, Flags flags, MasterID mid,
@@ -409,7 +409,7 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(seq_num), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0), xDim(1), yDim(1)
+          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false)
     {
         setPhys(paddr, size, flags, mid, curTick());
         setContext(cid);
@@ -426,7 +426,7 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0), xDim(1), yDim(1)
+          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false)
     {
         setPhys(paddr, size, flags, mid, curTick());
     }
@@ -436,7 +436,7 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0), xDim(1), yDim(1)
+          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false)
     {
         setPhys(paddr, size, flags, mid, time);
     }
@@ -447,7 +447,7 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(pc),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0), xDim(1), yDim(1)
+          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false)
     {
         setPhys(paddr, size, flags, mid, time);
         privateFlags.set(VALID_PC);
@@ -459,7 +459,7 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0), xDim(1), yDim(1)
+          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false)
     {
         setVirt(asid, vaddr, size, flags, mid, pc);
         setContext(cid);
@@ -484,7 +484,8 @@ class Request
           _extraData(other._extraData), _contextId(other._contextId),
           _pc(other._pc), _reqInstSeqNum(other._reqInstSeqNum),
           translateDelta(other.translateDelta),
-          accessDelta(other.accessDelta), depth(other.depth), xDim(other.xDim), yDim(other.yDim)
+          accessDelta(other.accessDelta), depth(other.depth), xDim(other.xDim), yDim(other.yDim), 
+          xOrigin(other.xOrigin), yOrigin(other.yOrigin), fromDecoupledAccess(other.fromDecoupledAccess)
     {
         if (other.atomicOpFunctor)
             atomicOpFunctor = (other.atomicOpFunctor)->clone();
@@ -617,6 +618,17 @@ class Request
      */ 
     int xDim;
     int yDim;
+
+    /**
+     * Specify the origin of the group
+     */
+    int xOrigin;
+    int yOrigin;
+
+    /**
+     * Specify whether the packet is from a decouple access core (1bit)
+     */
+    bool fromDecoupledAccess;
     
     /**
      * Interpret data block as an address
@@ -631,11 +643,13 @@ class Request
     // spad op that resets the ready flag
     // TODO create custom packet type for this?
     bool spadReset;
+    // don't return an ack if this is a store
+    bool ackFree;
     
     /**
      * Epoch of the packet
      */ 
-    int epoch;
+    // int epoch;
     
     /**
      * Packet is doing a load from mem to spad

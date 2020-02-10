@@ -157,18 +157,24 @@ MeshHelper::isVectorMaster(uint64_t csrVal) {
   return (fetCsrToOutDests(csrVal, dirs));
 }
 
-bool
-MeshHelper::fetCsrToCount(uint64_t csrVal, int &count) {
-  count = bits(csrVal, FET_COUNT_HI, FET_COUNT_LO);
-  return (count > 0);
-}
+// bool
+// MeshHelper::fetCsrToCount(uint64_t csrVal, int &count) {
+//   count = bits(csrVal, FET_COUNT_HI, FET_COUNT_LO);
+//   return (count > 0);
+// }
+
+// bool
+// MeshHelper::fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst) {
+//   // only does anything if dir set to lock
+//   inst = (Locked_Insts)bits(csrVal, FET_INST_HI, FET_INST_LO);
+//   int lockedInt = bits(csrVal, FET_IN_SRC_HI, FET_IN_SRC_LO);
+//   return (lockedInt == (FET_I_INST_LOCK >> FET_I_INST_SHAMT));
+// }
 
 bool
-MeshHelper::fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst) {
-  // only does anything if dir set to lock
-  inst = (Locked_Insts)bits(csrVal, FET_INST_HI, FET_INST_LO);
-  int lockedInt = bits(csrVal, FET_IN_SRC_HI, FET_IN_SRC_LO);
-  return (lockedInt == (FET_I_INST_LOCK >> FET_I_INST_SHAMT));
+MeshHelper::isDecoupledAccess(RegVal csrVal) {
+  uint64_t ret = bits(csrVal, FET_DAE_HI, FET_DAE_LO);
+  return (ret == 1);
 }
 
 
@@ -225,6 +231,18 @@ MeshHelper::csrToOutSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_DS_t> &
 }
 
 int
+MeshHelper::getXOrigin(RegVal csrVal) {
+  auto val = bits(csrVal, FET_XORIGIN_HI, FET_XORIGIN_LO);
+  return val;
+}
+
+int
+MeshHelper::getYOrigin(RegVal csrVal) {
+  auto val = bits(csrVal, FET_YORIGIN_HI, FET_YORIGIN_LO);
+  return val;
+}
+
+int
 MeshHelper::getXLen(uint64_t csr, uint64_t csrVal) {
   auto val = bits(csrVal, FET_XLEN_HI, FET_XLEN_LO);
   if (val == 0) return 1;
@@ -262,6 +280,21 @@ MeshHelper::stageToCsr(SensitiveStage stage) {
   else {
     return 0;
   }
+}
+
+int
+MeshHelper::numPrefetchRegions(RegVal csrVal) {
+  return bits(csrVal, PREFETCH_NUM_REGION_HI, PREFETCH_NUM_REGION_LO);
+}
+
+int
+MeshHelper::prefetchRegionSize(RegVal csrVal) {
+  return bits(csrVal, PREFETCH_REGION_SIZE_HI, PREFETCH_REGION_SIZE_LO);
+}
+
+bool
+MeshHelper::hasForwardingPath(RegVal csrVal) {
+  return isVectorMaster(csrVal) || isVectorSlave(csrVal);
 }
 
 // reproduce the isa file here, b/c not sure how to get the info from the

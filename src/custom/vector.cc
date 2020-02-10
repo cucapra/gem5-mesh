@@ -34,8 +34,8 @@ void Vector::tick()
     return;
 
   // if not configured just pass the instruction through
-  if (!getConfigured())
-  {
+  // not needed, still seems to work w/o, but will go faster through non-vec code
+  if (!getConfigured()) {
     passInstructions();
     return;
   }
@@ -300,7 +300,8 @@ void Vector::passInstructions()
     //ThreadID tid = inst->thread_id;
     //DPRINTF(Mesh, "[tid:%d] Decoding inst [sn:%lli] with PC %s\n",
     //                tid, inst->seq_num, inst->pc);
-
+    // DPRINTF(Mesh, "%s %#x\n", inst->toString(true), m_cpu_p->readArchIntReg(2, 0));
+    
     // send out this inst
     sendInstToNextStage(inst);
 
@@ -387,7 +388,7 @@ Vector::createInstruction(const MasterData &instInfo)
   // 2) scalar instructions
   StaticInstPtr static_inst;
   bool force32bit;
-  /*if (instInfo.inst->static_inst_p->isSpadPrefetch()) {
+  if (instInfo.inst->static_inst_p->isSpadPrefetch()) {
     // TODO this makes pc + 2, when need pc + 4 (the prefetch is 32 bits)
     // compensate in iew logic
     static_inst = StaticInst::nopStaticInstPtr; 
@@ -398,11 +399,11 @@ Vector::createInstruction(const MasterData &instInfo)
     TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
     static_inst = extractInstruction(machInst, cur_pc);
     force32bit = false;
-  }*/
-  TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
-  static_inst = extractInstruction(machInst, cur_pc);
-  force32bit = false;
-
+  }
+  // TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
+  // static_inst = extractInstruction(machInst, cur_pc);
+  // force32bit = false;
+  
   int tid = 0;
   IODynInstPtr inst =
       std::make_shared<IODynInst>(static_inst, cur_pc,
@@ -682,8 +683,13 @@ bool Vector::isSlave()
   return MeshHelper::isVectorSlave(_curCsrVal);
 }
 
-bool Vector::canWriteMesh()
-{
+bool
+Vector::hasForwardingPath() {
+  return MeshHelper::hasForwardingPath(_curCsrVal);
+}
+
+bool
+Vector::canWriteMesh() {
   return ((_canRootSend && isRootMaster()) || (!_canRootSend && !isRootMaster()));
 }
 
@@ -978,18 +984,8 @@ void Vector::resetMeshRevec()
   _meshRevecId = -1;
 }
 
-/*int
-Vector::getRevecEpoch() {
-  return _revecCntr;
-}
-
-void
-Vector::incRevecEpoch() {
-  _revecCntr++;
-}*/
-
-bool Vector::isCurDiverged()
-{
+bool
+Vector::isCurDiverged() {
   return _vecPassThrough;
 }
 
@@ -1001,6 +997,16 @@ int Vector::getXLen()
 int Vector::getYLen()
 {
   return MeshHelper::getYLen(RiscvISA::MISCREG_FETCH, _curCsrVal);
+}
+
+int
+Vector::getXOrigin() {
+  return MeshHelper::getXOrigin(_curCsrVal);
+}
+
+int
+Vector::getYOrigin() {
+  return MeshHelper::getYOrigin(_curCsrVal);
 }
 
 /*int

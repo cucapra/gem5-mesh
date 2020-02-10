@@ -14,27 +14,34 @@ machine(MachineType:L2Cache, "SP LLC cache")
       MessageBuffer* requestToLLC,    network = "From", virtual_network = "1", vnet_type = "request";
       MessageBuffer* responseFromLLC, network = "To",   virtual_network = "0", vnet_type = "response";
       MessageBuffer* responseFromMemory;
+
+      int meshDimX := 2;
+      int meshDimY := 2;
       
 {
   //---------------------------------------------------------------------------
   // Global state... registers in this mem controller
+  // These dont' seem to get initialized to the given values...
   //---------------------------------------------------------------------------
   
   // counters in the mem controller
-  int _xCnt := 0;
-  int _yCnt := 0;
+  //int _xCnt := 0;
+  //int _yCnt := 0;
 
+  // int _vecCnt := 0;
   int _vecCnt, default=0;
       
   // prevent both inports from starting vector op while other is in progress
   // TODO this prob should also prevent multiple vector ops from happening in the same
   // cycle. Currenlty allowing (just like for cache lines) where send all in 1 cycle
   // and have the network serialize it.
-  //bool _vecFromMem := false;
-  //bool _vecFromLLC := false;
-
+  // bool _vecFromMem := false;
+  // bool _vecFromLLC := false;
   bool _vecFromMem, default=0;
   bool _vecFromLLC, default=0;
+
+  // only uses contructor when its a TBETable...
+    //TBETable lloool, template="<L2Cache_TBE>", constructor="0";
   
   //---------------------------------------------------------------------------
   // States
@@ -102,9 +109,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
     int       SeqNum,     desc = "Sequence number";
     int       XDim,       desc = "X dimension to access for";
     int       YDim,       desc = "Y dimension to access for";
+    bool      AckFree,    desc = "Does store from core require ack response";
     Addr      WordAddress,desc = "Word address of element request";
     Addr      PrefetchAddress, desc = "Prefetch address, same wire as datablk";
-    int       Epoch,      desc = "Epoch of the requester";
+    // int       Epoch,      desc = "Epoch of the requester";
     LLCRequestType InType, desc = "Keep track of input event to know what to do when get mem";
   }
 
@@ -224,10 +232,57 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   int getLinearIdx(int xDim, int yDim) {
-    int xIdx := _xCnt; //xDim - _xCnt - 1;
-    int yIdx := _yCnt; //yDim - _yCnt - 1;
-    int idx  := xIdx + yIdx * xDim;
-    return idx;
+    return _vecCnt;
+  }
+
+  int mod(int a, int b) {
+    return a - (a / b) * b;
+  }
+
+  // can linearize with respect to x or y and get diff sends
+  // currently doing by x first
+  int getCoreIdx(int coreIdx, int vecDimX, int vecDimY) {
+    // get the starting core idx, always 0 in our encoding (no offset for DA core)
+    int startingCoreIdx := coreIdx;
+
+    // add flat offset to vec cnt
+    int vecFlat := _vecCnt;
+
+    // get the x y of the current vec count
+    int vecX := mod(vecFlat, vecDimX);
+    int vecY := vecFlat / vecDimX;
+
+    // linearize vec count with respect to mesh
+    int meshVecFlat := vecX + vecY * meshDimX;
+
+    // linearize on mesh cores
+    int respIdx := startingCoreIdx + meshVecFlat;
+    return respIdx;
+  }
+
+  bool isFirstLoadOfVec() {
+    // return (_xCnt == 0) && (_yCnt == 0);
+    return _vecCnt == 0;
+  }
+
+  bool isLastLoadOfVec(int xDim, int yDim) {
+    // return (_xCnt == xDim - 1) && (_yCnt == yDim - 1);
+    return (_vecCnt == (xDim * yDim - 1));
+  }
+
+  void increaseVecCount(int xDim) {
+    // _xCnt := _xCnt + 1;
+    // if (_xCnt == xDim) {
+    //   _xCnt := 0;
+    //   _yCnt := _yCnt + 1;
+    // }
+    _vecCnt := _vecCnt + 1;
+  }
+
+  void resetVecCntr() {
+    //_xCnt := 0;
+    //_yCnt := 0;
+    _vecCnt := 0;
   }
   
   bool isVector(int xDim, int yDim) {
@@ -279,12 +334,12 @@ machine(MachineType:L2Cache, "SP LLC cache")
             // See transitions_per_cycle in Controller.py
             if (in_msg.Type == LLCRequestType:SPLOAD) {
               if (isVector(in_msg.XDim, in_msg.YDim)) {
-                DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromMem, getState(tbe, cache_entry, LineAddress));
+                //DPRINTF(Mesh, "req (%d %d) %d %d\n", _xCnt, _yCnt, _vecFromMem, getState(tbe, cache_entry, LineAddress));
                 if (!_vecFromMem) {
-                  if (_xCnt == 0 && _yCnt == 0) { // TODO need to support non-vec sp load, need special req type
+                  if (isFirstLoadOfVec()) { // TODO need to support non-vec sp load, need special req type
                     trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
                   }
-                  else if (_xCnt != in_msg.XDim - 1 || _yCnt != in_msg.YDim - 1) {
+                  else if (!isLastLoadOfVec(in_msg.XDim, in_msg.YDim)) {
                     trigger(Event:VREAD1, LineAddress, cache_entry, tbe);
                   }
                   else {
@@ -333,11 +388,11 @@ machine(MachineType:L2Cache, "SP LLC cache")
           if (isVector(tbe.XDim, tbe.YDim)) {
             if (!_vecFromLLC) {
               assert(is_valid(cache_entry));
-              DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromLLC, getState(tbe, cache_entry, in_msg.addr));
-              if (_xCnt == 0 && _yCnt == 0) {
+              //DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromLLC, getState(tbe, cache_entry, in_msg.addr));
+              if (isFirstLoadOfVec()) {
                 trigger(Event:VData0, in_msg.addr, cache_entry, tbe);
               }
-              else if (_xCnt != tbe.XDim - 1 || _yCnt != tbe.YDim - 1) {
+              else if (!isLastLoadOfVec(tbe.XDim, tbe.YDim)) {
                 trigger(Event:VData1, in_msg.addr, cache_entry, tbe);
               }
               else {
@@ -448,7 +503,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // get the spad to send this to 
       assert(machineIDToMachineType(in_msg.Requestor) == MachineType:Scratchpad);
       NodeID baseId := machineIDToNodeID(in_msg.Requestor);
-      int spadIdx := IDToInt(baseId) + linOffset;
+      // int spadIdx := IDToInt(baseId) + linOffset;
+      int coreIdx := IDToInt(baseId);
+      int spadIdx := getCoreIdx(coreIdx, in_msg.XDim, in_msg.YDim);
+      int coreOffset := spadIdx - coreIdx;
       MachineID spad := createMachineID(MachineType:Scratchpad, intToID(spadIdx));
       
       // in case the base address is not aligned to the cache block
@@ -463,10 +521,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
       
       // because this mimics a remote store, the return address should be
       // the storage address in the spad
-      Addr spadAddr := intToAddress(addressToInt(in_msg.PrefetchAddress) + (linOffset << 12)); //intToAddress(268435472 + (spadIdx << 12));
+      Addr spadAddr := intToAddress(addressToInt(in_msg.PrefetchAddress) + (coreOffset << 12)); //intToAddress(268435472 + (spadIdx << 12));
       
-      DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x lineaddr %#x offset %d epoch %d\n", 
-        spadIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset, in_msg.Epoch);
+      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d\n", 
+        spadIdx, coreIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset);
       
       // if vector then send REVDATA, otherwise REDATA
       // TODO maybe should just be seperate
@@ -493,7 +551,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         // this is gem5 only meta-data, in reality would just send the single
         // word, so no need to pick out the element from the whole block
         out_msg.BlkIdx      := wordOffset;
-        out_msg.Epoch       := in_msg.Epoch;
+        // out_msg.Epoch       := in_msg.Epoch;
       }
     }
   }
@@ -507,7 +565,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // get the spad to send this to 
       assert(machineIDToMachineType(tbe.Requestor) == MachineType:Scratchpad);
       NodeID baseId := machineIDToNodeID(tbe.Requestor);
-      int spadIdx := IDToInt(baseId) + linOffset;
+      int coreIdx := IDToInt(baseId);
+      int spadIdx := getCoreIdx(coreIdx, tbe.XDim, tbe.YDim);
+      int coreOffset := spadIdx - coreIdx;
       MachineID spad := createMachineID(MachineType:Scratchpad, intToID(spadIdx));
       
       // get offset into cache blk
@@ -517,7 +577,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       int wordOffset := ((wordAddr - lineAddr) / 4) + linOffset;
       
       //Addr spadAddr := intToAddress(268435472 + (spadIdx << 12));
-      Addr spadAddr := intToAddress(addressToInt(tbe.PrefetchAddress) + (linOffset << 12));
+      Addr spadAddr := intToAddress(addressToInt(tbe.PrefetchAddress) + (coreOffset << 12));
       
       // if vector then send REVDATA, otherwise REDATA
       LLCResponseType respType;
@@ -528,8 +588,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
         respType := LLCResponseType:REDATA;
       }
       
-      DPRINTF(Mesh, "remote store to spad %d @ addr %#x from mem %#x prefetch %#x offset %d epoch %d\n", 
-        spadIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.Epoch);
+      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d\n", 
+        spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset);
       
       enqueue(responseNetwork_out, LLCResponseMsg, 1) {
         assert(is_valid(tbe));
@@ -540,7 +600,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
         out_msg.BlkIdx      := wordOffset;
-        out_msg.Epoch       := tbe.Epoch;
+        // out_msg.Epoch       := tbe.Epoch;
       }
     }
   }
@@ -588,6 +648,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       assert(is_valid(tbe));
       tbe.Requestor := in_msg.Requestor;
       tbe.SeqNum := in_msg.SeqNum;
+      tbe.AckFree := in_msg.AckFree;
     }
   }
 
@@ -606,7 +667,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       tbe.YDim := in_msg.YDim;
       tbe.WordAddress := in_msg.WordAddress;
       tbe.PrefetchAddress := in_msg.PrefetchAddress;
-      tbe.Epoch := in_msg.Epoch;
+      // tbe.Epoch := in_msg.Epoch;
       tbe.InType := in_msg.Type;
     }
   }
@@ -627,6 +688,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
 
   action(swa_sendWriteAck, "swa", desc = "Send write ack") {
+    if (tbe.AckFree == false) {
     enqueue(responseNetwork_out, LLCResponseMsg, 1) {
       assert(is_valid(tbe));
       out_msg.Type        := LLCResponseType:ACK;
@@ -634,6 +696,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       out_msg.Destination.add(tbe.Requestor);
       out_msg.MessageSize := MessageSizeType:Response_Control;
       out_msg.SeqNum      := tbe.SeqNum;
+    }
     }
   }
 
@@ -745,14 +808,12 @@ machine(MachineType:L2Cache, "SP LLC cache")
   
   // initialize vector request (to 0)
   action(rvm_resetVectorFromMem, "rvm", desc = "Initialize vector req counter") {
-    _xCnt := 0;
-    _yCnt := 0;
+    resetVecCntr();
     _vecFromMem := false;
   }
   
   action(rvl_resetVectorFromLLC, "rvl", desc = "Initialize vector req counter") {
-    _xCnt := 0;
-    _yCnt := 0;
+    resetVecCntr();
     _vecFromLLC := false;
   }
   
@@ -765,22 +826,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // store and then restore the count when send req and restore?
       // NOT neccessary because no point to do vector request across a cache line
       // ALSO don't need to worry about banks for this same reason b/c across a cache line
-      _xCnt := _xCnt + 1;
-      if (_xCnt == in_msg.XDim) {
-        _xCnt := 0;
-        _yCnt := _yCnt + 1;
-      }
+      increaseVecCount(in_msg.XDim);
       _vecFromLLC := true;
     }
   }
   
   // for missed accesses
   action(ivt_incVectorCountTBE, "ivt", desc = "Increment vector count TBE") {
-    _xCnt := _xCnt + 1;
-    if (_xCnt == tbe.XDim) {
-      _xCnt := 0;
-      _yCnt := _yCnt + 1;
-    }
+    increaseVecCount(tbe.XDim);
     _vecFromMem := true;
   }
 

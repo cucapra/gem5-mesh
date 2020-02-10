@@ -215,9 +215,13 @@ Commit::commitHead(ThreadID tid)
   if (!hasNextStage()) // actually make sure its the last stage that does this (HACK)
     inst->updateMiscRegs();
     
-  // update revec cntr
-  if (inst->static_inst_p->isRevec()) {
-    m_cpu_p->incRevecEpoch();
+  // update remem cntr
+  // if (inst->static_inst_p->isRevec()) {
+  //   m_cpu_p->incRevecEpoch();
+  // }
+
+  if (inst->static_inst_p->isRemem()) {
+    m_cpu_p->incMemEpoch();
   }
 
   // update last committed instruction

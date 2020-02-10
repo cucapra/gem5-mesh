@@ -165,6 +165,8 @@ class Vector : public Stage {
     bool isInPipeStalled();
     bool isOutMeshStalled();
     bool isInMeshStalled();
+    bool isDecoupledAccess() { return MeshHelper::isDecoupledAccess(_curCsrVal); };
+    bool hasForwardingPath();
 protected:
     // instructions can come from either I$ or mesh and can be send to mesh or pipe (fully connected)
     typedef enum InstSource {
@@ -194,9 +196,9 @@ protected:
     int getXLen();
     int getYLen();
 
-    // unique id for instruction for debug. Defining here because any instruction in this stage goes to all trace cores
-    int instr_id;
-
+    // get current vector group origin
+    int getXOrigin();
+    int getYOrigin();
      
   protected:
   

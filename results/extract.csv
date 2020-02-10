@@ -1,0 +1,6 @@
+run, sp, vec, prog, frac, size, cycles, icache_access, local_sp_access, remote_sp_access, llc_access, dram_reads, dram_writes, slave_mesh_stall, pipe_stall, root_pipe_stall, master_backpress_stall, slave_revec_stall, cpi, llc-misses, 
+1, 1, 1, synth, 1.0, 8192, 95855, 1416, 6144, 4096, 2092, 291, 256, 50129, 12614, 50459, 118, 0, 2.12330425, 145, 
+1, 1, 0, synth, 1.0, 8192, 95705, 5674, 6144, 4096, 8249, 303, 263, 0, 0, 0, 0, 0, 2.1202045, 151, 
+1, 1, 0, synth, 1.0, 25, 1330, 21, 0, 0, 83, 7, 0, 0, 0, 0, 0, 0, 9.124658, 3, 
+1, 1, 1, synth, 1.0, 32, 1871, 13, 16, 16, 71, 11, 0, 1218, 366, 1464, 250, 0, 7.4413985, 5, 
+1, 1, 0, synth, 1.0, 32, 1714, 40, 16, 16, 103, 8, 0, 0, 0, 0, 0, 0, 7.27129075, 4, 

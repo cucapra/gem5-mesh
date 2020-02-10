@@ -15,6 +15,8 @@
 #include "debug/IOCPU.hh"
 //#include "debug/LineTrace.hh"
 
+#include "mem/ruby/scratchpad/Scratchpad.hh"
+
 #include "debug/Mesh.hh"
 
 //-----------------------------------------------------------------------------
@@ -179,6 +181,7 @@ IOCPU::IOCPU(IOCPUParams* params)
       m_isa_list(),
       m_global_seq_num(1),
       m_revec_cntr(0),
+      m_mem_epoch(0),
       m_last_active_cycle(0)
       
 {
@@ -1023,8 +1026,35 @@ IOCPU::getRevecEpoch() {
 
 void
 IOCPU::incRevecEpoch() {
-  m_revec_cntr++;
+  m_revec_cntr = (m_revec_cntr + 1) % getSpadNumRegions();
   DPRINTF(Mesh, "increment revec %d\n", m_revec_cntr);
+}
+
+int
+IOCPU::getMemEpoch() {
+  return m_mem_epoch;
+}
+
+void
+IOCPU::incMemEpoch() {
+  m_mem_epoch = (m_mem_epoch + 1) % getSpadNumRegions();
+  DPRINTF(Mesh, "increment remem %d\n", m_mem_epoch);
+}
+
+int
+IOCPU::getSpadNumRegions() {
+  // return 16;
+  int tid = 0;
+  RegVal csrVal = readMiscRegNoEffect(RiscvISA::MISCREG_PREFETCH, tid);
+  return MeshHelper::numPrefetchRegions(csrVal);
+}
+
+int
+IOCPU::getSpadRegionSize() {
+  // return 32;
+  int tid = 0;
+  RegVal csrVal = readMiscRegNoEffect(RiscvISA::MISCREG_PREFETCH, tid);
+  return MeshHelper::prefetchRegionSize(csrVal);
 }
 
 void

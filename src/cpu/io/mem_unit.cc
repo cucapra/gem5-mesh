@@ -551,9 +551,9 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     m_s1_inst->mem_req_p->spadReset = spadReset;
     // give an epoch number as data if this will be a reset instruction
     // included as seperate field, but in practice would send on data lines
-    if (spadPrefetch) {
-      m_s1_inst->mem_req_p->epoch = m_cpu_p->getRevecEpoch();
-    }
+    // if (spadPrefetch) {
+    //   m_s1_inst->mem_req_p->epoch = m_cpu_p->getMemEpoch();
+    // }
     
     // setup prefetch addr
     if (spadPrefetch) {
@@ -573,39 +573,50 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     }
     
     // only an sp load if not a slave
+    // Vector* vec = m_cpu_p->getEarlyVector();
+    // bool diverged = vec && vec->isCurDiverged();
+    // bool master   = vec && vec->isRootMaster();
+    // bool solo     = !(vec && vec->getConfigured());
+    // m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || master || solo );
+    
     Vector* vec = m_cpu_p->getEarlyVector();
     bool diverged = vec && vec->isCurDiverged();
+    bool dAccess  = vec && vec->isDecoupledAccess();
     bool master   = vec && vec->isRootMaster();
-    bool solo     = !(vec && vec->getConfigured());
-    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || master || solo );
-    
-    
-    /*if (spadPrefetch && !spadReset) {
-      m_s1_inst->mem_req_p->isSpLoad = true;
-    }
-    else {
-      m_s1_inst->mem_req_p->isSpLoad = false;
-    }*/
+    bool solo     = !(vec && vec->getConfigured()) || (vec && !vec->hasForwardingPath());
+    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || dAccess || master || solo );
+
+
+
     
     // setup vector memory request... if we're in vector mode and not detached
     // also send memory request as vector request (single request, multiple response)
     // otherwise send as the usual single request, single response
     
     
-    
-    if (spadPrefetch && master) { 
+    // if (spadPrefetch && master) {
+    if (spadPrefetch && (dAccess || master)) { 
       m_s1_inst->mem_req_p->xDim = m_cpu_p->getEarlyVector()->getXLen();
       m_s1_inst->mem_req_p->yDim = m_cpu_p->getEarlyVector()->getYLen();
+      m_s1_inst->mem_req_p->xOrigin = m_cpu_p->getEarlyVector()->getXOrigin();
+      m_s1_inst->mem_req_p->yOrigin = m_cpu_p->getEarlyVector()->getYOrigin();
+      m_s1_inst->mem_req_p->fromDecoupledAccess = dAccess;
       DPRINTF(Mesh, "[%s] send vec load %#x, (%d,%d)\n", m_s1_inst->toString(true), 
           addr, m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
     }
     else {
       m_s1_inst->mem_req_p->xDim = 1;
       m_s1_inst->mem_req_p->yDim = 1;
+      m_s1_inst->mem_req_p->xOrigin = 0;
+      m_s1_inst->mem_req_p->yOrigin = 0;
+      m_s1_inst->mem_req_p->fromDecoupledAccess = false;
     }
     
     // allow load to issue to spad without getting any acks the load is there
     m_s1_inst->mem_req_p->spadSpec  = m_s1_inst->static_inst_p->isSpadSpeculative();
+
+    // denote whether this is an ack free load
+    m_s1_inst->mem_req_p->ackFree = m_s1_inst->static_inst_p->isAckFree();
 
     // treat this as a load in terms of placing into the queue
     if (spadPrefetch)

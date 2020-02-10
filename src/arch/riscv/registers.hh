@@ -262,6 +262,8 @@ enum MiscRegIndex {
     MISCREG_EXE,
     MISCREG_FETCH,
 
+    MISCREG_PREFETCH,
+
     NUM_MISCREGS
 };
 const int NumMiscRegs = NUM_MISCREGS;
@@ -433,7 +435,9 @@ enum CSRIndex {
     ,
     CSR_STATS = 0x7C1,
     CSR_EXE = 0x400,
-    CSR_FETCH = 0x401
+    CSR_FETCH = 0x401,
+
+    CSR_PREFETCH = 0x402
     
 };
 
@@ -608,7 +612,9 @@ const std::map<int, CSRMetadata> CSRData = {
     ,
     {CSR_STATS, {"stats", MISCREG_STATS}},
     {CSR_EXE, {"executemesh", MISCREG_EXE}},
-    {CSR_FETCH, {"fetchmesh", MISCREG_FETCH}}
+    {CSR_FETCH, {"fetchmesh", MISCREG_FETCH}},
+
+    {CSR_PREFETCH, {"padprefetch", MISCREG_PREFETCH}}
 };
 
 /**

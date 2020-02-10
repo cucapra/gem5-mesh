@@ -110,57 +110,57 @@ typedef struct Mesh_DS_t {
  * Fetch stage encodings
  *--------------------------------------------------------------------*/
 
-typedef enum Locked_Insts {
-  ADD = 0,
-  ADDI,
-  SUB,
-  MUL,
-  SLL,
-  SLLI,
-  SRL,
-  SRLI,
-  SRA,
-  SRAI,
-  AND,
-  ANDI,
-  OR,
-  ORI,
-  XOR,
-  XORI,
-  LW,
-  SW,
+// typedef enum Locked_Insts {
+//   ADD = 0,
+//   ADDI,
+//   SUB,
+//   MUL,
+//   SLL,
+//   SLLI,
+//   SRL,
+//   SRLI,
+//   SRA,
+//   SRAI,
+//   AND,
+//   ANDI,
+//   OR,
+//   ORI,
+//   XOR,
+//   XORI,
+//   LW,
+//   SW,
   
-  NUM_LOCK_INST
+//   NUM_LOCK_INST
   
-} Locked_Insts;
+// } Locked_Insts;
 
-// don't need to encode every instruction, just a subset that's useful
-// these don't include operands --> need to do operand binds beforehand
+// // don't need to encode every instruction, just a subset that's useful
+// // these don't include operands --> need to do operand binds beforehand
 
-#define FET_LOCKED_INST_BITS  (6)
-#define FET_LOCKED_SHAMT (0)
-#define FET_LOCK_ADD    (ADD)
-#define FET_LOCK_SUB    (SUB)
-#define FET_LOCK_MUL    (MUL)
-#define FET_LOCK_SLL    (SLL)
-#define FET_LOCK_SLLI   (SLLI)
-#define FET_LOCK_SRL    (SRL)
-#define FET_LOCK_SRLI   (SRLI)
-#define FET_LOCK_SRA    (SRA)
-#define FET_LOCK_SRAI   (SRAI)
-#define FET_LOCK_ADDI   (ADDI)
-#define FET_LOCK_LW     (LW)
-#define FET_LOCK_SW     (SW)
-#define FET_LOCK_AND    (AND)
-#define FET_LOCK_ANDI   (ANDI)
-#define FET_LOCK_OR     (OR)
-#define FET_LOCK_ORI    (ORI)
-#define FET_LOCK_XOR    (XOR)
-#define FET_LOCK_XORI   (XORI)
+// #define FET_LOCKED_INST_BITS  (6)
+// #define FET_LOCKED_SHAMT (0)
+// #define FET_LOCK_ADD    (ADD)
+// #define FET_LOCK_SUB    (SUB)
+// #define FET_LOCK_MUL    (MUL)
+// #define FET_LOCK_SLL    (SLL)
+// #define FET_LOCK_SLLI   (SLLI)
+// #define FET_LOCK_SRL    (SRL)
+// #define FET_LOCK_SRLI   (SRLI)
+// #define FET_LOCK_SRA    (SRA)
+// #define FET_LOCK_SRAI   (SRAI)
+// #define FET_LOCK_ADDI   (ADDI)
+// #define FET_LOCK_LW     (LW)
+// #define FET_LOCK_SW     (SW)
+// #define FET_LOCK_AND    (AND)
+// #define FET_LOCK_ANDI   (ANDI)
+// #define FET_LOCK_OR     (OR)
+// #define FET_LOCK_ORI    (ORI)
+// #define FET_LOCK_XOR    (XOR)
+// #define FET_LOCK_XORI   (XORI)
 
 // in dir --> 3 bits
 #define FET_I_INST_BITS     (3)
-#define FET_I_INST_SHAMT    ((FET_LOCKED_SHAMT + FET_LOCKED_INST_BITS))
+#define FET_I_INST_SHAMT    (0)
 #define FET_I_INST_NORM     (0x0)
 #define FET_I_INST_RIGHT    (((RIGHT + 1) << FET_I_INST_SHAMT))
 #define FET_I_INST_DOWN     (((DOWN + 1)  << FET_I_INST_SHAMT))
@@ -200,9 +200,16 @@ typedef enum Locked_Insts {
 #define FET_YLEN_SHAMT (FET_XLEN_SHAMT + FET_XLEN_BITS)
 
 
-// remaining bits goes to the count amt (7 bits)
-#define FET_COUNT_BITS     (7)
-#define FET_COUNT_SHAMT    (FET_YLEN_SHAMT + FET_YLEN_BITS)
+// encode whether this is a decoupled access core (1 bit)
+#define FET_DAE_BITS     (1)
+#define FET_DAE_SHAMT    (FET_YLEN_SHAMT + FET_YLEN_BITS)
+
+// encode where the origin of the vector group is (7 * 2 = 14 bits, up to 16k cores)
+#define FET_XORIGIN_BITS (7)
+#define FET_XORIGIN_SHAMT (FET_DAE_SHAMT + FET_DAE_BITS)
+
+#define FET_YORIGIN_BITS (7)
+#define FET_YORIGIN_SHAMT (FET_XORIGIN_SHAMT + FET_XORIGIN_BITS)
 
 
 // explicilty determine bitranges for decoding
@@ -213,11 +220,8 @@ typedef enum Locked_Insts {
 #define FET_OUT_HI (FET_O_INST_RIGHT_SHAMT + FET_O_INST_RIGHT_BITS - 1)
 #define FET_OUT_LO (FET_O_INST_RIGHT_SHAMT)
 
-#define FET_COUNT_HI (FET_COUNT_SHAMT + FET_COUNT_BITS - 1)
-#define FET_COUNT_LO (FET_COUNT_SHAMT)
-
-#define FET_INST_HI (FET_LOCKED_SHAMT + FET_LOCKED_INST_BITS - 1)
-#define FET_INST_LO (FET_LOCKED_SHAMT)
+// #define FET_INST_HI (FET_LOCKED_SHAMT + FET_LOCKED_INST_BITS - 1)
+// #define FET_INST_LO (FET_LOCKED_SHAMT)
 
 #define FET_XLEN_HI (FET_XLEN_SHAMT + FET_XLEN_BITS - 1)
 #define FET_XLEN_LO (FET_XLEN_SHAMT)
@@ -225,5 +229,30 @@ typedef enum Locked_Insts {
 #define FET_YLEN_HI (FET_YLEN_SHAMT + FET_YLEN_BITS - 1)
 #define FET_YLEN_LO (FET_YLEN_SHAMT)
 
+#define FET_DAE_HI (FET_DAE_SHAMT + FET_DAE_BITS - 1)
+#define FET_DAE_LO (FET_DAE_SHAMT)
+
+#define FET_XORIGIN_HI (FET_XORIGIN_SHAMT + FET_XORIGIN_BITS - 1)
+#define FET_XORIGIN_LO (FET_XORIGIN_SHAMT)
+
+#define FET_YORIGIN_HI (FET_YORIGIN_SHAMT + FET_YORIGIN_BITS - 1)
+#define FET_YORIGIN_LO (FET_YORIGIN_SHAMT)
+
+
+/*----------------------------------------------------------------------
+ * Prefetch encodings
+ *--------------------------------------------------------------------*/
+
+#define PREFETCH_NUM_REGION_BITS (10)
+#define PREFETCH_NUM_REGION_SHAMT (0)
+
+#define PREFETCH_REGION_SIZE_BITS (10)
+#define PREFETCH_REGION_SIZE_SHAMT (PREFETCH_NUM_REGION_SHAMT + PREFETCH_NUM_REGION_BITS)
+
+#define PREFETCH_NUM_REGION_HI (PREFETCH_NUM_REGION_SHAMT + PREFETCH_NUM_REGION_BITS - 1)
+#define PREFETCH_NUM_REGION_LO (PREFETCH_NUM_REGION_SHAMT)
+
+#define PREFETCH_REGION_SIZE_HI (PREFETCH_REGION_SIZE_SHAMT + PREFETCH_REGION_SIZE_BITS - 1)
+#define PREFETCH_REGION_SIZE_LO (PREFETCH_REGION_SIZE_SHAMT)
 
 #endif

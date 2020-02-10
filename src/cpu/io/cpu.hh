@@ -250,6 +250,18 @@ class IOCPU : public BaseCPU
     void incRevecEpoch();
 
     /**
+     * Mem epoch counter functions
+     */ 
+    int getMemEpoch();
+    void incMemEpoch();
+
+    /**
+     * Spad prefetch region related functions
+     */
+    int getSpadNumRegions();
+    int getSpadRegionSize();
+
+    /**
      * Stats-related functions
      */
 
@@ -409,6 +421,9 @@ class IOCPU : public BaseCPU
 
     /** Count the number of revecs we've recved in the past */ 
     int m_revec_cntr;
+
+    /** Count the number of remems we've recved in the past */
+    int m_mem_epoch;
 
     /**
      * Stats variables

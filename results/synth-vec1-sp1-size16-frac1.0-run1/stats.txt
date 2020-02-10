@@ -1,0 +1,1086 @@
+
+---------- Begin Simulation Statistics ----------
+final_tick                                  292877000                       # Number of ticks from beginning of simulation (restored from checkpoints and never reset)
+host_inst_rate                                  21468                       # Simulator instruction rate (inst/s)
+host_mem_usage                                 838948                       # Number of bytes of host memory used
+host_op_rate                                    21362                       # Simulator op (including micro ops) rate (op/s)
+host_seconds                                     0.03                       # Real time elapsed on the host
+host_tick_rate                               46480320                       # Simulator tick rate (ticks/s)
+sim_freq                                 1000000000000                       # Frequency of simulated ticks
+sim_insts                                         705                       # Number of instructions simulated
+sim_ops                                           705                       # Number of ops (including micro ops) simulated
+sim_seconds                                  0.000001                       # Number of seconds simulated
+sim_ticks                                     1535000                       # Number of ticks simulated
+system.clk_domain.clock                          1000                       # Clock period in ticks
+system.cpu0.branchPred.BTBCorrect                   0                       # Number of correct BTB predictions (this stat may not work properly.
+system.cpu0.branchPred.BTBHitPct            25.581395                       # BTB Hit Percentage
+system.cpu0.branchPred.BTBHits                     11                       # Number of BTB hits
+system.cpu0.branchPred.BTBLookups                  43                       # Number of BTB lookups
+system.cpu0.branchPred.RASInCorrect                 0                       # Number of incorrect RAS predictions.
+system.cpu0.branchPred.condIncorrect               15                       # Number of conditional branches incorrect
+system.cpu0.branchPred.condPredicted               31                       # Number of conditional branches predicted
+system.cpu0.branchPred.indirectHits                 0                       # Number of indirect target hits.
+system.cpu0.branchPred.indirectLookups              9                       # Number of indirect predictor lookups.
+system.cpu0.branchPred.indirectMisses               9                       # Number of indirect misses.
+system.cpu0.branchPred.lookups                     50                       # Number of BP lookups
+system.cpu0.branchPred.usedRAS                      0                       # Number of times the RAS was used to get a target.
+system.cpu0.branchPredindirectMispredicted            3                       # Number of mispredicted indirect branches.
+system.cpu0.commit.commit_stalls                   88                       # number of stalls in the commit stage due to insufficient credits
+system.cpu0.cpi                              8.575418                       # CPI: Cycles Per Instruction
+system.cpu0.cpi_total                        8.575418                       # CPI: Total CPI of All Threads
+system.cpu0.dtb.accesses                            0                       # DTB accesses
+system.cpu0.dtb.hits                                0                       # DTB hits
+system.cpu0.dtb.misses                              0                       # DTB misses
+system.cpu0.dtb.read_accesses                       0                       # DTB read accesses
+system.cpu0.dtb.read_hits                           0                       # DTB read hits
+system.cpu0.dtb.read_misses                         0                       # DTB read misses
+system.cpu0.dtb.write_accesses                      0                       # DTB write accesses
+system.cpu0.dtb.write_hits                          0                       # DTB write hits
+system.cpu0.dtb.write_misses                        0                       # DTB write misses
+system.cpu0.iew.dep_stall_insts_0::No_OpClass            0      0.00%      0.00% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::IntAlu           87     75.65%     75.65% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::IntMult           20     17.39%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::IntDiv            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::FloatAdd            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::FloatCmp            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::FloatCvt            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::FloatMult            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::FloatMultAcc            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::FloatDiv            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::FloatMisc            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::FloatSqrt            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdAdd            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdAddAcc            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdAlu            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdCmp            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdCvt            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdMisc            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdMult            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdMultAcc            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdShift            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdShiftAcc            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdDiv            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdSqrt            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdFloatAdd            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdFloatAlu            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdFloatCmp            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdFloatCvt            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdFloatDiv            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdFloatMisc            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdFloatMult            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdFloatMultAcc            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdFloatSqrt            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdReduceAdd            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdReduceAlu            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdReduceCmp            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdFloatReduceAdd            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdFloatReduceCmp            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdAes            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdAesMix            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdSha1Hash            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdSha1Hash2            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdSha256Hash            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdSha256Hash2            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdShaSigma2            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdShaSigma3            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::SimdPredAlu            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::MemRead            0      0.00%     93.04% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::MemWrite            8      6.95%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::FloatMemRead            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::FloatMemWrite            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::IprAccess            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::InstPrefetch            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.dep_stall_insts_0::total          115                       # Class of instruction blocked in Issue due to dependency
+system.cpu0.iew.iew_stalls_control                 32                       # number of stalls in the iew stage due to stalling for control flow insts in pipeline
+system.cpu0.iew.iew_stalls_dep                    115                       # number of stalls in the iew stage due to dependency
+system.cpu0.iew.iew_stalls_execbusy               106                       # number of stalls in the iew stage due to exec stage being busy
+system.cpu0.iew.iew_stalls_membarrier               0                       # number of stalls in the iew stage due to pending mem barrier
+system.cpu0.iew.iew_stalls_revec                    0                       # number of stalls in the iew stage due to stalling for revec in pipeline
+system.cpu0.iew.rob_head_stall_class_0::No_OpClass            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::IntAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::IntMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::IntDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::FloatAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::FloatCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::FloatCvt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::FloatMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::FloatMultAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::FloatDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::FloatMisc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::FloatSqrt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdAddAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdCvt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdMisc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdMultAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdShift            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdShiftAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdSqrt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdFloatAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdFloatAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdFloatCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdFloatCvt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdFloatDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdFloatMisc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdFloatMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdFloatMultAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdFloatSqrt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdReduceAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdReduceAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdReduceCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdFloatReduceAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdFloatReduceCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdAes            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdAesMix            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdSha1Hash            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdSha1Hash2            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdSha256Hash            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdSha256Hash2            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdShaSigma2            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdShaSigma3            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::SimdPredAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::MemRead           36     25.17%     25.17% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::MemWrite          107     74.82%     99.99% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::FloatMemRead            0      0.00%     99.99% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::FloatMemWrite            0      0.00%     99.99% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::IprAccess            0      0.00%     99.99% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::InstPrefetch            0      0.00%     99.99% # Class of instruction blocking at head of ROB
+system.cpu0.iew.rob_head_stall_class_0::total          143                       # Class of instruction blocking at head of ROB
+system.cpu0.iew.robfull                           143                       # number of stalls in the iew stage due to rob being full
+system.cpu0.ipc                              0.116612                       # IPC: Instructions Per Cycle
+system.cpu0.ipc_total                        0.116612                       # IPC: Total IPC of All Threads
+system.cpu0.itb.accesses                            0                       # DTB accesses
+system.cpu0.itb.hits                                0                       # DTB hits
+system.cpu0.itb.misses                              0                       # DTB misses
+system.cpu0.itb.read_accesses                       0                       # DTB read accesses
+system.cpu0.itb.read_hits                           0                       # DTB read hits
+system.cpu0.itb.read_misses                         0                       # DTB read misses
+system.cpu0.itb.write_accesses                      0                       # DTB write accesses
+system.cpu0.itb.write_hits                          0                       # DTB write hits
+system.cpu0.itb.write_misses                        0                       # DTB write misses
+system.cpu0.late_vector.backpressure_stalls          117                       # number of stalls due to backpressure
+system.cpu0.late_vector.mesh_input_stalls            0                       # number of stalls due to no input from mesh
+system.cpu0.late_vector.pipe_input_stalls         1117                       # number of stalls due to no input from fetch
+system.cpu0.late_vector.revec_stalls                0                       # number of stalls due to revec
+system.cpu0.numCycles                            1535                       # number of cpu cycles simulated
+system.cpu0.numWorkItemsCompleted                   0                       # number of work items this cpu completed
+system.cpu0.numWorkItemsStarted                     0                       # number of work items this cpu started
+system.cpu0.num_committed_insts                   179                       # Number of Instructions Simulated
+system.cpu0.pwrStateResidencyTicks::ON      292877000                       # Cumulative time (in ticks) in various power states
+system.cpu0.vector.backpressure_stalls              0                       # number of stalls due to backpressure
+system.cpu0.vector.mesh_input_stalls                0                       # number of stalls due to no input from mesh
+system.cpu0.vector.pipe_input_stalls             1168                       # number of stalls due to no input from fetch
+system.cpu0.vector.revec_stalls                     0                       # number of stalls due to revec
+system.cpu0.workload.numSyscalls                    0                       # Number of system calls
+system.cpu1.branchPred.BTBCorrect                   0                       # Number of correct BTB predictions (this stat may not work properly.
+system.cpu1.branchPred.BTBHitPct             0.000000                       # BTB Hit Percentage
+system.cpu1.branchPred.BTBHits                      0                       # Number of BTB hits
+system.cpu1.branchPred.BTBLookups                  37                       # Number of BTB lookups
+system.cpu1.branchPred.RASInCorrect                 0                       # Number of incorrect RAS predictions.
+system.cpu1.branchPred.condIncorrect                1                       # Number of conditional branches incorrect
+system.cpu1.branchPred.condPredicted               24                       # Number of conditional branches predicted
+system.cpu1.branchPred.indirectHits                 0                       # Number of indirect target hits.
+system.cpu1.branchPred.indirectLookups              3                       # Number of indirect predictor lookups.
+system.cpu1.branchPred.indirectMisses               3                       # Number of indirect misses.
+system.cpu1.branchPred.lookups                     37                       # Number of BP lookups
+system.cpu1.branchPred.usedRAS                      0                       # Number of times the RAS was used to get a target.
+system.cpu1.branchPredindirectMispredicted            0                       # Number of mispredicted indirect branches.
+system.cpu1.commit.commit_stalls                    0                       # number of stalls in the commit stage due to insufficient credits
+system.cpu1.cpi                              8.872832                       # CPI: Cycles Per Instruction
+system.cpu1.cpi_total                        8.872832                       # CPI: Total CPI of All Threads
+system.cpu1.dtb.accesses                            0                       # DTB accesses
+system.cpu1.dtb.hits                                0                       # DTB hits
+system.cpu1.dtb.misses                              0                       # DTB misses
+system.cpu1.dtb.read_accesses                       0                       # DTB read accesses
+system.cpu1.dtb.read_hits                           0                       # DTB read hits
+system.cpu1.dtb.read_misses                         0                       # DTB read misses
+system.cpu1.dtb.write_accesses                      0                       # DTB write accesses
+system.cpu1.dtb.write_hits                          0                       # DTB write hits
+system.cpu1.dtb.write_misses                        0                       # DTB write misses
+system.cpu1.iew.dep_stall_insts_0::No_OpClass            1      0.58%      0.58% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::IntAlu          164     95.90%     96.49% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::IntMult            6      3.50%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::IntDiv            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::FloatAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::FloatCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::FloatCvt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::FloatMult            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::FloatMultAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::FloatDiv            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::FloatMisc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::FloatSqrt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdAddAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdAlu            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdCvt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdMisc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdMult            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdMultAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdShift            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdShiftAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdDiv            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdSqrt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdFloatAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdFloatAlu            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdFloatCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdFloatCvt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdFloatDiv            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdFloatMisc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdFloatMult            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdFloatMultAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdFloatSqrt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdReduceAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdReduceAlu            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdReduceCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdFloatReduceAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdFloatReduceCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdAes            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdAesMix            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdSha1Hash            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdSha1Hash2            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdSha256Hash            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdSha256Hash2            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdShaSigma2            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdShaSigma3            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::SimdPredAlu            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::MemRead            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::MemWrite            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::FloatMemRead            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::FloatMemWrite            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::IprAccess            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::InstPrefetch            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.dep_stall_insts_0::total          171                       # Class of instruction blocked in Issue due to dependency
+system.cpu1.iew.iew_stalls_control                  0                       # number of stalls in the iew stage due to stalling for control flow insts in pipeline
+system.cpu1.iew.iew_stalls_dep                    171                       # number of stalls in the iew stage due to dependency
+system.cpu1.iew.iew_stalls_execbusy                 0                       # number of stalls in the iew stage due to exec stage being busy
+system.cpu1.iew.iew_stalls_membarrier               0                       # number of stalls in the iew stage due to pending mem barrier
+system.cpu1.iew.iew_stalls_revec                    0                       # number of stalls in the iew stage due to stalling for revec in pipeline
+system.cpu1.iew.rob_head_stall_class_0::No_OpClass            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::IntAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::IntMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::IntDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::FloatAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::FloatCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::FloatCvt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::FloatMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::FloatMultAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::FloatDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::FloatMisc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::FloatSqrt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdAddAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdCvt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdMisc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdMultAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdShift            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdShiftAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdSqrt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdFloatAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdFloatAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdFloatCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdFloatCvt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdFloatDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdFloatMisc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdFloatMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdFloatMultAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdFloatSqrt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdReduceAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdReduceAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdReduceCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdFloatReduceAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdFloatReduceCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdAes            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdAesMix            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdSha1Hash            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdSha1Hash2            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdSha256Hash            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdSha256Hash2            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdShaSigma2            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdShaSigma3            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::SimdPredAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::MemRead            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::MemWrite           23    100.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::FloatMemRead            0      0.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::FloatMemWrite            0      0.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::IprAccess            0      0.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::InstPrefetch            0      0.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu1.iew.rob_head_stall_class_0::total           23                       # Class of instruction blocking at head of ROB
+system.cpu1.iew.robfull                            23                       # number of stalls in the iew stage due to rob being full
+system.cpu1.ipc                              0.112703                       # IPC: Instructions Per Cycle
+system.cpu1.ipc_total                        0.112703                       # IPC: Total IPC of All Threads
+system.cpu1.itb.accesses                            0                       # DTB accesses
+system.cpu1.itb.hits                                0                       # DTB hits
+system.cpu1.itb.misses                              0                       # DTB misses
+system.cpu1.itb.read_accesses                       0                       # DTB read accesses
+system.cpu1.itb.read_hits                           0                       # DTB read hits
+system.cpu1.itb.read_misses                         0                       # DTB read misses
+system.cpu1.itb.write_accesses                      0                       # DTB write accesses
+system.cpu1.itb.write_hits                          0                       # DTB write hits
+system.cpu1.itb.write_misses                        0                       # DTB write misses
+system.cpu1.late_vector.backpressure_stalls            0                       # number of stalls due to backpressure
+system.cpu1.late_vector.mesh_input_stalls            0                       # number of stalls due to no input from mesh
+system.cpu1.late_vector.pipe_input_stalls         1134                       # number of stalls due to no input from fetch
+system.cpu1.late_vector.revec_stalls                0                       # number of stalls due to revec
+system.cpu1.numCycles                            1535                       # number of cpu cycles simulated
+system.cpu1.numWorkItemsCompleted                   0                       # number of work items this cpu completed
+system.cpu1.numWorkItemsStarted                     0                       # number of work items this cpu started
+system.cpu1.num_committed_insts                   173                       # Number of Instructions Simulated
+system.cpu1.pwrStateResidencyTicks::ON      292877000                       # Cumulative time (in ticks) in various power states
+system.cpu1.vector.backpressure_stalls              0                       # number of stalls due to backpressure
+system.cpu1.vector.mesh_input_stalls             1089                       # number of stalls due to no input from mesh
+system.cpu1.vector.pipe_input_stalls                0                       # number of stalls due to no input from fetch
+system.cpu1.vector.revec_stalls                     0                       # number of stalls due to revec
+system.cpu2.branchPred.BTBCorrect                   0                       # Number of correct BTB predictions (this stat may not work properly.
+system.cpu2.branchPred.BTBHitPct             0.000000                       # BTB Hit Percentage
+system.cpu2.branchPred.BTBHits                      0                       # Number of BTB hits
+system.cpu2.branchPred.BTBLookups                  38                       # Number of BTB lookups
+system.cpu2.branchPred.RASInCorrect                 0                       # Number of incorrect RAS predictions.
+system.cpu2.branchPred.condIncorrect                1                       # Number of conditional branches incorrect
+system.cpu2.branchPred.condPredicted               24                       # Number of conditional branches predicted
+system.cpu2.branchPred.indirectHits                 0                       # Number of indirect target hits.
+system.cpu2.branchPred.indirectLookups              3                       # Number of indirect predictor lookups.
+system.cpu2.branchPred.indirectMisses               3                       # Number of indirect misses.
+system.cpu2.branchPred.lookups                     38                       # Number of BP lookups
+system.cpu2.branchPred.usedRAS                      0                       # Number of times the RAS was used to get a target.
+system.cpu2.branchPredindirectMispredicted            0                       # Number of mispredicted indirect branches.
+system.cpu2.commit.commit_stalls                    0                       # number of stalls in the commit stage due to insufficient credits
+system.cpu2.cpi                              8.527777                       # CPI: Cycles Per Instruction
+system.cpu2.cpi_total                        8.527777                       # CPI: Total CPI of All Threads
+system.cpu2.dtb.accesses                            0                       # DTB accesses
+system.cpu2.dtb.hits                                0                       # DTB hits
+system.cpu2.dtb.misses                              0                       # DTB misses
+system.cpu2.dtb.read_accesses                       0                       # DTB read accesses
+system.cpu2.dtb.read_hits                           0                       # DTB read hits
+system.cpu2.dtb.read_misses                         0                       # DTB read misses
+system.cpu2.dtb.write_accesses                      0                       # DTB write accesses
+system.cpu2.dtb.write_hits                          0                       # DTB write hits
+system.cpu2.dtb.write_misses                        0                       # DTB write misses
+system.cpu2.iew.dep_stall_insts_0::No_OpClass            0      0.00%      0.00% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::IntAlu          135     95.74%     95.74% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::IntMult            6      4.25%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::IntDiv            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::FloatAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::FloatCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::FloatCvt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::FloatMult            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::FloatMultAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::FloatDiv            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::FloatMisc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::FloatSqrt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdAddAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdAlu            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdCvt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdMisc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdMult            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdMultAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdShift            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdShiftAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdDiv            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdSqrt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdFloatAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdFloatAlu            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdFloatCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdFloatCvt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdFloatDiv            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdFloatMisc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdFloatMult            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdFloatMultAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdFloatSqrt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdReduceAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdReduceAlu            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdReduceCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdFloatReduceAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdFloatReduceCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdAes            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdAesMix            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdSha1Hash            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdSha1Hash2            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdSha256Hash            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdSha256Hash2            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdShaSigma2            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdShaSigma3            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::SimdPredAlu            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::MemRead            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::MemWrite            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::FloatMemRead            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::FloatMemWrite            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::IprAccess            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::InstPrefetch            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.dep_stall_insts_0::total          141                       # Class of instruction blocked in Issue due to dependency
+system.cpu2.iew.iew_stalls_control                  0                       # number of stalls in the iew stage due to stalling for control flow insts in pipeline
+system.cpu2.iew.iew_stalls_dep                    141                       # number of stalls in the iew stage due to dependency
+system.cpu2.iew.iew_stalls_execbusy                 0                       # number of stalls in the iew stage due to exec stage being busy
+system.cpu2.iew.iew_stalls_membarrier               0                       # number of stalls in the iew stage due to pending mem barrier
+system.cpu2.iew.iew_stalls_revec                    0                       # number of stalls in the iew stage due to stalling for revec in pipeline
+system.cpu2.iew.rob_head_stall_class_0::No_OpClass            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::IntAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::IntMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::IntDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::FloatAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::FloatCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::FloatCvt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::FloatMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::FloatMultAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::FloatDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::FloatMisc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::FloatSqrt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdAddAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdCvt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdMisc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdMultAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdShift            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdShiftAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdSqrt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdFloatAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdFloatAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdFloatCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdFloatCvt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdFloatDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdFloatMisc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdFloatMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdFloatMultAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdFloatSqrt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdReduceAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdReduceAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdReduceCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdFloatReduceAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdFloatReduceCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdAes            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdAesMix            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdSha1Hash            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdSha1Hash2            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdSha256Hash            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdSha256Hash2            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdShaSigma2            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdShaSigma3            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::SimdPredAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::MemRead            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::MemWrite           15    100.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::FloatMemRead            0      0.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::FloatMemWrite            0      0.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::IprAccess            0      0.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::InstPrefetch            0      0.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu2.iew.rob_head_stall_class_0::total           15                       # Class of instruction blocking at head of ROB
+system.cpu2.iew.robfull                            15                       # number of stalls in the iew stage due to rob being full
+system.cpu2.ipc                              0.117263                       # IPC: Instructions Per Cycle
+system.cpu2.ipc_total                        0.117263                       # IPC: Total IPC of All Threads
+system.cpu2.itb.accesses                            0                       # DTB accesses
+system.cpu2.itb.hits                                0                       # DTB hits
+system.cpu2.itb.misses                              0                       # DTB misses
+system.cpu2.itb.read_accesses                       0                       # DTB read accesses
+system.cpu2.itb.read_hits                           0                       # DTB read hits
+system.cpu2.itb.read_misses                         0                       # DTB read misses
+system.cpu2.itb.write_accesses                      0                       # DTB write accesses
+system.cpu2.itb.write_hits                          0                       # DTB write hits
+system.cpu2.itb.write_misses                        0                       # DTB write misses
+system.cpu2.late_vector.backpressure_stalls            0                       # number of stalls due to backpressure
+system.cpu2.late_vector.mesh_input_stalls            0                       # number of stalls due to no input from mesh
+system.cpu2.late_vector.pipe_input_stalls         1145                       # number of stalls due to no input from fetch
+system.cpu2.late_vector.revec_stalls                0                       # number of stalls due to revec
+system.cpu2.numCycles                            1535                       # number of cpu cycles simulated
+system.cpu2.numWorkItemsCompleted                   0                       # number of work items this cpu completed
+system.cpu2.numWorkItemsStarted                     0                       # number of work items this cpu started
+system.cpu2.num_committed_insts                   180                       # Number of Instructions Simulated
+system.cpu2.pwrStateResidencyTicks::ON      292877000                       # Cumulative time (in ticks) in various power states
+system.cpu2.vector.backpressure_stalls              0                       # number of stalls due to backpressure
+system.cpu2.vector.mesh_input_stalls             1123                       # number of stalls due to no input from mesh
+system.cpu2.vector.pipe_input_stalls                0                       # number of stalls due to no input from fetch
+system.cpu2.vector.revec_stalls                     0                       # number of stalls due to revec
+system.cpu3.branchPred.BTBCorrect                   0                       # Number of correct BTB predictions (this stat may not work properly.
+system.cpu3.branchPred.BTBHitPct             0.000000                       # BTB Hit Percentage
+system.cpu3.branchPred.BTBHits                      0                       # Number of BTB hits
+system.cpu3.branchPred.BTBLookups                  34                       # Number of BTB lookups
+system.cpu3.branchPred.RASInCorrect                 0                       # Number of incorrect RAS predictions.
+system.cpu3.branchPred.condIncorrect                1                       # Number of conditional branches incorrect
+system.cpu3.branchPred.condPredicted               24                       # Number of conditional branches predicted
+system.cpu3.branchPred.indirectHits                 0                       # Number of indirect target hits.
+system.cpu3.branchPred.indirectLookups              3                       # Number of indirect predictor lookups.
+system.cpu3.branchPred.indirectMisses               3                       # Number of indirect misses.
+system.cpu3.branchPred.lookups                     37                       # Number of BP lookups
+system.cpu3.branchPred.usedRAS                      0                       # Number of times the RAS was used to get a target.
+system.cpu3.branchPredindirectMispredicted            0                       # Number of mispredicted indirect branches.
+system.cpu3.commit.commit_stalls                    0                       # number of stalls in the commit stage due to insufficient credits
+system.cpu3.cpi                              8.872832                       # CPI: Cycles Per Instruction
+system.cpu3.cpi_total                        8.872832                       # CPI: Total CPI of All Threads
+system.cpu3.dtb.accesses                            0                       # DTB accesses
+system.cpu3.dtb.hits                                0                       # DTB hits
+system.cpu3.dtb.misses                              0                       # DTB misses
+system.cpu3.dtb.read_accesses                       0                       # DTB read accesses
+system.cpu3.dtb.read_hits                           0                       # DTB read hits
+system.cpu3.dtb.read_misses                         0                       # DTB read misses
+system.cpu3.dtb.write_accesses                      0                       # DTB write accesses
+system.cpu3.dtb.write_hits                          0                       # DTB write hits
+system.cpu3.dtb.write_misses                        0                       # DTB write misses
+system.cpu3.iew.dep_stall_insts_0::No_OpClass            0      0.00%      0.00% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::IntAlu          149     96.12%     96.12% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::IntMult            6      3.87%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::IntDiv            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::FloatAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::FloatCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::FloatCvt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::FloatMult            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::FloatMultAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::FloatDiv            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::FloatMisc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::FloatSqrt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdAddAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdAlu            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdCvt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdMisc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdMult            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdMultAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdShift            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdShiftAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdDiv            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdSqrt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdFloatAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdFloatAlu            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdFloatCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdFloatCvt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdFloatDiv            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdFloatMisc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdFloatMult            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdFloatMultAcc            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdFloatSqrt            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdReduceAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdReduceAlu            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdReduceCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdFloatReduceAdd            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdFloatReduceCmp            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdAes            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdAesMix            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdSha1Hash            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdSha1Hash2            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdSha256Hash            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdSha256Hash2            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdShaSigma2            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdShaSigma3            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::SimdPredAlu            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::MemRead            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::MemWrite            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::FloatMemRead            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::FloatMemWrite            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::IprAccess            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::InstPrefetch            0      0.00%     99.99% # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.dep_stall_insts_0::total          155                       # Class of instruction blocked in Issue due to dependency
+system.cpu3.iew.iew_stalls_control                  0                       # number of stalls in the iew stage due to stalling for control flow insts in pipeline
+system.cpu3.iew.iew_stalls_dep                    155                       # number of stalls in the iew stage due to dependency
+system.cpu3.iew.iew_stalls_execbusy                 0                       # number of stalls in the iew stage due to exec stage being busy
+system.cpu3.iew.iew_stalls_membarrier               0                       # number of stalls in the iew stage due to pending mem barrier
+system.cpu3.iew.iew_stalls_revec                    0                       # number of stalls in the iew stage due to stalling for revec in pipeline
+system.cpu3.iew.rob_head_stall_class_0::No_OpClass            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::IntAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::IntMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::IntDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::FloatAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::FloatCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::FloatCvt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::FloatMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::FloatMultAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::FloatDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::FloatMisc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::FloatSqrt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdAddAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdCvt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdMisc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdMultAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdShift            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdShiftAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdSqrt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdFloatAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdFloatAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdFloatCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdFloatCvt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdFloatDiv            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdFloatMisc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdFloatMult            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdFloatMultAcc            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdFloatSqrt            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdReduceAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdReduceAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdReduceCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdFloatReduceAdd            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdFloatReduceCmp            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdAes            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdAesMix            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdSha1Hash            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdSha1Hash2            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdSha256Hash            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdSha256Hash2            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdShaSigma2            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdShaSigma3            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::SimdPredAlu            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::MemRead            0      0.00%      0.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::MemWrite           19    100.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::FloatMemRead            0      0.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::FloatMemWrite            0      0.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::IprAccess            0      0.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::InstPrefetch            0      0.00%    100.00% # Class of instruction blocking at head of ROB
+system.cpu3.iew.rob_head_stall_class_0::total           19                       # Class of instruction blocking at head of ROB
+system.cpu3.iew.robfull                            19                       # number of stalls in the iew stage due to rob being full
+system.cpu3.ipc                              0.112703                       # IPC: Instructions Per Cycle
+system.cpu3.ipc_total                        0.112703                       # IPC: Total IPC of All Threads
+system.cpu3.itb.accesses                            0                       # DTB accesses
+system.cpu3.itb.hits                                0                       # DTB hits
+system.cpu3.itb.misses                              0                       # DTB misses
+system.cpu3.itb.read_accesses                       0                       # DTB read accesses
+system.cpu3.itb.read_hits                           0                       # DTB read hits
+system.cpu3.itb.read_misses                         0                       # DTB read misses
+system.cpu3.itb.write_accesses                      0                       # DTB write accesses
+system.cpu3.itb.write_hits                          0                       # DTB write hits
+system.cpu3.itb.write_misses                        0                       # DTB write misses
+system.cpu3.late_vector.backpressure_stalls            0                       # number of stalls due to backpressure
+system.cpu3.late_vector.mesh_input_stalls            0                       # number of stalls due to no input from mesh
+system.cpu3.late_vector.pipe_input_stalls         1141                       # number of stalls due to no input from fetch
+system.cpu3.late_vector.revec_stalls                0                       # number of stalls due to revec
+system.cpu3.numCycles                            1535                       # number of cpu cycles simulated
+system.cpu3.numWorkItemsCompleted                   0                       # number of work items this cpu completed
+system.cpu3.numWorkItemsStarted                     0                       # number of work items this cpu started
+system.cpu3.num_committed_insts                   173                       # Number of Instructions Simulated
+system.cpu3.pwrStateResidencyTicks::ON      292877000                       # Cumulative time (in ticks) in various power states
+system.cpu3.vector.backpressure_stalls              0                       # number of stalls due to backpressure
+system.cpu3.vector.mesh_input_stalls             1127                       # number of stalls due to no input from mesh
+system.cpu3.vector.pipe_input_stalls                0                       # number of stalls due to no input from fetch
+system.cpu3.vector.revec_stalls                     0                       # number of stalls due to revec
+system.cpu_clk_domain.clock                      1000                       # Clock period in ticks
+system.cpu_voltage_domain.voltage                   1                       # Voltage in Volts
+system.harness0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.harness1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.harness2.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.harness3.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.harness4.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.harness5.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.harness6.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.harness7.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.icaches0.L1cache.demand_accesses            26                       # Number of cache demand accesses
+system.icaches0.L1cache.demand_hits                21                       # Number of cache demand hits
+system.icaches0.L1cache.demand_misses               5                       # Number of cache demand misses
+system.icaches0.mandatoryQueue.avg_buf_msgs     0.016938                       # Average number of messages in buffer
+system.icaches0.mandatoryQueue.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.icaches0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.icaches0.requestToNetwork.avg_buf_msgs     0.312703                       # Average number of messages in buffer
+system.icaches0.requestToNetwork.avg_stall_time        80000                       # Average number of cycles messages are stalled in this MB
+system.icaches0.responseFromNetwork.avg_buf_msgs     0.003908                       # Average number of messages in buffer
+system.icaches0.responseFromNetwork.avg_stall_time 10492.507822                       # Average number of cycles messages are stalled in this MB
+system.icaches0.sequencer.load_waiting_on_load            1                       # Number of times a load aliased with a pending load
+system.icaches0.sequencer.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.icaches1.L1cache.demand_accesses             3                       # Number of cache demand accesses
+system.icaches1.L1cache.demand_hits                 2                       # Number of cache demand hits
+system.icaches1.L1cache.demand_misses               1                       # Number of cache demand misses
+system.icaches1.mandatoryQueue.avg_buf_msgs     0.001954                       # Average number of messages in buffer
+system.icaches1.mandatoryQueue.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.icaches1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.icaches1.requestToNetwork.avg_buf_msgs     0.073615                       # Average number of messages in buffer
+system.icaches1.requestToNetwork.avg_stall_time        80000                       # Average number of cycles messages are stalled in this MB
+system.icaches1.responseFromNetwork.avg_buf_msgs     0.001302                       # Average number of messages in buffer
+system.icaches1.responseFromNetwork.avg_stall_time 12212.377711                       # Average number of cycles messages are stalled in this MB
+system.icaches1.sequencer.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.icaches2.L1cache.demand_accesses             3                       # Number of cache demand accesses
+system.icaches2.L1cache.demand_hits                 2                       # Number of cache demand hits
+system.icaches2.L1cache.demand_misses               1                       # Number of cache demand misses
+system.icaches2.mandatoryQueue.avg_buf_msgs     0.001954                       # Average number of messages in buffer
+system.icaches2.mandatoryQueue.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.icaches2.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.icaches2.requestToNetwork.avg_buf_msgs     0.065146                       # Average number of messages in buffer
+system.icaches2.requestToNetwork.avg_stall_time        80000                       # Average number of cycles messages are stalled in this MB
+system.icaches2.responseFromNetwork.avg_buf_msgs     0.001302                       # Average number of messages in buffer
+system.icaches2.responseFromNetwork.avg_stall_time         8000                       # Average number of cycles messages are stalled in this MB
+system.icaches2.sequencer.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.icaches3.L1cache.demand_accesses             3                       # Number of cache demand accesses
+system.icaches3.L1cache.demand_hits                 2                       # Number of cache demand hits
+system.icaches3.L1cache.demand_misses               1                       # Number of cache demand misses
+system.icaches3.mandatoryQueue.avg_buf_msgs     0.001954                       # Average number of messages in buffer
+system.icaches3.mandatoryQueue.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.icaches3.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.icaches3.requestToNetwork.avg_buf_msgs     0.070358                       # Average number of messages in buffer
+system.icaches3.requestToNetwork.avg_stall_time        80000                       # Average number of cycles messages are stalled in this MB
+system.icaches3.responseFromNetwork.avg_buf_msgs     0.001302                       # Average number of messages in buffer
+system.icaches3.responseFromNetwork.avg_stall_time 10069.055329                       # Average number of cycles messages are stalled in this MB
+system.icaches3.sequencer.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.l2_bus.pkt_count_system.l2_cntrls0.memory::system.mem_ctrl.port           18                       # Packet count per connected master and slave (bytes)
+system.l2_bus.pkt_count_system.l2_cntrls1.memory::system.mem_ctrl.port            6                       # Packet count per connected master and slave (bytes)
+system.l2_bus.pkt_count::total                     24                       # Packet count per connected master and slave (bytes)
+system.l2_bus.pkt_size_system.l2_cntrls0.memory::system.mem_ctrl.port          576                       # Cumulative packet size per connected master and slave (bytes)
+system.l2_bus.pkt_size_system.l2_cntrls1.memory::system.mem_ctrl.port          192                       # Cumulative packet size per connected master and slave (bytes)
+system.l2_bus.pkt_size::total                     768                       # Cumulative packet size per connected master and slave (bytes)
+system.l2_bus.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.l2_bus.reqLayer0.occupancy               15288                       # Layer occupancy (ticks)
+system.l2_bus.reqLayer0.utilization               0.9                       # Layer utilization (%)
+system.l2_bus.respLayer0.occupancy              45000                       # Layer occupancy (ticks)
+system.l2_bus.respLayer0.utilization              2.9                       # Layer utilization (%)
+system.l2_bus.respLayer1.occupancy              15000                       # Layer occupancy (ticks)
+system.l2_bus.respLayer1.utilization              0.9                       # Layer utilization (%)
+system.l2_bus.trans_dist::ReadReq                  12                       # Transaction distribution
+system.l2_bus.trans_dist::ReadResp                 12                       # Transaction distribution
+system.l2_cntrls0.cacheMemory.demand_accesses           71                       # Number of cache demand accesses
+system.l2_cntrls0.cacheMemory.demand_hits           62                       # Number of cache demand hits
+system.l2_cntrls0.cacheMemory.demand_misses            9                       # Number of cache demand misses
+system.l2_cntrls0.fully_busy_cycles                 7                       # cycles for which number of transistions == max transitions
+system.l2_cntrls0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.l2_cntrls0.requestToLLC.avg_buf_msgs     0.244950                       # Average number of messages in buffer
+system.l2_cntrls0.requestToLLC.avg_stall_time 56863.161652                       # Average number of cycles messages are stalled in this MB
+system.l2_cntrls0.requestToLLC.num_msg_stalls           12                       # Number of times messages were stalled
+system.l2_cntrls0.responseFromLLC.avg_buf_msgs     0.075570                       # Average number of messages in buffer
+system.l2_cntrls0.responseFromLLC.avg_stall_time  1564.169013                       # Average number of cycles messages are stalled in this MB
+system.l2_cntrls0.responseFromMemory.avg_buf_msgs     0.005863                       # Average number of messages in buffer
+system.l2_cntrls0.responseFromMemory.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.l2_cntrls1.cacheMemory.demand_accesses           25                       # Number of cache demand accesses
+system.l2_cntrls1.cacheMemory.demand_hits           22                       # Number of cache demand hits
+system.l2_cntrls1.cacheMemory.demand_misses            3                       # Number of cache demand misses
+system.l2_cntrls1.fully_busy_cycles                 4                       # cycles for which number of transistions == max transitions
+system.l2_cntrls1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.l2_cntrls1.requestToLLC.avg_buf_msgs     0.016287                       # Average number of messages in buffer
+system.l2_cntrls1.requestToLLC.avg_stall_time 11154.395339                       # Average number of cycles messages are stalled in this MB
+system.l2_cntrls1.responseFromLLC.avg_buf_msgs     0.039088                       # Average number of messages in buffer
+system.l2_cntrls1.responseFromLLC.avg_stall_time  1531.595744                       # Average number of cycles messages are stalled in this MB
+system.l2_cntrls1.responseFromMemory.avg_buf_msgs     0.001954                       # Average number of messages in buffer
+system.l2_cntrls1.responseFromMemory.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.mem_ctrl.bw_read::.l2_cntrls0        375244299                       # Total read bandwidth from this memory (bytes/s)
+system.mem_ctrl.bw_read::.l2_cntrls1        125081433                       # Total read bandwidth from this memory (bytes/s)
+system.mem_ctrl.bw_read::total              500325732                       # Total read bandwidth from this memory (bytes/s)
+system.mem_ctrl.bw_total::.l2_cntrls0       375244299                       # Total bandwidth to/from this memory (bytes/s)
+system.mem_ctrl.bw_total::.l2_cntrls1       125081433                       # Total bandwidth to/from this memory (bytes/s)
+system.mem_ctrl.bw_total::total             500325732                       # Total bandwidth to/from this memory (bytes/s)
+system.mem_ctrl.bytes_read::.l2_cntrls0           576                       # Number of bytes read from this memory
+system.mem_ctrl.bytes_read::.l2_cntrls1           192                       # Number of bytes read from this memory
+system.mem_ctrl.bytes_read::total                 768                       # Number of bytes read from this memory
+system.mem_ctrl.num_reads::.l2_cntrls0              9                       # Number of read requests responded to by this memory
+system.mem_ctrl.num_reads::.l2_cntrls1              3                       # Number of read requests responded to by this memory
+system.mem_ctrl.num_reads::total                   12                       # Number of read requests responded to by this memory
+system.mem_ctrl.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.average_flit_latency         12.948837                      
+system.network.average_flit_network_latency     7.269767                      
+system.network.average_flit_queueing_latency     5.679069                      
+system.network.average_flit_vnet_latency |    7.220338                       |    7.329896                      
+system.network.average_flit_vqueue_latency |    1.491525                       |   10.773195                      
+system.network.average_hops                  2.125581                      
+system.network.average_packet_latency       12.948837                      
+system.network.average_packet_network_latency     7.269767                      
+system.network.average_packet_queueing_latency     5.679069                      
+system.network.average_packet_vnet_latency |    7.220338                       |    7.329896                      
+system.network.average_packet_vqueue_latency |    1.491525                       |   10.773195                      
+system.network.avg_link_utilization          0.583713                      
+system.network.avg_vc_load               |    0.190228     32.58%     32.58% |    0.079478     13.61%     46.20% |    0.024755      4.24%     50.44% |    0.020846      3.57%     54.01% |    0.160912     27.56%     81.58% |    0.061889     10.60%     92.18% |    0.025407      4.35%     96.54% |    0.020195      3.45%    100.00%
+system.network.avg_vc_load::total            0.583713                      
+system.network.ext_in_link_utilization            219                      
+system.network.ext_links0.credit_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links0.credit_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links0.network_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links0.network_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links1.credit_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links1.credit_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links1.network_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links1.network_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links2.credit_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links2.credit_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links2.network_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links2.network_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links3.credit_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links3.credit_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links3.network_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links3.network_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links4.credit_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links4.credit_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links4.network_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links4.network_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links5.credit_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links5.credit_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links5.network_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links5.network_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links6.credit_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links6.credit_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links6.network_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links6.network_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links7.credit_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links7.credit_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links7.network_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links7.network_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links8.credit_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links8.credit_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links8.network_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links8.network_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links9.credit_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links9.credit_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links9.network_links0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_links9.network_links1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.ext_out_link_utilization           216                      
+system.network.flit_network_latency      |         852                       |         711                      
+system.network.flit_queueing_latency     |         176                       |        1045                      
+system.network.flits_injected            |         118     53.88%     53.88% |         101     46.11%     99.99%
+system.network.flits_injected::total              219                      
+system.network.flits_received            |         118     54.88%     54.88% |          97     45.11%     99.99%
+system.network.flits_received::total              215                      
+system.network.int_link_utilization               461                      
+system.network.int_links00.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links00.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links01.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links01.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links02.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links02.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links03.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links03.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links04.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links04.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links05.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links05.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links06.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links06.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links07.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links07.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links08.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links08.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links09.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links09.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links10.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links10.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links11.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links11.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links12.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links12.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links13.credit_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.int_links13.network_link.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.netifs0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.netifs1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.netifs2.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.netifs3.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.netifs4.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.netifs5.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.netifs6.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.netifs7.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.netifs8.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.netifs9.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.packet_network_latency    |         852                       |         711                      
+system.network.packet_queueing_latency   |         176                       |        1045                      
+system.network.packets_injected          |         118     53.88%     53.88% |         101     46.11%     99.99%
+system.network.packets_injected::total            219                      
+system.network.packets_received          |         118     54.88%     54.88% |          97     45.11%     99.99%
+system.network.packets_received::total            215                      
+system.network.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.routers0.buffer_reads               87                      
+system.network.routers0.buffer_writes              87                      
+system.network.routers0.crossbar_activity           87                      
+system.network.routers0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.routers0.sw_input_arbiter_activity           87                      
+system.network.routers0.sw_output_arbiter_activity           87                      
+system.network.routers1.buffer_reads               67                      
+system.network.routers1.buffer_writes              67                      
+system.network.routers1.crossbar_activity           67                      
+system.network.routers1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.routers1.sw_input_arbiter_activity           67                      
+system.network.routers1.sw_output_arbiter_activity           67                      
+system.network.routers2.buffer_reads              137                      
+system.network.routers2.buffer_writes             137                      
+system.network.routers2.crossbar_activity          137                      
+system.network.routers2.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.routers2.sw_input_arbiter_activity          139                      
+system.network.routers2.sw_output_arbiter_activity          137                      
+system.network.routers3.buffer_reads              103                      
+system.network.routers3.buffer_writes             103                      
+system.network.routers3.crossbar_activity          103                      
+system.network.routers3.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.routers3.sw_input_arbiter_activity          103                      
+system.network.routers3.sw_output_arbiter_activity          103                      
+system.network.routers4.buffer_reads              177                      
+system.network.routers4.buffer_writes             177                      
+system.network.routers4.crossbar_activity          177                      
+system.network.routers4.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.routers4.sw_input_arbiter_activity          179                      
+system.network.routers4.sw_output_arbiter_activity          177                      
+system.network.routers5.buffer_reads              108                      
+system.network.routers5.buffer_writes             108                      
+system.network.routers5.crossbar_activity          108                      
+system.network.routers5.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.network.routers5.sw_input_arbiter_activity          108                      
+system.network.routers5.sw_output_arbiter_activity          108                      
+system.ruby.IFETCH.L1Cache.hit_type_mach_latency_hist_seqr::bucket_size           32                      
+system.ruby.IFETCH.L1Cache.hit_type_mach_latency_hist_seqr::max_bucket          319                      
+system.ruby.IFETCH.L1Cache.hit_type_mach_latency_hist_seqr::samples           39                      
+system.ruby.IFETCH.L1Cache.hit_type_mach_latency_hist_seqr::mean    44.358974                      
+system.ruby.IFETCH.L1Cache.hit_type_mach_latency_hist_seqr::gmean     4.560672                      
+system.ruby.IFETCH.L1Cache.hit_type_mach_latency_hist_seqr::stdev    67.858788                      
+system.ruby.IFETCH.L1Cache.hit_type_mach_latency_hist_seqr |          27     69.23%     69.23% |           0      0.00%     69.23% |           0      0.00%     69.23% |           4     10.25%     79.48% |           2      5.12%     84.61% |           6     15.38%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99%
+system.ruby.IFETCH.L1Cache.hit_type_mach_latency_hist_seqr::total           39                      
+system.ruby.IFETCH.hit_latency_hist_seqr::bucket_size           32                      
+system.ruby.IFETCH.hit_latency_hist_seqr::max_bucket          319                      
+system.ruby.IFETCH.hit_latency_hist_seqr::samples           39                      
+system.ruby.IFETCH.hit_latency_hist_seqr::mean    44.358974                      
+system.ruby.IFETCH.hit_latency_hist_seqr::gmean     4.560672                      
+system.ruby.IFETCH.hit_latency_hist_seqr::stdev    67.858788                      
+system.ruby.IFETCH.hit_latency_hist_seqr |          27     69.23%     69.23% |           0      0.00%     69.23% |           0      0.00%     69.23% |           4     10.25%     79.48% |           2      5.12%     84.61% |           6     15.38%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99%
+system.ruby.IFETCH.hit_latency_hist_seqr::total           39                      
+system.ruby.IFETCH.latency_hist_seqr::bucket_size           32                      
+system.ruby.IFETCH.latency_hist_seqr::max_bucket          319                      
+system.ruby.IFETCH.latency_hist_seqr::samples           39                      
+system.ruby.IFETCH.latency_hist_seqr::mean    44.358974                      
+system.ruby.IFETCH.latency_hist_seqr::gmean     4.560672                      
+system.ruby.IFETCH.latency_hist_seqr::stdev    67.858788                      
+system.ruby.IFETCH.latency_hist_seqr     |          27     69.23%     69.23% |           0      0.00%     69.23% |           0      0.00%     69.23% |           4     10.25%     79.48% |           2      5.12%     84.61% |           6     15.38%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99%
+system.ruby.IFETCH.latency_hist_seqr::total           39                      
+system.ruby.L1Cache.hit_mach_latency_hist_seqr::bucket_size           32                      
+system.ruby.L1Cache.hit_mach_latency_hist_seqr::max_bucket          319                      
+system.ruby.L1Cache.hit_mach_latency_hist_seqr::samples           39                      
+system.ruby.L1Cache.hit_mach_latency_hist_seqr::mean    44.358974                      
+system.ruby.L1Cache.hit_mach_latency_hist_seqr::gmean     4.560672                      
+system.ruby.L1Cache.hit_mach_latency_hist_seqr::stdev    67.858788                      
+system.ruby.L1Cache.hit_mach_latency_hist_seqr |          27     69.23%     69.23% |           0      0.00%     69.23% |           0      0.00%     69.23% |           4     10.25%     79.48% |           2      5.12%     84.61% |           6     15.38%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99%
+system.ruby.L1Cache.hit_mach_latency_hist_seqr::total           39                      
+system.ruby.L1Cache_Controller.Data      |           6     50.00%     50.00% |           2     16.66%     66.66% |           2     16.66%     83.33% |           2     16.66%     99.99%
+system.ruby.L1Cache_Controller.Data::total           12                      
+system.ruby.L1Cache_Controller.Fetch     |          26     74.28%     74.28% |           3      8.57%     82.85% |           3      8.57%     91.42% |           3      8.57%     99.99%
+system.ruby.L1Cache_Controller.Fetch::total           35                      
+system.ruby.L1Cache_Controller.I.Data    |           6     50.00%     50.00% |           2     16.66%     66.66% |           2     16.66%     83.33% |           2     16.66%     99.99%
+system.ruby.L1Cache_Controller.I.Data::total           12                      
+system.ruby.L1Cache_Controller.I.Fetch   |           5     62.50%     62.50% |           1     12.50%     75.00% |           1     12.50%     87.50% |           1     12.50%    100.00%
+system.ruby.L1Cache_Controller.I.Fetch::total            8                      
+system.ruby.L1Cache_Controller.Repl      |           6    100.00%    100.00% |           0      0.00%    100.00% |           0      0.00%    100.00% |           0      0.00%    100.00%
+system.ruby.L1Cache_Controller.Repl::total            6                      
+system.ruby.L1Cache_Controller.V.Fetch   |          21     77.77%     77.77% |           2      7.40%     85.18% |           2      7.40%     92.59% |           2      7.40%     99.99%
+system.ruby.L1Cache_Controller.V.Fetch::total           27                      
+system.ruby.L1Cache_Controller.V.Repl    |           6    100.00%    100.00% |           0      0.00%    100.00% |           0      0.00%    100.00% |           0      0.00%    100.00%
+system.ruby.L1Cache_Controller.V.Repl::total            6                      
+system.ruby.L2Cache_Controller.I.READ    |           6    100.00%    100.00% |           0      0.00%    100.00%
+system.ruby.L2Cache_Controller.I.READ::total            6                      
+system.ruby.L2Cache_Controller.I.WRITE   |           3     50.00%     50.00% |           3     50.00%    100.00%
+system.ruby.L2Cache_Controller.I.WRITE::total            6                      
+system.ruby.L2Cache_Controller.IM.Memory_Data |           3     50.00%     50.00% |           3     50.00%    100.00%
+system.ruby.L2Cache_Controller.IM.Memory_Data::total            6                      
+system.ruby.L2Cache_Controller.IM.READ   |           9    100.00%    100.00% |           0      0.00%    100.00%
+system.ruby.L2Cache_Controller.IM.READ::total            9                      
+system.ruby.L2Cache_Controller.IV.Memory_Data |           6    100.00%    100.00% |           0      0.00%    100.00%
+system.ruby.L2Cache_Controller.IV.Memory_Data::total            6                      
+system.ruby.L2Cache_Controller.IV.READ   |           3    100.00%    100.00% |           0      0.00%    100.00%
+system.ruby.L2Cache_Controller.IV.READ::total            3                      
+system.ruby.L2Cache_Controller.M.READ    |          32     79.99%     79.99% |           8     19.99%     99.99%
+system.ruby.L2Cache_Controller.M.READ::total           40                      
+system.ruby.L2Cache_Controller.M.VREAD0  |           4     50.00%     50.00% |           4     50.00%    100.00%
+system.ruby.L2Cache_Controller.M.VREAD0::total            8                      
+system.ruby.L2Cache_Controller.M.VREAD1  |           8     50.00%     50.00% |           8     50.00%    100.00%
+system.ruby.L2Cache_Controller.M.VREAD1::total           16                      
+system.ruby.L2Cache_Controller.M.VREAD2  |           4     50.00%     50.00% |           4     50.00%    100.00%
+system.ruby.L2Cache_Controller.M.VREAD2::total            8                      
+system.ruby.L2Cache_Controller.M.WRITE   |          20     66.66%     66.66% |          10     33.33%     99.99%
+system.ruby.L2Cache_Controller.M.WRITE::total           30                      
+system.ruby.L2Cache_Controller.Memory_Data |           9     75.00%     75.00% |           3     25.00%    100.00%
+system.ruby.L2Cache_Controller.Memory_Data::total           12                      
+system.ruby.L2Cache_Controller.READ      |          56     87.50%     87.50% |           8     12.50%    100.00%
+system.ruby.L2Cache_Controller.READ::total           64                      
+system.ruby.L2Cache_Controller.Repl      |           1    100.00%    100.00% |           0      0.00%    100.00%
+system.ruby.L2Cache_Controller.Repl::total            1                      
+system.ruby.L2Cache_Controller.V.READ    |           6    100.00%    100.00% |           0      0.00%    100.00%
+system.ruby.L2Cache_Controller.V.READ::total            6                      
+system.ruby.L2Cache_Controller.V.Repl    |           1    100.00%    100.00% |           0      0.00%    100.00%
+system.ruby.L2Cache_Controller.V.Repl::total            1                      
+system.ruby.L2Cache_Controller.VREAD0    |           4     50.00%     50.00% |           4     50.00%    100.00%
+system.ruby.L2Cache_Controller.VREAD0::total            8                      
+system.ruby.L2Cache_Controller.VREAD1    |           8     50.00%     50.00% |           8     50.00%    100.00%
+system.ruby.L2Cache_Controller.VREAD1::total           16                      
+system.ruby.L2Cache_Controller.VREAD2    |           4     50.00%     50.00% |           4     50.00%    100.00%
+system.ruby.L2Cache_Controller.VREAD2::total            8                      
+system.ruby.L2Cache_Controller.WRITE     |          23     63.88%     63.88% |          13     36.11%     99.99%
+system.ruby.L2Cache_Controller.WRITE::total           36                      
+system.ruby.hit_latency_hist_seqr::bucket_size           32                      
+system.ruby.hit_latency_hist_seqr::max_bucket          319                      
+system.ruby.hit_latency_hist_seqr::samples           39                      
+system.ruby.hit_latency_hist_seqr::mean     44.358974                      
+system.ruby.hit_latency_hist_seqr::gmean     4.560672                      
+system.ruby.hit_latency_hist_seqr::stdev    67.858788                      
+system.ruby.hit_latency_hist_seqr        |          27     69.23%     69.23% |           0      0.00%     69.23% |           0      0.00%     69.23% |           4     10.25%     79.48% |           2      5.12%     84.61% |           6     15.38%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99%
+system.ruby.hit_latency_hist_seqr::total           39                      
+system.ruby.latency_hist_seqr::bucket_size           32                      
+system.ruby.latency_hist_seqr::max_bucket          319                      
+system.ruby.latency_hist_seqr::samples             39                      
+system.ruby.latency_hist_seqr::mean         44.358974                      
+system.ruby.latency_hist_seqr::gmean         4.560672                      
+system.ruby.latency_hist_seqr::stdev        67.858788                      
+system.ruby.latency_hist_seqr            |          27     69.23%     69.23% |           0      0.00%     69.23% |           0      0.00%     69.23% |           4     10.25%     79.48% |           2      5.12%     84.61% |           6     15.38%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99%
+system.ruby.latency_hist_seqr::total               39                      
+system.ruby.outstanding_req_hist_seqr::bucket_size            1                      
+system.ruby.outstanding_req_hist_seqr::max_bucket            9                      
+system.ruby.outstanding_req_hist_seqr::samples           35                      
+system.ruby.outstanding_req_hist_seqr::mean     1.028571                      
+system.ruby.outstanding_req_hist_seqr::gmean     1.020001                      
+system.ruby.outstanding_req_hist_seqr::stdev     0.169030                      
+system.ruby.outstanding_req_hist_seqr    |           0      0.00%      0.00% |          34     97.14%     97.14% |           1      2.85%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99% |           0      0.00%     99.99%
+system.ruby.outstanding_req_hist_seqr::total           35                      
+system.ruby.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.ruby.sys_port_proxy.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.scratchpads0.local_accesses                 12                       # Number of local accesses completed
+system.scratchpads0.local_loads                     8                       # Number of loads completed by the local core
+system.scratchpads0.local_stores                    4                       # Number of stores completed by the local core
+system.scratchpads0.memReqBuffer.avg_buf_msgs     0.018892                       # Average number of messages in buffer
+system.scratchpads0.memReqBuffer.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.scratchpads0.memRespBuffer.avg_buf_msgs     0.018241                       # Average number of messages in buffer
+system.scratchpads0.memRespBuffer.avg_stall_time 11115.960185                       # Average number of cycles messages are stalled in this MB
+system.scratchpads0.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.scratchpads0.remote_accesses                 8                       # Number of remote accesses completed
+system.scratchpads0.remote_loads                    0                       # Number of loads completed by a remote core
+system.scratchpads0.remote_stores                   8                       # Number of stores completed by a remote core
+system.scratchpads0.total_accesses                 20                       # Number of accesses completed
+system.scratchpads1.local_accesses                 12                       # Number of local accesses completed
+system.scratchpads1.local_loads                     8                       # Number of loads completed by the local core
+system.scratchpads1.local_stores                    4                       # Number of stores completed by the local core
+system.scratchpads1.memReqBuffer.avg_buf_msgs     0.013029                       # Average number of messages in buffer
+system.scratchpads1.memReqBuffer.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.scratchpads1.memRespBuffer.avg_buf_msgs     0.016938                       # Average number of messages in buffer
+system.scratchpads1.memRespBuffer.avg_stall_time 11742.671177                       # Average number of cycles messages are stalled in this MB
+system.scratchpads1.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.scratchpads1.remoteReqBuffer.avg_stall_time         8000                       # Average number of cycles messages are stalled in this MB
+system.scratchpads1.remoteRespBuffer.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.scratchpads1.remote_accesses                 8                       # Number of remote accesses completed
+system.scratchpads1.remote_loads                    0                       # Number of loads completed by a remote core
+system.scratchpads1.remote_stores                   8                       # Number of stores completed by a remote core
+system.scratchpads1.total_accesses                 20                       # Number of accesses completed
+system.scratchpads2.local_accesses                 12                       # Number of local accesses completed
+system.scratchpads2.local_loads                     8                       # Number of loads completed by the local core
+system.scratchpads2.local_stores                    4                       # Number of stores completed by the local core
+system.scratchpads2.memReqBuffer.avg_buf_msgs     0.013029                       # Average number of messages in buffer
+system.scratchpads2.memReqBuffer.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.scratchpads2.memRespBuffer.avg_buf_msgs     0.016938                       # Average number of messages in buffer
+system.scratchpads2.memRespBuffer.avg_stall_time  9452.767783                       # Average number of cycles messages are stalled in this MB
+system.scratchpads2.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.scratchpads2.remoteReqBuffer.avg_stall_time         8000                       # Average number of cycles messages are stalled in this MB
+system.scratchpads2.remoteRespBuffer.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.scratchpads2.remote_accesses                 8                       # Number of remote accesses completed
+system.scratchpads2.remote_loads                    0                       # Number of loads completed by a remote core
+system.scratchpads2.remote_stores                   8                       # Number of stores completed by a remote core
+system.scratchpads2.total_accesses                 20                       # Number of accesses completed
+system.scratchpads3.local_accesses                 12                       # Number of local accesses completed
+system.scratchpads3.local_loads                     8                       # Number of loads completed by the local core
+system.scratchpads3.local_stores                    4                       # Number of stores completed by the local core
+system.scratchpads3.memReqBuffer.avg_buf_msgs     0.013029                       # Average number of messages in buffer
+system.scratchpads3.memReqBuffer.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.scratchpads3.memRespBuffer.avg_buf_msgs     0.016938                       # Average number of messages in buffer
+system.scratchpads3.memRespBuffer.avg_stall_time 10170.683927                       # Average number of cycles messages are stalled in this MB
+system.scratchpads3.pwrStateResidencyTicks::UNDEFINED    292877000                       # Cumulative time (in ticks) in various power states
+system.scratchpads3.remoteReqBuffer.avg_stall_time        10000                       # Average number of cycles messages are stalled in this MB
+system.scratchpads3.remoteRespBuffer.avg_stall_time         1000                       # Average number of cycles messages are stalled in this MB
+system.scratchpads3.remote_accesses                 8                       # Number of remote accesses completed
+system.scratchpads3.remote_loads                    0                       # Number of loads completed by a remote core
+system.scratchpads3.remote_stores                   8                       # Number of stores completed by a remote core
+system.scratchpads3.total_accesses                 20                       # Number of accesses completed
+system.voltage_domain.voltage                       1                       # Voltage in Volts
+
+---------- End Simulation Statistics   ----------

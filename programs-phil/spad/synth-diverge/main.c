@@ -68,6 +68,7 @@ int main(int argc, char *argv[]) {
   int *_c = c;
   int *_d = d;
   
+  // align data to cache lines
   a = (int*)((unsigned long long)(a + 64) & ~((1ULL << 6) - 1));
   b = (int*)((unsigned long long)(b + 64) & ~((1ULL << 6) - 1));
   c = (int*)((unsigned long long)(c + 64) & ~((1ULL << 6) - 1));
@@ -141,17 +142,12 @@ int main(int argc, char *argv[]) {
   /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
-  
   for (int i = 0; i < sizeC; i++) {
-    
     if (a[i] == 0) {
       if (c[i] != pow(2, 3)) {
-        // TODO for now only check 1,2,3 slots as first is DAE
-        if (i % 4 != 0) {
-          printf("[[FAIL]]\n");
-          printf("i=%d c=%d exp=%d\n", i, c[i], (int)pow(2, 3));
-          return 1;
-        }
+        printf("[[FAIL]]\n");
+        printf("i=%d c=%d exp=%d\n", i, c[i], (int)pow(2, 3));
+        return 1;
       }
     }
     else if (a[i] == 1) {
@@ -170,7 +166,7 @@ int main(int argc, char *argv[]) {
   free(_b);
   free(_c);
   free(_d);
-  
+
   printf("[[SUCCESS]]\n");
   
   

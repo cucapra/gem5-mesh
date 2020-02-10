@@ -33,7 +33,7 @@ class MemMessage : public Message
     { panic("MemMessage does not support functionalRead\n"); }
 
     bool functionalWrite(Packet* pkt) override
-    { panic("MemMessage does not support functionalWrite\n"); }
+    { printf("warn: MemMessage does not support functionalWrite\n"); return false; /*panic("MemMessage does not support functionalWrite\n");*/ }
 
     const NetDest& getDestination() const override;
     NetDest& getDestination() override;

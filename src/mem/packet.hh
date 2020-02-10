@@ -779,6 +779,17 @@ class Packet : public Printable
      */
     int getXDim() const { return req->xDim; }
     int getYDim() const { return req->yDim; }
+
+    /**
+     * Accessor function to vector group origin
+     */ 
+    int getXOrigin() const { return req->xOrigin; }
+    int getYOrigin() const { return req->yOrigin; }
+
+    /**
+     * Accessor to whether req from decoupled access core
+     */ 
+    bool getFromDecoupledAccess() const { return req->fromDecoupledAccess; }
     
     /**
      * Accessor to prefetch address
@@ -790,11 +801,12 @@ class Packet : public Printable
      */ 
     bool getSpecSpad() const { return req->spadSpec; }
     bool getSpadReset() const { return req->spadReset; }
+    bool getStoreAckFree() const { return req->ackFree; }
     
     /**
      * Accessor to epoch
      */ 
-    int getEpoch() const { return req->epoch; }
+    // int getEpoch() const { return req->epoch; }
     
     /**
      * Accessor to sp load req type
