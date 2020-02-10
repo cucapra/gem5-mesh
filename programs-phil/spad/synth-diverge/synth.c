@@ -299,23 +299,15 @@ void kernel(
   int mask = getDAEMask(tid_x, tid_y, dim_x, dim_y);
   #else
   int mask = getVecMask(tid_x, tid_y, dim_x, dim_y);
-<<<<<<< HEAD
-=======
   #endif
->>>>>>> origin/dae
 
   VECTOR_EPOCH(mask);
 #endif
 
-<<<<<<< HEAD
-// run the actual kernel with the configuration
-#ifdef UNROLL
-=======
   // run the actual kernel with the configuration
   #ifdef DAE
   synthetic_dae(a, b, c, d, n, tid, dim);
   #elif defined(UNROLL)
->>>>>>> origin/dae
   volatile int unroll_len = 4;
   synthetic_uthread(a, b, c, d, n, tid, dim, unroll_len);
 #else
