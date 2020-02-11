@@ -244,18 +244,33 @@ Scratchpad::processRespToSpad() {
     case Packet::RespPktType::Prefetch_Self_Resp:
     case Packet::RespPktType::Prefetch_Patron_Resp: {
       bool memDiv = memoryDiverged(pkt_p->getAddr()); //setPrefetchFresh(pkt_p);
-      bool controlDiv = controlDiverged();
-      bool isSelfResp = pkt_p->spRespType == Packet::RespPktType::Prefetch_Self_Resp;
+      
+      // bool isSelfResp = pkt_p->spRespType == Packet::RespPktType::Prefetch_Self_Resp; // TODO deprecated
       // throw away if diverged and its not for future epochs
-      bool throwAway = controlDiv && !isSelfResp && !isPrefetchAhead(pkt_p->getAddr());
+      // TODO not sure if it's the right thing to throw away here
+      // but definetly need to update the counter signalling it was recv
+      // bool controlDiv = controlDiverged();
+      // bool throwAway = controlDiv && !memDiv;
   
-      if (throwAway) {
-        DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
-        // just drop the packet if there's divergence and this is from vector prefetch
-        delete pkt_p;
-        pkt_p = nullptr;
-      }
-      else if (memDiv) {
+      // if (throwAway) {
+      //   DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
+
+      //   // TODO not sure if actually need to drop here?
+      //   // def need to update the counter as rdy
+      //   if (pkt_p->isRead())
+      //     m_remote_loads++;
+      //   else if (pkt_p->isWrite())
+      //     m_remote_stores++;
+      //   // access data array
+      //   accessDataArray(pkt_p);
+      //   // set the word as ready for future packets
+      //   setWordRdy(pkt_p->getAddr());
+
+      //   // just drop the packet if there's divergence and this is from vector prefetch
+      //   delete pkt_p;
+      //   pkt_p = nullptr;
+      // }
+      /*else*/ if (memDiv) {
         
         // place packet into buffer to use later
         // assure that this is a very small buffer otherwise actually diverge

@@ -547,6 +547,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     
     // a spad prefetch can be turned into a spad reset if in trace mode
     bool spadPrefetch = m_s1_inst->static_inst_p->isSpadPrefetch();
+    // TODO depcreate what even is this?
     bool spadReset = spadPrefetch; // always do reset on prefetch && MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
     m_s1_inst->mem_req_p->spadReset = spadReset;
     // give an epoch number as data if this will be a reset instruction

@@ -18,7 +18,7 @@ args = parser.parse_args()
 
 dirPaths = []
 
-prog = 'vvadd'
+prog = 'synth'
 
 # created by top/eval/run_sim.py
 nameConv = r'^' + prog + r'(.*)$'

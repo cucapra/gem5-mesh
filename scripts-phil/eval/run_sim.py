@@ -36,7 +36,7 @@ programs = {
     
   'synth' : { 'name': 'synth', 'path' : progDir0 + 'synth-diverge/synth', 
     'options' : lambda argv: '{0} {1} {2}'.format(str(argv[0]), str(argv[1]), str(argv[2])),
-    'serialize' : lambda argv: '-size{0}-frac{1}-run{2}'.format(str(argv[0]), str(argv[1]), str(argv[3])),
+    'serialize' : lambda argv: '-size{0}-frac{1}'.format(str(argv[0]), str(argv[1])),
     'success' : '\[\[SUCCESS\]\]'}
 
 }
@@ -97,26 +97,26 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
 numCpus = 16
 use_sps = True
 
-size = 65536#32768 #8192
+size = 32768 #8192
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 #seed = random.randint(1,2**20) 
 seed = 566925 # when detect a bug can look at causual seed
 
 # run different fractions for synth
-runs = 1
+runs = 5
 # in case want to run the same multiple times w/ diff random seed (not working yet)
 run_id = 1
 # whether to use vector or not
 use_vec_arr = [True]
 
 # make_flags = ['NO_VEC','VEC_16','VEC_16_UNROLL','VEC_4','VEC_4_UNROLL','VEC_4_DA', \
-#   'VEC_16_UNROLL_SERIAL','VEC_4_DA_SMALL_FRAME','NO_VEC_DA','NO_VEC_W_VLOAD','SIM_DA_VLOAD_SIZE_1']
+#   'VEC_16_UNROLL_SERIAL','VEC_4_DA_SMALL_FRAME','NO_VEC_DA','NO_VEC_W_VLOAD','SIM_DA_VLOAD_SIZE_1', \
+#   'VEC_4_NORM_LOAD', 'VEC_16_NORM_LOAD']
 
-make_flags = ['NO_VEC','VEC_16','VEC_16_UNROLL','VEC_4','VEC_4_UNROLL','VEC_4_DA', \
-  'VEC_4_DA_SMALL_FRAME','NO_VEC_DA','NO_VEC_W_VLOAD','SIM_DA_VLOAD_SIZE_1']
+make_flags = ['NO_VEC']
 
-program = 'vvadd'
+program = 'synth'
 
 # TODO need a struct describing the experiment. Not all settings match idenpendently
 
@@ -132,14 +132,14 @@ for make_flag in make_flags:
   use_vec = True
   # run a program from the list above with different parameters
   compile_prog(numCpus, use_vec, use_sps, program, 'ENV_EXTRA_MAKE_FLAGS=-D' + make_flag)
-  
+
   jobs = []
   
   for i in range(runs):
-    #pack_and_run(numCpus, use_vec, use_sps, 'synth', i)
+    pack_and_run(numCpus, use_vec, use_sps, 'synth', i, make_flag)
     # the new file will have the same name as the old file, but also specify the new dir
-    proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, program, i, make_flag ))
-    jobs.append(proc)
+    #proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, program, i, make_flag ))
+    #jobs.append(proc)
     pass
 
   # Wait for jobs to complete before exiting

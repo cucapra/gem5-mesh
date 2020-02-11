@@ -521,6 +521,10 @@ for i in xrange(n_l2s):
                                 meshDimX = n_cols,
                                 meshDimY = n_cols,
                                 ruby_system = system.ruby
+                                ,
+                                cache_resp_latency = 1,
+                                to_memory_controller_latency = 1,
+                                mem_to_cpu_latency = 1 # TODO this needs to be the same as cache_resp_latency b/c same ordered queue?
                                 )
                                 #number_of_TBEs = 1)
 

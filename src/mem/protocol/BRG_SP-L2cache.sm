@@ -8,8 +8,9 @@
 
 machine(MachineType:L2Cache, "SP LLC cache")
     : CacheMemory* cacheMemory;
-      Cycles cache_resp_latency := 12;
+      Cycles cache_resp_latency := 1;
       Cycles to_memory_controller_latency := 1;
+      Cycles mem_to_cpu_latency := 1;
 
       MessageBuffer* requestToLLC,    network = "From", virtual_network = "1", vnet_type = "request";
       MessageBuffer* responseFromLLC, network = "To",   virtual_network = "0", vnet_type = "response";
@@ -457,7 +458,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   action(sdm_sendDataFromMem, "sdm", desc = "Send response data to CPU side from mem") {
     peek(memQueue_in, MemoryMsg) {
-      enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+      enqueue(responseNetwork_out, LLCResponseMsg, mem_to_cpu_latency) {
         assert(is_valid(tbe));
         out_msg.Type        := LLCResponseType:DATA;
         out_msg.LineAddress := in_msg.addr;
@@ -475,7 +476,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         DPRINTF(Mesh, "resp to addr %#x\n", in_msg.LineAddress);
       }
       
-      enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+      enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
         out_msg.Type        := LLCResponseType:DATA;
         out_msg.LineAddress := in_msg.LineAddress;
         out_msg.Destination.add(in_msg.Requestor);
@@ -541,7 +542,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // to serially send the data over the network.
       // TODO Shouldn't ICACHE response be larger than a singleword? 
       // and shouldn't use this same mechanism??
-      enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+      enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
         out_msg.Type        := respType;
         out_msg.LineAddress := spadAddr;
         out_msg.Destination.add(spad);
@@ -591,7 +592,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d\n", 
         spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset);
       
-      enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+      enqueue(responseNetwork_out, LLCResponseMsg, mem_to_cpu_latency) {
         assert(is_valid(tbe));
         out_msg.Type        := respType;
         out_msg.LineAddress := spadAddr;
@@ -689,7 +690,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   action(swa_sendWriteAck, "swa", desc = "Send write ack") {
     if (tbe.AckFree == false) {
-    enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+    enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
       assert(is_valid(tbe));
       out_msg.Type        := LLCResponseType:ACK;
       out_msg.LineAddress := address;
@@ -721,7 +722,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
 
   action(scf_sendFailedSCAck, "scf", desc = "Send Failed SC ACK") {
-    enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+    enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
       assert(is_valid(tbe));
       out_msg.Type        := LLCResponseType:ACK;
       out_msg.LineAddress := address;
@@ -741,7 +742,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         cache_entry.writeMask.orMask(in_msg.writeMask);
 
         // reply requestor
-        enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+        enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
           out_msg.Type        := LLCResponseType:ACK;
           out_msg.LineAddress := address;
           out_msg.Destination.add(in_msg.Requestor);
@@ -754,7 +755,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         cacheMemory.setMRU(cache_entry);
       } else {
         // send Fail ACK
-        enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+        enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
           assert(is_valid(tbe));
           out_msg.Type        := LLCResponseType:ACK;
           out_msg.LineAddress := address;
@@ -776,7 +777,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     cache_entry.writeMask.orMask(tbe.writeMask);
 
     // Make a response with old data
-    enqueue(responseNetwork_out, LLCResponseMsg, 1) {
+    enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
       out_msg.Type := LLCResponseType:DATA;
       out_msg.LineAddress := address;
       out_msg.Destination.add(tbe.Requestor);
