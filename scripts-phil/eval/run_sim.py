@@ -104,7 +104,7 @@ random.seed()
 seed = 566925 # when detect a bug can look at causual seed
 
 # run different fractions for synth
-runs = 5
+runs = 1
 # in case want to run the same multiple times w/ diff random seed (not working yet)
 run_id = 1
 # whether to use vector or not
@@ -116,7 +116,7 @@ use_vec_arr = [True]
 
 make_flags = ['NO_VEC']
 
-program = 'synth'
+program = 'vvadd'
 
 # TODO need a struct describing the experiment. Not all settings match idenpendently
 
@@ -125,7 +125,7 @@ def pack_and_run(numCpus, use_vec, use_sps, prog, i, extra_info):
   argv = [ size, frac, seed ]
   return run_prog(numCpus, use_vec, use_sps, program, argv, extra_info)
 
-pool = multiprocessing.Pool(processes=16)
+pool = multiprocessing.Pool(processes=4)
 
 # for use_vec in use_vec_arr:
 for make_flag in make_flags:
@@ -136,10 +136,10 @@ for make_flag in make_flags:
   jobs = []
   
   for i in range(runs):
-    pack_and_run(numCpus, use_vec, use_sps, 'synth', i, make_flag)
+    #pack_and_run(numCpus, use_vec, use_sps, program, i, make_flag)
     # the new file will have the same name as the old file, but also specify the new dir
-    #proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, program, i, make_flag ))
-    #jobs.append(proc)
+    proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, program, i, make_flag ))
+    jobs.append(proc)
     pass
 
   # Wait for jobs to complete before exiting
