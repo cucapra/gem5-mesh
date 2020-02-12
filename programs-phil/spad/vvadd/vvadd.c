@@ -3,6 +3,7 @@
 
 #include "pthread_launch.h"
 #include "vvadd.h"
+#include "spad.h"
 #include "../../common/bind_defs.h"
 
 #define SYNC_ADDR 1000
