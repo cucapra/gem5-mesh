@@ -22,7 +22,7 @@
 // #define SIM_DA_VLOAD_SIZE_1 1
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
-// #define VEC_4_SIMD 1
+#define VEC_4_SIMD 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC) || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD)
@@ -93,24 +93,80 @@ int roundUp(int numToRound, int multiple) {
   }
 }
 
+#ifdef USE_VECTOR_SIMD
+
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
+vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int is_master) {
+
+  // ONLY master cores should enter this function. Notably does not send control flow to trailing cores so they wont run the !master code
+  // BUT it will run all of the stack manipulation and argument setup required to get to this point b/c normal vec mode
+  if (!is_master) {
+    DTYPE *aPtr, *bPtr, *cPtr;
+    fable0:
+      aPtr = a + start;
+      bPtr = b + start;
+      cPtr = c + start;
+
+    fable1: // vj fable1 4 (just trailing core does)
+      asm volatile(
+        // lwspec a[i]
+        // ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"
+        "lw t0, 0(%[memA])\n\t"
+        // lwspec b[i]
+        // ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"
+        "lw t1, 0(%[memB])\n\t"
+        // add c[i] = a[i] + b[i]
+        "add t0, t0, t1\n\t"
+        // store c[i]
+        "sw t0, 0(%[memC])\n\t"
+        // increment pointers
+        "addi %[memA], %[memA], 1\n\t"
+        "addi %[memB], %[memB], 1\n\t"
+        "addi %[memC], %[memC], 1\n\t"
+        : [memA] "+r" (aPtr), [memB] "+r" (bPtr), [memC] "+r" (cPtr)
+        :
+
+      );
+
+      fable2:
+        VECTOR_EPOCH(0);
+  }
+
+  // master code
+
+  // issue fable0
+  // TODO not sure how to work count into instruction format
+  ISSUE_VINST(fable0, 3);
+
+  // // do a bunch of prefetching in the beginning to get ahead
+  // int numInitFetch = 128;
+  // for (int i = start; i < start + numInitFetch; i++) {
+  // }
+
+
+  for (int i = start; i < end; i++) {
+    // issue fable1
+    ISSUE_VINST(fable1, 7);
+
+    // TODO figure out how to encode how many uops are in the inst. 
+    // and how to make sure these are latency insensitive
+    // 1) Master have extra functional unit that gens pc to send <-- easier,but more hw demand
+    // 2) a) Trail uses own PC gen to produce and fetches an extra inst. to know its done
+    //    b) "" has bit on last instruction saying done
+
+    // do stuff in between (PREFETCHING, CONTROL, ?? SCALAR VALUE??)
+    // currently not prefetch and control flow done with for loop
+  }
+
+
+
+  // deconfigure (send fable with VECTOR_EPOCH(0))
+  ISSUE_VINST(fable2, 1);
+
+}
+#else
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
 vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int unroll_len) {
-  #ifdef USE_VECTOR_SIMD
-    {
-    // master and trailing cores do
-    int *spAddr = (int*)getSpAddr(ptid, 0); // although trailing core should not execute the jump b/c no PC tracking
-    int i = start;
-
-    fable0: // vj fable0 4 (just trailing core does)
-      DTYPE a_val = a[i];
-      DTYPE b_val = b[i];
-      DTYPE c_val = a_val + b_val;
-      c[i] = c_val;
-
-    // master and trailing cores do (TODO can just master do this and send result w/ fable0 somehow?)
-    i++;
-  }
-  #else
   int *spAddr = (int*)getSpAddr(ptid, 0);
 
   #ifdef UNROLL
@@ -190,8 +246,8 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     STORE_NOACK(c_, c + i, 0);
     #endif
   }
-  #endif // VECOTR_SIMD
 }
+#endif // VECTOR_SIMD
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
 vvadd_access(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int unroll_len, int spadCheckIdx) {

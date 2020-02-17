@@ -2,7 +2,7 @@
 #define __VVADD_H__
 
 // data type to do computation with
-#define DTYPE float
+#define DTYPE int
 
 // pthread argument for the kernel
 typedef struct Kern_Args {

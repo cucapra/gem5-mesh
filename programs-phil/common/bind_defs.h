@@ -4,7 +4,7 @@
 // include spec from gem5
 #include "../../src/custom/bind_spec.hh"
 
-#if !defined(__x86_64__) && !defined(__i386__)
+// #if !defined(__x86_64__) && !defined(__i386__)
 
 // 20 bit / 5 hex
 #define ALL_NORM  0x00000
@@ -43,6 +43,15 @@
 // remem instruction with unique hash id (mem barrier instead of control barrier)
 #define REMEM(hash)                                                           \
   asm volatile (".insn u 0x0b, x0, %[id]\n\t":: [id] "i" (hash))
+
+#define ISSUE_VINST(label, inst_cnt)                                          \
+  asm volatile goto (".insn uj 0x3, x0, %l[" #label "]\n\t"                   \
+    :                                                                         \
+    :                                                                         \
+    :                                                                         \
+    : label                                                                   \
+  )
+
 
 // // do a csr read on register containing the number of open regions
 // #define READ_OPEN_REGIONS(ret) \
@@ -335,4 +344,4 @@ int getDAEMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int 
   return mask;
 }
 
-#endif
+// #endif
