@@ -1,9 +1,12 @@
 #ifndef __VVADD_H__
 #define __VVADD_H__
 
+// data type to do computation with
+#define DTYPE float
+
 // pthread argument for the kernel
 typedef struct Kern_Args {
-  float *a, *b, *c;
+  DTYPE *a, *b, *c;
   int size;
   int tid_x, tid_y;
   int dim_x, dim_y;
@@ -11,7 +14,7 @@ typedef struct Kern_Args {
 
 // helper to pack vvadd args
 Kern_Args *construct_args(
-    float *a, float *b, float *c, int size,
+    DTYPE *a, DTYPE *b, DTYPE *c, int size,
     int tid_x, int tid_y, int dim_x, int dim_y
   );
 
@@ -20,7 +23,7 @@ void *pthread_kernel(void *args);
 
 // vvadd kernel
 void kernel(
-    float *a, float *b, float *c, int size,
+    DTYPE *a, DTYPE *b, DTYPE *c, int size,
     int tid_x, int tid_y, int dim_x, int dim_y
   );
 

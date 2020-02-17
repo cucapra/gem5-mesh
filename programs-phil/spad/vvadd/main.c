@@ -43,10 +43,10 @@ int main(int argc, char *argv[]) {
   * Data initialization
   *-------------------------------------------------------------------*/
 
-  float *a_ptr, *b_ptr, *c_ptr;
-  float *a = (float*)malloc_cache_aligned(sizeof(float), size, (void**)&a_ptr);
-  float *b = (float*)malloc_cache_aligned(sizeof(float), size, (void**)&b_ptr);
-  float *c = (float*)malloc_cache_aligned(sizeof(float), size, (void**)&c_ptr);
+  DTYPE *a_ptr, *b_ptr, *c_ptr;
+  DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), size, (void**)&a_ptr);
+  DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), size, (void**)&b_ptr);
+  DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), size, (void**)&c_ptr);
 
   for (int i = 0; i < size; i++) {
     a[i] = i;
