@@ -61,15 +61,14 @@ Vector::tick() {
     m_backpressure_stalls++;
   }
 
-  // if IOCPU implements activity monitor the need to have something like this
-  bool update = true; //_fsm->tick();
-  if (update) {
-    // inform there is local activity
-    signalActivity();
-    // inform there might be neighbor activity
-    informNeighbors();
-  }
-  
+  // // if IOCPU implements activity monitor the need to have something like this
+  // bool update = true; //_fsm->tick();
+  // if (update) {
+  //   // inform there is local activity
+  //   signalActivity();
+  //   // inform there might be neighbor activity
+  //   informNeighbors();
+  // }
   
   // figure out the sources (parallel muxes) for the mesh net and pipeline respectively
   auto pipeSrc = getOutPipeSource();
@@ -296,10 +295,16 @@ Vector::passInstructions() {
 }
 
 void
-Vector::forwardInstruction(const MasterData& instInfo) {
+Vector::forwardInstruction(const Vector::MasterData& instInfo) {
   // check whether this stage is allowed to forward to the mesh net
   if (!canWriteMesh()) return;
-  
+
+  // if this is a vector issue instruction then we need to turn this into a PC addr
+  MasterData forwardInst = instInfo;
+  if (instInfo.isInst && instInfo.inst->static_inst_p->isVectorIssue()) {
+    forwardInst = MasterData(instInfo.inst->branchTarget());
+  }
+
   // find each direction to send a packet to
   std::vector<Mesh_DS_t> out;
   MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
@@ -330,12 +335,11 @@ Vector::forwardInstruction(const MasterData& instInfo) {
 }
 
 void
-Vector::pullPipeInstruction(MasterData &instInfo) {
+Vector::pullPipeInstruction(Vector::MasterData &instInfo) {
   // if master, pull from the local fetch
   auto msg = getFetchInput();
     
-    instInfo.inst = msg;
-    instInfo.new_squashes = 0;
+    instInfo = MasterData(msg);
     
     // pop to free up the space
     consumeInst();
@@ -343,18 +347,17 @@ Vector::pullPipeInstruction(MasterData &instInfo) {
 
 // if slave, pull from the mesh
 void
-Vector::pullMeshInstruction(MasterData &instInfo) {
+Vector::pullMeshInstruction(Vector::MasterData &instInfo) {
   
   Mesh_Dir recvDir;
   if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir)) {
     auto dataPtr = getMeshPortInst(recvDir);
-    instInfo.inst = dataPtr->inst;
-    instInfo.new_squashes = dataPtr->new_squashes;
+    instInfo = MasterData(dataPtr->inst);
   }
 }
 
 IODynInstPtr
-Vector::createInstruction(const MasterData &instInfo) {
+Vector::createInstruction(const Vector::MasterData &instInfo) {
   // make a dynamic instruction to pass to the decode stage
   // a slave core will track its seq num (incr on every instruction, i.e. nth dynamic inst), 
   
@@ -411,7 +414,7 @@ Vector::createInstruction(const MasterData &instInfo) {
 }
 
 void
-Vector::pushPipeInstToNextStage(const MasterData &instInfo) {
+Vector::pushPipeInstToNextStage(const Vector::MasterData &instInfo) {
   sendInstToNextStage(instInfo.inst);
     
   //DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
@@ -422,7 +425,7 @@ Vector::pushPipeInstToNextStage(const MasterData &instInfo) {
 }
 
 void
-Vector::pushMeshInstToNextStage(const MasterData &instInfo) {
+Vector::pushMeshInstToNextStage(const Vector::MasterData &instInfo) {
   IODynInstPtr dynInst = createInstruction(instInfo);
   sendInstToNextStage(dynInst);
 }
@@ -533,9 +536,7 @@ Vector::createMeshPacket(RegVal payload) {
 // when figure out what we actually need we can stop cheating
 PacketPtr
 Vector::createMeshPacket(const MasterData& data) {
-  auto copy = std::make_shared<MasterData>();
-  copy->inst = data.inst;
-  copy->new_squashes = data.new_squashes;
+  auto copy = std::make_shared<MasterData>(data.inst);
   // create a packet to send
   Addr addr = 0;
   int size = 0;

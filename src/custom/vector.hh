@@ -88,7 +88,24 @@ class Vector : public Stage {
     // currenlty cheating and using all possible info
     struct MasterData {
         IODynInstPtr inst;
-        int new_squashes; // number of new squashes since last instruction send
+        bool isInst; // inst or PC
+        TheISA::PCState pc;
+
+        // sending an instruction
+        MasterData(IODynInstPtr inst) {
+          this->inst = inst;
+          isInst = true;
+        }
+
+        // sending a PC
+        MasterData(TheISA::PCState pc) {
+          this->pc = pc;
+          isInst = false;
+        }
+
+        MasterData() {
+          
+        }
     };
     
     // create a dynamic instruction

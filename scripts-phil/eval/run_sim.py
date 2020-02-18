@@ -114,7 +114,7 @@ use_vec_arr = [True]
 #   'VEC_16_UNROLL_SERIAL','VEC_4_DA_SMALL_FRAME','NO_VEC_DA','NO_VEC_W_VLOAD','SIM_DA_VLOAD_SIZE_1', \
 #   'VEC_4_NORM_LOAD', 'VEC_16_NORM_LOAD']
 
-make_flags = ['NO_VEC']
+make_flags = ['VEC_4']
 
 program = 'vvadd'
 
