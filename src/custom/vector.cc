@@ -40,35 +40,7 @@ Vector::tick() {
   }
   
   // profile any stalling
-
-  // holding up due to revec not recv by mesh yet
-  if (pipeHasRevec() && !meshHasRevec()) {
-    m_revec_stalls++;
-  }
-
-  // no instruction from mesh and want to get
-  else if (canReadMesh() && isInMeshStalled() && !isCurDiverged()){
-    m_no_mesh_stalls++;
-  }
-
-  // no instruction from pipe and want to get
-  else if (isInPipeStalled() && (!canReadMesh() || (canReadMesh() && isCurDiverged()))) {
-    m_no_pipe_stalls++;
-  }
-
-  // stall due to back pressure
-  else if (isOutMeshStalled() && !isInMeshStalled() && canWriteMesh()) {
-    m_backpressure_stalls++;
-  }
-
-  // // if IOCPU implements activity monitor the need to have something like this
-  // bool update = true; //_fsm->tick();
-  // if (update) {
-  //   // inform there is local activity
-  //   signalActivity();
-  //   // inform there might be neighbor activity
-  //   informNeighbors();
-  // }
+  profile();
   
   // figure out the sources (parallel muxes) for the mesh net and pipeline respectively
   auto pipeSrc = getOutPipeSource();
@@ -76,11 +48,6 @@ Vector::tick() {
   
   // if outputs have different srcs then can decouple stalls
   bool coupledStalls = (pipeSrc == meshSrc);
-  
-  // check whether the mesh path should stall
-  //bool meshStall = isMeshStalled() || (coupledStalls && isPipeStalled());
-  // check whether the pipe path should stall
-  //bool pipeStall = isPipeStalled() || (coupledStalls && isMeshStalled());
   
   // these determine whetehr we can push to the respective output buffer
   bool outMeshStall = (meshSrc != None) && 
@@ -190,6 +157,29 @@ Vector::regStats() {
       .name(name() + ".pipe_input_stalls")
       .desc("number of stalls due to no input from fetch")
     ;
+}
+
+void
+Vector::profile() {
+  // holding up due to revec not recv by mesh yet
+  if (pipeHasRevec() && !meshHasRevec()) {
+    m_revec_stalls++;
+  }
+
+  // no instruction from mesh and want to get
+  else if (canReadMesh() && isInMeshStalled() && !isCurDiverged()){
+    m_no_mesh_stalls++;
+  }
+
+  // no instruction from pipe and want to get
+  else if (isInPipeStalled() && (!canReadMesh() || (canReadMesh() && isCurDiverged()))) {
+    m_no_pipe_stalls++;
+  }
+
+  // stall due to back pressure
+  else if (isOutMeshStalled() && !isInMeshStalled() && canWriteMesh()) {
+    m_backpressure_stalls++;
+  }
 }
 
 void

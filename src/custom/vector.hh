@@ -104,7 +104,7 @@ class Vector : public Stage {
         }
 
         MasterData() {
-          
+
         }
     };
     
@@ -171,6 +171,10 @@ class Vector : public Stage {
     // get references to the master and slave ports owned by CPU
     std::vector<ToMeshPort>& getMeshMasterPorts();
     std::vector<FromMeshPort>& getMeshSlavePorts();
+
+    // profile any stalling
+    void profile();
+
    public:
     // helpers to figure out settings of this stage
     bool isRootMaster();
