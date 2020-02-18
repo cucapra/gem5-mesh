@@ -30,7 +30,7 @@
 #endif
 #if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) \
   || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_4_DA_SMALL_FRAME) \
-  || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD)
+  || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD) || defined(VEC_4_SIMD)
 #define USE_VEC 1
 #endif
 #if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) \
@@ -96,11 +96,11 @@ int roundUp(int numToRound, int multiple) {
 #ifdef USE_VECTOR_SIMD
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int is_master) {
+vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim) {
 
   // ONLY master cores should enter this function. Notably does not send control flow to trailing cores so they wont run the !master code
   // BUT it will run all of the stack manipulation and argument setup required to get to this point b/c normal vec mode
-  if (!is_master) {
+  if (vtid != 0) {
     DTYPE *aPtr, *bPtr, *cPtr;
     fable0:
       aPtr = a + start;
@@ -153,6 +153,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     // 1) Master have extra functional unit that gens pc to send <-- easier,but more hw demand
     // 2) a) Trail uses own PC gen to produce and fetches an extra inst. to know its done
     //    b) "" has bit on last instruction saying done
+    //    c) Pass 3-4bits to trail pcgen so it knows how long to do (can even mask off upper PC bits so no link size increase)
 
     // do stuff in between (PREFETCHING, CONTROL, ?? SCALAR VALUE??)
     // currently not prefetch and control flow done with for loop
@@ -247,7 +248,6 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     #endif
   }
 }
-#endif // VECTOR_SIMD
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
 vvadd_access(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int unroll_len, int spadCheckIdx) {
@@ -315,6 +315,8 @@ vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
     vvadd_execute(a, b, c, start, end, ptid, vtid, dim, unroll_len);
   }
 }
+#endif // VECTOR_SIMD
+
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *b, DTYPE *c, int n,
@@ -518,7 +520,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #else
   volatile int unroll_len = 1;
   #endif
+
+  #ifdef USE_VECTOR_SIMD
+  vvadd_execute(a, b, c, start, end, ptid, vtid, vdim);
+  #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
+  #endif
 
   // deconfigure
   VECTOR_EPOCH(0);

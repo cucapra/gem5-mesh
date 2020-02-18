@@ -1859,13 +1859,13 @@ decode QUADRANT default Unknown::unknown() {
         // could use a different encoding then 0b11 to start in real impl, 
         // but then .insn directive wouldn't work (enforces 0b11 start)!
         
-        0x1a: BUOp::csrexe({{
+        //0x1a: BUOp::csrexe({{
             // add a new instruction that takes a 20bit immediate
             // and writes it to a specific csr
             // imm is defined in BUOP format
             //printf("imm val: %ld\n", imm);
-            xc->setMiscReg(MISCREG_EXE, imm);
-        }}, IsNonSpeculative, IsBind, No_OpClass);
+        //    xc->setMiscReg(MISCREG_EXE, imm);
+        //}}, IsNonSpeculative, IsBind, No_OpClass);
         
         0x1d: CSROp::csrfet({{
             Rd = data;
@@ -1882,6 +1882,11 @@ decode QUADRANT default Unknown::unknown() {
         0x02: BUOp::remem ({{
             // nada
         }}, IsRemem, IsNonSpeculative, No_OpClass);
+
+        0x1a: JOp::vissue({{
+            NPC = PC + imm;
+        }}, IsVectorIssue, No_OpClass);
+
         
     }
 }
