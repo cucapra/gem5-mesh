@@ -94,8 +94,13 @@ machine(MachineType:L1Cache, "SP_LLC (L1I Cache)")
 
   bool functionalRead(Addr addr, Packet *pkt) {
     TBE tbe := TBEs.lookup(addr);
+    Entry cache_entry := getCacheEntry(addr);
+
     if (is_valid(tbe)) {
       return testAndRead(addr, tbe.DataBlk, pkt);
+    }
+    else if (is_valid(cache_entry)) {
+      return testAndRead(addr, getCacheEntry(addr).DataBlk, pkt);
     }
     return false;
   }
