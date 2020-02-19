@@ -163,10 +163,9 @@ Vector::nextAtomicInstFetch() {
   int tid = 0;
   TheISA::PCState &pc = _uopPC;
   Addr instAddr = pc.instAddr();
-  int fetchSize = m_cpu_p->getCacheLineSize();
-  Addr lineAddr = instAddr & ~(fetchSize - 1);
+  int fetchSize = sizeof(RiscvISA::MachInst);
   RequestPtr req = std::make_shared<Request>
-                                    (tid, lineAddr, fetchSize,
+                                    (tid, instAddr, fetchSize,
                                       Request::INST_FETCH,
                                       m_cpu_p->instMasterId(), instAddr,
                                       m_cpu_p->tcBase(tid)->contextId());
@@ -175,29 +174,24 @@ Vector::nextAtomicInstFetch() {
   Fault fault = m_cpu_p->itb->translateAtomic(req, m_cpu_p->tcBase(tid), BaseTLB::Execute);
   assert(fault == NoFault);
 
+  Addr lineAddr = instAddr & ~(m_cpu_p->getCacheLineSize() - 1);
   DPRINTF(Mesh, "request lineAddr %#x addr %#x\n", lineAddr, instAddr);
 
   // do atomic access of the cache
   PacketPtr inst_pkt = new Packet(req, MemCmd::ReadReq);
   inst_pkt->dataDynamic(new uint8_t[fetchSize]);
-  for (int i = 0; i < fetchSize; i++) {
-    inst_pkt->getPtr<uint8_t>()[i] = 0;
-  }
-  // TODO functional request returing but no giving data
   m_cpu_p->getInstPort().sendFunctional(inst_pkt);
 
-  // assert(inst_pkt->hasData());
-  for (int i = 0; i < fetchSize; i++) {
-    printf("%#x ", inst_pkt->getPtr<uint8_t>()[i]);
-  }
-  printf("\n");
+  // // assert(inst_pkt->hasData());
+  // for (int i = 0; i < fetchSize; i++) {
+  //   printf("%#x ", inst_pkt->getPtr<uint8_t>()[i]);
+  // }
+  // printf("\n");
 
   // build the fetched instruction
-  // uint8_t data[64];
-  // memcpy(data, inst_pkt->getConstPtr<uint8_t>(), fetchSize);
   TheISA::MachInst* cache_insts =
                     reinterpret_cast<TheISA::MachInst*>(inst_pkt->getPtr<uint8_t>());
-  size_t offset = (instAddr - lineAddr) / sizeof(TheISA::MachInst);
+  size_t offset = 0; //(instAddr - lineAddr) / sizeof(TheISA::MachInst);
   TheISA::MachInst mach_inst = TheISA::gtoh(cache_insts[offset]);
 
   RiscvISA::Decoder decoder;
@@ -208,9 +202,13 @@ Vector::nextAtomicInstFetch() {
     DPRINTF(Mesh, "PC %s is not fully fetched\n", pc);
   }
 
+
+
   // TheISA::PCState oldPC = pc;
   // StaticInstPtr static_inst = extractInstruction(mach_inst, pc); // NOTE this modifies the PC, which we don't want, although actually prob donesnt matter
-  StaticInstPtr static_inst = decoder.decode(pc);
+
+  StaticInstPtr static_inst = decoder.decode(mach_inst, 0x0);
+  // StaticInstPtr static_inst = decoder.decode(pc);
   IODynInstPtr inst =
           std::make_shared<IODynInst>(static_inst, pc,
                                       m_cpu_p->getAndIncrementInstSeq(),
