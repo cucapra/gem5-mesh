@@ -200,6 +200,7 @@ Vector::nextAtomicInstFetch() {
   if (!decoder.instReady()) {
     assert(decoder.needMoreBytes());
     DPRINTF(Mesh, "PC %s is not fully fetched\n", pc);
+    assert(0);
   }
 
 
