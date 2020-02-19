@@ -83,7 +83,7 @@ bool
 StaticInst::hasBranchTarget(const TheISA::PCState &pc, ThreadContext *tc,
                             TheISA::PCState &tgt) const
 {
-    if (isDirectCtrl()) {
+    if (isDirectCtrl() || isVectorIssue()) {
         tgt = branchTarget(pc);
         return true;
     }
@@ -92,7 +92,7 @@ StaticInst::hasBranchTarget(const TheISA::PCState &pc, ThreadContext *tc,
         tgt = branchTarget(tc);
         return true;
     }
-
+    
     return false;
 }
 

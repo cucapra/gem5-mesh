@@ -19,7 +19,10 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, size_t in_size, size_t out_size,
     _numInstructions(0),
     _vecPassThrough(false),
     _meshRevecId(-1),
-    _pipeRevecId(-1)
+    _pipeRevecId(-1),
+    _uopPC(0),
+    _uopIssueLen(0),
+    _uopCnt(0)
 {
 }
 
@@ -55,7 +58,7 @@ Vector::tick() {
     (isOutMeshStalled() ||
     // stall if any inputs stalled
     (meshSrc == Pipeline && isInPipeStalled()) ||
-    (meshSrc == Mesh     && isInMeshStalled()) ||
+    (meshSrc == Mesh     && isInMeshStalled() && !isPCGenActive()) ||
     // stall if coupled output is stalled
     (coupledStalls       && isOutPipeStalled()));
   
@@ -64,7 +67,7 @@ Vector::tick() {
     (isOutPipeStalled() ||
     // stall if any inputs stalled
     (pipeSrc == Pipeline && isInPipeStalled()) ||
-    (pipeSrc == Mesh     && isInMeshStalled()) ||
+    (pipeSrc == Mesh     && isInMeshStalled() && !isPCGenActive()) ||
     // stall if coupled output is stalled
     (coupledStalls       && isOutMeshStalled()));
   
@@ -72,7 +75,9 @@ Vector::tick() {
   // these determine whether we can pull from the respective input buffer
   bool inMeshStall = (meshSrc == Mesh && outMeshStall) || (pipeSrc == Mesh && outPipeStall) 
     // or not using at all
-    || (meshSrc != Mesh && pipeSrc != Mesh);
+    || (meshSrc != Mesh && pipeSrc != Mesh)
+    // if we are currently processing a macro-op, then we can't read from the mesh
+    || (meshSrc == Mesh && isPCGenActive());
   bool inPipeStall = (meshSrc == Pipeline && outMeshStall) || (pipeSrc == Pipeline && outPipeStall)
     // or not using at all
     || (meshSrc != Pipeline && pipeSrc != Pipeline);
@@ -81,6 +86,21 @@ Vector::tick() {
   MasterData meshInfo;
   if (!inMeshStall) {
     pullMeshInstruction(meshInfo);
+
+    // check if this is a PC/VISSUE and setup PC-GEN
+    if (!meshInfo.isInst) {
+      // TODO not sure how to encode cnt int uj intruction
+      int cnt = 7;
+      setPCGen(meshInfo.pc, cnt);
+    }
+  }
+
+  // pull uop from icache
+  // TODO doing this immedietly on cycle recv
+  if (isPCGenActive()) {
+    IODynInstPtr inst = nextAtomicInstFetch();
+    DPRINTF(Mesh, "fetchinst %s\n", inst->toString(true));
+    meshInfo = MasterData(inst);
   }
   
   MasterData pipeInfo;
@@ -122,6 +142,66 @@ Vector::tick() {
   // also prevents revec from being sent twice
   handleRevec(pipeInfo.inst, meshInfo.inst);
   
+}
+
+void
+Vector::setPCGen(TheISA::PCState issuePC, int cnt) {
+  _uopPC = issuePC;
+  _uopCnt = 0;
+  _uopIssueLen = cnt;
+}
+
+bool
+Vector::isPCGenActive() {
+  return (_uopCnt == _uopIssueLen) && (_uopIssueLen > 0);
+}
+
+IODynInstPtr
+Vector::nextAtomicInstFetch() {
+  // make a request for an instruction word
+  int tid = 0;
+  TheISA::PCState &pc = _uopPC;
+  Addr instAddr = pc.instAddr();
+  RequestPtr req = std::make_shared<Request>
+                                    (tid, instAddr, sizeof(uint32_t),
+                                      Request::INST_FETCH,
+                                      m_cpu_p->instMasterId(), instAddr,
+                                      m_cpu_p->tcBase(tid)->contextId());
+
+  // translate instruction addr atomically (right now!)
+  m_cpu_p->itb->translateAtomic(req, m_cpu_p->tcBase(tid), BaseTLB::Execute);
+
+  // do atomic access of the cache
+  PacketPtr inst_pkt = new Packet(req, MemCmd::ReadReq);
+  inst_pkt->dataDynamic(new uint8_t[sizeof(uint32_t)]);
+  m_cpu_p->getInstPort().sendFunctional(inst_pkt);
+
+  // build the fetched instruction
+  TheISA::MachInst* cache_insts =
+                    reinterpret_cast<TheISA::MachInst*>(inst_pkt->getPtr<uint8_t>());
+  TheISA::MachInst mach_inst = TheISA::gtoh(cache_insts[0]);
+  StaticInstPtr static_inst = extractInstruction(mach_inst, pc);
+
+  IODynInstPtr inst =
+          std::make_shared<IODynInst>(static_inst, pc,
+                                      m_cpu_p->getAndIncrementInstSeq(),
+                                      tid, m_cpu_p);
+
+
+  // increment the pc and uops
+  RiscvISA::Decoder decoder;
+  if (decoder.compressed(mach_inst)) {
+    _uopPC.pc(instAddr + sizeof(RiscvISA::MachInst) / 2);
+  }
+  else {
+    _uopPC.pc(instAddr + sizeof(RiscvISA::MachInst));
+  }
+  _uopCnt++;
+
+
+  delete inst_pkt;
+
+  return inst;
 }
 
 std::string
@@ -289,18 +369,34 @@ Vector::forwardInstruction(const Vector::MasterData& instInfo) {
   // check whether this stage is allowed to forward to the mesh net
   if (!canWriteMesh()) return;
 
-  // if this is a vector issue instruction then we need to turn this into a PC addr
+  // if we are now in decoupled access mode, we don't send instructions anymore, just PCs?
+  // could potentially send both if have explicit vector and scalar instruction
   MasterData forwardInst = instInfo;
-  if (instInfo.isInst && instInfo.inst->static_inst_p->isVectorIssue()) {
-    forwardInst = MasterData(instInfo.inst->branchTarget());
+  if (isDecoupledAccess()) {
+    if (instInfo.inst->static_inst_p->isVectorIssue()) {
+      forwardInst = MasterData(instInfo.inst->branchTarget());
+    }
+    else {
+      return;
+    }
   }
+
+  // if this is a vector issue instruction then we need to turn this into a PC addr
+  // MasterData forwardInst = instInfo;
+  // if (instInfo.isInst && instInfo.inst->static_inst_p->isVectorIssue()) {
+  //   forwardInst = MasterData(instInfo.inst->branchTarget());
+  // }
 
   // find each direction to send a packet to
   std::vector<Mesh_DS_t> out;
   MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
   
-  //if (out.size() > 0)
-  //  DPRINTF(Mesh, "Forward to mesh net %s %d\n", instInfo.inst->toString(true), instInfo.new_squashes);
+  if (out.size() > 0) {
+    if (forwardInst.isInst)
+      DPRINTF(Mesh, "Forward to mesh net %s\n", forwardInst.inst->toString(true));
+    else
+      DPRINTF(Mesh, "Forward to mesh net %#x\n", forwardInst.pc.instAddr());
+  }
   
   // send a packet in each direction
   for (int i = 0; i < out.size(); i++) {
@@ -317,7 +413,7 @@ Vector::forwardInstruction(const Vector::MasterData& instInfo) {
     //    dir, src, instInfo.machInst, instInfo.predictTaken, instInfo.mispredicted, meshData);
     //if (instInfo.predictTaken) DPRINTF(Mesh, "predict taken %d\n", instInfo.predictTaken);
     //if (instInfo.mispredicted) DPRINTF(Mesh, "mispredicted %d\n", instInfo.mispredicted);
-    PacketPtr new_pkt = createMeshPacket(instInfo);
+    PacketPtr new_pkt = createMeshPacket(forwardInst);
     getMeshMasterPorts()[dir].sendTimingReq(new_pkt);
     
   }
@@ -342,7 +438,14 @@ Vector::pullMeshInstruction(Vector::MasterData &instInfo) {
   Mesh_Dir recvDir;
   if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir)) {
     auto dataPtr = getMeshPortInst(recvDir);
-    instInfo = MasterData(dataPtr->inst);
+    if (dataPtr->isInst) {
+      instInfo = MasterData(dataPtr->inst);
+      DPRINTF(Mesh, "get inst %s\n", instInfo.inst->toString(true));
+    }
+    else {
+      instInfo = MasterData(dataPtr->pc);
+      DPRINTF(Mesh, "get PC %#x\n", instInfo.pc);
+    }
   }
 }
 
@@ -477,6 +580,8 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   _vecPassThrough = false;
   resetMeshRevec();
   resetPipeRevec();
+
+  _uopIssueLen = 0;
   
 }
 

@@ -175,6 +175,16 @@ class Vector : public Stage {
     // profile any stalling
     void profile();
 
+    // PC gen for uop decomposition
+    // I think this would be in the normal fetch PC GEN in real RTL
+    // but easier to just replicate in the game5 model
+    // don't need to unstall fetch or worry about ordering
+    // can also try to do functionalReq to get the icache resp immedietly as if did last cycle?
+    // fine as long as assume warmed up cache and not enough microops to ever warrant icache miss <4kB
+    void setPCGen(TheISA::PCState issuePC, int cnt);
+    bool isPCGenActive();
+    IODynInstPtr nextAtomicInstFetch();
+
    public:
     // helpers to figure out settings of this stage
     bool isRootMaster();
@@ -259,6 +269,13 @@ protected:
     
     // count the number of revecs we've recved in the past
     //int _revecCntr;
+
+    // the current uop PC
+    TheISA::PCState _uopPC;
+    // number of uops to get before completion (<8 or so, can make hardware small)
+    int _uopIssueLen;
+    // the current number of uops
+    int _uopCnt;
     
     // TEMP to make all relevant info available
     struct SenderState : public Packet::SenderState

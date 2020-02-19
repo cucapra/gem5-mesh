@@ -95,17 +95,25 @@ int roundUp(int numToRound, int multiple) {
 
 #ifdef USE_VECTOR_SIMD
 
-void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim) {
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
+vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int new_mask) {
+
+  DTYPE *aPtr, *bPtr, *cPtr;
+  aPtr = a + start;
+  bPtr = b + start;
+  cPtr = c + start;
+
+  // enter vector epoch within function, b/c vector-simd can't have control flow
+  VECTOR_EPOCH(new_mask); 
 
   // ONLY master cores should enter this function. Notably does not send control flow to trailing cores so they wont run the !master code
   // BUT it will run all of the stack manipulation and argument setup required to get to this point b/c normal vec mode
   if (vtid != 0) {
-    DTYPE *aPtr, *bPtr, *cPtr;
-    fable0:
-      aPtr = a + start;
-      bPtr = b + start;
-      cPtr = c + start;
+    // DTYPE *aPtr, *bPtr, *cPtr;
+    // fable0:
+    //   aPtr = a + start;
+    //   bPtr = b + start;
+    //   cPtr = c + start;
 
     fable1: // vj fable1 4 (just trailing core does)
       asm volatile(
@@ -136,7 +144,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
   // issue fable0
   // TODO not sure how to work count into instruction format
-  ISSUE_VINST(fable0, 3);
+  // ISSUE_VINST(fable0, 3);
 
   // // do a bunch of prefetching in the beginning to get ahead
   // int numInitFetch = 128;
@@ -495,6 +503,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
         (pdim_x << FET_XLEN_SHAMT) | (pdim_x << FET_YLEN_SHAMT);
   #endif
 
+  // when want to do vissue on master need to be in DAE mode
+  int new_mask = mask;
+  if (vtid == 0) {
+    new_mask |= (1 << FET_DAE_SHAMT);
+  }
+
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
   #ifdef NUM_REGIONS
@@ -511,8 +525,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (tid == 12) return;
   #endif
 
+  if (tid_x >= 2 || tid_y >= 2) return;
+
   // configure
+  #ifndef USE_VECTOR_SIMD
   VECTOR_EPOCH(mask);
+  #endif
 
   // run the actual kernel with the configuration
   #ifdef UNROLL
@@ -522,7 +540,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   #ifdef USE_VECTOR_SIMD
-  vvadd_execute(a, b, c, start, end, ptid, vtid, vdim);
+  vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, new_mask);
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   #endif

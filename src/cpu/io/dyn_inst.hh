@@ -66,7 +66,7 @@ class IODynInst : public ExecContext
     bool isInteger()        const { return static_inst_p->isInteger(); }
     bool isFloating()       const { return static_inst_p->isFloating(); }
     bool isVector()         const { return static_inst_p->isVector(); }
-    bool isControl()        const { return static_inst_p->isControl(); }
+    bool isControl()        const { return static_inst_p->isControl() && !static_inst_p->isVectorIssue(); }
     bool isCall()           const { return static_inst_p->isCall(); }
     bool isReturn()         const { return static_inst_p->isReturn(); }
     bool isDirectCtrl()     const { return static_inst_p->isDirectCtrl(); }
