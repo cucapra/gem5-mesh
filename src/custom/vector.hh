@@ -184,6 +184,7 @@ class Vector : public Stage {
     void setPCGen(TheISA::PCState issuePC, int cnt);
     bool isPCGenActive();
     IODynInstPtr nextAtomicInstFetch();
+    RiscvISA::MachInst doICacheFuncRead(int tid, Addr instAddr, int fetchSize);
 
    public:
     // helpers to figure out settings of this stage

@@ -138,18 +138,6 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
         :
 
       );
-
-      // b/c can't adjust the lenght yet need to pad to 7 insts.
-      fable2:
-        VECTOR_EPOCH(0);
-        asm volatile(
-          "nop\n\t"
-          "nop\n\t"
-          "nop\n\t"
-          "nop\n\t"
-          "nop\n\t"
-          "nop\n\t"
-        );
   }
 
   // master code
@@ -183,6 +171,18 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
   // deconfigure (send fable with VECTOR_EPOCH(0))
   ISSUE_VINST(fable2, 1);
+
+  // b/c can't adjust the lenght yet need to pad to 7 insts.
+  fable2:
+    VECTOR_EPOCH(0);
+    asm volatile(
+      "nop\n\t"
+      "nop\n\t"
+      "nop\n\t"
+      "nop\n\t"
+      "nop\n\t"
+      "nop\n\t"
+    );
 
 }
 #else

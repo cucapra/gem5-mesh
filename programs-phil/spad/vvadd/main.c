@@ -90,7 +90,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   for (int i = 0; i < size; i++) {
-    //printf("%f\n", c[i]);
+    printf("%f\n", c[i]);
     if (c[i] != 2 * i) {
       printf("[[FAIL]]\n");
       return 1;

@@ -157,18 +157,14 @@ Vector::isPCGenActive() {
   return (_uopCnt < _uopIssueLen) && (_uopIssueLen > 0);
 }
 
-IODynInstPtr
-Vector::nextAtomicInstFetch() {
-  // make a request for an instruction word
-  int tid = 0;
-  TheISA::PCState &pc = _uopPC;
-  Addr instAddr = pc.instAddr();
-  int fetchSize = sizeof(RiscvISA::MachInst);
+
+RiscvISA::MachInst
+Vector::doICacheFuncRead(int tid, Addr instAddr, int fetchSize) {
   RequestPtr req = std::make_shared<Request>
-                                    (tid, instAddr, fetchSize,
-                                      Request::INST_FETCH,
-                                      m_cpu_p->instMasterId(), instAddr,
-                                      m_cpu_p->tcBase(tid)->contextId());
+                                  (tid, instAddr, fetchSize,
+                                    Request::INST_FETCH,
+                                    m_cpu_p->instMasterId(), instAddr,
+                                    m_cpu_p->tcBase(tid)->contextId());
 
   // translate instruction addr atomically (right now!)
   Fault fault = m_cpu_p->itb->translateAtomic(req, m_cpu_p->tcBase(tid), BaseTLB::Execute);
@@ -182,28 +178,54 @@ Vector::nextAtomicInstFetch() {
   inst_pkt->dataDynamic(new uint8_t[fetchSize]);
   m_cpu_p->getInstPort().sendFunctional(inst_pkt);
 
-  // // assert(inst_pkt->hasData());
-  // for (int i = 0; i < fetchSize; i++) {
-  //   printf("%#x ", inst_pkt->getPtr<uint8_t>()[i]);
-  // }
-  // printf("\n");
-
   // build the fetched instruction
   TheISA::MachInst* cache_insts =
                     reinterpret_cast<TheISA::MachInst*>(inst_pkt->getPtr<uint8_t>());
   size_t offset = 0; //(instAddr - lineAddr) / sizeof(TheISA::MachInst);
   TheISA::MachInst mach_inst = TheISA::gtoh(cache_insts[offset]);
+  delete inst_pkt;
+  return mach_inst;
+}
+
+IODynInstPtr
+Vector::nextAtomicInstFetch() {
+  // make a request for an instruction word
+  int tid = 0;
+  TheISA::PCState &pc = _uopPC;
+  Addr instAddr = pc.instAddr();
+
+  // potentially a 32bit instruction might exist in two cachelines...
+  // need to make sure functional request doesn't go over boundary otherwise will seg fault
+
+  Addr lineAddr = instAddr & ~(m_cpu_p->getCacheLineSize() - 1);
+  Addr lineAddr2 = (instAddr + sizeof(RiscvISA::MachInst) / 2)  & ~(m_cpu_p->getCacheLineSize() - 1);
+
+  // the whole 32bits is on the same line so only need to issue one req
+  RiscvISA::MachInst mach_inst = 0;
+  if (lineAddr == lineAddr2) {
+      int fetchSize = sizeof(RiscvISA::MachInst);
+      mach_inst = doICacheFuncRead(tid, instAddr, fetchSize);
+  }
+  // need to issue two functional request for access b/c across two lines
+  else {
+    int fetchSize = sizeof(RiscvISA::MachInst) / 2;
+    auto mach_inst0 = doICacheFuncRead(tid, instAddr, fetchSize);
+    auto mach_inst1 = doICacheFuncRead(tid, instAddr + fetchSize, fetchSize);
+    mach_inst = (mach_inst1 & 0x00ff0000) | (mach_inst1 & 0xff000000) | (mach_inst0 & 0x000000ff) | (mach_inst0 & 0x0000ff00);
+    DPRINTF(Mesh, "stiched machinst %#x %#x -> %#x\n", mach_inst0, mach_inst1, mach_inst);
+    // assert(0);
+  }
 
   RiscvISA::Decoder decoder;
 
-  // TODO not sure what to do if instruction half on cacheline (could happen due to 16bit instructions)
-  // although this looks like it doesn't detect that. Maybe functional read makes sure aligned already???
-  decoder.moreBytes(pc, instAddr, mach_inst);
-  if (!decoder.instReady()) {
-    assert(decoder.needMoreBytes());
-    DPRINTF(Mesh, "[[WARNING]] PC %s is not fully fetched\n", pc);
-    // assert(0);
-  }
+  // // TODO not sure what to do if instruction half on cacheline (could happen due to 16bit instructions)
+  // // although this looks like it doesn't detect that. Maybe functional read makes sure aligned already???
+  // decoder.moreBytes(pc, instAddr, mach_inst);
+  // if (!decoder.instReady()) {
+  //   assert(decoder.needMoreBytes());
+  //   DPRINTF(Mesh, "[[WARNING]] PC %s is not fully fetched\n", pc);
+  //   // assert(0);
+  // }
 
 
 
@@ -227,9 +249,6 @@ Vector::nextAtomicInstFetch() {
     _uopPC.pc(instAddr + sizeof(RiscvISA::MachInst));
   }
   _uopCnt++;
-
-
-  delete inst_pkt;
 
   return inst;
 }
