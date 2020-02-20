@@ -68,7 +68,7 @@ int main(int argc, char *argv[]) {
   // figure out good tile size for the architecture
   // i.e. the 2d tiles for the three matrices should fit into scratchpad
   const int num_mat = 3;
-  const int blk_dim = sqrt((float)(getSpadNumBytes() / sizeof(float)) / (float)num_mat);
+  //const int blk_dim = sqrt((float)(getSpadNumBytes() / sizeof(float)) / (float)num_mat);
 
   /*--------------------------------------------------------------------
   * Pack argument for kernel
@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
       #ifdef _USE_SCRATCHPAD
       //kern_args[i] = construct_args(sp_a[i], sp_b[i], sp_c[i], size, x, y, cores_x, cores_y);
       #else
-      kern_args[i] = construct_args(a, b, c, m, n, t, blk_dim, x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(a, b, c, m, n, t, x, y, cores_x, cores_y);
       #endif
     }  
   }
