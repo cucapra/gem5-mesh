@@ -81,6 +81,8 @@ Vector::tick() {
   bool inPipeStall = (meshSrc == Pipeline && outMeshStall) || (pipeSrc == Pipeline && outPipeStall)
     // or not using at all
     || (meshSrc != Pipeline && pipeSrc != Pipeline);
+  // uop stalls if can't send anywhere
+  bool inUopStall = (meshSrc == Mesh && outMeshStall) || (pipeSrc == Mesh && outPipeStall);
   
   // pull instructions for both sources if no stalls
   MasterData meshInfo;
@@ -95,9 +97,9 @@ Vector::tick() {
     }
   }
 
-  // pull uop from icache
+  // pull uop from icache if not stalled
   // TODO doing this immedietly on cycle recv
-  if (isPCGenActive()) {
+  if (isPCGenActive() && !inUopStall) {
     IODynInstPtr inst = nextAtomicInstFetch();
     DPRINTF(Mesh, "fetchinst %s\n", inst->toString(true));
     meshInfo = MasterData(inst);
@@ -170,8 +172,8 @@ Vector::doICacheFuncRead(int tid, Addr instAddr, int fetchSize) {
   Fault fault = m_cpu_p->itb->translateAtomic(req, m_cpu_p->tcBase(tid), BaseTLB::Execute);
   assert(fault == NoFault);
 
-  Addr lineAddr = instAddr & ~(m_cpu_p->getCacheLineSize() - 1);
-  DPRINTF(Mesh, "request lineAddr %#x addr %#x\n", lineAddr, instAddr);
+  // Addr lineAddr = instAddr & ~(m_cpu_p->getCacheLineSize() - 1);
+  // DPRINTF(Mesh, "request lineAddr %#x addr %#x\n", lineAddr, instAddr);
 
   // do atomic access of the cache
   PacketPtr inst_pkt = new Packet(req, MemCmd::ReadReq);
