@@ -99,19 +99,19 @@ int roundUp(int numToRound, int multiple) {
 #ifdef USE_VECTOR_SIMD
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
-vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int new_mask) {
+vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
   DTYPE *aPtr, *bPtr, *cPtr;
-  aPtr = a + start;
-  bPtr = b + start;
-  cPtr = c + start;
+  aPtr = a + start + vtid;
+  bPtr = b + start + vtid;
+  cPtr = c + start + vtid;
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
-  VECTOR_EPOCH(new_mask); 
+  VECTOR_EPOCH(mask); 
 
   // ONLY master cores should enter this function. Notably does not send control flow to trailing cores so they wont run the !master code
   // BUT it will run all of the stack manipulation and argument setup required to get to this point b/c normal vec mode
-  if (vtid != 0) {
+  if (!is_master) {
     // DTYPE *aPtr, *bPtr, *cPtr;
     // fable0:
     //   aPtr = a + start;
@@ -131,9 +131,9 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
         // store c[i]
         "sw t0, 0(%[memC])\n\t"
         // increment pointers
-        "addi %[memA], %[memA], 1\n\t"
-        "addi %[memB], %[memB], 1\n\t"
-        "addi %[memC], %[memC], 1\n\t"
+        "addi %[memA], %[memA], 4\n\t"
+        "addi %[memB], %[memB], 4\n\t"
+        "addi %[memC], %[memC], 4\n\t"
         : [memA] "+r" (aPtr), [memB] "+r" (bPtr), [memC] "+r" (cPtr)
         :
 
@@ -607,7 +607,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   #ifdef USE_VECTOR_SIMD
-  vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, mask);
+  vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, mask, is_da);
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   #endif
