@@ -195,12 +195,14 @@ Vector::nextAtomicInstFetch() {
   TheISA::MachInst mach_inst = TheISA::gtoh(cache_insts[offset]);
 
   RiscvISA::Decoder decoder;
-  decoder.moreBytes(pc, instAddr, mach_inst);
 
+  // TODO not sure what to do if instruction half on cacheline (could happen due to 16bit instructions)
+  // although this looks like it doesn't detect that. Maybe functional read makes sure aligned already???
+  decoder.moreBytes(pc, instAddr, mach_inst);
   if (!decoder.instReady()) {
     assert(decoder.needMoreBytes());
-    DPRINTF(Mesh, "PC %s is not fully fetched\n", pc);
-    assert(0);
+    DPRINTF(Mesh, "[[WARNING]] PC %s is not fully fetched\n", pc);
+    // assert(0);
   }
 
 

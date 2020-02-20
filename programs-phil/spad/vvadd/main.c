@@ -5,10 +5,7 @@
 #include "spad.h"
 #include "pthread_launch.h"
 #include "vvadd.h"
-
-void test() {
-
-}
+// #include "../../common/bind_defs.h"
 
 int main(int argc, char *argv[]) {
   
@@ -38,6 +35,19 @@ int main(int argc, char *argv[]) {
   }
   
   printf("Vector size is %d. Num cores is %d\n", size, num_cores);
+
+  // printf("============= core 0 =============\n");
+  // getSIMDMask(0, 0, 1, 0, 0, 0, 2, 2, 1);
+  // printf("============= core 1 =============\n");
+  // getSIMDMask(0, 0, 1, 0, 0, 0, 2, 2, 0);
+  // printf("============= core 2 =============\n");
+  // getSIMDMask(0, 0, 1, 0, 1, 0, 2, 2, 0);
+  // printf("============= core 5 =============\n");
+  // getSIMDMask(0, 0, 1, 0, 0, 1, 2, 2, 0);
+  // printf("============= core 6 =============\n");
+  // getSIMDMask(0, 0, 1, 0, 1, 1, 2, 2, 0);
+  // return 0;
+
 
   /*--------------------------------------------------------------------
   * Data initialization

@@ -57,11 +57,14 @@
 #if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_16_NORM_LOAD)
 #define VEC_SIZE_16 1
 #endif
-#if defined(VEC_4) || defined(VEC_4_UNROLL) || defined(VEC_4_NORM_LOAD) || defined(VEC_4_SIMD)
+#if defined(VEC_4) || defined(VEC_4_UNROLL) || defined(VEC_4_NORM_LOAD)
 #define VEC_SIZE_4 1
 #endif
 #if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
 #define VEC_SIZE_4_DA 1
+#endif
+#if defined(VEC_4_SIMD)
+#define VEC_SIZE_4_SIMD 1
 #endif
 
 // prefetch sizings
@@ -115,7 +118,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     //   bPtr = b + start;
     //   cPtr = c + start;
 
-    fable1: // vj fable1 4 (just trailing core does)
+    fable1: // vissue fable1 7 (just trailing core does)
       asm volatile(
         // lwspec a[i]
         // ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"
@@ -136,8 +139,17 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
       );
 
+      // b/c can't adjust the lenght yet need to pad to 7 insts.
       fable2:
         VECTOR_EPOCH(0);
+        asm volatile(
+          "nop\n\t"
+          "nop\n\t"
+          "nop\n\t"
+          "nop\n\t"
+          "nop\n\t"
+          "nop\n\t"
+        );
   }
 
   // master code
@@ -357,6 +369,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int orig_x = 0;
   int orig_y = 0;
   int is_da  = 0;
+  int master_x = 0;
+  int master_y = 0;
 
   // group construction
   #ifdef VEC_SIZE_4
@@ -394,7 +408,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     orig_y = 2;
     start = 3 * n / 4;
     end = n;
-  } 
+  }
 
   // not decoupled access core
   is_da = 0;
@@ -468,6 +482,61 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vtid_x = vtid % vdim_x;
   vtid_y = vtid / vdim_y;
 
+  #elif defined(VEC_SIZE_4_SIMD)
+    // virtual group dimension
+  vdim_x = 2;
+  vdim_y = 2;
+
+  int alignment = 16 * vdim_x * vdim_y;
+
+  // group 1 top left (da == 8)
+  if (ptid == 1) vtid = 0;
+  if (ptid == 2) vtid = 1;
+  if (ptid == 5) vtid = 2;
+  if (ptid == 6) vtid = 3;
+  if (ptid == 0) is_da = 1;
+  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
+    start = 0;
+    end = n; //roundUp(n / 3, alignment); // make sure aligned to cacheline 
+    orig_x = 1;
+    orig_y = 0;
+  }
+  else {
+    return;
+  }
+
+  // // group 2 top right (da == 11)
+  // if (ptid == 2) vtid = 0;
+  // if (ptid == 3) vtid = 1;
+  // if (ptid == 6) vtid = 2;
+  // if (ptid == 7) vtid = 3;
+  // if (ptid == 11) is_da = 1;
+  // if (ptid == 2 || ptid == 3 || ptid == 6 || ptid == 7 || ptid == 11) {
+  //   start = roundUp(n / 3, alignment);
+  //   end = roundUp(2 * n / 3, alignment);
+  //   orig_x = 2;
+  //   orig_y = 0;
+  // }
+
+  // // group 3 bottom (da == 15)
+  // if (ptid == 9)  vtid = 0;
+  // if (ptid == 10) vtid = 1;
+  // if (ptid == 13) vtid = 2;
+  // if (ptid == 14) vtid = 3;
+  // if (ptid == 15) is_da = 1;
+  // if (ptid == 9 || ptid == 10 || ptid == 13 || ptid == 14 || ptid == 15) {
+  //   start = roundUp(2 * n / 3, alignment);
+  //   end = n;
+  //   orig_x = 1;
+  //   orig_y = 2;
+  // }
+
+  // ptid/core = 12 doesn't do anything in this config
+
+  vtid_x = vtid % vdim_x;
+  vtid_y = vtid / vdim_y;
+
+
   #elif !defined(USE_VEC)
 
   vdim_x = 1;
@@ -485,6 +554,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int orig = orig_x + orig_y * dim_x;
 
   // construct special mask for dae example
+  #ifndef USE_VECTOR_SIMD
   int mask = 0;
   if (is_da) {
     mask = getDAEMask(orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y);
@@ -502,12 +572,11 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   mask = (orig_x << FET_XORIGIN_SHAMT) | (orig_y << FET_YORIGIN_SHAMT) | 
         (pdim_x << FET_XLEN_SHAMT) | (pdim_x << FET_YLEN_SHAMT);
   #endif
+  #else
+  int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+  #endif
 
-  // when want to do vissue on master need to be in DAE mode
-  int new_mask = mask;
-  if (vtid == 0) {
-    new_mask |= (1 << FET_DAE_SHAMT);
-  }
+
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
@@ -525,8 +594,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (tid == 12) return;
   #endif
 
-  if (tid_x >= 2 || tid_y >= 2) return;
-
   // configure
   #ifndef USE_VECTOR_SIMD
   VECTOR_EPOCH(mask);
@@ -540,7 +607,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   #ifdef USE_VECTOR_SIMD
-  vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, new_mask);
+  vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, mask);
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   #endif
