@@ -104,7 +104,9 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   aPtr = a + start + vtid;
   bPtr = b + start + vtid;
   cPtr = c + start + vtid;
-  //volatile int inc = 4 * dim; // going to fix group size otherwise have stack insertion which don't want
+  // const int inc = 4 * dim; // going to fix group size otherwise have stack insertion which don't want
+  const int fixed_dim = 4;
+  const int inc = 4 * fixed_dim;
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask); 
@@ -135,7 +137,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
         "addi %[memB], %[memB], %[ptr_inc]\n\t"
         "addi %[memC], %[memC], %[ptr_inc]\n\t"
         : [memA] "+r" (aPtr), [memB] "+r" (bPtr), [memC] "+r" (cPtr)
-        : [ptr_inc] "i" (4 * 4)
+        : [ptr_inc] "i" (inc)
 
       );
   }
@@ -151,7 +153,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // for (int i = start; i < start + numInitFetch; i++) {
   // }
 
-  for (int i = start; i < end; i+=4) {
+  for (int i = start; i < end; i+=dim) {
     // issue fable1
     ISSUE_VINST(fable1, 7);
 
@@ -486,7 +488,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   int alignment = 16 * vdim_x * vdim_y;
 
-  // group 1 top left (da == 8)
+  // group 1 top left (master = 0)
   if (ptid == 1) vtid = 0;
   if (ptid == 2) vtid = 1;
   if (ptid == 5) vtid = 2;
@@ -497,38 +499,42 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     end = n; //roundUp(n / 3, alignment); // make sure aligned to cacheline 
     orig_x = 1;
     orig_y = 0;
+    master_x = 0;
+    master_y = 0;
   }
-  else {
-    return;
+
+  // group 2 bot left (master == 4)
+  if (ptid == 8) vtid = 0;
+  if (ptid == 9) vtid = 1;
+  if (ptid == 12) vtid = 2;
+  if (ptid == 13) vtid = 3;
+  if (ptid == 4) is_da = 1;
+  if (ptid == 4 || ptid == 8 || ptid == 9 || ptid == 12 || ptid == 13) {
+    start = 0; //roundUp(n / 3, alignment);
+    end = n; //roundUp(2 * n / 3, alignment);
+    orig_x = 0;
+    orig_y = 2;
+    master_x = 0;
+    master_y = 1;
   }
 
-  // // group 2 top right (da == 11)
-  // if (ptid == 2) vtid = 0;
-  // if (ptid == 3) vtid = 1;
-  // if (ptid == 6) vtid = 2;
-  // if (ptid == 7) vtid = 3;
-  // if (ptid == 11) is_da = 1;
-  // if (ptid == 2 || ptid == 3 || ptid == 6 || ptid == 7 || ptid == 11) {
-  //   start = roundUp(n / 3, alignment);
-  //   end = roundUp(2 * n / 3, alignment);
-  //   orig_x = 2;
-  //   orig_y = 0;
-  // }
+  // group 3 bottom right (master == 7)
+  if (ptid == 10)  vtid = 0;
+  if (ptid == 11) vtid = 1;
+  if (ptid == 14) vtid = 2;
+  if (ptid == 15) vtid = 3;
+  if (ptid == 7) is_da = 1;
+  if (ptid == 7 || ptid == 10 || ptid == 11 || ptid == 14 || ptid == 15) {
+    start = 0; //roundUp(2 * n / 3, alignment);
+    end = n;
+    orig_x = 2;
+    orig_y = 2;
+    master_x = 3;
+    master_y = 1;
+  }
 
-  // // group 3 bottom (da == 15)
-  // if (ptid == 9)  vtid = 0;
-  // if (ptid == 10) vtid = 1;
-  // if (ptid == 13) vtid = 2;
-  // if (ptid == 14) vtid = 3;
-  // if (ptid == 15) is_da = 1;
-  // if (ptid == 9 || ptid == 10 || ptid == 13 || ptid == 14 || ptid == 15) {
-  //   start = roundUp(2 * n / 3, alignment);
-  //   end = n;
-  //   orig_x = 1;
-  //   orig_y = 2;
-  // }
-
-  // ptid/core = 12 doesn't do anything in this config
+  // unused core
+  if (ptid == 3) return;
 
   vtid_x = vtid % vdim_x;
   vtid_y = vtid / vdim_y;

@@ -239,24 +239,6 @@ static Vector2_t addVec2(Vector2_t a, Vector2_t b) {
   return sum;
 }
 
-// void removeFromList(Vector2_t *workList, int idx, int size) {
-//   // Vector2_t *newList = (Vector2_t*)malloc(sizeof(Vector2_t) * (size - 1));
-//   // int j = 0;
-//   // for (int i = 0; i < size; i++) {
-//   //   if (i != idx) {
-//   //     newList[j] = *(workList[i]);
-//   //     j++;
-//   //   }
-//   // }
-//   // free(*workList);
-//   // *workList = newList;
-//   for (int i = 0; i < size; i++) {
-//     if (idx == i) {
-//       workList[i].touched = 1;
-//     }
-//   }
-// }
-
 // point sample x,y
 // topleft box coord x,y
 // dimx > dim to right
@@ -276,52 +258,16 @@ static int getInputFromOutput(int outputDir) {
   }
 }
 
-// // recursive config finding, keep going until find what you're tid should be doing
-// // if we had a compiler than we just want to layout if's based on this to determine config
-// int findConfigRecurse(Vector2_t thisCore, Vector2_t tid, Vector2_t *workList, int workListSize, int outputDirToHere, Vector2_t *directions) {
-//   // all the directions you're going to send
-//   int outputMask = ALL_NORM;
-
-//   // check if any cores on the worklist can be reached from this core
-//   for (int i = 0; i < workListSize; i++) {
-//     // don't process if of the worklist
-//     if (workList[i].touched) continue;
-
-//     for (int j = 0; j < 4; j++) {
-//       Vector2_t coreLoc = addVec2(thisCore, directions[j]);
-//       if (isCoordEqual(coreLoc, thisCore)) {
-//         // remove from worklist and recurse down
-//         removeFromList(workList, i, workListSize);
-//         // get output direction to this core
-//         int outputDir = directions[j].o;
-//         outputMask |= outputDir;
-//         // keep going if this isn't your core, otherwise we can return config
-//         if (!isCoordEqual(tid, thisCore)) {
-//           findConfigRecurse(coreLoc, tid, workList, workListSize, outputDir);
-//         }
-//       }
-//     }
-//   }
-
-//   // contruct mask if you've reached your tid
-//   if (isCoordEqual(tid, thisCore)) {
-//     return outputMask | getInputFromOutput(outputDirToHere);
-//   }
-
-
-// }
-
-
 // vector orientation of group with specific sending pattern
-static int getSIMDMaskHoriz(Vector2_t master, Vector2_t origin, Vector2_t tid, Vector2_t dim, Vector2_t vectorSrc) {
+static int getSIMDMaskHoriz(Vector2_t master, Vector2_t origin, Vector2_t tid, Vector2_t dim, Vector2_t virtVectorSrc, Vector2_t vectorSrc) {
   int mask = ALL_NORM;
   // for the rest of the cores, you can determine sending pattern based on location 
   // of this core relative to vector src
   // if +/-y you recv from that respective direction
   // if you are even you recv +/-x
-  int yDiff = tid.y - vectorSrc.y;
-  int xDiff = tid.x - vectorSrc.x;
-  // printf("vec src (%d,%d) tid (%d,%d) diffs (%d,%d)\n", vectorSrc.x, vectorSrc.y, tid.x, tid.y, xDiff, yDiff);
+  int yDiff = tid.y - virtVectorSrc.y;
+  int xDiff = tid.x - virtVectorSrc.x;
+  // printf("vec src (%d,%d) tid (%d,%d) diffs (%d,%d)\n", virtVectorSrc.x, virtVectorSrc.y, tid.x, tid.y, xDiff, yDiff);
   // recv from above and send below unless you are at the bottom
   if (yDiff > 0) {
     mask |= FET_I_INST_UP;
@@ -343,7 +289,7 @@ static int getSIMDMaskHoriz(Vector2_t master, Vector2_t origin, Vector2_t tid, V
   // if you are equal then need to look at x direction
   else {
     // recv from left and send to right unless at right edge
-    if (xDiff >= 0) {
+    if (xDiff > 0) {
       if (tid.x != 0) {
         mask |= FET_I_INST_LEFT;
         // printf("in left\n");
@@ -354,7 +300,7 @@ static int getSIMDMaskHoriz(Vector2_t master, Vector2_t origin, Vector2_t tid, V
       }
     }
     // recv from right and send to the left unless at left edge
-    else if (xDiff <= 0) {
+    else if (xDiff < 0) {
       if (tid.x != dim.x - 1) {
         mask |= FET_I_INST_RIGHT;
         // printf("in right\n");
@@ -364,9 +310,18 @@ static int getSIMDMaskHoriz(Vector2_t master, Vector2_t origin, Vector2_t tid, V
         mask |= FET_O_INST_LEFT_SEND;
       }
     }
-    // vectorSrc, already handled above
+    // figure out what to do if you are at the vecSrc
     else {
-     
+      // if cores to the right, need to send to the right
+      if (vectorSrc.x < origin.x + dim.x - 1) {
+        // printf("out right\n");
+        mask |= FET_O_INST_RIGHT_SEND;
+      }
+      // if cores to the left, need to send to the left
+      if (vectorSrc.x > origin.x) {
+        // printf("out left\n");
+        mask |= FET_O_INST_LEFT_SEND;
+      }
     }
 
     // need row at equal height to send up/down
@@ -429,17 +384,25 @@ static int getSIMDMask(int master_x, int master_y, int origin_x, int origin_y, i
 
   // the master sends to vector src and vectorSrc recvs from master
   if (is_master) {
+    // if (masterSendDir == FET_O_INST_UP_SEND) printf("out up\n");
+    // if (masterSendDir == FET_O_INST_DOWN_SEND) printf("out down\n");
+    // if (masterSendDir == FET_O_INST_LEFT_SEND) printf("out left\n");
+    // if (masterSendDir == FET_O_INST_RIGHT_SEND) printf("out right\n");
     mask |= masterSendDir;
   }
   else {
     // make sure vectorSrc is virtualized within the group
     Vector2_t virtVecSrc = { .x = vectorSrc.x - origin.x, .y = vectorSrc.y - origin.y };
     if (isCoordEqual(virtVecSrc, tid)) {
+      // if (getInputFromOutput(masterSendDir) == FET_I_INST_UP) printf("in up\n");
+      // if (getInputFromOutput(masterSendDir) == FET_I_INST_DOWN) printf("in down\n");
+      // if (getInputFromOutput(masterSendDir) == FET_I_INST_LEFT) printf("in left\n");
+      // if (getInputFromOutput(masterSendDir) == FET_I_INST_RIGHT) printf("in right\n");
       mask |= getInputFromOutput(masterSendDir);
     }
 
     // send directions for the non-master vector group
-    mask |= getSIMDMaskHoriz(master, origin, tid, dim, virtVecSrc);
+    mask |= getSIMDMaskHoriz(master, origin, tid, dim, virtVecSrc, vectorSrc);
   }
 
   // specify the vlen
