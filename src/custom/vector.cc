@@ -102,6 +102,7 @@ Vector::tick() {
   if (isPCGenActive() && !inUopStall) {
     IODynInstPtr inst = nextAtomicInstFetch();
     DPRINTF(Mesh, "fetchinst %s\n", inst->toString(true));
+    assert(!inst->from_trace);
     meshInfo = MasterData(inst);
   }
   
@@ -361,6 +362,9 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
     }
     count++;
   }
+
+  // if there's a squash then we should reset uop gen
+  _uopIssueLen = 0;
   
   // if squash due to a traced instruction, then we need to exit trace mode
   // TODO probably want to go to 'transparent' where recv and send as before
@@ -423,14 +427,20 @@ Vector::forwardInstruction(const Vector::MasterData& instInfo) {
   // if we are now in decoupled access mode, we don't send instructions anymore, just PCs?
   // could potentially send both if have explicit vector and scalar instruction
   MasterData forwardInst = instInfo;
-  if (isDecoupledAccess()) {
-    if (instInfo.inst->static_inst_p->isVectorIssue()) {
-      forwardInst = MasterData(instInfo.inst->branchTarget());
-    }
-    else {
-      return;
-    }
+  if (instInfo.inst->static_inst_p->isVectorIssue()) {
+    forwardInst = MasterData(instInfo.inst->branchTarget());
   }
+  else if (isDecoupledAccess()) {
+    return;
+  }
+  // if (isDecoupledAccess()) {
+  //   if (instInfo.inst->static_inst_p->isVectorIssue()) {
+  //     forwardInst = MasterData(instInfo.inst->branchTarget());
+  //   }
+  //   else {
+  //     return;
+  //   }
+  // }
 
   // if this is a vector issue instruction then we need to turn this into a PC addr
   // MasterData forwardInst = instInfo;
@@ -531,24 +541,26 @@ Vector::createInstruction(const Vector::MasterData &instInfo) {
   
   int tid = 0;
   IODynInstPtr inst =
-          std::make_shared<IODynInst>(static_inst, cur_pc,
+          std::make_shared<IODynInst>(static_inst, instInfo.inst->pc,
                                       m_cpu_p->getAndIncrementInstSeq(),
                                       tid, m_cpu_p);
   //DPRINTF(Mesh, "[tid:%d]: built inst %s\n", tid, dyn_inst->toString(true));  
   
   // mark instruction as from a stream traced by master core
-  inst->from_trace = true;
-  inst->replaced = force32bit;
-  
-  // iew will pass a mispredicted branch forward, we don't want to send 
-  // this to slave core because it will be wasted work, however you still need
-  // to check the branch here. if it fails with update then we know there is divergence
-  
-    inst->master_targ  = instInfo.inst->master_targ;
-    inst->master_taken = instInfo.inst->master_taken;
-  
-  if (instInfo.inst->isControl()) {
-    DPRINTF(Mesh, "master targed %d %s. pred targ %d %s\n", inst->master_taken, inst->master_targ, inst->predicted_taken, inst->readPredTarg() );
+  if (!static_inst->isVectorIssue()) {
+    inst->from_trace = true;
+    inst->replaced = force32bit;
+    
+    // iew will pass a mispredicted branch forward, we don't want to send 
+    // this to slave core because it will be wasted work, however you still need
+    // to check the branch here. if it fails with update then we know there is divergence
+    
+      inst->master_targ  = instInfo.inst->master_targ;
+      inst->master_taken = instInfo.inst->master_taken;
+    
+    if (instInfo.inst->isControl()) {
+      DPRINTF(Mesh, "master targed %d %s. pred targ %d %s\n", inst->master_taken, inst->master_targ, inst->predicted_taken, inst->readPredTarg() );
+    }
   }
   
 

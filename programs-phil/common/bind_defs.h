@@ -45,7 +45,15 @@
   asm volatile (".insn u 0x0b, x0, %[id]\n\t":: [id] "i" (hash))
 
 #define ISSUE_VINST(label, inst_cnt)                                          \
-  asm volatile goto (".insn uj 0x6b, x0, %l[" #label "]\n\t"                   \
+  asm volatile goto (".insn uj 0x6b, x0, %l[" #label "]\n\t"                  \
+    :                                                                         \
+    :                                                                         \
+    :                                                                         \
+    : label                                                                   \
+  )
+
+#define DEVEC(label)                                                          \
+  asm volatile goto (".insn uj 0x3f, x0, %l[" #label "]\n\t"                  \
     :                                                                         \
     :                                                                         \
     :                                                                         \

@@ -169,11 +169,11 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   }
 
   // deconfigure (send fable with VECTOR_EPOCH(0))
-  ISSUE_VINST(fable2, 1);
+  // ISSUE_VINST(fable2, 1);
 
   // b/c can't adjust the lenght yet need to pad to 7 insts.
   fable2:
-    VECTOR_EPOCH(0);
+    DEVEC(fable2);
     asm volatile(
       "nop\n\t"
       "nop\n\t"
@@ -516,6 +516,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     orig_y = 2;
     master_x = 0;
     master_y = 1;
+    return;
   }
 
   // group 3 bottom right (master == 7)
@@ -531,6 +532,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     orig_y = 2;
     master_x = 3;
     master_y = 1;
+    return;
   }
 
   // unused core

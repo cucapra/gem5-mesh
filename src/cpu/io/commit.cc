@@ -281,7 +281,17 @@ Commit::initiateSquash(IODynInstPtr faulty_inst)
   // Figure out the next PC after a fault. The next PC is the PC right after
   // the faulty instruction.
   TheISA::PCState next_pc = faulty_inst->pc;
-  TheISA::advancePC(next_pc, faulty_inst->static_inst_p);
+
+  // if this is a devec/vectorissue, then don't use the jump target to advance the PC
+  // TODO not sure about other advance calls...
+  if (faulty_inst->static_inst_p->isVectorIssue()) {
+    // next_pc.advance();
+    RiscvISA::PCState fixedState = RiscvISA::PCState(next_pc.pc() + sizeof(RiscvISA::MachInst));
+    next_pc = fixedState;
+  }
+  else {
+    TheISA::advancePC(next_pc, faulty_inst->static_inst_p);
+  }
 
   m_outgoing_squash_wire->commit_squash()->squash = true;
   m_outgoing_squash_wire->commit_squash()->next_pc = next_pc;
