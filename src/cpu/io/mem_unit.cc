@@ -602,8 +602,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->xOrigin = m_cpu_p->getEarlyVector()->getXOrigin();
       m_s1_inst->mem_req_p->yOrigin = m_cpu_p->getEarlyVector()->getYOrigin();
       m_s1_inst->mem_req_p->fromDecoupledAccess = dAccess;
-      DPRINTF(Mesh, "[%s] send vec load %#x, (%d,%d)\n", m_s1_inst->toString(true), 
-          addr, m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
+      DPRINTF(Mesh, "[%s] send vec load %#x to %#x, (%d,%d)\n", m_s1_inst->toString(true), 
+          addr, m_s1_inst->mem_req_p->prefetchAddr , m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
     }
     else {
       m_s1_inst->mem_req_p->xDim = 1;

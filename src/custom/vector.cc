@@ -92,7 +92,7 @@ Vector::tick() {
     // check if this is a PC/VISSUE and setup PC-GEN
     if (!meshInfo.isInst) {
       // TODO not sure how to encode cnt int uj intruction
-      int cnt = 7;
+      int cnt = 6;
       setPCGen(meshInfo.pc, cnt);
     }
   }

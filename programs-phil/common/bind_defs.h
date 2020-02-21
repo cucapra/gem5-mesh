@@ -53,7 +53,7 @@
   )
 
 #define DEVEC(label)                                                          \
-  asm volatile goto (".insn uj 0x3f, x0, %l[" #label "]\n\t"                  \
+  asm volatile goto (".insn uj 0x2b, x0, %l[" #label "]\n\t"                  \
     :                                                                         \
     :                                                                         \
     :                                                                         \

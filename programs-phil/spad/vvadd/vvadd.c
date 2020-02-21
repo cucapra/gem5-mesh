@@ -43,7 +43,7 @@
 #if defined(VEC_4_SIMD)
 #define USE_VECTOR_SIMD 1
 #endif
-#if !defined(UNROLL) && !defined(USE_NORMAL_LOAD) && !defined(USE_VECTOR_SIMD)
+#if !defined(UNROLL) && !defined(USE_NORMAL_LOAD)
 #define WEIRD_PREFETCH 1
 #endif
 #if defined(VEC_16_UNROLL_SERIAL)
@@ -96,17 +96,25 @@ int roundUp(int numToRound, int multiple) {
   }
 }
 
+inline int min(int a, int b) {
+  if (a > b) {
+    return b;
+  }
+  else {
+    return a;
+  }
+}
+
 #ifdef USE_VECTOR_SIMD
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
 vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
-  DTYPE *aPtr, *bPtr, *cPtr;
-  aPtr = a + start + vtid;
-  bPtr = b + start + vtid;
-  cPtr = c + start + vtid;
+  DTYPE *cPtr = c + start + vtid;
   // const int inc = 4 * dim; // going to fix group size otherwise have stack insertion which don't want
   const int fixed_dim = 4;
-  const int inc = 4 * fixed_dim;
+  const int inc = 4 * fixed_dim ;
+  const int spadInc = inc * 2;
+  int *spadAddr = (int*)getSpAddr(ptid, 0);
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask); 
@@ -114,48 +122,40 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // code for vector cores, master should just skip this, vector cores don't naturally enter this loop b/c
   // ifetch is turned off with VECTOR_EPOCH
   if (!is_master) {
-    // DTYPE *aPtr, *bPtr, *cPtr;
-    // fable0:
-    //   aPtr = a + start;
-    //   bPtr = b + start;
-    //   cPtr = c + start;
-
     fable1: // vissue fable1 7 (just trailing core does)
       asm volatile(
         // lwspec a[i]
-        // ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"
-        "lw t0, 0(%[memA])\n\t"
+        ".insn s 0x03, 0x7, t0, 0(%[memA])\n\t"
+        // "lw t0, 0(%[memA])\n\t"
         // lwspec b[i]
-        // ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"
-        "lw t1, 0(%[memB])\n\t"
+        ".insn s 0x03, 0x7, t1, 4(%[memA])\n\t"
+        // "lw t1, 0(%[memB])\n\t"
         // add c[i] = a[i] + b[i]
         "add t0, t0, t1\n\t"
         // store c[i]
         "sw t0, 0(%[memC])\n\t"
         // increment pointers
-        "addi %[memA], %[memA], %[ptr_inc]\n\t"
-        "addi %[memB], %[memB], %[ptr_inc]\n\t"
+        "addi %[memA], %[memA], %[spad_inc]\n\t"
         "addi %[memC], %[memC], %[ptr_inc]\n\t"
-        : [memA] "+r" (aPtr), [memB] "+r" (bPtr), [memC] "+r" (cPtr)
-        : [ptr_inc] "i" (inc)
-
+        : [memA] "+r" (spadAddr), [memC] "+r" (cPtr)
+        : [spad_inc] "i" (spadInc), [ptr_inc] "i" (inc)
       );
   }
 
   // master code
 
-  // issue fable0
-  // TODO not sure how to work count into instruction format
-  // ISSUE_VINST(fable0, 3);
-
-  // // do a bunch of prefetching in the beginning to get ahead
-  // int numInitFetch = 128;
-  // for (int i = start; i < start + numInitFetch; i++) {
+  // // // do a bunch of prefetching in the beginning to get ahead
+  int totalIter = (end - start) / dim;
+  // // int numInitFetch = 16;
+  // // int beginIter = min(numInitFetch, totalIter);
+  // for (int i = 0; i < totalIter; i++) {
+  //   VPREFETCH(spadAddr + i * 2 + 0, a + start + (i * dim), 0);
+  //   VPREFETCH(spadAddr + i * 2 + 1, b + start + (i * dim), 0);
   // }
 
-  for (int i = start; i < end; i+=dim) {
+  for (int i = 0; i < totalIter; i++) {
     // issue fable1
-    ISSUE_VINST(fable1, 7);
+    ISSUE_VINST(fable1, 6);
 
     // TODO figure out how to encode how many uops are in the inst. 
     // and how to make sure these are latency insensitive
@@ -165,7 +165,12 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     //    c) Pass 3-4bits to trail pcgen so it knows how long to do (can even mask off upper PC bits so no link size increase)
 
     // do stuff in between (PREFETCHING, CONTROL, ?? SCALAR VALUE??)
-    // currently not prefetch and control flow done with for loop
+    // if (beginIter + i < totalIter) {
+    //   int idx = beginIter + i;
+      int idx = i;
+      VPREFETCH(spadAddr + idx * 2 + 0, a + start + (idx * dim), 0);
+      VPREFETCH(spadAddr + idx * 2 + 1, b + start + (idx * dim), 0);
+    // }
   }
 
   // deconfigure (send fable with VECTOR_EPOCH(0))
@@ -516,7 +521,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     orig_y = 2;
     master_x = 0;
     master_y = 1;
-    return;
+    // TODO for some reason can't return here...
   }
 
   // group 3 bottom right (master == 7)
@@ -532,11 +537,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     orig_y = 2;
     master_x = 3;
     master_y = 1;
-    return;
   }
 
   // unused core
-  if (ptid == 3) return;
+  // if (ptid == 3) return;
 
   vtid_x = vtid % vdim_x;
   vtid_y = vtid / vdim_y;
@@ -612,14 +616,14 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   #ifdef USE_VECTOR_SIMD
+  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6)
   vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, mask, is_da);
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
-  #endif
-
   // deconfigure
   VECTOR_EPOCH(0);
-  
+  #endif
+
 }
 
 

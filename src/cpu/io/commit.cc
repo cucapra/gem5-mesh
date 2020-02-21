@@ -10,6 +10,7 @@
 #include "arch/utility.hh"
 #include "cpu/io/cpu.hh"
 #include "debug/Commit.hh"
+#include "debug/Mesh.hh"
 
 Commit::Commit(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
     : Stage(_cpu_p, in_size, out_size, StageIdx::CommitIdx, true),
@@ -292,6 +293,8 @@ Commit::initiateSquash(IODynInstPtr faulty_inst)
   else {
     TheISA::advancePC(next_pc, faulty_inst->static_inst_p);
   }
+  if (faulty_inst->static_inst_p->isVectorIssue()) 
+  DPRINTF(Mesh, "commit squash to new pc %s\n", next_pc);
 
   m_outgoing_squash_wire->commit_squash()->squash = true;
   m_outgoing_squash_wire->commit_squash()->next_pc = next_pc;

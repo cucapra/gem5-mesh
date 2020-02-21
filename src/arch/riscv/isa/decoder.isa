@@ -1887,7 +1887,7 @@ decode QUADRANT default Unknown::unknown() {
             NPC = PC + imm;
         }}, IsVectorIssue, No_OpClass);
 
-        0x0f: JOp::devec({{
+        0x0a: JOp::devec({{
             // set PC to specified PC and take out of vec mode
             NPC = PC + imm;
             xc->setMiscReg(MISCREG_FETCH, 0);
