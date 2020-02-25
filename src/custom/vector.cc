@@ -213,22 +213,27 @@ Vector::nextAtomicInstFetch() {
   Addr lineAddr2 = (instAddr + sizeof(RiscvISA::MachInst) / 2)  & ~(m_cpu_p->getCacheLineSize() - 1);
 
   // the whole 32bits is on the same line so only need to issue one req
-  RiscvISA::MachInst mach_inst = 0;
+  RiscvISA::Decoder decoder;
+  StaticInstPtr static_inst = nullptr;
   if (lineAddr == lineAddr2) {
       int fetchSize = sizeof(RiscvISA::MachInst);
-      mach_inst = doICacheFuncRead(tid, instAddr, fetchSize);
+      auto mach_inst = doICacheFuncRead(tid, instAddr, fetchSize);
+      static_inst = decoder.decode(mach_inst, 0x0);
   }
   // need to issue two functional request for access b/c across two lines
   else {
     int fetchSize = sizeof(RiscvISA::MachInst) / 2;
-    auto mach_inst0 = doICacheFuncRead(tid, instAddr, fetchSize);
-    auto mach_inst1 = doICacheFuncRead(tid, instAddr + fetchSize, fetchSize);
-    mach_inst = (mach_inst1 & 0x00ff0000) | (mach_inst1 & 0xff000000) | (mach_inst0 & 0x000000ff) | (mach_inst0 & 0x0000ff00);
-    DPRINTF(Mesh, "stiched machinst %#x %#x -> %#x\n", mach_inst0, mach_inst1, mach_inst);
+    auto mach_inst0 = doICacheFuncRead(tid, instAddr - fetchSize, sizeof(RiscvISA::MachInst));
+    auto mach_inst1 = doICacheFuncRead(tid, instAddr + fetchSize, sizeof(RiscvISA::MachInst));
+    // mach_inst = (mach_inst1 & 0x00ff0000) | (mach_inst1 & 0xff000000) | (mach_inst0 & 0x000000ff) | (mach_inst0 & 0x0000ff00);
+    // DPRINTF(Mesh, "stiched machinst %#x %#x -> %#x\n", mach_inst0, mach_inst1, mach_inst);
+    decoder.moreBytes(pc, instAddr - fetchSize, mach_inst0);
+    decoder.moreBytes(pc, instAddr + fetchSize, mach_inst1);
+    static_inst = decoder.decode(pc);
     // assert(0);
   }
 
-  RiscvISA::Decoder decoder;
+
 
   // // TODO not sure what to do if instruction half on cacheline (could happen due to 16bit instructions)
   // // although this looks like it doesn't detect that. Maybe functional read makes sure aligned already???
@@ -244,7 +249,7 @@ Vector::nextAtomicInstFetch() {
   // TheISA::PCState oldPC = pc;
   // StaticInstPtr static_inst = extractInstruction(mach_inst, pc); // NOTE this modifies the PC, which we don't want, although actually prob donesnt matter
 
-  StaticInstPtr static_inst = decoder.decode(mach_inst, 0x0);
+  // StaticInstPtr static_inst = decoder.decode(mach_inst, 0x0);
   // StaticInstPtr static_inst = decoder.decode(pc);
   IODynInstPtr inst =
           std::make_shared<IODynInst>(static_inst, pc,
@@ -254,7 +259,7 @@ Vector::nextAtomicInstFetch() {
 
   // increment the pc and uops
   // RiscvISA::Decoder decoder;
-  if (decoder.compressed(mach_inst)) {
+  if (decoder.compressed(static_inst->machInst)) {
     _uopPC.pc(instAddr + sizeof(RiscvISA::MachInst) / 2);
   }
   else {
