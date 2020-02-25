@@ -109,13 +109,13 @@ inline int min(int a, int b) {
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
 vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
-  DTYPE *cPtr = c + start + vtid;
+  volatile DTYPE *cPtr = c + start + vtid;
   // const int inc = 4 * dim; // going to fix group size otherwise have stack insertion which don't want
   const int fixed_dim = 4;
   const int inc = 4 * fixed_dim ;
   const int spadInc = inc * 2;
-  int *spadAddr = (int*)getSpAddr(ptid, 0);
-
+  volatile int *spadAddr = (int*)getSpAddr(ptid, 0);
+  // volatile int *astart = a + start + vtid;
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask); 
 
@@ -129,16 +129,16 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
         // "lw t0, 0(%[memA])\n\t"
         // lwspec b[i]
         ".insn s 0x03, 0x7, t1, 4(%[memA])\n\t"
-        // "lw t1, 0(%[memB])\n\t"
+        // "lw t1, 0(%[memA])\n\t"
         // add c[i] = a[i] + b[i]
         "add t0, t0, t1\n\t"
         // store c[i]
         "sw t0, 0(%[memC])\n\t"
         // increment pointers
-        "addi %[memA], %[memA], %[spad_inc]\n\t"
-        "addi %[memC], %[memC], %[ptr_inc]\n\t"
-        : [memA] "+r" (spadAddr), [memC] "+r" (cPtr)
-        : [spad_inc] "i" (spadInc), [ptr_inc] "i" (inc)
+        // "addi %[memA], %[memA], %[spad_inc]\n\t"
+        // "addi %[memC], %[memC], %[ptr_inc]\n\t"
+        : /*[memA] "+r" (spadAddr), [memC] "+r" (cPtr)*/
+        : [spad_inc] "i" (spadInc), [ptr_inc] "i" (inc), [memA] "r" (spadAddr), [memC] "r" (cPtr)
       );
   }
 
@@ -153,9 +153,15 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   //   VPREFETCH(spadAddr + i * 2 + 1, b + start + (i * dim), 0);
   // }
 
+
+  // volatile int noob = astart[0];
+  // if (noob) {
+  //   asm volatile("nop\n\t");
+  // }
+
   for (int i = 0; i < totalIter; i++) {
     // issue fable1
-    ISSUE_VINST(fable1, 6);
+    ISSUE_VINST(fable1);
 
     // TODO figure out how to encode how many uops are in the inst. 
     // and how to make sure these are latency insensitive

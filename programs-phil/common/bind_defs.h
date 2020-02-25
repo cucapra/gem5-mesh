@@ -44,7 +44,7 @@
 #define REMEM(hash)                                                           \
   asm volatile (".insn u 0x0b, x0, %[id]\n\t":: [id] "i" (hash))
 
-#define ISSUE_VINST(label, inst_cnt)                                          \
+#define ISSUE_VINST(label)                                                    \
   asm volatile goto (".insn uj 0x6b, x0, %l[" #label "]\n\t"                  \
     :                                                                         \
     :                                                                         \
