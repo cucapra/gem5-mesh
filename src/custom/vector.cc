@@ -91,8 +91,7 @@ Vector::tick() {
 
     // check if this is a PC/VISSUE and setup PC-GEN
     if (!meshInfo.isInst) {
-      // TODO not sure how to encode cnt int uj intruction
-      int cnt = 6;
+      int cnt = extractInstCntFromVissue(meshInfo.inst);
       setPCGen(meshInfo.pc, cnt);
     }
   }
@@ -145,6 +144,16 @@ Vector::tick() {
   // also prevents revec from being sent twice
   handleRevec(pipeInfo.inst, meshInfo.inst);
   
+}
+
+// bypass instruction decoder to get IMM5 field for vissue instruction
+int
+Vector::extractInstCntFromVissue(IODynInstPtr inst) {
+  // extract count from the instructions, bits 11,7
+  RiscvISA::MachInst machInst = inst->static_inst_p->machInst;
+  int imm5 = bits(machInst, 11, 7);
+  DPRINTF(Mesh, "%#x imm5 %d\n", machInst, imm5);
+  return imm5;
 }
 
 void
@@ -429,6 +438,9 @@ Vector::forwardInstruction(const Vector::MasterData& instInfo) {
   MasterData forwardInst = instInfo;
   if (instInfo.inst->static_inst_p->isVectorIssue()) {
     forwardInst = MasterData(instInfo.inst->branchTarget());
+
+    // also send instruction for ease of access tho
+    forwardInst.inst  = instInfo.inst;
   }
   else if (isDecoupledAccess()) {
     return;
@@ -505,6 +517,8 @@ Vector::pullMeshInstruction(Vector::MasterData &instInfo) {
     }
     else {
       instInfo = MasterData(dataPtr->pc);
+      // also pass the inst information for extra metadata, that will need encode when go to RTL
+      instInfo.inst = dataPtr->inst;
       DPRINTF(Mesh, "get PC %#x\n", instInfo.pc);
     }
   }

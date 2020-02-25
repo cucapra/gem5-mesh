@@ -49,12 +49,12 @@ CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T.
 default: $(EXEC)
 
 # compile directly from .c to .o with no mods
-$(EXEC): $(DEPS)
+$(EXEC).orig: $(DEPS)
 	$(RV_CC) $(C_OBJS) $(CFLAGS) -o $(EXEC)
 
 # compile first to asm so we can modify vissue insts and then compile to .o
-$(EXEC).vec: $(ASMO_DEPS)
-	$(RV_CC) $(ASMO_OBJS) $(CFLAGS) -o $(EXEC).vec
+$(EXEC): $(ASMO_DEPS)
+	$(RV_CC) $(ASMO_OBJS) $(CFLAGS) -o $(EXEC)
 	
 # comile to original asm
 ASM: $(S_DEPS)
@@ -75,4 +75,4 @@ VISS: $(SM_DEPS)
 	$(RV_CC) $(CFLAGS) -c -o $(notdir $@) $<
 
 clean:
-	rm -rf *.o *.O *.s *.S $(EXEC) $(EXEC).vec
+	rm -rf *.o *.O *.s *.S $(EXEC) $(EXEC).orig

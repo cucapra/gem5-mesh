@@ -1884,6 +1884,9 @@ decode QUADRANT default Unknown::unknown() {
         }}, IsRemem, IsNonSpeculative, No_OpClass);
 
         0x1a: JOp::vissue({{
+            // note the compiler is smart enough to mark which resources you use based on this description
+            // so if don't include any registers then won't mark compiled instructions as needing to use any
+            // see build/RVSP/arch/riscv/generated/decoder-ns.cc.inc
             NPC = PC + imm;
         }}, IsVectorIssue, No_OpClass);
 
