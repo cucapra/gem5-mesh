@@ -46,7 +46,7 @@ VISS=python /home/pbb59/hammerblade/gem5/scripts-phil/vissue-asm.py
 
 CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 
-default: $(EXEC).vec
+default: $(EXEC)
 
 # compile directly from .c to .o with no mods
 $(EXEC): $(DEPS)
