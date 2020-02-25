@@ -6,6 +6,7 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
+#define SP
 
 #ifdef VPF
 #define VEC_PFETCH
@@ -17,7 +18,7 @@
 #else
 #endif
 
-#define BLK_DIM 2
+#define BLK_DIM 8
 
 #if defined(_VEC) && defined(VEC_PFETCH)
 #define REGION_SIZE BLK_DIM

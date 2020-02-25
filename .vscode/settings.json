@@ -59,7 +59,10 @@
         "typeinfo": "cpp",
         "valarray": "cpp",
         "*.inc": "cpp",
-        "stdio.h": "c"
+        "stdio.h": "c",
+        "bind_defs.h": "c",
+        "spad.h": "c",
+        "random": "c"
     },
     "python.formatting.provider": "black"
 }
