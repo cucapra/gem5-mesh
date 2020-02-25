@@ -144,14 +144,14 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   for (int i = 0; i < sizeC; i++) {
     if (a[i] == 0) {
-      if (c[i] != pow(2, 3)) {
+      if (c[i] != pow(2, 7)) {
         printf("[[FAIL]]\n");
         printf("i=%d c=%d exp=%d\n", i, c[i], (int)pow(2, 3));
         return 1;
       }
     }
     else if (a[i] == 1) {
-      if (c[i] != pow(3, 3)) {
+      if (c[i] != pow(2, 9)) {
         printf("[[FAIL]]\n");
         return 1;
       }

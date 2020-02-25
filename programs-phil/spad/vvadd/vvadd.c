@@ -3,6 +3,7 @@
 
 #include "pthread_launch.h"
 #include "vvadd.h"
+#include "spad.h"
 #include "../../common/bind_defs.h"
 
 #define SYNC_ADDR 1000
@@ -19,13 +20,16 @@
 // #define NO_VEC_DA 1
 // #define NO_VEC_W_VLOAD 1
 // #define SIM_DA_VLOAD_SIZE_1 1
+// #define VEC_4_NORM_LOAD 1
+// #define VEC_16_NORM_LOAD 1
 
 // vvadd_execute config directives
-#if defined(NO_VEC)
+#if defined(NO_VEC) || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD)
 #define USE_NORMAL_LOAD 1
 #endif
 #if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) \
-  || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_4_DA_SMALL_FRAME)
+  || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_4_DA_SMALL_FRAME) \
+  || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD)
 #define USE_VEC 1
 #endif
 #if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) \
@@ -46,10 +50,10 @@
 #endif
 
 // vector grouping directives
-#if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_16_UNROLL_SERIAL)
+#if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_16_NORM_LOAD)
 #define VEC_SIZE_16 1
 #endif
-#if defined(VEC_4) || defined(VEC_4_UNROLL)
+#if defined(VEC_4) || defined(VEC_4_UNROLL) || defined(VEC_4_NORM_LOAD)
 #define VEC_SIZE_4 1
 #endif
 #if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)

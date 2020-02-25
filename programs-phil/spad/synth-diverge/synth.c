@@ -206,10 +206,11 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int u
 #define REGION_SIZE 32
 
 
+// NOTE this benchmark is no longer the same as the one's above
+
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
 synthetic_dae_execute(int *a, int *b, int *c, int *d, int start, int end, int ptid, int vtid, int dim, int unroll_len) {
   int *spAddr = getSpAddr(ptid, 0);
-  // int *daeSpad = getSpAddr(DA_SPAD, 0);
   
   int numRegions = NUM_REGIONS;
   int regionSize = REGION_SIZE;
@@ -225,45 +226,41 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int start, int end, int pt
       int* spAddrA = spAddrRegion + j * 2;
       int* spAddrB = spAddrRegion + j * 2 + 1;
 
-      int a_;
-      // VPREFETCH(spAddrA, a + i + j * dim, 0); 
+      int a_, b_;
       LWSPEC(a_, spAddrA, 0);
+      LWSPEC(b_, spAddrB, 0);
       
       if (a_ == 0) {
-        int b_;
-        // VPREFETCH(spAddrB, b + i + j * dim, 0);
-        LWSPEC(b_, spAddrB, 0);
         int c_ = b_;
-        for (int k = 0; k < 2; k++) {
+        for (int k = 0; k < 6; k++) {
           c_ *= b_;
         }
-        // c[i + j * dim] = c_;
-        // spAddr[SYNC_ADDR + 1] = c_;
         STORE_NOACK(c_, c + i + j * dim, 0);
       }
-      // else {
-      //   int b_;
-      //   VPREFETCH(spAddrB, d + i, 0); // need to load when on the off path, although should prob be regular load?
-      //   LWSPEC(b_, spAddrB,  0);
-      //   int c_ = b_;
-      //   for (int k = 0; k < 2; k++) {
-      //     c_ *= b_;
-      //   }
-      //   c[i + j * dim] = c_;
-      // }
+      else {
+        
+        // if this path is taken actually don't need 'b', need to get d
+        // int d_ = d[i + j * dim];
+
+        int c_ = b_;
+        for (int k = 0; k < 8; k++) { // does a little more compute
+          c_ *= b_;
+        }
+        STORE_NOACK(c_, c + i + j * dim, 0);
+      }
+
+      // can also put REVEC here
+      REVEC(0);
+
     }
     
     // increment mem epoch to know which region to fetch mem from
     memEpoch++;
 
-    // TODO also put REMEM here, REVEC should prob be within the inner loop to try to revec each time??
-    // inform DA we are done with region, so it can start to prefetch for that region
-    // if (tid == 1)
-      // daeSpad[SYNC_ADDR] = memEpoch;
     spAddr[SYNC_ADDR] = memEpoch;
 
     // try to revec at the end of loop iteration
-    REVEC(0);
+    // REVEC(0);
     // also up the memory epoch internally
     REMEM(0);
   }
@@ -271,38 +268,31 @@ synthetic_dae_execute(int *a, int *b, int *c, int *d, int start, int end, int pt
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
 synthetic_dae_access(int *a, int *b, int *c, int *d, int start, int end, int ptid, int vtid, int dim, int unroll_len, int spadCheckIdx) {
-  int *spAddr = getSpAddr(ptid, 0);
-  
+  int *spAddr = (int*)getSpAddr(ptid, 0);
+
   int numRegions = NUM_REGIONS;
   int regionSize = REGION_SIZE;
 
   // variable to control rate of sending
   int memEpoch = 0;
+  volatile int loadedEpoch = 0;
 
   for (int i = start; i < end; i+=unroll_len*dim) {
     // check how many regions are available for prefetch by doing a remote load
     // to master cores scratchpad to get stored epoch number there
-    volatile int loadedEpoch;
-    loadedEpoch = ((int*)getSpAddr(spadCheckIdx, 0))[SYNC_ADDR];
+    // THIS BECOMES THE BOTTLENECK FOR SMALL FRAMES
     while(memEpoch >= loadedEpoch + numRegions) {
       loadedEpoch = ((int*)getSpAddr(spadCheckIdx, 0))[SYNC_ADDR];
     }
-    // printf("do epoch %d\n", memEpoch);
 
     // region of spad memory we can use
     int *spAddrRegion = spAddr + (memEpoch % numRegions) * regionSize;
 
     for (int j = 0; j < unroll_len; j++) {
-      // printf("start spAddr %#x from addr %#x\n", spAddrRegion + j * 2, a + i + j * dim);
       VPREFETCH(spAddrRegion + j * 2    , a + i + j * dim, 0);
       VPREFETCH(spAddrRegion + j * 2 + 1, b + i + j * dim, 0);
     }
-    // printf("complete mem epoch %d\n", memEpoch);
     memEpoch++;
-
-    // up memory epoch in the core
-    REMEM(0);
-
   }
 }
 
@@ -315,6 +305,25 @@ synthetic_dae(int *a, int *b, int *c, int *d, int start, int end,
   }
   else {
     synthetic_dae_execute(a, b, c, d, start, end, ptid, vtid, dim, unroll_len);
+  }
+}
+
+// https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
+int roundUp(int numToRound, int multiple) {
+  if (multiple == 0) {
+    return numToRound;
+  }
+
+  int remainder = abs(numToRound) % multiple;
+  if (remainder == 0) {
+    return numToRound;
+  }
+
+  if (numToRound < 0) {
+    return -(abs(numToRound) - remainder);
+  }
+  else {
+    return numToRound + multiple - remainder;
   }
 }
 
@@ -340,11 +349,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int tid = tid_x + tid_y * dim_x;
   int dim = dim_x * dim_y;
 
-  // // only let certain tids continue
-  // if (tid == 12) return;
-  // if (tid == 9 || tid == 10 || tid == 13 || tid == 14 || tid == 15) return;
-  // // if (tid == 2 || tid == 3 || tid == 6 || tid == 7 || tid == 11)  return;
-
   int vdim_x = 2;
   int vdim_y = 2;
   int vdim = vdim_x * vdim_y;
@@ -356,21 +360,29 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int vtid = 0;
   int start = 0;
   int end = 0;
-  int origin_x = 0;
-  int origin_y = 0;
+  int orig_x = 0;
+  int orig_y = 0;
+  int is_da = 0;
 
-  // construct 2 groups
+  // construct 3 groups
+
+  // virtual group dimension
+  vdim_x = 2;
+  vdim_y = 2;
+
+  int alignment = 16 * vdim_x * vdim_y;
 
   // group 1 top left (da == 8)
   if (ptid == 0) vtid = 0;
   if (ptid == 1) vtid = 1;
   if (ptid == 4) vtid = 2;
   if (ptid == 5) vtid = 3;
+  if (ptid == 8) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 4 || ptid == 5 || ptid == 8) {
     start = 0;
-    end = n / 2;
-    origin_x = 0;
-    origin_y = 0;
+    end = roundUp(n / 3, alignment); // make sure aligned to cacheline 
+    orig_x = 0;
+    orig_y = 0;
   }
 
   // group 2 top right (da == 11)
@@ -378,38 +390,45 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 3) vtid = 1;
   if (ptid == 6) vtid = 2;
   if (ptid == 7) vtid = 3;
+  if (ptid == 11) is_da = 1;
   if (ptid == 2 || ptid == 3 || ptid == 6 || ptid == 7 || ptid == 11) {
-    start = n / 2;
-    end = n;
-    origin_x = 2;
-    origin_y = 0;
+    start = roundUp(n / 3, alignment);
+    end = roundUp(2 * n / 3, alignment);
+    orig_x = 2;
+    orig_y = 0;
   }
 
-  
+  // group 3 bottom (da == 15)
+  if (ptid == 9)  vtid = 0;
+  if (ptid == 10) vtid = 1;
+  if (ptid == 13) vtid = 2;
+  if (ptid == 14) vtid = 3;
+  if (ptid == 15) is_da = 1;
+  if (ptid == 9 || ptid == 10 || ptid == 13 || ptid == 14 || ptid == 15) {
+    start = roundUp(2 * n / 3, alignment);
+    end = n;
+    orig_x = 1;
+    orig_y = 2;
+  }
 
-  // TODO group 3, bot mid
+  // ptid/core = 12 doesn't do anything in this config
 
-  int origin = origin_x + origin_y * dim_x;
+  int origin = orig_x + orig_y * dim_x;
 
   int vtid_x = vtid % vdim_x;
   int vtid_y = vtid / vdim_y;
 
-  int is_da = 0;
-  if (ptid == 8 || ptid == 11) {
-    is_da = 1;
-  }
-
   // construct special mask for dae example
-  int mask = ALL_NORM;
+  int mask = 0;
   if (is_da) {
-    mask = getDAEMask(origin_x, origin_y, vtid_x, vtid_y, vdim_x, vdim_y);
+    mask = getDAEMask(orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y);
   }
   else {
-    mask = getVecMask(origin_x, origin_y, vtid_x, vtid_y, vdim_x, vdim_y);
+    mask = getVecMask(orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y);
   }
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) mask %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, mask); 
 
-  int prefetchMask = (16 << PREFETCH_NUM_REGION_SHAMT) | (32 << PREFETCH_REGION_SIZE_SHAMT);
+  int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
   PREFETCH_EPOCH(prefetchMask);
 
   // make sure all cores have done this before begin kernel section --> do thread barrier for now
@@ -418,17 +437,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   if (tid == 12) return;
-  if (tid == 9 || tid == 10 || tid == 13 || tid == 14 || tid == 15) return;
-  // if (tid == 2 || tid == 3 || tid == 6 || tid == 7 || tid == 11)  return;
 
   VECTOR_EPOCH(mask);
 
   // run the actual kernel with the configuration
-  volatile int unroll_len = 16;
+  volatile int unroll_len = REGION_SIZE / 2;
   synthetic_dae(a, b, c, d, start, end, ptid, vtid, vdim, unroll_len, is_da, origin);
   // deconfigure
   // #ifdef _VEC
-  VECTOR_EPOCH(ALL_NORM);
+  VECTOR_EPOCH(0);
   // #endif
 
   // commit stats (don't have core 0 do this especially when its the Decoupled Access core)
