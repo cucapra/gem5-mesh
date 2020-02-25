@@ -67,7 +67,8 @@ programs = {
 
 # create a template for the gem5 command line
 # --debug-flags=PipelinePrint
-gem5_cmd = lambda program, options, result, cpus, vec: '{} -d {}/{} {} --cmd={} --options="{}" --num-cpus={} {}'.format(
+# --debug-flags=gemm_d
+gem5_cmd = lambda program, options, result, cpus, vec: '{} -d {}/{} {}  --cmd={} --options="{}" --num-cpus={} {}'.format(
     args.build,
     args.results,
     result,
@@ -168,8 +169,9 @@ make_flags_vvadd = [
     "SIM_DA_VLOAD_SIZE_1",
 ]
 
-make_flags_gemm = ["UNBLOCKED_INNER", "BLOCKED", "INTERLEAVED", "UNBLOCKED_OUTER"]
-
+# make_flags_gemm = ["UNBLOCKED_INNER", "BLOCKED", "INTERLEAVED", "UNBLOCKED_OUTER"]
+# make_flags_gemm = ["VPF", "SP", "DRAM"]
+make_flags_gemm = ["SP"]
 # program = "vvadd"
 program = "gemm"
 
@@ -184,39 +186,39 @@ def pack_and_run(numCpus, use_vec, use_sps, prog, i, extra_info):
 
 pool = multiprocessing.Pool(processes=16)
 
-# for use_vec in use_vec_arr:
-for make_flag in make_flags_gemm:
-    use_vec = False
-    print(make_flag)
-    # run a program from the list above with different parameters
-    compile_prog(
-        numCpus, use_vec, use_sps, program, "ENV_EXTRA_MAKE_FLAGS=-D" + make_flag
-    )
-
-    jobs = []
-
-    for i in range(runs):
-        # pack_and_run(numCpus, use_vec, use_sps, 'synth', i)
-        # the new file will have the same name as the old file, but also specify the new dir
-        proc = pool.apply_async(
-            pack_and_run, args=(numCpus, use_vec, use_sps, program, i, make_flag)
+for use_vec in use_vec_arr:
+    for make_flag in make_flags_gemm:
+        # use_vec = False
+        print(make_flag)
+        # run a program from the list above with different parameters
+        compile_prog(
+            numCpus, use_vec, use_sps, program, "ENV_EXTRA_MAKE_FLAGS=-D" + make_flag
         )
-        jobs.append(proc)
-        pass
 
-    # Wait for jobs to complete before exiting
-    while not all([p.ready() for p in jobs]):
-        time.sleep(5)
+        jobs = []
 
-    # Check if any jobs failed
-    failed_runs = 0
-    for p in jobs:
-        if p.get() == False:
-            failed_runs += 1
+        for i in range(runs):
+            # pack_and_run(numCpus, use_vec, use_sps, 'synth', i)
+            # the new file will have the same name as the old file, but also specify the new dir
+            proc = pool.apply_async(
+                pack_and_run, args=(numCpus, use_vec, use_sps, program, i, make_flag)
+            )
+            jobs.append(proc)
+            pass
 
-    if failed_runs > 0:
-        print("{} runs failed".format(failed_runs))
-        assert False
+        # Wait for jobs to complete before exiting
+        while not all([p.ready() for p in jobs]):
+            time.sleep(5)
+
+        # Check if any jobs failed
+        failed_runs = 0
+        for p in jobs:
+            if p.get() == False:
+                failed_runs += 1
+
+        if failed_runs > 0:
+            print("{} runs failed".format(failed_runs))
+            assert False
 
 # Safely terminate the pool
 pool.close()

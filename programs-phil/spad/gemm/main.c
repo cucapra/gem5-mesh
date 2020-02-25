@@ -7,6 +7,8 @@
 #include "pthread_launch.h"
 #include "gemm.h"
 
+
+
 int main(int argc, char *argv[]) {
   
   /*--------------------------------------------------------------------
@@ -52,12 +54,14 @@ int main(int argc, char *argv[]) {
   float *b = (float*)malloc(sizeof(float) * sizeB);
   float *c = (float*)malloc(sizeof(float) * sizeC);
   
+
   for (int i = 0; i < sizeA; i++)
     a[i] = 3;
   for (int i = 0; i < sizeB; i++)
     b[i] = 2;
   for (int i = 0; i < sizeC; i++)
     c[i] = 0;
+  
   
   // figure out good tile size for the architecture
   // i.e. the 2d tiles for the three matrices should fit into scratchpad

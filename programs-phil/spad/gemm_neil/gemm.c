@@ -6,16 +6,33 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
-#define REGION_SIZE 32
-#define NUM_REGIONS 16
-#define BLK_DIM 16
 
-//#define UNBLOCKED_INNER
-//#define BLOCKED
-// #define INTERLEAVED
-
+#ifdef VPF
 #define VEC_PFETCH
 #define OUT_SPAD
+#define IN_SPAD
+#elif defined SP
+#define OUT_SPAD
+#define IN_SPAD
+#else
+#endif
+
+#define BLK_DIM 2
+
+#if defined(_VEC) && defined(VEC_PFETCH)
+#define REGION_SIZE BLK_DIM
+#define NUM_REGIONS (512/REGION_SIZE)
+#else
+#define REGION_SIZE (BLK_DIM*2)
+#define NUM_REGIONS (512/REGION_SIZE)
+#endif
+
+//#define _VEC
+//#define UNBLOCKED_INNER
+//#define BLOCKED
+#define INTERLEAVED
+
+
 
 
 static inline int _idx_(int y, int x, int width) {
@@ -32,7 +49,125 @@ static inline int get_blk_end(int iter, int bound, int blk_dim) {
   }
 }
 
+void gemm_vec(float *a, float *b, float *c, int m, int n, int t, 
+    int m_start, int m_end, int n_start, int n_end, int tid) {
 
+  #ifndef _VEC
+  return;
+  #endif
+
+  int blk_dim = BLK_DIM;
+  int a_cache_size = REGION_SIZE/2; 
+  int b_cache_size = REGION_SIZE/2;
+  int c_block_size = blk_dim*blk_dim; 
+  
+  
+  int spadRegion = 0;
+  //float *spAddr = (float*)getSpAddr(tid,0);
+
+  float *sp_all[4] = {(float*)getSpAddr(0,0),(float*)getSpAddr(1,0),(float*)getSpAddr(2,0),(float*)getSpAddr(3,0)};
+  float *spAddr =  sp_all[tid];
+
+  #ifdef OUT_SPAD
+  float *sp_c = spAddr + NUM_REGIONS*REGION_SIZE;
+  #endif
+
+
+  int offset_x, offset_y;
+  int dim_x = 2; //num cpu in a group in x dim
+  int dim_y = 2;
+
+  int tid_x = tid%dim_x;
+  int tid_y = tid/dim_y;
+
+  offset_x = blk_dim*dim_x;
+  offset_y = blk_dim*dim_y;
+
+  float* sp_a = spAddr;
+  float* sp_b = spAddr + a_cache_size;
+  
+  
+  //assuming m_start-m_end is divisble by BLK_DIM
+  for (int i0 = m_start; i0 < m_end ; i0+=offset_y){
+    int i_st = i0 + (tid_y * blk_dim);
+    for (int j0 = n_start; j0 < n_end; j0+=offset_x) {
+      int j_st = j0 + (tid_x * blk_dim);
+      for (int k = 0; k < t; k++){
+        
+        #ifdef IN_SPAD
+        #if defined(VEC_PFETCH)
+        sp_a = spAddr + spadRegion*REGION_SIZE + 0;
+        sp_b = spAddr + spadRegion*REGION_SIZE + a_cache_size;
+        #endif
+
+        // fetch a in scratchpad
+        #ifdef VEC_PFETCH
+        VPREFETCH(sp_a, a + _idx_(k,i0+tid,m), 0);
+        #else
+        for (int i = 0; i <blk_dim ; i++) { 
+          sp_a[i]=a[_idx_(k,i+i_st,m)];
+        }
+        #endif
+    
+        // fetch b in scratchpad
+        #ifdef VEC_PFETCH
+        VPREFETCH(sp_b, b + _idx_(k,j0+tid,n), 0);
+        #else
+        for (int j = 0; j < blk_dim; j++) { 
+          sp_b[j] = b[_idx_(k,j+j_st,n)];
+        }
+        #endif
+        #endif
+      
+      
+        for (int i = 0; i < blk_dim; i++) {
+          for (int j = 0; j < blk_dim; j++) {
+            float a_,b_;
+            #ifdef VEC_PFETCH
+            float* addr_a = sp_all[tid_y*blk_dim + i] + spadRegion*REGION_SIZE + 0;
+            float* addr_b = sp_all[tid_x*blk_dim + j] + spadRegion*REGION_SIZE + a_cache_size;
+            
+
+            LWSPEC(a_, addr_a, 0); //addr according to cores
+            LWSPEC(b_, addr_b, 0);
+            
+            #elif defined(IN_SPAD)
+            a_ = sp_a[i];
+            b_ = sp_b[j];
+            #else
+            a_ = a[_idx_(k,i+i_st,m)];
+            b_ = b[_idx_(k,j+j_st,n)];
+            #endif
+            #ifdef OUT_SPAD
+            sp_c[_idx_(i,j,blk_dim)] += a_*b_;
+            #else
+            c[_idx_(i+i_st,j+j_st,n)] += a_*b_;
+            #endif
+          }
+        }
+
+        #ifdef VEC_PFETCH
+        spadRegion = (spadRegion + 1) % NUM_REGIONS;
+        REMEM(0);
+        #endif
+
+      }
+
+      //store c in DRAM
+      #ifdef OUT_SPAD
+      for (int i = 0; i < blk_dim; i++) {
+          for (int j = 0; j < blk_dim; j++) {
+            STORE_NOACK(sp_c[_idx_(i,j,blk_dim)],c + _idx_(i+i_st, j+j_st, n), 0);
+            sp_c[_idx_(i,j,blk_dim)]=0;
+          }
+      }
+      #endif
+    }
+  }
+
+
+
+}
 
 void gemm(float *a, float *b, float *c, int m, int n, int t, 
     int m_start, int m_end, int n_start, int n_end, int tid) {
@@ -61,9 +196,9 @@ void gemm(float *a, float *b, float *c, int m, int n, int t,
   }
 
   #else
-
-  int a_cache_size = BLK_DIM; // region_size/2
-  int b_cache_size = BLK_DIM; // region_size/2
+  int blk_dim = BLK_DIM;
+  int a_cache_size = blk_dim; // region_size/2
+  int b_cache_size = blk_dim; // region_size/2
   int c_block_size = a_cache_size*b_cache_size; 
 
   int spadRegion = 0;
@@ -79,39 +214,53 @@ void gemm(float *a, float *b, float *c, int m, int n, int t,
 
   #if defined(BLOCKED)
   // blocked would mean each core processes its tile in blocks to fit on scratchpad
-  offset_x = offset_y = BLK_DIM;
+  offset_x = offset_y = blk_dim;
   #elif defined(INTERLEAVED)
-  offset_x = BLK_DIM*dim_x;
-  offset_y = BLK_DIM*dim_y;
+  offset_x = blk_dim*dim_x;
+  offset_y = blk_dim*dim_y;
   #endif
   
-  //assuming m_start-m_end is divisble by BLK_DIM
+  //assuming m_start-m_end is divisble by blk_dim
   for (int i0 = m_start; i0 < m_end ; i0+=offset_x){
     for (int j0 = n_start; j0 < n_end; j0+=offset_y) {
       for (int k = 0; k < t; k++){
     
-        #ifdef VEC_PFETCH
+        #ifdef IN_SPAD
 
         float* sp_a = spAddr + spadRegion*REGION_SIZE + 0;
         float* sp_b = spAddr + spadRegion*REGION_SIZE + a_cache_size;
 
         // fetch a in scratchpad
-        for (int i = 0; i <BLK_DIM ; i++) { 
+        for (int i = 0; i <blk_dim ; i++) { 
+          #ifdef VEC_PFETCH
           VPREFETCH(sp_a + i , a + _idx_(i+i0,k,t), 0);
+          #else
+          sp_a[i]=a[_idx_(i+i0,k,t)];
+          #endif
         }
     
         // fetch b in scratchpad
-        for (int j = 0; j < BLK_DIM; j++) { 
+        for (int j = 0; j < blk_dim; j++) { 
+          #ifdef VEC_PFETCH
           VPREFETCH(sp_b + j , b + _idx_(k,j+j0,n), 0);
+          #else
+          sp_b[j]=b[_idx_(k,j+j0,n)];
+          #endif
         }
+        
         #endif
 
-        for (int i = 0; i < a_cache_size; i++) {
-          for (int j = 0; j < b_cache_size; j++) {
+        for (int i = 0; i < blk_dim; i++) {
+          for (int j = 0; j < blk_dim; j++) {
             float a_,b_;
+            #ifdef IN_SPAD
             #ifdef VEC_PFETCH
             LWSPEC(a_, sp_a+i, 0);
             LWSPEC(b_, sp_b+j, 0);
+            #else
+            a_ = sp_a[i];
+            b_ = sp_b[j];
+            #endif
             #else
             a_ = a[_idx_(i+i0,k,t)];
             b_ = b[_idx_(k,j+j0,n)];
@@ -151,13 +300,15 @@ void gemm(float *a, float *b, float *c, int m, int n, int t,
 void kernel(
     float *a, float *b, float *c, int m, int n, int t,
     int tid_x, int tid_y, int dim_x, int dim_y) {
+
+
   
-  // start recording all stats (all cores)
-  // use the last thread, b/c this wakes up last?
-  if (tid_x == 0 && tid_y == 0) {
-    stats_on();
-  }
-  
+  #if defined _VEC && defined VPF
+  int m_start = 0;
+  int n_start = 0;
+  int m_end = m;
+  int n_end = n;
+  #else
   // figure out which block this thread should do
   #ifdef INTERLEAVED
   int m_start = tid_y * BLK_DIM ;
@@ -182,16 +333,45 @@ void kernel(
   int m_end = m_start + m_chunk;
   int n_end = n_start + n_chunk;
   #endif
+  #endif
+
+  // start recording all stats (all cores)
+  // use the last thread, b/c this wakes up last?
+  if (tid_x == 0 && tid_y == 0) {
+    stats_on();
+  }
+  
+  
   
   int tid = tid_x + tid_y * dim_x;
+  int orig_x = 0;
+  int orig_y = 0; //only have 1 group for now
   
   //printf("iterations %d %d\n", n_end - n_start, m_end - m_start);
 
 
   int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
   PREFETCH_EPOCH(prefetchMask);
+  pthread_barrier_wait(&start_barrier);
 
+  #if defined _VEC
+  int mask = 0;
+  mask = getVecMask(orig_x, orig_y, tid_x, tid_y, dim_x, dim_y);
+
+  // configure
+  VECTOR_EPOCH(mask);
+  #if defined VPF
+  gemm_vec(a, b, c, m, n, t, m_start, m_end, n_start, n_end, tid);
+  #else
+  gemm(a, b, c, m, n, t, m_start, m_end, n_start, n_end, tid); // for non VPF case, algorithm is same - use same kernel to compare baseline and vec config
+  #endif
+
+  //pthread_barrier_wait(&start_barrier);
+  // deconfigure
+  VECTOR_EPOCH(0);
+  #else
   gemm(a, b, c, m, n, t, m_start, m_end, n_start, n_end, tid);
+  #endif
   
   
 }
@@ -232,9 +412,10 @@ void *pthread_kernel(void *args) {
   kernel(a->a, a->b, a->c, a->m, a->n, a->t,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-  if (a->tid_x == 0 && a->tid_y == 0) {
+  if (a->tid_x == 1 && a->tid_y == 1) {
     stats_off();
   }
-      
+
+     
   return NULL;
 }

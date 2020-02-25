@@ -7,6 +7,34 @@
 #include "pthread_launch.h"
 #include "gemm.h"
 
+#define RAND_MAT
+
+void fill_matrix(float* m, int row, int col){
+  srand(0);
+  for (int i = 0; i < row; i++){
+    for (int j = 0; j<col ; j++){
+      m[i*col+j] = rand()%10;
+    }
+  }
+
+}
+
+int check_matmul(float* a, float*b, float*c, int m, int n, int t){
+  for (int i = 0; i < m; i++) {
+    for (int j = 0; j < n; j++) {
+      float c_temp = 0;
+      for (int k = 0; k < t; k++) {
+         c_temp += a[i*t+k] * b[k*n+j];
+      }
+      if (c[i*n+j] != c_temp) {
+        printf("[[FAIL]]\n");
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
+
 int main(int argc, char *argv[]) {
   
   /*--------------------------------------------------------------------
@@ -58,12 +86,32 @@ int main(int argc, char *argv[]) {
   float *b = (float*)malloc(sizeof(float) * sizeB);
   float *c = (float*)malloc(sizeof(float) * sizeC);
   
+  #ifdef RAND_MAT
+  fill_matrix(a,m,t);
+  fill_matrix(b,t,n);
+  #else
   for (int i = 0; i < sizeA; i++)
     a[i] = 3;
   for (int i = 0; i < sizeB; i++)
     b[i] = 2;
+  #endif
+  
   for (int i = 0; i < sizeC; i++)
     c[i] = 0;
+
+  #if defined _VEC && defined VPF
+  //do transpose of a for contiguous access
+  float *a_= (float*)malloc(sizeof(float) * sizeA);
+  float *_temp;
+  for (int k = 0; k < t; k++){
+    for (int i = 0; i < m; i++){
+      a_[k*m+i]= a[i*t+k];
+    }
+  }
+  _temp = a;
+  a=a_;
+  a_ = _temp;
+  #endif
   
   // figure out good tile size for the architecture
   // i.e. the 2d tiles for the three matrices should fit into scratchpad
@@ -100,7 +148,14 @@ int main(int argc, char *argv[]) {
   /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
+  #if defined _VEC && defined VPF
+  a = a_;
+  #endif
   
+  #ifdef RAND_MAT
+  int fail = check_matmul(a,b,c,m,n,t);
+  if(fail) return 1;
+  #else
   for (int i = 0; i < sizeC; i++) {
     //printf("%f\n", c[i]);
     if (c[i] != 6 * t) {
@@ -108,13 +163,11 @@ int main(int argc, char *argv[]) {
       return 1;
     }
   }
+  #endif
   
   free(a);
   free(b);
   free(c);
-  
   printf("[[SUCCESS]]\n");
-  
-  
   return 0;
 }

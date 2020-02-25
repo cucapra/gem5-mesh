@@ -12,6 +12,7 @@
 #include "debug/IEW.hh"
 
 #include "debug/Mesh.hh"
+#include "debug/gemm_d.hh"
 
 //-----------------------------------------------------------------------------
 // IEW
@@ -458,7 +459,9 @@ void IEW::doIssue()
     {
 
        // do not stall if trace core. We want the trace cores to issue prefetch even if there is control flow operation in the pipeline because they know its resolved
-      if (vecmode && m_cpu_p->getEarlyVector()->isSlave()){}
+      if (vecmode && m_cpu_p->getEarlyVector()->isSlave()){
+        DPRINTF(gemm_d, "[sn:%d] issue prelw in slave nop\n", inst->seq_num);
+      }
       else{
         DPRINTF(IEW, "[sn:%d] Can't issue prelw due to pending younger "
                     "unresolved cond ctrl instructions\n",
@@ -495,8 +498,14 @@ void IEW::doIssue()
       return;
     }
 
-    if (inst->static_inst_p->isSpadPrefetch())
+    if (inst->static_inst_p->isSpadPrefetch()){
       DPRINTF(Mesh, "[sn:%d] issue prelw\n", inst->seq_num);
+      DPRINTF(gemm_d, "[sn:%d] issue prelw\n", inst->seq_num);
+    }
+    if(inst->static_inst_p->isSpadSpeculative()){
+      DPRINTF(gemm_d, "[sn:%d] issue lwspec\n", inst->seq_num);
+    }
+
 
     // issue the instruction now
     exec_unit_p->insert(inst);
