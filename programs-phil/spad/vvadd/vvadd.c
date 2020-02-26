@@ -109,37 +109,20 @@ inline int min(int a, int b) {
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
 vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
-  volatile DTYPE *cPtr = c + start + vtid;
-  // const int inc = 4 * dim; // going to fix group size otherwise have stack insertion which don't want
-  const int fixed_dim = 4;
-  const int inc = 4 * fixed_dim ;
-  const int spadInc = inc * 2;
-  volatile int *spadAddr = (int*)getSpAddr(ptid, 0);
-  // volatile int *astart = a + start + vtid;
+  DTYPE *cPtr = c + start + vtid;
+  int *spadAddr = (int*)getSpAddr(ptid, 0);
+
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask); 
 
   // code for vector cores, master should just skip this, vector cores don't naturally enter this loop b/c
   // ifetch is turned off with VECTOR_EPOCH
   if (!is_master) {
+    int a_, b_;
     fable1: // vissue fable1 7 (just trailing core does)
-      asm volatile(
-        // lwspec a[i]
-        ".insn s 0x03, 0x7, t0, 0(%[memA])\n\t"
-        // "lw t0, 0(%[memA])\n\t"
-        // lwspec b[i]
-        ".insn s 0x03, 0x7, t1, 4(%[memA])\n\t"
-        // "lw t1, 0(%[memA])\n\t"
-        // add c[i] = a[i] + b[i]
-        "add t0, t0, t1\n\t"
-        // store c[i]
-        "sw t0, 0(%[memC])\n\t"
-        // increment pointers
-        // "addi %[memA], %[memA], %[spad_inc]\n\t"
-        // "addi %[memC], %[memC], %[ptr_inc]\n\t"
-        : /*[memA] "+r" (spadAddr), [memC] "+r" (cPtr)*/
-        : [spad_inc] "i" (spadInc), [ptr_inc] "i" (inc), [memA] "r" (spadAddr), [memC] "r" (cPtr)
-      );
+      LWSPEC(a_, spadAddr, 0);
+      LWSPEC(b_, spadAddr + 1, 0);
+      cPtr[0] = a_ + b_;
   }
 
   // master code
@@ -180,19 +163,10 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   }
 
   // deconfigure (send fable with VECTOR_EPOCH(0))
-  // ISSUE_VINST(fable2, 1);
 
   // b/c can't adjust the lenght yet need to pad to 7 insts.
   fable2:
     DEVEC(fable2);
-    asm volatile(
-      "nop\n\t"
-      "nop\n\t"
-      "nop\n\t"
-      "nop\n\t"
-      "nop\n\t"
-      "nop\n\t"
-    );
 
 }
 #else
