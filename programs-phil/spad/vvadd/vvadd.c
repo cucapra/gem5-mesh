@@ -136,12 +136,6 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   //   VPREFETCH(spadAddr + i * 2 + 1, b + start + (i * dim), 0);
   // }
 
-
-  // volatile int noob = astart[0];
-  // if (noob) {
-  //   asm volatile("nop\n\t");
-  // }
-
   for (int i = 0; i < totalIter; i++) {
     // issue fable1
     ISSUE_VINST(fable1);
@@ -164,9 +158,8 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
   // deconfigure (send fable with VECTOR_EPOCH(0))
 
-  // b/c can't adjust the lenght yet need to pad to 7 insts.
-  fable2:
-    DEVEC(fable2);
+  // devec with unique tag
+  DEVEC(fable2);
 
 }
 #else

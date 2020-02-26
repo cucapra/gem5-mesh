@@ -52,12 +52,13 @@
     : label                                                                   \
   )
 
-#define DEVEC(label)                                                          \
-  asm volatile goto (".insn uj 0x2b, x0, %l[" #label "]\n\t"                  \
+#define DEVEC(devec_id)                                                       \
+  devec_id:                                                                   \
+  asm volatile goto (".insn uj 0x2b, x0, %l[" #devec_id "]\n\t"               \
     :                                                                         \
     :                                                                         \
     :                                                                         \
-    : label                                                                   \
+    : devec_id                                                                \
   )
 
 #define PREFETCH_EPOCH(val) \
