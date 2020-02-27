@@ -105,25 +105,52 @@ inline int min(int a, int b) {
   }
 }
 
+// NOTE optimize("-fno-inline") prevents return block from being at the end, which is kind of needed for the scheme
+// ACTUALLY any second label causes a problem???
 #ifdef USE_VECTOR_SIMD
-void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
+void __attribute__((optimize("-fno-reorder-blocks")))
 vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
-  DTYPE *cPtr = c + start + vtid;
   int *spadAddr = (int*)getSpAddr(ptid, 0);
+
+  //   int a_, b_, iter;
+  // DTYPE *cPtr;
+  // // fable0:
+  //   iter = 0;
+  //   cPtr = c + start + vtid;
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask); 
 
   // code for vector cores, master should just skip this, vector cores don't naturally enter this loop b/c
   // ifetch is turned off with VECTOR_EPOCH
-  if (!is_master) {
-    int a_, b_;
-    fable1: // vissue fable1 7 (just trailing core does)
-      LWSPEC(a_, spadAddr, 0);
-      LWSPEC(b_, spadAddr + 1, 0);
-      cPtr[0] = a_ + b_;
-  }
+
+  // both here and below works as -O1
+
+  // goto end_vec;
+
+  //   // declarations
+  // int a_, b_, iter;
+  // DTYPE *cPtr;
+  // // entry block
+  // fable0:
+  //   iter = 0;
+  //   cPtr = c + start + vtid;
+
+  // // loop body block
+  // fable1:
+  //   LWSPEC(a_, spadAddr + iter * 2, 0);
+  //   LWSPEC(b_, spadAddr + iter * 2 + 1, 0);
+  //   cPtr[iter] = a_ + b_;
+  //   iter++;
+  //   // does not work within any kind of loop back (goto, while ...)
+  //   // then adds a new entry block just for the jump into the loop body
+  //   // asm volatile goto("j %l[fable1]\n\t"::::fable1);
+  //   // goto fable1;
+  //   // while(1) {}
+  //   // actually looks like this is considered a loop as well??
+  
+  // end_vec:;
 
   // master code
 
@@ -135,6 +162,8 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   //   VPREFETCH(spadAddr + i * 2 + 0, a + start + (i * dim), 0);
   //   VPREFETCH(spadAddr + i * 2 + 1, b + start + (i * dim), 0);
   // }
+
+  ISSUE_VINST(fable0);
 
   for (int i = 0; i < totalIter; i++) {
     // issue fable1
@@ -159,8 +188,55 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // deconfigure (send fable with VECTOR_EPOCH(0))
 
   // devec with unique tag
-  DEVEC(fable2);
+  DEVEC(devec_0);
 
+  // if there's a jump in this then can add another vissue instruction?
+  // shouldn't mess up jump addresses b/c haven't resolved yet before assembly
+  // int a_, b_, iter;
+  // DTYPE *cPtr;
+  // // fable0:
+  //   iter = 0;
+  //   cPtr = c + start + vtid;
+  // while(1){
+  // goto end_label;
+  return;
+
+  // kind of works -O3 but has a jump at the end, and does not support loop carry deps
+
+  // declarations
+  int a_, b_, iter;
+  // volatile int iter; // volatile makes rly bad code
+  DTYPE *cPtr;
+
+  // entry block
+  // NOTE need to do own loop-invariant code hoisting
+  fable0:
+    iter = 0;
+    cPtr = c + start + vtid;
+   
+  //asm volatile goto("j %l[fable1]\n\t"::::fable1);
+
+  
+  // loop body block
+  fable1:
+    LWSPEC(a_, spadAddr + iter * 2, 0);
+    LWSPEC(b_, spadAddr + iter * 2 + 1, 0);
+    cPtr[iter] = a_ + b_;
+    // to mod loop carry variables prob have to use inline asm, otherwise
+    // dead code elimination will remove (b/c can't have a loop back)?
+    // but actually this doesn't really work either because LWSPEC not using the correct thing
+    // asm volatile goto(""::::loop_carry);
+    // loop_carry:
+    iter++;
+    // asm volatile("addi %[iterator], %[iterator], 1\n\t" : [iterator] "+r" (iter));
+
+    // does not work within any kind of loop back (goto, while ...)
+    // then adds a new entry block just for the jump into the loop body
+    asm volatile goto("j %l[fable1]\n\t"::::fable1);
+    // goto fable1;
+    // while(1) {}
+
+  return;
 }
 #else
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
