@@ -224,13 +224,18 @@ Vector::nextAtomicInstFetch() {
   // need to issue two functional request for access b/c across two lines
   else {
     int fetchSize = sizeof(RiscvISA::MachInst) / 2;
-    auto mach_inst0 = doICacheFuncRead(tid, instAddr - fetchSize, sizeof(RiscvISA::MachInst));
-    auto mach_inst1 = doICacheFuncRead(tid, instAddr + fetchSize, sizeof(RiscvISA::MachInst));
+    auto mach_inst0 = doICacheFuncRead(tid, instAddr, fetchSize);
+    auto mach_inst1 = doICacheFuncRead(tid, instAddr + fetchSize, fetchSize);
+    auto mach_inst = (mach_inst0 & 0x0000ffff) | (mach_inst1 << (fetchSize * 8));
     // mach_inst = (mach_inst1 & 0x00ff0000) | (mach_inst1 & 0xff000000) | (mach_inst0 & 0x000000ff) | (mach_inst0 & 0x0000ff00);
-    // DPRINTF(Mesh, "stiched machinst %#x %#x -> %#x\n", mach_inst0, mach_inst1, mach_inst);
-    decoder.moreBytes(pc, instAddr - fetchSize, mach_inst0);
-    decoder.moreBytes(pc, instAddr + fetchSize, mach_inst1);
-    static_inst = decoder.decode(pc);
+    DPRINTF(Mesh, "unalgined machinst %#x %#x -> %#x\n", mach_inst0, mach_inst1, mach_inst);
+    static_inst = decoder.decode(mach_inst, 0x0);
+    // // TOOD I think need to shift machinst
+    // decoder.moreBytes(pc, instAddr, mach_inst0);
+    // if (decoder.decode(pc) == (StaticInstPtr)nullptr) {
+    //   decoder.moreBytes(pc, instAddr + fetchSize, mach_inst1);
+    // }
+    // static_inst = decoder.decode(pc);
     // assert(0);
   }
 
