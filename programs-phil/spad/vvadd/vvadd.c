@@ -180,6 +180,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     // if (beginIter + i < totalIter) {
     //   int idx = beginIter + i;
       int idx = i;
+      // TODO WHY ARE THESE ISSUE OUT OF ORDER????
       VPREFETCH(spadAddr + idx * 2 + 0, a + start + (idx * dim), 0);
       VPREFETCH(spadAddr + idx * 2 + 1, b + start + (idx * dim), 0);
     // }
@@ -221,7 +222,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   fable1:
     LWSPEC(a_, spadAddr + iter * 2, 0);
     LWSPEC(b_, spadAddr + iter * 2 + 1, 0);
-    cPtr[iter] = a_ + b_;
+    cPtr[iter * dim] = a_ + b_;
     // to mod loop carry variables prob have to use inline asm, otherwise
     // dead code elimination will remove (b/c can't have a loop back)?
     // but actually this doesn't really work either because LWSPEC not using the correct thing

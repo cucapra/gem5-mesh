@@ -200,6 +200,11 @@ def was_vissue_label(label):
 def removed_line(line):
     return '\t# removed: {}'.format(line)
 
+# 
+def nop_hack_line(line):
+    return '\taddi x0, x0, 0\n'
+
+
 # try to merge blocks following a vissue label
 # keep going until encounter a backedge or another vissue label
 # IMPORTANT that gcc does not reorder blocks otherwise this won't work
@@ -222,7 +227,7 @@ def flatten_vissue(vissue_line):
             if (is_jump):
                 # important to remove line afterwards
                 backedge_to_label = has_backedge(jlabel)
-                cached_src_file[i] = removed_line(line)
+                cached_src_file[i] = nop_hack_line(line) #removed_line(line)
                 if (backedge_to_label):
 
                     print('has backedge ' + line)
@@ -309,9 +314,24 @@ vissue_table = build_vissue_table()
 for k,v in vissue_table.items():
     adjust_vissue_label(k)
 
+# TODO this step produces a nice objdump, but gem5 not liking it
 # we need to modify code after the labels from the vissue table
 for k,v in vissue_table.items():
     flatten_vissue(k)
+# if (len(vissue_table) > 0):
+#     for i in range(0,len(cached_src_file)):
+#         line = cached_src_file[i]
+#         (is_label, label) = check_label(line)
+#         if (is_label and label == '.L4'):
+#             cached_src_file[i] = removed_line(line)
+#         if (is_label and label == '.L7'):
+#             cached_src_file[i] = removed_line(line)
+#         (is_jump, jlabel) = check_jump(line)
+#         if (is_jump and jlabel == '.L7'):
+#             cached_src_file[i] = '\taddi x0, x0, 0\n'
+#             cached_src_file[i - 1] = '#\n'
+#             cached_src_file[i - 2] = '#\n'
+        
 
 # count the number instructions for vissue (basic block)
 for k,v in vissue_table.items():

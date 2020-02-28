@@ -219,6 +219,7 @@ Vector::nextAtomicInstFetch() {
       int fetchSize = sizeof(RiscvISA::MachInst);
       auto mach_inst = doICacheFuncRead(tid, instAddr, fetchSize);
       static_inst = decoder.decode(mach_inst, 0x0);
+      DPRINTF(Mesh, "instAddr %s -> machInst %#x\n", _uopPC, mach_inst);
   }
   // need to issue two functional request for access b/c across two lines
   else {
@@ -255,7 +256,6 @@ Vector::nextAtomicInstFetch() {
           std::make_shared<IODynInst>(static_inst, pc,
                                       m_cpu_p->getAndIncrementInstSeq(),
                                       tid, m_cpu_p);
-
 
   // increment the pc and uops
   // RiscvISA::Decoder decoder;
