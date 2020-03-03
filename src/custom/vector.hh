@@ -10,6 +10,7 @@
 #include "cpu/io/stage.hh"
 #include "custom/mesh_helper.hh"
 #include "custom/mesh_ports.hh"
+#include "custom/vec_inst_sel.hh"
 
 class Vector : public Stage {
   // inheritance
@@ -84,43 +85,43 @@ class Vector : public Stage {
     void signalActivity() {}
     
   protected:
-    // information to use to create local IODynInst
-    // currenlty cheating and using all possible info
-    struct MasterData {
-        IODynInstPtr inst;
-        bool isInst; // inst or PC
-        TheISA::PCState pc;
+    // // information to use to create local IODynInst
+    // // currenlty cheating and using all possible info
+    // struct MasterData {
+    //     IODynInstPtr inst;
+    //     bool isInst; // inst or PC
+    //     TheISA::PCState pc;
 
-        // sending an instruction
-        MasterData(IODynInstPtr inst) {
-          this->inst = inst;
-          isInst = true;
-        }
+    //     // sending an instruction
+    //     MasterData(IODynInstPtr inst) {
+    //       this->inst = inst;
+    //       isInst = true;
+    //     }
 
-        // sending a PC
-        MasterData(TheISA::PCState pc) {
-          this->pc = pc;
-          isInst = false;
-        }
+    //     // sending a PC
+    //     MasterData(TheISA::PCState pc) {
+    //       this->pc = pc;
+    //       isInst = false;
+    //     }
 
-        MasterData() {
+    //     MasterData() {
 
-        }
-    };
-    
+    //     }
+    // };
+
     // create a dynamic instruction
-    IODynInstPtr createInstruction(const MasterData &instInfo);
+    IODynInstPtr createInstruction(const IODynInstPtr &instInfo);
     
     // make a dynamic instruction then push it
-    void pushPipeInstToNextStage(const MasterData &instInfo);
-    void pushMeshInstToNextStage(const MasterData &instInfo);
+    void pushPipeInstToNextStage(const IODynInstPtr &instInfo);
+    void pushMeshInstToNextStage(const IODynInstPtr &instInfo);
     
     // master calls this to broadcast to neighbors
-    void forwardInstruction(const MasterData &instInfo);
+    void forwardInstruction(const IODynInstPtr &instInfo);
     
     // pull an instruction from the mesh or pipe
-    void pullPipeInstruction(MasterData &instInfo);
-    void pullMeshInstruction(MasterData &instInfo);
+    void pullPipeInstruction(IODynInstPtr &instInfo);
+    void pullMeshInstruction(IODynInstPtr &instInfo);
     
     // pass the instruction through this stage because not in vec mode
     // wont this add buffer slots in !sequentialMode which is undesirable?
@@ -133,13 +134,13 @@ class Vector : public Stage {
     // create a packet to send over the mesh network
     PacketPtr createMeshPacket(RegVal payload);
     // cheat version for experiments
-    PacketPtr createMeshPacket(const MasterData &inst);
+    PacketPtr createMeshPacket(const VecInstSel::MasterData &inst);
     
     // reset all mesh node port settings
     void resetActive();
     
     // TEMP get an instruction from the master
-    std::shared_ptr<MasterData> getMeshPortInst(Mesh_Dir dir);
+    // IODynInstPtr getMeshPortInst(Mesh_Dir dir);
     
     // get received data from the specified mesh port
     uint64_t getMeshPortData(Mesh_Dir dir);
@@ -175,17 +176,17 @@ class Vector : public Stage {
     // profile any stalling
     void profile();
 
-    // PC gen for uop decomposition
-    // I think this would be in the normal fetch PC GEN in real RTL
-    // but easier to just replicate in the game5 model
-    // don't need to unstall fetch or worry about ordering
-    // can also try to do functionalReq to get the icache resp immedietly as if did last cycle?
-    // fine as long as assume warmed up cache and not enough microops to ever warrant icache miss <4kB
-    void setPCGen(TheISA::PCState issuePC, int cnt);
-    bool isPCGenActive();
-    IODynInstPtr nextAtomicInstFetch();
-    RiscvISA::MachInst doICacheFuncRead(int tid, Addr instAddr, int fetchSize);
-    int extractInstCntFromVissue(IODynInstPtr inst);
+    // // PC gen for uop decomposition
+    // // I think this would be in the normal fetch PC GEN in real RTL
+    // // but easier to just replicate in the game5 model
+    // // don't need to unstall fetch or worry about ordering
+    // // can also try to do functionalReq to get the icache resp immedietly as if did last cycle?
+    // // fine as long as assume warmed up cache and not enough microops to ever warrant icache miss <4kB
+    // void setPCGen(TheISA::PCState issuePC, int cnt);
+    // bool isPCGenActive();
+    // IODynInstPtr nextAtomicInstFetch();
+    // RiscvISA::MachInst doICacheFuncRead(int tid, Addr instAddr, int fetchSize);
+    // int extractInstCntFromVissue(IODynInstPtr inst);
 
    public:
     // helpers to figure out settings of this stage
@@ -232,6 +233,15 @@ protected:
     // get current vector group origin
     int getXOrigin();
     int getYOrigin();
+
+    // if this stage is going to stall in the current cycle
+    bool canPullMesh();
+    bool canPullPipe();
+    bool canPushMesh();
+    bool canPushPipe();
+
+    bool canRecvMeshPkt();
+    bool enqueueMeshPkt(PacketPtr pkt);
      
   protected:
   
@@ -272,19 +282,22 @@ protected:
     // count the number of revecs we've recved in the past
     //int _revecCntr;
 
-    // the current uop PC
-    TheISA::PCState _uopPC;
-    // number of uops to get before completion (<8 or so, can make hardware small)
-    int _uopIssueLen;
-    // the current number of uops
-    int _uopCnt;
-    
+    // // the current uop PC
+    // TheISA::PCState _uopPC;
+    // // number of uops to get before completion (<8 or so, can make hardware small)
+    // int _uopIssueLen;
+    // // the current number of uops
+    // int _uopCnt;
+
+    // unit to provide instructions from the mesh either full inst or uop from fetch it did
+    VecInstSel _vecUops;
+  public:
     // TEMP to make all relevant info available
     struct SenderState : public Packet::SenderState
     {
       // important this is shared_ptr so wont be freed while packet 'in-flight'
-      std::shared_ptr<MasterData> master_data;
-      SenderState(std::shared_ptr<MasterData> _master_data)
+      std::shared_ptr<VecInstSel::MasterData> master_data;
+      SenderState(std::shared_ptr<VecInstSel::MasterData> _master_data)
         : master_data(_master_data)
       { }
     };

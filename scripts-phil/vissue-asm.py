@@ -200,9 +200,9 @@ def was_vissue_label(label):
 def removed_line(line):
     return '\t# removed: {}'.format(line)
 
-# 
-def nop_hack_line(line):
-    return '\taddi x0, x0, 0\n'
+# # 
+# def nop_hack_line(line):
+#     return '\taddi x0, x0, 0\n'
 
 
 # try to merge blocks following a vissue label
@@ -227,7 +227,7 @@ def flatten_vissue(vissue_line):
             if (is_jump):
                 # important to remove line afterwards
                 backedge_to_label = has_backedge(jlabel)
-                cached_src_file[i] = nop_hack_line(line) #removed_line(line)
+                cached_src_file[i] = removed_line(line)
                 if (backedge_to_label):
 
                     print('has backedge ' + line)

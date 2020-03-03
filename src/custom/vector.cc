@@ -20,9 +20,7 @@ Vector::Vector(IOCPU *_cpu_p, IOCPUParams *p, size_t in_size, size_t out_size,
     _vecPassThrough(false),
     _meshRevecId(-1),
     _pipeRevecId(-1),
-    _uopPC(0),
-    _uopIssueLen(0),
-    _uopCnt(0)
+    _vecUops(_cpu_p, p)
 {
 }
 
@@ -48,6 +46,110 @@ Vector::tick() {
   // figure out the sources (parallel muxes) for the mesh net and pipeline respectively
   auto pipeSrc = getOutPipeSource();
   auto meshSrc = getOutMeshSource();
+
+  DPRINTF(Mesh, "vec status pullMesh %d pullPipe %d pushMesh %d pushPipe %d\n", canPullMesh(), canPullPipe(), canPushMesh(), canPushPipe());
+
+  // pull instructions for both sources if no stalls
+  IODynInstPtr meshInst = nullptr;
+  if (canPullMesh()) {
+    pullMeshInstruction(meshInst);
+  }
+  
+  IODynInstPtr pipeInst = nullptr;
+  if (canPullPipe()) {
+    pullPipeInstruction(pipeInst);
+  }
+
+  // if possible push instruction to next pipe stage and/or mesh network
+  if (canPushMesh()) {
+     
+    // forward instruction to other neighbors potentially
+    if (meshSrc == Pipeline) {
+      DPRINTF(Mesh, "push pipe inst %s to mesh\n", pipeInst->toString(true));
+      forwardInstruction(pipeInst);
+    }
+    else if (meshSrc == Mesh) {
+      DPRINTF(Mesh, "push mesh inst %s to mesh\n", meshInst->toString(true));
+      forwardInstruction(meshInst);
+    }
+  }
+  
+  // give instruction to the local decode stage if present
+  if (canPushPipe()) {
+    if (pipeSrc == Pipeline) {
+      DPRINTF(Mesh, "push pipe inst %s to pipe\n", pipeInst->toString(true));
+      pushPipeInstToNextStage(pipeInst);
+    
+      // only needs to be done here? b/c always happens in late vector
+      // MUST BE THE LAST THING TO HAPPEN!
+      if (!hasNextStage()) { // actually make sure its the last stage that does this (HACK)
+        pipeInst->updateMiscRegs();
+      }
+    }
+    else if (pipeSrc == Mesh) {
+      DPRINTF(Mesh, "push mesh inst %s to pipe\n", meshInst->toString(true));
+      pushMeshInstToNextStage(meshInst);
+    }
+  }
+
+  // if the instruction is a revec we need to handle it
+  // IMPORTANT that this updates the config on the next cycle, not the current one
+  // so that's why we put this after the stalls have been considered for this cycle
+  // also prevents revec from being sent twice
+  handleRevec(pipeInst, meshInst);
+  
+}
+
+bool
+Vector::canRecvMeshPkt() {
+  return _vecUops.getRdy();
+}
+
+bool
+Vector::enqueueMeshPkt(PacketPtr pkt) {
+  return _vecUops.enqueueTiming(pkt);
+}
+
+// TODO would like a refactor with the stuff in tick
+bool
+Vector::canPullMesh() {
+  // figure out the sources (parallel muxes) for the mesh net and pipeline respectively
+  auto pipeSrc = getOutPipeSource();
+  auto meshSrc = getOutMeshSource();
+  
+  // these determine whetehr we can push to the respective output buffer
+  bool outMeshStall = !canPushMesh();
+  bool outPipeStall = !canPushPipe();
+  
+  // these determine whether we can pull from the respective input buffer
+  bool inMeshStall = (meshSrc == Mesh && outMeshStall) || (pipeSrc == Mesh && outPipeStall) 
+    // or not using at all
+    || (meshSrc != Mesh && pipeSrc != Mesh);
+  return !inMeshStall;
+}
+
+bool
+Vector::canPullPipe() {
+    // figure out the sources (parallel muxes) for the mesh net and pipeline respectively
+  auto pipeSrc = getOutPipeSource();
+  auto meshSrc = getOutMeshSource();
+  
+  // these determine whetehr we can push to the respective output buffer
+  bool outMeshStall = !canPushMesh();
+  bool outPipeStall = !canPushPipe();
+  
+  // these determine whether we can pull from the respective input buffer
+  bool inPipeStall = (meshSrc == Pipeline && outMeshStall) || (pipeSrc == Pipeline && outPipeStall)
+    // or not using at all
+    || (meshSrc != Pipeline && pipeSrc != Pipeline);
+  return !inPipeStall;
+}
+
+bool
+Vector::canPushMesh() {
+  // figure out the sources (parallel muxes) for the mesh net and pipeline respectively
+  auto pipeSrc = getOutPipeSource();
+  auto meshSrc = getOutMeshSource();
   
   // if outputs have different srcs then can decouple stalls
   bool coupledStalls = (pipeSrc == meshSrc);
@@ -58,222 +160,35 @@ Vector::tick() {
     (isOutMeshStalled() ||
     // stall if any inputs stalled
     (meshSrc == Pipeline && isInPipeStalled()) ||
-    (meshSrc == Mesh     && isInMeshStalled() && !isPCGenActive()) ||
+    (meshSrc == Mesh     && isInMeshStalled()) ||
     // stall if coupled output is stalled
     (coupledStalls       && isOutPipeStalled()));
   
+  return !outMeshStall;
+}
+
+bool
+Vector::canPushPipe() {
+    // figure out the sources (parallel muxes) for the mesh net and pipeline respectively
+  auto pipeSrc = getOutPipeSource();
+  auto meshSrc = getOutMeshSource();
+  
+  // if outputs have different srcs then can decouple stalls
+  bool coupledStalls = (pipeSrc == meshSrc);
+
   bool outPipeStall = (pipeSrc != None) &&
     // stall if own output is stalled
     (isOutPipeStalled() ||
     // stall if any inputs stalled
     (pipeSrc == Pipeline && isInPipeStalled()) ||
-    (pipeSrc == Mesh     && isInMeshStalled() && !isPCGenActive()) ||
+    (pipeSrc == Mesh     && isInMeshStalled()) ||
     // stall if coupled output is stalled
     (coupledStalls       && isOutMeshStalled()));
   
-  
-  // these determine whether we can pull from the respective input buffer
-  bool inMeshStall = (meshSrc == Mesh && outMeshStall) || (pipeSrc == Mesh && outPipeStall) 
-    // or not using at all
-    || (meshSrc != Mesh && pipeSrc != Mesh)
-    // if we are currently processing a macro-op, then we can't read from the mesh
-    || (meshSrc == Mesh && isPCGenActive());
-  bool inPipeStall = (meshSrc == Pipeline && outMeshStall) || (pipeSrc == Pipeline && outPipeStall)
-    // or not using at all
-    || (meshSrc != Pipeline && pipeSrc != Pipeline);
-  // uop stalls if can't send anywhere
-  bool inUopStall = (meshSrc == Mesh && outMeshStall) || (pipeSrc == Mesh && outPipeStall);
-  
-  // pull instructions for both sources if no stalls
-  MasterData meshInfo;
-  if (!inMeshStall) {
-    pullMeshInstruction(meshInfo);
+  return !outPipeStall;
 
-    // check if this is a PC/VISSUE and setup PC-GEN
-    if (!meshInfo.isInst) {
-      int cnt = extractInstCntFromVissue(meshInfo.inst);
-      setPCGen(meshInfo.pc, cnt);
-    }
-  }
-
-  // pull uop from icache if not stalled
-  // TODO doing this immedietly on cycle recv
-  if (isPCGenActive() && !inUopStall) {
-    IODynInstPtr inst = nextAtomicInstFetch();
-    DPRINTF(Mesh, "fetchinst %s\n", inst->toString(true));
-    assert(!inst->from_trace);
-    meshInfo = MasterData(inst);
-  }
-  
-  MasterData pipeInfo;
-  if (!inPipeStall) {
-    pullPipeInstruction(pipeInfo);
-  }
-
-  // if possible push instruction to next pipe stage and/or mesh network
-  if (!outMeshStall) {
-     
-    // forward instruction to other neighbors potentially
-    if (meshSrc == Pipeline) {
-      forwardInstruction(pipeInfo);
-    }
-    else if (meshSrc == Mesh) {
-      forwardInstruction(meshInfo);
-    }
-  }
-  
-  // give instruction to the local decode stage if present
-  if (!outPipeStall) {
-    if (pipeSrc == Pipeline) {
-      pushPipeInstToNextStage(pipeInfo);
-    
-      // only needs to be done here? b/c always happens in late vector
-      // MUST BE THE LAST THING TO HAPPEN!
-      if (!hasNextStage()) { // actually make sure its the last stage that does this (HACK)
-        pipeInfo.inst->updateMiscRegs();
-      }
-    }
-    else if (pipeSrc == Mesh) {
-      pushMeshInstToNextStage(meshInfo);
-    }
-  }
-
-  // if the instruction is a revec we need to handle it
-  // IMPORTANT that this updates the config on the next cycle, not the current one
-  // so that's why we put this after the stalls have been considered for this cycle
-  // also prevents revec from being sent twice
-  handleRevec(pipeInfo.inst, meshInfo.inst);
-  
 }
 
-// bypass instruction decoder to get IMM5 field for vissue instruction
-int
-Vector::extractInstCntFromVissue(IODynInstPtr inst) {
-  // extract count from the instructions, bits 11,7
-  RiscvISA::MachInst machInst = inst->static_inst_p->machInst;
-  int imm5 = bits(machInst, 11, 7);
-  DPRINTF(Mesh, "%#x imm5 %d\n", machInst, imm5);
-  return imm5;
-}
-
-void
-Vector::setPCGen(TheISA::PCState issuePC, int cnt) {
-  DPRINTF(Mesh, "set pc gen pc %#x cnt %d\n", issuePC.instAddr(), cnt);
-  _uopPC = issuePC;
-  _uopCnt = 0;
-  _uopIssueLen = cnt;
-}
-
-bool
-Vector::isPCGenActive() {
-  return (_uopCnt < _uopIssueLen) && (_uopIssueLen > 0);
-}
-
-
-RiscvISA::MachInst
-Vector::doICacheFuncRead(int tid, Addr instAddr, int fetchSize) {
-  RequestPtr req = std::make_shared<Request>
-                                  (tid, instAddr, fetchSize,
-                                    Request::INST_FETCH,
-                                    m_cpu_p->instMasterId(), instAddr,
-                                    m_cpu_p->tcBase(tid)->contextId());
-
-  // translate instruction addr atomically (right now!)
-  Fault fault = m_cpu_p->itb->translateAtomic(req, m_cpu_p->tcBase(tid), BaseTLB::Execute);
-  assert(fault == NoFault);
-
-  // Addr lineAddr = instAddr & ~(m_cpu_p->getCacheLineSize() - 1);
-  // DPRINTF(Mesh, "request lineAddr %#x addr %#x\n", lineAddr, instAddr);
-
-  // do atomic access of the cache
-  PacketPtr inst_pkt = new Packet(req, MemCmd::ReadReq);
-  inst_pkt->dataDynamic(new uint8_t[fetchSize]);
-  m_cpu_p->getInstPort().sendFunctional(inst_pkt);
-
-  // build the fetched instruction
-  TheISA::MachInst* cache_insts =
-                    reinterpret_cast<TheISA::MachInst*>(inst_pkt->getPtr<uint8_t>());
-  size_t offset = 0; //(instAddr - lineAddr) / sizeof(TheISA::MachInst);
-  TheISA::MachInst mach_inst = TheISA::gtoh(cache_insts[offset]);
-  delete inst_pkt;
-  return mach_inst;
-}
-
-IODynInstPtr
-Vector::nextAtomicInstFetch() {
-  // make a request for an instruction word
-  int tid = 0;
-  TheISA::PCState &pc = _uopPC;
-  Addr instAddr = pc.instAddr();
-
-  // potentially a 32bit instruction might exist in two cachelines...
-  // need to make sure functional request doesn't go over boundary otherwise will seg fault
-
-  Addr lineAddr = instAddr & ~(m_cpu_p->getCacheLineSize() - 1);
-  Addr lineAddr2 = (instAddr + sizeof(RiscvISA::MachInst) / 2)  & ~(m_cpu_p->getCacheLineSize() - 1);
-
-  // the whole 32bits is on the same line so only need to issue one req
-  RiscvISA::Decoder decoder;
-  StaticInstPtr static_inst = nullptr;
-  if (lineAddr == lineAddr2) {
-      int fetchSize = sizeof(RiscvISA::MachInst);
-      auto mach_inst = doICacheFuncRead(tid, instAddr, fetchSize);
-      static_inst = decoder.decode(mach_inst, 0x0);
-      DPRINTF(Mesh, "instAddr %s -> machInst %#x\n", _uopPC, mach_inst);
-  }
-  // need to issue two functional request for access b/c across two lines
-  else {
-    int fetchSize = sizeof(RiscvISA::MachInst) / 2;
-    auto mach_inst0 = doICacheFuncRead(tid, instAddr, fetchSize);
-    auto mach_inst1 = doICacheFuncRead(tid, instAddr + fetchSize, fetchSize);
-    auto mach_inst = (mach_inst0 & 0x0000ffff) | (mach_inst1 << (fetchSize * 8));
-    // mach_inst = (mach_inst1 & 0x00ff0000) | (mach_inst1 & 0xff000000) | (mach_inst0 & 0x000000ff) | (mach_inst0 & 0x0000ff00);
-    DPRINTF(Mesh, "unalgined machinst %#x %#x -> %#x\n", mach_inst0, mach_inst1, mach_inst);
-    static_inst = decoder.decode(mach_inst, 0x0);
-    // // TOOD I think need to shift machinst
-    // decoder.moreBytes(pc, instAddr, mach_inst0);
-    // if (decoder.decode(pc) == (StaticInstPtr)nullptr) {
-    //   decoder.moreBytes(pc, instAddr + fetchSize, mach_inst1);
-    // }
-    // static_inst = decoder.decode(pc);
-    // assert(0);
-  }
-
-
-
-  // // TODO not sure what to do if instruction half on cacheline (could happen due to 16bit instructions)
-  // // although this looks like it doesn't detect that. Maybe functional read makes sure aligned already???
-  // decoder.moreBytes(pc, instAddr, mach_inst);
-  // if (!decoder.instReady()) {
-  //   assert(decoder.needMoreBytes());
-  //   DPRINTF(Mesh, "[[WARNING]] PC %s is not fully fetched\n", pc);
-  //   // assert(0);
-  // }
-
-
-
-  // TheISA::PCState oldPC = pc;
-  // StaticInstPtr static_inst = extractInstruction(mach_inst, pc); // NOTE this modifies the PC, which we don't want, although actually prob donesnt matter
-
-  // StaticInstPtr static_inst = decoder.decode(mach_inst, 0x0);
-  // StaticInstPtr static_inst = decoder.decode(pc);
-  IODynInstPtr inst =
-          std::make_shared<IODynInst>(static_inst, pc,
-                                      m_cpu_p->getAndIncrementInstSeq(),
-                                      tid, m_cpu_p);
-
-  // increment the pc and uops
-  // RiscvISA::Decoder decoder;
-  if (decoder.compressed(static_inst->machInst)) {
-    _uopPC.pc(instAddr + sizeof(RiscvISA::MachInst) / 2);
-  }
-  else {
-    _uopPC.pc(instAddr + sizeof(RiscvISA::MachInst));
-  }
-  _uopCnt++;
-
-  return inst;
-}
 
 std::string
 Vector::name() const {
@@ -381,9 +296,6 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
     }
     count++;
   }
-
-  // if there's a squash then we should reset uop gen
-  _uopIssueLen = 0;
   
   // if squash due to a traced instruction, then we need to exit trace mode
   // TODO probably want to go to 'transparent' where recv and send as before
@@ -439,18 +351,18 @@ Vector::passInstructions() {
 }
 
 void
-Vector::forwardInstruction(const Vector::MasterData& instInfo) {
+Vector::forwardInstruction(const IODynInstPtr& inst) {
   // check whether this stage is allowed to forward to the mesh net
   if (!canWriteMesh()) return;
 
   // if we are now in decoupled access mode, we don't send instructions anymore, just PCs?
   // could potentially send both if have explicit vector and scalar instruction
-  MasterData forwardInst = instInfo;
-  if (instInfo.inst->static_inst_p->isVectorIssue()) {
-    forwardInst = MasterData(instInfo.inst->branchTarget());
+  VecInstSel::MasterData forwardInst;
+  if (inst->static_inst_p->isVectorIssue()) {
+    forwardInst = VecInstSel::MasterData(inst->branchTarget());
 
     // also send instruction for ease of access tho
-    forwardInst.inst  = instInfo.inst;
+    forwardInst.inst  = inst;
   }
   else if (isDecoupledAccess()) {
     return;
@@ -504,38 +416,42 @@ Vector::forwardInstruction(const Vector::MasterData& instInfo) {
 }
 
 void
-Vector::pullPipeInstruction(Vector::MasterData &instInfo) {
+Vector::pullPipeInstruction(IODynInstPtr &instInfo) {
   // if master, pull from the local fetch
   auto msg = getFetchInput();
-    
-    instInfo = MasterData(msg);
+  instInfo = msg;
+    // instInfo = MasterData(msg);
     
     // pop to free up the space
     consumeInst();
 }
 
 // if slave, pull from the mesh
+// Recently changed so that there is a single buffer for all of the mesh ports
+// there won't be a structural hazard because only one input will be active at once
 void
-Vector::pullMeshInstruction(Vector::MasterData &instInfo) {
+Vector::pullMeshInstruction(IODynInstPtr &instInfo) {
   
-  Mesh_Dir recvDir;
-  if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir)) {
-    auto dataPtr = getMeshPortInst(recvDir);
-    if (dataPtr->isInst) {
-      instInfo = MasterData(dataPtr->inst);
-      DPRINTF(Mesh, "get inst %s\n", instInfo.inst->toString(true));
-    }
-    else {
-      instInfo = MasterData(dataPtr->pc);
-      // also pass the inst information for extra metadata, that will need encode when go to RTL
-      instInfo.inst = dataPtr->inst;
-      DPRINTF(Mesh, "get PC %#x\n", instInfo.pc);
-    }
-  }
+  instInfo = _vecUops.dequeueInst();
+
+  // Mesh_Dir recvDir;
+  // if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir)) {
+  //   auto dataPtr = getMeshPortInst(recvDir);
+  //   if (dataPtr->isInst) {
+  //     instInfo = MasterData(dataPtr->inst);
+  //     DPRINTF(Mesh, "get inst %s\n", instInfo.inst->toString(true));
+  //   }
+  //   else {
+  //     instInfo = MasterData(dataPtr->pc);
+  //     // also pass the inst information for extra metadata, that will need encode when go to RTL
+  //     instInfo.inst = dataPtr->inst;
+  //     DPRINTF(Mesh, "get PC %#x\n", instInfo.pc);
+  //   }
+  // }
 }
 
 IODynInstPtr
-Vector::createInstruction(const Vector::MasterData &instInfo) {
+Vector::createInstruction(const IODynInstPtr &inst) {
   // make a dynamic instruction to pass to the decode stage
   // a slave core will track its seq num (incr on every instruction, i.e. nth dynamic inst), 
   
@@ -547,7 +463,7 @@ Vector::createInstruction(const Vector::MasterData &instInfo) {
   // 2) scalar instructions
   StaticInstPtr static_inst;
   bool force32bit;
-  if (instInfo.inst->static_inst_p->isSpadPrefetch()) {
+  if (inst->static_inst_p->isSpadPrefetch()) {
     // TODO this makes pc + 2, when need pc + 4 (the prefetch is 32 bits)
     // compensate in iew logic
     static_inst = StaticInst::nopStaticInstPtr; 
@@ -555,7 +471,7 @@ Vector::createInstruction(const Vector::MasterData &instInfo) {
   }
   // otherwise copy the sent instruction
   else {
-    TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
+    TheISA::MachInst machInst = (TheISA::MachInst)inst->static_inst_p->machInst;
     static_inst = extractInstruction(machInst, cur_pc);
     force32bit = false;
   }
@@ -564,48 +480,45 @@ Vector::createInstruction(const Vector::MasterData &instInfo) {
   // force32bit = false;
   
   int tid = 0;
-  IODynInstPtr inst =
-          std::make_shared<IODynInst>(static_inst, instInfo.inst->pc,
+  IODynInstPtr copied_inst =
+          std::make_shared<IODynInst>(static_inst, inst->pc,
                                       m_cpu_p->getAndIncrementInstSeq(),
                                       tid, m_cpu_p);
   //DPRINTF(Mesh, "[tid:%d]: built inst %s\n", tid, dyn_inst->toString(true));  
   
   // mark instruction as from a stream traced by master core
   if (!static_inst->isVectorIssue()) {
-    inst->from_trace = true;
-    inst->replaced = force32bit;
+    copied_inst->from_trace = true;
+    copied_inst->replaced = force32bit;
     
     // iew will pass a mispredicted branch forward, we don't want to send 
     // this to slave core because it will be wasted work, however you still need
     // to check the branch here. if it fails with update then we know there is divergence
     
-      inst->master_targ  = instInfo.inst->master_targ;
-      inst->master_taken = instInfo.inst->master_taken;
+      copied_inst->master_targ  = inst->master_targ;
+      copied_inst->master_taken = inst->master_taken;
     
-    if (instInfo.inst->isControl()) {
+    if (inst->isControl()) {
       DPRINTF(Mesh, "master targed %d %s. pred targ %d %s\n", inst->master_taken, inst->master_targ, inst->predicted_taken, inst->readPredTarg() );
     }
-  }
-  
+  }  
 
-  
-
-  return inst;
+  return copied_inst;
 }
 
 void
-Vector::pushPipeInstToNextStage(const Vector::MasterData &instInfo) {
-  sendInstToNextStage(instInfo.inst);
+Vector::pushPipeInstToNextStage(const IODynInstPtr &inst) {
+  sendInstToNextStage(inst);
     
   //DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
   if (m_stage_idx == LateVectorIdx) {
     _numInstructions++;
-    DPRINTF(Mesh, "[%s] num instructions seen %d\n", instInfo.inst->toString(true), _numInstructions);
+    DPRINTF(Mesh, "[%s] num instructions seen %d\n", inst->toString(true), _numInstructions);
   }
 }
 
 void
-Vector::pushMeshInstToNextStage(const Vector::MasterData &instInfo) {
+Vector::pushMeshInstToNextStage(const IODynInstPtr &instInfo) {
   IODynInstPtr dynInst = createInstruction(instInfo);
   sendInstToNextStage(dynInst);
 }
@@ -667,8 +580,6 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   _vecPassThrough = false;
   resetMeshRevec();
   resetPipeRevec();
-
-  _uopIssueLen = 0;
   
 }
 
@@ -717,8 +628,8 @@ Vector::createMeshPacket(RegVal payload) {
 // cheat and let all information about master state be available
 // when figure out what we actually need we can stop cheating
 PacketPtr
-Vector::createMeshPacket(const MasterData& data) {
-  auto copy = std::make_shared<MasterData>(data);
+Vector::createMeshPacket(const VecInstSel::MasterData& data) {
+  auto copy = std::make_shared<VecInstSel::MasterData>(data);
   // create a packet to send
   Addr addr = 0;
   int size = 0;
@@ -753,16 +664,20 @@ bool
 Vector::getInVal() {
   if (!canReadMesh()) return true;
   
-  bool allVal = true;
+  // just check vecUop, only need a single buffer for all in port 
+  // b/c only one will be active at once
+  return _vecUops.getVal();
+
+  // bool allVal = true;
   
-  for (int i = 0; i < getMeshSlavePorts().size(); i++) {
-    if (getMeshSlavePorts()[i].getActive() == _stage) {
-      if (!getMeshSlavePorts()[i].getPairVal()) allVal = false;
-      //if (!_fromMeshPort[i].pktExists()) allVal = false;
-    }
-  }
+  // for (int i = 0; i < getMeshSlavePorts().size(); i++) {
+  //   if (getMeshSlavePorts()[i].getActive() == _stage) {
+  //     if (!getMeshSlavePorts()[i].getPairVal()) allVal = false;
+  //     //if (!_fromMeshPort[i].pktExists()) allVal = false;
+  //   }
+  // }
   
-  return allVal;
+  // return allVal;
 }
 
 void
@@ -884,15 +799,15 @@ Vector::informNeighbors() {
   }
 }
 
-std::shared_ptr<Vector::MasterData>
-Vector::getMeshPortInst(Mesh_Dir dir) {
-  PacketPtr pkt = getMeshPortPkt(dir);
-  Vector::SenderState* ss =
-              safe_cast<Vector::SenderState*>(pkt->popSenderState());
-  auto msg = ss->master_data;
-  delete ss;
-  return msg;
-}
+// std::shared_ptr<MasterData>
+// Vector::getMeshPortInst(Mesh_Dir dir) {
+//   PacketPtr pkt = getMeshPortPkt(dir);
+//   Vector::SenderState* ss =
+//               safe_cast<Vector::SenderState*>(pkt->popSenderState());
+//   auto msg = ss->master_data;
+//   delete ss;
+//   return msg;
+// }
 
 uint64_t
 Vector::getMeshPortData(Mesh_Dir dir) {
