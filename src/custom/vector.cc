@@ -47,21 +47,25 @@ Vector::tick() {
   auto pipeSrc = getOutPipeSource();
   auto meshSrc = getOutMeshSource();
 
-  DPRINTF(Mesh, "vec status pullMesh %d pullPipe %d pushMesh %d pushPipe %d\n", canPullMesh(), canPullPipe(), canPushMesh(), canPushPipe());
+  // get stalling statuses at the beginning b/c may change over this func call
+  bool meshPull = canPullMesh();
+  bool pipePull = canPullPipe();
+  bool meshPush = canPushMesh();
+  bool pipePush = canPushPipe();
 
   // pull instructions for both sources if no stalls
   IODynInstPtr meshInst = nullptr;
-  if (canPullMesh()) {
+  if (meshPull) {
     pullMeshInstruction(meshInst);
   }
   
   IODynInstPtr pipeInst = nullptr;
-  if (canPullPipe()) {
+  if (pipePull) {
     pullPipeInstruction(pipeInst);
   }
 
   // if possible push instruction to next pipe stage and/or mesh network
-  if (canPushMesh()) {
+  if (meshPush) {
      
     // forward instruction to other neighbors potentially
     if (meshSrc == Pipeline) {
@@ -75,7 +79,7 @@ Vector::tick() {
   }
   
   // give instruction to the local decode stage if present
-  if (canPushPipe()) {
+  if (pipePush) {
     if (pipeSrc == Pipeline) {
       DPRINTF(Mesh, "push pipe inst %s to pipe\n", pipeInst->toString(true));
       pushPipeInstToNextStage(pipeInst);
