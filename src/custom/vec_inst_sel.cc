@@ -63,7 +63,9 @@ VecInstSel::enqueueCmd() {
 
 bool
 VecInstSel::getVal() {
-  return !_vecCmds.empty();
+  // not empty with inst cmd or a uop is available
+  return (!_vecCmds.empty() && _vecCmds.front()->isInst) ||
+    (_lastICacheResp);
 }
 
 bool
@@ -77,23 +79,24 @@ VecInstSel::willHaveOpening() {
 // dequeue an instruction (either from icache or mesh, but unknown to caller and frankly does not matter)
 IODynInstPtr
 VecInstSel::dequeueInst() {
-  // if no elements ret null
-  if (_vecCmds.empty()) return nullptr;
-
-  // look at head of queue
-  auto& cmd = _vecCmds.front();
   IODynInstPtr ret = nullptr;
 
-  // if its a single inst and we can just pull that off
-  if (cmd->isInst) {
-    _vecCmds.pop();
-    ret = cmd->inst;
+  // get instruction at the front of queue
+  if (!_vecCmds.empty()) {
+    // look at head of queue
+    auto& cmd = _vecCmds.front();
+
+    // if its a single inst and we can just pull that off
+    if (cmd->isInst) {
+      _vecCmds.pop();
+      ret = cmd->inst;
+    }
   }
 
-  // otherwise its a pc uop fetch is at head of vector cmds, try to give the icache resp
-  else {
+  // otherwise its a pc uop fetch is at head of vector cmds (or nothing), try to give the icache resp
+  if (_lastICacheResp) {
     // this assumes icache response will be recv at the beginning of the cycle
-    IODynInstPtr icacheResp = _lastICacheResp;
+    ret = _lastICacheResp;
     _lastICacheResp = nullptr;
 
     // pop if we've finished this macro op
@@ -101,8 +104,6 @@ VecInstSel::dequeueInst() {
       _vecCmds.pop();
       setPCGen(0, 0); // reset pc gen
     }
-
-    ret = icacheResp;
   }
   
   // handle the next operation if there is an element on the queue

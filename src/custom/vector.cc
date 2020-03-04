@@ -69,11 +69,11 @@ Vector::tick() {
      
     // forward instruction to other neighbors potentially
     if (meshSrc == Pipeline) {
-      DPRINTF(Mesh, "push pipe inst %s to mesh\n", pipeInst->toString(true));
+      // DPRINTF(Mesh, "push pipe inst %s to mesh\n", pipeInst->toString(true));
       forwardInstruction(pipeInst);
     }
     else if (meshSrc == Mesh) {
-      DPRINTF(Mesh, "push mesh inst %s to mesh\n", meshInst->toString(true));
+      // DPRINTF(Mesh, "push mesh inst %s to mesh\n", meshInst->toString(true));
       forwardInstruction(meshInst);
     }
   }
@@ -81,7 +81,7 @@ Vector::tick() {
   // give instruction to the local decode stage if present
   if (pipePush) {
     if (pipeSrc == Pipeline) {
-      DPRINTF(Mesh, "push pipe inst %s to pipe\n", pipeInst->toString(true));
+      // DPRINTF(Mesh, "push pipe inst %s to pipe\n", pipeInst->toString(true));
       pushPipeInstToNextStage(pipeInst);
     
       // only needs to be done here? b/c always happens in late vector
@@ -91,7 +91,7 @@ Vector::tick() {
       }
     }
     else if (pipeSrc == Mesh) {
-      DPRINTF(Mesh, "push mesh inst %s to pipe\n", meshInst->toString(true));
+      // DPRINTF(Mesh, "push mesh inst %s to pipe\n", meshInst->toString(true));
       pushMeshInstToNextStage(meshInst);
     }
   }
@@ -106,7 +106,7 @@ Vector::tick() {
 
 bool
 Vector::canRecvMeshPkt() {
-  return _vecUops.getRdy();
+  return _vecUops.getRdy() && getConfigured();
 }
 
 bool
