@@ -39,7 +39,7 @@ ifneq ($(ENV_EXTRA_MAKE_FLAGS),)
 endif
 
 # installed cross compiler gcc for riscv
-RV_CC=/data/phil/riscv-build/bin/riscv64-unknown-linux-gnu-gcc
+RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
 
 # script to find the correct vissue length
 VISS=python /home/pbb59/hammerblade/gem5/scripts-phil/vissue-asm.py

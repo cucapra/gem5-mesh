@@ -114,6 +114,11 @@ Vector::enqueueMeshPkt(PacketPtr pkt) {
   return _vecUops.enqueueTiming(pkt);
 }
 
+void
+Vector::recvICacheResp(PacketPtr pkt) {
+  _vecUops.recvIcacheResp(pkt);
+}
+
 // TODO would like a refactor with the stuff in tick
 bool
 Vector::canPullMesh() {
@@ -362,6 +367,7 @@ Vector::forwardInstruction(const IODynInstPtr& inst) {
   // if we are now in decoupled access mode, we don't send instructions anymore, just PCs?
   // could potentially send both if have explicit vector and scalar instruction
   VecInstSel::MasterData forwardInst;
+  forwardInst = VecInstSel::MasterData(inst);
   if (inst->static_inst_p->isVectorIssue()) {
     forwardInst = VecInstSel::MasterData(inst->branchTarget());
 

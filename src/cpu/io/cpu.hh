@@ -279,7 +279,7 @@ class IOCPU : public BaseCPU
         ~IcachePort() = default;
 
         /** Attach stage specific stuff */
-        void AttachToStage(Fetch *_fetch_p);
+        void AttachToStage(Fetch *_fetch_p, Vector *_vec_p);
 
         /** Send timing request */
         virtual bool sendTimingReq(PacketPtr pkt);
@@ -296,6 +296,7 @@ class IOCPU : public BaseCPU
 
       public:
         Fetch* fetch_p;
+        Vector* vec_p;
         const int num_cache_ports;
         int num_used_cache_ports;
         bool need_retry;

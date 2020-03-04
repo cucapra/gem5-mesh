@@ -77,7 +77,7 @@ class VecInstSel : public Named {
     void setPCGen(TheISA::PCState issuePC, int cnt);
     bool isPCGenActive();
     void tryReqNextUop();
-    void sendICacheReq(int tid, Addr instAddr, int fetchSize);
+    void sendICacheReq(int tid, Addr instAddr);
     int extractInstCntFromVissue(IODynInstPtr inst);
     void processHead(std::shared_ptr<MasterData> cmd);
     void enqueueCmd();
@@ -110,6 +110,7 @@ class VecInstSel : public Named {
     IODynInstPtr _lastICacheResp;
 
     // whether there is a pending icache req
+    Addr _pendingICacheReqAddr;
     bool _pendingICacheReq;
 
     // trasient vec cmd to be enqueue 

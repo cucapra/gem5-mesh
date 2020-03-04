@@ -242,6 +242,7 @@ protected:
 
     bool canRecvMeshPkt();
     bool enqueueMeshPkt(PacketPtr pkt);
+    void recvICacheResp(PacketPtr pkt);
      
   protected:
   

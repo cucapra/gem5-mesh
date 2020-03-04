@@ -32,8 +32,9 @@ IOCPU::IcachePort::IcachePort(IOCPU* _cpu_p, int _num_cache_ports)
 { }
 
 void
-IOCPU::IcachePort::AttachToStage(Fetch* _fetch_p) {
+IOCPU::IcachePort::AttachToStage(Fetch* _fetch_p, Vector* _vec_p) {
   fetch_p = _fetch_p;
+  vec_p = _vec_p;
 }
 
 bool
@@ -60,7 +61,14 @@ IOCPU::IcachePort::recvTimingResp(PacketPtr pkt)
 {
   assert(pkt);
   DPRINTF(IOCPU, "icache port received a response packet: %s\n", pkt->print());
-  fetch_p->processCacheCompletion(pkt);
+
+  // if we recv a cache req during vec config, assumes its for vec uops
+  if (vec_p && vec_p->getConfigured() && vec_p->isSlave()) {
+    vec_p->recvICacheResp(pkt);
+  }
+  else {
+    fetch_p->processCacheCompletion(pkt);
+  }
   // CPU should be always ready to receive response packets, so always return
   // true here.
   return true;
@@ -196,7 +204,7 @@ IOCPU::IOCPU(IOCPUParams* params)
   assert(getCommit());
 
   // setup ports
-  m_icache_port.AttachToStage(getFetch());
+  m_icache_port.AttachToStage(getFetch(), getEarlyVector());
   m_dcache_port.AttachToStage(getIEW());
   
   // declare vector ports

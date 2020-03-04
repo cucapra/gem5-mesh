@@ -57,6 +57,7 @@ VecInstSel::getRdy() {
 // actually enqueue at beginnign of the cycle to be usable
 void
 VecInstSel::enqueueCmd() {
+  DPRINTF(Mesh, "enqueue inst %s\n", _toEnqueue->inst->toString(true));
   _vecCmds.push(_toEnqueue);
   _toEnqueue = nullptr;
 }
@@ -88,8 +89,8 @@ VecInstSel::dequeueInst() {
 
     // if its a single inst and we can just pull that off
     if (cmd->isInst) {
-      _vecCmds.pop();
       ret = cmd->inst;
+      _vecCmds.pop();
     }
   }
 
@@ -101,8 +102,8 @@ VecInstSel::dequeueInst() {
 
     // pop if we've finished this macro op
     if (!isPCGenActive()) {
-      _vecCmds.pop();
       setPCGen(0, 0); // reset pc gen
+      _vecCmds.pop();
     }
   }
   
@@ -143,12 +144,21 @@ VecInstSel::reset() {
 // called from cpu seletively when vec is configured
 // NOTE we don't support compressed instructions so don't have to wait for two 
 // reqs across the cacheline
+// NOTE in hardware this would be the same logic as fetch, but we seperate in gem5
+// because easier to manage and think about
 void
 VecInstSel::recvIcacheResp(PacketPtr pkt) {
+    DPRINTF(Mesh, "recv icache pkt %#x expecting %#x\n", pkt->getAddr(), _pendingICacheReqAddr);
+  // make sure this was to us and not a stale fetch icache packet
+  if (pkt->getAddr() != _pendingICacheReqAddr) return;
+
   // build the fetched instruction
   TheISA::MachInst* cache_insts =
                     reinterpret_cast<TheISA::MachInst*>(pkt->getPtr<uint8_t>());
-  size_t offset = 0; //(instAddr - lineAddr) / sizeof(TheISA::MachInst);
+
+  // we really request 32bits but the whole line was returned by ICache, so get the 32bits we want
+  // NOTE make sure these are both physical addresses
+  size_t offset = 0; //(_uopPC.instAddr() - pkt->getAddr()) / sizeof(TheISA::MachInst);
   TheISA::MachInst mach_inst = TheISA::gtoh(cache_insts[offset]);
 
   // decode 32bit instruction
@@ -160,7 +170,7 @@ VecInstSel::recvIcacheResp(PacketPtr pkt) {
           std::make_shared<IODynInst>(static_inst, _uopPC,
                                       m_cpu_p->getAndIncrementInstSeq(),
                                       tid, m_cpu_p);
-
+  DPRINTF(Mesh, "create inst %s\n", inst->toString(true));
   // increment the pc and uops
   _uopPC.pc(_uopPC.instAddr() + sizeof(RiscvISA::MachInst));
   _uopCnt++;
@@ -200,7 +210,11 @@ VecInstSel::isPCGenActive() {
 
 
 void
-VecInstSel::sendICacheReq(int tid, Addr instAddr, int fetchSize) {
+VecInstSel::sendICacheReq(int tid, Addr instAddr) {
+  // Addr lineAddr = instAddr & ~(m_cpu_p->getCacheLineSize() - 1);
+  // int fetchSize = m_cpu_p->getCacheLineSize();
+  int fetchSize = sizeof(RiscvISA::MachInst);
+
   RequestPtr req = std::make_shared<Request>
                                   (tid, instAddr, fetchSize,
                                     Request::INST_FETCH,
@@ -218,6 +232,10 @@ VecInstSel::sendICacheReq(int tid, Addr instAddr, int fetchSize) {
   PacketPtr inst_pkt = new Packet(req, MemCmd::ReadReq);
   inst_pkt->dataDynamic(new uint8_t[fetchSize]);
   m_cpu_p->getInstPort().sendTimingReq(inst_pkt);
+
+  _pendingICacheReq = true;
+  _pendingICacheReqAddr = inst_pkt->getAddr();
+  DPRINTF(Mesh, "send icache req for %#x\n", instAddr);
 }
 
 // try to send a request for the next uop addr
@@ -226,7 +244,7 @@ VecInstSel::tryReqNextUop() {
   if (_lastICacheResp || _pendingICacheReq) return;
   
   if (isPCGenActive()) {
-    sendICacheReq(0, _uopPC.instAddr(), sizeof(RiscvISA::MachInst));
+    sendICacheReq(0, _uopPC.instAddr());
   }
 
 }
