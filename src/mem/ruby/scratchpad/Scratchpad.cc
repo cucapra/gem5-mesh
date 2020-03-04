@@ -633,7 +633,11 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     
     // If this is a speculative load and the data isn't present, then
     // allow the packets equal to ld queue size be buffered here
-    if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
+
+    //edit: Neil
+    //if load in region which is used for prefetch then check
+    if (isRegionLoad(pkt_p->getAddr()) && !isWordRdy(pkt_p->getAddr())){
+    // if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
       //m_packet_buffer.push_back(pkt_p);
       //assert(m_packet_buffer.size() <= m_spec_buf_size);
       // just say not rdy actually
@@ -1099,6 +1103,20 @@ Scratchpad::getDesiredRegion(Addr addr) {
   DPRINTF(Mesh, "addr %#x padIdx %d region %d\n", addr, padIdx, region);
   assert(region < getNumRegions());
   return region;
+}
+
+bool
+Scratchpad::isRegionLoad(Addr addr) {
+  int padIdx = getLocalAddr(addr) / sizeof(uint32_t);
+
+  //DPRINTF(Mesh, "pad ID %d\n", padIdx);
+  // need to consider spad offset to where the prefetch region starts
+  // NOTE currently assumed to be directly after metadata bits
+  int prefetchSectionIdx = padIdx - SPM_DATA_WORD_OFFSET;
+
+  int regionEnd = getRegionElements()*getNumRegions();
+  bool ret = (prefetchSectionIdx>=0) && (prefetchSectionIdx<regionEnd);
+  return ret;
 }
 
 bool
