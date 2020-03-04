@@ -2,17 +2,9 @@
 
 import os, subprocess, time, argparse, re, sys
 
-# cmd line arguments
-# parser = argparse.ArgumentParser(description='Analyze stats file in a given directory')
-# parser.add_argument('--infile', default='/home/pbb59/hammerblade/gem5/programs-phil/spad/vvadd/vvadd.s', help='Path of .S file you want to modify')
-# parser.add_argument('--outfile', default='', help='Path of modified .S file. Defaults to <infile>.S (removes .s)')
-# args = parser.parse_args()
-
-# infile = args.infile
-# if (args.outfile == ''):
-#     outfile = args.infile[0:-2] + '.S'
-# else:
-#     outfile = args.outfile
+# opcodes of vissue type instructions
+vissue_opcode = '0x6b'
+devec_opcode = '0x2b'
 
 # figure out the file names
 infile = sys.argv[1]
@@ -37,7 +29,8 @@ def get_reg(num):
 
 # define how to modify and what we are looking for
 label_iden = '[a-zA-Z0-9_.]+'
-vissue_regex = re.compile('.insn uj 0x6b, x0, ({0})'.format(label_iden))
+vissue_regex = re.compile('.insn uj {0}, x0, ({1})'.format(vissue_opcode, label_iden))
+devec_regex = re.compile('.insn uj {0}, x0, ({1})'.format(devec_opcode, label_iden))
 anylabel_regex = re.compile('({0})[:]'.format(label_iden))
 jump_regex = re.compile('j[\t\s]({0})'.format(label_iden))
 comment_regex = re.compile('[#]')
@@ -57,8 +50,8 @@ def load_file(fileName):
     return lines
 
 # create replacement for old vissue inst
-def construct_vissue(count, label):
-    return '\t.insn uj 0x6b, {0}, {1}\n'.format(get_reg(count), label)
+def construct_vissue(opcode, count, label):
+    return '\t.insn uj {0}, {1}, {2}\n'.format(opcode, get_reg(count), label)
 
 # find all vissues in the program and store in a table
 def build_vissue_table():
@@ -84,6 +77,19 @@ def check_vissue(line):
         return (False, '')
     # check match
     match = vissue_regex.search(line)
+    if (match):
+        # get label to analyze
+        val = match.group(1)
+        return (True, val)
+    else:
+        return (False, '')
+
+# check if the line is a devec inst
+def check_devec(line):
+    if (is_comment(line)):
+        return (False, '')
+    # check match
+    match = devec_regex.search(line)
     if (match):
         # get label to analyze
         val = match.group(1)
@@ -200,11 +206,6 @@ def was_vissue_label(label):
 def removed_line(line):
     return '\t# removed: {}'.format(line)
 
-# # 
-# def nop_hack_line(line):
-#     return '\taddi x0, x0, 0\n'
-
-
 # try to merge blocks following a vissue label
 # keep going until encounter a backedge or another vissue label
 # IMPORTANT that gcc does not reorder blocks otherwise this won't work
@@ -283,10 +284,15 @@ def count_vissue(vissue_line):
 def try_replace_inst(line):
     # if have a vissue need to update
     if (line in vissue_table):
-        return construct_vissue(vissue_table[line]['count'], vissue_table[line]['label'])
-    # if not a vissue just pass along
+        return construct_vissue(vissue_opcode, vissue_table[line]['count'], vissue_table[line]['label'])
     else:
-        return line
+        # if it's a devec then replace count with one
+        (is_devec, devec_label) = check_devec(line)
+        if (is_devec):
+            return construct_vissue(devec_opcode, 1, devec_label)
+        else:
+            # if not a vissue just pass along
+            return line
 
 
 # open the input and output asm files
@@ -318,20 +324,6 @@ for k,v in vissue_table.items():
 # we need to modify code after the labels from the vissue table
 for k,v in vissue_table.items():
     flatten_vissue(k)
-# if (len(vissue_table) > 0):
-#     for i in range(0,len(cached_src_file)):
-#         line = cached_src_file[i]
-#         (is_label, label) = check_label(line)
-#         if (is_label and label == '.L4'):
-#             cached_src_file[i] = removed_line(line)
-#         if (is_label and label == '.L7'):
-#             cached_src_file[i] = removed_line(line)
-#         (is_jump, jlabel) = check_jump(line)
-#         if (is_jump and jlabel == '.L7'):
-#             cached_src_file[i] = '\taddi x0, x0, 0\n'
-#             cached_src_file[i - 1] = '#\n'
-#             cached_src_file[i - 2] = '#\n'
-        
 
 # count the number instructions for vissue (basic block)
 for k,v in vissue_table.items():
