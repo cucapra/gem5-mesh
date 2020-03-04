@@ -658,12 +658,12 @@ Sequencer::issueRequest(PacketPtr pkt, RubyRequestType secondary_type)
     // access response path.
     Cycles latency(0);  // Initialize to zero to catch misconfigured latency
     if (secondary_type == RubyRequestType_IFETCH)
-        latency = m_inst_cache_hit_latency;
+        latency = Cycles(0); //m_inst_cache_hit_latency;
     else
         latency = m_data_cache_hit_latency;
 
     // Send the message to the cache controller
-    assert(latency > 0);
+    // assert(latency > 0);
 
     assert(m_mandatory_q_ptr != NULL);
     m_mandatory_q_ptr->enqueue(msg, clockEdge(), cyclesToTicks(latency));
