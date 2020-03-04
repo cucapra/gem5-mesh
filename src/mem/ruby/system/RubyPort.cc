@@ -365,9 +365,10 @@ RubyPort::MemSlavePort::recvFunctional(PacketPtr pkt)
     RubyPort *rp M5_VAR_USED = static_cast<RubyPort *>(&owner);
     RubySystem *rs = rp->m_ruby_system;
 
+    // PBB also need to check that this might be a spad address!
     // Check for pio requests and directly send them to the dedicated
     // pio port.
-    if (!isPhysMemAddress(pkt->getAddr())) {
+    if (!isPhysMemAddress(pkt->getAddr()) && !isSpadAddress(pkt->getAddr())) {
         DPRINTF(RubyPort, "Pio Request for address: 0x%#x\n", pkt->getAddr());
         assert(rp->pioMasterPort.isConnected());
         rp->pioMasterPort.sendFunctional(pkt);
@@ -583,6 +584,13 @@ RubyPort::MemSlavePort::isPhysMemAddress(Addr addr) const
 {
     RubyPort *ruby_port = static_cast<RubyPort *>(&owner);
     return ruby_port->system->isMemAddr(addr);
+}
+
+bool
+RubyPort::MemSlavePort::isSpadAddress(Addr addr) const
+{
+    RubyPort *ruby_port = static_cast<RubyPort *>(&owner);
+    return ruby_port->system->isSpadAddr(addr);
 }
 
 void

@@ -1070,6 +1070,46 @@ Scratchpad::getL2BankFromAddr(Addr addr) const
   return l2_node_id;
 }
 
+AccessPermission
+Scratchpad::getAccessPermission(const Addr &addr) {
+  if (getScratchpadIdFromAddr(addr) == m_version) {
+    return AccessPermission_Read_Write;
+  }
+  else {
+    return AccessPermission_Invalid;
+  }
+}
+
+// TODO may need to figure out what to do since this is a datablock
+bool
+Scratchpad::functionalRead(const Addr &addr, PacketPtr pkt) {
+  NodeID dst_sp_id = getScratchpadIdFromAddr(pkt->getAddr());
+  assert(dst_sp_id <= m_num_scratchpads); 
+
+  if (dst_sp_id == m_version) {
+    accessDataArray(pkt);
+    return true;
+  }
+  else {
+    return false;
+  }
+}
+
+int
+Scratchpad::functionalWrite(const Addr &addr, PacketPtr pkt) {
+  // chec if the func req is for this scratchpad
+  NodeID dst_sp_id = getScratchpadIdFromAddr(pkt->getAddr());
+  assert(dst_sp_id <= m_num_scratchpads);
+
+  if (dst_sp_id == m_version) {
+    accessDataArray(pkt);
+    return 1;
+  }
+  else {
+    return 0;
+  }
+}
+
 int
 Scratchpad::getCoreEpoch() {
   // int coreEpoch = m_cpu_p->getRevecEpoch();

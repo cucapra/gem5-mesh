@@ -100,6 +100,7 @@ class RubyPort : public ClockedObject
 
       private:
         bool isPhysMemAddress(Addr addr) const;
+        bool isSpadAddress(Addr addr) const;
     };
 
     class PioMasterPort : public QueuedMasterPort

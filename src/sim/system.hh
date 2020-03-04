@@ -283,6 +283,15 @@ class System : public SimObject
     bool isMemAddr(Addr addr) const;
 
     /**
+     * Check if a physical address is within a range of a memory that
+     * is part of scratchpad region of memory
+     *
+     * @param addr A physical address
+     * @return Whether the address corresponds to a scratchpad
+     */
+    bool isSpadAddr(Addr addr) const;
+
+    /**
      * Get the architecture.
      */
     Arch getArch() const { return Arch::TheISA; }

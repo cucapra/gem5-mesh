@@ -64,7 +64,8 @@ using namespace RiscvISA;
 RiscvProcess::RiscvProcess(ProcessParams *params, ObjectFile *objFile) :
         Process(params,
                 new EmulationPageTable(params->name, params->pid, PageBytes),
-                objFile)
+                objFile),
+        _useSpad(false)
 {
     fatal_if(params->useArchPT, "Arch page tables not implemented.");
 }
@@ -72,10 +73,28 @@ RiscvProcess::RiscvProcess(ProcessParams *params, ObjectFile *objFile) :
 RiscvProcess64::RiscvProcess64(ProcessParams *params, ObjectFile *objFile) :
         RiscvProcess(params, objFile)
 {
+    _useSpad = ((objFile->spmBase() != 0) && (objFile->spmSize() != 0));
+
     // move stack onto spad, set to vaddr or paddr??
-    const Addr stack_base = 0x7FFFFFFFFFFFFFFFL;
+    // const Addr stack_base = 0x7FFFFFFFFFFFFFFFL;
+    Addr stack_base;
+    if (_useSpad) {
+        Addr sp_base_paddr = system->memSize();
+        Addr sp_base_vaddr = objFile->spmBase();
+        Addr sp_size = objFile->spmSize();
+        pTable->map(sp_base_vaddr, sp_base_paddr, sp_size,
+                    EmulationPageTable::MappingFlags(0));
+        stack_base = sp_base_vaddr + sp_size - sizeof(uint32_t); // goes down so should start at the top
+    }
+    else {
+        stack_base = 0x7FFFFFFFFFFFFFFFL;
+    }
+
+    Addr stack_phys = 0;
+    pTable->translate(stack_base, stack_phys);
     // const Addr stack_base = objFile->spmBase() + objFile->spmSize();
-    // warn("new process with stack ptr %#lx", stack_base);
+    warn("new process with virt stack ptr %#lx physical stack ptr %#lx usespad %d\n", 
+        stack_base, stack_phys, _useSpad);
 
     const Addr max_stack_size = 8 * 1024 * 1024;
     const Addr next_thread_stack_base = stack_base - max_stack_size;
@@ -108,19 +127,21 @@ RiscvProcess64::initState()
     for (ContextID ctx: contextIds)
         system->getThreadContext(ctx)->setMiscRegNoEffect(MISCREG_PRV, PRV_U);
         
-    // add support for spad in elf?
-    if (objFile->spmBase() != 0 && objFile->spmSize() != 0) {
-        Addr sp_base_paddr = system->memSize();
-        Addr sp_base_vaddr = objFile->spmBase();
-        Addr sp_size = objFile->spmSize();
-        pTable->map(sp_base_vaddr, sp_base_paddr, sp_size,
-                    EmulationPageTable::MappingFlags(0));
-        // warn("spad init vaddr %#lx paddr %#lx size %#x\n", sp_base_vaddr, sp_base_paddr, sp_size);
-        // // when setting to stack get issue
-        // // panic: panic condition !clobber occurred: EmulationPageTable::allocate: addr 0x1000f000 already mapped
-        // pTable->map(sp_base_vaddr, sp_base_paddr, sp_size,
-        //             EmulationPageTable::MappingFlags::Clobber);
-    }
+    // // add support for spad in elf?
+    // if (objFile->spmBase() != 0 && objFile->spmSize() != 0) {
+    //     Addr sp_base_paddr = system->memSize();
+    //     Addr sp_base_vaddr = objFile->spmBase();
+    //     Addr sp_size = objFile->spmSize();
+    //     pTable->map(sp_base_vaddr, sp_base_paddr, sp_size,
+    //                 EmulationPageTable::MappingFlags(0));
+
+
+    //     // warn("spad init vaddr %#lx paddr %#lx size %#x\n", sp_base_vaddr, sp_base_paddr, sp_size);
+    //     // // when setting to stack get issue
+    //     // // panic: panic condition !clobber occurred: EmulationPageTable::allocate: addr 0x1000f000 already mapped
+    //     // pTable->map(sp_base_vaddr, sp_base_paddr, sp_size,
+    //     //             EmulationPageTable::MappingFlags::Clobber);
+    // }
 }
 
 void
@@ -173,8 +194,12 @@ RiscvProcess::argsInit(int pageSize)
                    addrSize + 2 * sizeof(IntType) * auxv.size();
     stack_top &= -2*addrSize;
     memState->setStackSize(memState->getStackBase() - stack_top);
-    allocateMem(roundDown(stack_top, pageSize),
-            roundUp(memState->getStackSize(), pageSize));
+
+    // don't reallocate scratchpad memory b/c already allocated technically
+    if (!_useSpad) {
+        allocateMem(roundDown(stack_top, pageSize),
+                roundUp(memState->getStackSize(), pageSize));
+    }
 
     // Copy random bytes (for AT_RANDOM) to stack
     memState->setStackMin(memState->getStackMin() - RandomBytes);

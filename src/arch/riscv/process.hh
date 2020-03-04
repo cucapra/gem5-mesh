@@ -49,6 +49,7 @@ class RiscvProcess : public Process
     RiscvProcess(ProcessParams * params, ObjectFile *objFile);
     template<class IntType>
     void argsInit(int pageSize);
+    bool _useSpad;
 
   public:
     RegVal getSyscallArg(ThreadContext *tc, int &i) override;

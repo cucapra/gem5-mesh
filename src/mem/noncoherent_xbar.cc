@@ -307,6 +307,8 @@ NoncoherentXBar::recvFunctional(PacketPtr pkt, PortID slave_port_id)
 
     // determine the destination port
     PortID dest_id = findPort(pkt->getAddrRange());
+    // PBB before failed if couldn't find, now just return without doing anything
+    if (dest_id == InvalidPortID) return;
 
     // forward the request to the appropriate destination
     masterPorts[dest_id]->sendFunctional(pkt);

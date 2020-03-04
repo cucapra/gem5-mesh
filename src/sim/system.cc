@@ -410,6 +410,17 @@ System::isMemAddr(Addr addr) const
     return physmem.isMemAddr(addr);
 }
 
+// TODO need to remove hardcode
+bool
+System::isSpadAddr(Addr addr) const
+{
+    // TODO hardcoded for now, but should try to get from the current process somehow??
+    const Addr base_spm = 0x20000000;
+    const Addr ceil_spm = 0x30000000;
+    if (addr > ceil_spm) warn("exceed spad allocation\n");
+    return (addr >= base_spm && addr < ceil_spm);
+}
+
 void
 System::drainResume()
 {

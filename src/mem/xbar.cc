@@ -335,8 +335,11 @@ BaseXBar::findPort(AddrRange addr_range)
 
     // we should use the range for the default port and it did not
     // match, or the default port is not set
-    fatal("Unable to find destination for %s on %s\n", addr_range.to_string(),
+    // fatal("Unable to find destination for %s on %s\n", addr_range.to_string(),
+    //       name());
+    warn("Unable to find destination for %s on %s\n", addr_range.to_string(),
           name());
+    return InvalidPortID;
 }
 
 /** Function called by the port when the crossbar is receiving a range change.*/

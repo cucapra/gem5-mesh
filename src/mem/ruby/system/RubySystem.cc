@@ -499,7 +499,7 @@ RubySystem::functionalRead(PacketPtr pkt)
 
     return false;
 }
-
+#include "mem/ruby/scratchpad/Scratchpad.hh"
 // The function searches through all the buffers that exist in different
 // cache, directory and memory controllers, and in the network components
 // and writes the data portion of those that hold the address specified
@@ -515,7 +515,6 @@ RubySystem::functionalWrite(PacketPtr pkt)
     DPRINTF(RubySystem, "Functional Write request for %#x\n", addr);
 
     uint32_t M5_VAR_USED num_functional_writes = 0;
-
     for (unsigned int i = 0; i < num_controllers;++i) {
         num_functional_writes +=
             m_abs_cntrl_vec[i]->functionalWriteBuffers(pkt);

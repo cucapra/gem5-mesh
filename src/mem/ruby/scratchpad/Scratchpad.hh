@@ -180,8 +180,8 @@ class Scratchpad : public AbstractController
     MessageBuffer* getMemoryQueue() const override
     { return nullptr; }
 
-    AccessPermission getAccessPermission(const Addr &addr) override
-    { return AccessPermission_Invalid; }
+    // lets functionalRead/Writes know that the data can be found here
+    AccessPermission getAccessPermission(const Addr &addr) override;
 
     void recordCacheTrace(int cntrl, CacheRecorder* tr) override
     { }
@@ -192,13 +192,11 @@ class Scratchpad : public AbstractController
     GPUCoalescer* getGPUCoalescer() const override
     { return nullptr; }
 
-    bool functionalRead(const Addr &addr, PacketPtr pkt) override
-    { warn("Scratchpad does not support functionalRead\n"); return false; }
+    bool functionalRead(const Addr &addr, PacketPtr pkt) override;
 
     int functionalWriteBuffers(PacketPtr& pkt) override;
 
-    int functionalWrite(const Addr &addr, PacketPtr pkt) override
-    { warn("Scratchpad does not support functionalWrite\n"); return false; }
+    int functionalWrite(const Addr &addr, PacketPtr pkt) override;
 
     void collateStats() override
     { warn("Scratchpad does not support collateStats()\n"); }
