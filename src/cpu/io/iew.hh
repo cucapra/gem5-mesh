@@ -155,6 +155,7 @@ private:
   Stats::Scalar iew_stalls_revec;
   Stats::Scalar iew_dep;
   Stats::Vector2d iew_dep_insts;
+  Stats::Vector2d iew_dep_on;
   Stats::Scalar iew_membarrier;
   Stats::Scalar iew_execbusy;
   Stats::Scalar iew_robfull;

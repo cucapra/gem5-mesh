@@ -129,6 +129,13 @@ void IEW::regStats()
       .flags(Stats::total | Stats::pdf | Stats::dist);
   iew_dep_insts.ysubnames(Enums::OpClassStrings);
 
+  iew_dep_on
+      .init(1, Enums::Num_OpClass)
+      .name(name() + ".dep_on")
+      .desc("Class of instruction due to which  instructions have been blocked in Issue due to dependency")
+      .flags(Stats::total | Stats::pdf | Stats::dist);
+  iew_dep_on.ysubnames(Enums::OpClassStrings);
+
   iew_execbusy
       .name(name() + ".iew_stalls_execbusy")
       .desc("number of stalls in the iew stage due to exec stage being busy");
@@ -422,6 +429,14 @@ void IEW::doIssue()
 #endif
         iew_dep++;
         iew_dep_insts[0][inst->static_inst_p->opClass()]++;
+
+        IODynInstPtr inst_dep_on = m_robs[tid]->getInstwithDestreg(inst->renamedSrcRegIdx(i));
+        if (inst_dep_on){
+          iew_dep_on[0][inst_dep_on->static_inst_p->opClass()]++;
+        }
+        if (inst->static_inst_p->opClass()==IntMultOp){
+          DPRINTF(Mesh,"inst dep on %s , the inst %s\n",inst_dep_on->toString(true),inst->toString(true));
+        }
         return;
       }
     }
@@ -454,6 +469,12 @@ void IEW::doIssue()
       return;
     }
 
+    if (inst->static_inst_p->isSpadSpeculative() && m_robs[tid]->getRememInstCount() > 0) {
+      DPRINTF(Mesh, "[sn:%d] Can't issue lwspec due to pending younger "
+                   "remem instructions\n", inst->seq_num);
+                   
+      return;
+    }
    
     if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getUnresolvedCondInstCount() > 0)
     {
