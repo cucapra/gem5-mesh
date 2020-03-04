@@ -71,7 +71,7 @@ Sequencer::Sequencer(const Params *p)
     assert(m_instCache_ptr != NULL);
     assert(m_dataCache_ptr != NULL);
     assert(m_data_cache_hit_latency > 0);
-    assert(m_inst_cache_hit_latency > 0);
+    // assert(m_inst_cache_hit_latency > 0);
 
     m_runningGarnetStandalone = p->garnet_standalone;
 }
@@ -658,7 +658,7 @@ Sequencer::issueRequest(PacketPtr pkt, RubyRequestType secondary_type)
     // access response path.
     Cycles latency(0);  // Initialize to zero to catch misconfigured latency
     if (secondary_type == RubyRequestType_IFETCH)
-        latency = Cycles(0); //m_inst_cache_hit_latency;
+        latency = m_inst_cache_hit_latency;
     else
         latency = m_data_cache_hit_latency;
 
