@@ -6,7 +6,8 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
-#define SP
+// #define VPF
+// #define _VEC
 
 #ifdef VPF
 #define VEC_PFETCH
@@ -50,7 +51,8 @@ static inline int get_blk_end(int iter, int bound, int blk_dim) {
   }
 }
 
-void gemm_vec(float *a, float *b, float *c, int m, int n, int t, 
+void __attribute__((optimize("-fno-inline"))) 
+gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t, 
     int m_start, int m_end, int n_start, int n_end, int tid) {
 
   #ifndef _VEC
@@ -64,19 +66,20 @@ void gemm_vec(float *a, float *b, float *c, int m, int n, int t,
   
   
   int spadRegion = 0;
-  //float *spAddr = (float*)getSpAddr(tid,0);
+  //DTYPE *spAddr = (DTYPE*)getSpAddr(tid,0);
 
-  float *sp_all[4] = {(float*)getSpAddr(0,0),(float*)getSpAddr(1,0),(float*)getSpAddr(2,0),(float*)getSpAddr(3,0)};
-  float *spAddr =  sp_all[tid];
+  DTYPE *sp_all[4] = {(DTYPE*)getSpAddr(0,0),(DTYPE*)getSpAddr(1,0),(DTYPE*)getSpAddr(2,0),(DTYPE*)getSpAddr(3,0)};
+  DTYPE *spAddr =  sp_all[tid];
 
   #ifdef OUT_SPAD
-  float *sp_c = spAddr + NUM_REGIONS*REGION_SIZE;
+  DTYPE *sp_c = spAddr + NUM_REGIONS*REGION_SIZE;
   #endif
 
 
   int offset_x, offset_y;
   int dim_x = 2; //num cpu in a group in x dim
   int dim_y = 2;
+  int total_cores = dim_x*dim_y;
 
   int tid_x = tid%dim_x;
   int tid_y = tid/dim_y;
@@ -84,8 +87,8 @@ void gemm_vec(float *a, float *b, float *c, int m, int n, int t,
   offset_x = blk_dim*dim_x;
   offset_y = blk_dim*dim_y;
 
-  float* sp_a = spAddr;
-  float* sp_b = spAddr + a_cache_size;
+  DTYPE* sp_a = spAddr;
+  DTYPE* sp_b = spAddr + a_cache_size;
   
   
   //assuming m_start-m_end is divisble by BLK_DIM
@@ -103,7 +106,10 @@ void gemm_vec(float *a, float *b, float *c, int m, int n, int t,
 
         // fetch a in scratchpad
         #ifdef VEC_PFETCH
-        VPREFETCH(sp_a, a + _idx_(k,i0+tid,m), 0);
+        for (int i = 0; i <(offset_y/total_cores) ; i++) { 
+          VPREFETCH(sp_a+ i, a + _idx_(k,i0+(i*total_cores)+tid,m), 0);
+        }
+        // VPREFETCH(sp_a, a + _idx_(k,i0+tid,m), 0);
         #else
         for (int i = 0; i <blk_dim ; i++) { 
           sp_a[i]=a[_idx_(k,i+i_st,m)];
@@ -112,7 +118,10 @@ void gemm_vec(float *a, float *b, float *c, int m, int n, int t,
     
         // fetch b in scratchpad
         #ifdef VEC_PFETCH
-        VPREFETCH(sp_b, b + _idx_(k,j0+tid,n), 0);
+        for (int j = 0; j <(offset_x/total_cores) ; j++) { 
+          VPREFETCH(sp_b+ j, b + _idx_(k,j0+(j*total_cores)+tid,m), 0);
+        }
+        // VPREFETCH(sp_b, b + _idx_(k,j0+tid,n), 0);
         #else
         for (int j = 0; j < blk_dim; j++) { 
           sp_b[j] = b[_idx_(k,j+j_st,n)];
@@ -123,14 +132,24 @@ void gemm_vec(float *a, float *b, float *c, int m, int n, int t,
       
         for (int i = 0; i < blk_dim; i++) {
           for (int j = 0; j < blk_dim; j++) {
-            float a_,b_;
+            DTYPE a_,b_;
             #ifdef VEC_PFETCH
-            float* addr_a = sp_all[tid_y*blk_dim + i] + spadRegion*REGION_SIZE + 0;
-            float* addr_b = sp_all[tid_x*blk_dim + j] + spadRegion*REGION_SIZE + a_cache_size;
+
+            int which_sp_a = (tid_y*blk_dim + i)%total_cores;
+            int sp_offset_a = (tid_y*blk_dim + i)/total_cores;
+
+            DTYPE* addr_a = sp_all[which_sp_a] + spadRegion*REGION_SIZE + sp_offset_a;
+
+            int which_sp_b = (tid_x*blk_dim + j)%total_cores;
+            int sp_offset_b = (tid_x*blk_dim + j)/total_cores;
+            DTYPE* addr_b = sp_all[which_sp_b] + spadRegion*REGION_SIZE + a_cache_size + sp_offset_b;
             
 
-            LWSPEC(a_, addr_a, 0); //addr according to cores
-            LWSPEC(b_, addr_b, 0);
+            //LWSPEC(a_, addr_a, 0); //addr according to cores
+            //LWSPEC(b_, addr_b, 0);
+
+            a_ = *addr_a;
+            b_ = *addr_b;
             
             #elif defined(IN_SPAD)
             a_ = sp_a[i];
@@ -170,7 +189,8 @@ void gemm_vec(float *a, float *b, float *c, int m, int n, int t,
 
 }
 
-void gemm(float *a, float *b, float *c, int m, int n, int t, 
+void __attribute__((optimize("-fno-inline")))
+gemm(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t, 
     int m_start, int m_end, int n_start, int n_end, int tid) {
 
 
@@ -179,7 +199,7 @@ void gemm(float *a, float *b, float *c, int m, int n, int t,
   // use inner product unblocked gemm - minimize DRAM writes in this case
   for (int i = m_start; i < m_end; i++) {
     for (int j = n_start; j < n_end; j++) {
-      float c_temp = 0;
+      DTYPE c_temp = 0;
       for (int k = 0; k < t; k++) {
          c_temp += a[_idx_(i,k,t)] * b[_idx_(k, j, n)];
       }
@@ -197,42 +217,38 @@ void gemm(float *a, float *b, float *c, int m, int n, int t,
   }
 
   #else
-  int blk_dim = BLK_DIM;
-  int a_cache_size = blk_dim; // region_size/2
-  int b_cache_size = blk_dim; // region_size/2
-  int c_block_size = a_cache_size*b_cache_size; 
 
   int spadRegion = 0;
-  float *spAddr = (float*)getSpAddr(tid,0);
+  DTYPE *spAddr = (DTYPE*)getSpAddr(tid,0);
 
   #ifdef OUT_SPAD
-  float *sp_c = spAddr + NUM_REGIONS*REGION_SIZE;
+  DTYPE *sp_c = spAddr + NUM_REGIONS*REGION_SIZE;
   #endif
 
   int offset_x, offset_y;
-  int dim_x = 2; //num cpu in a group in x dim
-  int dim_y = 2;
+  const int dim_x=2; //num cpu in a group in x dim
+  const int dim_y=2;
 
   #if defined(BLOCKED)
   // blocked would mean each core processes its tile in blocks to fit on scratchpad
-  offset_x = offset_y = blk_dim;
+  offset_x = offset_y = BLK_DIM;
   #elif defined(INTERLEAVED)
-  offset_x = blk_dim*dim_x;
-  offset_y = blk_dim*dim_y;
+  offset_x = BLK_DIM*dim_x;
+  offset_y = BLK_DIM*dim_y;
   #endif
   
-  //assuming m_start-m_end is divisble by blk_dim
+  //assuming m_start-m_end is divisble by BLK_DIM
   for (int i0 = m_start; i0 < m_end ; i0+=offset_x){
     for (int j0 = n_start; j0 < n_end; j0+=offset_y) {
       for (int k = 0; k < t; k++){
     
         #ifdef IN_SPAD
 
-        float* sp_a = spAddr + spadRegion*REGION_SIZE + 0;
-        float* sp_b = spAddr + spadRegion*REGION_SIZE + a_cache_size;
+        DTYPE* sp_a = spAddr + spadRegion*REGION_SIZE + 0;
+        DTYPE* sp_b = spAddr + spadRegion*REGION_SIZE + BLK_DIM;
 
         // fetch a in scratchpad
-        for (int i = 0; i <blk_dim ; i++) { 
+        for (int i = 0; i <BLK_DIM ; i++) { 
           #ifdef VEC_PFETCH
           VPREFETCH(sp_a + i , a + _idx_(i+i0,k,t), 0);
           #else
@@ -241,7 +257,7 @@ void gemm(float *a, float *b, float *c, int m, int n, int t,
         }
     
         // fetch b in scratchpad
-        for (int j = 0; j < blk_dim; j++) { 
+        for (int j = 0; j < BLK_DIM; j++) { 
           #ifdef VEC_PFETCH
           VPREFETCH(sp_b + j , b + _idx_(k,j+j0,n), 0);
           #else
@@ -251,23 +267,18 @@ void gemm(float *a, float *b, float *c, int m, int n, int t,
         
         #endif
 
-        for (int i = 0; i < blk_dim; i++) {
-          for (int j = 0; j < blk_dim; j++) {
-            float a_,b_;
+        for (int i = 0; i < BLK_DIM; i++) {
+          for (int j = 0; j < BLK_DIM; j++) {
+            DTYPE a_,b_;
             #ifdef IN_SPAD
-            #ifdef VEC_PFETCH
-            LWSPEC(a_, sp_a+i, 0);
-            LWSPEC(b_, sp_b+j, 0);
-            #else
             a_ = sp_a[i];
             b_ = sp_b[j];
-            #endif
             #else
             a_ = a[_idx_(i+i0,k,t)];
             b_ = b[_idx_(k,j+j0,n)];
             #endif
             #ifdef OUT_SPAD
-            sp_c[_idx_(i,j,b_cache_size)] += a_*b_;
+            sp_c[_idx_(i,j,BLK_DIM)] += a_*b_;
             #else
             c[_idx_(i+i0,j+j0,n)] += a_*b_;
             #endif
@@ -283,10 +294,10 @@ void gemm(float *a, float *b, float *c, int m, int n, int t,
 
       //store c in DRAM
       #ifdef OUT_SPAD
-      for (int i = 0; i < a_cache_size; i++) {
-          for (int j = 0; j < b_cache_size; j++) {
-            STORE_NOACK(sp_c[_idx_(i,j,b_cache_size)],c + _idx_(i+i0, j+j0, n), 0);
-            sp_c[_idx_(i,j,b_cache_size)]=0;
+      for (int i = 0; i < BLK_DIM; i++) {
+          for (int j = 0; j < BLK_DIM; j++) {
+            STORE_NOACK(sp_c[_idx_(i,j,BLK_DIM)],c + _idx_(i+i0, j+j0, n), 0);
+            sp_c[_idx_(i,j,BLK_DIM)]=0;
           }
       }
       #endif
@@ -299,7 +310,7 @@ void gemm(float *a, float *b, float *c, int m, int n, int t,
 
 // actual kernel
 void kernel(
-    float *a, float *b, float *c, int m, int n, int t,
+    DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
     int tid_x, int tid_y, int dim_x, int dim_y) {
 
 
@@ -379,7 +390,7 @@ void kernel(
 
 
 // helper functions
-Kern_Args *construct_args(float *a, float *b, float *c, int m, int n, int t,
+Kern_Args *construct_args(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   int tid_x, int tid_y, int dim_x, int dim_y) {
       
   Kern_Args *args = (Kern_Args*)malloc(sizeof(Kern_Args));

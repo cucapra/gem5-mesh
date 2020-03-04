@@ -9,7 +9,7 @@
 
 #define RAND_MAT
 
-void fill_matrix(float* m, int row, int col){
+void fill_matrix(DTYPE* m, int row, int col){
   srand(0);
   for (int i = 0; i < row; i++){
     for (int j = 0; j<col ; j++){
@@ -19,10 +19,10 @@ void fill_matrix(float* m, int row, int col){
 
 }
 
-int check_matmul(float* a, float*b, float*c, int m, int n, int t){
+int check_matmul(DTYPE* a, DTYPE*b, DTYPE*c, int m, int n, int t){
   for (int i = 0; i < m; i++) {
     for (int j = 0; j < n; j++) {
-      float c_temp = 0;
+      DTYPE c_temp = 0;
       for (int k = 0; k < t; k++) {
          c_temp += a[i*t+k] * b[k*n+j];
       }
@@ -77,14 +77,14 @@ int main(int argc, char *argv[]) {
   size_t sizeB = n * t;
   size_t sizeC = n * m;
   
-  // float *a_ptr, *b_ptr, *c_ptr;
-  // float *a = (float*)malloc_cache_aligned(sizeof(float), sizeA, (void**)&a_ptr);
-  // float *b = (float*)malloc_cache_aligned(sizeof(float), sizeB, (void**)&b_ptr);
-  // float *c = (float*)malloc_cache_aligned(sizeof(float), sizeC, (void**)&c_ptr);
+  // DTYPE *a_ptr, *b_ptr, *c_ptr;
+  // DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeA, (void**)&a_ptr);
+  // DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeB, (void**)&b_ptr);
+  // DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeC, (void**)&c_ptr);
 
-  float *a = (float*)malloc(sizeof(float) * sizeA);
-  float *b = (float*)malloc(sizeof(float) * sizeB);
-  float *c = (float*)malloc(sizeof(float) * sizeC);
+  DTYPE *a = (DTYPE*)malloc(sizeof(DTYPE) * sizeA);
+  DTYPE *b = (DTYPE*)malloc(sizeof(DTYPE) * sizeB);
+  DTYPE *c = (DTYPE*)malloc(sizeof(DTYPE) * sizeC);
   
   #ifdef RAND_MAT
   fill_matrix(a,m,t);
@@ -101,8 +101,8 @@ int main(int argc, char *argv[]) {
 
   #if defined _VEC && defined VPF
   //do transpose of a for contiguous access
-  float *a_= (float*)malloc(sizeof(float) * sizeA);
-  float *_temp;
+  DTYPE *a_= (DTYPE*)malloc(sizeof(DTYPE) * sizeA);
+  DTYPE *_temp;
   for (int k = 0; k < t; k++){
     for (int i = 0; i < m; i++){
       a_[k*m+i]= a[i*t+k];
@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
   // figure out good tile size for the architecture
   // i.e. the 2d tiles for the three matrices should fit into scratchpad
   const int num_mat = 3;
-  //const int blk_dim = sqrt((float)(getSpadNumBytes() / sizeof(float)) / (float)num_mat);
+  //const int blk_dim = sqrt((DTYPE)(getSpadNumBytes() / sizeof(DTYPE)) / (DTYPE)num_mat);
 
   /*--------------------------------------------------------------------
   * Pack argument for kernel
