@@ -417,7 +417,7 @@ for cpu in system.cpu:
 
 # Assign workload to CPUs
 for i in xrange(n_cpus):
-  system.cpu[i].workload = process
+  system.cpu[i].workload = process #TODO maybe can write location here!
   system.cpu[i].createThreads()
 
 #------------------------------------------------------------------------------
@@ -489,7 +489,7 @@ for i in xrange(n_icaches):
   sequencer.icache = icache
   # only 1 cycle resp latency now (so 1 total)
   # need to hack sequencer to remove asserts checking for > 0, but doesn't seem like they break anything
-  sequencer.icache_hit_latency = 0
+  sequencer.icache_hit_latency = 1
   sequencer.dcache = icache
   sequencer.ruby_system = system.ruby
   sequencer.is_cpu_sequencer = True

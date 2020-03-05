@@ -146,7 +146,7 @@ machine(MachineType:L1Cache, "SP_LLC (L1I Cache)")
   in_port(responseToL1Cache_in, LLCResponseMsg, responseFromNetwork) {
     if (responseToL1Cache_in.isReady(clockEdge())) {
       peek(responseToL1Cache_in, LLCResponseMsg, block_on="LineAddress") {
-
+        DPRINTF(RubySlicc, "resp %s arrived\n", in_msg);
         Entry cache_entry := getCacheEntry(in_msg.LineAddress);
         TBE tbe := TBEs.lookup(in_msg.LineAddress);
 
@@ -167,6 +167,7 @@ machine(MachineType:L1Cache, "SP_LLC (L1I Cache)")
   in_port(mandatoryQueue_in, RubyRequest, mandatoryQueue, desc="...") {
     if (mandatoryQueue_in.isReady(clockEdge())) {
       peek(mandatoryQueue_in, RubyRequest, block_on="LineAddress") {
+        DPRINTF(RubySlicc, "req %s arrived\n", in_msg);
         Entry cache_entry := getCacheEntry(in_msg.LineAddress);
         TBE tbe := TBEs.lookup(in_msg.LineAddress);
 
