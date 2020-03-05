@@ -488,7 +488,8 @@ for i in xrange(n_icaches):
   sequencer.icache = icache
   # only 1 cycle resp latency now (so 1 total)
   # need to hack sequencer to remove asserts checking for > 0, but doesn't seem like they break anything
-  sequencer.icache_hit_latency = 0
+  # TODO deadlocks if this is 0, infrequently
+  sequencer.icache_hit_latency = 1
   sequencer.dcache = icache
   sequencer.ruby_system = system.ruby
   sequencer.is_cpu_sequencer = True
