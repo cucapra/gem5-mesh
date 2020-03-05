@@ -91,20 +91,20 @@ int main(int argc, char *argv[]) {
   * Run the kernel
   *-------------------------------------------------------------------*/
   
-  // printf("Begin kernel on %d cores\n", num_cores);
-  // launch_kernel(pthread_kernel, (void**)kern_args, cores_x, cores_y);
+  printf("Begin kernel on %d cores\n", num_cores);
+  launch_kernel(pthread_kernel, (void**)kern_args, cores_x, cores_y);
   
   /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
   
-  // for (int i = 0; i < size; i++) {
-  //   printf("%d\n", c[i]);
-  //   if (c[i] != 2 * ( i + 1 )) {
-  //     printf("[[FAIL]]\n");
-  //     return 1;
-  //   }
-  // }
+  for (int i = 0; i < size; i++) {
+    printf("%d\n", c[i]);
+    if (c[i] != 2 * ( i + 1 )) {
+      printf("[[FAIL]]\n");
+      return 1;
+    }
+  }
   
   free(a_ptr);
   free(b_ptr);

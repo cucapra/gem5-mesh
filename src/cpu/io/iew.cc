@@ -457,6 +457,8 @@ IEW::doIssue()
       m_scoreboard_p->unsetReg(inst->renamedDestRegIdx(i));
     }
 
+    // DPRINTF(Mesh, "issue %s\n", inst->toString(true));
+
     // Add the instruction to ROB
     m_robs[tid]->push(inst);
 

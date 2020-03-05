@@ -72,10 +72,10 @@ RiscvProcess::RiscvProcess(ProcessParams *params, ObjectFile *objFile) :
 RiscvProcess64::RiscvProcess64(ProcessParams *params, ObjectFile *objFile) :
         RiscvProcess(params, objFile)
 {
+    // find the start of stack, if using scratchpads then put at the end of local scratchpad
+    // otherwise throw some place in memory
     useSpad = ((objFile->spmBase() != 0) && (objFile->spmSize() != 0));
 
-    // move stack onto spad, set to vaddr or paddr??
-    // const Addr stack_base = 0x7FFFFFFFFFFFFFFFL;
     Addr stack_base;
     if (useSpad) {
         Addr sp_base_paddr = system->memSize();
@@ -95,19 +95,19 @@ RiscvProcess64::RiscvProcess64(ProcessParams *params, ObjectFile *objFile) :
         stack_base = 0x7FFFFFFFFFFFFFFFL;
     }
 
-    Addr stack_phys = 0;
-    pTable->translate(stack_base, stack_phys);
-    // const Addr stack_base = objFile->spmBase() + objFile->spmSize();
-    warn("new process with virt stack ptr %#lx physical stack ptr %#lx\n", 
-        stack_base, stack_phys);
-
     const Addr max_stack_size = 8 * 1024 * 1024;
+    // NOTE nothing actually uses this
     const Addr next_thread_stack_base = stack_base - max_stack_size;
     const Addr brk_point = roundUp(objFile->bssBase() + objFile->bssSize(),
             PageBytes);
     const Addr mmap_end = 0x4000000000000000L;
     memState = make_shared<MemState>(brk_point, stack_base, max_stack_size,
             next_thread_stack_base, mmap_end);
+
+    Addr stack_phys = 0;
+    pTable->translate(stack_base - sizeof(uint32_t), stack_phys);
+    printf("new process with virt stack ptr (first word) %#lx physical stack ptr %#lx\n", 
+        stack_base, stack_phys);
 }
 
 RiscvProcess32::RiscvProcess32(ProcessParams *params, ObjectFile *objFile) :
@@ -126,6 +126,7 @@ RiscvProcess32::RiscvProcess32(ProcessParams *params, ObjectFile *objFile) :
 void
 RiscvProcess64::initState()
 {
+
     Process::initState();
 
     argsInit<uint64_t>(PageBytes);
@@ -147,6 +148,7 @@ RiscvProcess64::initState()
     //     // pTable->map(sp_base_vaddr, sp_base_paddr, sp_size,
     //     //             EmulationPageTable::MappingFlags::Clobber);
     // }
+    printf("finish stack min %#lx\n", memState->getStackMin());
 }
 
 void

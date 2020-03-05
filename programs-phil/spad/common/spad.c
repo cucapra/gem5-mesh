@@ -47,15 +47,24 @@ void initScratchpads() {
 }
 
 
-void *getSpAddr(int pad, size_t offset) {
+void *getSpAddr(int pad, size_t wordOffset) {
 #if !defined(__x86_64__) && !defined(__i386__)
   if (pad >= N_SPS) return NULL;
   
   // the spad treats the addr, go, done flag as special, don't write to them
   // TODO we probably want the stack to exist in the scratchpad... how to do?
   size_t afterFlags = sizeof(uint64_t) + 2 * sizeof(uint32_t);
-  void *basePtr = (void*)(spm_base_ptr_arr[pad] + afterFlags);
-  return basePtr + offset;
+  void *ptr = (void*)(spm_base_ptr_arr[pad] + afterFlags + sizeof(uint32_t) * wordOffset);
+  return (void*)ptr;
+#else
+  return NULL;
+#endif
+}
+
+void *getSpTop(int pad) {
+#if !defined(__x86_64__) && !defined(__i386__)
+  if (pad >= N_SPS) return NULL;
+  return (void*)(spm_base_ptr_arr[pad] + SP_SIZE);
 #else
   return NULL;
 #endif

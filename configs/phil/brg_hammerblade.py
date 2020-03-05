@@ -417,7 +417,7 @@ for cpu in system.cpu:
 
 # Assign workload to CPUs
 for i in xrange(n_cpus):
-  system.cpu[i].workload = process #TODO maybe can write location here!
+  system.cpu[i].workload = process
   system.cpu[i].createThreads()
 
 #------------------------------------------------------------------------------

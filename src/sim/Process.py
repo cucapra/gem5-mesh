@@ -63,6 +63,8 @@ class Process(SimObject):
     simpoint = Param.UInt64(0, 'simulation point at which to start simulation')
     drivers = VectorParam.EmulatedDriver([], 'Available emulated drivers')
 
+    spIdx = Param.UInt32(0, 'scratchpad idx to know where to start the stack')
+
     @classmethod
     def export_methods(cls, code):
         code('bool map(Addr vaddr, Addr paddr, int sz, bool cacheable=true);')

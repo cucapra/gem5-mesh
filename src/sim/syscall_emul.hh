@@ -1599,6 +1599,9 @@ cloneFunc(SyscallDesc *desc, int callnum, Process *p, ThreadContext *tc)
     pp->gid = p->gid();
     pp->egid = p->egid();
 
+    // assign spIdx
+    pp->spIdx = ctc->cpuId();
+
     /* Find the first free PID that's less than the maximum */
     std::set<int> const& pids = p->system->PIDs;
     int temp_pid = *pids.begin();
@@ -1632,10 +1635,6 @@ cloneFunc(SyscallDesc *desc, int callnum, Process *p, ThreadContext *tc)
         cp->useForClone = true;
     }
 
-    // assign the core, so we know which spad to put stack on
-    // cp->spadIdx(callnum);
-    printf("clone %d %d\n", tc->cpuId(), callnum);
-
     cp->initState();
     p->clone(tc, ctc, cp, flags);
 
@@ -1658,6 +1657,23 @@ cloneFunc(SyscallDesc *desc, int callnum, Process *p, ThreadContext *tc)
 
     ctc->clearArchRegs();
 
+    // // PBB: I think the copying of stack variables of the original thread
+    // // to the newly instantiated one occurs in software with a particular
+    // // stack base in mind
+    // // We need to atomically copy those stack variables to the spot that we
+    // // want. TODO not sure how many args to actually copy
+    // Addr curStackPtr = tc->readIntReg(RiscvISA::StackPointerReg);
+    // Addr offset = p->memState->getStackBase() - curStackPtr;
+    // Addr numBytesCopied = offset;
+
+    // // old and new stack
+    // Addr oldStack = newStack;
+    // newStack = cp->memState->getStackBase() - offset;
+    // printf("new stack before %#lx after %#lx\n", oldStack, newStack);
+
+    // // Try to actually set pthread to initially do the right thing
+    // // http://man7.org/linux/man-pages/man3/pthread_attr_setstack.3.html
+    
     OS::archClone(flags, p, cp, tc, ctc, newStack, tlsPtr);
 
     cp->setSyscallReturn(ctc, 0);

@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <math.h>
 #include <sys/sysinfo.h>
- 
+
 void launch_kernel(void* (*kernel)(void*), void **args, int cores_x, int cores_y) {
   
   // device threads will be pthreads

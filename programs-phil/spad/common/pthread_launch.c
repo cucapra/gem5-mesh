@@ -1,8 +1,12 @@
 
 #include "pthread_launch.h"
+#include "spad.h"
 #include <stdlib.h>
 #include <math.h>
 #include <sys/sysinfo.h>
+#include <stdio.h>
+
+#define PTHREAD_STACK_ON_SPAD 1
  
 void launch_kernel(void* (*kernel)(void*), void **args, int cores_x, int cores_y) {
   
@@ -11,7 +15,7 @@ void launch_kernel(void* (*kernel)(void*), void **args, int cores_x, int cores_y
   int num_cores = cores_x * cores_y;
   int dev_cores = num_cores - 1;
   pthread_t **threads = (pthread_t**)malloc(sizeof(pthread_t*) * dev_cores);
-  
+
   // barrier to guarentee one thread per core (prevents from any finishing
   // before scheduling)
   pthread_barrier_init(&start_barrier, NULL, num_cores);
@@ -23,7 +27,37 @@ void launch_kernel(void* (*kernel)(void*), void **args, int cores_x, int cores_y
 
   // create a thread on each device core
   for (int i = 0; i < dev_cores; i++) {
-		pthread_create(threads[i], NULL, kernel, args[i + 1]);
+    // default thread attributes
+    pthread_attr_t attr;
+    pthread_attr_init(&attr);
+
+    // if you would like the pthread stack to go on the spad
+    // then need to specify it here. Can't do it in gem5 because
+    // the pthread routine will copy data to the new stack and will
+    // give the stack ptr as an argument to the clone syscall
+    // http://man7.org/linux/man-pages/man3/pthread_attr_setstack.3.html
+    #ifdef PTHREAD_STACK_ON_SPAD
+    void *attrStackAddr0;
+    size_t size0;
+    pthread_attr_getstack(&attr, &attrStackAddr0, &size0);
+
+    if (pthread_attr_setstack(&attr, getSpTop(i + 1), getSpadNumBytes()) != 0) {
+      //  EINVAL stacksize is less than PTHREAD_STACK_MIN (16384) bytes.  On
+      // some systems, this error may also occur if stackaddr or
+      // stackaddr + stacksize is not suitably aligned.
+      printf("fail to set stack size, prob not enough space @ %d!\n", getSpadNumBytes());
+    }
+    pthread_attr_setstackaddr(&attr, getSpTop(i + 1));
+    // pthread_attr_setstacksize(&attr, getSpadNumBytes());
+    void *attrStackAddr1;
+    size_t size1;
+    pthread_attr_getstack(&attr, &attrStackAddr1, &size1);
+    printf("core %d stck addr %p %llu -> %p %llu\n", i + 1, attrStackAddr0, size0, attrStackAddr1, size1);
+    #endif
+    pthread_create(threads[i], &attr, kernel, args[i + 1]);
+
+    // can free attr memory as soon as create
+    pthread_attr_destroy(&attr);
   }
   
   // start an iteration locally

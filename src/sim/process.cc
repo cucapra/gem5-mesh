@@ -132,7 +132,7 @@ Process::Process(ProcessParams *params, EmulationPageTable *pTable,
       fds(make_shared<FDArray>(params->input, params->output, params->errout)),
       childClearTID(0),
       useSpad(false),
-      spadIdx(0)
+      spadIdx(params->spIdx)
 {
     if (_pid >= System::maxPID)
         fatal("_pid is too large: %d", _pid);
@@ -192,7 +192,21 @@ Process::clone(ThreadContext *otc, ThreadContext *ntc,
         np->pTable = pTable;
         ntc->getMemProxy().setPageTable(np->pTable);
 
-        np->memState = memState;
+        // NOTE this doesn't actually seem to be that imporant to do this, only
+        // a problem if need to allocate more stack space, but that should never happen
+        // non-host cores (i.e. does not launch the pthreads)
+        // need to change some fields (mainly stack)
+        // TODO not sure about the implications of creating a completely new copy
+        // hopefully these fields are readonly??
+        if (np->useSpad) {
+            Addr stackMin = np->memState->getStackMin();
+            np->memState = std::make_shared<MemState>(memState->getBrkPoint(), np->memState->getStackBase(), 
+                memState->getMaxStackSize(), memState->getNextThreadStackBase(), memState->getMmapEnd());
+            np->memState->setStackMin(stackMin);
+        }
+        else {
+            np->memState = memState;
+        }
     } else {
         /**
          * Duplicate the process memory address space. The state needs to be
