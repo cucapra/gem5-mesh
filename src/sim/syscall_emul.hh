@@ -1673,6 +1673,7 @@ cloneFunc(SyscallDesc *desc, int callnum, Process *p, ThreadContext *tc)
 
     // // Try to actually set pthread to initially do the right thing
     // // http://man7.org/linux/man-pages/man3/pthread_attr_setstack.3.html
+    printf("set base stack to %#lx\n", newStack);
     
     OS::archClone(flags, p, cp, tc, ctc, newStack, tlsPtr);
 
