@@ -636,7 +636,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 
     //edit: Neil
     //if load in region which is used for prefetch then check
-    if (isRegionLoad(pkt_p->getAddr()) && !isWordRdy(pkt_p->getAddr())){
+    if (isRegionLoad(pkt_p) && !isWordRdy(pkt_p->getAddr())){
     // if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
       //m_packet_buffer.push_back(pkt_p);
       //assert(m_packet_buffer.size() <= m_spec_buf_size);
@@ -1106,8 +1106,9 @@ Scratchpad::getDesiredRegion(Addr addr) {
 }
 
 bool
-Scratchpad::isRegionLoad(Addr addr) {
-  int padIdx = getLocalAddr(addr) / sizeof(uint32_t);
+Scratchpad::isRegionLoad(Packet* pkt_p) {
+  if (!pkt_p->isRead()) return false;
+  int padIdx = getLocalAddr(pkt_p->getAddr()) / sizeof(uint32_t);
 
   //DPRINTF(Mesh, "pad ID %d\n", padIdx);
   // need to consider spad offset to where the prefetch region starts

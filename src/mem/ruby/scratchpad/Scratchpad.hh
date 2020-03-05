@@ -265,7 +265,7 @@ class Scratchpad : public AbstractController
     int getDesiredRegion(Addr addr);
 
     //Edit: Neil to check if load is within the region for prefetch
-    bool isRegionLoad(Addr addr);
+    bool isRegionLoad(Packet* pkt_p);
     
     /**
      * Logic for handling any resp packet to spad
