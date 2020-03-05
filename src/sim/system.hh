@@ -252,6 +252,21 @@ class System : public SimObject
      */
     Addr loadAddrOffset;
 
+    /**
+     * Location of base spad addr
+     */ 
+    Addr baseSpadAddr;
+
+    /**
+     * Location of last spad addr
+     */
+    Addr endSpadAddr;
+
+    /**
+     * Number of spads in the system
+     */ 
+    uint32_t numSpads;
+
   public:
     /**
      * Get a pointer to the Kernel Virtual Machine (KVM) SimObject,
@@ -290,6 +305,12 @@ class System : public SimObject
      * @return Whether the address corresponds to a scratchpad
      */
     bool isSpadAddr(Addr addr) const;
+    void setSpadSettings(Addr base, Addr end) { baseSpadAddr = base; endSpadAddr = end; }
+
+    /**
+     * Get the number of Spads in the system
+     */ 
+    uint32_t getNumSpads() const { return numSpads; };
 
     /**
      * Get the architecture.

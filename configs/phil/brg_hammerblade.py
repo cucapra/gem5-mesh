@@ -392,6 +392,7 @@ CPUClass = IOCPU (
 system = System(cpu = [ CPUClass(cpu_id = i) for i in xrange(n_cpus) ],
                         mem_mode = CPUClass.memory_mode(),
                         mem_ranges = [ AddrRange(options.mem_size) ],
+                        num_spads = n_cpus,
                         cache_line_size = 64) #options.cacheline_size)
 
 # Create a top-level voltage domain

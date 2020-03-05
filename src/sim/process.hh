@@ -252,6 +252,10 @@ class Process : public SimObject
 
     // Process was forked with SIGCHLD set.
     bool *sigchld;
+
+    // spad related things to assign stack onto spad
+    bool useSpad;
+    uint32_t spadIdx;
 };
 
 #endif // __PROCESS_HH__

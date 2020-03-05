@@ -1631,6 +1631,11 @@ cloneFunc(SyscallDesc *desc, int callnum, Process *p, ThreadContext *tc)
         cp->pTable->shared = true;
         cp->useForClone = true;
     }
+
+    // assign the core, so we know which spad to put stack on
+    // cp->spadIdx(callnum);
+    printf("clone %d %d\n", tc->cpuId(), callnum);
+
     cp->initState();
     p->clone(tc, ctc, cp, flags);
 

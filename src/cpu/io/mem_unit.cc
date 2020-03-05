@@ -255,7 +255,8 @@ MemUnit::doMemIssue()
         else if (inst->static_inst_p->isSpadPrefetch())
           DPRINTF(Mesh, "Sent preload request to memory for inst [%s] %#x, live %d\n", inst->toString(true), inst->mem_req_p->prefetchAddr, inst->mem_req_p->isSpLoad);
 */
-        if (inst->isLoad() && inst->srcRegIdx(0) == RegId(IntRegClass, 2)) DPRINTF(Mesh, "Send sp load %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(2, 0));
+        // if (inst->srcRegIdx(0) == RegId(IntRegClass, 2)) 
+          DPRINTF(Mesh, "Send access %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(2, 0));
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
         num_issued_insts++;

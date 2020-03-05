@@ -64,8 +64,7 @@ using namespace RiscvISA;
 RiscvProcess::RiscvProcess(ProcessParams *params, ObjectFile *objFile) :
         Process(params,
                 new EmulationPageTable(params->name, params->pid, PageBytes),
-                objFile),
-        _useSpad(false)
+                objFile)
 {
     fatal_if(params->useArchPT, "Arch page tables not implemented.");
 }
@@ -73,18 +72,24 @@ RiscvProcess::RiscvProcess(ProcessParams *params, ObjectFile *objFile) :
 RiscvProcess64::RiscvProcess64(ProcessParams *params, ObjectFile *objFile) :
         RiscvProcess(params, objFile)
 {
-    _useSpad = ((objFile->spmBase() != 0) && (objFile->spmSize() != 0));
+    useSpad = ((objFile->spmBase() != 0) && (objFile->spmSize() != 0));
 
     // move stack onto spad, set to vaddr or paddr??
     // const Addr stack_base = 0x7FFFFFFFFFFFFFFFL;
     Addr stack_base;
-    if (_useSpad) {
+    if (useSpad) {
         Addr sp_base_paddr = system->memSize();
         Addr sp_base_vaddr = objFile->spmBase();
-        Addr sp_size = objFile->spmSize();
+        Addr sp_size = objFile->spmSize(); // NOTE THIS IS ALL THE SPADS
+        // let system know about spad settings from objfile
+        system->setSpadSettings(sp_base_paddr, sp_base_paddr + sp_size);
         pTable->map(sp_base_vaddr, sp_base_paddr, sp_size,
                     EmulationPageTable::MappingFlags(0));
-        stack_base = sp_base_vaddr + sp_size - sizeof(uint32_t); // goes down so should start at the top
+        // TODO only works if every core in the system has a spad
+        // really need to find number of spads, not number of cpus
+        Addr single_sp_size = sp_size / system->getNumSpads();
+        Addr sp_offset = single_sp_size * spadIdx;
+        stack_base = sp_base_vaddr + single_sp_size + sp_offset; // goes down so should start at the top
     }
     else {
         stack_base = 0x7FFFFFFFFFFFFFFFL;
@@ -93,8 +98,8 @@ RiscvProcess64::RiscvProcess64(ProcessParams *params, ObjectFile *objFile) :
     Addr stack_phys = 0;
     pTable->translate(stack_base, stack_phys);
     // const Addr stack_base = objFile->spmBase() + objFile->spmSize();
-    warn("new process with virt stack ptr %#lx physical stack ptr %#lx usespad %d\n", 
-        stack_base, stack_phys, _useSpad);
+    warn("new process with virt stack ptr %#lx physical stack ptr %#lx\n", 
+        stack_base, stack_phys);
 
     const Addr max_stack_size = 8 * 1024 * 1024;
     const Addr next_thread_stack_base = stack_base - max_stack_size;
@@ -196,7 +201,7 @@ RiscvProcess::argsInit(int pageSize)
     memState->setStackSize(memState->getStackBase() - stack_top);
 
     // don't reallocate scratchpad memory b/c already allocated technically
-    if (!_useSpad) {
+    if (!useSpad) {
         allocateMem(roundDown(stack_top, pageSize),
                 roundUp(memState->getStackSize(), pageSize));
     }

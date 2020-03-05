@@ -130,7 +130,9 @@ Process::Process(ProcessParams *params, EmulationPageTable *pTable,
       _pid(params->pid), _ppid(params->ppid),
       _pgid(params->pgid), drivers(params->drivers),
       fds(make_shared<FDArray>(params->input, params->output, params->errout)),
-      childClearTID(0)
+      childClearTID(0),
+      useSpad(false),
+      spadIdx(0)
 {
     if (_pid >= System::maxPID)
         fatal("_pid is too large: %d", _pid);

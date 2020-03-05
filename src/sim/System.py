@@ -123,5 +123,7 @@ class System(SimObject):
     # Provide list of domains that need to be controlled by the handler
     dvfs_handler = DVFSHandler()
 
+    num_spads = Param.UInt32(16, 'number of spads in the system')
+
     if buildEnv['USE_KVM']:
         kvm_vm = Param.KvmVM(NULL, 'KVM VM (i.e., shared memory domain)')
