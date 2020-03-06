@@ -82,6 +82,7 @@ VecInstSel::willHaveOpening() {
 }
 
 // dequeue an instruction (either from icache or mesh, but unknown to caller and frankly does not matter)
+// this should be called every cycle kind of like a tick function
 IODynInstPtr
 VecInstSel::dequeueInst() {
   IODynInstPtr ret = nullptr;

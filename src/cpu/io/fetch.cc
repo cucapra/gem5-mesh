@@ -585,13 +585,13 @@ Fetch::processCacheCompletion(PacketPtr pkt)
 {
   ThreadID tid = m_cpu_p->contextToThread(pkt->req->contextId());
 
-  DPRINTF(Fetch, "[tid:%d] Receiving icache response\n", tid);
+  DPRINTF(Fetch, "[tid:%d] Receiving icache response %#x\n", tid, pkt->getAddr());
 //  assert(!m_cpu_p->swichedOut());
 
   // Check if this response packet is still needed. If not (i.e., probably due
   // to an early squash), just drop and delete it.
   if (pkt->req != m_mem_reqs[tid]) {
-    DPRINTF(Fetch, "[tid:%d] Dropping icache response\n", tid);
+    DPRINTF(Fetch, "[tid:%d] Dropping icache response %#x\n", tid, pkt->getAddr());
     delete pkt;
     return;
   }
