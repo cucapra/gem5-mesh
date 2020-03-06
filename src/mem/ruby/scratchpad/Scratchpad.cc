@@ -647,6 +647,9 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     
     // This is a local access
     DPRINTF(Scratchpad, "Doing a local access for pkt %s\n", pkt_p->print());
+    // if (m_cpu_p->getEarlyVector()->getConfigured()) 
+    //   DPRINTF(Mesh, "Doing a local access for pkt %s coreepoch %d prefetchEpoch %d cnt%d\n", 
+    //     pkt_p->print(), getCoreEpoch(), m_cur_prefetch_region, m_region_cntr);
     
     // record local access here
     if (pkt_p->isRead()) m_local_loads++;

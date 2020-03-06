@@ -166,6 +166,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     LWSPEC(b_, spadAddr + iter * 2 + 1, 0);
     cPtr[iter * dim] = a_ + b_;
     iter++;
+    REMEM(0);
 
     // need this jump to create loop carry dependencies, but this should be remove later
     asm volatile goto("j %l[fable1]\n\t"::::fable1);
