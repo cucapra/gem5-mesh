@@ -146,10 +146,6 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // devec with unique tag
   DEVEC(devec_0);
 
-  if (ptid == 0 && testStack == 231) {
-    printf("found\n");
-  }
-
   return;
 
   // vector engine code
