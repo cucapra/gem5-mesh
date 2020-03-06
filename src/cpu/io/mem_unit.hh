@@ -128,6 +128,8 @@ class MemUnit : public ExecUnit
     /** Do functional execute of incoming instruction to allow correct PC check */
     void functionalExecute() override;
 
+    uint getNumOutstandingAcks() { return m_store_diff_reg; }
+
   private:
     enum Status {
       Squashed,
@@ -221,6 +223,10 @@ class MemUnit : public ExecUnit
     /** Instruction whose virtual address is being translated
      * (i.e., input of S1 stage) */
     IODynInstPtr m_s1_inst;
+
+    /** Diff of sent stores to acked stores */
+    uint m_store_diff_reg;
+
 
 #ifdef DEBUG
     /** Unit's status */

@@ -129,6 +129,8 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
   volatile int testStack = 231;
 
+  // TODO need to calculate mod as stream through spad
+
   for (int i = 0; i < totalIter; i++) {
     // issue fable1
     ISSUE_VINST(fable1);
@@ -146,12 +148,14 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // devec with unique tag
   DEVEC(devec_0);
 
+  asm volatile("fence\n\t");
+
   return;
 
   // vector engine code
 
   // declarations
-  int a_, b_, iter;
+  int a_, b_, c_, iter;
   DTYPE *cPtr;
 
   // entry block
@@ -164,7 +168,9 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   fable1:
     LWSPEC(a_, spadAddr + iter * 2, 0);
     LWSPEC(b_, spadAddr + iter * 2 + 1, 0);
-    cPtr[iter * dim] = a_ + b_;
+    c_ = a_ + b_;
+    // cPtr[iter * dim] = c_;
+    STORE_NOACK(c_, cPtr + (iter * dim), 0);
     iter++;
     REMEM(0);
 

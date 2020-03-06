@@ -385,7 +385,7 @@ IEW::doIssue()
 
     // If this is a memory barrier, we need to check if all previous memory
     // instructions have retired. If not, we must stall
-    if (inst->isMemBarrier() && m_robs[tid]->getMemInstCount() > 0) {
+    if (inst->isMemBarrier() && (m_robs[tid]->getMemInstCount() > 0 || m_mem_unit_p->getNumOutstandingAcks() > 0)) {
       DPRINTF(IEW, "[sn:%d] Can't issue mem barrier due to pending younger "
                    "memory instructions\n", inst->seq_num);
 #ifdef DEBUG

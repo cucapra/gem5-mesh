@@ -106,7 +106,6 @@ structure(LLCRequestMsg, desc = "...", interface = "Message") {
   // for vector mem ops
   int             XDim,         desc = "";
   int             YDim,         desc = "";
-  bool            AckFree,      desc = "whether to not send ack for a store";
   Addr            WordAddress,  desc = "address for 32 bit mem element";
   // TODO when value across cache lines, need to send multiple requests
   // so the first element won't always be the master core and all should get

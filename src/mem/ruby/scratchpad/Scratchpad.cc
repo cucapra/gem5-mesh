@@ -452,7 +452,25 @@ Scratchpad::wakeup()
         m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
         m_mem_resp_buffer_p->dequeue(clockEdge());
 
-    } else {
+    } /*else if (m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 0 && 
+              llc_msg_p->m_Type == LLCResponseType_ACK) {
+      // we just need to send back to the core that we received an ack
+      // make a fake resp packet to send back
+      std::shared_ptr<Request> req =
+                std::make_shared<Request>(llc_msg_p->m_LineAddress,    // vaddr
+                                          sizeof(uint32_t),    // size
+                                          0, 0);
+        
+      PacketPtr pending_mem_pkt_p = Packet::createWrite(req);
+      pending_mem_pkt_p->pushSenderState(new MemUnit::SenderState(nullptr));
+      pending_mem_pkt_p->makeResponse();
+
+      // Pop the message from mem_resp_buffer
+      m_mem_resp_buffer_p->dequeue(clockEdge());
+      
+      enqueueRubyRespToSp(pending_mem_pkt_p, Packet::RespPktType::LLC_Data_Resp);
+
+    }*/ else {
       // sanity check: make sure this is the response we're waiting for
       assert(m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 1);
       Packet* pending_mem_pkt_p = m_pending_pkt_map[llc_msg_p->m_SeqNum];
@@ -713,16 +731,20 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       }
       
     }
-    // immedietly send an ACK back for a write if no syncronization is needed
-    // TODO mark writes as need sync or no need sync
-    else if (pkt_p->getStoreAckFree() && pkt_p->isWrite()) {
-      noLLCAck |= (pkt_p->getStoreAckFree() && pkt_p->isWrite());
-      PacketPtr resp_pkt_p = new Packet(pkt_p, true, false);
-      resp_pkt_p->makeResponse();
-      m_cpu_resp_pkts.push_back(resp_pkt_p);
-      if (!m_cpu_resp_event.scheduled())
-        schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-    }
+    // // immedietly send an ACK back for a write if no syncronization is needed
+    // // TODO mark writes as need sync or no need sync
+    // else if (pkt_p->getStoreAckFree() && pkt_p->isWrite()) {
+    //   noLLCAck |= (pkt_p->getStoreAckFree() && pkt_p->isWrite());
+    //   PacketPtr resp_pkt_p = new Packet(pkt_p, true, false);
+    //   resp_pkt_p->makeResponse();
+    //   m_cpu_resp_pkts.push_back(resp_pkt_p);
+    //   if (!m_cpu_resp_event.scheduled())
+    //     schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+    // }
+
+    // we aren't going to track any information about the store beyond did we recv
+    // an ACK or not
+    // noLLCAck |= pkt_p->isWrite();
     
     // This packet will be delivered to LLC
     if (m_pending_pkt_map.size() == m_max_num_pending_pkts && !noLLCAck) {
@@ -752,7 +774,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // send local epoch so mem can sync
       // msg_p->m_Epoch = pkt_p->getEpoch();
       // whether a store requires an ack
-      msg_p->m_AckFree = pkt_p->getStoreAckFree();
+      // msg_p->m_AckFree = pkt_p->getStoreAckFree();
 
       // fake this to another scratchpad if decoupled access prefetch
       // m_machineID.num is just the flat scratchpad idx (0-numCores)
