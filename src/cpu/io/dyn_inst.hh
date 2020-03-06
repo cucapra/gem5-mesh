@@ -541,6 +541,9 @@ public:
     
     // check whether trace sent by master core is valid
     bool checkTrace(bool local_taken, TheISA::PCState local_targ);
+
+    // epoch at the time of issue
+    uint epoch;
 };
 
 typedef std::shared_ptr<IODynInst> IODynInstPtr;

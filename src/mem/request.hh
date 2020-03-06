@@ -656,7 +656,7 @@ class Request
     /**
      * Epoch of the packet
      */ 
-    // int epoch;
+    uint epoch;
     
     /**
      * Packet is doing a load from mem to spad

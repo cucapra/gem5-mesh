@@ -240,13 +240,13 @@ class Scratchpad : public AbstractController
     /**
      * Mem divergence. Check CPU registers
      */ 
-    int getCoreEpoch();
+    int getCoreEpoch(PacketPtr pkt_p);
     int getNumRegions();
     int getRegionElements();
     //void updateEpoch(int epoch);
     bool controlDiverged();
-    bool memoryDiverged(Addr addr);
-    bool isPrefetchAhead(Addr addr);
+    bool memoryDiverged(PacketPtr pkt_p);
+    bool isPrefetchAhead(PacketPtr pkt_p);
     //bool cpuIsLate(int pktEpoch);
     //bool cpuIsEarly(int pktEpoch);
     //bool cpuIsSynced(int pktEpoch);
@@ -255,7 +255,7 @@ class Scratchpad : public AbstractController
     /**
      * For bitarray accessign to make sure load not too early to prefetch
      */ 
-    bool isWordRdy(Addr addr);
+    bool isWordRdy(PacketPtr pkt_p);
     void setWordRdy(Addr addr);
     void setWordNotRdy(Addr addr);
 

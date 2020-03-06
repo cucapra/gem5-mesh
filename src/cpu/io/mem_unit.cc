@@ -251,7 +251,7 @@ MemUnit::doMemIssue()
       } else {
         DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
         
-        if (inst->srcRegIdx(0) == RegId(IntRegClass, RiscvISA::StackPointerReg) && m_cpu_p->getEarlyVector()->getConfigured()) 
+        if (m_cpu_p->getEarlyVector()->getConfigured()) 
           DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
 
         // mark this inst as "issued to memory"
@@ -299,7 +299,7 @@ MemUnit::doMemIssue()
         return;
       } else {
         DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
-        if (inst->srcRegIdx(0) == RegId(IntRegClass, RiscvISA::StackPointerReg) && m_cpu_p->getEarlyVector()->getConfigured()) 
+        if (m_cpu_p->getEarlyVector()->getConfigured()) 
           DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
 
         // mark this inst as "issued to memory"
@@ -557,6 +557,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // if (spadPrefetch) {
     //   m_s1_inst->mem_req_p->epoch = m_cpu_p->getMemEpoch();
     // }
+     m_s1_inst->mem_req_p->epoch = m_cpu_p->getMemEpoch();
     
     // setup prefetch addr
     if (spadPrefetch) {
