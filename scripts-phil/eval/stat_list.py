@@ -15,7 +15,7 @@ stats = OrderedDict([
   }), 
   ('icache' , { 
     'name' : 'icache_access',
-    'regex' : re.compile('system.icaches[0-9]+.L1cache.demand_accesses\s*' + intRegexStr),
+    'regex' : re.compile('system.cpu[0-9]+.fetch.icache_word_accesses\s*' + intRegexStr),
     'ignore-zero' : False,
   }), 
   ('locsp'  , { 

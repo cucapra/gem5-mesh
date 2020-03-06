@@ -112,7 +112,10 @@ Fetch::name() const
 void
 Fetch::regStats()
 {
-
+  m_32bit_icache_accesses
+        .name(name() + ".icache_word_accesses")
+        .desc("number of 32bit word icache accesses that reflects the number we would see in HammerBlade")
+        ;
 }
 
 TheISA::Decoder*
@@ -431,6 +434,10 @@ Fetch::doFetch(ThreadID tid)
                                       m_cpu_p->getAndIncrementInstSeq(),
                                       tid, m_cpu_p);
   DPRINTF(Fetch, "[tid:%d]: built inst %s\n", tid, dyn_inst_p->toString(true));
+  // count this as a 32bit request
+  // we fetch a cacheline at per request and only count a one access,
+  // but in HammerBlade would only fetch a single instruction at a time, so reflect that in stat collection
+  m_32bit_icache_accesses++;
 
   // Look up the next pc
   TheISA::PCState next_pc = cur_pc;
