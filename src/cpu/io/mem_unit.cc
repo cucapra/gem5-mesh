@@ -320,8 +320,9 @@ MemUnit::doMemIssue()
         }
 
         // if this is a normal store don't wait for the eack and mark as done
-        if (inst->static_inst_p->isAckFree()) {
-          DPRINTF(Mesh, "set early execute %s\n", inst->toString(true));
+       // if (inst->static_inst_p->isAckFree()) {
+        if (inst->isStore() && !inst->isStoreConditional() && !inst->isAtomic()) {
+          if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "set early execute %s\n", inst->toString(true));
           // mark this as executed
           inst->setExecuted();
           // early bypass
@@ -493,9 +494,10 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
     m_store_diff_reg--;
     if (it == m_st_queue.end()) {
       // this inst must have been squashed earlier
-      if (!ss->inst->isStore())
+      if (ss->inst->isStoreConditional() || ss->inst->isAtomic())
         assert(ss->inst->isSquashed());
-    } else if (!ss->inst->static_inst_p->isAckFree()) {
+    // } else if (static_inst_p->isAckFree()) {
+    } else if (ss->inst->isStoreConditional() || ss->inst->isAtomic()) {
       // complete access
       ss->inst->completeAcc(pkt);
       // mark this as executed

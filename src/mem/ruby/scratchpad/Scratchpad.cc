@@ -749,6 +749,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // This packet will be delivered to LLC
     if (m_pending_pkt_map.size() == m_max_num_pending_pkts && !noLLCAck) {
       DPRINTF(Scratchpad, "Blocking. Pending pkt buffer is full\n");
+      if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Blocking. Pending pkt buffer is full\n");
       return false;
     } else {
       dst_port = { MachineType_L2Cache, getL2BankFromAddr(pkt_p->getAddr()) };

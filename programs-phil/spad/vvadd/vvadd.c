@@ -169,8 +169,8 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     LWSPEC(a_, spadAddr + iter * 2, 0);
     LWSPEC(b_, spadAddr + iter * 2 + 1, 0);
     c_ = a_ + b_;
-    // cPtr[iter * dim] = c_;
-    STORE_NOACK(c_, cPtr + (iter * dim), 0);
+    cPtr[iter * dim] = c_;
+    // STORE_NOACK(c_, cPtr + (iter * dim), 0);
     iter++;
     REMEM(0);
 
