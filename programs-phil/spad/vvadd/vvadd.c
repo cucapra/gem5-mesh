@@ -111,30 +111,6 @@ inline int min(int a, int b) {
 void __attribute__((optimize("-fno-reorder-blocks")))
 vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
-  // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
-  // reset after the kernel is done
-  // TODO do we even need to do this, or will just be saved on stack?
-  unsigned long long stackLoc;
-  asm volatile (
-    "addi %[dest], sp, 0\n\t" : [dest] "=r" (stackLoc)
-  );
-  // printf("stack addr %#lx\n", spLoc); // TODO this isn't exactly the same??
-  // 0x7ffffffffffffcb0 vs. 0x7ffffffffffff5e0
-
-  // store the the current spAddr to restore later 
-  // TODO not sure what happens if try to store 64bit data, so cast to 32 or can store to two addresses
-  unsigned long long *spTop = getSpTop(ptid);
-  spTop -= sizeof(unsigned long long);
-  spTop[0] = stackLoc;
-  // unsigned int spLocWordLower = (unsigned int)((spLoc << 32) >> 32);
-  // unsigned int spLocWordUpper = (unsigned int)(spLoc >> 32);
-  // spTop -= 2 * sizeof(int);
-  // spTop[1] = spLocWordLower;
-  // spTop[0] = spLocWordUpper;
-  asm volatile (
-    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (spTop)
-  );
-
   int *spadAddr = (int*)getSpAddr(ptid, 0);
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
@@ -151,16 +127,11 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
   ISSUE_VINST(fable0);
 
+  volatile int testStack = 231;
+
   for (int i = 0; i < totalIter; i++) {
     // issue fable1
     ISSUE_VINST(fable1);
-
-    // TODO figure out how to encode how many uops are in the inst. 
-    // and how to make sure these are latency insensitive
-    // 1) Master have extra functional unit that gens pc to send <-- easier,but more hw demand
-    // 2) a) Trail uses own PC gen to produce and fetches an extra inst. to know its done
-    //    b) "" has bit on last instruction saying done
-    //    c) Pass 3-4bits to trail pcgen so it knows how long to do (can even mask off upper PC bits so no link size increase)
 
     // do stuff in between (PREFETCHING, CONTROL, ?? SCALAR VALUE??)
     // if (beginIter + i < totalIter) {
@@ -175,11 +146,9 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // devec with unique tag
   DEVEC(devec_0);
 
-  // restore stack pointer
-  unsigned long long restoredStackLoc = spTop[0];
-  asm volatile (
-    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (restoredStackLoc)
-  );
+  if (ptid == 0 && testStack == 231) {
+    printf("found\n");
+  }
 
   return;
 
@@ -634,8 +603,55 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   #ifdef USE_VECTOR_SIMD
-  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6)
+  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
+  // // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
+  // // reset after the kernel is done
+  // // do before the function call so the arg stack frame is on the spad
+  // unsigned long long stackLoc;
+  // asm volatile (
+  //   "addi %[dest], sp, 0\n\t" : [dest] "=r" (stackLoc)
+  // );
+
+  // store the the current spAddr to restore later 
+  // TODO not sure what happens if try to store 64bit data, so cast to 32 or can store to two addresses
+  unsigned long long *spTop = getSpTop(ptid);
+  // guess the remaining of the part of the frame that might be needed??
+  spTop -= 4;
+
+  unsigned long long stackLoc;
+  asm volatile (
+    // copy part of the stack onto the scratchpad in case there are any loads to scratchpad right before
+    // function call
+    "ld t0, 0(sp)\n\t"
+    "sd t0, 0(%[spad])\n\t"
+    "ld t0, 8(sp)\n\t"
+    "sd t0, 8(%[spad])\n\t"
+    "ld t0, 16(sp)\n\t"
+    "sd t0, 16(%[spad])\n\t"
+    "ld t0, 24(sp)\n\t"
+    "sd t0, 24(%[spad])\n\t"
+    // save the stack ptr
+    "addi %[dest], sp, 0\n\t" 
+    // overwrite stack ptr
+    "addi sp, %[spad], 0\n\t"
+    : [dest] "=r" (stackLoc)
+    : [spad] "r" (spTop)
+  );
+
+
+  // there's a couple loads to the previous stack pointer happening after we do the mov
+  // also tons of things are reording around the move
+
   vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, mask, is_da);
+
+  // restore stack pointer
+  // unsigned long long restoredStackLoc = spTop[0];
+  asm volatile (
+    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
+  );
+
+
+  }
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   // deconfigure
