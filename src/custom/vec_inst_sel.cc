@@ -69,11 +69,15 @@ VecInstSel::getVal() {
     (_lastICacheResp);
 }
 
+// new slot will become available
 bool
 VecInstSel::willHaveOpening() {
-  Vector *vec = m_cpu_p->getEarlyVector();
-  if (!vec) return false;
+  // if not going to pull off b/c this is instruction then def won't
+  // be a free spot even if the vec stage doesn't stall
+  if (isPCGenActive()) return false;
 
+  // otherwise a slot will open up at b/c we're going to pull the vec cmd off this cycle
+  Vector *vec = m_cpu_p->getEarlyVector();
   return !vec->canPullMesh();
 }
 
