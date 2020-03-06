@@ -111,6 +111,30 @@ inline int min(int a, int b) {
 void __attribute__((optimize("-fno-reorder-blocks")))
 vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
+  // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
+  // reset after the kernel is done
+  // TODO do we even need to do this, or will just be saved on stack?
+  unsigned long long stackLoc;
+  asm volatile (
+    "addi %[dest], sp, 0\n\t" : [dest] "=r" (stackLoc)
+  );
+  // printf("stack addr %#lx\n", spLoc); // TODO this isn't exactly the same??
+  // 0x7ffffffffffffcb0 vs. 0x7ffffffffffff5e0
+
+  // store the the current spAddr to restore later 
+  // TODO not sure what happens if try to store 64bit data, so cast to 32 or can store to two addresses
+  unsigned long long *spTop = getSpTop(ptid);
+  spTop -= sizeof(unsigned long long);
+  spTop[0] = stackLoc;
+  // unsigned int spLocWordLower = (unsigned int)((spLoc << 32) >> 32);
+  // unsigned int spLocWordUpper = (unsigned int)(spLoc >> 32);
+  // spTop -= 2 * sizeof(int);
+  // spTop[1] = spLocWordLower;
+  // spTop[0] = spLocWordUpper;
+  asm volatile (
+    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (spTop)
+  );
+
   int *spadAddr = (int*)getSpAddr(ptid, 0);
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
@@ -150,6 +174,12 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
   // devec with unique tag
   DEVEC(devec_0);
+
+  // restore stack pointer
+  unsigned long long restoredStackLoc = spTop[0];
+  asm volatile (
+    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (restoredStackLoc)
+  );
 
   return;
 

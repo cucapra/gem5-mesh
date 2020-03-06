@@ -61,6 +61,14 @@ void *getSpAddr(int pad, size_t wordOffset) {
 #endif
 }
 
+void *getSpTop(int pad) {
+#if !defined(__x86_64__) && !defined(__i386__)
+  if (pad >= N_SPS) return NULL;
+  return (void*)(spm_base_ptr_arr[pad] + SP_SIZE);
+#else
+  return NULL;
+#endif
+}
 
 size_t getSpadNumBytes() {
   return SP_SIZE;

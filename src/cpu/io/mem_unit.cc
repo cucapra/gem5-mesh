@@ -250,11 +250,10 @@ MemUnit::doMemIssue()
         return;
       } else {
         DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
-        /*if (inst->static_inst_p->isSpadSpeculative()) 
-          DPRINTF(Mesh, "Sent request to memory for inst [%s] %#x\n", inst->toString(true), inst->mem_req_p->getPaddr());
-        else if (inst->static_inst_p->isSpadPrefetch())
-          DPRINTF(Mesh, "Sent preload request to memory for inst [%s] %#x, live %d\n", inst->toString(true), inst->mem_req_p->prefetchAddr, inst->mem_req_p->isSpLoad);
-*/
+        
+        if (inst->srcRegIdx(0) == RegId(IntRegClass, RiscvISA::StackPointerReg)) 
+          DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
+
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
         num_issued_insts++;
@@ -300,6 +299,9 @@ MemUnit::doMemIssue()
         return;
       } else {
         DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
+        if (inst->srcRegIdx(0) == RegId(IntRegClass, RiscvISA::StackPointerReg)) 
+          DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
+
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
         num_issued_insts++;
