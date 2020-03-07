@@ -243,7 +243,7 @@ Scratchpad::processRespToSpad() {
     }
     case Packet::RespPktType::Prefetch_Self_Resp:
     case Packet::RespPktType::Prefetch_Patron_Resp: {
-      bool memDiv = memoryDiverged(pkt_p); //setPrefetchFresh(pkt_p);
+      bool memDiv = memoryDiverged(pkt_p->getAddr()); //setPrefetchFresh(pkt_p);
       
       // bool isSelfResp = pkt_p->spRespType == Packet::RespPktType::Prefetch_Self_Resp; // TODO deprecated
       // throw away if diverged and its not for future epochs
@@ -279,7 +279,7 @@ Scratchpad::processRespToSpad() {
         enqueueStallRespToSp(pkt_p);
         
         DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending epoch %d core epoch %d addr %#x spadEntry %d\n", 
-          m_prefetch_resp_queue.size(), getDesiredRegion(m_prefetch_resp_queue.front()->getAddr()), getCoreEpoch(pkt_p),
+          m_prefetch_resp_queue.size(), getDesiredRegion(m_prefetch_resp_queue.front()->getAddr()), getCoreEpoch(),
           m_prefetch_resp_queue.front()->getAddr(),
           getLocalAddr(m_prefetch_resp_queue.front()->getAddr()) / sizeof(uint32_t)
           );
@@ -651,7 +651,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     
     // If this is a speculative load and the data isn't present, then
     // allow the packets equal to ld queue size be buffered here
-    if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p)) {
+    if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
       //m_packet_buffer.push_back(pkt_p);
       //assert(m_packet_buffer.size() <= m_spec_buf_size);
       // just say not rdy actually
@@ -665,9 +665,9 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     
     // This is a local access
     DPRINTF(Scratchpad, "Doing a local access for pkt %s\n", pkt_p->print());
-    if (m_cpu_p->getEarlyVector()->getConfigured()) 
-      DPRINTF(Mesh, "Doing a local access for pkt %s coreepoch %d prefetchEpoch %d cnt%d\n", 
-        pkt_p->print(), getCoreEpoch(pkt_p), m_cur_prefetch_region, m_region_cntr);
+    // if (m_cpu_p->getEarlyVector()->getConfigured()) 
+    //   DPRINTF(Mesh, "Doing a local access for pkt %s coreepoch %d prefetchEpoch %d cnt%d\n", 
+    //     pkt_p->print(), getCoreEpoch(), m_cur_prefetch_region, m_region_cntr);
     
     // record local access here
     if (pkt_p->isRead()) m_local_loads++;
@@ -1098,9 +1098,9 @@ Scratchpad::getL2BankFromAddr(Addr addr) const
 }
 
 int
-Scratchpad::getCoreEpoch(PacketPtr pkt_p) {
-  // int coreEpoch = m_cpu_p->getMemEpoch();
-  int coreEpoch = pkt_p->getEpoch();
+Scratchpad::getCoreEpoch() {
+  // int coreEpoch = m_cpu_p->getRevecEpoch();
+  int coreEpoch = m_cpu_p->getMemEpoch();
   return coreEpoch;
 }
 
@@ -1135,7 +1135,7 @@ Scratchpad::controlDiverged() {
 }
 
 bool
-Scratchpad::memoryDiverged(PacketPtr pkt_p) {
+Scratchpad::memoryDiverged(Addr addr) {
   // if ahead of current local epoch or the word ready flag has not been
   // reset yet, then memory can't be accepted
   // return (isPrefetchAhead(pktEpoch) || isWordRdy(addr));
@@ -1151,13 +1151,13 @@ Scratchpad::memoryDiverged(PacketPtr pkt_p) {
 
   // TODO actually don't need to send pktEpoch.
   // can figure out which epoch it should be in just based on the address
-  return isPrefetchAhead(pkt_p);
+  return isPrefetchAhead(addr);
 }
 
 bool
-Scratchpad::isPrefetchAhead(PacketPtr pkt_p) {
-  int pktEpochMod = getDesiredRegion(pkt_p->getAddr());
-  int coreEpochMod = getCoreEpoch(pkt_p); // TODO can we just mod everything to keep numbers cycling rather than go on forever?
+Scratchpad::isPrefetchAhead(Addr addr) {
+  int pktEpochMod = getDesiredRegion(addr);
+  int coreEpochMod = getCoreEpoch(); // TODO can we just mod everything to keep numbers cycling rather than go on forever?
   // bool overlap = (pktEpoch - coreEpoch >= getNumRegions());
   // NOTE In the cirular epoch scheme there is no way to know whether you have overlapped b/c mod removes info
   // HOWEVER We prevent overlap from ever happening by preventing the prefetch region from moving into the region currently
@@ -1177,7 +1177,7 @@ Scratchpad::isPrefetchAhead(PacketPtr pkt_p) {
 }
 
 bool
-Scratchpad::isWordRdy(PacketPtr pkt_p) {
+Scratchpad::isWordRdy(Addr addr) {
   // return m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)] != 0;
 
   // prefetch region has to be ahead of core epoch to be valid region
@@ -1185,7 +1185,7 @@ Scratchpad::isWordRdy(PacketPtr pkt_p) {
   // i.e. prefetch all 8 regions then move prefetch region into coreepoch, even if don't
   // overfetch will still prevent this condition
   // int epochModRegion = getCoreEpoch() % getNumRegions();
-  int epochModRegion = getCoreEpoch(pkt_p);
+  int epochModRegion = getCoreEpoch();
   bool ret = (epochModRegion != m_cur_prefetch_region);
   return ret;
 

@@ -221,7 +221,7 @@ Commit::commitHead(ThreadID tid)
   //   m_cpu_p->incRevecEpoch();
   // }
 
-  if (inst->static_inst_p->isRemem() && !m_cpu_p->getEarlyVector()->isSlave()) {
+  if (inst->static_inst_p->isRemem()) {
     m_cpu_p->incMemEpoch();
   }
 

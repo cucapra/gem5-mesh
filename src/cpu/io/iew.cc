@@ -287,11 +287,6 @@ IEW::doExecute()
   // for example jal $ra, in gem5 NPC needs to be known in exe, but really can get NPC in writeback?
   for (auto exec_unit_p : m_exec_units) {
     IODynInstPtr inst = exec_unit_p->peekIntroInst();
-
-    // update remem count here? seems like can do before commit b/c will 
-    // never be squashed in vec mode.
-
-    // TODO deprecated
     if (inst && inst->from_trace) {
       
       // check if instruction is compressed and has diff increment
@@ -396,8 +391,7 @@ IEW::doIssue()
       return;
     }
 
-    // stall if we aren't a vec slave and need to wait for remem to commit
-    if (inst->static_inst_p->isSpadSpeculative() && m_robs[tid]->getRememInstCount() > 0 && !m_cpu_p->getEarlyVector()->isSlave()) {
+    if (inst->static_inst_p->isSpadSpeculative() && m_robs[tid]->getRememInstCount() > 0) {
       DPRINTF(Mesh, "[sn:%d] Can't issue lwspec due to pending younger "
                    "remem instructions\n", inst->seq_num);
                    
@@ -465,13 +459,6 @@ IEW::doIssue()
 
     // Add the instruction to ROB
     m_robs[tid]->push(inst);
-
-    // update remem cntr if we are in vec slave mode
-    // can do early b/c will never kill this instruction in slave
-    if (inst->static_inst_p->isRemem() && m_cpu_p->getEarlyVector()->isSlave()) {
-      m_cpu_p->incMemEpoch();
-    }
-    inst->epoch = m_cpu_p->getMemEpoch();
 
     // remove the inst from the queue
     consumeInst();
