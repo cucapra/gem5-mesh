@@ -127,10 +127,8 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
   ISSUE_VINST(fable0);
 
-  volatile int testStack = 231;
-
   // TODO need to calculate mod as stream through spad
-
+  int region = 0;
   for (int i = 0; i < totalIter; i++) {
     // issue fable1
     ISSUE_VINST(fable1);
@@ -138,10 +136,15 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     // do stuff in between (PREFETCHING, CONTROL, ?? SCALAR VALUE??)
     // if (beginIter + i < totalIter) {
     //   int idx = beginIter + i;
-      int idx = i;
+    
       // TODO WHY ARE THESE ISSUE OUT OF ORDER????
-      VPREFETCH(spadAddr + idx * 2 + 0, a + start + (idx * dim), 0);
-      VPREFETCH(spadAddr + idx * 2 + 1, b + start + (idx * dim), 0);
+      // TODO do these still issue out of order, might have been fixed
+      // when went to compiler without compressed instructions
+      VPREFETCH(spadAddr + region * 2 + 0, a + start + (region * dim), 0);
+      VPREFETCH(spadAddr + region * 2 + 1, b + start + (region * dim), 0);
+      // region++;
+      region = (region + 1) % NUM_REGIONS;
+
     // }
   }
 
@@ -170,8 +173,8 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     LWSPEC(b_, spadAddr + iter * 2 + 1, 0);
     c_ = a_ + b_;
     cPtr[iter * dim] = c_;
-    // STORE_NOACK(c_, cPtr + (iter * dim), 0);
-    iter++;
+    // iter++;
+    iter = (iter + 1) % NUM_REGIONS;
     REMEM(0);
 
     // need this jump to create loop carry dependencies, but this should be remove later
