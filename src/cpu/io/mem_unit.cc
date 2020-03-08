@@ -250,7 +250,7 @@ MemUnit::doMemIssue()
         // exit issue stage early since the dcache is busy
         return;
       } else {
-        DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
+        DPRINTF(LSQ, "Sent request to memory for inst %s with addr %#x\n", inst->toString(true), pkt->getAddr());
         
         if (inst->srcRegIdx(0) == RegId(IntRegClass, RiscvISA::StackPointerReg) && m_cpu_p->getEarlyVector()->getConfigured()) 
           DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
@@ -301,7 +301,7 @@ MemUnit::doMemIssue()
       } else {
         // an outstanding memory request to track
         m_store_diff_reg++;
-        DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
+        DPRINTF(LSQ, "Sent request to memory for inst %s with addr %#x\n", inst->toString(true), pkt->getAddr());
         if (inst->srcRegIdx(0) == RegId(IntRegClass, RiscvISA::StackPointerReg) && m_cpu_p->getEarlyVector()->getConfigured()) 
           DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
 

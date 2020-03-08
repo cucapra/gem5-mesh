@@ -14,7 +14,10 @@ VecInstSel::VecInstSel(IOCPU *_cpu_p, IOCPUParams *params) :
   _lastICacheResp(nullptr),
   _pendingICacheReq(false),
   _toEnqueue(nullptr),
-  _enqueueEvent([this] { enqueueCmd(); }, name())
+  _enqueueEvent([this] { enqueueCmd(); }, name()),
+  _tempREMEMS(0),
+  _tempBlocksRecv(0),
+  _tempBlocksPopped(0)
 {
 }
 
@@ -32,9 +35,13 @@ VecInstSel::enqueueTiming(PacketPtr pkt) {
     assert(!_toEnqueue); // structural hazard
     _toEnqueue = msg;
     m_cpu_p->schedule(_enqueueEvent, m_cpu_p->clockEdge(Cycles(1)));
-
+    if (!_toEnqueue->isInst && (m_cpu_p->cpuId() == 1)) {
+      _tempBlocksRecv++;
+      DPRINTF(Mesh, "recv block %d\n", _tempBlocksRecv);
+    }
+    _toEnqueue->recvCnt = _tempBlocksRecv;
     // also if this is a macro op command schedule
-    processHead(_toEnqueue);
+    // processHead(_toEnqueue);
 
     // cleanup
     delete ss;
@@ -105,6 +112,16 @@ VecInstSel::dequeueInst() {
     ret = _lastICacheResp;
     _lastICacheResp = nullptr;
 
+    if (ret && ret->static_inst_p->isSpadSpeculative() && m_cpu_p->cpuId() == 1) {
+      DPRINTF(Mesh, "create lwspec %s\n", ret->toString(true));
+    }
+
+    if (ret && ret->static_inst_p->isRemem() && m_cpu_p->cpuId() == 1) {
+      _tempREMEMS++;
+      DPRINTF(Mesh, "create remem %s count %d\n", ret->toString(true), _tempREMEMS);
+    }
+
+
     // pop if we've finished this macro op
     if (!isPCGenActive()) {
       setPCGen(0, 0); // reset pc gen
@@ -113,7 +130,7 @@ VecInstSel::dequeueInst() {
   }
   
   // handle the next operation if there is an element on the queue
-  if (!_vecCmds.empty()) {
+  if (!_vecCmds.empty() || _toEnqueue) {
     processHead(_vecCmds.front());
   }
 
@@ -128,7 +145,14 @@ VecInstSel::processHead(std::shared_ptr<MasterData> cmd) {
     // if not currently active we need to setup the uop pc
     if (!isPCGenActive()) {
       int cnt = extractInstCntFromVissue(cmd->inst);
+      DPRINTF(Mesh, "new vec cmd %d\n", cmd->recvCnt);
       setPCGen(cmd->pc, cnt);
+
+      // NEED to pop the prev vec cmd if it was finished
+      // TODO want less hacky way to do this
+      // if (!_vecCmds.empty() && !_vecCmds.front()->isInst) {
+      //   _vecCmds.pop();
+      // }
     }
 
     // issue icache req and hope to recv next cycle
@@ -202,7 +226,10 @@ VecInstSel::extractInstCntFromVissue(IODynInstPtr inst) {
 
 void
 VecInstSel::setPCGen(TheISA::PCState issuePC, int cnt) {
-  DPRINTF(Mesh, "set pc gen pc %#x cnt %d\n", issuePC.instAddr(), cnt);
+  if (cnt > 0 && m_cpu_p->cpuId() == 1) {
+    _tempBlocksPopped++;
+  }
+  DPRINTF(Mesh, "set pc gen pc %#x cnt %d blks popped %d\n", issuePC.instAddr(), cnt, _tempBlocksPopped);
   _uopPC = issuePC;
   _uopCnt = 0;
   _uopIssueLen = cnt;
@@ -249,6 +276,8 @@ VecInstSel::tryReqNextUop() {
   if (_lastICacheResp || _pendingICacheReq) return;
   
   if (isPCGenActive()) {
+    assert(_lastSendTick != curTick());
+    _lastSendTick = curTick();
     sendICacheReq(0, _uopPC.instAddr());
   }
 

@@ -129,6 +129,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
   // TODO need to calculate mod as stream through spad
   int region = 0;
+  printf("iterations %d\n", totalIter);
   for (int i = 0; i < totalIter; i++) {
     // issue fable1
     ISSUE_VINST(fable1);
@@ -171,11 +172,15 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   fable1:
     LWSPEC(a_, spadAddr + iter * 2, 0);
     LWSPEC(b_, spadAddr + iter * 2 + 1, 0);
+    // remem as soon as possible, so don't stall loads for next iterations
+    // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
+    // REMEM(0);
     c_ = a_ + b_;
     cPtr[iter * dim] = c_;
     // iter++;
     iter = (iter + 1) % NUM_REGIONS;
     REMEM(0);
+
 
     // need this jump to create loop carry dependencies, but this should be remove later
     asm volatile goto("j %l[fable1]\n\t"::::fable1);

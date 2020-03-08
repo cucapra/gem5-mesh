@@ -21,6 +21,7 @@ class VecInstSel : public Named {
         IODynInstPtr inst;
         bool isInst; // inst or PC
         TheISA::PCState pc;
+        int recvCnt;
 
         // sending an instruction
         MasterData(IODynInstPtr inst) {
@@ -118,6 +119,12 @@ class VecInstSel : public Named {
 
     // event to enqueue
     EventFunctionWrapper _enqueueEvent;
+
+    int _tempREMEMS;
+    int _tempBlocksRecv;
+    int _tempBlocksPopped;
+
+    Tick _lastSendTick;
     
   
 };
