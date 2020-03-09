@@ -301,7 +301,7 @@ MemUnit::doMemIssue()
         return;
       } else {
         // an outstanding memory request to track
-        m_store_diff_reg++;
+        if (!inst->static_inst_p->isSpadPrefetch()) m_store_diff_reg++;
         DPRINTF(LSQ, "Sent request to memory for inst %s with addr %#x\n", inst->toString(true), pkt->getAddr());
         if (inst->srcRegIdx(0) == RegId(IntRegClass, RiscvISA::StackPointerReg) && m_cpu_p->getEarlyVector()->getConfigured()) 
           DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
@@ -451,8 +451,7 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
   // }
   DPRINTF(LSQ, "Received response pkt for inst %s\n", ss->inst->toString());
 
-  if (ss->inst->isLoad() ||
-      ss->inst->static_inst_p->isSpadPrefetch()) {
+  if (ss->inst->isLoad()) {
     // look up ss->inst in m_ld_queue. If it no longer exists, it must have
     // been squashed. If so, we simply drop the packet.
     auto it = std::find_if(m_ld_queue.begin(),
@@ -492,10 +491,10 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
                            [&](const IODynInstPtr& inst)
                               { return ss->inst->seq_num == inst->seq_num; } );
     // mark we've recv an outstanding ack
-    m_store_diff_reg--;
+    if (!ss->inst->static_inst_p->isSpadPrefetch()) m_store_diff_reg--;
     if (it == m_st_queue.end()) {
       // this inst must have been squashed earlier
-      if (ss->inst->isStoreConditional() || ss->inst->isAtomic())
+      if (!ss->inst->static_inst_p->isAckFree())
         assert(ss->inst->isSquashed());
     } else if (!ss->inst->static_inst_p->isAckFree()) {
     // } else if (ss->inst->isStoreConditional() || ss->inst->isAtomic()) {
@@ -649,10 +648,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // allow load to issue to spad without getting any acks the load is there
     m_s1_inst->mem_req_p->spadSpec  = m_s1_inst->static_inst_p->isSpadSpeculative();
 
-    // treat this as a load in terms of placing into the queue
-    if (spadPrefetch)
-      is_load = true;
-    
+    if (spadPrefetch) assert(m_s1_inst->isStore() && !is_load);
 
     // this memory will be deleted together with the dynamic instruction
     m_s1_inst->mem_data_p = new uint8_t[size];

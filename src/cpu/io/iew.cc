@@ -398,12 +398,12 @@ IEW::doIssue()
       return;
     }
     
-    if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getUnresolvedCondInstCount() > 0) {
-      DPRINTF(Mesh, "[sn:%d] Can't issue prelw due to pending younger "
-                   "unresolved cond ctrl instructions\n", inst->seq_num);
+    // if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getUnresolvedCondInstCount() > 0) {
+    //   DPRINTF(Mesh, "[sn:%d] Can't issue prelw due to pending younger "
+    //                "unresolved cond ctrl instructions\n", inst->seq_num);
                    
-      return;
-    }
+    //   return;
+    // }
 
     // Check if ROB is full
     if (m_robs[tid]->isFull()) {
