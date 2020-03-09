@@ -238,6 +238,7 @@ MemUnit::doMemIssue()
 
       // send request
       if (!m_cpu_p->getDataPort().sendTimingReq(pkt)) {
+        
         DPRINTF(LSQ, "dcache is busy\n");
         //if (inst->static_inst_p->isSpadSpeculative() || inst->static_inst_p->isSpadPrefetch()) 
         //  DPRINTF(Mesh, "failed to send [%s]\n", inst->toString(true));

@@ -116,37 +116,31 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask); 
 
-  // // // do a bunch of prefetching in the beginning to get ahead
+  // do a bunch of prefetching in the beginning to get ahead
   int totalIter = (end - start) / dim;
-  // // int numInitFetch = 16;
-  // // int beginIter = min(numInitFetch, totalIter);
-  // for (int i = 0; i < totalIter; i++) {
-  //   VPREFETCH(spadAddr + i * 2 + 0, a + start + (i * dim), 0);
-  //   VPREFETCH(spadAddr + i * 2 + 1, b + start + (i * dim), 0);
-  // }
+  int numInitFetch = 16;
+  int beginIter = min(numInitFetch, totalIter);
+  for (int i = 0; i < beginIter; i++) {
+    VPREFETCH(spadAddr + i * 2 + 0, a + start + (i * dim), 0);
+    VPREFETCH(spadAddr + i * 2 + 1, b + start + (i * dim), 0);
+  }
 
+  // issue header instructions
   ISSUE_VINST(fable0);
 
-  // TODO need to calculate mod as stream through spad
-  int region = 0;
+  int region = beginIter;
+  // int region = 0;
   printf("iterations %d\n", totalIter);
   for (int i = 0; i < totalIter; i++) {
     // issue fable1
     ISSUE_VINST(fable1);
 
     // do stuff in between (PREFETCHING, CONTROL, ?? SCALAR VALUE??)
-    // if (beginIter + i < totalIter) {
-    //   int idx = beginIter + i;
-    
-      // TODO WHY ARE THESE ISSUE OUT OF ORDER????
-      // TODO do these still issue out of order, might have been fixed
-      // when went to compiler without compressed instructions
+    if (beginIter + i < totalIter) {
       VPREFETCH(spadAddr + region * 2 + 0, a + start + (region * dim), 0);
       VPREFETCH(spadAddr + region * 2 + 1, b + start + (region * dim), 0);
-      // region++;
       region = (region + 1) % NUM_REGIONS;
-
-    // }
+    }
   }
 
   // devec with unique tag
@@ -174,12 +168,11 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     LWSPEC(b_, spadAddr + iter * 2 + 1, 0);
     // remem as soon as possible, so don't stall loads for next iterations
     // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
-    // REMEM(0);
+    REMEM(0);
     c_ = a_ + b_;
     // cPtr[iter * dim] = c_;
     STORE_NOACK(c_, cPtr + iter * dim, 0);
     iter = (iter + 1) % NUM_REGIONS;
-    REMEM(0);
 
 
     // need this jump to create loop carry dependencies, but this should be remove later
