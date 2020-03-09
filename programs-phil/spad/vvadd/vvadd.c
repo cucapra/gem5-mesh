@@ -176,8 +176,8 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
     // REMEM(0);
     c_ = a_ + b_;
-    cPtr[iter * dim] = c_;
-    // iter++;
+    // cPtr[iter * dim] = c_;
+    STORE_NOACK(c_, cPtr + iter * dim, 0);
     iter = (iter + 1) % NUM_REGIONS;
     REMEM(0);
 
