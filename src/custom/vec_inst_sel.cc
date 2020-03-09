@@ -41,7 +41,7 @@ VecInstSel::enqueueTiming(PacketPtr pkt) {
     }
     _toEnqueue->recvCnt = _tempBlocksRecv;
     // also if this is a macro op command schedule
-    // processHead(_toEnqueue);
+    processHead(_toEnqueue);
 
     // cleanup
     delete ss;
@@ -130,7 +130,7 @@ VecInstSel::dequeueInst() {
   }
   
   // handle the next operation if there is an element on the queue
-  if (!_vecCmds.empty() || _toEnqueue) {
+  if (!_vecCmds.empty()) {
     processHead(_vecCmds.front());
   }
 
@@ -144,15 +144,15 @@ VecInstSel::processHead(std::shared_ptr<MasterData> cmd) {
   if (!cmd->isInst) {
     // if not currently active we need to setup the uop pc
     if (!isPCGenActive()) {
+      // NEED to pop the prev vec cmd if it was finished
+      // TODO want less hacky way to do this
+      if (_uopIssueLen > 0 && !_vecCmds.empty() && !_vecCmds.front()->isInst) {
+        _vecCmds.pop();
+      }
+
       int cnt = extractInstCntFromVissue(cmd->inst);
       DPRINTF(Mesh, "new vec cmd %d\n", cmd->recvCnt);
       setPCGen(cmd->pc, cnt);
-
-      // NEED to pop the prev vec cmd if it was finished
-      // TODO want less hacky way to do this
-      // if (!_vecCmds.empty() && !_vecCmds.front()->isInst) {
-      //   _vecCmds.pop();
-      // }
     }
 
     // issue icache req and hope to recv next cycle
@@ -229,6 +229,7 @@ VecInstSel::setPCGen(TheISA::PCState issuePC, int cnt) {
   if (cnt > 0 && m_cpu_p->cpuId() == 1) {
     _tempBlocksPopped++;
   }
+  assert(_tempBlocksPopped <= _tempBlocksRecv);
   DPRINTF(Mesh, "set pc gen pc %#x cnt %d blks popped %d\n", issuePC.instAddr(), cnt, _tempBlocksPopped);
   _uopPC = issuePC;
   _uopCnt = 0;
