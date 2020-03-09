@@ -118,28 +118,28 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
   // do a bunch of prefetching in the beginning to get ahead
   int totalIter = (end - start) / dim;
-  // int numInitFetch = 16;
-  // int beginIter = min(numInitFetch, totalIter);
-  // for (int i = 0; i < beginIter; i++) {
-  //   VPREFETCH(spadAddr + i * 2 + 0, a + start + (i * dim), 0);
-  //   VPREFETCH(spadAddr + i * 2 + 1, b + start + (i * dim), 0);
-  // }
+  int numInitFetch = 16;
+  int beginIter = min(numInitFetch, totalIter);
+  for (int i = 0; i < beginIter; i++) {
+    VPREFETCH(spadAddr + i * 2 + 0, a + start + (i * dim), 0);
+    VPREFETCH(spadAddr + i * 2 + 1, b + start + (i * dim), 0);
+  }
 
   // issue header instructions
   ISSUE_VINST(fable0);
 
-  // int region = beginIter;
-  int region = 0;
+  int region = beginIter;
+  // int region = 0;
   for (int i = 0; i < totalIter; i++) {
     // issue fable1
     ISSUE_VINST(fable1);
 
     // do stuff in between (PREFETCHING, CONTROL, ?? SCALAR VALUE??)
-    // if (beginIter + i < totalIter) {
+    if (beginIter + i < totalIter) {
       VPREFETCH(spadAddr + region * 2 + 0, a + start + (region * dim), 0);
       VPREFETCH(spadAddr + region * 2 + 1, b + start + (region * dim), 0);
       region = (region + 1) % NUM_REGIONS;
-    // }
+    }
   }
 
   // devec with unique tag
