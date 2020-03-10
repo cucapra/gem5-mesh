@@ -116,7 +116,6 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     stats_on();
   }
 
-
   int *spadAddr = (int*)getSpAddr(ptid, 0);
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
@@ -144,7 +143,10 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     if (beginIter + i < totalIter) {
       VPREFETCH(spadAddr + region * 2 + 0, a + start + (region * dim), 0);
       VPREFETCH(spadAddr + region * 2 + 1, b + start + (region * dim), 0);
-      region = (region + 1) % NUM_REGIONS;
+      region++;
+      if (region == NUM_REGIONS) {
+        region = 0;
+      }
     }
   }
 

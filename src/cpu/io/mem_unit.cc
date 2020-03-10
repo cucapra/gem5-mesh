@@ -223,6 +223,7 @@ MemUnit::doMemIssue()
   // check the head of the ROB, if it's a store instruction
   // then set that instruction as issuable
   // this is now a combinational signal, so not sure about how timing works
+  // could imagine that this happens cycle before moves to head of ROB so still 1 cycle
   // but allows no-ack stores to be committed immedietly
   auto rob = m_cpu_p->getROBPtr(0);
   if (!rob->isEmpty()) {
