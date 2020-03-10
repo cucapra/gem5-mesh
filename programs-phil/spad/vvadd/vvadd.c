@@ -111,6 +111,12 @@ inline int min(int a, int b) {
 void __attribute__((optimize("-fno-reorder-blocks")))
 vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
+  // start recording all stats (all cores)
+  if (ptid == 0) {
+    stats_on();
+  }
+
+
   int *spadAddr = (int*)getSpAddr(ptid, 0);
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
@@ -146,6 +152,10 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   DEVEC(devec_0);
 
   asm volatile("fence\n\t");
+
+  if (ptid == 6) {
+    stats_off();
+  }
 
   return;
 
@@ -336,10 +346,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *b, DTYPE *c, int n,
     int tid_x, int tid_y, int dim_x, int dim_y) {
   
-  // start recording all stats (all cores)
-  if (tid_x == 0 && tid_y == 0) {
-    stats_on();
-  }
+  // // start recording all stats (all cores)
+  // if (tid_x == 0 && tid_y == 0) {
+  //   stats_on();
+  // }
 
   // linearize tid and dim
   int tid = tid_x + tid_y * dim_x;
@@ -696,9 +706,9 @@ void *pthread_kernel(void *args) {
       
   pthread_barrier_wait(&start_barrier);
 
-  if (a->tid_x == 0 && a->tid_y == 0) {
-    stats_off();
-  }
+  // if (a->tid_x == 0 && a->tid_y == 0) {
+  //   stats_off();
+  // }
 
   // BUG: note this printf fails if have the VECTOR_EPOCH(0), but mayber just timing thing
   // printf("ptid (%d,%d)\n", a->tid_x, a->tid_y);
