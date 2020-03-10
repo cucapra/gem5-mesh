@@ -220,6 +220,13 @@ MemUnit::doMemIssue()
   // ready-to-issue instructions
   size_t num_issued_insts = 0;
 
+  tryLdIssue(num_issued_insts);
+  tryStIssue(num_issued_insts);
+
+}
+
+void
+MemUnit::tryLdIssue(size_t &num_issued_insts) {
   for (auto& inst : m_ld_queue) {
     // check if we run of cache bandwidth
     if (num_issued_insts == m_num_dcache_ports) {
@@ -272,7 +279,10 @@ MemUnit::doMemIssue()
     }
 #endif
   }
+}
 
+void
+MemUnit::tryStIssue(size_t &num_issued_insts) {
   for (auto& inst : m_st_queue) {
     // check if we run of cache bandwidth
     if (num_issued_insts == m_num_dcache_ports) {
@@ -358,6 +368,7 @@ MemUnit::doMemIssue()
 #endif
   }
 }
+
 
 void
 MemUnit::doSquash(IODynInstPtr squash_inst)

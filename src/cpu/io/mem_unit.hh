@@ -152,6 +152,12 @@ class MemUnit : public ExecUnit
     /** Issue (if any) */
     void doMemIssue();
 
+    /** Try to issue a load */
+    void tryLdIssue(size_t &num_issued_insts);
+
+    /** Try to issue a store*/
+    void tryStIssue(size_t &num_issued_insts);
+
     /** Check whether a load depends on an older store in SQ. Return true if
      * there is any dependency */
     bool checkLdStDependency(IODynInstPtr ld_inst);
