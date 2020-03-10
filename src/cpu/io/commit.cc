@@ -159,6 +159,7 @@ Commit::doCommit()
       }
       // check if the head inst is a store. If so, mark it as "CanIssueToMem"
       // so that it can be executed and safely go out to memory
+      // TODO this is now check in execute stage (1->0 cycle signal now, is that possible?)
       else if ((head_inst->isStore() || head_inst->isAtomic() ||
            head_inst->isStoreConditional()) &&
           !head_inst->canIssueToMem()) {

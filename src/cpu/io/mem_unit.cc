@@ -220,6 +220,20 @@ MemUnit::doMemIssue()
   // ready-to-issue instructions
   size_t num_issued_insts = 0;
 
+  // check the head of the ROB, if it's a store instruction
+  // then set that instruction as issuable
+  // this is now a combinational signal, so not sure about how timing works
+  // but allows no-ack stores to be committed immedietly
+  auto rob = m_cpu_p->getROBPtr(0);
+  if (!rob->isEmpty()) {
+    auto head_inst = rob->getHead();
+    if ((head_inst->isStore() || head_inst->isAtomic() ||
+            head_inst->isStoreConditional()) &&
+            !head_inst->canIssueToMem()) {
+      head_inst->setCanIssueToMem();
+    }
+  }
+
   tryLdIssue(num_issued_insts);
   tryStIssue(num_issued_insts);
 
