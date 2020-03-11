@@ -75,7 +75,13 @@
   asm volatile (                                          \
     ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"   \
     : [destreg] "=r" (dest)                               \
-    : [mem] "r" (spadAddr), [off] "i" (offset))         
+    : [mem] "r" (spadAddr), [off] "i" (offset))    
+
+// #define FLWSPEC(dest, spadAddr, offset)                    \
+//   asm volatile (                                          \
+//     ".insn s 0x07, 0x5, %[destreg], %[off](%[mem])\n\t"   \
+//     : [destreg] "=r" (dest)                               \
+//     : [mem] "r" (spadAddr), [off] "i" (offset))         
     
 /*#define LWSPEC_RESET(val, spadAddr, offset)             \
   asm volatile (                                        \

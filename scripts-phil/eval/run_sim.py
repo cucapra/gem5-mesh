@@ -38,7 +38,6 @@ args = parser.parse_args()
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful
 progDir0 = "/home/na469/phil/gem5-mesh/programs-phil/spad/"
 programs = {
-<<<<<<< HEAD
     "vvadd": {
         "name": "vvadd",
         "path": progDir0 + "vvadd/vvadd",
@@ -64,23 +63,6 @@ programs = {
         ),
         "success": "\[\[SUCCESS\]\]",
     },
-=======
-
-  'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd/vvadd', 
-    'options' : lambda argv: str(argv[0]), 
-    'serialize' : lambda argv: '-size{0}'.format(str(argv[0])),
-    'success' : '\[\[SUCCESS\]\]'},
-    
-  'gemm'  : { 'name': 'gemm',  'path' : progDir0 + 'gemm/gemm', 
-    'options' : lambda argv: '{0} {0} {0}'.format(str(argv[0])),
-    'success' : '\[\[SUCCESS\]\]'},
-    
-  'synth' : { 'name': 'synth', 'path' : progDir0 + 'synth-diverge/synth', 
-    'options' : lambda argv: '{0} {1} {2}'.format(str(argv[0]), str(argv[1]), str(argv[2])),
-    'serialize' : lambda argv: '-size{0}-frac{1}'.format(str(argv[0]), str(argv[1])),
-    'success' : '\[\[SUCCESS\]\]'}
-
->>>>>>> origin/dae
 }
 
 # create a template for the gem5 command line
@@ -158,11 +140,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
 numCpus = 4  # 16
 use_sps = True
 
-<<<<<<< HEAD
 size = 32  # 65536  # 32768 #8192
-=======
-size = 32768 #8192
->>>>>>> origin/dae
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 # seed = random.randint(1,2**20)
@@ -173,13 +151,12 @@ runs = 1
 # in case want to run the same multiple times w/ diff random seed (not working yet)
 run_id = 1
 # whether to use vector or not
-use_vec_arr = [True]
+use_vec_arr = [True, False]
 
 # make_flags = ['NO_VEC','VEC_16','VEC_16_UNROLL','VEC_4','VEC_4_UNROLL','VEC_4_DA', \
 #   'VEC_16_UNROLL_SERIAL','VEC_4_DA_SMALL_FRAME','NO_VEC_DA','NO_VEC_W_VLOAD','SIM_DA_VLOAD_SIZE_1', \
 #   'VEC_4_NORM_LOAD', 'VEC_16_NORM_LOAD']
 
-<<<<<<< HEAD
 make_flags_vvadd = [
     "NO_VEC",
     "VEC_16",
@@ -195,14 +172,9 @@ make_flags_vvadd = [
 
 # make_flags_gemm = ["UNBLOCKED_INNER", "BLOCKED", "INTERLEAVED", "UNBLOCKED_OUTER"]
 # make_flags_gemm = ["VPF", "SP", "DRAM"]
-make_flags_gemm = ["SP"]
+make_flags_gemm = ["VPF"]
 # program = "vvadd"
 program = "gemm"
-=======
-make_flags = ['NO_VEC', 'VEC_16']
-
-program = 'vvadd'
->>>>>>> origin/dae
 
 # TODO need a struct describing the experiment. Not all settings match idenpendently
 
@@ -215,7 +187,6 @@ def pack_and_run(numCpus, use_vec, use_sps, prog, i, extra_info):
 
 pool = multiprocessing.Pool(processes=4)
 
-<<<<<<< HEAD
 for use_vec in use_vec_arr:
     for make_flag in make_flags_gemm:
         # use_vec = False
@@ -249,36 +220,6 @@ for use_vec in use_vec_arr:
         if failed_runs > 0:
             print("{} runs failed".format(failed_runs))
             assert False
-=======
-# for use_vec in use_vec_arr:
-for make_flag in make_flags:
-  use_vec = True
-  # run a program from the list above with different parameters
-  compile_prog(numCpus, use_vec, use_sps, program, 'ENV_EXTRA_MAKE_FLAGS=-D' + make_flag)
-
-  jobs = []
-  
-  for i in range(runs):
-    #pack_and_run(numCpus, use_vec, use_sps, program, i, make_flag)
-    # the new file will have the same name as the old file, but also specify the new dir
-    proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, program, i, make_flag ))
-    jobs.append(proc)
-    pass
-
-  # Wait for jobs to complete before exiting
-  while(not all([p.ready() for p in jobs])):
-    time.sleep(5)
-
-  # Check if any jobs failed
-  failed_runs = 0
-  for p in jobs:
-    if (p.get() == False):
-      failed_runs += 1
-
-  if (failed_runs > 0):
-    print('{} runs failed'.format(failed_runs))
-    assert(False)
->>>>>>> origin/dae
 
 # Safely terminate the pool
 pool.close()

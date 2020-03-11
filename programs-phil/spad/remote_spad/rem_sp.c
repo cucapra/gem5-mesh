@@ -8,7 +8,7 @@
 
 
 
-#define REGION_SIZE 64
+#define REGION_SIZE 8
 #define NUM_REGIONS (512/REGION_SIZE)
 
 //#define REMOTE
@@ -31,7 +31,8 @@ rem_sp(DTYPE* a, DTYPE* c, int start, int end, int tid, int total_cores) {
 
   read_region += REGION_SIZE*NUM_REGIONS;
   volatile DTYPE* write_region = sp_own + REGION_SIZE*NUM_REGIONS + REGION_SIZE; //volatile to avoid compiler optimizing it away
-  
+  volatile DTYPE write_var=0;
+
   for (int i = start; i < end; i+=REGION_SIZE){
 
     //read first into adj scratch pad
@@ -41,7 +42,8 @@ rem_sp(DTYPE* a, DTYPE* c, int start, int end, int tid, int total_cores) {
    
     //write to own scratch pad with some modifications
     for(int j=0; j<REGION_SIZE; j++){
-      write_region[j] = read_region[j]*5;
+      // write_region[j] = read_region[j]*5;
+      write_var += read_region[j]*5;
     }
 
     // //write to DRAM

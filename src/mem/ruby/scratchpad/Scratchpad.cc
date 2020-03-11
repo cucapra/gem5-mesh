@@ -39,6 +39,7 @@
 #include "mem/ruby/scratchpad/MemMessage.hh"
 
 #include "debug/Mesh.hh"
+#include "debug/LoadTrack.hh"
 
 int Scratchpad::m_num_scratchpads = 0;
 
@@ -306,8 +307,9 @@ Scratchpad::processRespToSpad() {
       }
       else {
         // profile, TODO should classify different than just remote load/store?
-        if (pkt_p->isRead())
+        if (pkt_p->isRead()){
           m_remote_loads++;
+        }
         else if (pkt_p->isWrite())
           m_remote_stores++;
   
@@ -407,6 +409,9 @@ Scratchpad::wakeup()
 
       DPRINTF(Scratchpad, "Handling mem resp pkt %s from a remote "
                           "scratchpad\n", pkt_p->print());
+
+      if (pkt_p->isRead()) DPRINTF(LoadTrack, "Handling remote SP load locally %#x\n", pkt_p->getAddr());
+
 
       // Pop the message from mem_resp_buffer
       m_mem_resp_buffer_p->dequeue(clockEdge());
@@ -536,6 +541,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 {
   assert(pkt_p->isRequest());
 
+  if (pkt_p->isRead()) DPRINTF(LoadTrack, "Load request received in local SP %#x\n", pkt_p->getAddr());
+
   /**
    * From Xcel, access to base_addr field
    */
@@ -653,7 +660,10 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     DPRINTF(Scratchpad, "Doing a local access for pkt %s\n", pkt_p->print());
     
     // record local access here
-    if (pkt_p->isRead()) m_local_loads++;
+    if (pkt_p->isRead()) {
+      m_local_loads++;
+      DPRINTF(LoadTrack, "Processing local load with addr %#x\n", pkt_p->getAddr());
+    }
     else if (pkt_p->isWrite()) m_local_stores++;
     
     accessDataArray(pkt_p);
@@ -821,6 +831,9 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 
     DPRINTF(Scratchpad, "Sending pkt %s to %s\n", pkt_p->print(), dst_port);
 
+    if (pkt_p->isRead()) DPRINTF(LoadTrack, "Sending Load request to remote SP %#x\n", pkt_p->getAddr());
+
+
     // Make and queue the message
     std::shared_ptr<MemMessage> msg_p =
           std::make_shared<MemMessage>(clockEdge(), src_port, dst_port, pkt_p);
@@ -838,6 +851,7 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
 {
   assert(pkt_p->isRequest());
 
+  if (pkt_p->isRead()) DPRINTF(LoadTrack, "Remote load request received %#x\n", pkt_p->getAddr());
   // Check if we have enough slot in m_remote_resp_buffer to queue a new
   // response message
   if (!m_remote_resp_buffer_p->areNSlotsAvailable(1, clockEdge())) {
@@ -913,7 +927,10 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
    */
   else {
     // record remote access here
-    if (pkt_p->isRead()) m_remote_loads++;
+    if (pkt_p->isRead()) {
+      DPRINTF(LoadTrack, "Processing remote load request %#x\n", pkt_p->getAddr());
+      m_remote_loads++;
+    }
     else if (pkt_p->isWrite()) m_remote_stores++;
     
     // access data array
@@ -926,6 +943,8 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
         std::make_shared<MemMessage>(clockEdge(), src_port, dst_port, pkt_p);
 
     DPRINTF(Scratchpad, "Sending pkt %s to %s\n", pkt_p->print(), dst_port);
+
+    if (pkt_p->isRead())  DPRINTF(LoadTrack, "Sending load request from remote SP %#x\n", pkt_p->getAddr());
 
     m_remote_resp_buffer_p->enqueue(msg_p,
                                     clockEdge(),
@@ -963,11 +982,14 @@ Scratchpad::sendCPUResponse()
   assert(m_cpu_resp_pkts.front() != nullptr);
 
   DPRINTF(Scratchpad, "Sending %s to CPU\n", m_cpu_resp_pkts.front()->print());
+  if (m_cpu_resp_pkts.front()->isRead()) DPRINTF(LoadTrack, "Sending Load request to CPU %#x\n", m_cpu_resp_pkts.front()->getAddr());
 
   if (!m_cpu_port_p->sendTimingResp(m_cpu_resp_pkts.front())) {
     panic("Failed to send a response to CPU. \
           CPU is assumed to always be ready to accept response packets\n");
   }
+
+  
 
   m_cpu_resp_pkts.pop_front();
 

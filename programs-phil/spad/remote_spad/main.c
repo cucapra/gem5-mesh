@@ -35,7 +35,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int n = 32768;
+  int n = 512;
   
   // parse positional arguments
   if (argc > 1)

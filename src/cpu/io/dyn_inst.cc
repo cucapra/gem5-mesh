@@ -166,14 +166,14 @@ IODynInst::toString(bool full)
     ss << "]";
   }
 
-
-  ss << "start: " << std::dec <<master_info[0];
-  ss << " fetch: "<< std::dec <<master_info[1]-master_info[0];
-  ss << " decode:"<< std::dec <<master_info[2]-master_info[1];
-  ss << " issue:" << std::dec <<master_info[3]-master_info[2];
-  ss << " execute:" << std::dec <<master_info[4]-master_info[3];
-  ss << " write:" << std::dec <<master_info[5]-master_info[4];
-  ss << " commit:" << std::dec <<master_info[6]-master_info[5];
+  // ss << "start: " << std::dec <<master_info[0];
+  // ss << " fetch: "<< std::dec <<master_info[1]-master_info[0];
+  // ss << " decode:"<< std::dec <<master_info[2]-master_info[1];
+  // ss << " issue:" << std::dec <<master_info[3]-master_info[2];
+  // ss << " execute:" << std::dec <<master_info[4]-master_info[3];
+  // ss << " write:" << std::dec <<master_info[5]-master_info[4];
+  // ss << " commit:" << std::dec <<master_info[6]-master_info[5];
+  
   return ss.str();
 }
 

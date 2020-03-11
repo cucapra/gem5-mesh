@@ -9,6 +9,7 @@
 
 #include "cpu/io/cpu.hh"
 #include "debug/LSQ.hh"
+#include "debug/LoadTrack.hh"
 
 #include "mem/page_table.hh"
 #include "mem/ruby/scratchpad/Scratchpad.hh"
@@ -250,6 +251,7 @@ MemUnit::doMemIssue()
         return;
       } else {
         DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
+        DPRINTF(LoadTrack, "Sent load request to memory for inst %s\n", inst->toString(true));
         /*if (inst->static_inst_p->isSpadSpeculative()) 
           DPRINTF(Mesh, "Sent request to memory for inst [%s] %#x\n", inst->toString(true), inst->mem_req_p->getPaddr());
         else if (inst->static_inst_p->isSpadPrefetch())
@@ -438,6 +440,7 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
       ss->inst->completeAcc(pkt);
       // mark this as executed
       ss->inst->setExecuted();
+      DPRINTF(LoadTrack, "Load completed %s\n", ss->inst->toString(true));
       // early bypass
       for (int i = 0; i < ss->inst->numDestRegs(); ++i) {
         DPRINTF(IEW, "[sn:%d] Setting dest reg %i (%s) ready\n",
@@ -650,6 +653,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
   // place the translated inst into LQ or SQ
   if (is_load) {
     m_ld_queue.push_back(m_s1_inst);
+    DPRINTF(LoadTrack, "Pushing to load queue, going to send load request %s with Addr %#x\n", m_s1_inst->toString(true), m_s1_inst->mem_req_p->getPaddr());
+
 
     // for LDs, we can speculatively issue them to memory unless the LD has
     // fault, or the LD depends on an older ST.

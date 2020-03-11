@@ -90,7 +90,7 @@ int roundUp(int numToRound, int multiple) {
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vtid, int dim, int unroll_len) {
+vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int unroll_len) {
   int *spAddr = (int*)getSpAddr(ptid, 0);
   
   #ifdef UNROLL
@@ -124,11 +124,11 @@ vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vt
       int* spAddrA = spAddrRegion + j * 2;
       int* spAddrB = spAddrRegion + j * 2 + 1;
 
-      float a_, b_;
+      DTYPE a_, b_;
       LWSPEC(a_, spAddrA, 0);
       LWSPEC(b_, spAddrB, 0);
 
-      float c_ = a_ + b_;
+      DTYPE c_ = a_ + b_;
       STORE_NOACK(c_, c + i + j * dim, 0);
     }
     
@@ -143,7 +143,7 @@ vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vt
     // also up the memory epoch internally
     REMEM(0);
     #else // don't use prefetch unrolling
-    float a_, b_, c_;
+    DTYPE a_, b_, c_;
     #ifdef USE_NORMAL_LOAD // load using standard lw
     a_ = a[i];
     b_ = b[i];
@@ -173,7 +173,7 @@ vvadd_execute(float *a, float *b, float *c, int start, int end, int ptid, int vt
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-vvadd_access(float *a, float *b, float *c, int start, int end, int ptid, int vtid, int dim, int unroll_len, int spadCheckIdx) {
+vvadd_access(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int unroll_len, int spadCheckIdx) {
   #ifdef USE_DA
   int *spAddr = (int*)getSpAddr(ptid, 0);
 
@@ -229,7 +229,7 @@ vvadd_access(float *a, float *b, float *c, int start, int end, int ptid, int vti
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
-vvadd(float *a, float *b, float *c, int start, int end, 
+vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, 
     int ptid, int vtid, int dim, int unroll_len, int is_da, int origin) {
   if (is_da) {
     vvadd_access(a, b, c, start, end, ptid, vtid, dim, unroll_len, origin);
@@ -240,7 +240,7 @@ vvadd(float *a, float *b, float *c, int start, int end,
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
-    float *a, float *b, float *c, int n,
+    DTYPE *a, DTYPE *b, DTYPE *c, int n,
     int tid_x, int tid_y, int dim_x, int dim_y) {
   
   // start recording all stats (all cores)
@@ -450,7 +450,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
 
 // helper functions
-Kern_Args *construct_args(float *a, float *b, float *c, int size,
+Kern_Args *construct_args(DTYPE *a, DTYPE *b, DTYPE *c, int size,
   int tid_x, int tid_y, int dim_x, int dim_y) {
 
   Kern_Args *args = (Kern_Args*)malloc(sizeof(Kern_Args));
