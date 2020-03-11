@@ -140,7 +140,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     ISSUE_VINST(fable1);
 
     // do stuff in between (PREFETCHING, CONTROL, ?? SCALAR VALUE??)
-    if (beginIter + i < totalIter) {
+    if (region < totalIter) {
       VPREFETCH(spadAddr + region * 2 + 0, a + start + (region * dim), 0);
       VPREFETCH(spadAddr + region * 2 + 1, b + start + (region * dim), 0);
       region++;
