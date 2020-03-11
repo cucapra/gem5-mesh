@@ -94,8 +94,13 @@ machine(MachineType:L1Cache, "SP_LLC (L1I Cache)")
 
   bool functionalRead(Addr addr, Packet *pkt) {
     TBE tbe := TBEs.lookup(addr);
+    Entry cache_entry := getCacheEntry(addr);
+
     if (is_valid(tbe)) {
       return testAndRead(addr, tbe.DataBlk, pkt);
+    }
+    else if (is_valid(cache_entry)) {
+      return testAndRead(addr, getCacheEntry(addr).DataBlk, pkt);
     }
     return false;
   }
@@ -144,9 +149,10 @@ machine(MachineType:L1Cache, "SP_LLC (L1I Cache)")
 
         Entry cache_entry := getCacheEntry(in_msg.LineAddress);
         TBE tbe := TBEs.lookup(in_msg.LineAddress);
-
+        
         if (in_msg.Type == LLCResponseType:DATA) {
           if (is_valid(cache_entry) || L1cache.cacheAvail(in_msg.LineAddress)) {
+            DPRINTF(RubySlicc, "resp %s arrived\n", in_msg);
             trigger(Event:Data, in_msg.LineAddress, cache_entry, tbe);
           } else {
             Addr victim := L1cache.cacheProbe(in_msg.LineAddress);
@@ -162,6 +168,7 @@ machine(MachineType:L1Cache, "SP_LLC (L1I Cache)")
   in_port(mandatoryQueue_in, RubyRequest, mandatoryQueue, desc="...") {
     if (mandatoryQueue_in.isReady(clockEdge())) {
       peek(mandatoryQueue_in, RubyRequest, block_on="LineAddress") {
+        DPRINTF(RubySlicc, "req %s arrived\n", in_msg);
         Entry cache_entry := getCacheEntry(in_msg.LineAddress);
         TBE tbe := TBEs.lookup(in_msg.LineAddress);
 

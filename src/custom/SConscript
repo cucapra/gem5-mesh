@@ -36,6 +36,7 @@ SimObject('Harness.py')
 Source('harness.cc')
 Source('mesh_helper.cc')
 Source('mesh_ports.cc')
+Source('vec_inst_sel.cc')
 Source('vector.cc')
 
 # define debug domain that can be used in DPRINTF

@@ -471,7 +471,7 @@ n_icaches = n_cpus
 icache_cntrls = []
 sequencers = []
 for i in xrange(n_icaches):
-  icache = RubyCache(size = '32kB', assoc = 2)
+  icache = RubyCache(size = '4kB', assoc = 2)
   icache_cntrl = L1Cache_Controller(version = i,
                                     L1cache = icache,
                                     transitions_per_cycle = options.ports,
@@ -486,6 +486,10 @@ for i in xrange(n_icaches):
   sequencer = RubySequencer()
   sequencer.version = i
   sequencer.icache = icache
+  # only 1 cycle resp latency now (so 1 total)
+  # need to hack sequencer to turn 1 cycle into a 1 tick wait 
+  # (effectively 0 cycles but plays nicely with wakeup queues)
+  sequencer.icache_hit_latency = 0
   sequencer.dcache = icache
   sequencer.ruby_system = system.ruby
   sequencer.is_cpu_sequencer = True

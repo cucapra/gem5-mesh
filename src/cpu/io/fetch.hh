@@ -211,6 +211,9 @@ private:
 
   public:
     BPredUnit* getBranchPredPtr() { return m_branch_pred_p; }
+
+  private:
+    Stats::Scalar m_32bit_icache_accesses;
 };
 
 #endif // CPU_IO_FETCH_HH

@@ -5,10 +5,7 @@
 #include "spad.h"
 #include "pthread_launch.h"
 #include "vvadd.h"
-
-void test() {
-
-}
+// #include "../../common/bind_defs.h"
 
 int main(int argc, char *argv[]) {
   
@@ -39,6 +36,28 @@ int main(int argc, char *argv[]) {
   
   printf("Vector size is %d. Num cores is %d\n", size, num_cores);
 
+  // printf("============= core 0  =============\n");
+  // getSIMDMask(0, 0, 1, 0, 0, 0, 2, 2, 1);
+  // printf("============= core 1  =============\n");
+  // getSIMDMask(0, 0, 1, 0, 0, 0, 2, 2, 0);
+  // printf("============= core 2  =============\n");
+  // getSIMDMask(0, 0, 1, 0, 1, 0, 2, 2, 0);
+  // printf("============= core 5  =============\n");
+  // getSIMDMask(0, 0, 1, 0, 0, 1, 2, 2, 0);
+  // printf("============= core 6  =============\n");
+  // getSIMDMask(0, 0, 1, 0, 1, 1, 2, 2, 0);
+  // printf("============= core 7  =============\n");
+  // getSIMDMask(3, 1, 2, 2, 0, 0, 2, 2, 1);
+  // printf("============= core 10 =============\n");
+  // getSIMDMask(3, 1, 2, 2, 0, 0, 2, 2, 0);
+  // printf("============= core 11 =============\n");
+  // getSIMDMask(3, 1, 2, 2, 1, 0, 2, 2, 0);
+  // printf("============= core 14 =============\n");
+  // getSIMDMask(3, 1, 2, 2, 0, 1, 2, 2, 0);
+  // printf("============= core 15 =============\n");
+  // getSIMDMask(3, 1, 2, 2, 1, 1, 2, 2, 0);
+  // return 0;
+
   /*--------------------------------------------------------------------
   * Data initialization
   *-------------------------------------------------------------------*/
@@ -49,8 +68,8 @@ int main(int argc, char *argv[]) {
   DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), size, (void**)&c_ptr);
 
   for (int i = 0; i < size; i++) {
-    a[i] = i;
-    b[i] = i;
+    a[i] = i + 1;
+    b[i] = i + 1;
     c[i] = 0;
   }
   
@@ -80,8 +99,8 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   for (int i = 0; i < size; i++) {
-    //printf("%f\n", c[i]);
-    if (c[i] != 2 * i) {
+    // printf("%d\n", c[i]);
+    if (c[i] != 2 * ( i + 1 )) {
       printf("[[FAIL]]\n");
       return 1;
     }

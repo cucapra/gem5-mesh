@@ -432,6 +432,8 @@ class Scratchpad : public AbstractController
 
     Stats::Scalar m_max_queue_size;
     Stats::Scalar m_not_rdy_stalls;
+
+    Stats::Scalar m_exceed_stream_width;
 };
 
 #endif // MEM_RUBY_SCRATCHPAD_HH

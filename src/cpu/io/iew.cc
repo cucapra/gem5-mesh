@@ -443,8 +443,7 @@ void IEW::doIssue()
 
     // If this is a memory barrier, we need to check if all previous memory
     // instructions have retired. If not, we must stall
-    if (inst->isMemBarrier() && m_robs[tid]->getMemInstCount() > 0)
-    {
+    if (inst->isMemBarrier() && (m_robs[tid]->getMemInstCount() > 0 || m_mem_unit_p->getNumOutstandingAcks() > 0)) {
       DPRINTF(IEW, "[sn:%d] Can't issue mem barrier due to pending younger "
                    "memory instructions\n",
               inst->seq_num);
@@ -475,23 +474,13 @@ void IEW::doIssue()
                    
       return;
     }
-   
-    if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getUnresolvedCondInstCount() > 0)
-    {
-
-       // do not stall if trace core. We want the trace cores to issue prefetch even if there is control flow operation in the pipeline because they know its resolved
-      if (vecmode && m_cpu_p->getEarlyVector()->isSlave()){
-        DPRINTF(gemm_d, "[sn:%d] issue prelw in slave nop\n", inst->seq_num);
-      }
-      else{
-        DPRINTF(IEW, "[sn:%d] Can't issue prelw due to pending younger "
-                    "unresolved cond ctrl instructions\n",
-                inst->seq_num);
-
-        iew_stalls_control++;
-        return;
-      }
-    }
+    
+    // if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getUnresolvedCondInstCount() > 0) {
+    //   DPRINTF(Mesh, "[sn:%d] Can't issue prelw due to pending younger "
+    //                "unresolved cond ctrl instructions\n", inst->seq_num);
+                   
+    //   return;
+    // }
 
     
 

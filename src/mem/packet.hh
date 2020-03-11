@@ -801,7 +801,6 @@ class Packet : public Printable
      */ 
     bool getSpecSpad() const { return req->spadSpec; }
     bool getSpadReset() const { return req->spadReset; }
-    bool getStoreAckFree() const { return req->ackFree; }
     
     /**
      * Accessor to epoch

@@ -4,7 +4,7 @@
 // include spec from gem5
 #include "../../src/custom/bind_spec.hh"
 
-#if !defined(__x86_64__) && !defined(__i386__)
+// #if !defined(__x86_64__) && !defined(__i386__)
 
 // 20 bit / 5 hex
 #define ALL_NORM  0x00000
@@ -26,11 +26,11 @@
 #define WRITE_MESH_CSR(val) \
   WRITE_CSR(0x400, val)
 
-#define BIND_EXE(val) \
-  asm volatile (".insn u 0x6b, x0, %[x]\n\t" :: [x] "i" (val))
+// #define BIND_EXE(val) \
+//   asm volatile (".insn u 0x6b, x0, %[x]\n\t" :: [x] "i" (val))
 
-#define BIND_FET(val) \
-  asm volatile (".insn u 0x77, x0, %[x]\n\t" :: [x] "i" (val))
+// #define BIND_FET(val) \
+//   asm volatile (".insn u 0x77, x0, %[x]\n\t" :: [x] "i" (val))
   
 // 0x401 is MISCREG_FET
 #define VECTOR_EPOCH(val) \
@@ -44,15 +44,22 @@
 #define REMEM(hash)                                                           \
   asm volatile (".insn u 0x0b, x0, %[id]\n\t":: [id] "i" (hash))
 
-// // do a csr read on register containing the number of open regions
-// #define READ_OPEN_REGIONS(ret) \
-//   asm volatile ("csrr %[rdest], <csrreg>\n\t" : [rdest] "=r" (ret) :)
+#define ISSUE_VINST(label)                                                    \
+  asm volatile goto (".insn uj 0x6b, x0, %l[" #label "]\n\t"                  \
+    :                                                                         \
+    :                                                                         \
+    :                                                                         \
+    : label                                                                   \
+  )
 
-// static int __readOpenRegions() {
-//   int ret;
-//   READ_OPEN_REGIONS(ret);
-//   return ret;
-// }
+#define DEVEC(devec_id)                                                       \
+  devec_id:                                                                   \
+  asm volatile goto (".insn uj 0x2b, x0, %l[" #devec_id "]\n\t"               \
+    :                                                                         \
+    :                                                                         \
+    :                                                                         \
+    : devec_id                                                                \
+  )
 
 #define PREFETCH_EPOCH(val) \
   asm volatile ("csrw 0x402, %[x]\n\t" :: [x] "r" (val))
@@ -75,128 +82,12 @@
   asm volatile (                                          \
     ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"   \
     : [destreg] "=r" (dest)                               \
-    : [mem] "r" (spadAddr), [off] "i" (offset))    
-
-// #define FLWSPEC(dest, spadAddr, offset)                    \
-//   asm volatile (                                          \
-//     ".insn s 0x07, 0x5, %[destreg], %[off](%[mem])\n\t"   \
-//     : [destreg] "=r" (dest)                               \
-//     : [mem] "r" (spadAddr), [off] "i" (offset))         
-    
-/*#define LWSPEC_RESET(val, spadAddr, offset)             \
-  asm volatile (                                        \
-    ".insn s 0x07, 0x6, %[val], %[off](%[mem])\n\t"     \
-    : [val] "=r" (val)                                  \
-    : [mem] "r" (spadAddr), [off] "i" (offset))
-*/
+    : [mem] "r" (spadAddr), [off] "i" (offset))         
 
 #define STORE_NOACK(data, memAddr, offset) \
   asm volatile (".insn sb 0x23, 0x5, %[dataReg], %[off](%[mem])\n\t" :: \
     [dataReg] "r" (data), [mem] "r" (memAddr), [off] "i" (offset))     
 
-// to ensure that the compiler doesn't place unwanted instructions
-// within the binds we enforce with a single asm volatile
-#define BINDED_EXE_SECTION(sbind, ebind, code, wr, rd)  \
-  asm volatile (                                        \
-    ".insn u 0x6b, x0, %[bind0]\n\t"                    \
-    code                                                \
-    ".insn u 0x6b, x0, %[bind1]\n\t"                    \
-    : wr                                                \
-    : [bind0] "i" (sbind), [bind1] "i" (ebind) rd       \
-  )
-  
-// fetch goes back to normal after specified number of executes
-// so no need to unbind
-// should exe also do this? no neccessary but will reduce instruction count
-/*#define BINDED_FET_SECTION(sbind, timer, code, wr, rd)      \
-  asm volatile (                                            \
-    ".insn u 0x77, x0, %[bind0]\n\t"                        \
-    code                                                    \
-    : wr                                                    \
-    : [bind0] "i" (sbind | (timer << FET_COUNT_SHAMT)) rd  \
-  )
-*/
-  
-// 1) bind certain config
-// 
-// after a config the pipeline needs to be flushed
-// we can achieve this easily in software with delay slots
-// I think fetch2 and decode need to be flushed so put two slots
-// Minor is a 7? (f1 -> f2 -> d -> i -> x -> m -> w) stage pipeline
-// writeback, looks like need 5 delay slots!!!
-//
-// 2) figure out jump point (don't have to do this when resync though)
-// this instruction can be put into one of the delay slots since doesnt need vec
-// actually instructions can be put in delay slots and still be functional
-// just won't be vectorized
-//
-// 3) run vectorized code
-// 
-// 4) devec
-#define BINDED_FET_SECTION(sbind, ebind, id, code, wr, rd)  \
-  asm volatile (                                            \
-    ".insn u 0x77, x0, %[sbind0]\n\t"                       \
-    ".insn uj 0x0b, x28, label" #id "\n\t"                  \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    code                                                    \
-    ".insn u 0x7b, x28, %[ebind0]\n\t"                      \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "nop\n\t"                                               \
-    "label" #id ":\n\t"                                     \
-    : wr                                                    \
-    : [sbind0] "i" (sbind), [ebind0] "i" (ebind) rd         \
-  )                                                 
- 
-// when using -O2/3 getting error using labels (already defined)
-// normal solution is to use block unique name with %=
-// BUT  can't use %= to generate unique labels because across diff blocks
-// use 'goto' qualifier to jump outside of block?
-#define BINDED_FET_SOURCE(sbind, ebind, code)               \
-  asm volatile (                                            \
-    ".insn u 0x77, x0, %[sbind0]\n\t"                       \
-    ::[sbind0] "i" (sbind));                                \
-  code                                                      \
-  asm volatile (                                            \
-    ".insn u 0x77, x0, %[ebind0]\n\t"                       \
-    ::[ebind0] "i" (ebind));                                
-  
-// bind both exe and fetch
-#define BINDED_TIMED_SECTION(ebind0, ebind1, fbind0, timer, code, wr, rd)  \
-  asm volatile (                                            \
-    ".insn u 0x6b, x0, %[ebind0]\n\t"                       \
-    ".insn u 0x77, x0, %[fbind0]\n\t"                       \
-    code                                                    \
-    ".insn u 0x6b, x0, %[ebind1]\n\t"                       \
-    : wr                                                    \
-    : [ebind0] "i" (ebind0), [ebind1] "i" (ebind1),         \
-      [fbind0] "i" (fbind0 | (timer << FET_COUNT_SHAMT)) rd \
-  )
-
-#define BINDED_SECTION(ebind0, ebind1, fbind0, fbind1, code, wr, rd)  \
-  asm volatile (                                            \
-    ".insn u 0x6b, x0, %[eb0]\n\t"                          \
-    ".insn u 0x77, x0, %[fb0]\n\t"                          \
-    code                                                    \
-    ".insn u 0x77, x0, %[fb1]\n\t"                          \
-    ".insn u 0x6b, x0, %[eb1]\n\t"                          \
-    : wr                                                    \
-    : [eb0] "i" (ebind0), [eb1] "i" (ebind1),               \
-      [fb0] "i" (fbind0), [fb1] "i" (fbind1) rd             \
-  )
-  
-#endif
   
 static inline void stats_on()
 {
@@ -220,7 +111,7 @@ static inline void stats_off()
 #endif
 }
 
-int getVecMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
+static int getVecMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
   int mask = ALL_NORM;
   
   #ifndef _VEC
@@ -270,7 +161,7 @@ int getVecMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int 
 // v <- <- <-
 // -> -> -> v
 // 0 <- <- <-
-int getSerializedMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
+static int getSerializedMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
   int mask = ALL_NORM;
   
   #ifndef _VEC
@@ -332,7 +223,7 @@ int getSerializedMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_
   #endif
 }
 
-int getDAEMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
+static int getDAEMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
   int mask = (1 << FET_DAE_SHAMT) | 
             (origin_x << FET_XORIGIN_SHAMT) | 
             (origin_y << FET_YORIGIN_SHAMT) | 
@@ -341,4 +232,199 @@ int getDAEMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int 
   return mask;
 }
 
+typedef struct Vector2_t {
+  int x;
+  int y;
+  // int touched;
+  int o;
+} Vector2_t;
+
+static int isCoordEqual(Vector2_t a, Vector2_t b) {
+  return (a.x == b.x && a.y == b.y);
+}
+
+static Vector2_t addVec2(Vector2_t a, Vector2_t b) {
+  Vector2_t sum = { .x = a.x + b.x, .y = a.y + b.y };
+  return sum;
+}
+
+// point sample x,y
+// topleft box coord x,y
+// dimx > dim to right
+// dimy v dim under (but maps to positively increasing)
+static int pointIntersectsBox(Vector2_t pt, Vector2_t boxOrig, Vector2_t boxDim) {
+  return ((pt.x >= boxOrig.x && pt.x < boxOrig.x + boxDim.x) &&
+          (pt.y >= boxOrig.y && pt.y < boxOrig.y + boxDim.y));
+}
+
+static int getInputFromOutput(int outputDir) {
+  if (outputDir == FET_O_INST_UP_SEND) return FET_I_INST_DOWN;
+  if (outputDir == FET_O_INST_DOWN_SEND) return FET_I_INST_UP;
+  if (outputDir == FET_O_INST_LEFT_SEND) return FET_I_INST_RIGHT;
+  if (outputDir == FET_O_INST_RIGHT_SEND) return FET_I_INST_LEFT;
+  else {
+    return -1;
+  }
+}
+
+// vector orientation of group with specific sending pattern
+static int getSIMDMaskHoriz(Vector2_t master, Vector2_t origin, Vector2_t tid, Vector2_t dim, Vector2_t virtVectorSrc, Vector2_t vectorSrc) {
+  int mask = ALL_NORM;
+  // for the rest of the cores, you can determine sending pattern based on location 
+  // of this core relative to vector src
+  // if +/-y you recv from that respective direction
+  // if you are even you recv +/-x
+  int yDiff = tid.y - virtVectorSrc.y;
+  int xDiff = tid.x - virtVectorSrc.x;
+  // printf("vec src (%d,%d) tid (%d,%d) diffs (%d,%d)\n", virtVectorSrc.x, virtVectorSrc.y, tid.x, tid.y, xDiff, yDiff);
+  // recv from above and send below unless you are at the bottom
+  if (yDiff > 0) {
+    mask |= FET_I_INST_UP;
+    // printf("in up\n");
+    if (tid.y != dim.y - 1) {
+      // printf("out down\n");
+      mask |= FET_O_INST_DOWN_SEND;
+    }
+  }
+  // recv from below and send above unless you are at the top
+  else if (yDiff < 0) {
+    mask |= FET_I_INST_DOWN;
+    // printf("in down\n");
+    if (tid.y != 0) {
+      // printf("out up\n");
+      mask |= FET_O_INST_UP_SEND;
+    }
+  }
+  // if you are equal then need to look at x direction
+  else {
+    // recv from left and send to right unless at right edge
+    if (xDiff > 0) {
+      if (tid.x != 0) {
+        mask |= FET_I_INST_LEFT;
+        // printf("in left\n");
+      }
+      if (tid.x != dim.x - 1) {
+        // printf("out right\n");
+        mask |= FET_O_INST_RIGHT_SEND;
+      }
+    }
+    // recv from right and send to the left unless at left edge
+    else if (xDiff < 0) {
+      if (tid.x != dim.x - 1) {
+        mask |= FET_I_INST_RIGHT;
+        // printf("in right\n");
+      }
+      if (tid.x != 0) {
+        // printf("out left\n");
+        mask |= FET_O_INST_LEFT_SEND;
+      }
+    }
+    // figure out what to do if you are at the vecSrc
+    else {
+      // if cores to the right, need to send to the right
+      if (vectorSrc.x < origin.x + dim.x - 1) {
+        // printf("out right\n");
+        mask |= FET_O_INST_RIGHT_SEND;
+      }
+      // if cores to the left, need to send to the left
+      if (vectorSrc.x > origin.x) {
+        // printf("out left\n");
+        mask |= FET_O_INST_LEFT_SEND;
+      }
+    }
+
+    // need row at equal height to send up/down
+    // if vectorSrc is above bottom of group need to send down
+    if (vectorSrc.y < origin.y + dim.y - 1) {
+      // printf("out down\n");
+      mask |= FET_O_INST_DOWN_SEND;
+    }
+    // if vectorSrc is below top of group then need to send up
+    if (vectorSrc.y > origin.y) {
+      // printf("out up\n");
+      mask |= FET_O_INST_UP_SEND;
+    }
+  }
+
+  return mask;
+  
+}
+
+// configuration for vector-simd group, takes up size dim+1, so be careful about planning
+// master x,y --> where the master is
+// origin x,y --> where the top-left core is for the trailing cores
+// tid    x,y --> thread id within the group, don't care for master
+// dim    x,y --> dimension of the trailing core group
+// is_master  --> whether this core is the master or not
+static int getSIMDMask(int master_x, int master_y, int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y, int is_master) {
+  // TODO does not handle case where master is above or below due to nesting order?????????
+
+  // pack x,y into coord struct
+  Vector2_t master = { .x = master_x, .y = master_y };
+  Vector2_t origin = { .x = origin_x, .y = origin_y };
+  Vector2_t tid    = { .x = tid_x,    .y = tid_y    };
+  Vector2_t dim    = { .x = dim_x,    .y = dim_y    };
+
+  // initialize to no vector mask
+  int mask = ALL_NORM;
+
+  // output directions
+  Vector2_t directions[4] = { {.x =  1, .y =  0, .o = FET_O_INST_RIGHT_SEND  }, 
+                              {.x =  0, .y =  1, .o = FET_O_INST_DOWN_SEND   },
+                              {.x = -1, .y =  0, .o = FET_O_INST_LEFT_SEND   },
+                              {.x =  0, .y = -1, .o = FET_O_INST_UP_SEND     },
+                            };
+
+  // core in vector adjacent to the master core
+  Vector2_t vectorSrc;
+
+  // direction master should send
+  int masterSendDir = 0;
+
+  // find closest tile in vector group, master will send to that one
+  // do this by trying each cardinal diection and seeing if intersect the vector box
+  for (int i = 0; i < 4; i++) {
+    Vector2_t loc = addVec2(master, directions[i]);
+    if (pointIntersectsBox(loc, origin, dim)) {
+      vectorSrc = loc;
+      masterSendDir = directions[i].o;
+    }
+  }
+
+  // the master sends to vector src and vectorSrc recvs from master
+  if (is_master) {
+    // if (masterSendDir == FET_O_INST_UP_SEND) printf("out up\n");
+    // if (masterSendDir == FET_O_INST_DOWN_SEND) printf("out down\n");
+    // if (masterSendDir == FET_O_INST_LEFT_SEND) printf("out left\n");
+    // if (masterSendDir == FET_O_INST_RIGHT_SEND) printf("out right\n");
+    mask |= masterSendDir;
+  }
+  else {
+    // make sure vectorSrc is virtualized within the group
+    Vector2_t virtVecSrc = { .x = vectorSrc.x - origin.x, .y = vectorSrc.y - origin.y };
+    if (isCoordEqual(virtVecSrc, tid)) {
+      // if (getInputFromOutput(masterSendDir) == FET_I_INST_UP) printf("in up\n");
+      // if (getInputFromOutput(masterSendDir) == FET_I_INST_DOWN) printf("in down\n");
+      // if (getInputFromOutput(masterSendDir) == FET_I_INST_LEFT) printf("in left\n");
+      // if (getInputFromOutput(masterSendDir) == FET_I_INST_RIGHT) printf("in right\n");
+      mask |= getInputFromOutput(masterSendDir);
+    }
+
+    // send directions for the non-master vector group
+    mask |= getSIMDMaskHoriz(master, origin, tid, dim, virtVecSrc, vectorSrc);
+  }
+
+  // specify the vlen
+  int vlenX = dim_x;
+  int vlenY = dim_y;
+  mask |= (origin_x << FET_XORIGIN_SHAMT) | (origin_y << FET_YORIGIN_SHAMT) | (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
+
+  // specify each core is an execute core
+  mask |= (is_master << FET_DAE_SHAMT);
+
+  return mask;
+}
+
+
 #endif
+  

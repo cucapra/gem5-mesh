@@ -155,7 +155,7 @@ use_vec_arr = [True, False]
 
 # make_flags = ['NO_VEC','VEC_16','VEC_16_UNROLL','VEC_4','VEC_4_UNROLL','VEC_4_DA', \
 #   'VEC_16_UNROLL_SERIAL','VEC_4_DA_SMALL_FRAME','NO_VEC_DA','NO_VEC_W_VLOAD','SIM_DA_VLOAD_SIZE_1', \
-#   'VEC_4_NORM_LOAD', 'VEC_16_NORM_LOAD']
+#   'VEC_4_NORM_LOAD', 'VEC_16_NORM_LOAD', 'VEC_4_SIMD' ]
 
 make_flags_vvadd = [
     "NO_VEC",

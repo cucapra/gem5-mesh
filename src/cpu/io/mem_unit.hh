@@ -128,6 +128,8 @@ class MemUnit : public ExecUnit
     /** Do functional execute of incoming instruction to allow correct PC check */
     void functionalExecute() override;
 
+    uint getNumOutstandingAcks() { return m_store_diff_reg; }
+
   private:
     enum Status {
       Squashed,
@@ -149,6 +151,12 @@ class MemUnit : public ExecUnit
 
     /** Issue (if any) */
     void doMemIssue();
+
+    /** Try to issue a load */
+    void tryLdIssue(size_t &num_issued_insts);
+
+    /** Try to issue a store*/
+    void tryStIssue(size_t &num_issued_insts);
 
     /** Check whether a load depends on an older store in SQ. Return true if
      * there is any dependency */
@@ -221,6 +229,10 @@ class MemUnit : public ExecUnit
     /** Instruction whose virtual address is being translated
      * (i.e., input of S1 stage) */
     IODynInstPtr m_s1_inst;
+
+    /** Diff of sent stores to acked stores */
+    uint m_store_diff_reg;
+
 
 #ifdef DEBUG
     /** Unit's status */

@@ -71,7 +71,7 @@ Sequencer::Sequencer(const Params *p)
     assert(m_instCache_ptr != NULL);
     assert(m_dataCache_ptr != NULL);
     assert(m_data_cache_hit_latency > 0);
-    assert(m_inst_cache_hit_latency > 0);
+    // assert(m_inst_cache_hit_latency > 0);
 
     m_runningGarnetStandalone = p->garnet_standalone;
 }
@@ -663,10 +663,14 @@ Sequencer::issueRequest(PacketPtr pkt, RubyRequestType secondary_type)
         latency = m_data_cache_hit_latency;
 
     // Send the message to the cache controller
-    assert(latency > 0);
+    // assert(latency > 0);
 
     assert(m_mandatory_q_ptr != NULL);
-    m_mandatory_q_ptr->enqueue(msg, clockEdge(), cyclesToTicks(latency));
+    if (latency == 0)
+        m_mandatory_q_ptr->enqueue(msg, clockEdge(), 1);
+    else
+        m_mandatory_q_ptr->enqueue(msg, clockEdge(), cyclesToTicks(latency));
+
 }
 
 template <class KEY, class VALUE>

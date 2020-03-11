@@ -113,43 +113,25 @@ void FromMeshPort::process()
   setPacket(recvPkt_d);
 }
 
-bool FromMeshPort::recvTimingReq(PacketPtr pkt)
-{
-  //DPRINTF(Mesh, "recvresp packet %ld %ld\n", (uint64_t)recvPkt, (uint64_t)this);
-  //DPRINTF(Mesh, "Received mesh request %#x for idx %d\n", pkt->getAddr(), idx);
-  // we should only ever see one response per cycle since we only
-  // issue a new request once this response is sunk
+bool 
+FromMeshPort::recvTimingReq(PacketPtr pkt) {
+    // assert(!recvEvent.scheduled());
+    // recvPkt_d = pkt;
+    // cpu->schedule(recvEvent, cpu->clockEdge(Cycles(1)));
 
-  //assert(!tickEvent.scheduled());
-  assert(!recvEvent.scheduled());
-  // delay processing of returned data until next CPU clock edge
-  //tickEvent.schedule(pkt, cpu->clockEdge());
-  //recvPkt_d = pkt;
-  //recvEvent.schedule(cpu->clockEdge());
-  recvPkt_d = pkt;
-  cpu->schedule(recvEvent, cpu->clockEdge(Cycles(1)));
-  // temp
-  //setPacket(pkt);
+    // if (vec)
+    //   vec->signalActivity();
+    if (vec->enqueueMeshPkt(pkt)) {
+      return true;
+    }
 
-  // TODO ERROR wrong need to do this on the next cycle!
-  // try to unblock when recv a packet
-  //cpu->tryUnblock(false);
-
-  // inform there is local activity and should wakeup entire pipeline to try
-  // stuff on the next cycle
-  //cpu->activityRecorder->activity();
-  //cpu->activityRecorder->activateStage(Minor::Pipeline::VectorStageId);
-
-  //cpu->wakeupOnEvent(Minor::Pipeline::VectorStageId);
-  if (vec)
-    vec->signalActivity();
-
-  return true;
+    return false;
 }
 
-void FromMeshPort::recvRespRetry()
-{
-  // ?
+void
+FromMeshPort::recvRespRetry() {
+  // this is if reject this cycle, but then space opens up due to combinational delay
+  // I think we've worked around this with VecInstSel canRecv which also checks if it will open up
   assert(0);
 }
 
@@ -293,34 +275,30 @@ void FromMeshPort::tryUnblockCPU()
     vec->neighborUpdate();
 }
 
-bool FromMeshPort::getRdy()
-{
-  if (!vec)
-    return false;
+bool
+FromMeshPort::getRdy() {
+  if (!vec) return false;
+  
+  return vec->canRecvMeshPkt();
 
-  //if (rdy) {
-  if (_meshQueue.canReserve() && vec->getConfigured())
-  {
-    // if we have a packet but don't have a packet in other ports or
-    // we have packets but can't send them anywhere b/c output not rdy
-    // then we can't accept anymore packets on this port b/c we can't tick
-
-    // should look at next_val?
-    // if (next_pairval && !next_pairval, then not rdy?)
-
-    if (getPairVal() &&
-        vec->getInVal() && vec->getOutRdy())
-      return true;
-    else if (getPairVal() &&
-             (!vec->getInVal() || !vec->getOutRdy()))
-      return false;
-    else
-      return true;
-  }
-  else
-  {
-    return false;
-  }
+  // // TODO re-examine this rdy signal!
+  // if (_meshQueue.canReserve() && vec->getConfigured()) {
+  //   // if we have a packet but don't have a packet in other ports or
+  //   // we have packets but can't send them anywhere b/c output not rdy
+  //   // then we can't accept anymore packets on this port b/c we can't tick
+    
+  //   // should look at next_val?
+  //   // if (next_pairval && !next_pairval, then not rdy?)
+    
+  //   if (getPairVal() && 
+  //     vec->getInVal() && vec->getOutRdy()) return true;
+  //   else if (getPairVal() && 
+  //     (!vec->getInVal() || !vec->getOutRdy())) return false;
+  //   else return true;
+  // }
+  // else {
+  //   return false;
+  // }
 }
 
 /*void

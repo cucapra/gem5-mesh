@@ -110,54 +110,6 @@ typedef struct Mesh_DS_t {
  * Fetch stage encodings
  *--------------------------------------------------------------------*/
 
-// typedef enum Locked_Insts {
-//   ADD = 0,
-//   ADDI,
-//   SUB,
-//   MUL,
-//   SLL,
-//   SLLI,
-//   SRL,
-//   SRLI,
-//   SRA,
-//   SRAI,
-//   AND,
-//   ANDI,
-//   OR,
-//   ORI,
-//   XOR,
-//   XORI,
-//   LW,
-//   SW,
-  
-//   NUM_LOCK_INST
-  
-// } Locked_Insts;
-
-// // don't need to encode every instruction, just a subset that's useful
-// // these don't include operands --> need to do operand binds beforehand
-
-// #define FET_LOCKED_INST_BITS  (6)
-// #define FET_LOCKED_SHAMT (0)
-// #define FET_LOCK_ADD    (ADD)
-// #define FET_LOCK_SUB    (SUB)
-// #define FET_LOCK_MUL    (MUL)
-// #define FET_LOCK_SLL    (SLL)
-// #define FET_LOCK_SLLI   (SLLI)
-// #define FET_LOCK_SRL    (SRL)
-// #define FET_LOCK_SRLI   (SRLI)
-// #define FET_LOCK_SRA    (SRA)
-// #define FET_LOCK_SRAI   (SRAI)
-// #define FET_LOCK_ADDI   (ADDI)
-// #define FET_LOCK_LW     (LW)
-// #define FET_LOCK_SW     (SW)
-// #define FET_LOCK_AND    (AND)
-// #define FET_LOCK_ANDI   (ANDI)
-// #define FET_LOCK_OR     (OR)
-// #define FET_LOCK_ORI    (ORI)
-// #define FET_LOCK_XOR    (XOR)
-// #define FET_LOCK_XORI   (XORI)
-
 // in dir --> 3 bits
 #define FET_I_INST_BITS     (3)
 #define FET_I_INST_SHAMT    (0)

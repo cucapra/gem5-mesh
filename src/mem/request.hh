@@ -400,7 +400,8 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false)
+          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false),
+          prefetchAddr(0), spadSpec(false), spadReset(false), isSpLoad(false)
     {}
 
     Request(Addr paddr, unsigned size, Flags flags, MasterID mid,
@@ -409,7 +410,8 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(seq_num), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false)
+          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false),
+          prefetchAddr(0), spadSpec(false), spadReset(false), isSpLoad(false)
     {
         setPhys(paddr, size, flags, mid, curTick());
         setContext(cid);
@@ -426,7 +428,8 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false)
+          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false),
+          prefetchAddr(0), spadSpec(false), spadReset(false), isSpLoad(false)
     {
         setPhys(paddr, size, flags, mid, curTick());
     }
@@ -436,7 +439,8 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false)
+          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false),
+          prefetchAddr(0), spadSpec(false), spadReset(false), isSpLoad(false)
     {
         setPhys(paddr, size, flags, mid, time);
     }
@@ -447,7 +451,8 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(pc),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false)
+          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false),
+          prefetchAddr(0), spadSpec(false), spadReset(false), isSpLoad(false)
     {
         setPhys(paddr, size, flags, mid, time);
         privateFlags.set(VALID_PC);
@@ -459,7 +464,8 @@ class Request
           _taskId(ContextSwitchTaskId::Unknown), _asid(0), _vaddr(0),
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
-          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false)
+          accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0), fromDecoupledAccess(false),
+          prefetchAddr(0), spadSpec(false), spadReset(false), isSpLoad(false)
     {
         setVirt(asid, vaddr, size, flags, mid, pc);
         setContext(cid);
@@ -485,7 +491,8 @@ class Request
           _pc(other._pc), _reqInstSeqNum(other._reqInstSeqNum),
           translateDelta(other.translateDelta),
           accessDelta(other.accessDelta), depth(other.depth), xDim(other.xDim), yDim(other.yDim), 
-          xOrigin(other.xOrigin), yOrigin(other.yOrigin), fromDecoupledAccess(other.fromDecoupledAccess)
+          xOrigin(other.xOrigin), yOrigin(other.yOrigin), fromDecoupledAccess(other.fromDecoupledAccess),
+          prefetchAddr(other.prefetchAddr), spadSpec(other.spadSpec), spadReset(other.spadReset), isSpLoad(other.isSpLoad)
     {
         if (other.atomicOpFunctor)
             atomicOpFunctor = (other.atomicOpFunctor)->clone();
@@ -643,8 +650,6 @@ class Request
     // spad op that resets the ready flag
     // TODO create custom packet type for this?
     bool spadReset;
-    // don't return an ack if this is a store
-    bool ackFree;
     
     /**
      * Epoch of the packet

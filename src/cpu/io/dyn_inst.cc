@@ -100,6 +100,7 @@ IODynInst::branchTarget()
 bool
 IODynInst::isMispredicted()
 {
+  if (static_inst_p->isVectorIssue()) return false; // can't mispredict vec issue
   TheISA::PCState temp_pc = pc;
   TheISA::advancePC(temp_pc, static_inst_p);
   return !(temp_pc == m_pred_pc);

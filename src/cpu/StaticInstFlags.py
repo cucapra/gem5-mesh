@@ -122,5 +122,6 @@ class StaticInstFlags(Enum):
         #, 'IsSpadReset'
         , 'IsAckFree'
         , 'IsRemem'
+        , 'IsVectorIssue'
 
         ]

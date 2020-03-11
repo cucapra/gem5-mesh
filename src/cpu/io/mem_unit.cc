@@ -25,7 +25,8 @@ MemUnit::MemUnit(const char* _iew_name, const char* _name,
       m_num_dcache_ports(params->numDcachePorts),
       m_issued_inst(nullptr),
       m_s0_inst(nullptr),
-      m_s1_inst(nullptr)
+      m_s1_inst(nullptr),
+      m_store_diff_reg(0)
 { }
 
 const std::string
@@ -220,6 +221,28 @@ MemUnit::doMemIssue()
   // ready-to-issue instructions
   size_t num_issued_insts = 0;
 
+  // check the head of the ROB, if it's a store instruction
+  // then set that instruction as issuable
+  // this is now a combinational signal, so not sure about how timing works
+  // could imagine that this happens cycle before moves to head of ROB so still 1 cycle
+  // but allows no-ack stores to be committed immedietly
+  auto rob = m_cpu_p->getROBPtr(0);
+  if (!rob->isEmpty()) {
+    auto head_inst = rob->getHead();
+    if ((head_inst->isStore() || head_inst->isAtomic() ||
+            head_inst->isStoreConditional()) &&
+            !head_inst->canIssueToMem()) {
+      head_inst->setCanIssueToMem();
+    }
+  }
+
+  tryLdIssue(num_issued_insts);
+  tryStIssue(num_issued_insts);
+
+}
+
+void
+MemUnit::tryLdIssue(size_t &num_issued_insts) {
   for (auto& inst : m_ld_queue) {
     // check if we run of cache bandwidth
     if (num_issued_insts == m_num_dcache_ports) {
@@ -238,6 +261,7 @@ MemUnit::doMemIssue()
 
       // send request
       if (!m_cpu_p->getDataPort().sendTimingReq(pkt)) {
+        
         DPRINTF(LSQ, "dcache is busy\n");
         //if (inst->static_inst_p->isSpadSpeculative() || inst->static_inst_p->isSpadPrefetch()) 
         //  DPRINTF(Mesh, "failed to send [%s]\n", inst->toString(true));
@@ -250,13 +274,12 @@ MemUnit::doMemIssue()
         // exit issue stage early since the dcache is busy
         return;
       } else {
-        DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
+        DPRINTF(LSQ, "Sent request to memory for inst %s with addr %#x\n", inst->toString(true), pkt->getAddr());
         DPRINTF(LoadTrack, "Sent load request to memory for inst %s\n", inst->toString(true));
-        /*if (inst->static_inst_p->isSpadSpeculative()) 
-          DPRINTF(Mesh, "Sent request to memory for inst [%s] %#x\n", inst->toString(true), inst->mem_req_p->getPaddr());
-        else if (inst->static_inst_p->isSpadPrefetch())
-          DPRINTF(Mesh, "Sent preload request to memory for inst [%s] %#x, live %d\n", inst->toString(true), inst->mem_req_p->prefetchAddr, inst->mem_req_p->isSpLoad);
-*/
+        
+        if (inst->srcRegIdx(0) == RegId(IntRegClass, RiscvISA::StackPointerReg) && m_cpu_p->getEarlyVector()->getConfigured()) 
+          DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
+
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
         num_issued_insts++;
@@ -273,7 +296,10 @@ MemUnit::doMemIssue()
     }
 #endif
   }
+}
 
+void
+MemUnit::tryStIssue(size_t &num_issued_insts) {
   for (auto& inst : m_st_queue) {
     // check if we run of cache bandwidth
     if (num_issued_insts == m_num_dcache_ports) {
@@ -301,7 +327,12 @@ MemUnit::doMemIssue()
         // exit issue stage early since the dcache is busy
         return;
       } else {
-        DPRINTF(LSQ, "Sent request to memory for inst %s\n", inst->toString());
+        // an outstanding memory request to track
+        m_store_diff_reg++;
+        DPRINTF(LSQ, "Sent request to memory for inst %s with addr %#x\n", inst->toString(true), pkt->getAddr());
+        if (inst->srcRegIdx(0) == RegId(IntRegClass, RiscvISA::StackPointerReg) && m_cpu_p->getEarlyVector()->getConfigured()) 
+          DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
+
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
         num_issued_insts++;
@@ -314,6 +345,22 @@ MemUnit::doMemIssue()
             ld_inst->setCanIssueToMem();
           }
           m_st_ld_map.erase(inst->seq_num);
+        }
+
+        // if this is a normal store don't wait for the eack and mark as done
+       if (inst->static_inst_p->isAckFree()) {
+        // if (inst->isStore() && !inst->isStoreConditional() && !inst->isAtomic()) {
+          if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "set early execute %s\n", inst->toString(true));
+          // mark this as executed
+          inst->setExecuted();
+          // early bypass
+          for (int i = 0; i < inst->numDestRegs(); ++i) {
+            DPRINTF(IEW, "[sn:%d] Setting dest reg %i (%s) ready\n",
+                          inst->seq_num,
+                          inst->renamedDestRegIdx(i)->index(),
+                          inst->renamedDestRegIdx(i)->className());
+            m_scoreboard_p->setReg(inst->renamedDestRegIdx(i));
+          }
         }
         
 #ifdef DEBUG
@@ -338,6 +385,7 @@ MemUnit::doMemIssue()
 #endif
   }
 }
+
 
 void
 MemUnit::doSquash(IODynInstPtr squash_inst)
@@ -421,10 +469,17 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
   MemUnit::SenderState* ss =
                       safe_cast<MemUnit::SenderState*>(pkt->popSenderState());
   assert(ss && ss->inst);
+  // assert(ss);
+  // // lazy ack so have already completed the store
+  // if (!ss->inst && pkt->isWrite()) {
+  //     m_store_diff_reg--;
+  //     delete ss;
+  //     delete pkt;
+  //     return;
+  // }
   DPRINTF(LSQ, "Received response pkt for inst %s\n", ss->inst->toString());
 
-  if (ss->inst->isLoad() ||
-      ss->inst->static_inst_p->isSpadPrefetch()) {
+  if (ss->inst->isLoad()) {
     // look up ss->inst in m_ld_queue. If it no longer exists, it must have
     // been squashed. If so, we simply drop the packet.
     auto it = std::find_if(m_ld_queue.begin(),
@@ -464,11 +519,14 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
                            m_st_queue.end(),
                            [&](const IODynInstPtr& inst)
                               { return ss->inst->seq_num == inst->seq_num; } );
-
+    // mark we've recv an outstanding ack
+    m_store_diff_reg--;
     if (it == m_st_queue.end()) {
       // this inst must have been squashed earlier
-      assert(ss->inst->isSquashed());
-    } else {
+      if (!ss->inst->static_inst_p->isAckFree())
+        assert(ss->inst->isSquashed());
+    } else if (!ss->inst->static_inst_p->isAckFree()) {
+    // } else if (ss->inst->isStoreConditional() || ss->inst->isAtomic()) {
       // complete access
       ss->inst->completeAcc(pkt);
       // mark this as executed
@@ -605,8 +663,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->xOrigin = m_cpu_p->getEarlyVector()->getXOrigin();
       m_s1_inst->mem_req_p->yOrigin = m_cpu_p->getEarlyVector()->getYOrigin();
       m_s1_inst->mem_req_p->fromDecoupledAccess = dAccess;
-      DPRINTF(Mesh, "[%s] send vec load %#x, (%d,%d)\n", m_s1_inst->toString(true), 
-          addr, m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
+      DPRINTF(Mesh, "[%s] send vec load %#x to %#x, (%d,%d)\n", m_s1_inst->toString(true), 
+          addr, m_s1_inst->mem_req_p->prefetchAddr , m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
     }
     else {
       m_s1_inst->mem_req_p->xDim = 1;
@@ -619,13 +677,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // allow load to issue to spad without getting any acks the load is there
     m_s1_inst->mem_req_p->spadSpec  = m_s1_inst->static_inst_p->isSpadSpeculative();
 
-    // denote whether this is an ack free load
-    m_s1_inst->mem_req_p->ackFree = m_s1_inst->static_inst_p->isAckFree();
-
-    // treat this as a load in terms of placing into the queue
-    if (spadPrefetch)
-      is_load = true;
-    
+    if (spadPrefetch) assert(m_s1_inst->isStore() && !is_load);
 
     // this memory will be deleted together with the dynamic instruction
     m_s1_inst->mem_data_p = new uint8_t[size];
