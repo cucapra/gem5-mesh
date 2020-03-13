@@ -267,9 +267,9 @@ IEW::doWriteback()
           }
         }
 
-        // if (m_cpu_p->getEarlyVector()->isSlave() && inst->numDestRegs() > 0)
-        //   DPRINTF(Mesh, "writeback %s %lx\n", inst->toString(true), 
-        //     m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)));
+        if (m_cpu_p->getEarlyVector()->isSlave() && inst->numDestRegs() > 0)
+          DPRINTF(Mesh, "writeback %s %lx\n", inst->toString(true), 
+            m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)));
 
         // set values as temp renamed dest reg
         if (inst->static_inst_p->isBroadcast()) {
@@ -475,7 +475,7 @@ IEW::doIssue()
 
     }
 
-    // if (m_cpu_p->getEarlyVector()->isSlave()) DPRINTF(Mesh, "issue %s\n", inst->toString(true));
+    if (m_cpu_p->getEarlyVector()->isSlave()) DPRINTF(Mesh, "issue %s\n", inst->toString(true));
 
     // Add the instruction to ROB
     m_robs[tid]->push(inst);

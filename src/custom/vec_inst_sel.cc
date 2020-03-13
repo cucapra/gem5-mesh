@@ -94,69 +94,80 @@ IODynInstPtr
 VecInstSel::dequeueInst() {
   IODynInstPtr ret = nullptr;
 
-  // get instruction at the front of queue
-  if (!_vecCmds.empty()) {
+  // if we have an icache resp, then prioritize that
+  if (_lastICacheResp) {
+    // this assumes icache response will be recv at the beginning of the cycle
+    ret = _lastICacheResp;
+    _lastICacheResp = nullptr;
+
+    if (ret) {
+      DPRINTF(Mesh, "pop %s\n", ret->toString(true));
+    }
+
+    if (ret && ret->static_inst_p->isRemem() && m_cpu_p->cpuId() == 1) {
+      _tempREMEMS++;
+      // DPRINTF(Mesh, "create remem %s count %d\n", ret->toString(true), _tempREMEMS);
+    }
+
+
+    // // pop if we've finished this macro op
+    // if (!isPCGenActive()) {
+    //   setPCGen(0, 0); // reset pc gen
+    //   _vecCmds.pop();
+    // }
+  }
+
+  // otherwise tyr to get instruction at the front of queue
+  else if (!_vecCmds.empty()) {
     // look at head of queue
     auto& cmd = _vecCmds.front();
 
     // if its a single inst and we can just pull that off
     if (cmd->isInst) {
       ret = cmd->inst;
-      _vecCmds.pop();
-    }
-  }
 
-  // otherwise its a pc uop fetch is at head of vector cmds (or nothing), try to give the icache resp
-  if (_lastICacheResp) {
-    // this assumes icache response will be recv at the beginning of the cycle
-    ret = _lastICacheResp;
-    _lastICacheResp = nullptr;
+      DPRINTF(Mesh, "pop inst %s\n", ret->toString(true));
 
-    if (ret && ret->static_inst_p->isSpadSpeculative() && m_cpu_p->cpuId() == 1) {
-      DPRINTF(Mesh, "create lwspec %s\n", ret->toString(true));
-    }
-
-    if (ret && ret->static_inst_p->isRemem() && m_cpu_p->cpuId() == 1) {
-      _tempREMEMS++;
-      DPRINTF(Mesh, "create remem %s count %d\n", ret->toString(true), _tempREMEMS);
-    }
-
-
-    // pop if we've finished this macro op
-    if (!isPCGenActive()) {
-      setPCGen(0, 0); // reset pc gen
+      // TODO move this pop into process head?
       _vecCmds.pop();
     }
   }
   
   // handle the next operation if there is an element on the queue
-  if (!_vecCmds.empty()) {
-    processHead(_vecCmds.front());
-  }
+  processHead(nullptr);
 
   return ret;
 
 }
 
-// do any actions for the head of the queue
+// do any actions for the head of the queue or the incoming cmd if it would be 
+// the head
 void
-VecInstSel::processHead(std::shared_ptr<MasterData> cmd) {
-  if (!cmd->isInst) {
-    // if not currently active we need to setup the uop pc
-    if (!isPCGenActive()) {
-      // NEED to pop the prev vec cmd if it was finished
-      // TODO want less hacky way to do this
-      if (_uopIssueLen > 0 && !_vecCmds.empty() && !_vecCmds.front()->isInst) {
-        _vecCmds.pop();
-      }
+VecInstSel::processHead(std::shared_ptr<MasterData> incoming) {
+  // pop off pc head if finished
+  // TODO need uopIssueLen > 0 b/c not popping inst cmd here
+  if (!_vecCmds.empty() && !_vecCmds.front()->isInst && !isPCGenActive() && _uopIssueLen > 0) {
+    DPRINTF(Mesh, "pop pc block %d\n", _vecCmds.front()->recvCnt);
+    setPCGen(0, 0);
+    _vecCmds.pop();
+  }
 
-      int cnt = extractInstCntFromVissue(cmd->inst);
-      DPRINTF(Mesh, "new vec cmd %d\n", cmd->recvCnt);
-      setPCGen(cmd->pc, cnt);
+  // see if we can issue an instruction from either the next vec cmd or incoming
+  if (!_vecCmds.empty() ||
+      (_vecCmds.empty() && incoming)) {
+    auto cmd = incoming;
+    if (!_vecCmds.empty()) {
+      cmd = _vecCmds.front();
     }
-
-    // issue icache req and hope to recv next cycle
-    tryReqNextUop();
+    if (!cmd->isInst) {
+      // set new pc
+      if (!isPCGenActive()) {
+        int cnt = extractInstCntFromVissue(cmd->inst);
+        setPCGen(cmd->pc, cnt);
+      }
+      // try to fetch
+      tryReqNextUop();
+    }
   }
 }
 
