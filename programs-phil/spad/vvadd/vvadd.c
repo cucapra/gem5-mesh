@@ -134,7 +134,8 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // issue header instructions
   ISSUE_VINST(fable0);
 
-  int region = beginIter;
+  int globalIter = beginIter;
+  int localIter  = beginIter;
   for (int i = 0; i < totalIter; i++) {
     // broadcast values needed to execute
     // in this case the spad loc
@@ -144,13 +145,11 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     ISSUE_VINST(fable1);
 
     // prefetch for future iterations
-    if (region < totalIter) {
-      VPREFETCH(spadAddr + region * 2 + 0, a + start + (region * dim), 0);
-      VPREFETCH(spadAddr + region * 2 + 1, b + start + (region * dim), 0);
-      region++;
-      if (region == NUM_REGIONS) {
-        region = 0;
-      }
+    if (globalIter < totalIter) {
+      VPREFETCH(spadAddr + localIter * 2 + 0, a + start + (globalIter * dim), 0);
+      VPREFETCH(spadAddr + localIter * 2 + 1, b + start + (globalIter * dim), 0);
+      globalIter++;
+      localIter = globalIter % NUM_REGIONS;
     }
   }
 
