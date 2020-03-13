@@ -169,7 +169,8 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // vector engine code
 
   // declarations
-  int a_, b_, c_, iter;
+  int a_, b_, c_;
+  int64_t iter; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
 
   // entry block
