@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #include "pthread_launch.h"
 #include "vvadd.h"
@@ -136,10 +137,14 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   int region = beginIter;
   // int region = 0;
   for (int i = 0; i < totalIter; i++) {
+    // broadcast values needed to execute
+    // in this case the spad loc
+    BROADCAST(t0, (i % NUM_REGIONS) * 2, 0);
+
     // issue fable1
     ISSUE_VINST(fable1);
 
-    // do stuff in between (PREFETCHING, CONTROL, ?? SCALAR VALUE??)
+    // prefetch for future iterations
     if (region < totalIter) {
       VPREFETCH(spadAddr + region * 2 + 0, a + start + (region * dim), 0);
       VPREFETCH(spadAddr + region * 2 + 1, b + start + (region * dim), 0);
@@ -175,15 +180,26 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   
   // loop body block
   fable1:
-    LWSPEC(a_, spadAddr + iter * 2, 0);
-    LWSPEC(b_, spadAddr + iter * 2 + 1, 0);
+    // try to get compiler to use register that will recv broadcasted values
+    // can make compiler pass
+    // look at immediete to tell you which reg should be used?
+    // also remove shift instructions following
+    asm volatile(
+      // "addi %[var], x0, 0\n\t"
+      "add %[var], t0, x0\n\t"
+      : [var] "=r" (iter)
+    );
+
+    LWSPEC(a_, spadAddr + iter, 0);
+    LWSPEC(b_, spadAddr + iter + 1, 0);
     // remem as soon as possible, so don't stall loads for next iterations
     // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
     REMEM(0);
     c_ = a_ + b_;
     // cPtr[iter * dim] = c_;
-    STORE_NOACK(c_, cPtr + iter * dim, 0);
-    iter = (iter + 1) % NUM_REGIONS;
+    STORE_NOACK(c_, cPtr, 0);
+    cPtr += dim;
+    // iter = (iter + 1) % NUM_REGIONS;
 
 
     // need this jump to create loop carry dependencies, but this should be remove later

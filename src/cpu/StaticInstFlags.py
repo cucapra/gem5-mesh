@@ -123,5 +123,6 @@ class StaticInstFlags(Enum):
         , 'IsAckFree'
         , 'IsRemem'
         , 'IsVectorIssue'
+        , 'IsBroadcast'
 
         ]

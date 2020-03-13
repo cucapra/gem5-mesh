@@ -541,6 +541,9 @@ public:
     
     // check whether trace sent by master core is valid
     bool checkTrace(bool local_taken, TheISA::PCState local_targ);
+
+    // if going to broadcast save value computed during execute
+    RegVal broadcast_val;
 };
 
 typedef std::shared_ptr<IODynInst> IODynInstPtr;

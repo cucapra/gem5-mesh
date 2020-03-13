@@ -478,6 +478,9 @@ decode QUADRANT default Unknown::unknown() {
                         Rd_sd = Rs1_sw >> SHAMT5;
                     }});
                 }
+                0x6: bcast({{
+                    Rd_sd = Rs1_sd + imm;
+                }}, int32_t, IsBroadcast);
             }
         }
 
@@ -1878,6 +1881,11 @@ decode QUADRANT default Unknown::unknown() {
         0x1e: BUOp::revec ({{
             // nada
         }}, IsRevec, IsNonSpeculative, No_OpClass);
+
+        // load 20 bits into lower reg
+        //0x1e: BUOp::lli({{
+        //    Rd = imm;
+        //}})
 
         0x02: BUOp::remem ({{
             // nada
