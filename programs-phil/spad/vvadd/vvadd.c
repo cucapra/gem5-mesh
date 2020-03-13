@@ -518,7 +518,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = n; //roundUp(n / 3, alignment); // make sure aligned to cacheline 
+    end = roundUp(n / 3, alignment); // make sure aligned to cacheline 
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -532,8 +532,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 13) vtid = 3;
   if (ptid == 4) is_da = 1;
   if (ptid == 4 || ptid == 8 || ptid == 9 || ptid == 12 || ptid == 13) {
-    start = 0; //roundUp(n / 3, alignment);
-    end = n; //roundUp(2 * n / 3, alignment);
+    start = roundUp(n / 3, alignment);
+    end = roundUp(2 * n / 3, alignment);
     orig_x = 0;
     orig_y = 2;
     master_x = 0;
@@ -548,7 +548,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 15) vtid = 3;
   if (ptid == 7) is_da = 1;
   if (ptid == 7 || ptid == 10 || ptid == 11 || ptid == 14 || ptid == 15) {
-    start = 0; //roundUp(2 * n / 3, alignment);
+    start = roundUp(2 * n / 3, alignment);
     end = n;
     orig_x = 2;
     orig_y = 2;
@@ -633,7 +633,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   #ifdef USE_VECTOR_SIMD
-  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
+  // if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
+  if (ptid != 3) {
   // // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // // reset after the kernel is done
   // // do before the function call so the arg stack frame is on the spad
