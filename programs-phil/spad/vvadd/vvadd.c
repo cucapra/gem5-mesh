@@ -135,7 +135,6 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   ISSUE_VINST(fable0);
 
   int region = beginIter;
-  // int region = 0;
   for (int i = 0; i < totalIter; i++) {
     // broadcast values needed to execute
     // in this case the spad loc
@@ -158,6 +157,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // devec with unique tag
   DEVEC(devec_0);
 
+  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
   asm volatile("fence\n\t");
 
   if (ptid == 6) {
@@ -169,7 +169,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // vector engine code
 
   // declarations
-  int a_, b_, c_;
+  DTYPE a_, b_, c_;
   int64_t iter; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
 
@@ -183,27 +183,26 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   fable1:
     // try to get compiler to use register that will recv broadcasted values
     // can make compiler pass
-    // look at immediete to tell you which reg should be used?
-    // also remove shift instructions following
     asm volatile(
-      // "addi %[var], x0, 0\n\t"
       "add %[var], t0, x0\n\t"
       : [var] "=r" (iter)
     );
 
+    // load values from scratchpad
     LWSPEC(a_, spadAddr + iter, 0);
     LWSPEC(b_, spadAddr + iter + 1, 0);
+
     // remem as soon as possible, so don't stall loads for next iterations
     // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
     REMEM(0);
+
+    // compute and store
     c_ = a_ + b_;
-    // cPtr[iter * dim] = c_;
     STORE_NOACK(c_, cPtr, 0);
     cPtr += dim;
-    // iter = (iter + 1) % NUM_REGIONS;
 
-
-    // need this jump to create loop carry dependencies, but this should be remove later
+    // need this jump to create loop carry dependencies
+    // an assembly pass will remove this instruction
     asm volatile goto("j %l[fable1]\n\t"::::fable1);
 
   return;
