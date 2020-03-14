@@ -24,6 +24,7 @@
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
 #define VEC_4_SIMD 1
+// #define VEC_4_SIMD_BCAST 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC) || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD)
@@ -31,7 +32,7 @@
 #endif
 #if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) \
   || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_4_DA_SMALL_FRAME) \
-  || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD) || defined(VEC_4_SIMD)
+  || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD) || defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
 #define USE_VEC 1
 #endif
 #if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) \
@@ -41,7 +42,7 @@
 #if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
 #define USE_DA 1
 #endif
-#if defined(VEC_4_SIMD)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
 #define USE_VECTOR_SIMD 1
 #endif
 #if !defined(UNROLL) && !defined(USE_NORMAL_LOAD)
@@ -52,6 +53,9 @@
 #endif
 #if !defined(USE_VEC) && defined(NO_VEC_W_VLOAD)
 #define FORCE_VEC_LOAD 1
+#endif
+#if defined(VEC_4_SIMD_BCAST)
+#define SIMD_BCAST 1
 #endif
 
 // vector grouping directives
@@ -64,7 +68,7 @@
 #if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
 #define VEC_SIZE_4_DA 1
 #endif
-#if defined(VEC_4_SIMD)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
 #define VEC_SIZE_4_SIMD 1
 #endif
 
@@ -137,9 +141,11 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   int globalIter = beginIter;
   int localIter  = beginIter;
   for (int i = 0; i < totalIter; i++) {
+    #ifdef SIMD_BCAST
     // broadcast values needed to execute
     // in this case the spad loc
     BROADCAST(t0, (i % NUM_REGIONS) * 2, 0);
+    #endif
 
     // issue fable1
     ISSUE_VINST(fable1);
@@ -180,12 +186,14 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   
   // loop body block
   fable1:
+    #ifdef SIMD_BCAST
     // try to get compiler to use register that will recv broadcasted values
     // can make compiler pass
     asm volatile(
       "add %[var], t0, x0\n\t"
       : [var] "=r" (iter)
     );
+    #endif
 
     // load values from scratchpad
     LWSPEC(a_, spadAddr + iter, 0);
@@ -199,6 +207,10 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     c_ = a_ + b_;
     STORE_NOACK(c_, cPtr, 0);
     cPtr += dim;
+
+    #ifndef SIMD_BCAST
+    iter = (iter + 2) % (NUM_REGIONS * 2);
+    #endif
 
     // need this jump to create loop carry dependencies
     // an assembly pass will remove this instruction

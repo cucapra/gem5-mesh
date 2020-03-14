@@ -35,13 +35,13 @@ VecInstSel::enqueueTiming(PacketPtr pkt) {
     assert(!_toEnqueue); // structural hazard
     _toEnqueue = msg;
     m_cpu_p->schedule(_enqueueEvent, m_cpu_p->clockEdge(Cycles(1)));
-    if (!_toEnqueue->isInst && (m_cpu_p->cpuId() == 1)) {
+    if (!_toEnqueue->isInst) {
       _tempBlocksRecv++;
       DPRINTF(Mesh, "recv block %d\n", _tempBlocksRecv);
     }
     _toEnqueue->recvCnt = _tempBlocksRecv;
     // also if this is a macro op command schedule
-    processHead(_toEnqueue);
+    processHead();
 
     // cleanup
     delete ss;
@@ -104,7 +104,7 @@ VecInstSel::dequeueInst() {
       DPRINTF(Mesh, "pop %s\n", ret->toString(true));
     }
 
-    if (ret && ret->static_inst_p->isRemem() && m_cpu_p->cpuId() == 1) {
+    if (ret && ret->static_inst_p->isRemem()) {
       _tempREMEMS++;
       // DPRINTF(Mesh, "create remem %s count %d\n", ret->toString(true), _tempREMEMS);
     }
@@ -134,7 +134,7 @@ VecInstSel::dequeueInst() {
   }
   
   // handle the next operation if there is an element on the queue
-  processHead(nullptr);
+  processHead();
 
   return ret;
 
@@ -143,7 +143,7 @@ VecInstSel::dequeueInst() {
 // do any actions for the head of the queue or the incoming cmd if it would be 
 // the head
 void
-VecInstSel::processHead(std::shared_ptr<MasterData> incoming) {
+VecInstSel::processHead() {
   // pop off pc head if finished
   // TODO need uopIssueLen > 0 b/c not popping inst cmd here
   if (!_vecCmds.empty() && !_vecCmds.front()->isInst && !isPCGenActive() && _uopIssueLen > 0) {
@@ -154,8 +154,8 @@ VecInstSel::processHead(std::shared_ptr<MasterData> incoming) {
 
   // see if we can issue an instruction from either the next vec cmd or incoming
   if (!_vecCmds.empty() ||
-      (_vecCmds.empty() && incoming)) {
-    auto cmd = incoming;
+      (_vecCmds.empty() && _toEnqueue)) {
+    auto cmd = _toEnqueue;
     if (!_vecCmds.empty()) {
       cmd = _vecCmds.front();
     }
@@ -240,7 +240,7 @@ VecInstSel::extractInstCntFromVissue(IODynInstPtr inst) {
 
 void
 VecInstSel::setPCGen(TheISA::PCState issuePC, int cnt) {
-  if (cnt > 0 && m_cpu_p->cpuId() == 1) {
+  if (cnt > 0) {
     _tempBlocksPopped++;
   }
   assert(_tempBlocksPopped <= _tempBlocksRecv);
