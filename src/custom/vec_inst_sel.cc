@@ -215,6 +215,9 @@ VecInstSel::recvIcacheResp(PacketPtr pkt) {
   _uopPC.pc(_uopPC.instAddr() + sizeof(RiscvISA::MachInst));
   _uopCnt++;
 
+  // record stat
+  m_cpu_p->getFetch()->m_32bit_icache_accesses++;
+
   // mark we've recv instruction
   _lastICacheResp = inst;
 

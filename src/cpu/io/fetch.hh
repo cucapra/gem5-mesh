@@ -212,7 +212,8 @@ private:
   public:
     BPredUnit* getBranchPredPtr() { return m_branch_pred_p; }
 
-  private:
+  public:
+    // expose so vec cmd fetch can also increment this
     Stats::Scalar m_32bit_icache_accesses;
 };
 
