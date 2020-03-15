@@ -448,8 +448,8 @@ Scratchpad::wakeup()
         else
           enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Patron_Resp);
       
-        // delete the pending packet
-        m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
+        // delete the pending packet // why would there be a pending pkt for this?
+        // m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
         m_mem_resp_buffer_p->dequeue(clockEdge());
 
     } /*else if (m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 0 && 
@@ -835,6 +835,11 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
         m_cur_seq_num++;
       }
 
+      if (msg_p->m_SeqNum == 143 && m_cpu_p->cpuId() == 13) {
+        DPRINTF(Mesh, "Sent pkt %s to LLC seq_num %d\n",
+          pkt_p->print(), m_cur_seq_num - 1);
+        assert(m_pending_pkt_map.count(143) == 1);
+      }
       DPRINTF(Scratchpad, "Sent pkt %s to LLC seq_num %d\n",
                         pkt_p->print(), m_cur_seq_num - 1);
     }

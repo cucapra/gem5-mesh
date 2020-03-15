@@ -632,6 +632,34 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (tid == 12) return;
   #endif
 
+  // // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
+  // // reset after the kernel is done
+  // // do before the function call so the arg stack frame is on the spad
+  // // store the the current spAddr to restore later 
+  // unsigned long long *spTop = getSpTop(ptid);
+  // // guess the remaining of the part of the frame that might be needed??
+  // spTop -= 4;
+
+  // unsigned long long stackLoc;
+  // asm volatile (
+  //   // copy part of the stack onto the scratchpad in case there are any loads to scratchpad right before
+  //   // function call
+  //   "ld t0, 0(sp)\n\t"
+  //   "sd t0, 0(%[spad])\n\t"
+  //   "ld t0, 8(sp)\n\t"
+  //   "sd t0, 8(%[spad])\n\t"
+  //   "ld t0, 16(sp)\n\t"
+  //   "sd t0, 16(%[spad])\n\t"
+  //   "ld t0, 24(sp)\n\t"
+  //   "sd t0, 24(%[spad])\n\t"
+  //   // save the stack ptr
+  //   "addi %[dest], sp, 0\n\t" 
+  //   // overwrite stack ptr
+  //   "addi sp, %[spad], 0\n\t"
+  //   : [dest] "=r" (stackLoc)
+  //   : [spad] "r" (spTop)
+  // );
+
   // configure
   #ifndef USE_VECTOR_SIMD
   VECTOR_EPOCH(mask);
@@ -647,59 +675,20 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef USE_VECTOR_SIMD
   // if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
   if (ptid != 3) {
-  // // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
-  // // reset after the kernel is done
-  // // do before the function call so the arg stack frame is on the spad
-  // unsigned long long stackLoc;
-  // asm volatile (
-  //   "addi %[dest], sp, 0\n\t" : [dest] "=r" (stackLoc)
-  // );
-
-  // store the the current spAddr to restore later 
-  // TODO not sure what happens if try to store 64bit data, so cast to 32 or can store to two addresses
-  unsigned long long *spTop = getSpTop(ptid);
-  // guess the remaining of the part of the frame that might be needed??
-  spTop -= 4;
-
-  unsigned long long stackLoc;
-  asm volatile (
-    // copy part of the stack onto the scratchpad in case there are any loads to scratchpad right before
-    // function call
-    "ld t0, 0(sp)\n\t"
-    "sd t0, 0(%[spad])\n\t"
-    "ld t0, 8(sp)\n\t"
-    "sd t0, 8(%[spad])\n\t"
-    "ld t0, 16(sp)\n\t"
-    "sd t0, 16(%[spad])\n\t"
-    "ld t0, 24(sp)\n\t"
-    "sd t0, 24(%[spad])\n\t"
-    // save the stack ptr
-    "addi %[dest], sp, 0\n\t" 
-    // overwrite stack ptr
-    "addi sp, %[spad], 0\n\t"
-    : [dest] "=r" (stackLoc)
-    : [spad] "r" (spTop)
-  );
-
-
-  // there's a couple loads to the previous stack pointer happening after we do the mov
-  // also tons of things are reording around the move
-
-  vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, mask, is_da);
-
-  // restore stack pointer
-  // unsigned long long restoredStackLoc = spTop[0];
-  asm volatile (
-    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
-  );
-
-
+    // there's a couple loads to the previous stack pointer happening after we do the mov
+    // also tons of things are reording around the move
+    vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, mask, is_da);
   }
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   // deconfigure
   VECTOR_EPOCH(0);
   #endif
+
+  // // restore stack pointer
+  // asm volatile (
+  //   "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
+  // );
 
 }
 

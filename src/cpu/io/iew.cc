@@ -475,7 +475,7 @@ IEW::doIssue()
 
     }
 
-    if (m_cpu_p->getEarlyVector()->isSlave()) DPRINTF(Mesh, "issue %s\n", inst->toString(true));
+    // if (m_cpu_p->getEarlyVector()->isSlave()) DPRINTF(Mesh, "issue %s\n", inst->toString(true));
 
     // Add the instruction to ROB
     m_robs[tid]->push(inst);
