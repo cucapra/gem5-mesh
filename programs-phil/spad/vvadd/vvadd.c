@@ -611,6 +611,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
         (pdim_x << FET_XLEN_SHAMT) | (pdim_x << FET_YLEN_SHAMT);
   #endif
   #else
+  // volatile so dont reorder this function call
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
   #endif
 
@@ -630,52 +631,22 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // only let certain tids continue
   #ifdef VEC_SIZE_4_DA
   if (tid == 12) return;
-  #endif
-
-  // // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
-  // // reset after the kernel is done
-  // // do before the function call so the arg stack frame is on the spad
-  // // store the the current spAddr to restore later 
-  // unsigned long long *spTop = getSpTop(ptid);
-  // // guess the remaining of the part of the frame that might be needed??
-  // spTop -= 4;
-
-  // unsigned long long stackLoc;
-  // asm volatile (
-  //   // copy part of the stack onto the scratchpad in case there are any loads to scratchpad right before
-  //   // function call
-  //   "ld t0, 0(sp)\n\t"
-  //   "sd t0, 0(%[spad])\n\t"
-  //   "ld t0, 8(sp)\n\t"
-  //   "sd t0, 8(%[spad])\n\t"
-  //   "ld t0, 16(sp)\n\t"
-  //   "sd t0, 16(%[spad])\n\t"
-  //   "ld t0, 24(sp)\n\t"
-  //   "sd t0, 24(%[spad])\n\t"
-  //   // save the stack ptr
-  //   "addi %[dest], sp, 0\n\t" 
-  //   // overwrite stack ptr
-  //   "addi sp, %[spad], 0\n\t"
-  //   : [dest] "=r" (stackLoc)
-  //   : [spad] "r" (spTop)
-  // );
-
-  // configure
-  #ifndef USE_VECTOR_SIMD
-  VECTOR_EPOCH(mask);
+  #elif defined(USE_VECTOR_SIMD)
+  if (ptid == 3) return;
   #endif
 
   // run the actual kernel with the configuration
   #ifdef UNROLL
-  volatile int unroll_len = REGION_SIZE / 2;
+  int unroll_len = REGION_SIZE / 2;
   #else
-  volatile int unroll_len = 1;
+  int unroll_len = 1;
   #endif
 
-  #ifdef USE_VECTOR_SIMD
-  // if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
-  if (ptid != 3) {
-      unsigned long long *spTop = getSpTop(ptid);
+  // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
+  // reset after the kernel is done
+  // do before the function call so the arg stack frame is on the spad
+  // store the the current spAddr to restore later 
+  unsigned long long *spTop = getSpTop(ptid);
   // guess the remaining of the part of the frame that might be needed??
   spTop -= 4;
 
@@ -698,25 +669,24 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     : [dest] "=r" (stackLoc)
     : [spad] "r" (spTop)
   );
-    // there's a couple loads to the previous stack pointer happening after we do the mov
-    // also tons of things are reording around the move
-    vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, mask, is_da);
 
-      // restore stack pointer
-  asm volatile (
-    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
-  );
-  }
+  // configure
+  #ifndef USE_VECTOR_SIMD
+  VECTOR_EPOCH(mask);
+  #endif
+
+  #ifdef USE_VECTOR_SIMD
+  vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, mask, is_da);
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   // deconfigure
   VECTOR_EPOCH(0);
   #endif
 
-  // // restore stack pointer
-  // asm volatile (
-  //   "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
-  // );
+  // restore stack pointer
+  asm volatile (
+    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
+  );
 
 }
 
