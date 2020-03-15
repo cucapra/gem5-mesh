@@ -364,6 +364,12 @@ Vector::forwardInstruction(const IODynInstPtr& inst) {
   // check whether this stage is allowed to forward to the mesh net
   if (!canWriteMesh()) return;
 
+  // find each direction to send a packet to
+  std::vector<Mesh_DS_t> out;
+  MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
+  // ret if no directions
+  if (out.size() == 0) return;
+
   // if we are now in decoupled access mode, we don't send instructions anymore, just PCs?
   // could potentially send both if have explicit vector and scalar instruction
   VecInstSel::MasterData forwardInst;
@@ -413,17 +419,11 @@ Vector::forwardInstruction(const IODynInstPtr& inst) {
   // if (instInfo.isInst && instInfo.inst->static_inst_p->isVectorIssue()) {
   //   forwardInst = MasterData(instInfo.inst->branchTarget());
   // }
-
-  // find each direction to send a packet to
-  std::vector<Mesh_DS_t> out;
-  MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
   
-  if (out.size() > 0) {
-    if (forwardInst.isInst)
-      DPRINTF(Mesh, "Forward to mesh net %s\n", forwardInst.inst->toString(true));
-    else
-      DPRINTF(Mesh, "Forward to mesh net %#x\n", forwardInst.pc.instAddr());
-  }
+  if (forwardInst.isInst)
+    DPRINTF(Mesh, "Forward to mesh net %s\n", forwardInst.inst->toString(true));
+  else
+    DPRINTF(Mesh, "Forward to mesh net %#x\n", forwardInst.pc.instAddr());
   
   // send a packet in each direction
   for (int i = 0; i < out.size(); i++) {

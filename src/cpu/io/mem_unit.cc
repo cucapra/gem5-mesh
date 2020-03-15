@@ -686,8 +686,6 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // allow load to issue to spad without getting any acks the load is there
     m_s1_inst->mem_req_p->spadSpec  = m_s1_inst->static_inst_p->isSpadSpeculative();
 
-    if (spadPrefetch) assert(m_s1_inst->isStore() && !is_load);
-
     // this memory will be deleted together with the dynamic instruction
     m_s1_inst->mem_data_p = new uint8_t[size];
 

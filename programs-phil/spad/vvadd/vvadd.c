@@ -23,7 +23,7 @@
 // #define SIM_DA_VLOAD_SIZE_1 1
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
 
 // vvadd_execute config directives
