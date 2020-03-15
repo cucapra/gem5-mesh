@@ -618,8 +618,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // a spad prefetch can be turned into a spad reset if in trace mode
     bool spadPrefetch = m_s1_inst->static_inst_p->isSpadPrefetch();
     // TODO depcreate what even is this?
-    bool spadReset = spadPrefetch; // always do reset on prefetch && MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
-    m_s1_inst->mem_req_p->spadReset = spadReset;
+    // bool spadReset = spadPrefetch; // always do reset on prefetch && MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
+    // m_s1_inst->mem_req_p->spadReset = spadReset;
     // give an epoch number as data if this will be a reset instruction
     // included as seperate field, but in practice would send on data lines
     // if (spadPrefetch) {
@@ -655,7 +655,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     bool dAccess  = vec && vec->isDecoupledAccess();
     bool master   = vec && vec->isRootMaster();
     bool solo     = !(vec && vec->getConfigured()) || (vec && !vec->hasForwardingPath());
-    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || dAccess || master || solo );
+    m_s1_inst->mem_req_p->isSpadPrefetch = spadPrefetch && ( diverged || dAccess || master || solo );
 
 
 
@@ -671,7 +671,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->yDim = m_cpu_p->getEarlyVector()->getYLen();
       m_s1_inst->mem_req_p->xOrigin = m_cpu_p->getEarlyVector()->getXOrigin();
       m_s1_inst->mem_req_p->yOrigin = m_cpu_p->getEarlyVector()->getYOrigin();
-      m_s1_inst->mem_req_p->fromDecoupledAccess = dAccess;
+      // m_s1_inst->mem_req_p->fromDecoupledAccess = dAccess;
       DPRINTF(Mesh, "[%s] send vec load %#x to %#x, (%d,%d)\n", m_s1_inst->toString(true), 
           addr, m_s1_inst->mem_req_p->prefetchAddr , m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
     }
@@ -680,7 +680,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->yDim = 1;
       m_s1_inst->mem_req_p->xOrigin = 0;
       m_s1_inst->mem_req_p->yOrigin = 0;
-      m_s1_inst->mem_req_p->fromDecoupledAccess = false;
+      // m_s1_inst->mem_req_p->fromDecoupledAccess = false;
     }
     
     // allow load to issue to spad without getting any acks the load is there

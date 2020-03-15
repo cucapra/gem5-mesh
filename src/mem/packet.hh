@@ -789,7 +789,7 @@ class Packet : public Printable
     /**
      * Accessor to whether req from decoupled access core
      */ 
-    bool getFromDecoupledAccess() const { return req->fromDecoupledAccess; }
+    // bool getFromDecoupledAccess() const { return req->fromDecoupledAccess; }
     
     /**
      * Accessor to prefetch address
@@ -800,7 +800,6 @@ class Packet : public Printable
      * Accessor to spec flags
      */ 
     bool getSpecSpad() const { return req->spadSpec; }
-    bool getSpadReset() const { return req->spadReset; }
     
     /**
      * Accessor to epoch
@@ -810,7 +809,7 @@ class Packet : public Printable
     /**
      * Accessor to sp load req type
      */ 
-    bool isSpLoad() const { return req->isSpLoad; }
+    bool isSpadPrefetch() const { return req->isSpadPrefetch; }
 
     // packet type for processing scratchpad
     typedef enum RespPktType {
