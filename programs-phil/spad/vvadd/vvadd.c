@@ -133,7 +133,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // issue header instructions
   ISSUE_VINST(fable0);
 
-  int localIter = beginIter;
+  int localIter = beginIter * 2;
   for (int i = beginIter; i < totalIter; i++) {
     #ifdef SIMD_BCAST
     // broadcast values needed to execute
@@ -145,10 +145,10 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     ISSUE_VINST(fable1);
 
     // prefetch for future iterations
-    VPREFETCH(spadAddr + localIter * 2 + 0, a + start + (i * dim), 0);
-    VPREFETCH(spadAddr + localIter * 2 + 1, b + start + (i * dim), 0);
-    localIter++;
-    if (localIter == NUM_REGIONS) {
+    VPREFETCH(spadAddr + localIter + 0, a + start + (i * dim), 0);
+    VPREFETCH(spadAddr + localIter + 1, b + start + (i * dim), 0);
+    localIter+=2;
+    if (localIter == (NUM_REGIONS * 2)) {
       localIter = 0;
     }
   }
