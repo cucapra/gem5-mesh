@@ -23,7 +23,7 @@
 // #define SIM_DA_VLOAD_SIZE_1 1
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
-// #define VEC_4_SIMD 1
+#define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
 
 // vvadd_execute config directives
@@ -133,9 +133,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // issue header instructions
   ISSUE_VINST(fable0);
 
-  int globalIter = beginIter;
-  int localIter  = beginIter;
-  for (int i = 0; i < totalIter; i++) {
+  for (int i = beginIter; i < totalIter; i++) {
     #ifdef SIMD_BCAST
     // broadcast values needed to execute
     // in this case the spad loc
@@ -146,12 +144,14 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     ISSUE_VINST(fable1);
 
     // prefetch for future iterations
-    if (globalIter < totalIter) {
-      VPREFETCH(spadAddr + localIter * 2 + 0, a + start + (globalIter * dim), 0);
-      VPREFETCH(spadAddr + localIter * 2 + 1, b + start + (globalIter * dim), 0);
-      globalIter++;
-      localIter = globalIter % NUM_REGIONS;
-    }
+    int localIter = i % NUM_REGIONS;
+    VPREFETCH(spadAddr + localIter * 2 + 0, a + start + (i * dim), 0);
+    VPREFETCH(spadAddr + localIter * 2 + 1, b + start + (i * dim), 0);
+  }
+
+  // issue the rest
+  for (int i = totalIter - beginIter; i < totalIter; i++) {
+    ISSUE_VINST(fable1);
   }
 
   // devec with unique tag
