@@ -23,7 +23,7 @@
 // #define SIM_DA_VLOAD_SIZE_1 1
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
 
 // vvadd_execute config directives
@@ -134,11 +134,16 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   ISSUE_VINST(fable0);
 
   int localIter = beginIter * 2;
+
+  #ifdef SIMD_BCAST
+  int deviceIter = 0;
+  #endif
+
   for (int i = beginIter; i < totalIter; i++) {
     #ifdef SIMD_BCAST
     // broadcast values needed to execute
     // in this case the spad loc
-    BROADCAST(t0, (i % NUM_REGIONS) * 2, 0);
+    BROADCAST(t0, deviceIter, 0);
     #endif
 
     // issue fable1
@@ -151,11 +156,29 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     if (localIter == (NUM_REGIONS * 2)) {
       localIter = 0;
     }
+
+    #ifdef SIMD_BCAST
+    deviceIter+=2;
+    if (deviceIter == (NUM_REGIONS * 2)) {
+      deviceIter = 0;
+    }
+    #endif
   }
 
   // issue the rest
   for (int i = totalIter - beginIter; i < totalIter; i++) {
+    #ifdef SIMD_BCAST
+    BROADCAST(t0, deviceIter, 0);
+    #endif
+
     ISSUE_VINST(fable1);
+
+    #ifdef SIMD_BCAST
+    deviceIter+=2;
+    if (deviceIter == (NUM_REGIONS * 2)) {
+      deviceIter = 0;
+    }
+    #endif
   }
 
   // devec with unique tag
