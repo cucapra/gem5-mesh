@@ -228,7 +228,7 @@ gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
     j_st=0;
 
     // need this jump to create loop carry dependencies, but this should be remove later
-    //asm volatile goto("j %l[fable1]\n\t"::::fable1);
+    asm volatile goto("j %l[fable1]\n\t"::::fable1);
 
   return;
 }
