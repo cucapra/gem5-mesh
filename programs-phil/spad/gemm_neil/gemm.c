@@ -8,7 +8,7 @@
 
 //  #define VPF
 // #define _VEC
-//#define USE_VECTOR_SIMD
+#define USE_VECTOR_SIMD
 
 #ifdef USE_VECTOR_SIMD
 #define VPF
@@ -127,11 +127,12 @@ gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
             ISSUE_VINST(fable5);
             
           }
+          ISSUE_VINST(fable6);
       }
 
-      ISSUE_VINST(fable6);
+      ISSUE_VINST(fable7);
     }
-    ISSUE_VINST(fable7);
+    ISSUE_VINST(fable8);
   }
 
   // devec with unique tag
@@ -148,17 +149,11 @@ gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
 
   //vector region
 
-  DTYPE *sp_a,*sp_b,*sp_c;
-  int tid_x;
-  int tid_y;
+  DTYPE *sp_c;
   int i,j;
   int which_sp_a,sp_offset_a;
   int which_sp_b,sp_offset_b;
-  int spadRegion;
   DTYPE a_,b_;
-  int a_cache_size; 
-  int b_cache_size;
-  int c_block_size; 
 
   int i_st, j_st;
 
@@ -168,7 +163,7 @@ gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
     tid_x = tid%dim_x;
     tid_y = tid/dim_y;
     spadRegion = 0;
-    DTYPE *sp_all[4] = {(DTYPE*)getSpAddr(0,0),(DTYPE*)getSpAddr(1,0),(DTYPE*)getSpAddr(2,0),(DTYPE*)getSpAddr(3,0)};
+    //DTYPE *sp_all[4] = {(DTYPE*)getSpAddr(0,0),(DTYPE*)getSpAddr(1,0),(DTYPE*)getSpAddr(2,0),(DTYPE*)getSpAddr(3,0)};
     sp_c = spAddr + NUM_REGIONS*REGION_SIZE;
 
     a_cache_size = REGION_SIZE/2; 
@@ -208,7 +203,7 @@ gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
     j=0;
 
     // need this jump to create loop carry dependencies, but this should be remove later
-    asm volatile goto("j %l[fable2]\n\t"::::fable2);
+    //asm volatile goto("j %l[fable2]\n\t"::::fable2);
 
   fable4:
     i=0;
@@ -218,15 +213,22 @@ gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
     STORE_NOACK(sp_c[_idx_(i,j,BLK_DIM)],c + _idx_(i+i_st, j+j_st, n), 0);
     sp_c[_idx_(i,j,BLK_DIM)]=0;
 
-    // need this jump to create loop carry dependencies, but this should be remove later
-    asm volatile goto("j %l[fable5]\n\t"::::fable5);
-
   fable6:
-    j_st++;
+    j=0;
+    i++;
+
+    // need this jump to create loop carry dependencies, but this should be remove later
+    //asm volatile goto("j %l[fable5]\n\t"::::fable5);
 
   fable7:
+    j_st++;
+
+  fable8:
     i_st++;
     j_st=0;
+
+    // need this jump to create loop carry dependencies, but this should be remove later
+    //asm volatile goto("j %l[fable1]\n\t"::::fable1);
 
   return;
 }
@@ -527,17 +529,36 @@ void kernel(
   #endif
   #endif
 
+  
+  
+  int vtid=0;
+  int is_da=0;
+  int vtid_x,vtid_y;
+  
+  int tid = tid_x + tid_y * dim_x;
+  #if defined USE_VECTOR_SIMD
+  if (tid == 1) vtid = 0;
+  if (tid == 2) vtid = 1;
+  if (tid == 5) vtid = 2;
+  if (tid == 6) vtid = 3;
+  if (tid == 0) is_da = 1;
+  int orig_x = 1;
+  int orig_y = 0;
+  int master_x = 0;
+  int master_y = 0;
+
+  vtid_x = vtid % dim_x;
+  vtid_y = vtid / dim_y;
+  #else
   // start recording all stats (all cores)
   // use the last thread, b/c this wakes up last?
   if (tid_x == 0 && tid_y == 0) {
     stats_on();
   }
-  
-  
-  
-  int tid = tid_x + tid_y * dim_x;
+
   int orig_x = 0;
   int orig_y = 0; //only have 1 group for now
+  #endif
   
   //printf("iterations %d %d\n", n_end - n_start, m_end - m_start);
 
@@ -561,6 +582,8 @@ void kernel(
   //pthread_barrier_wait(&start_barrier);
   // deconfigure
   VECTOR_EPOCH(0);
+  #elif defined USE_VECTOR_SIMD
+  int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, dim_x, dim_y, is_da);
   #else
   gemm(a, b, c, m, n, t, m_start, m_end, n_start, n_end, tid);
   #endif
