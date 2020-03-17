@@ -584,6 +584,8 @@ void kernel(
   VECTOR_EPOCH(0);
   #elif defined USE_VECTOR_SIMD
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, dim_x, dim_y, is_da);
+  VECTOR_EPOCH(mask);
+  gemm_vec(a, b, c, m, n, t, m_start, m_end, n_start, n_end, vtid);
   #else
   gemm(a, b, c, m, n, t, m_start, m_end, n_start, n_end, tid);
   #endif
