@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < sizeC; i++)
     c[i] = 0;
 
-  #if defined _VEC && defined VPF
+  #if (defined(_VEC) && defined(VEC_PFETCH)) || defined(USE_VECTOR_SIMD)
   //do transpose of a for contiguous access
   DTYPE *a_= (DTYPE*)malloc(sizeof(DTYPE) * sizeA);
   DTYPE *_temp;
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
   /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
-  #if defined _VEC && defined VPF
+  #if (defined(_VEC) && defined(VEC_PFETCH)) || defined(USE_VECTOR_SIMD)
   a = a_;
   #endif
   

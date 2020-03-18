@@ -172,7 +172,7 @@ make_flags_vvadd = [
 
 # make_flags_gemm = ["UNBLOCKED_INNER", "BLOCKED", "INTERLEAVED", "UNBLOCKED_OUTER"]
 # make_flags_gemm = ["VPF", "SP", "DRAM"]
-make_flags_gemm = ["VPF"]
+make_flags_gemm = ["USE_VECTOR_SIMD"]
 # program = "vvadd"
 program = "gemm"
 
