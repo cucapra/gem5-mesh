@@ -389,6 +389,10 @@ IEW::doIssue()
       // m_cpu_p->getRename()->renameDestRegs(inst, inst->thread_id);
 
       // need to remove rename?
+      // a potential bug where the instruction in rename this cycle might use
+      // the this instructions value to rename...
+      // but maybe guarenteed that the next instruction is either also going to have its regs freed
+      // or cmp inst.? but with if cmp tries to use this
       // like rename()->readInfo()
     }
 
