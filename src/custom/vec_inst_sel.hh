@@ -80,7 +80,7 @@ class VecInstSel : public Named {
     void tryReqNextUop();
     void sendICacheReq(int tid, Addr instAddr);
     int extractInstCntFromVissue(IODynInstPtr inst);
-    void processHead(std::shared_ptr<MasterData> cmd);
+    void processHead();
     void enqueueCmd();
     // will have opening in queue by the end of this cycle
     bool willHaveOpening();

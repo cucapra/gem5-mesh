@@ -39,7 +39,8 @@ IODynInst::IODynInst(const StaticInstPtr& static_inst,
       issue_cycles(0),
       execute_cycles(0),
       write_cycles(0),
-      commit_cycles(0)
+      commit_cycles(0),
+      broadcast_val(0)
 { 
 
   master_info.fill(0);

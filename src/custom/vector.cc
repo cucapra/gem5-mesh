@@ -375,6 +375,12 @@ Vector::forwardInstruction(const IODynInstPtr& inst) {
   // check whether this stage is allowed to forward to the mesh net
   if (!canWriteMesh()) return;
 
+  // find each direction to send a packet to
+  std::vector<Mesh_DS_t> out;
+  MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
+  // ret if no directions
+  if (out.size() == 0) return;
+
   // if we are now in decoupled access mode, we don't send instructions anymore, just PCs?
   // could potentially send both if have explicit vector and scalar instruction
   VecInstSel::MasterData forwardInst;
@@ -384,6 +390,28 @@ Vector::forwardInstruction(const IODynInstPtr& inst) {
 
     // also send instruction for ease of access tho
     forwardInst.inst  = inst;
+  }
+  else if (inst->static_inst_p->isBroadcast()) {
+    // create new instruction that does a load immediate of the value computed
+    // for not just use immediate in addiw, but could have a load lower immediate custom inst
+    uint32_t opcode = 0x1b; //7bits
+    uint32_t funct3 = 0x0;
+    uint32_t dest_reg = inst->destRegIdx(0).index(); //5bits
+    uint32_t src_reg = 0;
+    uint32_t imm = inst->broadcast_val; // 20bits -- def bitfield IMM20  <31:12>;
+    RiscvISA::MachInst mach_inst = 0x0;
+    mach_inst |= opcode;
+    mach_inst |= (funct3 << 12);
+    mach_inst |= (src_reg << 15);
+    mach_inst |= (dest_reg << 7);
+    mach_inst |= (imm << 20);
+    RiscvISA::Decoder decoder;
+    StaticInstPtr static_inst = decoder.decode(mach_inst, 0x0);
+    IODynInstPtr forged_inst =
+        std::make_shared<IODynInst>(static_inst, inst->pc, inst->seq_num, inst->thread_id, m_cpu_p);
+    forwardInst.inst = forged_inst;
+
+    DPRINTF(Mesh, "forged inst %s from machinst %#x imm %#x\n", forged_inst->toString(true), mach_inst, imm);
   }
   else if (isDecoupledAccess()) {
     return;
@@ -402,17 +430,11 @@ Vector::forwardInstruction(const IODynInstPtr& inst) {
   // if (instInfo.isInst && instInfo.inst->static_inst_p->isVectorIssue()) {
   //   forwardInst = MasterData(instInfo.inst->branchTarget());
   // }
-
-  // find each direction to send a packet to
-  std::vector<Mesh_DS_t> out;
-  MeshHelper::csrToOutSrcs(RiscvISA::MISCREG_FETCH, _curCsrVal, out);
   
-  if (out.size() > 0) {
-    if (forwardInst.isInst)
-      DPRINTF(Mesh, "Forward to mesh net %s\n", forwardInst.inst->toString(true));
-    else
-      DPRINTF(Mesh, "Forward to mesh net %#x\n", forwardInst.pc.instAddr());
-  }
+  if (forwardInst.isInst)
+    DPRINTF(Mesh, "Forward to mesh net %s\n", forwardInst.inst->toString(true));
+  else
+    DPRINTF(Mesh, "Forward to mesh net %#x\n", forwardInst.pc.instAddr());
   
   // send a packet in each direction
   for (int i = 0; i < out.size(); i++)

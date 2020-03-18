@@ -64,6 +64,12 @@
 #define PREFETCH_EPOCH(val) \
   asm volatile ("csrw 0x402, %[x]\n\t" :: [x] "r" (val))
   
+#define BROADCAST(dest_reg, val, imm) \
+  asm volatile (".insn i 0x1b, 0x6, " #dest_reg ", %[src_reg], %[imm_val]\n\t" \
+    :: [src_reg] "r" (val), [imm_val] "i" (imm)                                \
+  )
+
+
   // revec instruction with unique hash id
 /*#define REVEC(hash)                                                           \
   asm volatile ("" ::: "memory");                                             \

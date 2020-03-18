@@ -262,6 +262,12 @@ def adjust_vissue_label(vissue_line):
         if (line_label == vissue_table[vissue_line]['label']):
             found_label = True
             print('found start adjust {}'.format(line))
+
+            # if this label already has a backedge, stay there
+            if (has_backedge(line_label)):
+                print('stay at label b/c already backedge {}'.format(line))
+                return
+
             continue
 
         if (found_label):

@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdint.h>
 
 #include "pthread_launch.h"
 #include "vvadd.h"
@@ -22,7 +23,8 @@
 // #define SIM_DA_VLOAD_SIZE_1 1
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
+// #define VEC_4_SIMD_BCAST 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC) || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD)
@@ -30,7 +32,7 @@
 #endif
 #if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) \
   || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_4_DA_SMALL_FRAME) \
-  || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD) || defined(VEC_4_SIMD)
+  || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD) || defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
 #define USE_VEC 1
 #endif
 #if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) \
@@ -40,7 +42,7 @@
 #if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
 #define USE_DA 1
 #endif
-#if defined(VEC_4_SIMD)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
 #define USE_VECTOR_SIMD 1
 #endif
 #if !defined(UNROLL) && !defined(USE_NORMAL_LOAD)
@@ -51,6 +53,9 @@
 #endif
 #if !defined(USE_VEC) && defined(NO_VEC_W_VLOAD)
 #define FORCE_VEC_LOAD 1
+#endif
+#if defined(VEC_4_SIMD_BCAST)
+#define SIMD_BCAST 1
 #endif
 
 // vector grouping directives
@@ -63,7 +68,7 @@
 #if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
 #define VEC_SIZE_4_DA 1
 #endif
-#if defined(VEC_4_SIMD)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
 #define VEC_SIZE_4_SIMD 1
 #endif
 
@@ -111,11 +116,6 @@ inline int min(int a, int b) {
 void __attribute__((optimize("-fno-reorder-blocks")))
 vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
-  // start recording all stats (all cores)
-  if (ptid == 0) {
-    stats_on();
-  }
-
   int *spadAddr = (int*)getSpAddr(ptid, 0);
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
@@ -133,38 +133,67 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // issue header instructions
   ISSUE_VINST(fable0);
 
-  int region = beginIter;
-  // int region = 0;
-  for (int i = 0; i < totalIter; i++) {
+  int localIter = beginIter * 2;
+
+  #ifdef SIMD_BCAST
+  int deviceIter = 0;
+  #endif
+
+  for (int i = beginIter; i < totalIter; i++) {
+    #ifdef SIMD_BCAST
+    // broadcast values needed to execute
+    // in this case the spad loc
+    BROADCAST(t0, deviceIter, 0);
+    #endif
+
     // issue fable1
     ISSUE_VINST(fable1);
 
-    // do stuff in between (PREFETCHING, CONTROL, ?? SCALAR VALUE??)
-    if (region < totalIter) {
-      VPREFETCH(spadAddr + region * 2 + 0, a + start + (region * dim), 0);
-      VPREFETCH(spadAddr + region * 2 + 1, b + start + (region * dim), 0);
-      region++;
-      if (region == NUM_REGIONS) {
-        region = 0;
-      }
+    // prefetch for future iterations
+    VPREFETCH(spadAddr + localIter + 0, a + start + (i * dim), 0);
+    VPREFETCH(spadAddr + localIter + 1, b + start + (i * dim), 0);
+    localIter+=2;
+    if (localIter == (NUM_REGIONS * 2)) {
+      localIter = 0;
     }
+
+    #ifdef SIMD_BCAST
+    deviceIter+=2;
+    if (deviceIter == (NUM_REGIONS * 2)) {
+      deviceIter = 0;
+    }
+    #endif
+  }
+
+  // issue the rest
+  for (int i = totalIter - beginIter; i < totalIter; i++) {
+    #ifdef SIMD_BCAST
+    BROADCAST(t0, deviceIter, 0);
+    #endif
+
+    ISSUE_VINST(fable1);
+
+    #ifdef SIMD_BCAST
+    deviceIter+=2;
+    if (deviceIter == (NUM_REGIONS * 2)) {
+      deviceIter = 0;
+    }
+    #endif
   }
 
   // devec with unique tag
   DEVEC(devec_0);
 
+  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
   asm volatile("fence\n\t");
-
-  if (ptid == 6) {
-    stats_off();
-  }
 
   return;
 
   // vector engine code
 
   // declarations
-  int a_, b_, c_, iter;
+  DTYPE a_, b_, c_;
+  int64_t iter; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
 
   // entry block
@@ -175,18 +204,34 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   
   // loop body block
   fable1:
-    LWSPEC(a_, spadAddr + iter * 2, 0);
-    LWSPEC(b_, spadAddr + iter * 2 + 1, 0);
+    #ifdef SIMD_BCAST
+    // try to get compiler to use register that will recv broadcasted values
+    // can make compiler pass
+    asm volatile(
+      "add %[var], t0, x0\n\t"
+      : [var] "=r" (iter)
+    );
+    #endif
+
+    // load values from scratchpad
+    LWSPEC(a_, spadAddr + iter, 0);
+    LWSPEC(b_, spadAddr + iter + 1, 0);
+
     // remem as soon as possible, so don't stall loads for next iterations
     // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
     REMEM(0);
+
+    // compute and store
     c_ = a_ + b_;
-    // cPtr[iter * dim] = c_;
-    STORE_NOACK(c_, cPtr + iter * dim, 0);
-    iter = (iter + 1) % NUM_REGIONS;
+    STORE_NOACK(c_, cPtr, 0);
+    cPtr += dim;
 
+    #ifndef SIMD_BCAST
+    iter = (iter + 2) % (NUM_REGIONS * 2);
+    #endif
 
-    // need this jump to create loop carry dependencies, but this should be remove later
+    // need this jump to create loop carry dependencies
+    // an assembly pass will remove this instruction
     asm volatile goto("j %l[fable1]\n\t"::::fable1);
 
   return;
@@ -348,10 +393,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *b, DTYPE *c, int n,
     int tid_x, int tid_y, int dim_x, int dim_y) {
   
-  // // start recording all stats (all cores)
-  // if (tid_x == 0 && tid_y == 0) {
-  //   stats_on();
-  // }
+  // start recording all stats (all cores)
+  if (tid_x == 0 && tid_y == 0) {
+    stats_on();
+  }
 
   // linearize tid and dim
   int tid = tid_x + tid_y * dim_x;
@@ -503,7 +548,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = n; //roundUp(n / 3, alignment); // make sure aligned to cacheline 
+    end = roundUp(n / 3, alignment); // make sure aligned to cacheline 
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -517,8 +562,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 13) vtid = 3;
   if (ptid == 4) is_da = 1;
   if (ptid == 4 || ptid == 8 || ptid == 9 || ptid == 12 || ptid == 13) {
-    start = 0; //roundUp(n / 3, alignment);
-    end = n; //roundUp(2 * n / 3, alignment);
+    start = roundUp(n / 3, alignment);
+    end = roundUp(2 * n / 3, alignment);
     orig_x = 0;
     orig_y = 2;
     master_x = 0;
@@ -533,7 +578,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 15) vtid = 3;
   if (ptid == 7) is_da = 1;
   if (ptid == 7 || ptid == 10 || ptid == 11 || ptid == 14 || ptid == 15) {
-    start = 0; //roundUp(2 * n / 3, alignment);
+    start = roundUp(2 * n / 3, alignment);
     end = n;
     orig_x = 2;
     orig_y = 2;
@@ -584,6 +629,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
         (pdim_x << FET_XLEN_SHAMT) | (pdim_x << FET_YLEN_SHAMT);
   #endif
   #else
+  // volatile so dont reorder this function call
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
   #endif
 
@@ -603,32 +649,21 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // only let certain tids continue
   #ifdef VEC_SIZE_4_DA
   if (tid == 12) return;
-  #endif
-
-  // configure
-  #ifndef USE_VECTOR_SIMD
-  VECTOR_EPOCH(mask);
+  #elif defined(USE_VECTOR_SIMD)
+  if (ptid == 3) return;
   #endif
 
   // run the actual kernel with the configuration
   #ifdef UNROLL
-  volatile int unroll_len = REGION_SIZE / 2;
+  int unroll_len = REGION_SIZE / 2;
   #else
-  volatile int unroll_len = 1;
+  int unroll_len = 1;
   #endif
 
-  #ifdef USE_VECTOR_SIMD
-  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
-  // // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
-  // // reset after the kernel is done
-  // // do before the function call so the arg stack frame is on the spad
-  // unsigned long long stackLoc;
-  // asm volatile (
-  //   "addi %[dest], sp, 0\n\t" : [dest] "=r" (stackLoc)
-  // );
-
+  // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
+  // reset after the kernel is done
+  // do before the function call so the arg stack frame is on the spad
   // store the the current spAddr to restore later 
-  // TODO not sure what happens if try to store 64bit data, so cast to 32 or can store to two addresses
   unsigned long long *spTop = getSpTop(ptid);
   // guess the remaining of the part of the frame that might be needed??
   spTop -= 4;
@@ -653,25 +688,23 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     : [spad] "r" (spTop)
   );
 
+  // configure
+  #ifndef USE_VECTOR_SIMD
+  VECTOR_EPOCH(mask);
+  #endif
 
-  // there's a couple loads to the previous stack pointer happening after we do the mov
-  // also tons of things are reording around the move
-
+  #ifdef USE_VECTOR_SIMD
   vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, mask, is_da);
-
-  // restore stack pointer
-  // unsigned long long restoredStackLoc = spTop[0];
-  asm volatile (
-    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
-  );
-
-
-  }
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   // deconfigure
   VECTOR_EPOCH(0);
   #endif
+
+  // restore stack pointer
+  asm volatile (
+    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
+  );
 
 }
 
@@ -708,9 +741,9 @@ void *pthread_kernel(void *args) {
       
   pthread_barrier_wait(&start_barrier);
 
-  // if (a->tid_x == 0 && a->tid_y == 0) {
-  //   stats_off();
-  // }
+  if (a->tid_x == 0 && a->tid_y == 0) {
+    stats_off();
+  }
 
   // BUG: note this printf fails if have the VECTOR_EPOCH(0), but mayber just timing thing
   // printf("ptid (%d,%d)\n", a->tid_x, a->tid_y);

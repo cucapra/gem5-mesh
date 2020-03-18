@@ -453,8 +453,8 @@ Scratchpad::wakeup()
         else
           enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Patron_Resp);
       
-        // delete the pending packet
-        m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
+        // delete the pending packet // why would there be a pending pkt for this?
+        // m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
         m_mem_resp_buffer_p->dequeue(clockEdge());
 
     } /*else if (m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 0 && 
@@ -722,13 +722,13 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // core but rather just update info in the spad
     // TODO currently checking normal pkt map, should we make our own so that can be
     // unlimited pending? doesn't seem like the spad has to track anything for a pending load?
-    bool isPrefetch = pkt_p->getSpadReset();
-    bool noLLCAck = pkt_p->getFromDecoupledAccess() && isPrefetch;
-    bool pendingPktSpad = (m_pending_pkt_map.size() < m_max_num_pending_pkts) || !pkt_p->isSpLoad() || noLLCAck;
+    bool isPrefetch = pkt_p->isSpadPrefetch();
+    bool noLLCAck = isPrefetch;
+    bool pendingPktSpad = (m_pending_pkt_map.size() < m_max_num_pending_pkts) || noLLCAck;
     if (isPrefetch && pendingPktSpad) {
       // setWordNotRdy(pkt_p->getPrefetchAddr());
       
-      DPRINTF(Mesh, "reset word %#x\n", pkt_p->getPrefetchAddr());
+      // DPRINTF(Mesh, "reset word %#x\n", pkt_p->getPrefetchAddr());
       
       // deliver a response packet to the core that this was completed
       // but need to copy it because will be delete there
@@ -737,13 +737,6 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       m_cpu_resp_pkts.push_back(resp_pkt_p);
       if (!m_cpu_resp_event.scheduled())
         schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-      
-      // stop here if this is not going to be a load b/c this is from a trace
-      if (!pkt_p->isSpLoad()) {
-        //delete pkt_p;
-        return true;
-      }
-      
     }
     // // immedietly send an ACK back for a write if no syncronization is needed
     // // TODO mark writes as need sync or no need sync
@@ -795,7 +788,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // fake this to another scratchpad if decoupled access prefetch
       // m_machineID.num is just the flat scratchpad idx (0-numCores)
       // you also need to change PrefetchAddr to appropriate spad location of that core
-      if (pkt_p->getFromDecoupledAccess() && isPrefetch) {
+      if (isPrefetch) {
         int padOriginIdx = pkt_p->getXOrigin() + pkt_p->getYOrigin() * m_grid_dim_x;
         msg_p->m_Requestor.num = padOriginIdx;
         // add coreOffset << 12 to get the right spad address
@@ -825,7 +818,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
         } else {
           panic("Invalid LLSC packet\n");
         }
-      } else if (pkt_p->isSpLoad()) {
+      } else if (pkt_p->isSpadPrefetch()) {
         msg_p->m_Type = LLCRequestType_SPLOAD;
       } else if (pkt_p->isRead()) {   // Read
         assert(!pkt_p->isWrite());
@@ -849,6 +842,11 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
         m_cur_seq_num++;
       }
 
+      if (msg_p->m_SeqNum == 143 && m_cpu_p->cpuId() == 13) {
+        DPRINTF(Mesh, "Sent pkt %s to LLC seq_num %d\n",
+          pkt_p->print(), m_cur_seq_num - 1);
+        assert(m_pending_pkt_map.count(143) == 1);
+      }
       DPRINTF(Scratchpad, "Sent pkt %s to LLC seq_num %d\n",
                         pkt_p->print(), m_cur_seq_num - 1);
     }

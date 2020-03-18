@@ -285,8 +285,22 @@ void IEW::doWriteback()
         }
 
         // make sure all dest regs are marked as ready by exec units
-        for (int i = 0; i < inst->numDestRegs(); ++i)
-          assert(m_scoreboard_p->getReg(inst->renamedDestRegIdx(i)));
+        for (int i = 0; i < inst->numDestRegs(); ++i) {
+          if (!m_scoreboard_p->getReg(inst->renamedDestRegIdx(i))) {
+            DPRINTF(Mesh, "dest reg %i (%s) from inst %s not ready\n", 
+              inst->renamedDestRegIdx(i)->index(), inst->renamedDestRegIdx(i)->className(), inst->toString(true));
+            assert(0);
+          }
+        }
+
+        if (m_cpu_p->getEarlyVector()->isSlave() && inst->numDestRegs() > 0)
+          DPRINTF(Mesh, "writeback %s %lx\n", inst->toString(true), 
+            m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)));
+
+        // set values as temp renamed dest reg
+        if (inst->static_inst_p->isBroadcast()) {
+          inst->broadcast_val = m_cpu_p->readIntReg(inst->renamedDestRegIdx(0));
+        }
 
         // send instruction to Commit
         sendInstToNextStage(inst);
@@ -528,7 +542,13 @@ void IEW::doIssue()
     for (int i = 0; i < inst->numDestRegs(); ++i)
     {
       m_scoreboard_p->unsetReg(inst->renamedDestRegIdx(i));
+      // if (m_cpu_p->getEarlyVector()->isSlave())
+      //    DPRINTF(Mesh, "set dest reg %i (%s) from inst %s not ready\n", 
+      //         inst->renamedDestRegIdx(i)->index(), inst->renamedDestRegIdx(i)->className(), inst->toString(true));
+
     }
+
+    // if (m_cpu_p->getEarlyVector()->isSlave()) DPRINTF(Mesh, "issue %s\n", inst->toString(true));
 
     // Add the instruction to ROB
     m_robs[tid]->push(inst);

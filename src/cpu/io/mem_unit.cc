@@ -149,6 +149,10 @@ MemUnit::doAddrCalc()
     return;   // S1 is busy, so we stall S0
   }
 
+  if (m_s0_inst->static_inst_p->isSpadSpeculative()) 
+    DPRINTF(Mesh, "addr calc %s srcReg %lx\n", m_s0_inst->toString(true),
+      m_cpu_p->readIntReg(m_s0_inst->renamedSrcRegIdx(0)));
+
   // otherwise, simply move instruction from S0 to S1
   m_s1_inst = m_s0_inst;
   m_s0_inst = nullptr;
@@ -170,7 +174,7 @@ MemUnit::doTranslation()
   assert(m_st_queue.size() <= m_num_sq_entries);
 
   // check if S1 needs to stall this cycle b/c LQ is full
-  if ((m_s1_inst->isLoad() || m_s1_inst->static_inst_p->isSpadPrefetch()) && m_ld_queue.size() == m_num_lq_entries) {
+  if (m_s1_inst->isLoad() && m_ld_queue.size() == m_num_lq_entries) {
     DPRINTF(LSQ, "LQ is full. Stalling\n");
 #ifdef DEBUG
     m_status.set(Status::S1_Stalled);
@@ -209,6 +213,9 @@ MemUnit::doTranslation()
   m_translated_inst = m_s1_inst;
   m_status.set(S1_Busy);
 #endif
+
+  if (m_s1_inst->static_inst_p->isSpadSpeculative())
+    DPRINTF(Mesh, "translate %s\n", m_s1_inst->toString(true));
 
   // reset m_s1_inst
   m_s1_inst = nullptr;
@@ -263,8 +270,8 @@ MemUnit::tryLdIssue(size_t &num_issued_insts) {
       if (!m_cpu_p->getDataPort().sendTimingReq(pkt)) {
         
         DPRINTF(LSQ, "dcache is busy\n");
-        //if (inst->static_inst_p->isSpadSpeculative() || inst->static_inst_p->isSpadPrefetch()) 
-        //  DPRINTF(Mesh, "failed to send [%s]\n", inst->toString(true));
+        if (inst->static_inst_p->isSpadSpeculative()) 
+          DPRINTF(Mesh, "failed to send [%s]\n", inst->toString(true));
         // delete the pkt and we'll retry later
         delete pkt->popSenderState();
         delete pkt;
@@ -277,7 +284,7 @@ MemUnit::tryLdIssue(size_t &num_issued_insts) {
         DPRINTF(LSQ, "Sent request to memory for inst %s with addr %#x\n", inst->toString(true), pkt->getAddr());
         DPRINTF(LoadTrack, "Sent load request to memory for inst %s\n", inst->toString(true));
         
-        if (inst->srcRegIdx(0) == RegId(IntRegClass, RiscvISA::StackPointerReg) && m_cpu_p->getEarlyVector()->getConfigured()) 
+        if (m_cpu_p->getEarlyVector()->isSlave()) 
           DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
 
         // mark this inst as "issued to memory"
@@ -330,7 +337,7 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
         // an outstanding memory request to track
         m_store_diff_reg++;
         DPRINTF(LSQ, "Sent request to memory for inst %s with addr %#x\n", inst->toString(true), pkt->getAddr());
-        if (inst->srcRegIdx(0) == RegId(IntRegClass, RiscvISA::StackPointerReg) && m_cpu_p->getEarlyVector()->getConfigured()) 
+        if (m_cpu_p->getEarlyVector()->getConfigured()) 
           DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
 
         // mark this inst as "issued to memory"
@@ -503,6 +510,11 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
                       ss->inst->renamedDestRegIdx(i)->index(),
                       ss->inst->renamedDestRegIdx(i)->className());
         m_scoreboard_p->setReg(ss->inst->renamedDestRegIdx(i));
+        if (ss->inst->static_inst_p->isSpadSpeculative())
+          DPRINTF(Mesh, "%s Setting dest reg %i (%s) ready\n",
+                      ss->inst->toString(true),
+                      ss->inst->renamedDestRegIdx(i)->index(),
+                      ss->inst->renamedDestRegIdx(i)->className());
       }
     }
 
@@ -609,8 +621,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // a spad prefetch can be turned into a spad reset if in trace mode
     bool spadPrefetch = m_s1_inst->static_inst_p->isSpadPrefetch();
     // TODO depcreate what even is this?
-    bool spadReset = spadPrefetch; // always do reset on prefetch && MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
-    m_s1_inst->mem_req_p->spadReset = spadReset;
+    // bool spadReset = spadPrefetch; // always do reset on prefetch && MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
+    // m_s1_inst->mem_req_p->spadReset = spadReset;
     // give an epoch number as data if this will be a reset instruction
     // included as seperate field, but in practice would send on data lines
     // if (spadPrefetch) {
@@ -646,7 +658,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     bool dAccess  = vec && vec->isDecoupledAccess();
     bool master   = vec && vec->isRootMaster();
     bool solo     = !(vec && vec->getConfigured()) || (vec && !vec->hasForwardingPath());
-    m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || dAccess || master || solo );
+    m_s1_inst->mem_req_p->isSpadPrefetch = spadPrefetch && ( diverged || dAccess || master || solo );
 
 
 
@@ -662,7 +674,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->yDim = m_cpu_p->getEarlyVector()->getYLen();
       m_s1_inst->mem_req_p->xOrigin = m_cpu_p->getEarlyVector()->getXOrigin();
       m_s1_inst->mem_req_p->yOrigin = m_cpu_p->getEarlyVector()->getYOrigin();
-      m_s1_inst->mem_req_p->fromDecoupledAccess = dAccess;
+      // m_s1_inst->mem_req_p->fromDecoupledAccess = dAccess;
       DPRINTF(Mesh, "[%s] send vec load %#x to %#x, (%d,%d)\n", m_s1_inst->toString(true), 
           addr, m_s1_inst->mem_req_p->prefetchAddr , m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
     }
@@ -671,13 +683,11 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->yDim = 1;
       m_s1_inst->mem_req_p->xOrigin = 0;
       m_s1_inst->mem_req_p->yOrigin = 0;
-      m_s1_inst->mem_req_p->fromDecoupledAccess = false;
+      // m_s1_inst->mem_req_p->fromDecoupledAccess = false;
     }
     
     // allow load to issue to spad without getting any acks the load is there
     m_s1_inst->mem_req_p->spadSpec  = m_s1_inst->static_inst_p->isSpadSpeculative();
-
-    if (spadPrefetch) assert(m_s1_inst->isStore() && !is_load);
 
     // this memory will be deleted together with the dynamic instruction
     m_s1_inst->mem_data_p = new uint8_t[size];

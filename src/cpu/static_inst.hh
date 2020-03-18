@@ -211,6 +211,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isAckFree() const { return flags[IsAckFree]; }
     bool isRemem() const { return flags[IsRemem]; }
     bool isVectorIssue() const { return flags[IsVectorIssue]; }
+    bool isBroadcast() const { return flags[IsBroadcast]; }
 
     void setFirstMicroop() { flags[IsFirstMicroop] = true; }
     void setLastMicroop() { flags[IsLastMicroop] = true; }
