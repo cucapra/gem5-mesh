@@ -70,6 +70,10 @@ class IEW : public Stage
     /** Line trace */
     void linetrace(std::stringstream& ss) override;
 
+    /** Accessor to predicate */
+    bool getPred() const;
+    void setPred(bool val);
+
   private:
     enum IEWStatus {
       // Issue stage
@@ -145,6 +149,9 @@ class IEW : public Stage
 
     /** Global scoreboard (for all threads) */
     Scoreboard* m_scoreboard_p;
+
+    /** Predicate flag. If set and vec mode then do not perform effect of instruction */
+    bool m_pred_flag;
 
 #ifdef DEBUG
     /** Stage's status (for line trace) */

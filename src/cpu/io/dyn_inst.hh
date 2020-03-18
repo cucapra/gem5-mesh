@@ -544,6 +544,11 @@ public:
 
     // if going to broadcast save value computed during execute
     RegVal broadcast_val;
+
+    // pred flag when this instruction issues or before execution
+    // basically taking advantage of inorder issue to know if instruction ahead of this
+    // set pred flag
+    bool pred_at_issue;
 };
 
 typedef std::shared_ptr<IODynInst> IODynInstPtr;

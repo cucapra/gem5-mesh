@@ -34,7 +34,8 @@ IODynInst::IODynInst(const StaticInstPtr& static_inst,
       from_trace(false),
       replaced(false),
       cond_resolved(false),
-      broadcast_val(0)
+      broadcast_val(0),
+      pred_at_issue(true)
 { }
 
 IODynInst::~IODynInst()

@@ -809,6 +809,13 @@ decode QUADRANT default Unknown::unknown() {
                             Rd = Rs1%Rs2;
                         }
                     }}, IntDivOp);
+
+                    // rd should be x0 b/c using special register here
+                    // sets a single predicate flags that all instructions
+                    // will use to determine whether they should execute or not (in vector mode)
+                    0x5: cmp({{
+                        Rd = Rs1 == Rs2;
+                    }}, IsPredicate);
                 }
             }
         }
