@@ -463,4 +463,45 @@ IODynInst::checkTrace(bool local_taken, TheISA::PCState local_targ) {
 }
 
 
+// ripped directly from o3/dyn_inst.hh
+void
+IODynInst::forwardOldRegs() {
+  for (int idx = 0; idx < numDestRegs(); idx++) {
+    PhysRegIdPtr prev_phys_reg = prevDestRegIdx(idx);
+    const RegId& original_dest_reg = static_inst_p->destRegIdx(idx);
+    switch (original_dest_reg.classValue()) {
+      case IntRegClass:
+        setIntRegOperand(static_inst_p.get(), idx,
+                        m_cpu_p->readIntReg(prev_phys_reg));
+        break;
+      case FloatRegClass:
+        setFloatRegOperandBits(static_inst_p.get(), idx,
+                        m_cpu_p->readFloatReg(prev_phys_reg));
+        break;
+      case VecRegClass:
+        setVecRegOperand(static_inst_p.get(), idx,
+                        m_cpu_p->readVecReg(prev_phys_reg));
+        break;
+      case VecElemClass:
+        setVecElemOperand(static_inst_p.get(), idx,
+                        m_cpu_p->readVecElem(prev_phys_reg));
+        break;
+      case VecPredRegClass:
+        setVecPredRegOperand(static_inst_p.get(), idx,
+                        m_cpu_p->readVecPredReg(prev_phys_reg));
+        break;
+      case CCRegClass:
+        setCCRegOperand(static_inst_p.get(), idx,
+                        m_cpu_p->readCCReg(prev_phys_reg));
+        break;
+      case MiscRegClass:
+        // no need to forward misc reg values
+        break;
+      default:
+        panic("Unknown register class: %d",
+                (int)original_dest_reg.classValue());
+    }
+  }
+}
+
 

@@ -380,8 +380,13 @@ IEW::doIssue()
     // if active send thru execute unit as usual
     // if inactive send a noop thru 
     // unless a predication instructoin in which case we need to send
-    inst->pred_at_issue = getPred();
-    if (!inst->pred_at_issue) {
+    inst->pred_at_issue = m_pred_flag; //getPred();
+    if (!inst->pred_at_issue && !inst->static_inst_p->isPredicate()) {
+      // forward the value of the previous renamed reg for this one b/c there many be instructions
+      // that read this
+      inst->forwardOldRegs();
+      // can't do this b/c need to free renamed regs? but maybe kept apart of dyn_inst?
+      // do this to have this take 1 cycle in IntALU as a NOP
       inst->static_inst_p = StaticInst::nopStaticInstPtr;
 
       // do rename on regs again, not sure if needed b/c all zeros?
@@ -394,6 +399,8 @@ IEW::doIssue()
       // but maybe guarenteed that the next instruction is either also going to have its regs freed
       // or cmp inst.? but with if cmp tries to use this
       // like rename()->readInfo()
+
+      
     }
 
     OpClass op_class = inst->static_inst_p->opClass();
@@ -496,6 +503,20 @@ IEW::doIssue()
       //         inst->renamedDestRegIdx(i)->index(), inst->renamedDestRegIdx(i)->className(), inst->toString(true));
 
     }
+
+    // do the predication check right now
+    // in hardware would execute at beginning of next cycle and would have backwards path
+    // to issue??
+    // or could pick up pred flag at the beginning of execute?
+    // but cycle level modeling remains the same
+    if (inst->static_inst_p->isPredicate()) {
+      m_pred_flag = 
+        m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)) == m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1));
+    }
+
+    // if (inst->static_inst_p->isPredicate() || !m_pred_flag) {
+      // DPRINTF(Mesh, "inst %s pred %d\n", inst->toString(true), m_pred_flag);
+    // }
 
     // if (m_cpu_p->getEarlyVector()->isSlave()) DPRINTF(Mesh, "issue %s\n", inst->toString(true));
 

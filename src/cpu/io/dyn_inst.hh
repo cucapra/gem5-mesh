@@ -549,6 +549,9 @@ public:
     // basically taking advantage of inorder issue to know if instruction ahead of this
     // set pred flag
     bool pred_at_issue;
+
+    // set the value of the current renamed dest register to the previous one 
+    void forwardOldRegs();
 };
 
 typedef std::shared_ptr<IODynInst> IODynInstPtr;
