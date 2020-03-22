@@ -24,7 +24,9 @@ outfile = sys.argv[2]
 #     "t3", "t4", "t5", "t6"
 # ]
 def get_reg(num):
-    assert(num < 32)
+    if (num >= 32):
+        print('exceed issue len of 32. have ' + str(num))
+        assert(False)
     return 'x' + str(num)
 
 # define how to modify and what we are looking for
@@ -121,7 +123,7 @@ def find_vissue_count(label):
     for line in cached_src_file:
         # if we are recording increment count until next label
         if (start_record):
-            # check if we should terminate b/c another label
+            # check if we should terminate b/c another label (or another jump if we hit that)
             (is_label, matched_label) = check_label(line)
             if (is_label):
                 print("Stopping at label " + line[0:-1] + " w/ cnt " + str(cnt))
