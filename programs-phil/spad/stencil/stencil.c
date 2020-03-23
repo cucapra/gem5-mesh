@@ -14,8 +14,6 @@
   Parallelize innermost loops (unrolled) so we can get away with codegen trick
 */
 
-#define FILTER_DIM 3
-
 #define SYNC_ADDR 1000
 
 
@@ -126,7 +124,9 @@ inline int min(int a, int b) {
 // ACTUALLY any second label causes a problem???
 #ifdef USE_VECTOR_SIMD
 void __attribute__((optimize("-fno-reorder-blocks")))
-vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
+vvadd_execute(
+    DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols,
+    int ptid, int vtid, int dim, int mask, int is_master) {
 
   int *spadAddr = (int*)getSpAddr(ptid, 0);
 
@@ -153,14 +153,12 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
   // have r = 0 for now
   // will need broadcast to support r > 0
-  int nrows = 3;
-  int ncols = 4;
   int spadIdx = 0;
 
   ISSUE_VINST(fable0);
 
-  for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
-    for (int c = 0; c < ncols - (FILTER_DIM - 1); c++) {
+  for (int r = 0; r < nrows; r++) {
+    for (int c = 0; c < ncols; c++) {
       // prefetch all 9 values required for computation
       // prevent unroll b/c doesnt work well if VISSUE in the loop
       #pragma GCC unroll 0
@@ -252,7 +250,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   //   }
   // fable0b:
     // iter = 0;
-    cPtr = c + start + vtid;
+    cPtr = c + /*(startRow * ncols + startCol)*/ + vtid;
     b0 = b[0];
     b1 = b[1];
     b2 = b[2];
@@ -466,13 +464,17 @@ vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
 
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
-    DTYPE *a, DTYPE *b, DTYPE *c, int n,
+    DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols,
     int tid_x, int tid_y, int dim_x, int dim_y) {
   
   // start recording all stats (all cores)
   if (tid_x == 0 && tid_y == 0) {
     stats_on();
   }
+
+  // for now we're just doing one row
+  // so n can be ncols - 2
+  int n = ncols - (FILTER_DIM - 1);
 
   // linearize tid and dim
   int tid = tid_x + tid_y * dim_x;
@@ -624,7 +626,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = roundUp(n / 3, alignment); // make sure aligned to cacheline 
+    end = ncols - (FILTER_DIM - 1); //roundUp(n / 3, alignment); // make sure aligned to cacheline 
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -726,6 +728,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef VEC_SIZE_4_DA
   if (tid == 12) return;
   #elif defined(USE_VECTOR_SIMD)
+  if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #endif
 
@@ -770,7 +773,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   #ifdef USE_VECTOR_SIMD
-  vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, mask, is_da);
+  vvadd_execute(a, b, c, nrows - (FILTER_DIM - 1), ncols - (FILTER_DIM - 1), ptid, vtid, vdim, mask, is_da);
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   // deconfigure
@@ -786,7 +789,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
 
 // helper functions
-Kern_Args *construct_args(DTYPE *a, DTYPE *b, DTYPE *c, int size,
+Kern_Args *construct_args(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols,
   int tid_x, int tid_y, int dim_x, int dim_y) {
 
   Kern_Args *args = (Kern_Args*)malloc(sizeof(Kern_Args));
@@ -794,7 +797,8 @@ Kern_Args *construct_args(DTYPE *a, DTYPE *b, DTYPE *c, int size,
   args->a = a;
   args->b = b;
   args->c = c;
-  args->size = size;
+  args->nrows = nrows;
+  args->ncols = ncols;
   args->tid_x = tid_x;
   args->tid_y = tid_y;
   args->dim_x = dim_x;
@@ -812,7 +816,7 @@ void *pthread_kernel(void *args) {
   // call the spmd kernel
   Kern_Args *a = (Kern_Args*)args;
   
-  kernel(a->a, a->b, a->c, a->size, 
+  kernel(a->a, a->b, a->c, a->nrows, a->ncols, 
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
       
   pthread_barrier_wait(&start_barrier);

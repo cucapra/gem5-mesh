@@ -10,7 +10,7 @@ ASMO_OBJS = $(notdir $(C_SRCS:.c=.O))
 SM_DEPS = $(C_SRCS:.c=.S)
 SM_OBJS = $(notdir $(C_SRCS:.c=.S))
 
-EXEC = vvadd
+EXEC = stencil
 
 # defaults if environment variables not set
 

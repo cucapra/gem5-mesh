@@ -27,49 +27,44 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int size = 1024;
+  int nrows = 1 + (FILTER_DIM - 1); // single row
+  int ncols = 256 + (FILTER_DIM - 1);
   
-  // parse positional arguments
+  // parse positional arguments (X Y)
   if (argc > 1) {
-    size = atoi(argv[1]);
+    ncols = atoi(argv[1]);
+  }
+  if (argc > 2) {
+    nrows = atoi(argv[2]);
   }
   
-  printf("Vector size is %d. Num cores is %d\n", size, num_cores);
-
-  // printf("============= core 0  =============\n");
-  // getSIMDMask(0, 0, 1, 0, 0, 0, 2, 2, 1);
-  // printf("============= core 1  =============\n");
-  // getSIMDMask(0, 0, 1, 0, 0, 0, 2, 2, 0);
-  // printf("============= core 2  =============\n");
-  // getSIMDMask(0, 0, 1, 0, 1, 0, 2, 2, 0);
-  // printf("============= core 5  =============\n");
-  // getSIMDMask(0, 0, 1, 0, 0, 1, 2, 2, 0);
-  // printf("============= core 6  =============\n");
-  // getSIMDMask(0, 0, 1, 0, 1, 1, 2, 2, 0);
-  // printf("============= core 7  =============\n");
-  // getSIMDMask(3, 1, 2, 2, 0, 0, 2, 2, 1);
-  // printf("============= core 10 =============\n");
-  // getSIMDMask(3, 1, 2, 2, 0, 0, 2, 2, 0);
-  // printf("============= core 11 =============\n");
-  // getSIMDMask(3, 1, 2, 2, 1, 0, 2, 2, 0);
-  // printf("============= core 14 =============\n");
-  // getSIMDMask(3, 1, 2, 2, 0, 1, 2, 2, 0);
-  // printf("============= core 15 =============\n");
-  // getSIMDMask(3, 1, 2, 2, 1, 1, 2, 2, 0);
-  // return 0;
+  printf("Stencil %dx%d on %dx%d image. Num cores is %d\n", FILTER_DIM, FILTER_DIM, ncols, nrows, num_cores);
 
   /*--------------------------------------------------------------------
   * Data initialization
   *-------------------------------------------------------------------*/
 
+  int boundOffset = (FILTER_DIM - 1);
   DTYPE *a_ptr, *b_ptr, *c_ptr;
-  DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), size, (void**)&a_ptr);
-  DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), size, (void**)&b_ptr);
-  DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), size, (void**)&c_ptr);
+  DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_ptr);
+  DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), FILTER_DIM * FILTER_DIM, (void**)&b_ptr);
+  DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), (nrows - boundOffset) * (ncols - boundOffset), (void**)&c_ptr);
 
-  for (int i = 0; i < size; i++) {
+  // image
+  for (int i = 0; i < nrows * ncols; i++) {
     a[i] = i + 1;
+  }
+
+  // filter
+  // 1 2 3
+  // 4 5 6
+  // 7 8 9
+  for (int i = 0; i < FILTER_DIM * FILTER_DIM; i++) {
     b[i] = i + 1;
+  }
+
+  // result
+  for (int i = 0; i < (nrows - boundOffset) * (ncols - boundOffset); i++) {
     c[i] = 0;
   }
   
@@ -83,7 +78,7 @@ int main(int argc, char *argv[]) {
   for (int y = 0; y < cores_y; y++) {
     for (int x = 0; x < cores_x; x++){
       int i = x + y * cores_x; 
-      kern_args[i] = construct_args(a, b, c, size, x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(a, b, c, nrows, ncols, x, y, cores_x, cores_y);
     }  
   }
 
@@ -98,12 +93,20 @@ int main(int argc, char *argv[]) {
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
   
-  for (int i = 0; i < size; i++) {
-    // printf("%d\n", c[i]);
-    if (c[i] != 2 * ( i + 1 )) {
-      // printf("%d %d\n", i, c[i]);
-      printf("[[FAIL]]\n");
-      return 1;
+  for (int row = 0; row < nrows - boundOffset; row++) {
+    for (int col = 0; col < ncols - boundOffset; col++) {
+      int cexp = 0;
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
+          int aIdx = (row + k1) * ncols + (col + k2);
+          int bIdx = k1 * FILTER_DIM + k2;
+          cexp += b[bIdx] * a[aIdx];
+        }
+      }
+      if (c[row * ncols + col] != cexp) {
+        printf("[[FAIL]]\n");
+        return 1;
+      }
     }
   }
   

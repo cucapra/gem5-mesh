@@ -1,20 +1,23 @@
 #ifndef __STENCIL_H__
 #define __STENCIL_H__
 
+// filter size
+#define FILTER_DIM 3
+
 // data type to do computation with
 #define DTYPE int
 
 // pthread argument for the kernel
 typedef struct Kern_Args {
   DTYPE *a, *b, *c;
-  int size;
+  int nrows, ncols;
   int tid_x, tid_y;
   int dim_x, dim_y;
 } Kern_Args;
 
 // helper to pack vvadd args
 Kern_Args *construct_args(
-    DTYPE *a, DTYPE *b, DTYPE *c, int size,
+    DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols,
     int tid_x, int tid_y, int dim_x, int dim_y
   );
 
@@ -23,7 +26,7 @@ void *pthread_kernel(void *args);
 
 // vvadd kernel
 void kernel(
-    DTYPE *a, DTYPE *b, DTYPE *c, int size,
+    DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols,
     int tid_x, int tid_y, int dim_x, int dim_y
   );
 
