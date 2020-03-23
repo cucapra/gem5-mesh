@@ -14,69 +14,20 @@
   Parallelize innermost loops (unrolled) so we can get away with codegen trick
 */
 
-#define SYNC_ADDR 1000
-
-
-
 // one of these should be defined to dictate config
-// #define NO_VEC 1
-// #define VEC_16 1
-// #define VEC_16_UNROLL 1
-// #define VEC_4 1
-// #define VEC_4_UNROLL 1
-// #define VEC_4_DA 1
-// // #define VEC_16_UNROLL_SERIAL 1 // doesn't seem to work anymore...
-// #define VEC_4_DA_SMALL_FRAME 1
-// #define NO_VEC_DA 1
-// #define NO_VEC_W_VLOAD 1
-// #define SIM_DA_VLOAD_SIZE_1 1
-// #define VEC_4_NORM_LOAD 1
-// #define VEC_16_NORM_LOAD 1
-#define VEC_4_SIMD 1
+#define NO_VEC 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
 
 // vvadd_execute config directives
-#if defined(NO_VEC) || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD)
-#define USE_NORMAL_LOAD 1
-#endif
-#if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) \
-  || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_4_DA_SMALL_FRAME) \
-  || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD) || defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
 #define USE_VEC 1
-#endif
-#if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) \
-  || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
-#define UNROLL 1
-#endif
-#if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
-#define USE_DA 1
 #endif
 #if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
 #define USE_VECTOR_SIMD 1
 #endif
-#if !defined(UNROLL) && !defined(USE_NORMAL_LOAD)
-#define WEIRD_PREFETCH 1
-#endif
-#if defined(VEC_16_UNROLL_SERIAL)
-#define SERIAL_MASK 1
-#endif
-#if !defined(USE_VEC) && defined(NO_VEC_W_VLOAD)
-#define FORCE_VEC_LOAD 1
-#endif
-#if defined(VEC_4_SIMD_BCAST)
-#define SIMD_BCAST 1
-#endif
 
 // vector grouping directives
-#if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_16_NORM_LOAD)
-#define VEC_SIZE_16 1
-#endif
-#if defined(VEC_4) || defined(VEC_4_UNROLL) || defined(VEC_4_NORM_LOAD)
-#define VEC_SIZE_4 1
-#endif
-#if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
-#define VEC_SIZE_4_DA 1
-#endif
 #if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
 #define VEC_SIZE_4_SIMD 1
 #endif
@@ -86,7 +37,7 @@
  || defined(SIM_DA_VLOAD_SIZE_1)
 #define REGION_SIZE 32
 #define NUM_REGIONS 16
-#elif defined(VEC_4_DA_SMALL_FRAME) || defined(WEIRD_PREFETCH)
+#elif defined(USE_VECTOR_SIMD)
 #define REGION_SIZE 3
 #define NUM_REGIONS 256
 #define POST_REGION_WORD NUM_REGIONS * REGION_SIZE
@@ -124,7 +75,7 @@ inline int min(int a, int b) {
 // ACTUALLY any second label causes a problem???
 #ifdef USE_VECTOR_SIMD
 void __attribute__((optimize("-fno-reorder-blocks")))
-vvadd_execute(
+stencil(
     DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols,
     int ptid, int vtid, int dim, int mask, int is_master) {
 
@@ -272,153 +223,21 @@ vvadd_execute(
   return;
 }
 #else
-void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int unroll_len) {
-  int *spAddr = (int*)getSpAddr(ptid, 0);
-
-  #ifdef UNROLL
-  int numRegions = NUM_REGIONS;
-  int regionSize = REGION_SIZE;
-  int memEpoch = 0;
-  #endif
-
-  #ifdef WEIRD_PREFETCH // b/c you can't have single frame scratchpad?? need to make circular
-  int spadRegion = 0;
-  #endif
-
-  for (int i = start + vtid; i < end; i+=unroll_len*dim) {
-
-    #ifdef UNROLL // unroll and recv a bunch of loads into spad at once
-
-    // region of spad memory we can use
-    int *spAddrRegion = spAddr + (memEpoch % numRegions) * regionSize;
-
-    #ifndef USE_DA // master is the one responsible for prefetch the bunch of loads
-    for (int j = 0; j < unroll_len; j++) {
-      VPREFETCH(spAddrRegion + j * 2    , a + i + j * dim, 0);
-      VPREFETCH(spAddrRegion + j * 2 + 1, b + i + j * dim, 0);
+void /*__attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) */
+stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, int dim) {
+   for (int row = 0; row < nrows - (FILTER_DIM - 1); row++) {
+    for (int col = vtid; col < ncols /*- (FILTER_DIM - 1)*/; col+=dim) {
+      int temp = 0;
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        for (int k2 = 0; k2 < 1; k2++) {
+          int aIdx = (row + k1) * ncols + (col + k2);
+          int bIdx = k1 * FILTER_DIM + k2;
+          temp += a[aIdx] * b[bIdx];
+        }
+      }
+      int cIdx = row * ncols + col;
+      c[cIdx] = temp;
     }
-    // TODO might want to remem more frequently, so can start accessing some of the
-    // data earlier
-    #endif
-
-    for (int j = 0; j < unroll_len; j++) {
-
-      int* spAddrA = spAddrRegion + j * 2;
-      int* spAddrB = spAddrRegion + j * 2 + 1;
-
-      DTYPE a_, b_;
-      LWSPEC(a_, spAddrA, 0);
-      LWSPEC(b_, spAddrB, 0);
-
-      DTYPE c_ = a_ + b_;
-      STORE_NOACK(c_, c + i + j * dim, 0);
-    }
-    
-    // increment mem epoch to know which region to fetch mem from
-    memEpoch++;
-
-    // inform DA we are done with region, so it can start to prefetch for that region
-    spAddr[SYNC_ADDR] = memEpoch;
-
-    // try to revec at the end of loop iteration
-    // REVEC(0);
-    // also up the memory epoch internally
-    REMEM(0);
-    #else // don't use prefetch unrolling
-    DTYPE a_, b_, c_;
-    #ifdef USE_NORMAL_LOAD // load using standard lw
-    a_ = a[i];
-    b_ = b[i];
-    #else // load using master prefetch
-    // drawback of this approach is that it doesn't work for single region prefetch zones
-    // so need to add extra increment logic
-    int *spAddrA = spAddr + spadRegion*2 + 0;
-    int *spAddrB = spAddr + spadRegion*2 + 1;
-    #ifdef FORCE_VEC_LOAD // force core with vtid 0 to do a master load even tho no systolic forwarding
-    if (vtid == 0) {
-    #endif
-    VPREFETCH(spAddrA, a + i, 0);
-    VPREFETCH(spAddrB, b + i, 0);
-    #ifdef FORCE_VEC_LOAD
-    }
-    #endif
-    LWSPEC(a_, spAddrA, 0);
-    LWSPEC(b_, spAddrB, 0);
-    spadRegion = (spadRegion + 1) % NUM_REGIONS;
-    REMEM(0);
-    #endif
-    // add and then store
-    c_ = a_ + b_;
-    STORE_NOACK(c_, c + i, 0);
-    #endif
-  }
-}
-
-void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
-vvadd_access(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int unroll_len, int spadCheckIdx) {
-  #ifdef USE_DA
-  int *spAddr = (int*)getSpAddr(ptid, 0);
-
-  int numRegions = NUM_REGIONS;
-  int regionSize = REGION_SIZE;
-
-  // variable to control rate of sending
-  int memEpoch = 0;
-  volatile int loadedEpoch = 0;
-
-  for (int i = start; i < end; i+=unroll_len*dim) {
-    // check how many regions are available for prefetch by doing a remote load
-    // to master cores scratchpad to get stored epoch number there
-    // THIS BECOMES THE BOTTLENECK FOR SMALL FRAMES
-    while(memEpoch >= loadedEpoch + numRegions) {
-      loadedEpoch = ((int*)getSpAddr(spadCheckIdx, 0))[SYNC_ADDR];
-    }
-
-    // region of spad memory we can use
-    int *spAddrRegion = spAddr + (memEpoch % numRegions) * regionSize;
-
-    for (int j = 0; j < unroll_len; j++) {
-      VPREFETCH(spAddrRegion + j * 2    , a + i + j * dim, 0);
-      VPREFETCH(spAddrRegion + j * 2 + 1, b + i + j * dim, 0);
-      #ifdef SIM_DA_VLOAD_SIZE_1 // simulate data comes every 1/4 cycles rather than 1 to sim no vec prefetch
-      // for vtid 1
-      asm volatile(
-        "nop\n\t" // addr inc
-        "nop\n\t" // addr inc
-        "nop\n\t" // ld
-        "nop\n\t" // ld            
-      );
-      // load vtid 2
-      asm volatile(
-        "nop\n\t" // addr inc
-        "nop\n\t" // addr inc
-        "nop\n\t" // ld
-        "nop\n\t" // ld            
-      );
-      // load vtid 3
-      asm volatile(
-        "nop\n\t" // addr inc
-        "nop\n\t" // addr inc
-        "nop\n\t" // ld
-        "nop\n\t" // ld            
-      );
-      #endif
-    }
-    memEpoch++;
-
-  }
-  #endif
-}
-
-void __attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) 
-vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, 
-    int ptid, int vtid, int dim, int unroll_len, int is_da, int origin) {
-  if (is_da) {
-    vvadd_access(a, b, c, start, end, ptid, vtid, dim, unroll_len, origin);
-  }
-  else {
-    vvadd_execute(a, b, c, start, end, ptid, vtid, dim, unroll_len);
   }
 }
 #endif // VECTOR_SIMD
@@ -462,117 +281,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int master_x = 0;
   int master_y = 0;
 
-  // group construction
-  #ifdef VEC_SIZE_4
-  // virtual group dimension
-  vdim_x = 2;
-  vdim_y = 2;
-  
-  // tid in that group
-  vtid_x = ptid_x % vdim_x;
-  vtid_y = ptid_y % vdim_y;
-  vtid   = vtid_x + vtid_y * vdim_x;
-
-  // TODO figure out how to do get group ID
-  // origin for vector fetch and chunk of data
-  if (ptid_x < 2 && ptid_y < 2) {
-    orig_x = 0;
-    orig_y = 0;
-    start = 0;
-    end = n / 4;
-  }
-  else if (ptid_x < 4 && ptid_y < 2) {
-    orig_x = 2;
-    orig_y = 0;
-    start = n / 4;
-    end = n / 2;
-  }
-  else if (ptid_x < 2 && ptid_y < 4) {
-    orig_x = 0;
-    orig_y = 2;
-    start = n / 2;
-    end = 3 * n / 4;
-  }
-  else if (ptid_x < 4 && ptid_y < 4) {
-    orig_x = 2;
-    orig_y = 2;
-    start = 3 * n / 4;
-    end = n;
-  }
-
-  // not decoupled access core
-  is_da = 0;
-
-  #elif defined(VEC_SIZE_16)
-  // virtual group dimension
-  vdim_x = 4;
-  vdim_y = 4;
-  
-  // tid in that group
-  vtid_x = ptid_x % vdim_x;
-  vtid_y = ptid_y % vdim_y;
-  vtid   = vtid_x + vtid_y * vdim_x;
-
-  orig_x = 0;
-  orig_y = 0;
-  start = 0;
-  end = n;
-
-  // not decoupled access core
-  is_da = 0;
-
-  #elif defined(VEC_SIZE_4_DA)
-  // virtual group dimension
-  vdim_x = 2;
-  vdim_y = 2;
-
-  int alignment = 16 * vdim_x * vdim_y;
-
-  // group 1 top left (da == 8)
-  if (ptid == 0) vtid = 0;
-  if (ptid == 1) vtid = 1;
-  if (ptid == 4) vtid = 2;
-  if (ptid == 5) vtid = 3;
-  if (ptid == 8) is_da = 1;
-  if (ptid == 0 || ptid == 1 || ptid == 4 || ptid == 5 || ptid == 8) {
-    start = 0;
-    end = roundUp(n / 3, alignment); // make sure aligned to cacheline 
-    orig_x = 0;
-    orig_y = 0;
-  }
-
-  // group 2 top right (da == 11)
-  if (ptid == 2) vtid = 0;
-  if (ptid == 3) vtid = 1;
-  if (ptid == 6) vtid = 2;
-  if (ptid == 7) vtid = 3;
-  if (ptid == 11) is_da = 1;
-  if (ptid == 2 || ptid == 3 || ptid == 6 || ptid == 7 || ptid == 11) {
-    start = roundUp(n / 3, alignment);
-    end = roundUp(2 * n / 3, alignment);
-    orig_x = 2;
-    orig_y = 0;
-  }
-
-  // group 3 bottom (da == 15)
-  if (ptid == 9)  vtid = 0;
-  if (ptid == 10) vtid = 1;
-  if (ptid == 13) vtid = 2;
-  if (ptid == 14) vtid = 3;
-  if (ptid == 15) is_da = 1;
-  if (ptid == 9 || ptid == 10 || ptid == 13 || ptid == 14 || ptid == 15) {
-    start = roundUp(2 * n / 3, alignment);
-    end = n;
-    orig_x = 1;
-    orig_y = 2;
-  }
-
-  // ptid/core = 12 doesn't do anything in this config
-
-  vtid_x = vtid % vdim_x;
-  vtid_y = vtid / vdim_y;
-
-  #elif defined(VEC_SIZE_4_SIMD)
+  #if defined(VEC_SIZE_4_SIMD)
     // virtual group dimension
   vdim_x = 2;
   vdim_y = 2;
@@ -648,31 +357,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim = vdim_x * vdim_y;
   int orig = orig_x + orig_y * dim_x;
 
-  // construct special mask for dae example
-  #ifndef USE_VECTOR_SIMD
-  int mask = 0;
-  if (is_da) {
-    mask = getDAEMask(orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y);
-  }
-  else {
-    #ifdef USE_VEC
-    #ifdef SERIAL_MASK
-    mask = getSerializedMask(orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y);
-    #else
-    mask = getVecMask(orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y);
-    #endif
-    #endif
-  }
-  #ifdef FORCE_VEC_LOAD
-  mask = (orig_x << FET_XORIGIN_SHAMT) | (orig_y << FET_YORIGIN_SHAMT) | 
-        (pdim_x << FET_XLEN_SHAMT) | (pdim_x << FET_YLEN_SHAMT);
-  #endif
-  #else
+  #ifdef USE_VECTOR_SIMD
   // volatile so dont reorder this function call
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
   #endif
-
-
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
@@ -686,18 +374,16 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   // only let certain tids continue
-  #ifdef VEC_SIZE_4_DA
-  if (tid == 12) return;
-  #elif defined(USE_VECTOR_SIMD)
+  #if defined(USE_VECTOR_SIMD)
   if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
-  #endif
-
-  // run the actual kernel with the configuration
-  #ifdef UNROLL
-  int unroll_len = REGION_SIZE / 2;
   #else
-  int unroll_len = 1;
+  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
+    vtid = ptid;
+  }
+  else {
+    return;
+  }
   #endif
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
@@ -728,17 +414,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     : [spad] "r" (spTop)
   );
 
-  // configure
-  #ifndef USE_VECTOR_SIMD
-  VECTOR_EPOCH(mask);
-  #endif
-
   #ifdef USE_VECTOR_SIMD
-  vvadd_execute(a, b, c, nrows, ncols, ptid, vtid, vdim, mask, is_da);
+  stencil(a, b, c, nrows, ncols, ptid, vtid, vdim, mask, is_da);
   #else
-  vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
-  // deconfigure
-  VECTOR_EPOCH(0);
+  stencil(a, b, c, nrows, ncols, ptid, vtid, vdim);
   #endif
 
   // restore stack pointer
