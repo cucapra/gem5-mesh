@@ -15,8 +15,8 @@
 */
 
 // one of these should be defined to dictate config
-#define NO_VEC 1
-// #define VEC_4_SIMD 1
+// #define NO_VEC 1
+#define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
 
 // vvadd_execute config directives
@@ -90,8 +90,24 @@ stencil(
 
   ISSUE_VINST(fable0);
 
+  // do initial batch of prefetching
+  int prefetchFrames = 8;
+  int beginCol = prefetchFrames * dim;
   for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
-    for (int c = 0; c < ncols /*- (FILTER_DIM - 1)*/; c+=dim) {
+    for (int c = 0; c < beginCol; c+=dim) {
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        for (int k2 = 0; k2 < 1; k2++) {
+          int aIdx = (r + k1) * ncols + (c + k2);
+          // TODO can't handle when this inevitably goes off cacheline
+          VPREFETCH(spadAddr + spadIdx, a + aIdx, 0);
+          spadIdx++;
+        }
+      }
+    }
+  }
+
+  for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
+    for (int c = beginCol; c < ncols /*- (FILTER_DIM - 1)*/; c+=dim) {
       // prefetch all 9 values required for computation
       // prevent unroll b/c doesnt work well if VISSUE in the loop
       // #pragma GCC unroll 0
@@ -111,9 +127,7 @@ stencil(
       // }
 
       // just do stencil with 3 values prefetched by row
-      #pragma GCC unroll 0
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        // #pragma GCC unroll 0
         for (int k2 = 0; k2 < 1; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           // TODO can't handle when this inevitably goes off cacheline
@@ -127,6 +141,13 @@ stencil(
         }
       }
 
+      ISSUE_VINST(fable1);
+    }
+  }
+
+  // issue the rest of blocks
+  for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
+    for (int c = ncols  /*- (FILTER_DIM - 1)*/ - beginCol; c < ncols /*- (FILTER_DIM - 1)*/; c+=dim) {
       ISSUE_VINST(fable1);
     }
   }
@@ -380,6 +401,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #else
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
     vtid = ptid;
+    vdim = 4;
   }
   else {
     return;
