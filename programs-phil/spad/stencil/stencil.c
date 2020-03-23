@@ -131,7 +131,7 @@ vvadd_execute(
   int *spadAddr = (int*)getSpAddr(ptid, 0);
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
-  VECTOR_EPOCH(mask); 
+  VECTOR_EPOCH(mask);
 
   // // do a bunch of prefetching in the beginning to get ahead
   // int totalIter = (end - start) / dim;
@@ -173,10 +173,10 @@ vvadd_execute(
           if (spadIdx == POST_REGION_WORD) {
             spadIdx = 0;
           }
-
-          ISSUE_VINST(fable1);
         }
       }
+
+      ISSUE_VINST(fable1);
     }
   }
 
