@@ -87,7 +87,7 @@
 #define REGION_SIZE 32
 #define NUM_REGIONS 16
 #elif defined(VEC_4_DA_SMALL_FRAME) || defined(WEIRD_PREFETCH)
-#define REGION_SIZE 9
+#define REGION_SIZE 3
 #define NUM_REGIONS 256
 #define POST_REGION_WORD NUM_REGIONS * REGION_SIZE
 #endif
@@ -133,39 +133,39 @@ vvadd_execute(
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
 
-  // // do a bunch of prefetching in the beginning to get ahead
-  // int totalIter = (end - start) / dim;
-  // int numInitFetch = 16;
-  // int beginIter = min(numInitFetch, totalIter);
-  // for (int i = 0; i < beginIter; i++) {
-  //   VPREFETCH(spadAddr + i * 2 + 0, a + start + (i * dim), 0);
-  //   VPREFETCH(spadAddr + i * 2 + 1, b + start + (i * dim), 0);
-  // }
-
-  // // issue header instructions
-  // ISSUE_VINST(fable0);
-
-  // int localIter = beginIter * 2;
-
-  // #ifdef SIMD_BCAST
-  // int deviceIter = 0;
-  // #endif
-
   // have r = 0 for now
   // will need broadcast to support r > 0
   int spadIdx = 0;
 
   ISSUE_VINST(fable0);
 
-  for (int r = 0; r < nrows; r++) {
-    for (int c = 0; c < ncols; c++) {
+  for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
+    for (int c = 0; c < ncols /*- (FILTER_DIM - 1)*/; c+=dim) {
       // prefetch all 9 values required for computation
       // prevent unroll b/c doesnt work well if VISSUE in the loop
+      // #pragma GCC unroll 0
+      // for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+      //   #pragma GCC unroll 0
+      //   for (int k2 = 0; k2 < FILTER_DIM; k2++) {
+      //     int aIdx = (r + k1) * ncols + (c + k2);
+      //     // TODO can't handle when this inevitably goes off cacheline
+      //     VPREFETCH(spadAddr + spadIdx, a + aIdx, 0);
+
+      //     // spad is circular buffer so do cheap mod here
+      //     spadIdx++;
+      //     if (spadIdx == POST_REGION_WORD) {
+      //       spadIdx = 0;
+      //     }
+      //   }
+      // }
+
+      // just do stencil with 3 values prefetched by row
       #pragma GCC unroll 0
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        #pragma GCC unroll 0
-        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
+        // #pragma GCC unroll 0
+        for (int k2 = 0; k2 < 1; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
+          // TODO can't handle when this inevitably goes off cacheline
           VPREFETCH(spadAddr + spadIdx, a + aIdx, 0);
 
           // spad is circular buffer so do cheap mod here
@@ -180,50 +180,6 @@ vvadd_execute(
     }
   }
 
-
-  // for (int i = beginIter; i < totalIter; i++) {
-  //   #ifdef SIMD_BCAST
-  //   // broadcast values needed to execute
-  //   // in this case the spad loc
-  //   BROADCAST(t0, deviceIter, 0);
-  //   #endif
-
-
-  //   // issue fable1
-  //   ISSUE_VINST(fable1);
-
-  //   // prefetch for future iterations
-  //   VPREFETCH(spadAddr + localIter + 0, a + start + (i * dim), 0);
-  //   VPREFETCH(spadAddr + localIter + 1, b + start + (i * dim), 0);
-  //   localIter+=2;
-  //   if (localIter == (NUM_REGIONS * 2)) {
-  //     localIter = 0;
-  //   }
-
-  //   #ifdef SIMD_BCAST
-  //   deviceIter+=2;
-  //   if (deviceIter == (NUM_REGIONS * 2)) {
-  //     deviceIter = 0;
-  //   }
-  //   #endif
-  // }
-
-  // // issue the rest
-  // for (int i = totalIter - beginIter; i < totalIter; i++) {
-  //   #ifdef SIMD_BCAST
-  //   BROADCAST(t0, deviceIter, 0);
-  //   #endif
-
-  //   ISSUE_VINST(fable1);
-
-  //   #ifdef SIMD_BCAST
-  //   deviceIter+=2;
-  //   if (deviceIter == (NUM_REGIONS * 2)) {
-  //     deviceIter = 0;
-  //   }
-  //   #endif
-  // }
-
   // devec with unique tag
   DEVEC(devec_0);
 
@@ -236,7 +192,7 @@ vvadd_execute(
 
   // declarations
   DTYPE a_, b_, c_;
-  // int64_t iter; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
+  int64_t iter; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
   DTYPE b0, b1, b2, b3, b4, b5, b6, b7, b8;
 
@@ -249,17 +205,20 @@ vvadd_execute(
   //     // b_ = b[i]; // keep filter in regfile
   //   }
   // fable0b:
-    // iter = 0;
+    iter = 0;
     cPtr = c + /*(startRow * ncols + startCol)*/ + vtid;
+    // b0 = b[0];
+    // b1 = b[1];
+    // b2 = b[2];
+    // b3 = b[3];
+    // b4 = b[4];
+    // b5 = b[5];
+    // b6 = b[6];
+    // b7 = b[7];
+    // b8 = b[8];
     b0 = b[0];
-    b1 = b[1];
-    b2 = b[2];
-    b3 = b[3];
-    b4 = b[4];
-    b5 = b[5];
-    b6 = b[6];
-    b7 = b[7];
-    b8 = b[8];
+    b1 = b[3];
+    b2 = b[6];
     
   
   // loop body block
@@ -280,29 +239,31 @@ vvadd_execute(
     //   b_ = spadAddr[POST_REGION_WORD + i];
     //   c_ += a_ * b_;
     // }
-    LWSPEC(a_, spadAddr + 0, 0);
-    c_ += b0 + a_;
-    LWSPEC(a_, spadAddr + 1, 0);
-    c_ += b1 + a_;
-    LWSPEC(a_, spadAddr + 2, 0);
-    c_ += b2 + a_;
-    LWSPEC(a_, spadAddr + 3, 0);
-    c_ += b3 + a_;
-    LWSPEC(a_, spadAddr + 4, 0);
-    c_ += b4 + a_;
-    LWSPEC(a_, spadAddr + 5, 0);
-    c_ += b5 + a_;
-    LWSPEC(a_, spadAddr + 6, 0);
-    c_ += b6 + a_;
-    LWSPEC(a_, spadAddr + 7, 0);
-    c_ += b7 + a_;
-    LWSPEC(a_, spadAddr + 8, 0);
-    c_ += b8 + a_;
+    LWSPEC(a_, spadAddr + (iter * 3) + 0, 0);
+    c_ += b0 * a_;
+    LWSPEC(a_, spadAddr + (iter * 3) + 1, 0);
+    c_ += b1 * a_;
+    LWSPEC(a_, spadAddr + (iter * 3) + 2, 0);
+    c_ += b2 * a_;
+    // LWSPEC(a_, spadAddr + 3, 0);
+    // c_ += b3 * a_;
+    // LWSPEC(a_, spadAddr + 4, 0);
+    // c_ += b4 * a_;
+    // LWSPEC(a_, spadAddr + 5, 0);
+    // c_ += b5 * a_;
+    // LWSPEC(a_, spadAddr + 6, 0);
+    // c_ += b6 * a_;
+    // LWSPEC(a_, spadAddr + 7, 0);
+    // c_ += b7 * a_;
+    // LWSPEC(a_, spadAddr + 8, 0);
+    // c_ += b8 * a_;
 
     REMEM(0);
     STORE_NOACK(c_, cPtr, 0);
     // do no reuse version for now
     cPtr += dim;
+    iter = (iter + 1) % (NUM_REGIONS);
+    
 
     // need this jump to create loop carry dependencies
     // an assembly pass will remove this instruction
@@ -773,7 +734,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   #ifdef USE_VECTOR_SIMD
-  vvadd_execute(a, b, c, nrows - (FILTER_DIM - 1), ncols - (FILTER_DIM - 1), ptid, vtid, vdim, mask, is_da);
+  vvadd_execute(a, b, c, nrows, ncols, ptid, vtid, vdim, mask, is_da);
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   // deconfigure
