@@ -125,7 +125,8 @@ def find_vissue_count(label):
         if (start_record):
             # check if we should terminate b/c another label (or another jump if we hit that)
             (is_label, matched_label) = check_label(line)
-            if (is_label):
+            (is_jump, jump_label) = check_jump(line)
+            if (is_label or is_jump):
                 print("Stopping at label " + line[0:-1] + " w/ cnt " + str(cnt))
                 return cnt
             # ignore comments and blank lines
