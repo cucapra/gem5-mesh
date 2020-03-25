@@ -42,10 +42,11 @@ endif
 RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
 
 # script to find the correct vissue length
-VISS=python /home/pbb59/hammerblade/gem5/scripts-phil/vissue-asm.py
+VISS=python /home/na469/phil/gem5-mesh/scripts-phil/vissue-asm.py
 
 #in case of vector and scalar compilations
-C_OBJS_FIL := $(filter-out vvadd.o, $(C_OBJS))
+C_OBJS_FIL := $(filter-out vvadd_kernel.o, $(C_OBJS))
+# C_OBJS_FIL = $(C_OBJS)
 C_OBJS_FIL += $(EXEC)_final.o
 
 CFLAGS=-DVECTOR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
@@ -54,13 +55,16 @@ scalar: CFLAGS=-DSCALAR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -s
 
 default: $(EXEC).neil
 
-vector: $(EXEC).c
+vector: $(EXEC)_kernel.c
 	$(RV_CC) $(CFLAGS) -S -o $(EXEC)_vector.s $<
 
-scalar: $(EXEC).c
+scalar: $(EXEC)_kernel.c
 	$(RV_CC) $(CFLAGS) -S -o $(EXEC)_scalar.s $<
 
-combine: $(EXEC)_combined.s
+pass: $(EXEC)_combined.s
+	$(VISS) $(EXEC)_combined.s $(EXEC)_final.s
+
+combine: $(EXEC)_final.s
 	$(RV_CC) $(CFLAGS) -c -o $(EXEC)_final.o $(notdir $<)
 
 # compile directly from .c to .o with no mods
