@@ -92,7 +92,7 @@ stencil(
 
   // do initial batch of prefetching
   int prefetchFrames = 8;
-  int beginCol = prefetchFrames * dim;
+  int beginCol = min(prefetchFrames * dim, ncols);
   for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
     for (int c = 0; c < beginCol; c+=dim) {
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
