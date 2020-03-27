@@ -17,7 +17,9 @@ VecInstSel::VecInstSel(IOCPU *_cpu_p, IOCPUParams *params) :
   _enqueueEvent([this] { enqueueCmd(); }, name()),
   _tempREMEMS(0),
   _tempBlocksRecv(0),
-  _tempBlocksPopped(0)
+  _tempBlocksPopped(0),
+  _lastSendTick(0),
+  _stallUntilJumpPC(false)
 {
 }
 
@@ -110,11 +112,32 @@ VecInstSel::dequeueInst() {
     }
 
 
-    // // pop if we've finished this macro op
-    // if (!isPCGenActive()) {
-    //   setPCGen(0, 0); // reset pc gen
-    //   _vecCmds.pop();
-    // }
+    // ok so if the last instruction is a jump (we should never finish a block on a jump)
+    // we need to stop the next instruction from issuing until we get a PC
+    // you can imagine this is a feedback path from opcode in decode (cheap) and we will get
+    // this at the beginning of the next cycle but we might have already sent an instruction
+    // out to another core, so we need to do early
+    // then we wait for PC to come in via a squash as the usual core would do
+    //
+    // careful if jump is the last instruction then don't want to stall for it? just don't allow this scenario for now
+    // but if you want then need to not stall on it and just send off a nop instead
+    if (ret->isUncondCtrl() || ret->isCondCtrl()) {
+      if ((_uopIssueLen - _uopCnt > 0)) {
+        DPRINTF(Mesh, "stalling due to jump %s\n", ret->toString(true));
+        _stallUntilJumpPC = true;
+      }
+      else {
+        // when making a nop that will get copied, can't actually use nopStaticInstPtr?
+        RiscvISA::Decoder dec;
+        ret->static_inst_p = dec.decode(0x00000033, 0);
+        // ret =
+        //   std::make_shared<IODynInst>(StaticInst::nopStaticInstPtr, ret->pc,
+        //                               ret->seq_num,
+        //                               ret->thread_id, m_cpu_p);
+      }
+    }
+
+
   }
 
   // otherwise tyr to get instruction at the front of queue
@@ -144,6 +167,7 @@ VecInstSel::dequeueInst() {
 // the head
 void
 VecInstSel::processHead() {
+  DPRINTF(Mesh, "process head rem uops %d\n", _uopIssueLen - _uopCnt);
   // pop off pc head if finished
   // TODO need uopIssueLen > 0 b/c not popping inst cmd here
   if (!_vecCmds.empty() && !_vecCmds.front()->isInst && !isPCGenActive() && _uopIssueLen > 0) {
@@ -171,6 +195,20 @@ VecInstSel::processHead() {
   }
 }
 
+void
+VecInstSel::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
+  // allow to continue fetching after recving branch resolution from either decode or writeback
+  // don't do anything about commit stalls (i.e. devec)?
+  if (initiator == StageIdx::DecodeIdx || initiator == StageIdx::IEWIdx) {
+    if (_stallUntilJumpPC) DPRINTF(Mesh, "resolve pending jump %s\n", squashInfo.next_pc);
+    _stallUntilJumpPC = false;
+    _uopPC = squashInfo.next_pc;
+
+    // send out a request now b/c vector stage won't tick this if there is no uop present...
+    tryReqNextUop();
+  }
+}
+
 // reset by cleaning queue and removing any uop tracking state
 void
 VecInstSel::reset() {
@@ -190,7 +228,13 @@ void
 VecInstSel::recvIcacheResp(PacketPtr pkt) {
     DPRINTF(Mesh, "recv icache pkt %#x expecting %#x\n", pkt->getAddr(), _pendingICacheReqAddr);
   // make sure this was to us and not a stale fetch icache packet
-  if (pkt->getAddr() != _pendingICacheReqAddr) return;
+  if (pkt->getAddr() != _pendingICacheReqAddr) {
+    // potentially we were waiting for this to finish, check if so and issue req for pending
+    if (_pendingICacheReq) {
+      sendICacheReq(0, _pendingICacheReqAddr);
+    }
+    return;
+  }
 
   // build the fetched instruction
   TheISA::MachInst* cache_insts =
@@ -213,6 +257,7 @@ VecInstSel::recvIcacheResp(PacketPtr pkt) {
   DPRINTF(Mesh, "create inst %s\n", inst->toString(true));
   // increment the pc and uops
   _uopPC.pc(_uopPC.instAddr() + sizeof(RiscvISA::MachInst));
+  _uopPC.npc(_uopPC.pc() + sizeof(RiscvISA::MachInst));
   _uopCnt++;
 
   // record stat
@@ -246,6 +291,7 @@ VecInstSel::setPCGen(TheISA::PCState issuePC, int cnt) {
   assert(_tempBlocksPopped <= _tempBlocksRecv);
   DPRINTF(Mesh, "set pc gen pc %#x cnt %d blks popped %d\n", issuePC.instAddr(), cnt, _tempBlocksPopped);
   _uopPC = issuePC;
+  _uopPC.npc(_uopPC.pc() + sizeof(RiscvISA::MachInst));
   _uopCnt = 0;
   _uopIssueLen = cnt;
 }
@@ -278,17 +324,27 @@ VecInstSel::sendICacheReq(int tid, Addr instAddr) {
   // send the req to the cache
   PacketPtr inst_pkt = new Packet(req, MemCmd::ReadReq);
   inst_pkt->dataDynamic(new uint8_t[fetchSize]);
-  m_cpu_p->getInstPort().sendTimingReq(inst_pkt);
 
   _pendingICacheReq = true;
   _pendingICacheReqAddr = inst_pkt->getAddr();
-  DPRINTF(Mesh, "send icache req for %#x\n", instAddr);
+
+
+  // might be busy do transition from fetch stage, need to keep delaying as long as can't send
+  if (!m_cpu_p->getInstPort().sendTimingReq(inst_pkt)) {
+    DPRINTF(Mesh, "fail to send req for %#x. save for later\n", instAddr);
+    delete inst_pkt;
+    // also save the vaddr so we can do the retranslation when the resp comes in and freed up
+    _pendingICacheReqAddr = instAddr;
+  }
+  else {
+    DPRINTF(Mesh, "send icache req for %#x\n", instAddr);
+  }
 }
 
 // try to send a request for the next uop addr
 void
 VecInstSel::tryReqNextUop() {
-  if (_lastICacheResp || _pendingICacheReq) return;
+  if (_lastICacheResp || _pendingICacheReq || _stallUntilJumpPC) return;
   
   if (isPCGenActive()) {
     assert(_lastSendTick != curTick());

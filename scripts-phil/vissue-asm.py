@@ -36,6 +36,8 @@ devec_regex = re.compile('.insn uj {0}, x0, ({1})'.format(devec_opcode, label_id
 anylabel_regex = re.compile('({0})[:]'.format(label_iden))
 jump_regex = re.compile('j[\t\s]({0})'.format(label_iden))
 comment_regex = re.compile('[#]')
+call_regex = re.compile('call\t({0})'.format(label_iden))
+ret_regex = re.compile('ret')
 
 cached_src_file = []
 
@@ -112,6 +114,32 @@ def check_label(line):
     else:
         return (False, '')
 
+# check if the line is a call pseudo-inst
+def check_call(line):
+    if (is_comment(line)):
+        return (False, '')
+    
+    # check match
+    match = call_regex.search(line)
+    if (match):
+        # get label to analyze
+        val = match.group(1)
+        return (True, val)
+    else:
+        return (False, '')
+
+# check if the line is a ret pseudo-inst
+def check_ret(line):
+    if (is_comment(line)):
+        return False
+    
+    # check match
+    match = ret_regex.search(line)
+    if (match):
+        return True
+    else:
+        return False
+
 # parse the file again to find where the label is and count how many instructions
 # are in the basic block for that label
 def find_vissue_count(label):
@@ -126,8 +154,17 @@ def find_vissue_count(label):
             # check if we should terminate b/c another label (or another jump if we hit that)
             (is_label, matched_label) = check_label(line)
             (is_jump, jump_label) = check_jump(line)
-            if (is_label or is_jump):
+            (is_call, call_label) = check_call(line)
+            is_ret = check_ret(line)
+            # recursion to explore function call count
+            if (is_call):
+                print('call label: ' + call_label)
+                cnt += 1 + find_vissue_count(call_label)
+            elif (is_label or is_jump or is_ret):
                 print("Stopping at label " + line[0:-1] + " w/ cnt " + str(cnt))
+                # cnt ret
+                if (is_ret):
+                    cnt += 1
                 return cnt
             # ignore comments and blank lines
             elif (not is_comment(line) and anychar_regex.search(line)):

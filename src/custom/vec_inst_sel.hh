@@ -64,9 +64,8 @@ class VecInstSel : public Named {
     // resp from the icache
     void recvIcacheResp(PacketPtr pkt);
 
-    // whether we can recv a new packet next cycle?
-    // TODO might need port retry interface to get this 0 cycle latency working
-
+    // squash due to a branch, update the local PC and allow to continue fetching
+    void doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator);
 
   protected:
     // PC gen for uop decomposition
@@ -125,6 +124,10 @@ class VecInstSel : public Named {
     int _tempBlocksPopped;
 
     Tick _lastSendTick;
+
+    // flag to stall until recv stall signal for the next PC
+    // this is set by a feedback signal from decode
+    bool _stallUntilJumpPC;
     
   
 };

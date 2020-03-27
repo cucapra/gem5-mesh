@@ -215,49 +215,40 @@ IEW::doWriteback()
       if (!inst->isSquashed()) {
         assert(inst->isExecuted());
 
-        TheISA::PCState temp_pc = inst->pc;
-        TheISA::advancePC(temp_pc, inst->static_inst_p);
+        // TheISA::PCState temp_pc = inst->pc;
+        // TheISA::advancePC(temp_pc, inst->static_inst_p);
 
-        // whether the branch was locally taken to compare to the trace
-        // TODO for some reason can get cases where mispredict is wrong due to target not taken flag
-        bool local_taken = false;
-        if (inst->isControl()) {
-          local_taken = inst->pc.npc() == inst->branchTarget().pc();
-        }
+        // // whether the branch was locally taken to compare to the trace
+        // // TODO for some reason can get cases where mispredict is wrong due to target not taken flag
+        // bool local_taken = false;
+        // if (inst->isControl()) {
+        //   local_taken = inst->pc.npc() == inst->branchTarget().pc();
+        // }
         
         //if (inst->predicted_taken && inst->branchTarget() != temp_pc) local_taken = false;
         //else if (!inst->predicted_taken && (inst->pc.npc() != temp_pc.pc())) local_taken = true;
         
-        if ((!inst->from_trace && inst->isMispredicted()) || // normal case
-              (inst->from_trace && !inst->checkTrace(local_taken, temp_pc))) {
-                
-          if (inst->from_trace) {
-            DPRINTF(Mesh, "[%s] %ld %ld\nmispredict %d pred_taken %d pred pc %s\ncurpc %s local taken %d local target %s branch target %s\nmaster taken %d master target %s\n",
-              inst->toString(), inst->pc.npc(), temp_pc.pc(),
-              inst->isMispredicted(), inst->predicted_taken, inst->readPredTarg(), 
-              inst->pc, local_taken, temp_pc, inst->branchTarget(), inst->master_taken, inst->master_targ);
-            
-          }
-                
+        // check if this is a mispredicted instruction. If so, init a squash
+        if (inst->isMispredicted()) {
           DPRINTF(IEW, "Branch misprediction: "
                        "[sn:%d] predicted target PC: %s\n",
                        inst->seq_num, inst->readPredTarg());
 #ifdef DEBUG
-            // record
-            m_stage_status.set(IEWStatus::WBInitSquash);
+          // record
+          m_stage_status.set(IEWStatus::WBInitSquash);
 #endif
-            // initiate a squash signal
-            initiateSquash(inst);
+          // initiate a squash signal
+          initiateSquash(inst);
         }
         
-        inst->setCondResolved();
+        // inst->setCondResolved();
         
         
-        if (!inst->from_trace) {
-          // update some fields in case send to slave
-          inst->master_taken = local_taken;
-          inst->master_targ = temp_pc;
-        }
+        // if (!inst->from_trace) {
+        //   // update some fields in case send to slave
+        //   inst->master_taken = local_taken;
+        //   inst->master_targ = temp_pc;
+        // }
 
         // make sure all dest regs are marked as ready by exec units
         for (int i = 0; i < inst->numDestRegs(); ++i) {
@@ -271,6 +262,10 @@ IEW::doWriteback()
         if (m_cpu_p->getEarlyVector()->isSlave() && inst->numDestRegs() > 0)
           DPRINTF(Mesh, "writeback %s %lx\n", inst->toString(true), 
             m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)));
+        if (m_cpu_p->getEarlyVector()->isSlave() && inst->isStore() && !inst->isFloating()) {
+          DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true), 
+            m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
+        }
 
         // set values as temp renamed dest reg
         if (inst->static_inst_p->isBroadcast()) {

@@ -306,18 +306,21 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
     count++;
   }
   
+  // do squash in subunit
+  _vecUops.doSquash(squashInfo, initiator);
+
   // if squash due to a traced instruction, then we need to exit trace mode
   // TODO probably want to go to 'transparent' where recv and send as before
   // but still doing own seperate fetch and instruction stream.
   // + Don't run into issue when one core diverges and causes rest to diverge b/c dominates them
   // - Potentially wasted energy on instruction pass throughs (especially if low usage)
   // - This core can potentially stall b/c target is stalled, but that's awkward b/c this is working on diff stream
-  if (initiator == StageIdx::IEWIdx && squash_inst->from_trace) {
-    DPRINTF(Mesh, "[[INFO]] trace divergence [%s]\n", squash_inst->toString(true));
-    //m_cpu_p->setMiscReg(RiscvISA::MISCREG_FETCH, 0, tid);
-    _vecPassThrough = true;
-    restoreCredits();
-  }
+  // if (initiator == StageIdx::IEWIdx && squash_inst->from_trace) {
+  //   DPRINTF(Mesh, "[[INFO]] trace divergence [%s]\n", squash_inst->toString(true));
+  //   //m_cpu_p->setMiscReg(RiscvISA::MISCREG_FETCH, 0, tid);
+  //   _vecPassThrough = true;
+  //   restoreCredits();
+  // }
   
   // if this was a config squash and if we are a slave, then takeaway all credits?
   // but not sure we can make this check based on when the csr file is written and credits
@@ -401,6 +404,9 @@ Vector::forwardInstruction(const IODynInstPtr& inst) {
     forwardInst.inst = forged_inst;
 
     DPRINTF(Mesh, "forged inst %s from machinst %#x imm %#x\n", forged_inst->toString(true), mach_inst, imm);
+  }
+  else if (inst->isUncondCtrl() || inst->isCondCtrl()) {
+    return; // don't send any control instructions
   }
   else if (isDecoupledAccess()) {
     return;
@@ -494,18 +500,18 @@ Vector::createInstruction(const IODynInstPtr &inst) {
   // 1) vec loads
   // 2) scalar instructions
   StaticInstPtr static_inst;
-  bool force32bit;
+  // bool force32bit;
   if (inst->static_inst_p->isSpadPrefetch()) {
     // TODO this makes pc + 2, when need pc + 4 (the prefetch is 32 bits)
     // compensate in iew logic
     static_inst = StaticInst::nopStaticInstPtr; 
-    force32bit = true;
+    // force32bit = true;
   }
   // otherwise copy the sent instruction
   else {
     TheISA::MachInst machInst = (TheISA::MachInst)inst->static_inst_p->machInst;
     static_inst = extractInstruction(machInst, cur_pc);
-    force32bit = false;
+    // force32bit = false;
   }
   // TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
   // static_inst = extractInstruction(machInst, cur_pc);
@@ -516,24 +522,24 @@ Vector::createInstruction(const IODynInstPtr &inst) {
           std::make_shared<IODynInst>(static_inst, inst->pc,
                                       m_cpu_p->getAndIncrementInstSeq(),
                                       tid, m_cpu_p);
-  //DPRINTF(Mesh, "[tid:%d]: built inst %s\n", tid, dyn_inst->toString(true));  
+  DPRINTF(Mesh, "[tid:%d]: built inst %s from %s\n", tid, copied_inst->toString(true), inst->toString(true));  
   
-  // mark instruction as from a stream traced by master core
-  if (!static_inst->isVectorIssue()) {
-    copied_inst->from_trace = true;
-    copied_inst->replaced = force32bit;
+  // // mark instruction as from a stream traced by master core
+  // if (!static_inst->isVectorIssue()) {
+  //   copied_inst->from_trace = true;
+  //   copied_inst->replaced = force32bit;
     
-    // iew will pass a mispredicted branch forward, we don't want to send 
-    // this to slave core because it will be wasted work, however you still need
-    // to check the branch here. if it fails with update then we know there is divergence
+  //   // iew will pass a mispredicted branch forward, we don't want to send 
+  //   // this to slave core because it will be wasted work, however you still need
+  //   // to check the branch here. if it fails with update then we know there is divergence
     
-      copied_inst->master_targ  = inst->master_targ;
-      copied_inst->master_taken = inst->master_taken;
+  //     copied_inst->master_targ  = inst->master_targ;
+  //     copied_inst->master_taken = inst->master_taken;
     
-    if (inst->isControl()) {
-      DPRINTF(Mesh, "master targed %d %s. pred targ %d %s\n", inst->master_taken, inst->master_targ, inst->predicted_taken, inst->readPredTarg() );
-    }
-  }  
+  //   if (inst->isControl()) {
+  //     DPRINTF(Mesh, "master targed %d %s. pred targ %d %s\n", inst->master_taken, inst->master_targ, inst->predicted_taken, inst->readPredTarg() );
+  //   }
+  // }  
 
   return copied_inst;
 }

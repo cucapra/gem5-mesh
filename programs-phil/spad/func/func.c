@@ -23,7 +23,7 @@ vvadd_kernel(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vti
 
   // TODO allow unroll
   #pragma GCC unroll 0
-  for (int i = start; i < end; i+=4) {
+  for (int i = start; i < end; i+=dim) {
     // issue fable1
     ISSUE_VINST(fable1);
   }
@@ -65,7 +65,7 @@ vvadd_kernel(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vti
 void __attribute__((optimize("-fno-reorder-blocks"))) 
 kernel(DTYPE *a, DTYPE *b, DTYPE *c, int size,
     int tid_x, int tid_y, int dim_x, int dim_y) {
-      // start recording all stats (all cores)
+  // start recording all stats (all cores)
   if (tid_x == 0 && tid_y == 0) {
     stats_on();
   }
@@ -99,6 +99,7 @@ kernel(DTYPE *a, DTYPE *b, DTYPE *c, int size,
   // virtual group dimension
   vdim_x = 2;
   vdim_y = 2;
+  vdim = vdim_x * vdim_y;
 
   // group 1 top left (master = 0)
   if (ptid == 1) vtid = 0;
@@ -114,6 +115,9 @@ kernel(DTYPE *a, DTYPE *b, DTYPE *c, int size,
     master_x = 0;
     master_y = 0;
   }
+  else {
+    return;
+  }
 
   vtid_x = vtid % vdim_x;
   vtid_y = vtid / vdim_y;
@@ -121,8 +125,7 @@ kernel(DTYPE *a, DTYPE *b, DTYPE *c, int size,
 
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
 
-
-    // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
+  // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
   // do before the function call so the arg stack frame is on the spad
   // store the the current spAddr to restore later 
@@ -156,7 +159,6 @@ kernel(DTYPE *a, DTYPE *b, DTYPE *c, int size,
   asm volatile (
     "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
   );
-
 
 }
 
