@@ -125,5 +125,6 @@ class StaticInstFlags(Enum):
         , 'IsVectorIssue'
         , 'IsBroadcast'
         , 'IsPredicate'
+        , 'IsTerminator'
 
         ]

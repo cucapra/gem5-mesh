@@ -9,6 +9,12 @@ devec_opcode = '0x2b'
 # figure out the file names
 infile = sys.argv[1]
 outfile = sys.argv[2]
+try:
+    use_term = sys.argv[3]
+    if (int(use_term) == 1):
+        use_term = True
+except:
+    use_term = False
 
 # the assemble won't accept a number as the register value, so have to put in 
 # a riscv register corresponding to the number
@@ -56,6 +62,9 @@ def load_file(fileName):
 # create replacement for old vissue inst
 def construct_vissue(opcode, count, label):
     return '\t.insn uj {0}, {1}, {2}\n'.format(opcode, get_reg(count), label)
+
+def construct_terminator():
+    return '\t.insn i 0x1b, 0x7, x0, x0, 0\n'
 
 # find all vissues in the program and store in a table
 def build_vissue_table():
@@ -142,7 +151,7 @@ def check_ret(line):
 
 # parse the file again to find where the label is and count how many instructions
 # are in the basic block for that label
-def find_vissue_count(label):
+def find_vissue_count(label, term_count = False):
     print("Find instructions for label " + label)
     label_regex = re.compile('(' + label + ':)')
     anychar_regex = re.compile('[a-z]')
@@ -157,7 +166,7 @@ def find_vissue_count(label):
             (is_call, call_label) = check_call(line)
             is_ret = check_ret(line)
             # recursion to explore function call count
-            if (is_call):
+            if (is_call and not term_count):
                 print('call label: ' + call_label)
                 cnt += 1 + find_vissue_count(call_label)
             elif (is_label or is_jump or is_ret):
@@ -166,8 +175,8 @@ def find_vissue_count(label):
                 if (is_ret):
                     cnt += 1
                 return cnt
-            # ignore comments and blank lines
-            elif (not is_comment(line) and anychar_regex.search(line)):
+            # ignore comments and blank lines (if the flag is set)
+            elif (term_count or (not is_comment(line) and anychar_regex.search(line))):
                 print(line[0:-1])
                 cnt += 1
         # if we're haven't start yet see if we can start due to the desired label
@@ -322,6 +331,25 @@ def adjust_vissue_label(vissue_line):
                     vissue_table[vissue_line]['label'] = label
                     return
 
+# insert lines into cache source files at the end of the block
+def add_terminator(vissue_line):
+    # determine which block we're looking for
+    label = vissue_table[vissue_line]['label']
+    # how many instruction are currently in the block
+    # will put the terminator after this
+    cnt = find_vissue_count(label, True)
+
+    # find where the label starts in the file and insert after count
+    for i in range(0, len(cached_src_file)):
+        line = cached_src_file[i]
+        (is_label, line_label) = check_label(line)
+        if (line_label == vissue_table[vissue_line]['label']):
+            # insert an terminator instruction after cnt and return
+            print('inserting terminator @ cnt ' + str(cnt + 1))
+            cached_src_file.insert(i + cnt + 1, construct_terminator())
+            return
+
+
 def count_vissue(vissue_line):
     label = vissue_table[vissue_line]['label']
     vissue_table[vissue_line]['count'] = find_vissue_count(label)
@@ -371,9 +399,16 @@ for k,v in vissue_table.items():
 for k,v in vissue_table.items():
     flatten_vissue(k)
 
-# count the number instructions for vissue (basic block)
-for k,v in vissue_table.items():
-    count_vissue(k)
+# add terminators at the end of each block
+if (use_term):
+    for k,v in vissue_table.items():
+        add_terminator(k)
+
+# if not using terminator then eed to count
+else:
+    # count the number instructions for vissue (basic block)
+    for k,v in vissue_table.items():
+        count_vissue(k)
 
 # foreach line copy each line to the output file
 # unless we find a vissue, in which case we modify that line

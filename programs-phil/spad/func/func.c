@@ -7,6 +7,8 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
+// #define USE_TERMINATOR 1
+
 void __attribute__((optimize("-fno-inline"))) add(int *c, int *a, int *b, int i) {
   c[i] = a[i] + b[i];
 }
@@ -49,11 +51,18 @@ vvadd_kernel(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vti
     aPtr = a + start + vtid;
     bPtr = b + start + vtid;
     cPtr = c + start + vtid;
+    // have script add terminator at the end of the block b/c may do some label adjusting
+    // #ifdef USE_TERMINATOR
+    // TERMINATE_BLOCK();
+    // #endif
   
   // loop body block
   fable1:
     add(cPtr, aPtr, bPtr, iter);
     iter+=dim;
+    // #ifdef USE_TERMINATOR
+    // TERMINATE_BLOCK();
+    // #endif
 
     // need this jump to create loop carry dependencies
     // an assembly pass will remove this instruction

@@ -19,7 +19,9 @@ VecInstSel::VecInstSel(IOCPU *_cpu_p, IOCPUParams *params) :
   _tempBlocksRecv(0),
   _tempBlocksPopped(0),
   _lastSendTick(0),
-  _stallUntilJumpPC(false)
+  _stallUntilJumpPC(false),
+  _waitingForTerminator(false),
+  _terminatorFound(false)
 {
 }
 
@@ -122,10 +124,12 @@ VecInstSel::dequeueInst() {
     // careful if jump is the last instruction then don't want to stall for it? just don't allow this scenario for now
     // but if you want then need to not stall on it and just send off a nop instead
     if (ret->isUncondCtrl() || ret->isCondCtrl()) {
-      if ((_uopIssueLen - _uopCnt > 0)) {
+      // TODO not sure if this if condition is required anymore
+      if ((_uopIssueLen - _uopCnt > 0) || (_waitingForTerminator)) {
         DPRINTF(Mesh, "stalling due to jump %s\n", ret->toString(true));
         _stallUntilJumpPC = true;
       }
+      // TODO not sure this is needed anymore
       else {
         // when making a nop that will get copied, can't actually use nopStaticInstPtr?
         RiscvISA::Decoder dec;
@@ -135,6 +139,10 @@ VecInstSel::dequeueInst() {
         //                               ret->seq_num,
         //                               ret->thread_id, m_cpu_p);
       }
+    }
+    // TODO this will happen in decode so should still log an additional icache access that will be squashed
+    else if (ret->static_inst_p->isTerminator()) {
+      _terminatorFound = true;
     }
 
 
@@ -170,9 +178,9 @@ VecInstSel::processHead() {
   DPRINTF(Mesh, "process head rem uops %d\n", _uopIssueLen - _uopCnt);
   // pop off pc head if finished
   // TODO need uopIssueLen > 0 b/c not popping inst cmd here
-  if (!_vecCmds.empty() && !_vecCmds.front()->isInst && !isPCGenActive() && _uopIssueLen > 0) {
+  if (!_vecCmds.empty() && !_vecCmds.front()->isInst && !isPCGenActive() && /* TODO is next part needed?*/(_uopIssueLen > 0 || _waitingForTerminator)) {
     DPRINTF(Mesh, "pop pc block %d\n", _vecCmds.front()->recvCnt);
-    setPCGen(0, 0);
+    cleanCurIssueBlock();
     _vecCmds.pop();
   }
 
@@ -212,10 +220,18 @@ VecInstSel::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
 // reset by cleaning queue and removing any uop tracking state
 void
 VecInstSel::reset() {
-  setPCGen(0, 0);
+  cleanCurIssueBlock();
   while(!_vecCmds.empty()) {
     _vecCmds.pop();
   }
+}
+
+void
+VecInstSel::cleanCurIssueBlock() {
+  _uopIssueLen = 0;
+  _uopCnt = 0;
+  _waitingForTerminator = false;
+  _terminatorFound = false;
 }
 
 // recv response from the icache and store in buffer
@@ -285,20 +301,21 @@ VecInstSel::extractInstCntFromVissue(IODynInstPtr inst) {
 
 void
 VecInstSel::setPCGen(TheISA::PCState issuePC, int cnt) {
-  if (cnt > 0) {
-    _tempBlocksPopped++;
-  }
+  _tempBlocksPopped++;
   assert(_tempBlocksPopped <= _tempBlocksRecv);
   DPRINTF(Mesh, "set pc gen pc %#x cnt %d blks popped %d\n", issuePC.instAddr(), cnt, _tempBlocksPopped);
   _uopPC = issuePC;
   _uopPC.npc(_uopPC.pc() + sizeof(RiscvISA::MachInst));
   _uopCnt = 0;
   _uopIssueLen = cnt;
+  if (_uopIssueLen == 0) { // do based on terminating instruction rather than cnt
+    _waitingForTerminator = true;
+  }
 }
 
 bool
 VecInstSel::isPCGenActive() {
-  return (_uopCnt < _uopIssueLen) && (_uopIssueLen > 0);
+  return ((_uopCnt < _uopIssueLen) && (_uopIssueLen > 0)) || (_waitingForTerminator && !_terminatorFound);
 }
 
 
@@ -344,6 +361,8 @@ VecInstSel::sendICacheReq(int tid, Addr instAddr) {
 // try to send a request for the next uop addr
 void
 VecInstSel::tryReqNextUop() {
+  // TODO in the case of stallUntilJUmpPC should we still issue the reqs and then drop them
+  // to make a fair comparison with how the normal fetch stage does this
   if (_lastICacheResp || _pendingICacheReq || _stallUntilJumpPC) return;
   
   if (isPCGenActive()) {

@@ -481,6 +481,10 @@ decode QUADRANT default Unknown::unknown() {
                 0x6: bcast({{
                     Rd_sd = Rs1_sd + imm;
                 }}, int32_t, IsBroadcast);
+                0x7: arnold({{
+                    // nada, just terminator marker
+
+                }}, int32_t, IsTerminator);
             }
         }
 

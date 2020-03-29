@@ -73,6 +73,9 @@
   asm volatile (".insn r 0x33, 0x7, 0x5, x0, %[rs1], %[rs2]\n\t") \
   :: [rs1] "r" (reg0), [rs2] "r" (reg1)
 
+#define TERMINATE_BLOCK() \
+  asm volatile(".insn i 0x1b, 0x7, x0, x0, 0\n\t")
+
 
   // revec instruction with unique hash id
 /*#define REVEC(hash)                                                           \

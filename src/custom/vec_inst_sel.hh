@@ -84,6 +84,8 @@ class VecInstSel : public Named {
     // will have opening in queue by the end of this cycle
     bool willHaveOpening();
 
+    void cleanCurIssueBlock();
+
   protected:
     // cpu
     IOCPU *m_cpu_p;
@@ -128,6 +130,12 @@ class VecInstSel : public Named {
     // flag to stall until recv stall signal for the next PC
     // this is set by a feedback signal from decode
     bool _stallUntilJumpPC;
+
+    // waiting for terminator
+    // currently allow either a count or a terminating instruction to signal the end of a block
+    bool _waitingForTerminator;
+    // flag to signal the end of the block
+    bool _terminatorFound;
     
   
 };
