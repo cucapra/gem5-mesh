@@ -677,6 +677,18 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       // m_s1_inst->mem_req_p->fromDecoupledAccess = dAccess;
       DPRINTF(Mesh, "[%s] send vec load %#x to %#x, (%d,%d)\n", m_s1_inst->toString(true), 
           addr, m_s1_inst->mem_req_p->prefetchAddr , m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
+
+      // if this is a prefetch then the offset field needs to be used for information about how to do the load
+      // by default the gem5 instruction system will add this immediate to the address in the addr register
+      // we need to remove this before translating and sending off
+      
+      auto upper7 = bits((uint32_t)m_s1_inst->static_inst_p->machInst, 31, 25);
+      auto lower5 = bits((uint32_t)m_s1_inst->static_inst_p->machInst, 11, 7);
+      uint32_t imm = (upper7 << 5) | lower5;
+      DPRINTF(Mesh, "imm val %lx %lx %lx\n", upper7, lower5, imm);
+      Addr adjustedAddr = m_s1_inst->mem_req_p->getVaddr() - imm;
+      m_s1_inst->mem_req_p->setVirt(0, adjustedAddr, size, flags, m_cpu_p->dataMasterId(),
+                                          m_s1_inst->pc.pc(), amo_op);
     }
     else {
       m_s1_inst->mem_req_p->xDim = 1;

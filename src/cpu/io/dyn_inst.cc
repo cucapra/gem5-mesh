@@ -34,17 +34,9 @@ IODynInst::IODynInst(const StaticInstPtr& static_inst,
       from_trace(false),
       replaced(false),
       cond_resolved(false),
-      fetch_cycles(0),
-      decode_cycles(0),
-      issue_cycles(0),
-      execute_cycles(0),
-      write_cycles(0),
-      commit_cycles(0),
-      broadcast_val(0)
-{ 
-
-  master_info.fill(0);
-}
+      broadcast_val(0),
+      pred_at_issue(true)
+{ }
 
 IODynInst::~IODynInst()
 {
@@ -101,7 +93,7 @@ IODynInst::branchTarget()
 bool
 IODynInst::isMispredicted()
 {
-  if (static_inst_p->isVectorIssue()) return false; // can't mispredict vec issue
+  if (static_inst_p->isVectorIssue() || !static_inst_p->isControl()) return false; // can't mispredict vec issue
   TheISA::PCState temp_pc = pc;
   TheISA::advancePC(temp_pc, static_inst_p);
   return !(temp_pc == m_pred_pc);
@@ -478,5 +470,46 @@ IODynInst::checkTrace(bool local_taken, TheISA::PCState local_targ) {
   
 }
 
+
+// ripped directly from o3/dyn_inst.hh
+void
+IODynInst::forwardOldRegs() {
+  for (int idx = 0; idx < numDestRegs(); idx++) {
+    PhysRegIdPtr prev_phys_reg = prevDestRegIdx(idx);
+    const RegId& original_dest_reg = static_inst_p->destRegIdx(idx);
+    switch (original_dest_reg.classValue()) {
+      case IntRegClass:
+        setIntRegOperand(static_inst_p.get(), idx,
+                        m_cpu_p->readIntReg(prev_phys_reg));
+        break;
+      case FloatRegClass:
+        setFloatRegOperandBits(static_inst_p.get(), idx,
+                        m_cpu_p->readFloatReg(prev_phys_reg));
+        break;
+      case VecRegClass:
+        setVecRegOperand(static_inst_p.get(), idx,
+                        m_cpu_p->readVecReg(prev_phys_reg));
+        break;
+      case VecElemClass:
+        setVecElemOperand(static_inst_p.get(), idx,
+                        m_cpu_p->readVecElem(prev_phys_reg));
+        break;
+      case VecPredRegClass:
+        setVecPredRegOperand(static_inst_p.get(), idx,
+                        m_cpu_p->readVecPredReg(prev_phys_reg));
+        break;
+      case CCRegClass:
+        setCCRegOperand(static_inst_p.get(), idx,
+                        m_cpu_p->readCCReg(prev_phys_reg));
+        break;
+      case MiscRegClass:
+        // no need to forward misc reg values
+        break;
+      default:
+        panic("Unknown register class: %d",
+                (int)original_dest_reg.classValue());
+    }
+  }
+}
 
 

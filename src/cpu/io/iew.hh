@@ -70,7 +70,23 @@ public:
   /** Line trace */
   void linetrace(std::stringstream &ss) override;
 
-  
+    /** Accessor to predicate */
+    bool getPred() const;
+    void setPred(bool val);
+
+  private:
+    enum IEWStatus {
+      // Issue stage
+      IssueSquashed,
+      IssueInitStall,
+      IssueBusy,
+      // Writeback stage
+      WBSquashed,
+      WBStalled,
+      WBInitSquash,
+      WBBusy,
+      NumStatus
+    };
 
 private:
   enum IEWStatus
@@ -164,6 +180,9 @@ private:
 public:
   //check if vector mode
   bool vecmode;
+
+    /** Predicate flag. If set and vec mode then do not perform effect of instruction */
+    bool m_pred_flag;
 
 #ifdef DEBUG
   /** Stage's status (for line trace) */

@@ -546,6 +546,14 @@ public:
     std::array<int,7>master_info; // fetch begin, fetch end, decode end, I end, E end, W end, C end
     // if going to broadcast save value computed during execute
     RegVal broadcast_val;
+
+    // pred flag when this instruction issues or before execution
+    // basically taking advantage of inorder issue to know if instruction ahead of this
+    // set pred flag
+    bool pred_at_issue;
+
+    // set the value of the current renamed dest register to the previous one 
+    void forwardOldRegs();
 };
 
 typedef std::shared_ptr<IODynInst> IODynInstPtr;

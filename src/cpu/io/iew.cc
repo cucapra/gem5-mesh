@@ -24,7 +24,8 @@ IEW::IEW(IOCPU *_cpu_p, IOCPUParams *params, size_t in_size, size_t out_size)
       m_issue_width(params->issueWidth),
       m_wb_width(params->writebackWidth),
       m_scoreboard_p(nullptr),
-      vecmode(params->includeVector)
+      vecmode(params->includeVector),
+      m_pred_flag(true)
 {
   // create Int ALU exec unit
   assert(params->intAluOpLatency == 1); // need branch to check in one cycle for trace
@@ -238,32 +239,21 @@ void IEW::doWriteback()
       {
         assert(inst->isExecuted());
 
-        TheISA::PCState temp_pc = inst->pc;
-        TheISA::advancePC(temp_pc, inst->static_inst_p);
+        // TheISA::PCState temp_pc = inst->pc;
+        // TheISA::advancePC(temp_pc, inst->static_inst_p);
 
-        // whether the branch was locally taken to compare to the trace
-        // TODO for some reason can get cases where mispredict is wrong due to target not taken flag
-        bool local_taken = false;
-        if (inst->isControl())
-        {
-          local_taken = inst->pc.npc() == inst->branchTarget().pc();
-        }
-
+        // // whether the branch was locally taken to compare to the trace
+        // // TODO for some reason can get cases where mispredict is wrong due to target not taken flag
+        // bool local_taken = false;
+        // if (inst->isControl()) {
+        //   local_taken = inst->pc.npc() == inst->branchTarget().pc();
+        // }
+        
         //if (inst->predicted_taken && inst->branchTarget() != temp_pc) local_taken = false;
         //else if (!inst->predicted_taken && (inst->pc.npc() != temp_pc.pc())) local_taken = true;
-
-        if ((!inst->from_trace && inst->isMispredicted()) || // normal case
-            (inst->from_trace && !inst->checkTrace(local_taken, temp_pc)))
-        {
-
-          if (inst->from_trace)
-          {
-            DPRINTF(Mesh, "[%s] %ld %ld\nmispredict %d pred_taken %d pred pc %s\ncurpc %s local taken %d local target %s branch target %s\nmaster taken %d master target %s\n",
-                    inst->toString(), inst->pc.npc(), temp_pc.pc(),
-                    inst->isMispredicted(), inst->predicted_taken, inst->readPredTarg(),
-                    inst->pc, local_taken, temp_pc, inst->branchTarget(), inst->master_taken, inst->master_targ);
-          }
-
+        
+        // check if this is a mispredicted instruction. If so, init a squash
+        if (inst->isMispredicted()) {
           DPRINTF(IEW, "Branch misprediction: "
                        "[sn:%d] predicted target PC: %s\n",
                   inst->seq_num, inst->readPredTarg());
@@ -274,15 +264,15 @@ void IEW::doWriteback()
           // initiate a squash signal
           initiateSquash(inst);
         }
-
-        inst->setCondResolved();
-
-        if (!inst->from_trace)
-        {
-          // update some fields in case send to slave
-          inst->master_taken = local_taken;
-          inst->master_targ = temp_pc;
-        }
+        
+        // inst->setCondResolved();
+        
+        
+        // if (!inst->from_trace) {
+        //   // update some fields in case send to slave
+        //   inst->master_taken = local_taken;
+        //   inst->master_targ = temp_pc;
+        // }
 
         // make sure all dest regs are marked as ready by exec units
         for (int i = 0; i < inst->numDestRegs(); ++i) {
@@ -296,6 +286,10 @@ void IEW::doWriteback()
         if (m_cpu_p->getEarlyVector()->isSlave() && inst->numDestRegs() > 0)
           DPRINTF(Mesh, "writeback %s %lx\n", inst->toString(true), 
             m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)));
+        if (m_cpu_p->getEarlyVector()->isSlave() && inst->isStore() && !inst->isFloating()) {
+          DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true), 
+            m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
+        }
 
         // set values as temp renamed dest reg
         if (inst->static_inst_p->isBroadcast()) {
@@ -323,76 +317,69 @@ void IEW::doWriteback()
 
 void IEW::doExecute()
 {
-  // If this is a traced instruction, set the PC of each instruction
-  // in the first stage of respective ALU
-  // TODO potentially adds a mux on crit path? or no?
-  // NOTE these some of these operations don't have to be completed by execute
-  // for example jal $ra, in gem5 NPC needs to be known in exe, but really can get NPC in writeback?
-  for (auto exec_unit_p : m_exec_units)
-  {
-    IODynInstPtr inst = exec_unit_p->peekIntroInst();
-    if (inst && inst->from_trace)
-    {
+  // // If this is a traced instruction, set the PC of each instruction
+  // // in the first stage of respective ALU
+  // // TODO potentially adds a mux on crit path? or no?
+  // // NOTE these some of these operations don't have to be completed by execute
+  // // for example jal $ra, in gem5 NPC needs to be known in exe, but really can get NPC in writeback?
+  // for (auto exec_unit_p : m_exec_units) {
+  //   IODynInstPtr inst = exec_unit_p->peekIntroInst();
+  //   if (inst && inst->from_trace) {
+      
+  //     // check if instruction is compressed and has diff increment
+  //     TheISA::PCState cur_pc = m_trace_pcs[inst->thread_id];
+  //     RiscvISA::Decoder decoder;
+  //     TheISA::MachInst mach_inst = (TheISA::MachInst)inst->static_inst_p->machInst;
+  //     if (decoder.compressed(mach_inst) && !inst->replaced) {
+  //       cur_pc.npc(cur_pc.instAddr() + sizeof(RiscvISA::MachInst) / 2);
+  //     } else {
+  //       cur_pc.npc(cur_pc.instAddr() + sizeof(RiscvISA::MachInst));
+  //     }
 
-      // check if instruction is compressed and has diff increment
-      TheISA::PCState cur_pc = m_trace_pcs[inst->thread_id];
-      RiscvISA::Decoder decoder;
-      TheISA::MachInst mach_inst = (TheISA::MachInst)inst->static_inst_p->machInst;
-      if (decoder.compressed(mach_inst) && !inst->replaced)
-      {
-        cur_pc.npc(cur_pc.instAddr() + sizeof(RiscvISA::MachInst) / 2);
-      }
-      else
-      {
-        cur_pc.npc(cur_pc.instAddr() + sizeof(RiscvISA::MachInst));
-      }
+  //     inst->pcState(cur_pc);
+      
+  //     // this is a gem5 specific thing, but checking the outcome of a branch
+  //     // involves stuff generated by a branch predictor, so just check that now
+  //     // with the new pc. In real hardware would just ignore branch prediction and branch taken/not taken
+  //     TheISA::PCState next_pc = cur_pc;
+  //     bool pred_taken = m_cpu_p->getFetch()->lookupAndUpdateNextPC(inst, next_pc); 
+  //     inst->predicted_taken = pred_taken;
+  //     inst->setPredTarg(next_pc);
+      
+  //     //DPRINTF(Mesh, "setup inst based on trace %s . %s\n", m_trace_pcs[inst->thread_id], cur_pc);
+      
+  //   }
+    
+  //   //if (inst) DPRINTF(Mesh, "1cycle [%s] pc %s. trace pc %s\n", inst->toString(true), inst->pc, m_trace_pcs[inst->thread_id]);
 
-      inst->pcState(cur_pc);
-
-      // this is a gem5 specific thing, but checking the outcome of a branch
-      // involves stuff generated by a branch predictor, so just check that now
-      // with the new pc. In real hardware would just ignore branch prediction and branch taken/not taken
-      TheISA::PCState next_pc = cur_pc;
-      bool pred_taken = m_cpu_p->getFetch()->lookupAndUpdateNextPC(inst, next_pc);
-      inst->predicted_taken = pred_taken;
-      inst->setPredTarg(next_pc);
-
-      //DPRINTF(Mesh, "setup inst based on trace %s . %s\n", m_trace_pcs[inst->thread_id], cur_pc);
-    }
-
-    //if (inst) DPRINTF(Mesh, "1cycle [%s] pc %s. trace pc %s\n", inst->toString(true), inst->pc, m_trace_pcs[inst->thread_id]);
-  }
-
-  // do the functional ticks where applicable to get the appropriate next PC
-  // assume everything relevant to PC can occur in a single cycle so this is find to check now
-  // (really at the end of the cycle)
-  for (auto exec_unit_p : m_exec_units)
-    exec_unit_p->functionalExecute();
-
-  // Set update for the PC register to be read at the beginning of the next
-  // execute cycle
-  // TODO potentially adds a mux to crit path
-  // TODO out of order issue, especially when issue width > 1
-  // In the current setup it should only be possible for one instruction
-  // to at the end of its first cycle in the pipeline
-  bool found = false;
-  for (auto exec_unit_p : m_exec_units)
-  {
-    IODynInstPtr inst = exec_unit_p->peekIntroInst();
-    if (inst && !inst->isSquashed())
-    { // instruction could have been squashed in pipe? so need to check
-      TheISA::PCState cur_pc = inst->pc;
-      TheISA::advancePC(cur_pc, inst->static_inst_p);
-      m_trace_pcs[inst->thread_id] = cur_pc;
-
-      // make sure only one instruction was inserted last cycle
-      // the hack only works if this is the case
-      if (!found)
-        found = true;
-      else
-        assert(0);
-    }
-  }
+  // }
+  
+  // // do the functional ticks where applicable to get the appropriate next PC
+  // // assume everything relevant to PC can occur in a single cycle so this is find to check now
+  // // (really at the end of the cycle)
+  // for (auto exec_unit_p : m_exec_units)
+  //   exec_unit_p->functionalExecute();
+    
+  // // Set update for the PC register to be read at the beginning of the next
+  // // execute cycle
+  // // TODO potentially adds a mux to crit path
+  // // TODO out of order issue, especially when issue width > 1
+  // // In the current setup it should only be possible for one instruction
+  // // to at the end of its first cycle in the pipeline
+  // bool found = false;
+  // for (auto exec_unit_p : m_exec_units) {
+  //   IODynInstPtr inst = exec_unit_p->peekIntroInst();
+  //   if (inst && !inst->isSquashed()) { // instruction could have been squashed in pipe? so need to check
+  //     TheISA::PCState cur_pc = inst->pc;
+  //     TheISA::advancePC(cur_pc, inst->static_inst_p);
+  //     m_trace_pcs[inst->thread_id] = cur_pc;
+  
+  //     // make sure only one instruction was inserted last cycle
+  //     // the hack only works if this is the case
+  //     if (!found) found = true;
+  //     else assert(0);
+  //   }
+  // }
 
   // Tick all execute pipes
   for (auto exec_unit_p : m_exec_units)
@@ -409,6 +396,34 @@ void IEW::doIssue()
   {
     IODynInstPtr inst = m_insts.front();
     ThreadID tid = inst->thread_id;
+
+    // check predication
+    // if active send thru execute unit as usual
+    // if inactive send a noop thru 
+    // unless a predication instructoin in which case we need to send
+    inst->pred_at_issue = m_pred_flag; //getPred();
+    if (!inst->pred_at_issue && !inst->static_inst_p->isPredicate()) {
+      // forward the value of the previous renamed reg for this one b/c there many be instructions
+      // that read this
+      inst->forwardOldRegs();
+      // can't do this b/c need to free renamed regs? but maybe kept apart of dyn_inst?
+      // do this to have this take 1 cycle in IntALU as a NOP
+      inst->static_inst_p = StaticInst::nopStaticInstPtr;
+
+      // do rename on regs again, not sure if needed b/c all zeros?
+      // m_cpu_p->getRename()->renameSrcRegs(inst, inst->thread_id);
+      // m_cpu_p->getRename()->renameDestRegs(inst, inst->thread_id);
+
+      // need to remove rename?
+      // a potential bug where the instruction in rename this cycle might use
+      // the this instructions value to rename...
+      // but maybe guarenteed that the next instruction is either also going to have its regs freed
+      // or cmp inst.? but with if cmp tries to use this
+      // like rename()->readInfo()
+
+      
+    }
+
     OpClass op_class = inst->static_inst_p->opClass();
 
 
@@ -548,6 +563,20 @@ void IEW::doIssue()
 
     }
 
+    // do the predication check right now
+    // in hardware would execute at beginning of next cycle and would have backwards path
+    // to issue??
+    // or could pick up pred flag at the beginning of execute?
+    // but cycle level modeling remains the same
+    if (inst->static_inst_p->isPredicate()) {
+      m_pred_flag = 
+        m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)) == m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1));
+    }
+
+    // if (inst->static_inst_p->isPredicate() || !m_pred_flag) {
+      // DPRINTF(Mesh, "inst %s pred %d\n", inst->toString(true), m_pred_flag);
+    // }
+
     // if (m_cpu_p->getEarlyVector()->isSlave()) DPRINTF(Mesh, "issue %s\n", inst->toString(true));
 
     // Add the instruction to ROB
@@ -651,7 +680,23 @@ void IEW::sendInstToNextStage(IODynInstPtr inst)
 #endif
 }
 
-void IEW::linetrace(std::stringstream &ss)
+bool
+IEW::getPred() const {
+  if (m_cpu_p->getEarlyVector()->isSlave()) {
+    return m_pred_flag;
+  }
+  else {
+    return true;
+  }
+}
+
+void
+IEW::setPred(bool val) {
+  m_pred_flag = val; 
+}
+
+void
+IEW::linetrace(std::stringstream& ss)
 {
 #ifdef DEBUG
   // Issue stage

@@ -24,7 +24,7 @@
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
 // #define VEC_4_SIMD 1
-// #define VEC_4_SIMD_BCAST 1
+#define VEC_4_SIMD_BCAST 1
 
 // vvadd_execute config directives
 #if defined(NO_VEC) || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD)
