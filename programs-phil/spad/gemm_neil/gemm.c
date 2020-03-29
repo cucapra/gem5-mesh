@@ -37,7 +37,7 @@
 //#define _VEC
 //#define UNBLOCKED_INNER
 //#define BLOCKED
-#define INTERLEAVED
+// #define INTERLEAVED
 
 
 
@@ -56,10 +56,15 @@ static inline int get_blk_end(int iter, int bound, int blk_dim) {
   }
 }
 
-#ifdef USE_VECTOR_SIMD
-void __attribute__((optimize("-fno-inline"))) 
-gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t, 
-    int m_start, int m_end, int n_start, int n_end, int tid) {
+#include "gemm_kernel.h"
+/*
+// void __attribute__((optimize("-fno-inline"))) 
+void __attribute__((optimize("-fno-reorder-blocks")))
+gemm_vec_simd(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t, 
+    int m_start, int m_end, int n_start, int n_end, int tid, int mask) {
+
+
+  VECTOR_EPOCH(mask);
 
   if (tid == 0) {
     stats_on();
@@ -232,8 +237,8 @@ gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
 
   return;
 }
+*/
 
-#else
 void __attribute__((optimize("-fno-inline"))) 
 gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t, 
     int m_start, int m_end, int n_start, int n_end, int tid) {
@@ -369,7 +374,7 @@ gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   }
 
 }
-#endif
+
 
 void __attribute__((optimize("-fno-inline")))
 gemm(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t, 
@@ -495,7 +500,11 @@ void kernel(
     DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
     int tid_x, int tid_y, int dim_x, int dim_y) {
 
-
+    // start recording all stats (all cores)
+  // use the last thread, b/c this wakes up last?
+  if (tid_x == 0 && tid_y == 0) {
+    stats_on();
+  }
   
   #if defined _VEC && defined VPF
   int m_start = 0;
@@ -536,6 +545,8 @@ void kernel(
   int vtid_x,vtid_y;
   
   int tid = tid_x + tid_y * dim_x;
+
+
   #if defined USE_VECTOR_SIMD
   if (tid == 1) vtid = 0;
   if (tid == 2) vtid = 1;
@@ -550,11 +561,7 @@ void kernel(
   vtid_x = vtid % dim_x;
   vtid_y = vtid / dim_y;
   #else
-  // start recording all stats (all cores)
-  // use the last thread, b/c this wakes up last?
-  if (tid_x == 0 && tid_y == 0) {
-    stats_on();
-  }
+  
 
   int orig_x = 0;
   int orig_y = 0; //only have 1 group for now
@@ -584,8 +591,7 @@ void kernel(
   VECTOR_EPOCH(0);
   #elif defined USE_VECTOR_SIMD
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, dim_x, dim_y, is_da);
-  VECTOR_EPOCH(mask);
-  gemm_vec(a, b, c, m, n, t, m_start, m_end, n_start, n_end, vtid);
+  gemm_vec_simd(mask, a, b, c, m, n, t, m_start, m_end, n_start, n_end, vtid_x, vtid_y, vtid);
   #else
   gemm(a, b, c, m, n, t, m_start, m_end, n_start, n_end, tid);
   #endif

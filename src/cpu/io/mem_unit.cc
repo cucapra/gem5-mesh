@@ -702,6 +702,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // timing delay in doing translateTiming. That means this translateTiming
     // function will eventually call MemUnit::finishTranslation in the same
     // cycle.
+    DPRINTF(Mesh, "Instr %s Translating mem virtual addr %#x\n",m_s1_inst->toString(true),m_s1_inst->mem_req_p->getVaddr());
     MemTranslation* trans = new MemTranslation(this);
     m_cpu_p->dtb->translateTiming(m_s1_inst->mem_req_p,
                                   m_cpu_p->tcBase(tid),

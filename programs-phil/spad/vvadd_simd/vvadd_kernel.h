@@ -1,3 +1,5 @@
+#ifndef __VVADDK_H__
+#define __VVADDK_H__
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -9,3 +11,5 @@
 #include "../../common/bind_defs.h"
 
 void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master);
+
+#endif

@@ -1,9 +1,7 @@
-
-
 #include "vvadd_kernel.h"
 
 
-// #define SCALAR_CORE
+#define SCALAR_CORE
 // #define VECTOR_CORE
 
 #define REGION_SIZE 2
