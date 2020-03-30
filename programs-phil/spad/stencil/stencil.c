@@ -17,8 +17,8 @@
 #define CACHELINE_WORDS 16
 
 // one of these should be defined to dictate config
-#define NO_VEC 1
-// #define VEC_4_SIMD 1
+// #define NO_VEC 1
+#define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
 
 // vvadd_execute config directives
@@ -313,6 +313,7 @@ stencil(
 void /*__attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) */
 stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, int dim) {
    for (int row = 0; row < nrows - (FILTER_DIM - 1); row++) {
+    // #pragma GCC unroll 4
     for (int col = vtid; col < ncols - (FILTER_DIM - 1); col+=dim) {
       int temp = 0;
       #pragma GCC unroll 3
