@@ -811,6 +811,11 @@ class Packet : public Printable
      */ 
     bool isSpadPrefetch() const { return req->isSpadPrefetch; }
 
+    /**
+     * Accessor to core offset
+     */ 
+    int getCoreOffset() const { return req->coreOffset; }
+
     // packet type for processing scratchpad
     typedef enum RespPktType {
         NotVal = 0,

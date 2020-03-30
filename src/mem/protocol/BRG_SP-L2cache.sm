@@ -112,6 +112,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     int       YDim,       desc = "Y dimension to access for";
     Addr      WordAddress,desc = "Word address of element request";
     Addr      PrefetchAddress, desc = "Prefetch address, same wire as datablk";
+    int       CoreOffset, desc = "Offset from core origin to start";
     // int       Epoch,      desc = "Epoch of the requester";
     LLCRequestType InType, desc = "Keep track of input event to know what to do when get mem";
   }
@@ -241,12 +242,12 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   // can linearize with respect to x or y and get diff sends
   // currently doing by x first
-  int getCoreIdx(int coreIdx, int vecDimX, int vecDimY) {
+  int getCoreIdx(int coreIdx, int coreOffset, int vecDimX, int vecDimY) {
     // get the starting core idx, always 0 in our encoding (no offset for DA core)
     int startingCoreIdx := coreIdx;
 
     // add flat offset to vec cnt
-    int vecFlat := _vecCnt;
+    int vecFlat := _vecCnt + coreOffset;
 
     // get the x y of the current vec count
     int vecX := mod(vecFlat, vecDimX);
@@ -265,9 +266,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return _vecCnt == 0;
   }
 
-  bool isLastLoadOfVec(int xDim, int yDim) {
+  bool isLastLoadOfVec(int xDim, int yDim, int coreOffset) {
     // return (_xCnt == xDim - 1) && (_yCnt == yDim - 1);
-    return (_vecCnt == (xDim * yDim - 1));
+    return ((_vecCnt + coreOffset) == (xDim * yDim - 1));
   }
 
   void increaseVecCount(int xDim) {
@@ -287,6 +288,11 @@ machine(MachineType:L2Cache, "SP LLC cache")
   
   bool isVector(int xDim, int yDim) {
     return (xDim > 1 && yDim > 1);
+  }
+
+  void bumpVecCountByOffset(int offset) {
+    assert(_vecCnt == 0);
+    _vecCnt := offset;
   }
 
   //---------------------------------------------------------------------------
@@ -339,7 +345,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
                   if (isFirstLoadOfVec()) { // TODO need to support non-vec sp load, need special req type
                     trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
                   }
-                  else if (!isLastLoadOfVec(in_msg.XDim, in_msg.YDim)) {
+                  else if (!isLastLoadOfVec(in_msg.XDim, in_msg.YDim, in_msg.CoreOffset)) {
                     trigger(Event:VREAD1, LineAddress, cache_entry, tbe);
                   }
                   else {
@@ -392,7 +398,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
               if (isFirstLoadOfVec()) {
                 trigger(Event:VData0, in_msg.addr, cache_entry, tbe);
               }
-              else if (!isLastLoadOfVec(tbe.XDim, tbe.YDim)) {
+              else if (!isLastLoadOfVec(tbe.XDim, tbe.YDim, tbe.CoreOffset)) {
                 trigger(Event:VData1, in_msg.addr, cache_entry, tbe);
               }
               else {
@@ -505,7 +511,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       NodeID baseId := machineIDToNodeID(in_msg.Requestor);
       // int spadIdx := IDToInt(baseId) + linOffset;
       int coreIdx := IDToInt(baseId);
-      int spadIdx := getCoreIdx(coreIdx, in_msg.XDim, in_msg.YDim);
+      int spadIdx := getCoreIdx(coreIdx, in_msg.CoreOffset, in_msg.XDim, in_msg.YDim);
       int coreOffset := spadIdx - coreIdx;
       MachineID spad := createMachineID(MachineType:Scratchpad, intToID(spadIdx));
       
@@ -566,7 +572,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       assert(machineIDToMachineType(tbe.Requestor) == MachineType:Scratchpad);
       NodeID baseId := machineIDToNodeID(tbe.Requestor);
       int coreIdx := IDToInt(baseId);
-      int spadIdx := getCoreIdx(coreIdx, tbe.XDim, tbe.YDim);
+      int spadIdx := getCoreIdx(coreIdx, tbe.CoreOffset, tbe.XDim, tbe.YDim);
       int coreOffset := spadIdx - coreIdx;
       MachineID spad := createMachineID(MachineType:Scratchpad, intToID(spadIdx));
       
@@ -666,6 +672,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       tbe.YDim := in_msg.YDim;
       tbe.WordAddress := in_msg.WordAddress;
       tbe.PrefetchAddress := in_msg.PrefetchAddress;
+      tbe.CoreOffset := in_msg.CoreOffset;
       // tbe.Epoch := in_msg.Epoch;
       tbe.InType := in_msg.Type;
     }

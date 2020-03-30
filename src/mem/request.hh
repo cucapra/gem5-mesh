@@ -401,7 +401,7 @@ class Request
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
-          prefetchAddr(0), spadSpec(false), isSpadPrefetch(false)
+          prefetchAddr(0), spadSpec(false), isSpadPrefetch(false), coreOffset(0)
     {}
 
     Request(Addr paddr, unsigned size, Flags flags, MasterID mid,
@@ -411,7 +411,7 @@ class Request
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(seq_num), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
-          prefetchAddr(0), spadSpec(false), isSpadPrefetch(false)
+          prefetchAddr(0), spadSpec(false), isSpadPrefetch(false), coreOffset(0)
     {
         setPhys(paddr, size, flags, mid, curTick());
         setContext(cid);
@@ -429,7 +429,7 @@ class Request
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
-          prefetchAddr(0), spadSpec(false), isSpadPrefetch(false)
+          prefetchAddr(0), spadSpec(false), isSpadPrefetch(false), coreOffset(0)
     {
         setPhys(paddr, size, flags, mid, curTick());
     }
@@ -440,7 +440,7 @@ class Request
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
-          prefetchAddr(0), spadSpec(false), isSpadPrefetch(false)
+          prefetchAddr(0), spadSpec(false), isSpadPrefetch(false), coreOffset(0)
     {
         setPhys(paddr, size, flags, mid, time);
     }
@@ -452,7 +452,7 @@ class Request
           _extraData(0), _contextId(0), _pc(pc),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
-          prefetchAddr(0), spadSpec(false), isSpadPrefetch(false)
+          prefetchAddr(0), spadSpec(false), isSpadPrefetch(false), coreOffset(0)
     {
         setPhys(paddr, size, flags, mid, time);
         privateFlags.set(VALID_PC);
@@ -465,7 +465,7 @@ class Request
           _extraData(0), _contextId(0), _pc(0),
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
-          prefetchAddr(0), spadSpec(false), isSpadPrefetch(false)
+          prefetchAddr(0), spadSpec(false), isSpadPrefetch(false), coreOffset(0)
     {
         setVirt(asid, vaddr, size, flags, mid, pc);
         setContext(cid);
@@ -492,7 +492,7 @@ class Request
           translateDelta(other.translateDelta),
           accessDelta(other.accessDelta), depth(other.depth), xDim(other.xDim), yDim(other.yDim), 
           xOrigin(other.xOrigin), yOrigin(other.yOrigin),
-          prefetchAddr(other.prefetchAddr), spadSpec(other.spadSpec), isSpadPrefetch(other.isSpadPrefetch)
+          prefetchAddr(other.prefetchAddr), spadSpec(other.spadSpec), isSpadPrefetch(other.isSpadPrefetch), coreOffset(other.coreOffset)
     {
         if (other.atomicOpFunctor)
             atomicOpFunctor = (other.atomicOpFunctor)->clone();
@@ -657,6 +657,11 @@ class Request
      * Packet is doing a load from mem to spad
      */ 
     bool isSpadPrefetch;
+
+    /**
+     * To handle loads across cachelines need to include a coreoffset
+     */ 
+    int coreOffset;
 
     /**
      *  Accessor for size.
