@@ -687,8 +687,18 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->setVirt(0, adjustedAddr, size, flags, m_cpu_p->dataMasterId(),
                                           m_s1_inst->pc.pc(), amo_op);
       
+      // the immediate is currently split between | offset | count | both are 6/12bits
+      // and support groups sizes of up to 64, so that is limiting us
+      // TODO on checking whether it makes sense to ever go beyond this group size for anything
+      // we're running
+      // so to the cache controller we're sending xdim (3bits), offset (6bits), and count (6bits) and supports 64 core group size
+      // i mean it prob won't make sense to go beyond anyway due to serialization delays?? but we should figure that out later
+      uint32_t offset = bits(imm, 11, 6);
+      uint32_t count = bits(imm, 5, 0);
+
       // use imm as coreoffset instead of addr offset
-      m_s1_inst->mem_req_p->coreOffset = imm;
+      m_s1_inst->mem_req_p->coreOffset = offset;
+      m_s1_inst->mem_req_p->respCnt = count;
     }
     else {
       m_s1_inst->mem_req_p->xDim = 1;

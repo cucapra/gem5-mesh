@@ -105,7 +105,7 @@ structure(LLCRequestMsg, desc = "...", interface = "Message") {
   int             SeqNum,       desc = "";
   // for vector mem ops
   int             XDim,         desc = "";
-  int             YDim,         desc = "";
+  int             YDim,         desc = ""; // deprecated
   Addr            WordAddress,  desc = "address for 32 bit mem element";
   // TODO when value across cache lines, need to send multiple requests
   // so the first element won't always be the master core and all should get
@@ -116,7 +116,8 @@ structure(LLCRequestMsg, desc = "...", interface = "Message") {
   // though in practice would be send on datablk transmission line
   Addr            PrefetchAddress, desc = "helper to get address from datablk, not actually needed in hardware";
   // int             Epoch,        desc = "The Epoch of the sending core or maybe a diff, TODO?";
-  int             CoreOffset, desc = "offset from origin to issue req from";
+  int             CoreOffset,   desc = "offset from origin to issue req from";
+  int             RespCnt,      desc = "number of resps for this vector req";
 
   bool functionalRead(Packet* pkt) {
     return testAndRead(LineAddress, DataBlk, pkt);

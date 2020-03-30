@@ -113,6 +113,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     Addr      WordAddress,desc = "Word address of element request";
     Addr      PrefetchAddress, desc = "Prefetch address, same wire as datablk";
     int       CoreOffset, desc = "Offset from core origin to start";
+    int       RespCnt,    desc = "The number of resps to provide for this pending req";
     // int       Epoch,      desc = "Epoch of the requester";
     LLCRequestType InType, desc = "Keep track of input event to know what to do when get mem";
   }
@@ -673,6 +674,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       tbe.WordAddress := in_msg.WordAddress;
       tbe.PrefetchAddress := in_msg.PrefetchAddress;
       tbe.CoreOffset := in_msg.CoreOffset;
+      tbe.RespCnt := in_msg.RespCnt;
       // tbe.Epoch := in_msg.Epoch;
       tbe.InType := in_msg.Type;
     }

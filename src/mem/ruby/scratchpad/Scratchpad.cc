@@ -767,6 +767,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // pre-interpret it here, but not actually an additional field
       msg_p->m_PrefetchAddress = pkt_p->getPrefetchAddr();
       msg_p->m_CoreOffset = pkt_p->getCoreOffset();
+      msg_p->m_RespCnt = pkt_p->getRespCnt();
       // send local epoch so mem can sync
       // msg_p->m_Epoch = pkt_p->getEpoch();
       // whether a store requires an ack

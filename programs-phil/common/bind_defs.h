@@ -87,9 +87,9 @@
 // actually use, unused sw funct3
 // if don't do this then compiler thinks its a 64bit instructions which
 // messes up gem5
-#define VPREFETCH(spadAddr, memAddr, offset) \
+#define VPREFETCH(spadAddr, memAddr, core_offset, count) \
   asm volatile (".insn sb 0x23, 0x4, %[spad], %[off](%[mem])\n\t" :: \
-    [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" (offset))
+    [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" ((core_offset << 6) | (count)))
     
 #define LWSPEC(dest, spadAddr, offset)                    \
   asm volatile (                                          \

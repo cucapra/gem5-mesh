@@ -816,6 +816,11 @@ class Packet : public Printable
      */ 
     int getCoreOffset() const { return req->coreOffset; }
 
+    /**
+     * Accessor to number of load resps
+     */
+    int getRespCnt() const  { return req->respCnt; }
+
     // packet type for processing scratchpad
     typedef enum RespPktType {
         NotVal = 0,
