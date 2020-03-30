@@ -35,11 +35,7 @@
 #endif
 
 // prefetch sizings
-#if defined(VEC_4_DA) || defined(NO_VEC_DA) || defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_16_UNROLL_SERIAL) \
- || defined(SIM_DA_VLOAD_SIZE_1)
-#define REGION_SIZE 32
-#define NUM_REGIONS 16
-#elif defined(USE_VECTOR_SIMD)
+#if defined(USE_VECTOR_SIMD)
 #define REGION_SIZE FILTER_DIM * FILTER_DIM
 #define NUM_REGIONS 64
 #define POST_REGION_WORD NUM_REGIONS * REGION_SIZE
@@ -352,10 +348,10 @@ stencil(
 void /*__attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) */
 stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, int dim) {
    for (int row = 0; row < nrows - (FILTER_DIM - 1); row++) {
-    for (int col = vtid; col < ncols /*- (FILTER_DIM - 1)*/; col+=dim) {
+    for (int col = vtid; col < ncols - (FILTER_DIM - 1); col+=dim) {
       int temp = 0;
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = 0; k2 < 1; k2++) {
+        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (row + k1) * ncols + (col + k2);
           int bIdx = k1 * FILTER_DIM + k2;
           temp += a[aIdx] * b[bIdx];
