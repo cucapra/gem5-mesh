@@ -277,12 +277,11 @@ def flatten_vissue(vissue_line):
             if (is_jump):
                 # important to remove line afterwards
                 backedge_to_label = has_backedge(jlabel)
-                cached_src_file[i] = removed_line(line)
                 if (backedge_to_label):
-
                     print('has backedge ' + line)
                     return
                 else:
+                    cached_src_file[i] = removed_line(line)
                     print('no backedge ' + line)
                     continue
 
