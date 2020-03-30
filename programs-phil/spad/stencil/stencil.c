@@ -139,11 +139,7 @@ stencil(
           // Seems like might want to make this an rtype instruction???
           // Need to unroll 
           if (k2 == 0) {
-            // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
-            VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 1);
-            VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 2);
-            VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 3);
-            VPREFETCH(spadAddr + spadIdx, a + aIdx + 3, 3, 4);
+            VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
           }
           else {
             uint32_t baseCacheLinePos = (c % CACHELINE_WORDS) + k2;
@@ -237,7 +233,7 @@ stencil(
 
   // declarations
   DTYPE a_, b_, c_;
-  int64_t iter; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
+  int64_t iter, baseIdx; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
   DTYPE b0, b1, b2, b3, b4, b5, b6, b7, b8;
 
@@ -284,23 +280,24 @@ stencil(
     //   b_ = spadAddr[POST_REGION_WORD + i];
     //   c_ += a_ * b_;
     // }
-    LWSPEC(a_, spadAddr + (iter * 3) + 0, 0);
+    baseIdx = iter * FILTER_DIM * 1;
+    LWSPEC(a_, spadAddr + baseIdx + 0, 0);
     c_ += b0 * a_;
-    LWSPEC(a_, spadAddr + (iter * 3) + 1, 0);
+    LWSPEC(a_, spadAddr + baseIdx + 1, 0);
     c_ += b1 * a_;
-    LWSPEC(a_, spadAddr + (iter * 3) + 2, 0);
+    LWSPEC(a_, spadAddr + baseIdx + 2, 0);
     c_ += b2 * a_;
-    // LWSPEC(a_, spadAddr + 3, 0);
+    // LWSPEC(a_, spadAddr + baseIdx + 3, 0);
     // c_ += b3 * a_;
-    // LWSPEC(a_, spadAddr + 4, 0);
+    // LWSPEC(a_, spadAddr + baseIdx + 4, 0);
     // c_ += b4 * a_;
-    // LWSPEC(a_, spadAddr + 5, 0);
+    // LWSPEC(a_, spadAddr + baseIdx + 5, 0);
     // c_ += b5 * a_;
-    // LWSPEC(a_, spadAddr + 6, 0);
+    // LWSPEC(a_, spadAddr + baseIdx + 6, 0);
     // c_ += b6 * a_;
-    // LWSPEC(a_, spadAddr + 7, 0);
+    // LWSPEC(a_, spadAddr + baseIdx + 7, 0);
     // c_ += b7 * a_;
-    // LWSPEC(a_, spadAddr + 8, 0);
+    // LWSPEC(a_, spadAddr + baseIdx + 8, 0);
     // c_ += b8 * a_;
 
     REMEM(0);
