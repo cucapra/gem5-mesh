@@ -21,7 +21,9 @@ VecInstSel::VecInstSel(IOCPU *_cpu_p, IOCPUParams *params) :
   _lastSendTick(0),
   _stallUntilJumpPC(false),
   _waitingForTerminator(false),
-  _terminatorFound(false)
+  _terminatorFound(false),
+  _pendingFailedReq(false),
+  _failedReqVirtAddr(0)
 {
 }
 
@@ -246,8 +248,9 @@ VecInstSel::recvIcacheResp(PacketPtr pkt) {
   // make sure this was to us and not a stale fetch icache packet
   if (pkt->getAddr() != _pendingICacheReqAddr) {
     // potentially we were waiting for this to finish, check if so and issue req for pending
-    if (_pendingICacheReq) {
-      sendICacheReq(0, _pendingICacheReqAddr);
+    if (_pendingFailedReq) {
+      _pendingFailedReq = false;
+      sendICacheReq(0, _failedReqVirtAddr);
     }
     return;
   }
@@ -342,19 +345,26 @@ VecInstSel::sendICacheReq(int tid, Addr instAddr) {
   PacketPtr inst_pkt = new Packet(req, MemCmd::ReadReq);
   inst_pkt->dataDynamic(new uint8_t[fetchSize]);
 
-  _pendingICacheReq = true;
-  _pendingICacheReqAddr = inst_pkt->getAddr();
+
 
 
   // might be busy do transition from fetch stage, need to keep delaying as long as can't send
   if (!m_cpu_p->getInstPort().sendTimingReq(inst_pkt)) {
     DPRINTF(Mesh, "fail to send req for %#x. save for later\n", instAddr);
     delete inst_pkt;
-    // also save the vaddr so we can do the retranslation when the resp comes in and freed up
-    _pendingICacheReqAddr = instAddr;
+    
+    // save this to retry when we recv the packet thats causing the stall
+    // this is a gem5 specific thing I believe, but timing should be realistic 
+    // (and this happens at most once in the whole runtime so doesn't really matter if a couple cycles off)
+    _pendingFailedReq = true;
+    _failedReqVirtAddr = instAddr;
+
   }
   else {
     DPRINTF(Mesh, "send icache req for %#x\n", instAddr);
+
+    _pendingICacheReq = true;
+    _pendingICacheReqAddr = inst_pkt->getAddr();
   }
 }
 

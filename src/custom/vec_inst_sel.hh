@@ -136,6 +136,11 @@ class VecInstSel : public Named {
     bool _waitingForTerminator;
     // flag to signal the end of the block
     bool _terminatorFound;
+
+    // if we failed to send a req, then save it to send later
+    // in a real system don't think would ever fail here though??
+    bool _pendingFailedReq;
+    Addr _failedReqVirtAddr;
     
   
 };
