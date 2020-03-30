@@ -133,7 +133,7 @@ stencil(
 
 
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = 0; k2 < 1; k2++) {
+        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           // TODO Can't have variable load offsets...
           // Seems like might want to make this an rtype instruction???
@@ -197,7 +197,7 @@ stencil(
 
       // just do stencil with 3 values prefetched by row
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = 0; k2 < 1; k2++) {
+        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           // TODO can't handle when this inevitably goes off cacheline
           VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
@@ -248,18 +248,18 @@ stencil(
   // fable0b:
     iter = 0;
     cPtr = c + /*(startRow * ncols + startCol)*/ + vtid;
-    // b0 = b[0];
-    // b1 = b[1];
-    // b2 = b[2];
-    // b3 = b[3];
-    // b4 = b[4];
-    // b5 = b[5];
-    // b6 = b[6];
-    // b7 = b[7];
-    // b8 = b[8];
     b0 = b[0];
-    b1 = b[3];
-    b2 = b[6];
+    b1 = b[1];
+    b2 = b[2];
+    b3 = b[3];
+    b4 = b[4];
+    b5 = b[5];
+    b6 = b[6];
+    b7 = b[7];
+    b8 = b[8];
+    // b0 = b[0];
+    // b1 = b[3];
+    // b2 = b[6];
     
   
   // loop body block
@@ -280,25 +280,25 @@ stencil(
     //   b_ = spadAddr[POST_REGION_WORD + i];
     //   c_ += a_ * b_;
     // }
-    baseIdx = iter * FILTER_DIM * 1;
+    baseIdx = iter * FILTER_DIM * FILTER_DIM;
     LWSPEC(a_, spadAddr + baseIdx + 0, 0);
     c_ += b0 * a_;
     LWSPEC(a_, spadAddr + baseIdx + 1, 0);
     c_ += b1 * a_;
     LWSPEC(a_, spadAddr + baseIdx + 2, 0);
     c_ += b2 * a_;
-    // LWSPEC(a_, spadAddr + baseIdx + 3, 0);
-    // c_ += b3 * a_;
-    // LWSPEC(a_, spadAddr + baseIdx + 4, 0);
-    // c_ += b4 * a_;
-    // LWSPEC(a_, spadAddr + baseIdx + 5, 0);
-    // c_ += b5 * a_;
-    // LWSPEC(a_, spadAddr + baseIdx + 6, 0);
-    // c_ += b6 * a_;
-    // LWSPEC(a_, spadAddr + baseIdx + 7, 0);
-    // c_ += b7 * a_;
-    // LWSPEC(a_, spadAddr + baseIdx + 8, 0);
-    // c_ += b8 * a_;
+    LWSPEC(a_, spadAddr + baseIdx + 3, 0);
+    c_ += b3 * a_;
+    LWSPEC(a_, spadAddr + baseIdx + 4, 0);
+    c_ += b4 * a_;
+    LWSPEC(a_, spadAddr + baseIdx + 5, 0);
+    c_ += b5 * a_;
+    LWSPEC(a_, spadAddr + baseIdx + 6, 0);
+    c_ += b6 * a_;
+    LWSPEC(a_, spadAddr + baseIdx + 7, 0);
+    c_ += b7 * a_;
+    LWSPEC(a_, spadAddr + baseIdx + 8, 0);
+    c_ += b8 * a_;
 
     REMEM(0);
     STORE_NOACK(c_, cPtr, 0);

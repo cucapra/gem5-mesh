@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
     for (int col = 0; col < ncols /*- boundOffset*/; col++) {
       int cexp = 0;
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = 0; k2 < 1; k2++) {
+        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (row + k1) * ncols + (col + k2);
           int bIdx = k1 * FILTER_DIM + k2;
           cexp += b[bIdx] * a[aIdx];
