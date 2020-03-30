@@ -97,41 +97,6 @@ stencil(
   int beginCol = min(prefetchFrames * dim, effCols);
   for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
     for (int c = 0; c < beginCol; c+=dim) {
-      // // manually unroll how to prefetch over a cacheline?
-      // int aIdx = r * ncols + c;
-      // // k1 = 0
-      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
-      // spadIdx++;
-      // aIdx++;
-      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
-      // spadIdx++;
-      // aIdx++;
-      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
-      // spadIdx++;
-      // aIdx+=ncols;
-      // // k1 = 1
-      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
-      // spadIdx++;
-      // aIdx++;
-      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
-      // spadIdx++;
-      // aIdx++;
-      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
-      // spadIdx++;
-      // aIdx+=ncols;
-      // // k1 = 2
-      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
-      // spadIdx++;
-      // aIdx++;
-      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
-      // spadIdx++;
-      // aIdx++;
-      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
-      // spadIdx++;
-      // aIdx+=ncols;
-
-
-
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
