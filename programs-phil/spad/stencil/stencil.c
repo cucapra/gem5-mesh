@@ -14,6 +14,8 @@
   Parallelize innermost loops (unrolled) so we can get away with codegen trick
 */
 
+#define CACHELINE_WORDS 16
+
 // one of these should be defined to dictate config
 // #define NO_VEC 1
 #define VEC_4_SIMD 1
@@ -95,12 +97,82 @@ stencil(
   int beginCol = min(prefetchFrames * dim, ncols);
   for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
     for (int c = 0; c < beginCol; c+=dim) {
+      // // manually unroll how to prefetch over a cacheline?
+      // int aIdx = r * ncols + c;
+      // // k1 = 0
+      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+      // spadIdx++;
+      // aIdx++;
+      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+      // spadIdx++;
+      // aIdx++;
+      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+      // spadIdx++;
+      // aIdx+=ncols;
+      // // k1 = 1
+      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+      // spadIdx++;
+      // aIdx++;
+      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+      // spadIdx++;
+      // aIdx++;
+      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+      // spadIdx++;
+      // aIdx+=ncols;
+      // // k1 = 2
+      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+      // spadIdx++;
+      // aIdx++;
+      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+      // spadIdx++;
+      // aIdx++;
+      // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+      // spadIdx++;
+      // aIdx+=ncols;
+
+
+
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < 1; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
-          // TODO can't handle when this inevitably goes off cacheline
-          VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 2);
-          VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
+          // TODO Can't have variable load offsets...
+          // Seems like might want to make this an rtype instruction???
+          // Need to unroll 
+          if (k2 == 0) {
+            // VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+            VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 1);
+            VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 2);
+            VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 3);
+            VPREFETCH(spadAddr + spadIdx, a + aIdx + 3, 3, 4);
+          }
+          else {
+            uint32_t baseCacheLinePos = (c % CACHELINE_WORDS) + k2;
+            int overShoot = (baseCacheLinePos + dim) - CACHELINE_WORDS;
+            // can't have variables as vprefetch settings b/c takes immediate!
+            // although these are induction variables so if unroll can get them in
+            // if (overShoot > 0) {
+            //   VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4 - overShoot);
+            //   VPREFETCH(spadAddr + spadIdx, a + aIdx + overShoot, 4 - overShoot, 4);
+            // }
+            // printf("c %d, k2 %d endPos %d overshoot %d\n", c, k2, baseCacheLinePos + dim, overShoot);
+            // instead have to have one of these for every single vec length
+            // also very reliant on cacheline alignment i.e. row ends at factor of 16
+            if (overShoot <= 0) {
+              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+            }
+            else if (overShoot == 1) {
+              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 3);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 3, 3, 4);
+            }
+            else if (overShoot == 2) {
+              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 2);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
+            }
+            else /*if (overShoot == 3)*/ {
+              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 1);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 4);
+            }
+          }
           spadIdx++;
         }
       }
@@ -132,8 +204,7 @@ stencil(
         for (int k2 = 0; k2 < 1; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           // TODO can't handle when this inevitably goes off cacheline
-          VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 2);
-          VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
+          VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
 
           // spad is circular buffer so do cheap mod here
           spadIdx++;

@@ -267,9 +267,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return _vecCnt == 0;
   }
 
-  bool isLastLoadOfVec(int count, int coreOffset) {
+  bool isLastLoadOfVec(int count) {
     // return ((_vecCnt + coreOffset) == (xDim * yDim - 1));
-    return ((_vecCnt + coreOffset) == (count - 1));
+    return (_vecCnt == (count - 1));
   }
 
   void increaseVecCount(int xDim) {
@@ -287,8 +287,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
     _vecCnt := 0;
   }
   
-  bool isVector(int xDim, int yDim) {
-    return (xDim > 1 && yDim > 1);
+  bool isVector(int count) {
+    // return (xDim > 1 && yDim > 1);
+    return count > 1;
   }
 
   //---------------------------------------------------------------------------
@@ -335,13 +336,13 @@ machine(MachineType:L2Cache, "SP LLC cache")
             // multiple reqs.... 
             // See transitions_per_cycle in Controller.py
             if (in_msg.Type == LLCRequestType:SPLOAD) {
-              if (isVector(in_msg.XDim, in_msg.YDim)) {
+              if (isVector(in_msg.RespCnt)) {
                 //DPRINTF(Mesh, "req (%d %d) %d %d\n", _xCnt, _yCnt, _vecFromMem, getState(tbe, cache_entry, LineAddress));
                 if (!_vecFromMem) {
                   if (isFirstLoadOfVec()) { // TODO need to support non-vec sp load, need special req type
                     trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
                   }
-                  else if (!isLastLoadOfVec(in_msg.RespCnt, in_msg.CoreOffset)) {
+                  else if (!isLastLoadOfVec(in_msg.RespCnt)) {
                     trigger(Event:VREAD1, LineAddress, cache_entry, tbe);
                   }
                   else {
@@ -387,14 +388,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
         Entry cache_entry := getCacheEntry(in_msg.addr);
 
         if (tbe.InType == LLCRequestType:SPLOAD) {
-          if (isVector(tbe.XDim, tbe.YDim)) {
+          if (isVector(tbe.RespCnt)) {
             if (!_vecFromLLC) {
               assert(is_valid(cache_entry));
               //DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromLLC, getState(tbe, cache_entry, in_msg.addr));
               if (isFirstLoadOfVec()) {
                 trigger(Event:VData0, in_msg.addr, cache_entry, tbe);
               }
-              else if (!isLastLoadOfVec(tbe.RespCnt, tbe.CoreOffset)) {
+              else if (!isLastLoadOfVec(tbe.RespCnt)) {
                 trigger(Event:VData1, in_msg.addr, cache_entry, tbe);
               }
               else {
@@ -498,7 +499,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // this will always(?) be a linearization
       // put this in the reponse packet so know what to read
       int linOffset := getLinearIdx(in_msg.XDim, in_msg.YDim);
-      if (!isVector(in_msg.XDim, in_msg.YDim)) {
+      if (!isVector(in_msg.RespCnt)) {
         assert(linOffset == 0);
       }
       
@@ -531,7 +532,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // if vector then send REVDATA, otherwise REDATA
       // TODO maybe should just be seperate
       LLCResponseType respType;
-      if (isVector(in_msg.XDim, in_msg.YDim)) {
+      if (isVector(in_msg.RespCnt)) {
         respType := LLCResponseType:REVDATA;
       }
       else {
@@ -583,7 +584,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       
       // if vector then send REVDATA, otherwise REDATA
       LLCResponseType respType;
-      if (isVector(tbe.XDim, tbe.YDim)) {
+      if (isVector(tbe.RespCnt)) {
         respType := LLCResponseType:REVDATA;
       }
       else {
