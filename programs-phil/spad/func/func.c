@@ -15,7 +15,6 @@ void __attribute__((optimize("-fno-inline"))) add(int *c, int *a, int *b, int i)
 
 void __attribute__((optimize("-fno-reorder-blocks"), optimize("-fno-inline")))
 vvadd_kernel(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
-  int *spadAddr = (int*)getSpAddr(ptid, 0);
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask); 
