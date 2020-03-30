@@ -267,9 +267,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return _vecCnt == 0;
   }
 
-  bool isLastLoadOfVec(int xDim, int yDim, int coreOffset) {
-    // return (_xCnt == xDim - 1) && (_yCnt == yDim - 1);
-    return ((_vecCnt + coreOffset) == (xDim * yDim - 1));
+  bool isLastLoadOfVec(int count, int coreOffset) {
+    // return ((_vecCnt + coreOffset) == (xDim * yDim - 1));
+    return ((_vecCnt + coreOffset) == (count - 1));
   }
 
   void increaseVecCount(int xDim) {
@@ -289,11 +289,6 @@ machine(MachineType:L2Cache, "SP LLC cache")
   
   bool isVector(int xDim, int yDim) {
     return (xDim > 1 && yDim > 1);
-  }
-
-  void bumpVecCountByOffset(int offset) {
-    assert(_vecCnt == 0);
-    _vecCnt := offset;
   }
 
   //---------------------------------------------------------------------------
@@ -346,7 +341,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
                   if (isFirstLoadOfVec()) { // TODO need to support non-vec sp load, need special req type
                     trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
                   }
-                  else if (!isLastLoadOfVec(in_msg.XDim, in_msg.YDim, in_msg.CoreOffset)) {
+                  else if (!isLastLoadOfVec(in_msg.RespCnt, in_msg.CoreOffset)) {
                     trigger(Event:VREAD1, LineAddress, cache_entry, tbe);
                   }
                   else {
@@ -399,7 +394,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
               if (isFirstLoadOfVec()) {
                 trigger(Event:VData0, in_msg.addr, cache_entry, tbe);
               }
-              else if (!isLastLoadOfVec(tbe.XDim, tbe.YDim, tbe.CoreOffset)) {
+              else if (!isLastLoadOfVec(tbe.RespCnt, tbe.CoreOffset)) {
                 trigger(Event:VData1, in_msg.addr, cache_entry, tbe);
               }
               else {

@@ -99,7 +99,8 @@ stencil(
         for (int k2 = 0; k2 < 1; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           // TODO can't handle when this inevitably goes off cacheline
-          VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+          VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 2);
+          VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
           spadIdx++;
         }
       }
@@ -131,7 +132,8 @@ stencil(
         for (int k2 = 0; k2 < 1; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           // TODO can't handle when this inevitably goes off cacheline
-          VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+          VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 2);
+          VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
 
           // spad is circular buffer so do cheap mod here
           spadIdx++;
