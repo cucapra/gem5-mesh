@@ -92,9 +92,13 @@ stencil(
 
   ISSUE_VINST(fable0);
 
+  // how much we're actually going to do (ignore edges)
+  // TODO can we use predication instead?
+  int effCols = ncols - (FILTER_DIM - 1);
+
   // do initial batch of prefetching
   int prefetchFrames = 8;
-  int beginCol = min(prefetchFrames * dim, ncols);
+  int beginCol = min(prefetchFrames * dim, effCols);
   for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
     for (int c = 0; c < beginCol; c+=dim) {
       // // manually unroll how to prefetch over a cacheline?
@@ -176,7 +180,7 @@ stencil(
   }
 
   for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
-    for (int c = beginCol; c < ncols /*- (FILTER_DIM - 1)*/; c+=dim) {
+    for (int c = beginCol; c < effCols; c+=dim) {
       // prefetch all 9 values required for computation
       // prevent unroll b/c doesnt work well if VISSUE in the loop
       // #pragma GCC unroll 0
@@ -199,8 +203,39 @@ stencil(
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
-          // TODO can't handle when this inevitably goes off cacheline
-          VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+          
+          // prefetching that are cache-line aware
+          if (k2 == 0) {
+            VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+          }
+          else {
+            uint32_t baseCacheLinePos = (c % CACHELINE_WORDS) + k2;
+            int overShoot = (baseCacheLinePos + dim) - CACHELINE_WORDS;
+            // can't have variables as vprefetch settings b/c takes immediate!
+            // although these are induction variables so if unroll can get them in
+            // if (overShoot > 0) {
+            //   VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4 - overShoot);
+            //   VPREFETCH(spadAddr + spadIdx, a + aIdx + overShoot, 4 - overShoot, 4);
+            // }
+            // printf("c %d, k2 %d endPos %d overshoot %d\n", c, k2, baseCacheLinePos + dim, overShoot);
+            // instead have to have one of these for every single vec length
+            // also very reliant on cacheline alignment i.e. row ends at factor of 16
+            if (overShoot <= 0) {
+              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+            }
+            else if (overShoot == 1) {
+              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 3);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 3, 3, 4);
+            }
+            else if (overShoot == 2) {
+              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 2);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
+            }
+            else /*if (overShoot == 3)*/ {
+              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 1);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 4);
+            }
+          }
 
           // spad is circular buffer so do cheap mod here
           spadIdx++;
@@ -216,7 +251,7 @@ stencil(
 
   // issue the rest of blocks
   for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
-    for (int c = ncols  /*- (FILTER_DIM - 1)*/ - beginCol; c < ncols /*- (FILTER_DIM - 1)*/; c+=dim) {
+    for (int c = effCols - beginCol; c < effCols; c+=dim) {
       ISSUE_VINST(fable1);
     }
   }

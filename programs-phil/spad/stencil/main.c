@@ -94,7 +94,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   for (int row = 0; row < nrows - boundOffset; row++) {
-    for (int col = 0; col < ncols /*- boundOffset*/; col++) {
+    for (int col = 0; col < ncols - boundOffset; col++) {
       int cexp = 0;
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
@@ -108,6 +108,7 @@ int main(int argc, char *argv[]) {
         printf("[[FAIL]]\n");
         return 1;
       }
+      // printf("%d == %d @ row %d cold %d\n", c[row * (ncols /*- boundOffset*/) + col], cexp, row, col);
     }
   }
   
