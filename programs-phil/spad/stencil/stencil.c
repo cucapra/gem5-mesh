@@ -72,8 +72,8 @@ inline int min(int a, int b) {
 #ifdef USE_VECTOR_SIMD
 void __attribute__((optimize("-fno-reorder-blocks")))
 stencil(
-    DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols,
-    int ptid, int vtid, int dim, int mask, int is_master) {
+    DTYPE *a, DTYPE *b, DTYPE *c, int start_row, int end_row, int ncols,
+    int ptid, int vtid, int dim, int mask) {
 
   int *spadAddr = (int*)getSpAddr(ptid, 0);
 
@@ -85,7 +85,7 @@ stencil(
   int spadIdx = 0;
 
   ISSUE_VINST(fable0);
-
+  
   // how much we're actually going to do (ignore edges)
   // TODO can we use predication instead?
   int effCols = ncols - (FILTER_DIM - 1);
@@ -93,7 +93,7 @@ stencil(
   // do initial batch of prefetching. only prefetch part of the first row
   int prefetchFrames = 8;
   int beginCol = min(prefetchFrames * dim, effCols);
-  for (int r = 0; r < 1; r++) {
+  for (int r = start_row; r < start_row + 1; r++) {
     for (int c = 0; c < beginCol; c+=dim) {
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
@@ -138,9 +138,9 @@ stencil(
     }
   }
 
-  for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
+  for (int r = start_row; r < end_row; r++) {
     int startCol = 0;
-    if (r == 0) startCol = beginCol; // we've prefetch part of the first row to get ahead
+    if (r == start_row) startCol = beginCol; // we've prefetch part of the first row to get ahead
     for (int c = startCol; c < effCols; c+=dim) {
       // prefetch all 9 values required for computation
       // prevent unroll b/c doesnt work well if VISSUE in the loop
@@ -211,10 +211,10 @@ stencil(
   }
 
   // issue the rest of blocks
-  for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
+  for (int r = start_row; r < end_row; r++) {
     // take some loads off the last row b/c already prefetched
     int colStart = effCols;
-    if (r == nrows - (FILTER_DIM - 1) - 1) colStart = effCols - beginCol;
+    if (r == end_row - 1) colStart = effCols - beginCol;
     for (int c = colStart; c < effCols; c+=dim) {
       ISSUE_VINST(fable1);
     }
@@ -246,7 +246,7 @@ stencil(
   //   }
   // fable0b:
     iter = 0;
-    cPtr = c + /*(startRow * ncols + startCol)*/ + vtid;
+    cPtr = c + (start_row * ncols) + vtid;
     b0 = b[0];
     b1 = b[1];
     b2 = b[2];
@@ -345,9 +345,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     stats_on();
   }
 
-  // for now we're just doing one row
-  // so n can be ncols - 2
-  int n = ncols - (FILTER_DIM - 1);
+  // chunk across rows
+  int effRows = nrows - (FILTER_DIM - 1);
 
   // linearize tid and dim
   int tid = tid_x + tid_y * dim_x;
@@ -379,8 +378,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim_x = 2;
   vdim_y = 2;
 
-  int alignment = 16 * vdim_x * vdim_y;
-
   // group 1 top left (master = 0)
   if (ptid == 1) vtid = 0;
   if (ptid == 2) vtid = 1;
@@ -389,7 +386,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = ncols - (FILTER_DIM - 1); //roundUp(n / 3, alignment); // make sure aligned to cacheline 
+    end = (float)effRows / 3.0f;
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -403,13 +400,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 13) vtid = 3;
   if (ptid == 4) is_da = 1;
   if (ptid == 4 || ptid == 8 || ptid == 9 || ptid == 12 || ptid == 13) {
-    start = roundUp(n / 3, alignment);
-    end = roundUp(2 * n / 3, alignment);
+    start = (float)effRows / 3.0f;
+    end = (float)(2 * effRows) / 3.0f;
     orig_x = 0;
     orig_y = 2;
     master_x = 0;
     master_y = 1;
-    // TODO for some reason can't return here...
   }
 
   // group 3 bottom right (master == 7)
@@ -419,8 +415,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 15) vtid = 3;
   if (ptid == 7) is_da = 1;
   if (ptid == 7 || ptid == 10 || ptid == 11 || ptid == 14 || ptid == 15) {
-    start = roundUp(2 * n / 3, alignment);
-    end = n;
+    start = (float)(2 * effRows) / 3.0f;
+    end = effRows;
     orig_x = 2;
     orig_y = 2;
     master_x = 3;
@@ -432,7 +428,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   vtid_x = vtid % vdim_x;
   vtid_y = vtid / vdim_y;
-
 
   #elif !defined(USE_VEC)
 
@@ -468,7 +463,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VECTOR_SIMD)
-  if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
+  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #else
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
@@ -486,7 +481,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // store the the current spAddr to restore later 
   unsigned long long *spTop = getSpTop(ptid);
   // guess the remaining of the part of the frame that might be needed??
-  spTop -= 4;
+  spTop -= 6;
 
   unsigned long long stackLoc;
   asm volatile (
@@ -500,6 +495,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     "sd t0, 16(%[spad])\n\t"
     "ld t0, 24(sp)\n\t"
     "sd t0, 24(%[spad])\n\t"
+    "ld t0, 32(sp)\n\t"
+    "sd t0, 32(%[spad])\n\t"
+    "ld t0, 40(sp)\n\t"
+    "sd t0, 40(%[spad])\n\t"
     // save the stack ptr
     "addi %[dest], sp, 0\n\t" 
     // overwrite stack ptr
@@ -509,7 +508,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   );
 
   #ifdef USE_VECTOR_SIMD
-  stencil(a, b, c, nrows, ncols, ptid, vtid, vdim, mask, is_da);
+  stencil(a, b, c, start, end, ncols, ptid, vtid, vdim, mask);
   #else
   stencil(a, b, c, nrows, ncols, ptid, vtid, vdim);
   #endif
