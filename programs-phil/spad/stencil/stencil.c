@@ -100,7 +100,7 @@ stencil(
             //   VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4 - overShoot);
             //   VPREFETCH(spadAddr + spadIdx, a + aIdx + overShoot, 4 - overShoot, 4);
             // }
-            // printf("c %d, k2 %d endPos %d overshoot %d\n", c, k2, baseCacheLinePos + dim, overShoot);
+
             // instead have to have one of these for every single vec length
             // also very reliant on cacheline alignment i.e. row ends at factor of 16
             if (overShoot <= 0) {
@@ -127,27 +127,10 @@ stencil(
 
   for (int r = start_row; r < end_row; r++) {
     int startCol = 0;
-    if (r == start_row) startCol = beginCol; // we've prefetch part of the first row to get ahead
+    // we've prefetch part of the first row to get ahead
+    if (r == start_row) startCol = beginCol;
     for (int c = startCol; c < effCols; c+=dim) {
       // prefetch all 9 values required for computation
-      // prevent unroll b/c doesnt work well if VISSUE in the loop
-      // #pragma GCC unroll 0
-      // for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-      //   #pragma GCC unroll 0
-      //   for (int k2 = 0; k2 < FILTER_DIM; k2++) {
-      //     int aIdx = (r + k1) * ncols + (c + k2);
-      //     // TODO can't handle when this inevitably goes off cacheline
-      //     VPREFETCH(spadAddr + spadIdx, a + aIdx, 0);
-
-      //     // spad is circular buffer so do cheap mod here
-      //     spadIdx++;
-      //     if (spadIdx == POST_REGION_WORD) {
-      //       spadIdx = 0;
-      //     }
-      //   }
-      // }
-
-      // just do stencil with 3 values prefetched by row
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
@@ -172,7 +155,7 @@ stencil(
             //   VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4 - overShoot);
             //   VPREFETCH(spadAddr + spadIdx, a + aIdx + overShoot, 4 - overShoot, 4);
             // }
-            // printf("c %d, k2 %d endPos %d overshoot %d\n", c, k2, baseCacheLinePos + dim, overShoot);
+
             // instead have to have one of these for every single vec length
             // also very reliant on cacheline alignment i.e. row ends at factor of 16
             if (overShoot <= 0) {
@@ -186,7 +169,7 @@ stencil(
               VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 2);
               VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
             }
-            else /*if (overShoot == 3)*/ {
+            else {
               VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 1);
               VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 4);
             }
@@ -239,7 +222,6 @@ stencil(
   //     spadAddr[POST_REGION_WORD + i] = b[i];
   //     // b_ = b[i]; // keep filter in regfile
   //   }
-  // fable0b:
     iter = 0;
     cPtr = c + (start_row * ncols) + vtid;
     b0 = b[0];
@@ -251,22 +233,9 @@ stencil(
     b6 = b[6];
     b7 = b[7];
     b8 = b[8];
-    // b0 = b[0];
-    // b1 = b[3];
-    // b2 = b[6];
-    
   
   // loop body block
   fable1:
-    #ifdef SIMD_BCAST
-    // try to get compiler to use register that will recv broadcasted values
-    // can make compiler pass
-    asm volatile(
-      "add %[var], t0, x0\n\t"
-      : [var] "=r" (iter)
-    );
-    #endif
-
     c_ = 0;
     // #pragma GCC unroll 9
     // for (int i = 0; i < FILTER_DIM * FILTER_DIM; i++) {
@@ -300,7 +269,6 @@ stencil(
     cPtr += dim;
     iter = (iter + 1) % (NUM_REGIONS);
     
-
     // need this jump to create loop carry dependencies
     // an assembly pass will remove this instruction
     asm volatile goto("j %l[fable1]\n\t"::::fable1);
@@ -417,9 +385,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     master_x = 3;
     master_y = 1;
   }
-
-  // unused core
-  // if (ptid == 3) return;
 
   vtid_x = vtid % vdim_x;
   vtid_y = vtid / vdim_y;
