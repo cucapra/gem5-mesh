@@ -20,18 +20,24 @@
 // #define NO_VEC 1
 #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
+// #define VEC_4_SIMD_SINGLE_PREFETCH 1
 
 // vvadd_execute config directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH)
 #define USE_VEC 1
 #endif
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH)
 #define USE_VECTOR_SIMD 1
 #endif
 
 // vector grouping directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH)
 #define VEC_SIZE_4_SIMD 1
+#endif
+
+// kernel settings 
+#if defined(VEC_4_SIMD_SINGLE_PREFETCH)
+#define SINGLE_PREFETCH 1
 #endif
 
 // prefetch sizings
@@ -40,25 +46,6 @@
 #define NUM_REGIONS 64
 #define POST_REGION_WORD NUM_REGIONS * REGION_SIZE
 #endif
-
-// https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
-int roundUp(int numToRound, int multiple) {
-  if (multiple == 0) {
-    return numToRound;
-  }
-
-  int remainder = abs(numToRound) % multiple;
-  if (remainder == 0) {
-    return numToRound;
-  }
-
-  if (numToRound < 0) {
-    return -(abs(numToRound) - remainder);
-  }
-  else {
-    return numToRound + multiple - remainder;
-  }
-}
 
 inline int min(int a, int b) {
   if (a > b) {
@@ -165,6 +152,13 @@ stencil(
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           
+          #ifdef SINGLE_PREFETCH
+          VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 1);
+          VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 2);
+          VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 3);
+          VPREFETCH(spadAddr + spadIdx, a + aIdx + 3, 3, 4);
+          #else
+
           // prefetching that are cache-line aware
           if (k2 == 0) {
             VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
@@ -197,6 +191,7 @@ stencil(
               VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 4);
             }
           }
+          #endif
 
           // spad is circular buffer so do cheap mod here
           spadIdx++;
