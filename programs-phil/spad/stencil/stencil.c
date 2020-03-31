@@ -117,18 +117,18 @@ stencil(
             // instead have to have one of these for every single vec length
             // also very reliant on cacheline alignment i.e. row ends at factor of 16
             if (overShoot <= 0) {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 4);
             }
             else if (overShoot == 1) {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 3);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 3);
               VPREFETCH(spadAddr + spadIdx, a + aIdx + 3, 3, 4);
             }
             else if (overShoot == 2) {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 2);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 2);
               VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
             }
             else /*if (overShoot == 3)*/ {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 1);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 1);
               VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 4);
             }
           }
@@ -182,18 +182,18 @@ stencil(
             // instead have to have one of these for every single vec length
             // also very reliant on cacheline alignment i.e. row ends at factor of 16
             if (overShoot <= 0) {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 4);
             }
             else if (overShoot == 1) {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 3);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 3);
               VPREFETCH(spadAddr + spadIdx, a + aIdx + 3, 3, 4);
             }
             else if (overShoot == 2) {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 2);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 2);
               VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
             }
             else /*if (overShoot == 3)*/ {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 1);
+              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 1);
               VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 4);
             }
           }
