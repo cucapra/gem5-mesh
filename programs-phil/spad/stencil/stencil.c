@@ -69,8 +69,6 @@ inline int min(int a, int b) {
   }
 }
 
-// NOTE optimize("-fno-inline") prevents return block from being at the end, which is kind of needed for the scheme
-// ACTUALLY any second label causes a problem???
 #ifdef USE_VECTOR_SIMD
 void __attribute__((optimize("-fno-reorder-blocks")))
 stencil(
@@ -92,10 +90,10 @@ stencil(
   // TODO can we use predication instead?
   int effCols = ncols - (FILTER_DIM - 1);
 
-  // do initial batch of prefetching
+  // do initial batch of prefetching. only prefetch part of the first row
   int prefetchFrames = 8;
   int beginCol = min(prefetchFrames * dim, effCols);
-  for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
+  for (int r = 0; r < 1; r++) {
     for (int c = 0; c < beginCol; c+=dim) {
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
@@ -141,7 +139,9 @@ stencil(
   }
 
   for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
-    for (int c = beginCol; c < effCols; c+=dim) {
+    int startCol = 0;
+    if (r == 0) startCol = beginCol; // we've prefetch part of the first row to get ahead
+    for (int c = startCol; c < effCols; c+=dim) {
       // prefetch all 9 values required for computation
       // prevent unroll b/c doesnt work well if VISSUE in the loop
       // #pragma GCC unroll 0
@@ -212,7 +212,10 @@ stencil(
 
   // issue the rest of blocks
   for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
-    for (int c = effCols - beginCol; c < effCols; c+=dim) {
+    // take some loads off the last row b/c already prefetched
+    int colStart = effCols;
+    if (r == nrows - (FILTER_DIM - 1) - 1) colStart = effCols - beginCol;
+    for (int c = colStart; c < effCols; c+=dim) {
       ISSUE_VINST(fable1);
     }
   }
