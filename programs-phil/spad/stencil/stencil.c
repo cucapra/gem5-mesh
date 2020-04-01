@@ -156,9 +156,8 @@ stencil(
             //   VPREFETCH(spadAddr + spadIdx, a + aIdx + overShoot, 4 - overShoot, 4);
             // }
 
-
             // dream prefetch encoding
-            // <0> = spadIdx, <1> = dest, <2> = core, <3> = count (either core or addr) <4> = some settings (small imm)
+            // <0> = spadIdx, <1> = globalAddr, <2> = coreOffset, <3> = respCnt (either core or addr), <4> = some settings (small imm)
 
             // rs1 = coreOffset (22bits) | spadIdx (10bits)
             // rs2 = globalAddr (32bits)
@@ -167,6 +166,19 @@ stencil(
             // but does open up imm for configuration
             // VPREFETCHL and VPREFETCHR to resolve cacheline overshoots. 
             // Don't change count or core offset and hardware can figure out what the loads should look like
+
+            // Would like to note that
+            // if (!overShoot) 
+            //    vprefetchl(0, 4)
+            // else
+            //    vprefetchl(0, 4)
+            //    vprefetchr(0, 4)
+            // is the same (beq -> vprefetchl) if not more (beq -> vprefetchl -> vprefetchr) instructions 
+            // than just always doing both and casting second to nop if would do 0 loads
+            // vprefetchl(0, 4)
+            // vprefetchr(0, 4)
+            // so I think it makes sense to never calculate overshoot yourself and just always do the two loads
+            // if there is a chance you won't be cache aligned
 
             // instead have to have one of these for every single vec length
             // also very reliant on cacheline alignment i.e. row ends at factor of 16
