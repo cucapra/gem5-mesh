@@ -178,7 +178,10 @@ stencil(
             // vprefetchl(0, 4)
             // vprefetchr(0, 4)
             // so I think it makes sense to never calculate overshoot yourself and just always do the two loads
-            // if there is a chance you won't be cache aligned
+            // if there is a chance you won't be cache aligned.
+            
+            // Also these loads suffice b/c will never make a vector group larger than the num words in a cacheline
+            // so don't need to worry about touching three cachelines over vecload because impossible
 
             // instead have to have one of these for every single vec length
             // also very reliant on cacheline alignment i.e. row ends at factor of 16
