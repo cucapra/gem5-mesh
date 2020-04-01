@@ -49,7 +49,7 @@ C_OBJS_FIL := $(filter-out vvadd_kernel.o, $(C_OBJS))
 # C_OBJS_FIL = $(C_OBJS)
 C_OBJS_FIL += $(EXEC)_final.o
 
-CFLAGS=-DVECTOR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
+CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 vector: CFLAGS=-DVECTOR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 scalar: CFLAGS=-DSCALAR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 
@@ -60,6 +60,10 @@ vector: $(EXEC)_kernel.c
 
 scalar: $(EXEC)_kernel.c
 	$(RV_CC) $(CFLAGS) -S -o $(EXEC)_scalar.s $<
+
+1ruleforall: $(EXEC)_kernel.c
+	$(RV_CC) -DVECTOR_CORE $(CFLAGS) -S -o $(EXEC)_vector.s $<
+	$(RV_CC) -DSCALAR_CORE $(CFLAGS) -S -o $(EXEC)_vector.s $<
 
 pass: $(EXEC)_combined.s
 	$(VISS) $(EXEC)_combined.s $(EXEC)_final.s
