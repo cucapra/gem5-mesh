@@ -149,12 +149,24 @@ stencil(
           else {
             uint32_t baseCacheLinePos = (c % CACHELINE_WORDS) + k2;
             int overShoot = (baseCacheLinePos + dim) - CACHELINE_WORDS;
-            // can't have variables as vprefetch settings b/c takes immediate!
-            // although these are induction variables so if unroll can get them in
+            // // can't have variables as vprefetch settings b/c takes immediate!
+            // // although these are induction variables so if unroll can get them in
             // if (overShoot > 0) {
             //   VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4 - overShoot);
             //   VPREFETCH(spadAddr + spadIdx, a + aIdx + overShoot, 4 - overShoot, 4);
             // }
+
+
+            // dream prefetch encoding
+            // <0> = spadIdx, <1> = dest, <2> = core, <3> = count (either core or addr) <4> = some settings (small imm)
+
+            // rs1 = coreOffset (22bits) | spadIdx (10bits)
+            // rs2 = globalAddr (32bits)
+            // imm = count (12bits) (and maybe whether horizontal or vertical)
+            // potentially can integrate count in global addr but then get 3-5 bits for count (8-32)
+            // but does open up imm for configuration
+            // VPREFETCHL and VPREFETCHR to resolve cacheline overshoots. 
+            // Don't change count or core offset and hardware can figure out what the loads should look like
 
             // instead have to have one of these for every single vec length
             // also very reliant on cacheline alignment i.e. row ends at factor of 16
