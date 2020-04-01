@@ -126,5 +126,6 @@ class StaticInstFlags(Enum):
         , 'IsBroadcast'
         , 'IsPredicate'
         , 'IsTerminator'
+        , 'IsLeftSide'
 
         ]

@@ -85,40 +85,42 @@ stencil(
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
-          // TODO Can't have variable load offsets...
-          // Seems like might want to make this an rtype instruction???
-          // Need to unroll 
-          if (k2 == 0) {
-            VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
-          }
-          else {
-            uint32_t baseCacheLinePos = (c % CACHELINE_WORDS) + k2;
-            int overShoot = (baseCacheLinePos + dim) - CACHELINE_WORDS;
-            // can't have variables as vprefetch settings b/c takes immediate!
-            // although these are induction variables so if unroll can get them in
-            // if (overShoot > 0) {
-            //   VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4 - overShoot);
-            //   VPREFETCH(spadAddr + spadIdx, a + aIdx + overShoot, 4 - overShoot, 4);
-            // }
+          // // TODO Can't have variable load offsets...
+          // // Seems like might want to make this an rtype instruction???
+          // // Need to unroll 
+          // if (k2 == 0) {
+          //   VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+          // }
+          // else {
+          //   uint32_t baseCacheLinePos = (c % CACHELINE_WORDS) + k2;
+          //   int overShoot = (baseCacheLinePos + dim) - CACHELINE_WORDS;
+          //   // can't have variables as vprefetch settings b/c takes immediate!
+          //   // although these are induction variables so if unroll can get them in
+          //   // if (overShoot > 0) {
+          //   //   VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4 - overShoot);
+          //   //   VPREFETCH(spadAddr + spadIdx, a + aIdx + overShoot, 4 - overShoot, 4);
+          //   // }
 
-            // instead have to have one of these for every single vec length
-            // also very reliant on cacheline alignment i.e. row ends at factor of 16
-            if (overShoot <= 0) {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 4);
-            }
-            else if (overShoot == 1) {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 3);
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 3, 3, 4);
-            }
-            else if (overShoot == 2) {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 2);
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
-            }
-            else /*if (overShoot == 3)*/ {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 1);
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 4);
-            }
-          }
+          //   // instead have to have one of these for every single vec length
+          //   // also very reliant on cacheline alignment i.e. row ends at factor of 16
+          //   if (overShoot <= 0) {
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 4);
+          //   }
+          //   else if (overShoot == 1) {
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 3);
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 3, 3, 4);
+          //   }
+          //   else if (overShoot == 2) {
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 2);
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
+          //   }
+          //   else /*if (overShoot == 3)*/ {
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 1);
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 4);
+          //   }
+          // }
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
           spadIdx++;
         }
       }
@@ -136,71 +138,72 @@ stencil(
           int aIdx = (r + k1) * ncols + (c + k2);
           
           #ifdef SINGLE_PREFETCH
-          VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 1);
-          VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 2);
-          VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 3);
-          VPREFETCH(spadAddr + spadIdx, a + aIdx + 3, 3, 4);
+          VPREFETCH_L(spadIdx, a + aIdx + 0, 0, 1);
+          VPREFETCH_L(spadIdx, a + aIdx + 1, 1, 1);
+          VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
+          VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
           #else
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
+          // // prefetching that are cache-line aware
+          // if (k2 == 0) {
+          //   VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
+          // }
+          // else {
+          //   uint32_t baseCacheLinePos = (c % CACHELINE_WORDS) + k2;
+          //   int overShoot = (baseCacheLinePos + dim) - CACHELINE_WORDS;
+          //   // // can't have variables as vprefetch settings b/c takes immediate!
+          //   // // although these are induction variables so if unroll can get them in
+          //   // if (overShoot > 0) {
+          //   //   VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4 - overShoot);
+          //   //   VPREFETCH(spadAddr + spadIdx, a + aIdx + overShoot, 4 - overShoot, 4);
+          //   // }
 
-          // prefetching that are cache-line aware
-          if (k2 == 0) {
-            VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4);
-          }
-          else {
-            uint32_t baseCacheLinePos = (c % CACHELINE_WORDS) + k2;
-            int overShoot = (baseCacheLinePos + dim) - CACHELINE_WORDS;
-            // // can't have variables as vprefetch settings b/c takes immediate!
-            // // although these are induction variables so if unroll can get them in
-            // if (overShoot > 0) {
-            //   VPREFETCH(spadAddr + spadIdx, a + aIdx, 0, 4 - overShoot);
-            //   VPREFETCH(spadAddr + spadIdx, a + aIdx + overShoot, 4 - overShoot, 4);
-            // }
+          //   // dream prefetch encoding
+          //   // <0> = spadIdx, <1> = globalAddr, <2> = coreOffset, <3> = respCnt (either core or addr), <4> = some settings (small imm)
 
-            // dream prefetch encoding
-            // <0> = spadIdx, <1> = globalAddr, <2> = coreOffset, <3> = respCnt (either core or addr), <4> = some settings (small imm)
+          //   // rs1 = coreOffset (22bits) | spadIdx (10bits)
+          //   // rs2 = globalAddr (32bits)
+          //   // imm = count (12bits) (and maybe whether horizontal or vertical)
+          //   // potentially can integrate count in global addr but then get 3-5 bits for count (8-32)
+          //   // but does open up imm for configuration
+          //   // VPREFETCHL and VPREFETCHR to resolve cacheline overshoots. 
+          //   // Don't change count or core offset and hardware can figure out what the loads should look like
 
-            // rs1 = coreOffset (22bits) | spadIdx (10bits)
-            // rs2 = globalAddr (32bits)
-            // imm = count (12bits) (and maybe whether horizontal or vertical)
-            // potentially can integrate count in global addr but then get 3-5 bits for count (8-32)
-            // but does open up imm for configuration
-            // VPREFETCHL and VPREFETCHR to resolve cacheline overshoots. 
-            // Don't change count or core offset and hardware can figure out what the loads should look like
-
-            // Would like to note that
-            // if (!overShoot) 
-            //    vprefetchl(0, 4)
-            // else
-            //    vprefetchl(0, 4)
-            //    vprefetchr(0, 4)
-            // is the same (beq -> vprefetchl) if not more (beq -> vprefetchl -> vprefetchr) instructions 
-            // than just always doing both and casting second to nop if would do 0 loads
-            // vprefetchl(0, 4)
-            // vprefetchr(0, 4)
-            // so I think it makes sense to never calculate overshoot yourself and just always do the two loads
-            // if there is a chance you won't be cache aligned.
+          //   // Would like to note that
+          //   // if (!overShoot) 
+          //   //    vprefetchl(0, 4)
+          //   // else
+          //   //    vprefetchl(0, 4)
+          //   //    vprefetchr(0, 4)
+          //   // is the same (beq -> vprefetchl) if not more (beq -> vprefetchl -> vprefetchr) instructions 
+          //   // than just always doing both and casting second to nop if would do 0 loads
+          //   // vprefetchl(0, 4)
+          //   // vprefetchr(0, 4)
+          //   // so I think it makes sense to never calculate overshoot yourself and just always do the two loads
+          //   // if there is a chance you won't be cache aligned.
             
-            // Also these loads suffice b/c will never make a vector group larger than the num words in a cacheline
-            // so don't need to worry about touching three cachelines over vecload because impossible
+          //   // Also these loads suffice b/c will never make a vector group larger than the num words in a cacheline
+          //   // so don't need to worry about touching three cachelines over vecload because impossible
 
-            // instead have to have one of these for every single vec length
-            // also very reliant on cacheline alignment i.e. row ends at factor of 16
-            if (overShoot <= 0) {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 4);
-            }
-            else if (overShoot == 1) {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 3);
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 3, 3, 4);
-            }
-            else if (overShoot == 2) {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 2);
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
-            }
-            else {
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 1);
-              VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 4);
-            }
-          }
+          //   // instead have to have one of these for every single vec length
+          //   // also very reliant on cacheline alignment i.e. row ends at factor of 16
+          //   if (overShoot <= 0) {
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 4);
+          //   }
+          //   else if (overShoot == 1) {
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 3);
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 3, 3, 4);
+          //   }
+          //   else if (overShoot == 2) {
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 2);
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 2, 2, 4);
+          //   }
+          //   else {
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 0, 0, 1);
+          //     VPREFETCH(spadAddr + spadIdx, a + aIdx + 1, 1, 4);
+          //   }
+          // }
           #endif
 
           // spad is circular buffer so do cheap mod here

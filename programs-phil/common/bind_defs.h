@@ -87,10 +87,22 @@
 // actually use, unused sw funct3
 // if don't do this then compiler thinks its a 64bit instructions which
 // messes up gem5
-#define VPREFETCH(spadAddr, memAddr, group_start, group_end) \
-  asm volatile (".insn sb 0x23, 0x4, %[spad], %[off](%[mem])\n\t" :: \
-    [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" ((group_start << 6) | (group_end - group_start)))
-    
+// #define VPREFETCH(spadAddr, memAddr, group_start, group_end) \
+//   asm volatile (".insn sb 0x23, 0x4, %[spad], %[off](%[mem])\n\t" :: \
+//     [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" ((group_start << 6) | (group_end - group_start)))
+
+#define VPREFETCH_L(spadOffset, memAddr, coreOffset, count)        \
+  asm volatile (".insn sb 0x23, 0x6, %[spad], %[off](%[mem])\n\t" ::  \
+    [spad] "r" ((coreOffset << 12) | spadOffset),                     \
+    [mem] "r" (memAddr),                                              \
+    [off] "i" (count))
+
+#define VPREFETCH_R(spadOffset, memAddr, coreOffset, count)       \
+  asm volatile (".insn sb 0x23, 0x7, %[spad], %[off](%[mem])\n\t" ::  \
+    [spad] "r" ((coreOffset << 12) | spadOffset),                     \
+    [mem] "r" (memAddr),                                              \
+    [off] "i" (count))
+
 #define LWSPEC(dest, spadAddr, offset)                    \
   asm volatile (                                          \
     ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"   \
