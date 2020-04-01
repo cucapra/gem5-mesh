@@ -505,8 +505,14 @@ IEW::doIssue()
     // or could pick up pred flag at the beginning of execute?
     // but cycle level modeling remains the same
     if (inst->static_inst_p->isPredicate()) {
-      m_pred_flag = 
-        m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)) == m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1));
+      if (inst->static_inst_p->isPredEq()) {
+        m_pred_flag = 
+          m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)) == m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1));
+      }
+      else if (inst->static_inst_p->isPredNeq()) {
+        m_pred_flag = 
+          m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)) != m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1));
+      }
     }
 
     // if (inst->static_inst_p->isPredicate() || !m_pred_flag) {

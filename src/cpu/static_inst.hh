@@ -215,6 +215,8 @@ class StaticInst : public RefCounted, public StaticInstFlags
     bool isPredicate() const { return flags[IsPredicate]; }
     bool isTerminator() const { return flags[IsTerminator]; }
     bool isLeftSide() const { return flags[IsLeftSide]; }
+    bool isPredEq() const { return isPredicate() && flags[IsPredEq]; }
+    bool isPredNeq() const { return isPredicate() && flags[IsPredNeq]; }
 
     void setFirstMicroop() { flags[IsFirstMicroop] = true; }
     void setLastMicroop() { flags[IsLastMicroop] = true; }

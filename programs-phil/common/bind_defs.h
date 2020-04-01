@@ -69,9 +69,15 @@
     :: [src_reg] "r" (val), [imm_val] "i" (imm)                                \
   )
 
-#define PRED_CMP(reg0, reg1) \
-  asm volatile (".insn r 0x33, 0x7, 0x5, x0, %[rs1], %[rs2]\n\t") \
-  :: [rs1] "r" (reg0), [rs2] "r" (reg1)
+// allow following instructions to proceed if registers equal
+#define PRED_EQ(reg0, reg1) \
+  asm volatile (".insn r 0x33, 0x7, 0x5, x0, %[rs1], %[rs2]\n\t" \
+  :: [rs1] "r" (reg0), [rs2] "r" (reg1))
+
+// allow following instructions to proceed if registers not equal
+#define PRED_NEQ(reg0, reg1) \
+  asm volatile (".insn r 0x33, 0x7, 0x6, x0, %[rs1], %[rs2]\n\t" \
+  :: [rs1] "r" (reg0), [rs2] "r" (reg1))
 
 #define TERMINATE_BLOCK() \
   asm volatile(".insn i 0x1b, 0x7, x0, x0, 0\n\t")
