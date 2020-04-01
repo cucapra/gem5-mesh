@@ -291,12 +291,13 @@ def flatten_vissue(vissue_line):
             if is_jump:
                 # important to remove line afterwards
                 backedge_to_label = has_backedge(jlabel)
-                cached_src_file[i] = removed_line(line)
+
                 if backedge_to_label:
 
                     print("has backedge " + line)
                     return
                 else:
+                    cached_src_file[i] = removed_line(line)
                     print("no backedge " + line)
                     continue
 
@@ -410,12 +411,12 @@ vissue_table = build_vissue_table()
 # L2:
 #   loop body
 
-# for k,v in vissue_table.items():
+# for k, v in vissue_table.items():
 #     adjust_vissue_label(k)
 
 # TODO this step produces a nice objdump, but gem5 not liking it
 # we need to modify code after the labels from the vissue table
-# for k,v in vissue_table.items():
+# for k, v in vissue_table.items():
 #     flatten_vissue(k)
 
 # add terminators at the end of each block
