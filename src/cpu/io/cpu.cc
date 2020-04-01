@@ -23,32 +23,34 @@
 // IOCPU::IcachePort
 //-----------------------------------------------------------------------------
 
-IOCPU::IcachePort::IcachePort(IOCPU* _cpu_p, int _num_cache_ports)
+IOCPU::IcachePort::IcachePort(IOCPU *_cpu_p, int _num_cache_ports)
     : MasterPort(_cpu_p->name() + ".icache_port", _cpu_p),
       //fetch_p(_fetch_p),
       num_cache_ports(_num_cache_ports),
       num_used_cache_ports(0),
       need_retry(false)
-{ }
+{
+}
 
-void
-IOCPU::IcachePort::AttachToStage(Fetch* _fetch_p, Vector* _vec_p) {
+void IOCPU::IcachePort::AttachToStage(Fetch *_fetch_p, Vector *_vec_p)
+{
   fetch_p = _fetch_p;
   vec_p = _vec_p;
 }
 
-bool
-IOCPU::IcachePort::sendTimingReq(PacketPtr pkt)
+bool IOCPU::IcachePort::sendTimingReq(PacketPtr pkt)
 {
   assert(num_used_cache_ports <= num_cache_ports);
 
-  if (num_used_cache_ports == num_cache_ports) {
+  if (num_used_cache_ports == num_cache_ports)
+  {
     DPRINTF(IOCPU, "Running out of icache ports\n");
     need_retry = true;
     return false;
   }
 
-  if (MasterPort::sendTimingReq(pkt)) {
+  if (MasterPort::sendTimingReq(pkt))
+  {
     num_used_cache_ports++;
     return true;
   }
@@ -56,17 +58,18 @@ IOCPU::IcachePort::sendTimingReq(PacketPtr pkt)
   return false;
 }
 
-bool
-IOCPU::IcachePort::recvTimingResp(PacketPtr pkt)
+bool IOCPU::IcachePort::recvTimingResp(PacketPtr pkt)
 {
   assert(pkt);
   DPRINTF(IOCPU, "icache port received a response packet: %s\n", pkt->print());
 
   // if we recv a cache req during vec config, assumes its for vec uops
-  if (vec_p && vec_p->getConfigured() && vec_p->isSlave()) {
+  if (vec_p && vec_p->getConfigured() && vec_p->isSlave())
+  {
     vec_p->recvICacheResp(pkt);
   }
-  else {
+  else
+  {
     fetch_p->processCacheCompletion(pkt);
   }
   // CPU should be always ready to receive response packets, so always return
@@ -74,18 +77,17 @@ IOCPU::IcachePort::recvTimingResp(PacketPtr pkt)
   return true;
 }
 
-void
-IOCPU::IcachePort::recvReqRetry()
+void IOCPU::IcachePort::recvReqRetry()
 {
   DPRINTF(IOCPU, "icache port received a retry request\n");
   fetch_p->completeRetryReq();
 }
 
-void
-IOCPU::IcachePort::reset()
+void IOCPU::IcachePort::reset()
 {
   num_used_cache_ports = 0;
-  if (need_retry) {
+  if (need_retry)
+  {
     need_retry = false;
     fetch_p->completeRetryReq();
   }
@@ -95,31 +97,33 @@ IOCPU::IcachePort::reset()
 // IOCPU::DcachePort
 //-----------------------------------------------------------------------------
 
-IOCPU::DcachePort::DcachePort(IOCPU* _cpu_p, int _num_cache_ports)
+IOCPU::DcachePort::DcachePort(IOCPU *_cpu_p, int _num_cache_ports)
     : MasterPort(_cpu_p->name() + ".dcache_port", _cpu_p),
       //mem_unit_p(_mem_unit_p),
       num_cache_ports(_num_cache_ports),
       num_used_cache_ports(0),
       need_retry(false)
-{ }
+{
+}
 
-void
-IOCPU::DcachePort::AttachToStage(IEW *_iew_p) {
+void IOCPU::DcachePort::AttachToStage(IEW *_iew_p)
+{
   mem_unit_p = _iew_p->getMemUnitPtr();
 }
 
-bool
-IOCPU::DcachePort::sendTimingReq(PacketPtr pkt)
+bool IOCPU::DcachePort::sendTimingReq(PacketPtr pkt)
 {
   assert(num_used_cache_ports <= num_cache_ports);
 
-  if (num_used_cache_ports == num_cache_ports) {
+  if (num_used_cache_ports == num_cache_ports)
+  {
     DPRINTF(IOCPU, "Running out of dcache ports\n");
     need_retry = true;
     return false;
   }
 
-  if (MasterPort::sendTimingReq(pkt)) {
+  if (MasterPort::sendTimingReq(pkt))
+  {
     num_used_cache_ports++;
     return true;
   }
@@ -127,8 +131,7 @@ IOCPU::DcachePort::sendTimingReq(PacketPtr pkt)
   return false;
 }
 
-bool
-IOCPU::DcachePort::recvTimingResp(PacketPtr pkt)
+bool IOCPU::DcachePort::recvTimingResp(PacketPtr pkt)
 {
   assert(pkt);
   DPRINTF(IOCPU, "dcache port received a response packet: %s\n", pkt->print());
@@ -138,18 +141,17 @@ IOCPU::DcachePort::recvTimingResp(PacketPtr pkt)
   return true;
 }
 
-void
-IOCPU::DcachePort::recvReqRetry()
+void IOCPU::DcachePort::recvReqRetry()
 {
   DPRINTF(IOCPU, "dcache port received a retry request\n");
   mem_unit_p->completeRetryReq();
 }
 
-void
-IOCPU::DcachePort::reset()
+void IOCPU::DcachePort::reset()
 {
   num_used_cache_ports = 0;
-  if (need_retry) {
+  if (need_retry)
+  {
     need_retry = false;
     mem_unit_p->completeRetryReq();
   }
@@ -159,14 +161,14 @@ IOCPU::DcachePort::reset()
 // IOCPU
 //-----------------------------------------------------------------------------
 
-IOCPU::IOCPU(IOCPUParams* params)
+IOCPU::IOCPU(IOCPUParams *params)
     : BaseCPU(params),
       status(Idle),
       itb(params->itb),
       dtb(params->dtb),
       m_system_p(params->system),
       m_num_threads(params->numThreads),
-      m_tick_event([this]{ tick(); }, "IO_CPU tick",
+      m_tick_event([this] { tick(); }, "IO_CPU tick",
                    false, Event::CPU_Tick_Pri),
       m_pipeline(this, params),
       // TODO need to figure out the delays for those buffers. For now, assume
@@ -191,7 +193,7 @@ IOCPU::IOCPU(IOCPUParams* params)
       m_revec_cntr(0),
       m_mem_epoch(0),
       m_last_active_cycle(0)
-      
+
 {
   // IOCPU does not support FullSystem mode yet
   assert(!FullSystem);
@@ -206,20 +208,23 @@ IOCPU::IOCPU(IOCPUParams* params)
   // setup ports
   m_icache_port.AttachToStage(getFetch(), getEarlyVector());
   m_dcache_port.AttachToStage(getIEW());
-  
+
   // declare vector ports
-  for (int i = 0; i < params->port_to_mesh_port_connection_count; ++i) {
+  for (int i = 0; i < params->port_to_mesh_port_connection_count; ++i)
+  {
     m_to_mesh_port.emplace_back(this, i);
   }
-   
-  for (int i = 0; i < params->port_from_mesh_port_connection_count; ++i) {
+
+  for (int i = 0; i < params->port_from_mesh_port_connection_count; ++i)
+  {
     m_from_mesh_port.emplace_back(this, i);
   }
-    
-  for (int i = 0; i < params->port_from_mesh_port_connection_count; i++) {
+
+  for (int i = 0; i < params->port_from_mesh_port_connection_count; i++)
+  {
     // need to setup anything involving the 'this' pointer in the port
     // class after have moved into vector memory
-    
+
     // alternatively could declare ports as pointers
     m_from_mesh_port[i].setupEvents();
   }
@@ -227,19 +232,21 @@ IOCPU::IOCPU(IOCPUParams* params)
   // Set up communication wires for all stages
   for (int i = 0; i < m_pipeline.getLen(); i++)
     m_pipeline[i]->setCommBuffers(m_inst_buffer, m_credit_buffer,
-                              m_squash_buffer, m_info_buffer);
+                                  m_squash_buffer, m_info_buffer);
 
   // IOCPU does not support simulating multiple workloads
   assert(params->workload.size() == 1);
 
   // create new thread contexts
-  for (ThreadID tid = 0; tid < m_num_threads; ++tid) {
-    ThreadContext* tc = new IOThreadContext(this, tid, params->workload[0]);
+  for (ThreadID tid = 0; tid < m_num_threads; ++tid)
+  {
+    ThreadContext *tc = new IOThreadContext(this, tid, params->workload[0]);
     threadContexts.push_back(tc);
   }
 
   // Create ROBs
-  for (ThreadID tid = 0; tid < m_num_threads; ++tid) {
+  for (ThreadID tid = 0; tid < m_num_threads; ++tid)
+  {
     m_robs.emplace_back(params);
   }
 
@@ -248,15 +255,15 @@ IOCPU::IOCPU(IOCPUParams* params)
   m_commit_rename_maps.resize(m_num_threads);
   m_isa_list.resize(m_num_threads);
 
-  for (ThreadID tid = 0; tid < m_num_threads; ++tid) {
+  for (ThreadID tid = 0; tid < m_num_threads; ++tid)
+  {
     m_isa_list[tid] = params->isa[tid];
 
     // Only Alpha has an FP zero register, so for other ISAs we
     // use an invalid FP register index to avoid special treatment
     // of any valid FP reg.
     RegIndex invalidFPReg = TheISA::NumFloatRegs + 1;
-    RegIndex fpZeroReg = (THE_ISA == ALPHA_ISA) ?
-                                  TheISA::ZeroReg : invalidFPReg;
+    RegIndex fpZeroReg = (THE_ISA == ALPHA_ISA) ? TheISA::ZeroReg : invalidFPReg;
 
     m_commit_rename_maps[tid].init(&m_reg_file,
                                    TheISA::ZeroReg,
@@ -276,8 +283,10 @@ IOCPU::IOCPU(IOCPUParams* params)
   PhysRegIdPtr zero_int_phys_reg = nullptr;
   PhysRegIdPtr zero_float_phys_reg = nullptr;
 
-  for (ThreadID tid = 0; tid < m_num_threads; tid++) {
-    for (RegIndex ridx = 0; ridx < TheISA::NumIntRegs; ++ridx) {
+  for (ThreadID tid = 0; tid < m_num_threads; tid++)
+  {
+    for (RegIndex ridx = 0; ridx < TheISA::NumIntRegs; ++ridx)
+    {
       // check if ridx is ZeroReg and a physical register has already
       // been assigned to the zero register. If so, try to use the
       // existing mapping.
@@ -294,7 +303,8 @@ IOCPU::IOCPU(IOCPUParams* params)
         zero_int_phys_reg = phys_reg;
     }
 
-    for (RegIndex ridx = 0; ridx < TheISA::NumFloatRegs; ++ridx) {
+    for (RegIndex ridx = 0; ridx < TheISA::NumFloatRegs; ++ridx)
+    {
       // check if ridx is ZeroReg and a physical register has already
       // been assigned to the zero register. If so, try to use the
       // existing mapping.
@@ -309,7 +319,8 @@ IOCPU::IOCPU(IOCPUParams* params)
       m_commit_rename_maps[tid].setEntry(RegId(FloatRegClass, ridx), phys_reg);
 
       if (THE_ISA == ALPHA_ISA && ridx == TheISA::ZeroReg &&
-          !zero_float_phys_reg) {
+          !zero_float_phys_reg)
+      {
         zero_float_phys_reg = phys_reg;
       }
     }
@@ -322,22 +333,25 @@ IOCPU::IOCPU(IOCPUParams* params)
      * implemented */
 
     /* Initialize the full-vector interface */
-    for (RegIndex ridx = 0; ridx < TheISA::NumVecRegs; ++ridx) {
+    for (RegIndex ridx = 0; ridx < TheISA::NumVecRegs; ++ridx)
+    {
       RegId rid = RegId(VecRegClass, ridx);
       PhysRegIdPtr phys_reg = m_free_list.getVecReg();
       m_rename_maps[tid].setEntry(rid, phys_reg);
       m_commit_rename_maps[tid].setEntry(rid, phys_reg);
     }
 
-    for (RegIndex ridx = 0; ridx < TheISA::NumVecPredRegs; ++ridx) {
+    for (RegIndex ridx = 0; ridx < TheISA::NumVecPredRegs; ++ridx)
+    {
       PhysRegIdPtr phys_reg = m_free_list.getVecPredReg();
       m_rename_maps[tid].setEntry(RegId(VecPredRegClass, ridx), phys_reg);
       m_commit_rename_maps[tid].setEntry(
-              RegId(VecPredRegClass, ridx), phys_reg);
+          RegId(VecPredRegClass, ridx), phys_reg);
     }
 
 #if THE_ISA == X86_ISA
-    for (RegIndex ridx = 0; ridx < TheISA::NumCCRegs; ++ridx) {
+    for (RegIndex ridx = 0; ridx < TheISA::NumCCRegs; ++ridx)
+    {
       PhysRegIdPtr phys_reg = m_free_list.getCCReg();
       m_rename_maps[tid].setEntry(RegId(CCRegClass, ridx), phys_reg);
       m_commit_rename_maps[tid].setEntry(RegId(CCRegClass, ridx), phys_reg);
@@ -347,22 +361,22 @@ IOCPU::IOCPU(IOCPUParams* params)
 }
 
 IOCPU::~IOCPU()
-{ }
+{
+}
 
-void
-IOCPU::init()
+void IOCPU::init()
 {
   BaseCPU::init();
   for (ThreadID tid = 0; tid < m_num_threads; ++tid)
     threadContexts[tid]->initMemProxies(threadContexts[tid]);
 
-  for (int i = 0; i < m_pipeline.getLen(); i++) {
+  for (int i = 0; i < m_pipeline.getLen(); i++)
+  {
     m_pipeline[i]->init();
   }
 }
 
-void
-IOCPU::startup()
+void IOCPU::startup()
 {
   BaseCPU::startup();
 
@@ -371,22 +385,18 @@ IOCPU::startup()
     m_isa_list[tid]->startup(threadContexts[tid]);
 }
 
-void
-IOCPU::wakeup(ThreadID tid)
+void IOCPU::wakeup(ThreadID tid)
 {
-
 }
 
-void
-IOCPU::switchOut()
+void IOCPU::switchOut()
 {
   // TODO: currently draining IO pipeline is not supported, so calling this
   // function is essentially no-op.
   warn("switchOut not implemented\n");
 }
 
-void
-IOCPU::takeOverFrom(BaseCPU* old_cpu)
+void IOCPU::takeOverFrom(BaseCPU *old_cpu)
 {
   // reset all stages
   for (ThreadID tid = 0; tid < m_num_threads; ++tid)
@@ -400,13 +410,12 @@ IOCPU::takeOverFrom(BaseCPU* old_cpu)
 
   assert(!m_tick_event.scheduled());
 
-  for (ThreadContext* tc_p : threadContexts)
+  for (ThreadContext *tc_p : threadContexts)
     if (tc_p->status() == ThreadContext::Active)
       activateContext(tc_p->threadId());
 }
 
-void
-IOCPU::activateContext(ThreadID tid)
+void IOCPU::activateContext(ThreadID tid)
 {
   DPRINTF(IOCPU, "[tid:%d] Activating thread context\n", tid);
 
@@ -419,13 +428,14 @@ IOCPU::activateContext(ThreadID tid)
 
   // assert that the thread is not active yet
   if (std::find(m_active_thread_ids.begin(), m_active_thread_ids.end(),
-                   tid) == m_active_thread_ids.end()) {
+                tid) == m_active_thread_ids.end())
+  {
 
     // push the new thread into the active list
     m_active_thread_ids.push_back(tid);
-
   }
-  else {
+  else
+  {
     DPRINTF(IOCPU, "[tid:%d] Already present, prob a pthread startup\n", tid);
   }
 
@@ -441,8 +451,7 @@ IOCPU::activateContext(ThreadID tid)
   BaseCPU::activateContext(tid);
 }
 
-void
-IOCPU::suspendContext(ThreadID tid)
+void IOCPU::suspendContext(ThreadID tid)
 {
   DPRINTF(IOCPU, "[tid:%d] Suspending thread context\n", tid);
 
@@ -469,8 +478,7 @@ IOCPU::suspendContext(ThreadID tid)
   BaseCPU::suspendContext(tid);
 }
 
-void
-IOCPU::haltContext(ThreadID tid)
+void IOCPU::haltContext(ThreadID tid)
 {
   // Halting a thread context is similar to suspending a context except that
   // all microarchitectural states of the thread context are removed from the
@@ -489,7 +497,8 @@ IOCPU::haltContext(ThreadID tid)
                       tid);
 
   // erase it
-  if (it != m_active_thread_ids.end()) {
+  if (it != m_active_thread_ids.end())
+  {
     m_active_thread_ids.erase(it);
 
     // tell fetch stage to put this thread out of its scheduling list
@@ -507,28 +516,24 @@ IOCPU::haltContext(ThreadID tid)
   BaseCPU::haltContext(tid);
 }
 
-void
-IOCPU::resetStates(ThreadID tid)
+void IOCPU::resetStates(ThreadID tid)
 {
   // TODO: need to reset states related to the thread in all data structures of
   // the pipeline
   getFetch()->resetStates(tid);
 }
 
-void
-IOCPU::serializeThread(CheckpointOut& cp, ThreadID tid) const
+void IOCPU::serializeThread(CheckpointOut &cp, ThreadID tid) const
 {
   panic("IOCPU does not support serializeThread yet\n");
 }
 
-void
-IOCPU::unserializeThread(CheckpointIn& cp, ThreadID tid)
+void IOCPU::unserializeThread(CheckpointIn &cp, ThreadID tid)
 {
   panic("IOCPU does not support unserializeThread yet\n");
 }
 
-void
-IOCPU::wakeup()
+void IOCPU::wakeup()
 {
   DPRINTF(IOCPU, "Waking up\n");
   assert(status == Idle && !m_tick_event.scheduled());
@@ -546,12 +551,12 @@ IOCPU::wakeup()
   numCycles += (curCycle() - m_last_active_cycle);
 }
 
-void
-IOCPU::suspend()
+void IOCPU::suspend()
 {
   DPRINTF(IOCPU, "Suspending\n");
 
-  if (status != Idle) {
+  if (status != Idle)
+  {
     status = Idle;
     // need to suspend all stages
     for (int i = 0; i < m_pipeline.getLen(); i++)
@@ -565,48 +570,49 @@ IOCPU::suspend()
   unscheduleTickEvent();
 }
 
-MasterPort&
+MasterPort &
 IOCPU::getInstPort()
 {
   return m_icache_port;
 }
 
-MasterPort&
+MasterPort &
 IOCPU::getDataPort()
 {
   return m_dcache_port;
 }
 
-std::vector<ToMeshPort>&
-IOCPU::getMeshMasterPorts() {
+std::vector<ToMeshPort> &
+IOCPU::getMeshMasterPorts()
+{
   return m_to_mesh_port;
 }
-    
-std::vector<FromMeshPort>&
-IOCPU::getMeshSlavePorts() {
+
+std::vector<FromMeshPort> &
+IOCPU::getMeshSlavePorts()
+{
   return m_from_mesh_port;
 }
 
-Port&
+Port &
 IOCPU::getPort(const std::string &if_name, PortID idx)
 {
-    // Get the right port based on name. This applies to all the
-    // subclasses of the base CPU and relies on their implementation
-    // of getDataPort and getInstPort.
-    if (if_name == "dcache_port")
-        return getDataPort();
-    else if (if_name == "icache_port")
-        return getInstPort();
-    else if (if_name == "to_mesh_port" && idx < m_to_mesh_port.size())
-        return m_to_mesh_port[idx];
-    else if (if_name == "from_mesh_port" && idx < m_from_mesh_port.size())
-        return m_from_mesh_port[idx];
-    else
-        return ClockedObject::getPort(if_name, idx);
+  // Get the right port based on name. This applies to all the
+  // subclasses of the base CPU and relies on their implementation
+  // of getDataPort and getInstPort.
+  if (if_name == "dcache_port")
+    return getDataPort();
+  else if (if_name == "icache_port")
+    return getInstPort();
+  else if (if_name == "to_mesh_port" && idx < m_to_mesh_port.size())
+    return m_to_mesh_port[idx];
+  else if (if_name == "from_mesh_port" && idx < m_from_mesh_port.size())
+    return m_from_mesh_port[idx];
+  else
+    return ClockedObject::getPort(if_name, idx);
 }
 
-void
-IOCPU::tick()
+void IOCPU::tick()
 {
   assert(!switchedOut());
 
@@ -626,7 +632,8 @@ IOCPU::tick()
   m_info_buffer.advance();
 
   // schedule next tick
-  if (status == Running && !m_tick_event.scheduled()) {
+  if (status == Running && !m_tick_event.scheduled())
+  {
     schedule(m_tick_event, clockEdge(Cycles(1)));
   }
 
@@ -638,8 +645,7 @@ IOCPU::tick()
 #endif
 }
 
-void
-IOCPU::pcState(const TheISA::PCState& newPCState, ThreadID tid)
+void IOCPU::pcState(const TheISA::PCState &newPCState, ThreadID tid)
 {
   getFetch()->pcState(newPCState, tid);
   // TODO: what pc state is tracked in commit stage? do we need it?
@@ -652,33 +658,31 @@ IOCPU::pcState(ThreadID tid)
   return getCommit()->pcState(tid);
 }
 
-void
-IOCPU::trap(const Fault& fault, ThreadID tid, const StaticInstPtr& inst)
+void IOCPU::trap(const Fault &fault, ThreadID tid, const StaticInstPtr &inst)
 {
   DPRINTF(IOCPU, "Invoking trap for fault %s\n", fault->name());
   fault->invoke(threadContexts[tid], inst);
 }
 
-TheISA::Decoder*
+TheISA::Decoder *
 IOCPU::getDecoderPtr(ThreadID tid)
 {
   return getFetch()->getDecoderPtr(tid);
 }
 
-System*
+System *
 IOCPU::getSystemPtr()
 {
   return m_system_p;
 }
 
-TheISA::ISA*
+TheISA::ISA *
 IOCPU::getISAPtr(ThreadID tid)
 {
   return m_isa_list[tid];
 }
 
-Addr
-IOCPU::instAddr(ThreadID tid)
+Addr IOCPU::instAddr(ThreadID tid)
 {
   return getCommit()->instAddr(tid);
 }
@@ -689,13 +693,12 @@ IOCPU::microPC(ThreadID tid)
   return getCommit()->microPC(tid);
 }
 
-Addr
-IOCPU::nextInstAddr(ThreadID tid)
+Addr IOCPU::nextInstAddr(ThreadID tid)
 {
   return getCommit()->nextInstAddr(tid);
 }
 
-ThreadContext*
+ThreadContext *
 IOCPU::tcBase(ThreadID tid)
 {
   return threadContexts[tid];
@@ -707,15 +710,13 @@ IOCPU::getAndIncrementInstSeq()
   return m_global_seq_num++;
 }
 
-void
-IOCPU::scheduleTickEvent(Cycles delay)
+void IOCPU::scheduleTickEvent(Cycles delay)
 {
   if (!m_tick_event.scheduled())
     schedule(m_tick_event, clockEdge(delay));
 }
 
-void
-IOCPU::unscheduleTickEvent()
+void IOCPU::unscheduleTickEvent()
 {
   if (m_tick_event.scheduled())
     deschedule(m_tick_event);
@@ -733,13 +734,12 @@ IOCPU::totalOps() const
   return totalInsts();
 }
 
-Fault
-IOCPU::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
-                  unsigned int size, Addr addr, Request::Flags flags,
-                  uint64_t* res, AtomicOpFunctor* amo_op)
+Fault IOCPU::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
+                        unsigned int size, Addr addr, Request::Flags flags,
+                        uint64_t *res, AtomicOpFunctor *amo_op)
 {
   return getIEW()->getMemUnitPtr()->pushMemReq(inst, is_load, data, size, addr,
-                                           flags, res, amo_op);
+                                               flags, res, amo_op);
 }
 
 size_t
@@ -752,44 +752,44 @@ IOCPU::getCacheLineSize() const
 // Accessors for pipeline data structures
 //-----------------------------------------------------------------------------
 
-PhysRegFile*
+PhysRegFile *
 IOCPU::getPhysRegFilePtr()
 {
   return &m_reg_file;
 }
 
-ROB*
-IOCPU::getROBPtr(ThreadID tid)
+ROB *IOCPU::getROBPtr(ThreadID tid)
 {
   return &m_robs[tid];
 }
 
-Scoreboard*
+Scoreboard *
 IOCPU::getScoreboardPtr()
 {
   return &m_scoreboard;
 }
 
-UnifiedFreeList*
+UnifiedFreeList *
 IOCPU::getFreeListPtr()
 {
   return &m_free_list;
 }
 
-UnifiedRenameMap*
+UnifiedRenameMap *
 IOCPU::getRenameMapPtr(ThreadID tid)
 {
   return &m_rename_maps[tid];
 }
 
-UnifiedRenameMap*
+UnifiedRenameMap *
 IOCPU::getCommitRenameMapPtr(ThreadID tid)
 {
   return &m_commit_rename_maps[tid];
 }
 
-BPredUnit*
-IOCPU::getBranchPredPtr() {
+BPredUnit *
+IOCPU::getBranchPredPtr()
+{
   return getFetch()->getBranchPredPtr();
 }
 //-----------------------------------------------------------------------------
@@ -802,8 +802,7 @@ IOCPU::readIntReg(PhysRegIdPtr phys_reg)
   return m_reg_file.readIntReg(phys_reg);
 }
 
-void
-IOCPU::setIntReg(PhysRegIdPtr phys_reg, RegVal val)
+void IOCPU::setIntReg(PhysRegIdPtr phys_reg, RegVal val)
 {
   m_reg_file.setIntReg(phys_reg, val);
 }
@@ -811,16 +810,13 @@ IOCPU::setIntReg(PhysRegIdPtr phys_reg, RegVal val)
 RegVal
 IOCPU::readArchIntReg(int reg_idx, ThreadID tid)
 {
-  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                          lookup(RegId(IntRegClass, reg_idx));
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(IntRegClass, reg_idx));
   return m_reg_file.readIntReg(phys_reg);
 }
 
-void
-IOCPU::setArchIntReg(int reg_idx, RegVal val, ThreadID tid)
+void IOCPU::setArchIntReg(int reg_idx, RegVal val, ThreadID tid)
 {
-  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                          lookup(RegId(IntRegClass, reg_idx));
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(IntRegClass, reg_idx));
   m_reg_file.setIntReg(phys_reg, val);
 }
 
@@ -830,8 +826,7 @@ IOCPU::readFloatReg(PhysRegIdPtr phys_reg)
   return m_reg_file.readFloatReg(phys_reg);
 }
 
-void
-IOCPU::setFloatReg(PhysRegIdPtr phys_reg, RegVal val)
+void IOCPU::setFloatReg(PhysRegIdPtr phys_reg, RegVal val)
 {
   m_reg_file.setFloatReg(phys_reg, val);
 }
@@ -839,135 +834,108 @@ IOCPU::setFloatReg(PhysRegIdPtr phys_reg, RegVal val)
 RegVal
 IOCPU::readArchFloatReg(int reg_idx, ThreadID tid)
 {
-  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                        lookup(RegId(FloatRegClass, reg_idx));
-  return m_reg_file.readIntReg(phys_reg);
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(FloatRegClass, reg_idx));
+  return m_reg_file.readFloatReg(phys_reg);
 }
 
-void
-IOCPU::setArchFloatReg(int reg_idx, RegVal val, ThreadID tid)
+void IOCPU::setArchFloatReg(int reg_idx, RegVal val, ThreadID tid)
 {
-  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                        lookup(RegId(FloatRegClass, reg_idx));
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(FloatRegClass, reg_idx));
   m_reg_file.setFloatReg(phys_reg, val);
 }
 
-auto
-IOCPU::readVecReg(PhysRegIdPtr reg_idx) const -> const VecRegContainer&
+auto IOCPU::readVecReg(PhysRegIdPtr reg_idx) const -> const VecRegContainer &
 {
   return m_reg_file.readVecReg(reg_idx);
 }
 
-auto
-IOCPU::readArchVecReg(int reg_idx, ThreadID tid) const
-                                                -> const VecRegContainer&
+auto IOCPU::readArchVecReg(int reg_idx, ThreadID tid) const
+    -> const VecRegContainer &
 {
-  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                  lookup(RegId(VecRegClass, reg_idx));
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(VecRegClass, reg_idx));
   return readVecReg(phys_reg);
 }
 
-auto
-IOCPU::readVecElem(PhysRegIdPtr reg_idx) const -> const VecElem&
+auto IOCPU::readVecElem(PhysRegIdPtr reg_idx) const -> const VecElem &
 {
   return m_reg_file.readVecElem(reg_idx);
 }
 
-auto
-IOCPU::readArchVecElem(const RegIndex& reg_idx, const ElemIndex& ldx,
-                       ThreadID tid) const -> const VecElem&
+auto IOCPU::readArchVecElem(const RegIndex &reg_idx, const ElemIndex &ldx,
+                            ThreadID tid) const -> const VecElem &
 {
-  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                    lookup(RegId(VecElemClass, reg_idx, ldx));
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(VecElemClass, reg_idx, ldx));
   return readVecElem(phys_reg);
 }
 
-auto
-IOCPU::readVecPredReg(PhysRegIdPtr reg_idx) const -> const VecPredRegContainer&
+auto IOCPU::readVecPredReg(PhysRegIdPtr reg_idx) const -> const VecPredRegContainer &
 {
   return m_reg_file.readVecPredReg(reg_idx);
 }
 
-auto
-IOCPU::readArchVecPredReg(int reg_idx, ThreadID tid) const
-                                                  -> const VecPredRegContainer&
+auto IOCPU::readArchVecPredReg(int reg_idx, ThreadID tid) const
+    -> const VecPredRegContainer &
 {
-  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                  lookup(RegId(VecPredRegClass, reg_idx));
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(VecPredRegClass, reg_idx));
   return readVecPredReg(phys_reg);
 }
 
-auto
-IOCPU::getWritableVecReg(PhysRegIdPtr reg_idx) -> VecRegContainer&
+auto IOCPU::getWritableVecReg(PhysRegIdPtr reg_idx) -> VecRegContainer &
 {
   return m_reg_file.getWritableVecReg(reg_idx);
 }
 
-auto
-IOCPU::getWritableArchVecReg(int reg_idx, ThreadID tid) -> VecRegContainer&
+auto IOCPU::getWritableArchVecReg(int reg_idx, ThreadID tid) -> VecRegContainer &
 {
-  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                  lookup(RegId(VecRegClass, reg_idx));
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(VecRegClass, reg_idx));
   return getWritableVecReg(phys_reg);
 }
 
-auto
-IOCPU::getWritableVecPredReg(PhysRegIdPtr reg_idx) -> VecPredRegContainer&
+auto IOCPU::getWritableVecPredReg(PhysRegIdPtr reg_idx) -> VecPredRegContainer &
 {
   return m_reg_file.getWritableVecPredReg(reg_idx);
 }
 
-auto
-IOCPU::getWritableArchVecPredReg(int reg_idx, ThreadID tid)
-                                                    -> VecPredRegContainer&
+auto IOCPU::getWritableArchVecPredReg(int reg_idx, ThreadID tid)
+    -> VecPredRegContainer &
 {
-  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                  lookup(RegId(VecPredRegClass, reg_idx));
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(VecPredRegClass, reg_idx));
   return getWritableVecPredReg(phys_reg);
 }
 
-void
-IOCPU::setVecReg(PhysRegIdPtr reg_idx, const VecRegContainer& val)
+void IOCPU::setVecReg(PhysRegIdPtr reg_idx, const VecRegContainer &val)
 {
   m_reg_file.setVecReg(reg_idx, val);
 }
 
-void
-IOCPU::setArchVecReg(int reg_idx, const VecRegContainer& val, ThreadID tid)
+void IOCPU::setArchVecReg(int reg_idx, const VecRegContainer &val, ThreadID tid)
 {
-  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                  lookup(RegId(VecRegClass, reg_idx));
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(VecRegClass, reg_idx));
   setVecReg(phys_reg, val);
 }
 
-void
-IOCPU::setVecElem(PhysRegIdPtr reg_idx, const VecElem& val)
+void IOCPU::setVecElem(PhysRegIdPtr reg_idx, const VecElem &val)
 {
   m_reg_file.setVecElem(reg_idx, val);
 }
 
-void
-IOCPU::setArchVecElem(const RegIndex& reg_idx, const ElemIndex& ldx,
-                      const VecElem& val, ThreadID tid)
+void IOCPU::setArchVecElem(const RegIndex &reg_idx, const ElemIndex &ldx,
+                           const VecElem &val, ThreadID tid)
 {
-    PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                    lookup(RegId(VecElemClass, reg_idx, ldx));
-    setVecElem(phys_reg, val);
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(VecElemClass, reg_idx, ldx));
+  setVecElem(phys_reg, val);
 }
 
-void
-IOCPU::setVecPredReg(PhysRegIdPtr reg_idx, const VecPredRegContainer& val)
+void IOCPU::setVecPredReg(PhysRegIdPtr reg_idx, const VecPredRegContainer &val)
 {
   m_reg_file.setVecPredReg(reg_idx, val);
 }
 
-void
-IOCPU::setArchVecPredReg(int reg_idx, const VecPredRegContainer& val,
-                         ThreadID tid)
+void IOCPU::setArchVecPredReg(int reg_idx, const VecPredRegContainer &val,
+                              ThreadID tid)
 {
-    PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                lookup(RegId(VecPredRegClass, reg_idx));
-    setVecPredReg(phys_reg, val);
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(VecPredRegClass, reg_idx));
+  setVecPredReg(phys_reg, val);
 }
 
 RegVal
@@ -982,20 +950,18 @@ IOCPU::readMiscReg(int misc_reg, ThreadID tid)
   return m_isa_list[tid]->readMiscReg(misc_reg, tcBase(tid));
 }
 
-void
-IOCPU::setMiscRegNoEffect(int misc_reg, RegVal val, ThreadID tid)
+void IOCPU::setMiscRegNoEffect(int misc_reg, RegVal val, ThreadID tid)
 {
   m_isa_list[tid]->setMiscRegNoEffect(misc_reg, val);
 }
 
-void
-IOCPU::setMiscReg(int misc_reg, RegVal val, ThreadID tid)
+void IOCPU::setMiscReg(int misc_reg, RegVal val, ThreadID tid)
 {
   if (getEarlyVector())
     getEarlyVector()->setupConfig(misc_reg, val);
   if (getLateVector())
     getLateVector()->setupConfig(misc_reg, val);
-  
+
   m_isa_list[tid]->setMiscReg(misc_reg, val, tcBase(tid));
 }
 
@@ -1005,8 +971,7 @@ IOCPU::readCCReg(PhysRegIdPtr phys_reg)
   return m_reg_file.readCCReg(phys_reg);
 }
 
-void
-IOCPU::setCCReg(PhysRegIdPtr phys_reg, RegVal val)
+void IOCPU::setCCReg(PhysRegIdPtr phys_reg, RegVal val)
 {
   m_reg_file.setCCReg(phys_reg, val);
 }
@@ -1014,65 +979,60 @@ IOCPU::setCCReg(PhysRegIdPtr phys_reg, RegVal val)
 RegVal
 IOCPU::readArchCCReg(int reg_idx, ThreadID tid)
 {
-  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                  lookup(RegId(CCRegClass, reg_idx));
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(CCRegClass, reg_idx));
   return m_reg_file.readCCReg(phys_reg);
 }
 
-void
-IOCPU::setArchCCReg(int reg_idx, RegVal val, ThreadID tid)
+void IOCPU::setArchCCReg(int reg_idx, RegVal val, ThreadID tid)
 {
-  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].
-                                  lookup(RegId(CCRegClass, reg_idx));
+  PhysRegIdPtr phys_reg = m_commit_rename_maps[tid].lookup(RegId(CCRegClass, reg_idx));
   m_reg_file.setCCReg(phys_reg, val);
 }
 
-int
-IOCPU::getRevecEpoch() {
+int IOCPU::getRevecEpoch()
+{
   return m_revec_cntr;
 }
 
-void
-IOCPU::incRevecEpoch() {
+void IOCPU::incRevecEpoch()
+{
   m_revec_cntr = (m_revec_cntr + 1) % getSpadNumRegions();
   DPRINTF(Mesh, "increment revec %d\n", m_revec_cntr);
 }
 
-int
-IOCPU::getMemEpoch() {
+int IOCPU::getMemEpoch()
+{
   return m_mem_epoch;
 }
 
-void
-IOCPU::incMemEpoch() {
+void IOCPU::incMemEpoch()
+{
   m_mem_epoch = (m_mem_epoch + 1) % getSpadNumRegions();
   DPRINTF(Mesh, "increment remem %d\n", m_mem_epoch);
 }
 
-int
-IOCPU::getSpadNumRegions() {
+int IOCPU::getSpadNumRegions()
+{
   // return 16;
   int tid = 0;
   RegVal csrVal = readMiscRegNoEffect(RiscvISA::MISCREG_PREFETCH, tid);
   return MeshHelper::numPrefetchRegions(csrVal);
 }
 
-int
-IOCPU::getSpadRegionSize() {
+int IOCPU::getSpadRegionSize()
+{
   // return 32;
   int tid = 0;
   RegVal csrVal = readMiscRegNoEffect(RiscvISA::MISCREG_PREFETCH, tid);
   return MeshHelper::prefetchRegionSize(csrVal);
 }
 
-void
-IOCPU::incrNumCommittedInsts(ThreadID tid)
+void IOCPU::incrNumCommittedInsts(ThreadID tid)
 {
   m_committed_insts[tid]++;
 }
 
-void
-IOCPU::regStats()
+void IOCPU::regStats()
 {
   BaseCPU::regStats();
 
@@ -1109,7 +1069,7 @@ IOCPU::regStats()
       .name(name() + ".ipc_total")
       .desc("IPC: Total IPC of All Threads")
       .precision(6);
-  m_total_ipc =  sum(m_committed_insts) / numCycles;
+  m_total_ipc = sum(m_committed_insts) / numCycles;
 
   m_int_regfile_reads
       .name(name() + ".int_regfile_reads")
@@ -1144,20 +1104,19 @@ IOCPU::regStats()
   for (int i = 0; i < m_pipeline.getLen(); i++)
     m_pipeline[i]->regStats();
 
-//  m_fetch.regStats();
-//  m_decode.regStats();
-//  m_rename.regStats();
-//  m_iew.regStats();
-//  m_commit.regStats();
-//  m_rob.regStats();
+  //  m_fetch.regStats();
+  //  m_decode.regStats();
+  //  m_rename.regStats();
+  //  m_iew.regStats();
+  //  m_commit.regStats();
+  //  m_rob.regStats();
 }
 
 //-----------------------------------------------------------------------------
 // Line trace utilities
 //-----------------------------------------------------------------------------
 
-void
-IOCPU::linetrace()
+void IOCPU::linetrace()
 {
 #ifdef DEBUG
   std::stringstream ss;
@@ -1166,7 +1125,7 @@ IOCPU::linetrace()
   for (int i = 0; i < m_pipeline.getLen(); i++)
     m_pipeline[i]->linetrace(ss);
 
-  //DPRINTF(LineTrace, "%s\n", ss.str());
+    //DPRINTF(LineTrace, "%s\n", ss.str());
 #endif
 }
 
@@ -1174,7 +1133,7 @@ IOCPU::linetrace()
 // IOCPUParams::create()
 //-----------------------------------------------------------------------------
 
-IOCPU*
+IOCPU *
 IOCPUParams::create()
 {
   return new IOCPU(this);
