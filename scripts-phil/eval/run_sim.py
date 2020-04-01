@@ -76,7 +76,7 @@ gem5_cmd = lambda program, options, result, cpus, vec: '{} -d {}/{} {}  --cmd={}
     program,
     options,
     str(cpus),
-    "--vector" if vec else "",
+    "--vector",  # if vec else "",
 )
 
 # compile command that chooses whether to use scratchpad optimizations
@@ -84,13 +84,14 @@ gem5_cmd = lambda program, options, result, cpus, vec: '{} -d {}/{} {}  --cmd={}
 def compile_cmd(program_dir, cpus, use_sp, use_vec):
     # cmd = "make clean -C {}".format(program_dir)
     # cmd += " && "
+    cmd = ""
     if not use_sp:
         cmd += "ENV_NO_SP=1 "
     if not use_vec:
         cmd += "ENV_NO_VEC=1 "
 
     # cmd += "ENV_N_SPS={} make -C {}".format(cpus, program_dir)
-    cmd = "ENV_N_SPS={} make -C {}".format(cpus, program_dir)
+    cmd += "ENV_N_SPS={} make -C {}".format(cpus, program_dir)
     return cmd
 
 
@@ -141,7 +142,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
 numCpus = 16
 use_sps = True
 
-size = 1024  # 65536  # 32768 #8192
+size = 32  # 65536  # 32768 #8192
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 # seed = random.randint(1,2**20)
@@ -175,9 +176,9 @@ make_flags_vvadd = ["VEC_4_SIMD"]
 
 # make_flags_gemm = ["UNBLOCKED_INNER", "BLOCKED", "INTERLEAVED", "UNBLOCKED_OUTER"]
 # make_flags_gemm = ["VPF", "SP", "DRAM"]
-make_flags_gemm = ["VPF"]
-program = "vvadd"
-# program = "gemm"
+make_flags_gemm = ["USE_VECTOR_SIMD"]
+# program = "vvadd"
+program = "gemm"
 
 # TODO need a struct describing the experiment. Not all settings match idenpendently
 
@@ -191,7 +192,7 @@ def pack_and_run(numCpus, use_vec, use_sps, prog, i, extra_info):
 pool = multiprocessing.Pool(processes=4)
 
 for use_vec in use_vec_arr:
-    for make_flag in make_flags_vvadd:
+    for make_flag in make_flags_gemm:
         # use_vec = False
         print(make_flag)
         # run a program from the list above with different parameters
