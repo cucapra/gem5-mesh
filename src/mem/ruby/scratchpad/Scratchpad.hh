@@ -263,6 +263,9 @@ class Scratchpad : public AbstractController
      * Get expected region/epoch based on pkt address
      */ 
     int getDesiredRegion(Addr addr);
+
+    //Edit: Neil to check if load is within the region for prefetch
+    bool isRegionAccess(Packet* pkt_p);
     
     /**
      * Logic for handling any resp packet to spad

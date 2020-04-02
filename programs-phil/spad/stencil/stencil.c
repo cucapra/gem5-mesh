@@ -14,30 +14,32 @@
   Parallelize innermost loops (unrolled) so we can get away with codegen trick
 */
 
-#define CACHELINE_WORDS 16
-
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
+#define VEC_4_SIMD_REUSE 1
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
 
 // vvadd_execute config directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE)
 #define USE_VEC 1
 #endif
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE)
 #define USE_VECTOR_SIMD 1
 #endif
 
 // vector grouping directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE)
 #define VEC_SIZE_4_SIMD 1
 #endif
 
 // kernel settings 
 #if defined(VEC_4_SIMD_SINGLE_PREFETCH)
 #define SINGLE_PREFETCH 1
+#endif
+#if defined(VEC_4_SIMD_REUSE)
+#define REUSE 1
 #endif
 
 // prefetch sizings
@@ -64,6 +66,14 @@ stencil(
 
   int *spadAddr = (int*)getSpAddr(ptid, 0);
 
+  #ifdef REUSE
+  // calculate next spAddr for reuse
+  int *nSpAddr = NULL;
+  if (vtid == 0 || vtid == 2) nSpAddr = (int*)getSpAddr(ptid + 1, 0);
+  else if (vtid == 1) nSpAddr = (int*)getSpAddr(ptid + 3, 0); // GRID_DIM = 4 - 1 = 3
+  // vtid=3 doesn't do this and must be predicated
+  #endif 
+
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
 
@@ -78,6 +88,9 @@ stencil(
   int effCols = ncols - (FILTER_DIM - 1);
 
   // do initial batch of prefetching. only prefetch part of the first row
+  #ifdef REUSE
+  int beginCol = 0;
+  #else
   int prefetchFrames = 8;
   int beginCol = min(prefetchFrames * dim, effCols);
   for (int r = start_row; r < start_row + 1; r++) {
@@ -92,12 +105,40 @@ stencil(
       }
     }
   }
+  #endif
 
   for (int r = start_row; r < end_row; r++) {
     int startCol = 0;
     // we've prefetch part of the first row to get ahead
     if (r == start_row) startCol = beginCol;
     for (int c = startCol; c < effCols; c+=dim) {
+
+      #ifdef REUSE
+      // load the first two columns just into vtid0 to be shared
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        for (int k2 = 0; k2 < FILTER_DIM - 1; k2++) {
+          int aIdx = (r + k1) * ncols + (c + k2);
+          
+          VPREFETCH_L(spadIdx + (k1 * FILTER_DIM + k2), a + aIdx, 0, 1);
+        }
+      }
+
+      // load the last value into each core which cannot be received from prev core
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        for (int k2 = FILTER_DIM - 1; k2 < FILTER_DIM; k2++) {
+          int aIdx = (r + k1) * ncols + (c + k2);
+
+          VPREFETCH_L(spadIdx + (k1 * FILTER_DIM + k2), a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx + (k1 * FILTER_DIM + k2), a + aIdx, 0, 4);
+        }
+      }
+
+      spadIdx += REGION_SIZE;
+      if (spadIdx == POST_REGION_WORD) {
+        spadIdx = 0;
+      }
+
+      #else
       // prefetch all 9 values required for computation
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
@@ -120,11 +161,13 @@ stencil(
           }
         }
       }
+      #endif
 
       ISSUE_VINST(fable1);
     }
   }
 
+  #ifndef REUSE
   // issue the rest of blocks
   for (int r = start_row; r < end_row; r++) {
     // take some loads off the last row b/c already prefetched
@@ -134,6 +177,7 @@ stencil(
       ISSUE_VINST(fable1);
     }
   }
+  #endif
 
   // devec with unique tag
   DEVEC(devec_0);
@@ -200,7 +244,25 @@ stencil(
     LWSPEC(a_, spadAddr + baseIdx + 8, 0);
     c_ += b8 * a_;
 
+    // forward middle and right values to the next core if doing reuse
+    // TODO remote stores should use lazy ack!
+    #ifdef REUSE
+    // do the following instructions if vtid != 3
+    PRED_NEQ(vtid, 3);
+    // {
+      nSpAddr[baseIdx + 0] = spadAddr[baseIdx + 1];
+      nSpAddr[baseIdx + 1] = spadAddr[baseIdx + 2];
+      nSpAddr[baseIdx + 3] = spadAddr[baseIdx + 4];
+      nSpAddr[baseIdx + 4] = spadAddr[baseIdx + 5];
+      nSpAddr[baseIdx + 6] = spadAddr[baseIdx + 7];
+      nSpAddr[baseIdx + 7] = spadAddr[baseIdx + 8];
+    // }
+    // resume execution of all instructions
+    PRED_EQ(vtid, vtid);
+    #endif
+
     REMEM(0);
+
     STORE_NOACK(c_, cPtr, 0);
     // do no reuse version for now
     cPtr += dim;
@@ -286,7 +348,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = (float)effRows / 3.0f;
+    end = effRows; //(float)effRows / 3.0f;
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -360,7 +422,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VECTOR_SIMD)
-  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
+  if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #else
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {

@@ -935,12 +935,24 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
    * From a remote CPU/Xcel, access to data
    */
   else {
-    // record remote access here
-    if (pkt_p->isRead()) m_remote_loads++;
-    else if (pkt_p->isWrite()) m_remote_stores++;
-    
-    // access data array
-    accessDataArray(pkt_p);
+    // check if this remote access is to a framed region of the scratchpad
+    // and then force to abide by frame rules
+    if (isRegionAccess(pkt_p)) {
+      DPRINTF(Mesh, "region access from remote store %s\n", pkt_p->print());
+      enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Patron_Resp);
+      
+      // need to copy this packet and make up a response
+      pkt_p = new Packet(pkt_p, false, false);
+      pkt_p->makeResponse();
+    }
+    else {
+      // record remote access here
+      if (pkt_p->isRead()) m_remote_loads++;
+      else if (pkt_p->isWrite()) m_remote_stores++;
+      
+      // access data array
+      accessDataArray(pkt_p);
+    }
   }
 
   // Make and queue the message
@@ -1126,6 +1138,21 @@ Scratchpad::getDesiredRegion(Addr addr) {
   DPRINTF(Mesh, "addr %#x padIdx %d region %d\n", addr, padIdx, region);
   assert(region < getNumRegions());
   return region;
+}
+
+bool
+Scratchpad::isRegionAccess(Packet* pkt_p) {
+  // if (!pkt_p->isRead()) return false;
+  int padIdx = getLocalAddr(pkt_p->getAddr()) / sizeof(uint32_t);
+
+  //DPRINTF(Mesh, "pad ID %d\n", padIdx);
+  // need to consider spad offset to where the prefetch region starts
+  // NOTE currently assumed to be directly after metadata bits
+  int prefetchSectionIdx = padIdx - SPM_DATA_WORD_OFFSET;
+
+  int regionEnd = getRegionElements()*getNumRegions();
+  bool ret = (prefetchSectionIdx>=0) && (prefetchSectionIdx<regionEnd);
+  return ret;
 }
 
 bool
