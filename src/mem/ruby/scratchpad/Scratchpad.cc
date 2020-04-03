@@ -423,14 +423,11 @@ Scratchpad::wakeup()
         // need to 'fake' a Packet from the LLC response and then go
         // through the regular remote store channels
         std::shared_ptr<Request> req =
-                // std::make_shared<Request>(llc_msg_p->m_LineAddress,    // vaddr
-                std::make_shared<Request>(
-                  getAddrFromRegion(llc_msg_p->m_RegionNum, llc_msg_p->m_RegionOffset),    // vaddr
-                  sizeof(uint32_t),    // size
-                  0, 0);
+                std::make_shared<Request>(llc_msg_p->m_LineAddress,    // vaddr
+                                          sizeof(uint32_t),    // size
+                                          0, 0);
         
-        // req->regionNum = llc_msg_p->m_RegionNum;
-        // req->regionOffset = llc_msg_p->m_RegionOffset;
+        // req->epoch = llc_msg_p->m_Epoch;
         
         PacketPtr pkt_p = Packet::createWrite(req);
         
@@ -441,8 +438,8 @@ Scratchpad::wakeup()
         memcpy(buff, data, sizeof(uint32_t));
         pkt_p->dataDynamic(buff);
         
-        DPRINTF(Mesh, "Recv remote store %#x from region %d data %d %d %d %d\n", 
-          pkt_p->getAddr(), llc_msg_p->m_RegionNum, data[3], data[2], data[1], data[0]);
+        DPRINTF(Mesh, "Recv remote store %#x from cache epoch %d data %d %d %d %d\n", 
+          llc_msg_p->m_LineAddress, llc_msg_p->m_Epoch, data[3], data[2], data[1], data[0]);
         
         assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
       
@@ -771,8 +768,6 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       msg_p->m_PrefetchAddress = pkt_p->getPrefetchAddr();
       msg_p->m_CoreOffset = pkt_p->getCoreOffset();
       msg_p->m_RespCnt = pkt_p->getRespCnt();
-      msg_p->m_RegionNum = pkt_p->getRegionNum();
-      msg_p->m_RegionOffset = pkt_p->getRegionOffset();
       // send local epoch so mem can sync
       // msg_p->m_Epoch = pkt_p->getEpoch();
       // whether a store requires an ack
@@ -1271,11 +1266,6 @@ Scratchpad::resetRdyArray() {
 
   // start counting for that next region
   m_region_cntr = 0;
-}
-
-Addr
-Scratchpad::getAddrFromRegion(int regionNum, int regionOffset) {
-  return m_base_spm_addr + (m_cpu_p->cpuId() << 12) + (regionNum * getRegionElements() + regionOffset + SPM_DATA_WORD_OFFSET) * sizeof(uint32_t);
 }
 
 void

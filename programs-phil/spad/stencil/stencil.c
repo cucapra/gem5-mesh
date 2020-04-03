@@ -79,7 +79,7 @@ stencil(
 
   // have r = 0 for now
   // will need broadcast to support r > 0
-  // int spadIdx = 0;
+  int spadIdx = 0;
 
   ISSUE_VINST(fable0);
   
@@ -95,13 +95,12 @@ stencil(
   int beginCol = min(prefetchFrames * dim, effCols);
   for (int r = start_row; r < start_row + 1; r++) {
     for (int c = 0; c < beginCol; c+=dim) {
-      int frameIdx = 0;
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
-          VPREFETCH_L(frameIdx, a + aIdx, 0, 4);
-          VPREFETCH_R(frameIdx, a + aIdx, 0, 4);
-          frameIdx++;
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
+          spadIdx++;
         }
       }
     }
@@ -141,7 +140,6 @@ stencil(
 
       #else
       // prefetch all 9 values required for computation
-      int frameIdx = 0;
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
@@ -152,16 +150,15 @@ stencil(
           VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
           VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
           #else
-          VPREFETCH_L(frameIdx, a + aIdx, 0, 4);
-          VPREFETCH_R(frameIdx, a + aIdx, 0, 4);
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
           #endif
 
-          frameIdx++;
           // spad is circular buffer so do cheap mod here
-          // spadIdx++;
-          // if (spadIdx == POST_REGION_WORD) {
-          //   spadIdx = 0;
-          // }
+          spadIdx++;
+          if (spadIdx == POST_REGION_WORD) {
+            spadIdx = 0;
+          }
         }
       }
       #endif
