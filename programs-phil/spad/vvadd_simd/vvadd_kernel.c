@@ -1,8 +1,8 @@
 #include "vvadd_kernel.h"
 
 
-// #define SCALAR_CORE
-// #define VECTOR_CORE
+/* #define SCALAR_CORE */
+#define VECTOR_CORE
 
 #define REGION_SIZE 2
 #define NUM_REGIONS 256
@@ -15,6 +15,10 @@ inline int min(int a, int b) {
     return a;
   }
 }
+
+#ifdef VECTOR_CORE
+volatile int bh1,bh2; // while loop variables
+#endif
 
 void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
@@ -37,10 +41,11 @@ void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int pt
   // issue header instructions
   ISSUE_VINST(fable0);
   #elif defined VECTOR_CORE
-  volatile int bh1,bh2; // while loop variables
+  asm("header_block_start");
   DTYPE a_,b_,c_;
   int64_t iter = 0;
   DTYPE* cPtr = c + start + vtid;
+  asm("header_block_end");
   #endif
 
   #ifdef SCALAR_CORE
@@ -93,6 +98,7 @@ void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int pt
     );
     #endif
 
+    asm("vector_body_start1");
     // load values from scratchpad
     LWSPEC(a_, spadAddr + iter, 0);
     LWSPEC(b_, spadAddr + iter + 1, 0);
@@ -109,6 +115,7 @@ void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int pt
     #ifndef SIMD_BCAST
     iter = (iter + 2) % (NUM_REGIONS * 2);
     #endif
+    asm("vector_body_end1");
   #endif
   }
 
@@ -142,6 +149,7 @@ void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int pt
     );
     #endif
 
+    asm("vector_body_start2")
     // load values from scratchpad
     LWSPEC(a_, spadAddr + iter, 0);
     LWSPEC(b_, spadAddr + iter + 1, 0);
@@ -158,6 +166,7 @@ void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int pt
     #ifndef SIMD_BCAST
     iter = (iter + 2) % (NUM_REGIONS * 2);
     #endif
+    asm("vector_body_end2")
   #endif
   }
 
