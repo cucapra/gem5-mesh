@@ -74,6 +74,13 @@ stencil(
   // vtid=3 doesn't do this and must be predicated
   int frameSize = FILTER_DIM;
   if (vtid == 0) frameSize = FILTER_DIM * FILTER_DIM;
+  int *leftCol = prevSpAddr + 0;
+  int *midCol = prevSpAddr + 3;
+  int *rightCol = spadAddr;
+  if (vtid == 0) {
+    leftCol = spadAddr + 3;
+    midCol = spadAddr + 6;
+  }
   #endif 
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
@@ -134,8 +141,8 @@ stencil(
       }
 
       // load the first two columns just into vtid0 to be shared
-      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = 0; k2 < FILTER_DIM - 1; k2++) {
+      for (int k2 = 0; k2 < FILTER_DIM - 1; k2++) {
+        for (int k1 = 0; k1 < FILTER_DIM; k1++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           
           VPREFETCH_L(frameIdx, a + aIdx, 0, 1);
@@ -240,16 +247,31 @@ stencil(
 
     // shared computation of first part
     // note since this part has common memory structure
-    // a2 a5 a8 | a0 a1 a3 a4 a6 a7
+    // a2 a5 a8 | a0 a3 a6 a1 a4 a7
     // LWSPEC(a2, spadAddr + frameStart + 0, 0);
     // LWSPEC(a5, spadAddr + frameStart + 1, 0);
     // LWSPEC(a8, spadAddr + frameStart + 2, 0);
-    a2 = spadAddr[frameStart + 0];
-    a5 = spadAddr[frameStart + 1];
-    a8 = spadAddr[frameStart + 2];
+    a2 = rightCol[frameStart + 0];
+    a5 = rightCol[frameStart + 1];
+    a8 = rightCol[frameStart + 2];
     c_ += a2 * b2;
     c_ += a5 * b5;
     c_ += a8 * b8;
+
+    // vectorize load (diff address but same number of loads) so don't need predication
+    a0 = leftCol[baseIdx + 0];
+    a3 = leftCol[baseIdx + 1];
+    a6 = leftCol[baseIdx + 2];
+    c_ += a0 * b0;
+    c_ += a3 * b3;
+    c_ += a6 * b6;
+
+    a1 = midCol[baseIdx + 1];
+    a4 = midCol[baseIdx + 2];
+    a7 = midCol[baseIdx + 3];
+    c_ += a1 * b1;
+    c_ += a4 * a4;
+    c_ += a7 * a7;
 
 
     // everyone but vtid 0 fetches from shared cores
