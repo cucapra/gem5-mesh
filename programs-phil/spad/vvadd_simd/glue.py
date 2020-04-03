@@ -42,11 +42,11 @@ def combine_with_scalar(combined_filename, scalar_filename, header, body):
     combined_file = open(combined_filename, "w+")
     for l in scalar_file.readlines():
         if vector_header_label in l:
-            combined_file.append(header)
+            combined_file.write(header)
         elif vector_body_label in l:
-            combined_file.append(body)
+            combined_file.write(body)
         else:
-            combined_file.append(l)
+            combined_file.write(l)
     return combined_file
 
 if __name__ == "__main__":
