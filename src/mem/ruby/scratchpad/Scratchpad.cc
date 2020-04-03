@@ -1229,7 +1229,7 @@ Scratchpad::isWordRdy(Addr addr) {
 
   // just make sure have enough tokens
   // TODO should check in mem unit
-  DPRINTF(Mesh, "check if enough tokens to read cur %d need %d\n", m_cpu_p->getMemTokens(), getRegionElements());
+  // DPRINTF(Mesh, "check if enough tokens to read cur %d need %d\n", m_cpu_p->getMemTokens(), getRegionElements());
   return (m_cpu_p->getMemTokens() >= getRegionElements());
 }
 

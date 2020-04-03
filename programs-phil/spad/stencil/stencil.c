@@ -16,9 +16,9 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
-// #define VEC_4_SIMD_REUSE 1
+#define VEC_4_SIMD_REUSE 1
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
 
 // vvadd_execute config directives
@@ -68,10 +68,12 @@ stencil(
 
   #ifdef REUSE
   // calculate next spAddr for reuse
-  int *nSpAddr = NULL;
-  if (vtid == 0 || vtid == 2) nSpAddr = (int*)getSpAddr(ptid + 1, 0);
-  else if (vtid == 1) nSpAddr = (int*)getSpAddr(ptid + 3, 0); // GRID_DIM = 4 - 1 = 3
+  int *prevSpAddr = NULL;
+  if (vtid == 1 || vtid == 3) prevSpAddr = (int*)getSpAddr(ptid - 1, 0);
+  else if (vtid == 2) prevSpAddr = (int*)getSpAddr(ptid - 3, 0); // GRID_DIM = 4 - 1 = 3
   // vtid=3 doesn't do this and must be predicated
+  int frameSize = FILTER_DIM;
+  if (vtid == 0) frameSize = FILTER_DIM * FILTER_DIM;
   #endif 
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
@@ -116,29 +118,32 @@ stencil(
     for (int c = startCol; c < effCols; c+=dim) {
 
       #ifdef REUSE
+      int frameIdx = 0;
+
+      // load the last value into each core which cannot be received from prev core
+      // these need to go first b/c all cores will recv this in their frame
+      // a2 a5 a8 | a0 a1 a3 a4 a6 a7
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        for (int k2 = FILTER_DIM - 1; k2 < FILTER_DIM; k2++) {
+          int aIdx = (r + k1) * ncols + (c + k2);
+
+          VPREFETCH_L(frameIdx, a + aIdx, 0, 4);
+          VPREFETCH_R(frameIdx, a + aIdx, 0, 4);
+          frameIdx++;
+        }
+      }
+
       // load the first two columns just into vtid0 to be shared
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM - 1; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           
-          VPREFETCH_L(spadIdx + (k1 * FILTER_DIM + k2), a + aIdx, 0, 1);
+          VPREFETCH_L(frameIdx, a + aIdx, 0, 1);
+          frameIdx++;
         }
       }
 
-      // load the last value into each core which cannot be received from prev core
-      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = FILTER_DIM - 1; k2 < FILTER_DIM; k2++) {
-          int aIdx = (r + k1) * ncols + (c + k2);
 
-          VPREFETCH_L(spadIdx + (k1 * FILTER_DIM + k2), a + aIdx, 0, 4);
-          VPREFETCH_R(spadIdx + (k1 * FILTER_DIM + k2), a + aIdx, 0, 4);
-        }
-      }
-
-      spadIdx += REGION_SIZE;
-      if (spadIdx == POST_REGION_WORD) {
-        spadIdx = 0;
-      }
 
       #else
       // prefetch all 9 values required for computation
@@ -197,9 +202,10 @@ stencil(
 
   // declarations
   DTYPE a_, b_, c_;
-  int64_t iter, baseIdx; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
+  int64_t iter, baseIdx, frameStart; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
   DTYPE b0, b1, b2, b3, b4, b5, b6, b7, b8;
+  DTYPE a0, a1, a2, a3, a4, a5, a6, a7, a8;
 
   // entry block
   // load the full filter into spad
@@ -224,13 +230,76 @@ stencil(
   // loop body block
   fable1:
     c_ = 0;
+    frameStart = iter * frameSize;
+    baseIdx = iter * FILTER_DIM * FILTER_DIM;
+
+    #ifdef REUSE
+
+    // start consumption of frame (stall unless we have the tokens we need)
+    FRAME_START(frameSize);
+
+    // shared computation of first part
+    // note since this part has common memory structure
+    // a2 a5 a8 | a0 a1 a3 a4 a6 a7
+    // LWSPEC(a2, spadAddr + frameStart + 0, 0);
+    // LWSPEC(a5, spadAddr + frameStart + 1, 0);
+    // LWSPEC(a8, spadAddr + frameStart + 2, 0);
+    a2 = spadAddr[frameStart + 0];
+    a5 = spadAddr[frameStart + 1];
+    a8 = spadAddr[frameStart + 2];
+    c_ += a2 * b2;
+    c_ += a5 * b5;
+    c_ += a8 * b8;
+
+
+    // everyone but vtid 0 fetches from shared cores
+    PRED_NEQ(vtid, 0);
+      // get the left and middle columns from the previous core in the group
+      // TODO this is a race condition and has a small but real chance to fail
+      // NOTE remote store may be more efficient in certain scenarios, but in vector
+      // mode they can be deadlock prone because intruction stream from previous core
+      // creates a circular loop. unless you're able to use a previous frame??
+      // TODO a lot of predicated instructions here, anyway to just turn all into normal loads?
+      // with different addresses so can still get the vec?
+      a0 = prevSpAddr[baseIdx + 4]; // a1_prev
+      a3 = prevSpAddr[baseIdx + 6]; // a4_prev
+      a6 = prevSpAddr[baseIdx + 8]; // a7_prev
+      a1 = prevSpAddr[baseIdx + 0]; // a2_prev
+      a4 = prevSpAddr[baseIdx + 1]; // a5_prev
+      a7 = prevSpAddr[baseIdx + 2]; // a8_prev
+    PRED_EQ(vtid, 0);
+    // TODO compiler is deleting this block, might have to make a's voltatile or can vectorize
+      // TODO turn these into normal load so can vectorize with above??
+      // LWSPEC(a0, spadAddr + baseIdx + 3, 0);
+      // LWSPEC(a3, spadAddr + baseIdx + 5, 0);
+      // LWSPEC(a6, spadAddr + baseIdx + 7, 0);
+      // LWSPEC(a1, spadAddr + baseIdx + 4, 0);
+      // LWSPEC(a4, spadAddr + baseIdx + 6, 0);
+      // LWSPEC(a7, spadAddr + baseIdx + 8, 0);
+      a0 = spadAddr[baseIdx + 3];
+      a3 = spadAddr[baseIdx + 5];
+      a6 = spadAddr[baseIdx + 7];
+      a1 = spadAddr[baseIdx + 4];
+      a4 = spadAddr[baseIdx + 6];
+      a7 = spadAddr[baseIdx + 8];
+    PRED_EQ(vtid, vtid);
+
+    // do all the shared computation
+    // load the last row + do computation
+    c_ += a0 * b0;
+    c_ += a1 * b1;
+    c_ += a3 * b3;
+    c_ += a4 * b4;
+    c_ += a6 * a6;
+    c_ += a7 * a7;
+
+    #else
     // #pragma GCC unroll 9
     // for (int i = 0; i < FILTER_DIM * FILTER_DIM; i++) {
     //   LWSPEC(a_, spadAddr + i, 0);
     //   b_ = spadAddr[POST_REGION_WORD + i];
     //   c_ += a_ * b_;
     // }
-    baseIdx = iter * FILTER_DIM * FILTER_DIM;
     LWSPEC(a_, spadAddr + baseIdx + 0, 0);
     c_ += b0 * a_;
     LWSPEC(a_, spadAddr + baseIdx + 1, 0);
@@ -249,25 +318,9 @@ stencil(
     c_ += b7 * a_;
     LWSPEC(a_, spadAddr + baseIdx + 8, 0);
     c_ += b8 * a_;
-
-    // forward middle and right values to the next core if doing reuse
-    // TODO remote stores should use lazy ack!
-    #ifdef REUSE
-    // do the following instructions if vtid != 3
-    PRED_NEQ(vtid, 3);
-    // {
-      nSpAddr[baseIdx + 0] = spadAddr[baseIdx + 1];
-      nSpAddr[baseIdx + 1] = spadAddr[baseIdx + 2];
-      nSpAddr[baseIdx + 3] = spadAddr[baseIdx + 4];
-      nSpAddr[baseIdx + 4] = spadAddr[baseIdx + 5];
-      nSpAddr[baseIdx + 6] = spadAddr[baseIdx + 7];
-      nSpAddr[baseIdx + 7] = spadAddr[baseIdx + 8];
-    // }
-    // resume execution of all instructions
-    PRED_EQ(vtid, vtid);
     #endif
 
-    REMEM(9);
+    REMEM(frameSize);
 
     STORE_NOACK(c_, cPtr, 0);
     // do no reuse version for now

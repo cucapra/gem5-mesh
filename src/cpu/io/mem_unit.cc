@@ -744,8 +744,10 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
                                   trans,
                                   is_load ? BaseTLB::Read : BaseTLB::Write);
 
-    if (m_s1_inst->isFault())
+    if (m_s1_inst->isFault()) {
+      DPRINTF(Mesh, "fault could not translate %lx for inst %s\n", addr, m_s1_inst->toString(true));
       m_s1_inst->setExecuted();
+    }
   }
 
   // place the translated inst into LQ or SQ

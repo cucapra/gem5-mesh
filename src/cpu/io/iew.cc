@@ -429,10 +429,25 @@ IEW::doIssue()
       return;
     }
 
+    // TODO don't need anymore??? maybe need to sync between start and end frames???
     if (inst->static_inst_p->isSpadSpeculative() && m_robs[tid]->getRememInstCount() > 0) {
       DPRINTF(Mesh, "[sn:%d] Can't issue lwspec due to pending younger "
                    "remem instructions\n", inst->seq_num);
                    
+      return;
+    }
+
+    // frame start can stall if there aren't enough tokens to being the frame
+    // also need to wait for remem to take away tokens
+    if (inst->static_inst_p->isFrameStart() && (m_robs[tid]->getRememInstCount() > 0 || 
+        m_cpu_p->getMemTokens() < m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)))) {
+      if (m_robs[tid]->getRememInstCount() > 0) {
+        DPRINTF(Mesh, "[sn:%d] Can't issue frame start because remem in flight\n", inst->seq_num);
+      }
+      else {
+        DPRINTF(Mesh, "[sn:%d] Can't issue frame start because not enough tokens. Have %d need %d\n", inst->seq_num,
+          m_cpu_p->getMemTokens(), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)));
+      }
       return;
     }
     

@@ -44,6 +44,9 @@
 #define REMEM(count)                                                           \
   asm volatile (".insn i 0x1b, 0x2, x0, %[src0], 0\n\t":: [src0] "r" (count))
 
+#define FRAME_START(count)                                                     \
+  asm volatile (".insn i 0x1b, 0x3, x0, %[src0], 0\n\t":: [src0] "r" (count) : "memory")
+
 #define ISSUE_VINST(label)                                                    \
   asm volatile goto (".insn uj 0x6b, x0, %l[" #label "]\n\t"                  \
     :                                                                         \
@@ -72,12 +75,12 @@
 // allow following instructions to proceed if registers equal
 #define PRED_EQ(reg0, reg1) \
   asm volatile (".insn r 0x33, 0x7, 0x5, x0, %[rs1], %[rs2]\n\t" \
-  :: [rs1] "r" (reg0), [rs2] "r" (reg1))
+  :: [rs1] "r" (reg0), [rs2] "r" (reg1) : "memory")
 
 // allow following instructions to proceed if registers not equal
 #define PRED_NEQ(reg0, reg1) \
   asm volatile (".insn r 0x33, 0x7, 0x6, x0, %[rs1], %[rs2]\n\t" \
-  :: [rs1] "r" (reg0), [rs2] "r" (reg1))
+  :: [rs1] "r" (reg0), [rs2] "r" (reg1) : "memory")
 
 #define TERMINATE_BLOCK() \
   asm volatile(".insn i 0x1b, 0x7, x0, x0, 0\n\t")

@@ -210,6 +210,7 @@ class StaticInst : public RefCounted, public StaticInstFlags
     //bool isSpadReset() const { return flags[IsSpadReset]; }
     bool isAckFree() const { return flags[IsAckFree]; }
     bool isRemem() const { return flags[IsRemem]; }
+    bool isFrameStart() const { return flags[IsFrameStart]; }
     bool isVectorIssue() const { return flags[IsVectorIssue]; }
     bool isBroadcast() const { return flags[IsBroadcast]; }
     bool isPredicate() const { return flags[IsPredicate]; }
