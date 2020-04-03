@@ -267,7 +267,7 @@ stencil(
     PRED_EQ(vtid, vtid);
     #endif
 
-    REMEM(0);
+    REMEM(9);
 
     STORE_NOACK(c_, cPtr, 0);
     // do no reuse version for now

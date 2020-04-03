@@ -278,7 +278,11 @@ class Scratchpad : public AbstractController
     void enqueueStallRespToSp(PacketPtr pkt_p);
 
     Addr getAddrFromRegion(int regionNum, int regionOffset);
+
+    // get the total size all regions take up in the scratchpad
+    int getAllRegionSize();
     
+    int getLastWordRecv();
   private:
     /**
      * Pointer to Ruby system
@@ -418,6 +422,11 @@ class Scratchpad : public AbstractController
      * i.e. which region the counter is associated with (<10 bits)
      */ 
     int m_cur_prefetch_region;
+
+    /**
+     * The last word in region received. Enforcing in order memory? 
+     */
+    int m_last_word_recv;
     
     
     /**

@@ -478,6 +478,9 @@ decode QUADRANT default Unknown::unknown() {
                         Rd_sd = Rs1_sw >> SHAMT5;
                     }});
                 }
+                0x2: remem ({{
+                    // nada
+                }}, int32_t, IsRemem, IsNonSpeculative);
                 0x6: bcast({{
                     Rd_sd = Rs1_sd + imm;
                 }}, int32_t, IsBroadcast);
@@ -1907,9 +1910,9 @@ decode QUADRANT default Unknown::unknown() {
         //    Rd = imm;
         //}})
 
-        0x02: BUOp::remem ({{
-            // nada
-        }}, IsRemem, IsNonSpeculative, No_OpClass);
+        //0x02: BUOp::remem ({{
+        //    // nada
+        //}}, IsRemem, IsNonSpeculative, No_OpClass);
 
         0x1a: JOp::vissue({{
             // note the compiler is smart enough to mark which resources you use based on this description

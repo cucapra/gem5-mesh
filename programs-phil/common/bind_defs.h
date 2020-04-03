@@ -41,8 +41,8 @@
   asm volatile (".insn u 0x7b, x0, %[id]\n\t" :: [id] "i" (hash))
   
 // remem instruction with unique hash id (mem barrier instead of control barrier)
-#define REMEM(hash)                                                           \
-  asm volatile (".insn u 0x0b, x0, %[id]\n\t":: [id] "i" (hash))
+#define REMEM(count)                                                           \
+  asm volatile (".insn i 0x1b, 0x2, x0, %[src0], 0\n\t":: [src0] "r" (count))
 
 #define ISSUE_VINST(label)                                                    \
   asm volatile goto (".insn uj 0x6b, x0, %l[" #label "]\n\t"                  \
