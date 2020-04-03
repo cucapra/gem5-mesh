@@ -233,6 +233,8 @@ class MemUnit : public ExecUnit
     /** Diff of sent stores to acked stores */
     uint m_store_diff_reg;
 
+    /** Last sent region (mod shared region size)*/
+    int m_last_region;
 
 #ifdef DEBUG
     /** Unit's status */

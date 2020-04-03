@@ -276,6 +276,8 @@ class Scratchpad : public AbstractController
     
     void enqueueRubyRespToSp(PacketPtr pkt_p, Packet::RespPktType type);
     void enqueueStallRespToSp(PacketPtr pkt_p);
+
+    Addr getAddrFromRegion(int regionNum, int regionOffset);
     
   private:
     /**

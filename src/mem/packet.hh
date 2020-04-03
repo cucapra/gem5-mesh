@@ -821,6 +821,16 @@ class Packet : public Printable
      */
     int getRespCnt() const  { return req->respCnt; }
 
+    /**
+     * Accessor to the region number this is
+     */ 
+    int getRegionNum() const { return req->regionNum; }
+
+    /**
+     * Accessor to the offset in region
+     */ 
+    int getRegionOffset() const { return req->regionOffset; }
+
     // packet type for processing scratchpad
     typedef enum RespPktType {
         NotVal = 0,

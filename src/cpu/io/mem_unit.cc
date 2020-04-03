@@ -25,7 +25,8 @@ MemUnit::MemUnit(const char* _iew_name, const char* _name,
       m_issued_inst(nullptr),
       m_s0_inst(nullptr),
       m_s1_inst(nullptr),
-      m_store_diff_reg(0)
+      m_store_diff_reg(0),
+      m_last_region(-1)
 { }
 
 const std::string
@@ -316,6 +317,17 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
         inst->canIssueToMem()) {
       assert(!inst->isFault());
 
+      // bump region mod num regions
+      
+      int lastRegionNum = m_last_region;
+      if (inst->static_inst_p->isSpadPrefetch()) {
+        // update if this is to region offset 0
+        if (inst->mem_req_p->regionOffset == 0) 
+          m_last_region = (m_last_region + 1) % m_cpu_p->getSpadNumRegions();
+
+        inst->mem_req_p->regionNum = m_last_region;
+      }
+
       PacketPtr pkt = Packet::createWrite(inst->mem_req_p);
       pkt->dataStatic(inst->mem_data_p);
       pkt->pushSenderState(new MemUnit::SenderState(inst));
@@ -323,6 +335,7 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
       // send request
       if (!m_cpu_p->getDataPort().sendTimingReq(pkt)) {
         DPRINTF(LSQ, "dcache is busy\n");
+        m_last_region = lastRegionNum; // reset region num b/c we can't send yet
         // delete the pkt and we'll retry later
         delete pkt->popSenderState();
         delete pkt;
@@ -644,15 +657,21 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
 
       // fake the virtual scratchpad address for this core
       // TODO this should put the vector group origin on instead of the scratchpad
-      Addr spadIdx = bits(spadVAddr, 11, 0);
-      uint32_t deprecatedOffset = 0x10;
-      spadVAddr = 0x10000000 | (m_cpu_p->cpuId() << 12) | ( spadIdx * size + deprecatedOffset );
-      
+      // TODO shouldn't need spadIdx with new region method
+      // Addr spadIdx = bits(spadVAddr, 11, 0);
+      Addr spadRegionOffset = bits(spadVAddr, 11, 0);
+      m_s1_inst->mem_req_p->regionOffset = spadRegionOffset;
+      Addr spadIdx = 0x10;
+      // uint32_t deprecatedOffset = 0x10;
+      spadVAddr = 0x10000000 | (m_cpu_p->cpuId() << 12) | ( spadIdx /** size + deprecatedOffset*/ );
+
       // need to translate the address, do atomically,
       // real hammerblade doesnt have virtual addresses anyway
       Addr spadPAddr = 0;
       assert(m_cpu_p->tcBase(tid)->getProcessPtr()->pTable->translate(spadVAddr, spadPAddr));
       m_s1_inst->mem_req_p->prefetchAddr = spadPAddr;
+
+      // instead of address want to specify region so more flexible
 
       // immediate field used for count so remove that from the address
       auto upper7 = bits((uint32_t)m_s1_inst->static_inst_p->machInst, 31, 25);
