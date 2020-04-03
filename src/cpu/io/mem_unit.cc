@@ -25,8 +25,7 @@ MemUnit::MemUnit(const char* _iew_name, const char* _name,
       m_issued_inst(nullptr),
       m_s0_inst(nullptr),
       m_s1_inst(nullptr),
-      m_store_diff_reg(0),
-      m_last_region(-1)
+      m_store_diff_reg(0)
 { }
 
 const std::string
@@ -317,16 +316,8 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
         inst->canIssueToMem()) {
       assert(!inst->isFault());
 
-      // bump region mod num regions
-      
-      int lastRegionNum = m_last_region;
-      if (inst->static_inst_p->isSpadPrefetch()) {
-        // update if this is to region offset 0
-        if (inst->mem_req_p->regionOffset == 0) 
-          m_last_region = (m_last_region + 1) % m_cpu_p->getSpadNumRegions();
-
-        inst->mem_req_p->regionNum = m_last_region;
-      }
+      // get mem epoch when issue (at head of rob)
+      inst->mem_req_p->regionNum = m_cpu_p->getMemEpoch();
 
       PacketPtr pkt = Packet::createWrite(inst->mem_req_p);
       pkt->dataStatic(inst->mem_data_p);
@@ -335,7 +326,6 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
       // send request
       if (!m_cpu_p->getDataPort().sendTimingReq(pkt)) {
         DPRINTF(LSQ, "dcache is busy\n");
-        m_last_region = lastRegionNum; // reset region num b/c we can't send yet
         // delete the pkt and we'll retry later
         delete pkt->popSenderState();
         delete pkt;

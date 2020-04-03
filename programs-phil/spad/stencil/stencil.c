@@ -104,6 +104,7 @@ stencil(
           frameIdx++;
         }
       }
+      REMEM(0);
     }
   }
   #endif
@@ -167,6 +168,8 @@ stencil(
       #endif
 
       ISSUE_VINST(fable1);
+
+      REMEM(0);
     }
   }
 
