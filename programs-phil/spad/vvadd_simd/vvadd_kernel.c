@@ -1,8 +1,8 @@
 #include "vvadd_kernel.h"
 
 
-#define SCALAR_CORE
-#define VECTOR_CORE
+//#define SCALAR_CORE
+//#define VECTOR_CORE
 
 #define REGION_SIZE 2
 #define NUM_REGIONS 256
@@ -24,7 +24,7 @@ void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int pt
   int *spadAddr = (int*)getSpAddr(ptid, 0);
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
-#ifdef SCALAR_CORE
+  #ifdef SCALAR_CORE
     // do a bunch of prefetching in the beginning to get ahead
     int totalIter = (end - start) / dim;
     int numInitFetch = 16;
@@ -63,6 +63,7 @@ void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int pt
           deviceIter = 0;
         }
       #endif
+    }
 
     for (int i = totalIter - beginIter; i < totalIter; i++) {
       #ifdef SIMD_BCAST
@@ -80,13 +81,18 @@ void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int pt
     }
     DEVEC(devec_0);
 
+    // we are doing lazy store acks,
+    // so use this to make sure all stores have commited to memory
+    asm volatile("fence\n\t");
+    return;
+
     fable0:
-    asm("vector_header_label");
+      asm("vector_header_label");
 
     fable1:
-    asm("vector_body_label");
+      asm("vector_body_label");
 
-#elif defined VECTOR_CORE
+  #elif defined VECTOR_CORE
     asm("header_block_start");
     DTYPE a_,b_,c_;
     int64_t iter = 0;
@@ -112,11 +118,6 @@ void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int pt
           iter = (iter + 2) % (NUM_REGIONS * 2);
         #endif
         asm("vector_body_end");
-      #endif
     }
-#endif
-
-  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
-  asm volatile("fence\n\t");
-  return;
+  #endif
 }
