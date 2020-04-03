@@ -2,7 +2,7 @@
 
 
 /* #define SCALAR_CORE */
-#define VECTOR_CORE
+//#define VECTOR_CORE
 
 #define REGION_SIZE 2
 #define NUM_REGIONS 256
@@ -149,7 +149,7 @@ void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int pt
     );
     #endif
 
-    asm("vector_body_start2")
+    asm("vector_body_start2");
     // load values from scratchpad
     LWSPEC(a_, spadAddr + iter, 0);
     LWSPEC(b_, spadAddr + iter + 1, 0);
@@ -166,7 +166,7 @@ void vvadd_execute_simd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int pt
     #ifndef SIMD_BCAST
     iter = (iter + 2) % (NUM_REGIONS * 2);
     #endif
-    asm("vector_body_end2")
+    asm("vector_body_end2");
   #endif
   }
 
