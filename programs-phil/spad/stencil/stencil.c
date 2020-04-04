@@ -16,21 +16,19 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
 // #define VEC_4_SIMD_REUSE 1
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
+#define VEC_4_SIMD_LARGE_FRAME 1
 
 // vvadd_execute config directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
 #define USE_VEC 1
-#endif
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE)
-#define USE_VECTOR_SIMD 1
 #endif
 
 // vector grouping directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
 #define VEC_SIZE_4_SIMD 1
 #endif
 
@@ -41,12 +39,19 @@
 #if defined(VEC_4_SIMD_REUSE)
 #define REUSE 1
 #endif
+#if defined(VEC_4_SIMD_LARGE_FRAME)
+#define LARGE_FRAME 1
+#endif
 
 // prefetch sizings
-#if defined(USE_VECTOR_SIMD)
+#if defined(USE_VEC)
+#if defined(LARGE_FRAME)
+#define REGION_SIZE FILTER_DIM * FILTER_DIM * 8
+#define NUM_REGIONS 8
+#else
 #define REGION_SIZE FILTER_DIM * FILTER_DIM
 #define NUM_REGIONS 64
-#define POST_REGION_WORD NUM_REGIONS * REGION_SIZE
+#endif
 #endif
 
 inline int min(int a, int b) {
@@ -58,7 +63,7 @@ inline int min(int a, int b) {
   }
 }
 
-#ifdef USE_VECTOR_SIMD
+#ifdef USE_VEC
 void __attribute__((optimize("-fno-reorder-blocks")))
 stencil(
     DTYPE *a, DTYPE *b, DTYPE *c, int start_row, int end_row, int ncols,
@@ -436,7 +441,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim = vdim_x * vdim_y;
   int orig = orig_x + orig_y * dim_x;
 
-  #ifdef USE_VECTOR_SIMD
+  #ifdef USE_VEC
   // volatile so dont reorder this function call
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
   #endif
@@ -453,7 +458,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   // only let certain tids continue
-  #if defined(USE_VECTOR_SIMD)
+  #if defined(USE_VEC)
   // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #else
@@ -498,7 +503,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     : [spad] "r" (spTop)
   );
 
-  #ifdef USE_VECTOR_SIMD
+  #ifdef USE_VEC
   stencil(a, b, c, start, end, ncols, ptid, vtid, vdim, mask);
   #else
   stencil(a, b, c, nrows, ncols, ptid, vtid, vdim);
