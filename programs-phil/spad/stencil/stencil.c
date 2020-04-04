@@ -16,9 +16,9 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-// #define VEC_4_SIMD 1
+#define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
-#define VEC_4_SIMD_REUSE 1
+// #define VEC_4_SIMD_REUSE 1
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
 
 // vvadd_execute config directives
@@ -81,6 +81,8 @@ stencil(
     leftCol = spadAddr + 3;
     midCol = spadAddr + 6;
   }
+  #else
+  int frameSize = FILTER_DIM * FILTER_DIM;
   #endif 
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
@@ -160,10 +162,10 @@ stencil(
           int aIdx = (r + k1) * ncols + (c + k2);
           
           #ifdef SINGLE_PREFETCH
-          VPREFETCH_L(spadIdx, a + aIdx + 0, 0, 1);
-          VPREFETCH_L(spadIdx, a + aIdx + 1, 1, 1);
-          VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
-          VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
+          VPREFETCH_L(frameIdx, a + aIdx + 0, 0, 1);
+          VPREFETCH_L(frameIdx, a + aIdx + 1, 1, 1);
+          VPREFETCH_L(frameIdx, a + aIdx + 2, 2, 1);
+          VPREFETCH_L(frameIdx, a + aIdx + 3, 3, 1);
           #else
           VPREFETCH_L(frameIdx, a + aIdx, 0, 4);
           VPREFETCH_R(frameIdx, a + aIdx, 0, 4);
@@ -240,10 +242,10 @@ stencil(
     frameStart = iter * frameSize;
     baseIdx = iter * FILTER_DIM * FILTER_DIM;
 
-    #ifdef REUSE
-
     // start consumption of frame (stall unless we have the tokens we need)
     FRAME_START(frameSize);
+
+    #ifdef REUSE
 
     // shared computation of first part
     // note since this part has common memory structure
@@ -273,48 +275,6 @@ stencil(
     c_ += a4 * a4;
     c_ += a7 * a7;
 
-
-    // everyone but vtid 0 fetches from shared cores
-    PRED_NEQ(vtid, 0);
-      // get the left and middle columns from the previous core in the group
-      // TODO this is a race condition and has a small but real chance to fail
-      // NOTE remote store may be more efficient in certain scenarios, but in vector
-      // mode they can be deadlock prone because intruction stream from previous core
-      // creates a circular loop. unless you're able to use a previous frame??
-      // TODO a lot of predicated instructions here, anyway to just turn all into normal loads?
-      // with different addresses so can still get the vec?
-      a0 = prevSpAddr[baseIdx + 4]; // a1_prev
-      a3 = prevSpAddr[baseIdx + 6]; // a4_prev
-      a6 = prevSpAddr[baseIdx + 8]; // a7_prev
-      a1 = prevSpAddr[baseIdx + 0]; // a2_prev
-      a4 = prevSpAddr[baseIdx + 1]; // a5_prev
-      a7 = prevSpAddr[baseIdx + 2]; // a8_prev
-    PRED_EQ(vtid, 0);
-    // TODO compiler is deleting this block, might have to make a's voltatile or can vectorize
-      // TODO turn these into normal load so can vectorize with above??
-      // LWSPEC(a0, spadAddr + baseIdx + 3, 0);
-      // LWSPEC(a3, spadAddr + baseIdx + 5, 0);
-      // LWSPEC(a6, spadAddr + baseIdx + 7, 0);
-      // LWSPEC(a1, spadAddr + baseIdx + 4, 0);
-      // LWSPEC(a4, spadAddr + baseIdx + 6, 0);
-      // LWSPEC(a7, spadAddr + baseIdx + 8, 0);
-      a0 = spadAddr[baseIdx + 3];
-      a3 = spadAddr[baseIdx + 5];
-      a6 = spadAddr[baseIdx + 7];
-      a1 = spadAddr[baseIdx + 4];
-      a4 = spadAddr[baseIdx + 6];
-      a7 = spadAddr[baseIdx + 8];
-    PRED_EQ(vtid, vtid);
-
-    // do all the shared computation
-    // load the last row + do computation
-    c_ += a0 * b0;
-    c_ += a1 * b1;
-    c_ += a3 * b3;
-    c_ += a4 * b4;
-    c_ += a6 * a6;
-    c_ += a7 * a7;
-
     #else
     // #pragma GCC unroll 9
     // for (int i = 0; i < FILTER_DIM * FILTER_DIM; i++) {
@@ -322,24 +282,15 @@ stencil(
     //   b_ = spadAddr[POST_REGION_WORD + i];
     //   c_ += a_ * b_;
     // }
-    LWSPEC(a_, spadAddr + baseIdx + 0, 0);
-    c_ += b0 * a_;
-    LWSPEC(a_, spadAddr + baseIdx + 1, 0);
-    c_ += b1 * a_;
-    LWSPEC(a_, spadAddr + baseIdx + 2, 0);
-    c_ += b2 * a_;
-    LWSPEC(a_, spadAddr + baseIdx + 3, 0);
-    c_ += b3 * a_;
-    LWSPEC(a_, spadAddr + baseIdx + 4, 0);
-    c_ += b4 * a_;
-    LWSPEC(a_, spadAddr + baseIdx + 5, 0);
-    c_ += b5 * a_;
-    LWSPEC(a_, spadAddr + baseIdx + 6, 0);
-    c_ += b6 * a_;
-    LWSPEC(a_, spadAddr + baseIdx + 7, 0);
-    c_ += b7 * a_;
-    LWSPEC(a_, spadAddr + baseIdx + 8, 0);
-    c_ += b8 * a_;
+    c_ += b0 * spadAddr[baseIdx + 0];
+    c_ += b1 * spadAddr[baseIdx + 1];
+    c_ += b2 * spadAddr[baseIdx + 2];
+    c_ += b3 * spadAddr[baseIdx + 3];
+    c_ += b4 * spadAddr[baseIdx + 4];
+    c_ += b5 * spadAddr[baseIdx + 5];
+    c_ += b6 * spadAddr[baseIdx + 6];
+    c_ += b7 * spadAddr[baseIdx + 7];
+    c_ += b8 * spadAddr[baseIdx + 8];
     #endif
 
     REMEM(frameSize);
