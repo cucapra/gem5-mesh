@@ -1189,11 +1189,26 @@ Scratchpad::memoryDiverged(Addr addr) {
 
 bool
 Scratchpad::isPrefetchAhead(Addr addr) {
-  
-  Addr thisWord = (getLocalAddr(addr) / sizeof(uint32_t)) - SPM_DATA_WORD_OFFSET;
-  Addr nextWord = (getLastWordRecv() + 1) % getAllRegionSize();
-  DPRINTF(Mesh, "check prefetch addr %lx local %d cur local %d\n", addr, thisWord, getLastWordRecv());
-  return (nextWord != thisWord && m_cpu_p->getMemTokens() < getAllRegionSize());
+  int pktEpochMod = getDesiredRegion(addr);
+
+  // packet is ahead of the prefetch region, so can't process yet
+  bool aheadCntr = (pktEpochMod != m_cur_prefetch_region);
+
+  // packet would bring prefetch region to overlap with core access region and would cause undetectable overwrite
+  // don't allow to be processed yet
+  // int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
+  bool wouldOverlap = m_cpu_p->getMemTokens() + getRegionElements() >= getAllRegionSize();
+
+  DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d tokens %d prefetchRegion %d region cntr %d\n", 
+    wouldOverlap, aheadCntr, pktEpochMod, m_cpu_p->getMemTokens(), m_cur_prefetch_region, m_region_cntr);
+  return wouldOverlap || aheadCntr;
+
+
+  // Addr thisWord = (getLocalAddr(addr) / sizeof(uint32_t)) - SPM_DATA_WORD_OFFSET;
+  // Addr nextWord = (getLastWordRecv() + 1) % getAllRegionSize();
+  // DPRINTF(Mesh, "check prefetch addr %lx local %d cur local %d\n", addr, thisWord, getLastWordRecv());
+  // return (nextWord != thisWord && m_cpu_p->getMemTokens() < getAllRegionSize());
+
 
   // int pktEpochMod = getDesiredRegion(addr);
   // int coreEpochMod = getCoreEpoch(); // TODO can we just mod everything to keep numbers cycling rather than go on forever?
@@ -1215,6 +1230,7 @@ Scratchpad::isPrefetchAhead(Addr addr) {
   // return wouldOverlap || aheadCntr;
 }
 
+// TODO deprecated b/c no lwspec
 bool
 Scratchpad::isWordRdy(Addr addr) {
   // return m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)] != 0;
@@ -1250,13 +1266,15 @@ Scratchpad::setWordRdy(Addr addr) {
   m_region_cntr++;
 
   // if reaches number of expected then reset and move to next region 
+  // publish group of tokens to be accessed
   if (m_region_cntr == getRegionElements()) {
     resetRdyArray();
+    m_cpu_p->produceMemTokens(getRegionElements());
   }
 
-  m_last_word_recv = (getLocalAddr(addr) / sizeof(uint32_t)) - SPM_DATA_WORD_OFFSET;
-  m_cpu_p->produceMemTokens(1);
-  DPRINTF(Mesh, "recv addr %lx idx %d tokens %d\n", addr, getLastWordRecv(), m_cpu_p->getMemTokens());
+  // m_last_word_recv = (getLocalAddr(addr) / sizeof(uint32_t)) - SPM_DATA_WORD_OFFSET;
+  // m_cpu_p->produceMemTokens(1);
+  DPRINTF(Mesh, "recv addr %lx region cntr %d tokens %d\n", addr, m_region_cntr, m_cpu_p->getMemTokens());
 
   // DPRINTF(Mesh, "increment region wiht addr %#x cnt now %d\n", addr, m_region_cntr);
 }

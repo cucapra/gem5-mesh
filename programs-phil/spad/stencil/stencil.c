@@ -380,7 +380,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = effRows; //(float)effRows / 3.0f;
+    end = (float)effRows / 3.0f;
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -454,7 +454,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VECTOR_SIMD)
-  if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
+  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #else
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
