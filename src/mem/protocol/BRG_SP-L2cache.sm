@@ -114,9 +114,6 @@ machine(MachineType:L2Cache, "SP LLC cache")
     Addr      PrefetchAddress, desc = "Prefetch address, same wire as datablk";
     int       CoreOffset, desc = "Offset from core origin to start";
     int       RespCnt,    desc = "The number of resps to provide for this pending req";
-    int       RegionNum,    desc = "region in the scratchpad, replaces spad addr";
-    int       RegionOffset, desc = "offset in region, replaces spad addr";
-
     // int       Epoch,      desc = "Epoch of the requester";
     LLCRequestType InType, desc = "Keep track of input event to know what to do when get mem";
   }
@@ -557,8 +554,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         // this is gem5 only meta-data, in reality would just send the single
         // word, so no need to pick out the element from the whole block
         out_msg.BlkIdx      := wordOffset;
-        out_msg.RegionNum   := in_msg.RegionNum;
-        out_msg.RegionOffset := in_msg.RegionOffset;
+        // out_msg.Epoch       := in_msg.Epoch;
       }
     }
   }
@@ -607,8 +603,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
         out_msg.BlkIdx      := wordOffset;
-        out_msg.RegionNum   := tbe.RegionNum;
-        out_msg.RegionOffset := tbe.RegionOffset;
+        // out_msg.Epoch       := tbe.Epoch;
       }
     }
   }
@@ -676,8 +671,6 @@ machine(MachineType:L2Cache, "SP LLC cache")
       tbe.PrefetchAddress := in_msg.PrefetchAddress;
       tbe.CoreOffset := in_msg.CoreOffset;
       tbe.RespCnt := in_msg.RespCnt;
-      tbe.RegionNum := in_msg.RegionNum;
-      tbe.RegionOffset := in_msg.RegionOffset;
       // tbe.Epoch := in_msg.Epoch;
       tbe.InType := in_msg.Type;
     }

@@ -233,6 +233,7 @@ class MemUnit : public ExecUnit
     /** Diff of sent stores to acked stores */
     uint m_store_diff_reg;
 
+
 #ifdef DEBUG
     /** Unit's status */
     std::bitset<Status::NumStatus> m_status;

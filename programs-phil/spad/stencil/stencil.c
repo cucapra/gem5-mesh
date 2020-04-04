@@ -16,11 +16,11 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-// #define VEC_4_SIMD 1
+#define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
 // #define VEC_4_SIMD_REUSE 1
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
-#define VEC_4_SIMD_LARGE_FRAME 1
+// #define VEC_4_SIMD_LARGE_FRAME 1
 
 // vvadd_execute config directives
 #if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
@@ -48,9 +48,11 @@
 #if defined(LARGE_FRAME)
 #define REGION_SIZE FILTER_DIM * FILTER_DIM * 8
 #define NUM_REGIONS 8
+#define POST_REGION_WORD REGION_SIZE * NUM_REGIONS
 #else
 #define REGION_SIZE FILTER_DIM * FILTER_DIM
 #define NUM_REGIONS 64
+#define POST_REGION_WORD REGION_SIZE * NUM_REGIONS
 #endif
 #endif
 
@@ -95,7 +97,7 @@ stencil(
 
   // have r = 0 for now
   // will need broadcast to support r > 0
-  // int spadIdx = 0;
+  int spadIdx = 0;
 
   ISSUE_VINST(fable0);
   
@@ -111,16 +113,14 @@ stencil(
   int beginCol = min(prefetchFrames * dim, effCols);
   for (int r = start_row; r < start_row + 1; r++) {
     for (int c = 0; c < beginCol; c+=dim) {
-      int frameIdx = 0;
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
-          VPREFETCH_L(frameIdx, a + aIdx, 0, 4);
-          VPREFETCH_R(frameIdx, a + aIdx, 0, 4);
-          frameIdx++;
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
+          spadIdx++;
         }
       }
-      REMEM(0);
     }
   }
   #endif
@@ -161,34 +161,30 @@ stencil(
 
       #else
       // prefetch all 9 values required for computation
-      int frameIdx = 0;
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           
           #ifdef SINGLE_PREFETCH
-          VPREFETCH_L(frameIdx, a + aIdx + 0, 0, 1);
-          VPREFETCH_L(frameIdx, a + aIdx + 1, 1, 1);
-          VPREFETCH_L(frameIdx, a + aIdx + 2, 2, 1);
-          VPREFETCH_L(frameIdx, a + aIdx + 3, 3, 1);
+          VPREFETCH_L(spadIdx, a + aIdx + 0, 0, 1);
+          VPREFETCH_L(spadIdx, a + aIdx + 1, 1, 1);
+          VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
+          VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
           #else
-          VPREFETCH_L(frameIdx, a + aIdx, 0, 4);
-          VPREFETCH_R(frameIdx, a + aIdx, 0, 4);
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
           #endif
 
-          frameIdx++;
           // spad is circular buffer so do cheap mod here
-          // spadIdx++;
-          // if (spadIdx == POST_REGION_WORD) {
-          //   spadIdx = 0;
-          // }
+          spadIdx++;
+          if (spadIdx == POST_REGION_WORD) {
+            spadIdx = 0;
+          }
         }
       }
       #endif
 
       ISSUE_VINST(fable1);
-
-      REMEM(0);
     }
   }
 

@@ -277,8 +277,6 @@ class Scratchpad : public AbstractController
     void enqueueRubyRespToSp(PacketPtr pkt_p, Packet::RespPktType type);
     void enqueueStallRespToSp(PacketPtr pkt_p);
 
-    Addr getAddrFromRegion(int regionNum, int regionOffset);
-
     // get the total size all regions take up in the scratchpad
     int getAllRegionSize();
     

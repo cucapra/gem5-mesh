@@ -316,9 +316,6 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
         inst->canIssueToMem()) {
       assert(!inst->isFault());
 
-      // get mem epoch when issue (at head of rob)
-      inst->mem_req_p->regionNum = m_cpu_p->getMemEpoch();
-
       PacketPtr pkt = Packet::createWrite(inst->mem_req_p);
       pkt->dataStatic(inst->mem_data_p);
       pkt->pushSenderState(new MemUnit::SenderState(inst));
@@ -647,21 +644,15 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
 
       // fake the virtual scratchpad address for this core
       // TODO this should put the vector group origin on instead of the scratchpad
-      // TODO shouldn't need spadIdx with new region method
-      // Addr spadIdx = bits(spadVAddr, 11, 0);
-      Addr spadRegionOffset = bits(spadVAddr, 11, 0);
-      m_s1_inst->mem_req_p->regionOffset = spadRegionOffset;
-      Addr spadIdx = 0x10;
-      // uint32_t deprecatedOffset = 0x10;
-      spadVAddr = 0x10000000 | (m_cpu_p->cpuId() << 12) | ( spadIdx /** size + deprecatedOffset*/ );
-
+      Addr spadIdx = bits(spadVAddr, 11, 0);
+      uint32_t deprecatedOffset = 0x10;
+      spadVAddr = 0x10000000 | (m_cpu_p->cpuId() << 12) | ( spadIdx * size + deprecatedOffset );
+      
       // need to translate the address, do atomically,
       // real hammerblade doesnt have virtual addresses anyway
       Addr spadPAddr = 0;
       assert(m_cpu_p->tcBase(tid)->getProcessPtr()->pTable->translate(spadVAddr, spadPAddr));
       m_s1_inst->mem_req_p->prefetchAddr = spadPAddr;
-
-      // instead of address want to specify region so more flexible
 
       // immediate field used for count so remove that from the address
       auto upper7 = bits((uint32_t)m_s1_inst->static_inst_p->machInst, 31, 25);
