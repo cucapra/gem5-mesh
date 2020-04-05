@@ -46,13 +46,13 @@
 // prefetch sizings
 #if defined(USE_VEC)
 #if defined(LARGE_FRAME)
-#define REGION_SIZE FILTER_DIM * FILTER_DIM * 8
+#define REGION_SIZE (FILTER_DIM * FILTER_DIM * 8)
 #define NUM_REGIONS 8
-#define POST_REGION_WORD REGION_SIZE * NUM_REGIONS
+#define POST_REGION_WORD (REGION_SIZE * NUM_REGIONS)
 #else
-#define REGION_SIZE FILTER_DIM * FILTER_DIM
+#define REGION_SIZE (FILTER_DIM * FILTER_DIM)
 #define NUM_REGIONS 64
-#define POST_REGION_WORD REGION_SIZE * NUM_REGIONS
+#define POST_REGION_WORD (REGION_SIZE * NUM_REGIONS)
 #endif
 #endif
 
@@ -62,6 +62,16 @@ inline int min(int a, int b) {
   }
   else {
     return a;
+  }
+}
+
+// maybe not prefetch all the way, so fill in rest or hardware frame
+// this kinda sux
+void completeHardwareFrame(int spadIdx, int *someData) {
+  int remainingEntries = REGION_SIZE - (spadIdx % REGION_SIZE);
+  for (int i = 0; i < remainingEntries; i++) {
+    VPREFETCH_L(spadIdx, someData, 0, 4);
+    spadIdx++;
   }
 }
 
@@ -188,6 +198,8 @@ stencil(
     }
   }
 
+  // completeHardwareFrame(spadIdx, a);
+
   #ifndef REUSE
   // issue the rest of blocks
   for (int r = start_row; r < end_row; r++) {
@@ -212,7 +224,7 @@ stencil(
 
   // declarations
   DTYPE a_, b_, c_;
-  int64_t iter, baseIdx, frameStart; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
+  int64_t iter, baseIdx, frameStart, spIdx; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
   DTYPE b0, b1, b2, b3, b4, b5, b6, b7, b8;
   DTYPE a0, a1, a2, a3, a4, a5, a6, a7, a8;
@@ -226,6 +238,7 @@ stencil(
   //     // b_ = b[i]; // keep filter in regfile
   //   }
     iter = 0;
+    spIdx = 0;
     cPtr = c + (start_row * ncols) + vtid;
     b0 = b[0];
     b1 = b[1];
@@ -240,8 +253,9 @@ stencil(
   // loop body block
   fable1:
     c_ = 0;
-    frameStart = iter * frameSize;
-    baseIdx = iter * FILTER_DIM * FILTER_DIM;
+    // frameStart = iter * frameSize;
+    // baseIdx = iter * FILTER_DIM * FILTER_DIM;
+    spIdx = spIdx % POST_REGION_WORD;
 
     // start consumption of frame (stall unless we have the tokens we need)
     FRAME_START(frameSize);
@@ -283,15 +297,15 @@ stencil(
     //   b_ = spadAddr[POST_REGION_WORD + i];
     //   c_ += a_ * b_;
     // }
-    c_ += b0 * spadAddr[baseIdx + 0];
-    c_ += b1 * spadAddr[baseIdx + 1];
-    c_ += b2 * spadAddr[baseIdx + 2];
-    c_ += b3 * spadAddr[baseIdx + 3];
-    c_ += b4 * spadAddr[baseIdx + 4];
-    c_ += b5 * spadAddr[baseIdx + 5];
-    c_ += b6 * spadAddr[baseIdx + 6];
-    c_ += b7 * spadAddr[baseIdx + 7];
-    c_ += b8 * spadAddr[baseIdx + 8];
+    c_ += b0 * spadAddr[spIdx + 0];
+    c_ += b1 * spadAddr[spIdx + 1];
+    c_ += b2 * spadAddr[spIdx + 2];
+    c_ += b3 * spadAddr[spIdx + 3];
+    c_ += b4 * spadAddr[spIdx + 4];
+    c_ += b5 * spadAddr[spIdx + 5];
+    c_ += b6 * spadAddr[spIdx + 6];
+    c_ += b7 * spadAddr[spIdx + 7];
+    c_ += b8 * spadAddr[spIdx + 8];
     #endif
 
     REMEM(frameSize);
@@ -299,7 +313,7 @@ stencil(
     STORE_NOACK(c_, cPtr, 0);
     // do no reuse version for now
     cPtr += dim;
-    iter = (iter + 1) % (NUM_REGIONS);
+    spIdx += frameSize;
     
     // need this jump to create loop carry dependencies
     // an assembly pass will remove this instruction
@@ -381,7 +395,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = (float)effRows / 3.0f;
+    end = effRows; //(float)effRows / 3.0f;
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -455,7 +469,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VEC)
-  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
+  if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #else
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
