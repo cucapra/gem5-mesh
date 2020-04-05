@@ -16,11 +16,11 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
 // #define VEC_4_SIMD_REUSE 1
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
-// #define VEC_4_SIMD_LARGE_FRAME 1
+#define VEC_4_SIMD_LARGE_FRAME 1
 
 // vvadd_execute config directives
 #if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
@@ -67,7 +67,7 @@ inline int min(int a, int b) {
 
 // maybe not prefetch all the way, so fill in rest or hardware frame
 // this kinda sux
-void completeHardwareFrame(int spadIdx, int *someData) {
+void __attribute__((optimize("-fno-inline"))) completeHardwareFrame(int spadIdx, int *someData) {
   int remainingEntries = REGION_SIZE - (spadIdx % REGION_SIZE);
   for (int i = 0; i < remainingEntries; i++) {
     VPREFETCH_L(spadIdx, someData, 0, 4);
@@ -198,7 +198,7 @@ stencil(
     }
   }
 
-  // completeHardwareFrame(spadIdx, a);
+  completeHardwareFrame(spadIdx, a);
 
   #ifndef REUSE
   // issue the rest of blocks
