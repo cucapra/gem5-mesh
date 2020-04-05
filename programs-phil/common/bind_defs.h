@@ -34,7 +34,7 @@
   
 // 0x401 is MISCREG_FET
 #define VECTOR_EPOCH(val) \
-  asm volatile (".insn i 0x77, 0, x0, %[x], 0x401\n\t" :: [x] "r" (val))
+  asm volatile (".insn i 0x77, 0, x0, %[x], 0x401\n\t" :: [x] "r" (val) : "memory")
 
 // revec instruction with unique hash id
 #define REVEC(hash)                                                           \

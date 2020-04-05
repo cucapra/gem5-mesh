@@ -27,8 +27,8 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int nrows = 1 + (FILTER_DIM - 1); // single row
-  int ncols = 8 + (FILTER_DIM - 1);
+  int nrows = 3 + (FILTER_DIM - 1); // single row
+  int ncols = 32; // + (FILTER_DIM - 1);
   
   // parse positional arguments (X Y)
   if (argc > 1) {
@@ -36,6 +36,11 @@ int main(int argc, char *argv[]) {
   }
   if (argc > 2) {
     nrows = atoi(argv[2]);
+  }
+
+  if (ncols < 32) {
+    printf("[[TODO]] size too small for good prefetching. exiting\n");
+    return 1;
   }
   
   printf("Stencil %dx%d on %dx%d image. Num cores is %d\n", FILTER_DIM, FILTER_DIM, ncols, nrows, num_cores);
@@ -49,7 +54,7 @@ int main(int argc, char *argv[]) {
   DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_ptr);
   DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), FILTER_DIM * FILTER_DIM, (void**)&b_ptr);
   DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), (nrows - boundOffset) * (ncols /*- boundOffset*/), (void**)&c_ptr);
-
+  printf("a %p b %p c %p\n", a, b, c);
   // image
   for (int i = 0; i < nrows * ncols; i++) {
     a[i] = i + 1;
@@ -106,7 +111,7 @@ int main(int argc, char *argv[]) {
       if (c[row * (ncols /*- boundOffset*/) + col] != cexp) {
         printf("%d != %d @ row %d cold %d\n", c[row * (ncols /*- boundOffset*/) + col], cexp, row, col);
         printf("[[FAIL]]\n");
-        // return 1;
+        return 1;
       }
       // printf("%d == %d @ row %d cold %d\n", c[row * (ncols /*- boundOffset*/) + col], cexp, row, col);
     }

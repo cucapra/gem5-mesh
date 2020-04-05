@@ -46,7 +46,8 @@
 // prefetch sizings
 #if defined(USE_VEC)
 #if defined(LARGE_FRAME)
-#define REGION_SIZE (FILTER_DIM * FILTER_DIM * 8)
+#define FRAMES_PER_REGION 8
+#define REGION_SIZE (FILTER_DIM * FILTER_DIM * FRAMES_PER_REGION)
 #define NUM_REGIONS 8
 #define POST_REGION_WORD (REGION_SIZE * NUM_REGIONS)
 #else
@@ -65,9 +66,10 @@ inline int min(int a, int b) {
   }
 }
 
+// having this function not inlined messing up hacky host/vec seperation
 // maybe not prefetch all the way, so fill in rest or hardware frame
 // this kinda sux
-void __attribute__((optimize("-fno-inline"))) completeHardwareFrame(int spadIdx, int *someData) {
+inline void completeHardwareFrame(int spadIdx, int *someData) {
   int remainingEntries = REGION_SIZE - (spadIdx % REGION_SIZE);
   for (int i = 0; i < remainingEntries; i++) {
     VPREFETCH_L(spadIdx, someData, 0, 4);
@@ -119,7 +121,13 @@ stencil(
   #ifdef REUSE
   int beginCol = 0;
   #else
+  // you need to guarentee that a full region worth of frames are in flight before issuing a block that will consume
+  #ifdef LARGE_FRAME
+  int prefetchFrames = FRAMES_PER_REGION;
+  #else
+  // arbitrary in this case
   int prefetchFrames = 8;
+  #endif
   int beginCol = min(prefetchFrames * dim, effCols);
   for (int r = start_row; r < start_row + 1; r++) {
     for (int c = 0; c < beginCol; c+=dim) {
@@ -140,7 +148,6 @@ stencil(
     // we've prefetch part of the first row to get ahead
     if (r == start_row) startCol = beginCol;
     for (int c = startCol; c < effCols; c+=dim) {
-
       #ifdef REUSE
       int frameIdx = 0;
 
@@ -395,7 +402,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = effRows; //(float)effRows / 3.0f;
+    end = (float)effRows / 3.0f;
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -469,7 +476,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VEC)
-  if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
+  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #else
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
