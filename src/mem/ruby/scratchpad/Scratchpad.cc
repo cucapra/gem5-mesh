@@ -86,6 +86,9 @@ CpuPort::recvFunctional(Packet* pkt)
 // Scratchpad
 //-----------------------------------------------------------------------------
 
+
+#define NUM_REGION_CNTRS 2
+
 Scratchpad::Scratchpad(const Params* p)
     : AbstractController(p),
       m_ruby_system_p(p->ruby_system),
@@ -134,9 +137,10 @@ Scratchpad::Scratchpad(const Params* p)
   // for(int i = 0; i < m_size / sizeof(uint32_t); i++) {
   //   m_fresh_array.push_back(0);
   // }
-  m_region_cntr = 0;
+  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
+    m_region_cntrs.push_back(0);
+  }
   m_cur_prefetch_region = 0;
-  m_last_word_recv = -1; // TODO need to initialize when set the csr for prefetch regions, do hack initialization for now
 }
 
 Scratchpad::~Scratchpad()
@@ -1186,8 +1190,13 @@ bool
 Scratchpad::isPrefetchAhead(Addr addr) {
   int pktEpochMod = getDesiredRegion(addr);
 
-  // packet is ahead of the prefetch region, so can't process yet
-  bool aheadCntr = (pktEpochMod != m_cur_prefetch_region);
+  // packet is ahead of any prefetch region, so can't process yet
+  bool aheadCntr = true;
+  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
+    if (pktEpochMod == getCurRegion(i)) {
+      aheadCntr = false;
+    }
+  }
 
   // packet would bring prefetch region to overlap with core access region and would cause undetectable overwrite
   // don't allow to be processed yet
@@ -1195,7 +1204,7 @@ Scratchpad::isPrefetchAhead(Addr addr) {
   bool wouldOverlap = m_cpu_p->getMemTokens() + getRegionElements() >= getAllRegionSize();
 
   DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d tokens %d prefetchRegion %d region cntr %d\n", 
-    wouldOverlap, aheadCntr, pktEpochMod, m_cpu_p->getMemTokens(), m_cur_prefetch_region, m_region_cntr);
+    wouldOverlap, aheadCntr, pktEpochMod, m_cpu_p->getMemTokens(), m_cur_prefetch_region, m_region_cntrs[0]);
   return wouldOverlap || aheadCntr;
 
 
@@ -1258,18 +1267,19 @@ Scratchpad::setWordRdy(Addr addr) {
   // tag = 1;
 
   // increment the counter for number of expected loads
-  m_region_cntr++;
+  // need to find the right regon cntr
+  // m_region_cntr++;
+  incRegionCntr(addr);
 
   // if reaches number of expected then reset and move to next region 
   // publish group of tokens to be accessed
-  if (m_region_cntr == getRegionElements()) {
+  if (m_region_cntrs[0] == getRegionElements()) {
     resetRdyArray();
-    m_cpu_p->produceMemTokens(getRegionElements());
   }
 
   // m_last_word_recv = (getLocalAddr(addr) / sizeof(uint32_t)) - SPM_DATA_WORD_OFFSET;
   // m_cpu_p->produceMemTokens(1);
-  DPRINTF(Mesh, "recv addr %lx region cntr %d tokens %d\n", addr, m_region_cntr, m_cpu_p->getMemTokens());
+  DPRINTF(Mesh, "recv addr %lx region cntr %d tokens %d\n", addr, m_region_cntrs[0], m_cpu_p->getMemTokens());
 
   // DPRINTF(Mesh, "increment region wiht addr %#x cnt now %d\n", addr, m_region_cntr);
 }
@@ -1280,6 +1290,8 @@ Scratchpad::setWordNotRdy(Addr addr) {
   // int &tag = m_fresh_array[getLocalAddr(addr) / sizeof(uint32_t)];
   // tag = 0;
 }
+
+
 
 void
 Scratchpad::resetRdyArray() {
@@ -1293,24 +1305,39 @@ Scratchpad::resetRdyArray() {
   // }
 
   // we can now prefetch in the next region
-  m_cur_prefetch_region = (m_cur_prefetch_region + 1) % getNumRegions();
+  m_cur_prefetch_region = getCurRegion(1); //(m_cur_prefetch_region + 1) % getNumRegions();
 
   // start counting for that next region
-  m_region_cntr = 0;
+  // do swap chain
+  for (int i = 0; i < NUM_REGION_CNTRS - 1; i++) {
+    m_region_cntrs[i] = m_region_cntrs[i + 1];
+  }
+  m_region_cntrs[NUM_REGION_CNTRS - 1] = 0;
+
+  m_cpu_p->produceMemTokens(getRegionElements());
+}
+
+void
+Scratchpad::incRegionCntr(Addr addr) {
+  // figure out which region this belongs to
+  int region = getDesiredRegion(addr);
+  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
+    if (region == getCurRegion(i)) {
+      m_region_cntrs[i]++;
+      return;
+    }
+  }
+  assert(false);
+}
+
+int
+Scratchpad::getCurRegion(int offset) {
+  return (m_cur_prefetch_region + offset) % getNumRegions();
 }
 
 int
 Scratchpad::getAllRegionSize() {
   return getNumRegions() * getRegionElements();
-}
-
-int
-Scratchpad::getLastWordRecv() {
-  // initialize here, TODO should do this when set up prefetch region sizings with csr instruction
-  if (m_last_word_recv == -1) {
-    m_last_word_recv = getAllRegionSize() - 1;
-  }
-  return m_last_word_recv;
 }
 
 void

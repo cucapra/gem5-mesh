@@ -203,11 +203,6 @@ class Scratchpad : public AbstractController
     void collateStats() override
     { warn("Scratchpad does not support collateStats()\n"); }
 
-    // reset all tags in rdy array
-    // TODO called from CPU, not sure how realistic? it's a 1bit wire
-    // or maybe it could be a special packet...
-    void resetRdyArray();
-
   private:
     /**
      * Return NodeID of scratchpad owning the given address
@@ -279,8 +274,14 @@ class Scratchpad : public AbstractController
 
     // get the total size all regions take up in the scratchpad
     int getAllRegionSize();
-    
-    int getLastWordRecv();
+
+    // reset current region counter
+    void resetRdyArray();
+    // increment region counter, if multiple use address to determine which one
+    void incRegionCntr(Addr addr);
+    // get the current region (offset = 0) or a future region (offset > 1)
+    int getCurRegion(int offset);
+
   private:
     /**
      * Pointer to Ruby system
@@ -413,19 +414,13 @@ class Scratchpad : public AbstractController
      * Counter to keep track of how many pkts have arrived for a region
      * Should only be a 10bit counter and adder setup
      */ 
-    int m_region_cntr;
+    std::vector<int> m_region_cntrs;
 
     /**
      * Keep track of which region we are currently prefetching into
      * i.e. which region the counter is associated with (<10 bits)
      */ 
     int m_cur_prefetch_region;
-
-    /**
-     * The last word in region received. Enforcing in order memory? 
-     */
-    int m_last_word_recv;
-    
     
     /**
      * Stats to keep track of for the scratchpad

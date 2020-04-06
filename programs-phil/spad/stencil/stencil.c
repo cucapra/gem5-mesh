@@ -16,11 +16,11 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-// #define VEC_4_SIMD 1
+#define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
 // #define VEC_4_SIMD_REUSE 1
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
-#define VEC_4_SIMD_LARGE_FRAME 1
+// #define VEC_4_SIMD_LARGE_FRAME 1
 
 // vvadd_execute config directives
 #if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
@@ -46,9 +46,9 @@
 // prefetch sizings
 #if defined(USE_VEC)
 #if defined(LARGE_FRAME)
-#define FRAMES_PER_REGION 16
+#define FRAMES_PER_REGION 8
 #define REGION_SIZE (FILTER_DIM * FILTER_DIM * FRAMES_PER_REGION)
-#define NUM_REGIONS 4
+#define NUM_REGIONS 8
 #define POST_REGION_WORD (REGION_SIZE * NUM_REGIONS)
 #else
 #define REGION_SIZE (FILTER_DIM * FILTER_DIM)
