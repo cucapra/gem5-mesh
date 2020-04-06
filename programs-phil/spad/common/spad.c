@@ -1,6 +1,18 @@
 
 #include "spad.h"
 
+
+#if !defined(__x86_64__) && !defined(__i386__)
+// SPM space mapped to scratchpads
+uint8_t spm[SP_SIZE * N_SPS] __attribute__ ((section(".spm")));
+uint8_t*  spm_base_ptr_arr     [N_SPS];
+uint8_t*  spm_next_ptr_arr     [N_SPS];
+uint64_t* spm_base_addr_ptr_arr[N_SPS];
+uint32_t* spm_go_flag_ptr_arr  [N_SPS];
+uint32_t* spm_done_flag_ptr_arr[N_SPS];
+#endif
+
+
 uint64_t* spm_alloc64(uint8_t** base_pp, size_t size) {
   uint64_t* p = (uint64_t*) (*base_pp);
   (*base_pp) += sizeof(uint64_t) * size;

@@ -36,7 +36,10 @@ IODynInst::IODynInst(const StaticInstPtr& static_inst,
       cond_resolved(false),
       broadcast_val(0),
       pred_at_issue(true)
-{ }
+{ 
+      master_info.fill(0);
+
+}
 
 IODynInst::~IODynInst()
 {
