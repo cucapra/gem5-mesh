@@ -611,6 +611,19 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
   // function call
   assert(inst == m_s1_inst.get());
 
+  // a prefetch to a scratchpad requires more complex decoding here
+  bool spadPrefetch = m_s1_inst->static_inst_p->isSpadPrefetch();
+
+  // adjust where the addr is in the case of a prelw
+  if (spadPrefetch)
+  {
+    // immediate field used for count so remove that from the address
+    auto upper7 = bits((uint32_t)m_s1_inst->static_inst_p->machInst, 31, 25);
+    auto lower5 = bits((uint32_t)m_s1_inst->static_inst_p->machInst, 11, 7);
+    uint32_t imm = (upper7 << 5) | lower5;
+    addr = addr - imm;
+  }
+
   // check if the request is spanning across two cache lines
   size_t line_size = m_cpu_p->getCacheLineSize();
   if ((addr & (line_size - 1)) + size > line_size)
@@ -651,18 +664,9 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
                                   amo_op);
     m_s1_inst->mem_req_p->taskId(m_cpu_p->taskId());
 
-    // a spad prefetch can be turned into a spad reset if in trace mode
-    bool spadPrefetch = m_s1_inst->static_inst_p->isSpadPrefetch();
-    // TODO depcreate what even is this?
-    // bool spadReset = spadPrefetch; // always do reset on prefetch && MeshHelper::isVectorSlave(csrVal) && !m_cpu_p->getEarlyVector()->isCurDiverged();
-    // m_s1_inst->mem_req_p->spadReset = spadReset;
-    // give an epoch number as data if this will be a reset instruction
-    // included as seperate field, but in practice would send on data lines
-    // if (spadPrefetch) {
-    //   m_s1_inst->mem_req_p->epoch = m_cpu_p->getMemEpoch();
-    // }
+    m_s1_inst->mem_req_p->isSpadPrefetch = spadPrefetch;
 
-    // setup prefetch addr
+    // adjust where the addr is in the case of a prelw
     if (spadPrefetch)
     {
       // the 'data' register for this instruction is actually an address
@@ -673,54 +677,74 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
         spadVAddr |= ((uint64_t)data[i]) << (i * 8);
       }
 
+      // part of this address encodes the coreOffset we're going to use
+      int baseCoreOffset = bits(spadVAddr, 31, 12);
+
+      // fake the virtual scratchpad address for this core
+      // TODO this should put the vector group origin on instead of the scratchpad
+      Addr spadIdx = bits(spadVAddr, 11, 0);
+      uint32_t deprecatedOffset = 0x10;
+      spadVAddr = 0x10000000 | (m_cpu_p->cpuId() << 12) | (spadIdx * size + deprecatedOffset);
+
       // need to translate the address, do atomically,
       // real hammerblade doesnt have virtual addresses anyway
       Addr spadPAddr = 0;
       assert(m_cpu_p->tcBase(tid)->getProcessPtr()->pTable->translate(spadVAddr, spadPAddr));
-
       m_s1_inst->mem_req_p->prefetchAddr = spadPAddr;
-    }
 
-    // only an sp load if not a slave
-    // Vector* vec = m_cpu_p->getEarlyVector();
-    // bool diverged = vec && vec->isCurDiverged();
-    // bool master   = vec && vec->isRootMaster();
-    // bool solo     = !(vec && vec->getConfigured());
-    // m_s1_inst->mem_req_p->isSpLoad = spadPrefetch && ( diverged || master || solo );
+      // immediate field used for count so remove that from the address
+      auto upper7 = bits((uint32_t)m_s1_inst->static_inst_p->machInst, 31, 25);
+      auto lower5 = bits((uint32_t)m_s1_inst->static_inst_p->machInst, 11, 7);
+      uint32_t imm = (upper7 << 5) | lower5;
+      // addr = addr - imm;
 
-    Vector *vec = m_cpu_p->getEarlyVector();
-    bool diverged = vec && vec->isCurDiverged();
-    bool dAccess = vec && vec->isDecoupledAccess();
-    bool master = vec && vec->isRootMaster();
-    bool solo = !(vec && vec->getConfigured()) || (vec && !vec->hasForwardingPath());
-    m_s1_inst->mem_req_p->isSpadPrefetch = spadPrefetch && (diverged || dAccess || master || solo);
+      // if we are going to go off of a cacheline then cut this load short depending on
+      // if prefetch left or prefetch right
+      // left  : offset = baseCoreOffset.          leftCount  = min(endOfCacheLine, count)
+      // right : offset = coreOffset + leftCount   rightCount = count - leftCount
+      bool prefetchLeft = m_s1_inst->static_inst_p->isLeftSide();
+      size_t lineSize = m_cpu_p->getCacheLineSize();
+      size_t count = imm;
+      size_t wordOffset = addr & (lineSize - 1);
+      size_t wordsRemInLine = (lineSize - wordOffset) / size;
+      size_t leftCount = std::min(wordsRemInLine, count);
+      if (prefetchLeft)
+      {
+        m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
+        m_s1_inst->mem_req_p->respCnt = leftCount;
+        DPRINTF(Mesh, "send vec load left %lx offset %d cnt %d\n", m_s1_inst->mem_req_p->getVaddr(),
+                m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
+      }
+      else
+      {
+        int rightCount = count - wordsRemInLine;
+        // don't execute this the right prefetch because no overshoot
+        if (rightCount <= 0)
+        {
+          m_s1_inst->setExecuted();
+          DPRINTF(Mesh, "don't send vec load right %lx cnt %d\n", m_s1_inst->mem_req_p->getVaddr(),
+                  rightCount);
+        }
+        else
+        {
+          m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount;
+          m_s1_inst->mem_req_p->respCnt = rightCount;
+          // change vaddr to reflect new baseOffset
+          Addr rightVirtAddr = addr + (leftCount * size);
+          m_s1_inst->mem_req_p->setVirt(0, rightVirtAddr, size, flags,
+                                        m_cpu_p->dataMasterId(), m_s1_inst->pc.pc(), amo_op);
 
-    // setup vector memory request... if we're in vector mode and not detached
-    // also send memory request as vector request (single request, multiple response)
-    // otherwise send as the usual single request, single response
+          DPRINTF(Mesh, "send vec load right %lx offset %d cnt %d\n", m_s1_inst->mem_req_p->getVaddr(),
+                  m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
+        }
+      }
 
-    // if (spadPrefetch && master) {
-    if (spadPrefetch && (dAccess || master))
-    {
+      assert(m_cpu_p->getEarlyVector());
+
       m_s1_inst->mem_req_p->xDim = m_cpu_p->getEarlyVector()->getXLen();
       m_s1_inst->mem_req_p->yDim = m_cpu_p->getEarlyVector()->getYLen();
       m_s1_inst->mem_req_p->xOrigin = m_cpu_p->getEarlyVector()->getXOrigin();
       m_s1_inst->mem_req_p->yOrigin = m_cpu_p->getEarlyVector()->getYOrigin();
-      // m_s1_inst->mem_req_p->fromDecoupledAccess = dAccess;
-      DPRINTF(Mesh, "[%s] send vec load %#x to %#x, (%d,%d)\n", m_s1_inst->toString(true),
-              addr, m_s1_inst->mem_req_p->prefetchAddr, m_s1_inst->mem_req_p->xDim, m_s1_inst->mem_req_p->yDim);
-
-      // if this is a prefetch then the offset field needs to be used for information about how to do the load
-      // by default the gem5 instruction system will add this immediate to the address in the addr register
-      // we need to remove this before translating and sending off
-      /*
-      auto upper7 = bits((uint32_t)m_s1_inst->static_inst_p->machInst, 31, 25);
-      auto lower5 = bits((uint32_t)m_s1_inst->static_inst_p->machInst, 11, 7);
-      uint32_t imm = (upper7 << 5) | lower5;
-      DPRINTF(Mesh, "imm val %lx %lx %lx\n", upper7, lower5, imm);
-      Addr adjustedAddr = m_s1_inst->mem_req_p->getVaddr() - imm;
-      m_s1_inst->mem_req_p->setVirt(0, adjustedAddr, size, flags, m_cpu_p->dataMasterId(),
-                                          m_s1_inst->pc.pc(), amo_op);*/
     }
     else
     {
@@ -728,7 +752,6 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
       m_s1_inst->mem_req_p->yDim = 1;
       m_s1_inst->mem_req_p->xOrigin = 0;
       m_s1_inst->mem_req_p->yOrigin = 0;
-      // m_s1_inst->mem_req_p->fromDecoupledAccess = false;
     }
 
     // allow load to issue to spad without getting any acks the load is there

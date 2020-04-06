@@ -69,9 +69,15 @@
     :: [src_reg] "r" (val), [imm_val] "i" (imm)                                \
   )
 
-#define PRED_CMP(reg0, reg1) \
-  asm volatile (".insn r 0x33, 0x7, 0x5, x0, %[rs1], %[rs2]\n\t") \
-  :: [rs1] "r" (reg0), [rs2] "r" (reg1)
+// allow following instructions to proceed if registers equal
+#define PRED_EQ(reg0, reg1) \
+  asm volatile (".insn r 0x33, 0x7, 0x5, x0, %[rs1], %[rs2]\n\t" \
+  :: [rs1] "r" (reg0), [rs2] "r" (reg1))
+
+// allow following instructions to proceed if registers not equal
+#define PRED_NEQ(reg0, reg1) \
+  asm volatile (".insn r 0x33, 0x7, 0x6, x0, %[rs1], %[rs2]\n\t" \
+  :: [rs1] "r" (reg0), [rs2] "r" (reg1))
 
 #define TERMINATE_BLOCK() \
   asm volatile(".insn i 0x1b, 0x7, x0, x0, 0\n\t")
@@ -87,10 +93,22 @@
 // actually use, unused sw funct3
 // if don't do this then compiler thinks its a 64bit instructions which
 // messes up gem5
-#define VPREFETCH(spadAddr, memAddr, offset) \
-  asm volatile (".insn sb 0x23, 0x4, %[spad], %[off](%[mem])\n\t" :: \
-    [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" (offset))
-    
+// #define VPREFETCH(spadAddr, memAddr, group_start, group_end) \
+//   asm volatile (".insn sb 0x23, 0x4, %[spad], %[off](%[mem])\n\t" :: \
+//     [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" ((group_start << 6) | (group_end - group_start)))
+
+#define VPREFETCH_L(spadOffset, memAddr, coreOffset, count)        \
+  asm volatile (".insn sb 0x23, 0x6, %[spad], %[off](%[mem])\n\t" ::  \
+    [spad] "r" ((coreOffset << 12) | spadOffset),                     \
+    [mem] "r" (memAddr),                                              \
+    [off] "i" (count))
+
+#define VPREFETCH_R(spadOffset, memAddr, coreOffset, count)       \
+  asm volatile (".insn sb 0x23, 0x7, %[spad], %[off](%[mem])\n\t" ::  \
+    [spad] "r" ((coreOffset << 12) | spadOffset),                     \
+    [mem] "r" (memAddr),                                              \
+    [off] "i" (count))
+
 #define LWSPEC(dest, spadAddr, offset)                    \
   asm volatile (                                          \
     ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"   \
