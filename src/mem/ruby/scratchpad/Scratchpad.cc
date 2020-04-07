@@ -1032,6 +1032,12 @@ bool Scratchpad::handleRemoteReq(Packet *pkt_p, MachineID remote_sender)
     // }
     // else
     // {
+
+    if (isRegionAccess(pkt_p) && !isWordRdyForRemote(pkt_p->getAddr()))
+    {
+      DPRINTF(Mesh, "remote region access into a region not ready (not cool bro) %s\n", pkt_p->print());
+      return false;
+    }
     // record remote access here
     if (pkt_p->isRead())
       m_remote_loads++;
@@ -1303,6 +1309,18 @@ bool Scratchpad::isPrefetchAhead(Addr addr)
   DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d coreEpoch %d prefetchRegion %d region cntr %d\n",
           wouldOverlap, aheadCntr, pktEpochMod, coreEpochMod, m_cur_prefetch_region, m_region_cntr);
   return wouldOverlap || aheadCntr;
+}
+
+//edit: Neil
+bool Scratchpad::isWordRdyForRemote(Addr addr)
+{
+
+  //the region where the packet is targeted to
+  int pktEpochMod = getDesiredRegion(addr);
+
+  // if the region being accessed remotely is not being written into by vprefetch the word is ready
+  bool ret = (pktEpochMod != m_cur_prefetch_region);
+  return ret;
 }
 
 bool Scratchpad::isWordRdy(Addr addr)
