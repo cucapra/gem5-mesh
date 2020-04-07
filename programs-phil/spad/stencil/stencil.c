@@ -339,6 +339,8 @@ stencil(
     c_ += b8 * spData8;
     STORE_NOACK(c_, cPtr + 1, 0);
 
+    // if swap following two pred blocks core0 pred works, but then core3 pred doesn't work
+    // definetly something wrong with pred...
     // fetch one column from the left to perform leftmost computation
     PRED_NEQ(vtid, 0);
     c_ = 0;
