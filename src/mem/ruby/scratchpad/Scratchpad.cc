@@ -690,9 +690,9 @@ bool Scratchpad::handleCpuReq(Packet *pkt_p)
 
     //edit: Neil
     //if load in region which is used for prefetch then check
-    // if (isRegionLoad(pkt_p) && !isWordRdy(pkt_p->getAddr())){
-    if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr()))
+    if (isRegionAccess(pkt_p) && !isWordRdy(pkt_p->getAddr()))
     {
+      // if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())){
       //m_packet_buffer.push_back(pkt_p);
       //assert(m_packet_buffer.size() <= m_spec_buf_size);
       // just say not rdy actually
