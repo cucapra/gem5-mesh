@@ -32,17 +32,17 @@
 // #define NO_VEC 1
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
-#define VEC_4_SIMD_REUSE 1
+#define VEC_4_REUSE 1
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
 // #define VEC_4_SIMD_LARGE_FRAME 1
 
 // vvadd_execute config directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
 #define USE_VEC 1
 #endif
 
 // vector grouping directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
 #define VEC_SIZE_4_SIMD 1
 #endif
 
@@ -50,7 +50,7 @@
 #if defined(VEC_4_SIMD_SINGLE_PREFETCH)
 #define SINGLE_PREFETCH 1
 #endif
-#if defined(VEC_4_SIMD_REUSE)
+#if defined(VEC_4_REUSE)
 #define REUSE 1
 #endif
 #if defined(VEC_4_SIMD_LARGE_FRAME)
@@ -143,7 +143,9 @@ stencil(
   // arbitrary in this case
   int prefetchFrames = 8;
   #endif
+
   int beginCol = min(prefetchFrames * dim, effCols);
+  #ifndef REUSE
   for (int r = start_row; r < start_row + 1; r++) {
     for (int c = 0; c < beginCol; c+=dim) {
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
@@ -156,6 +158,21 @@ stencil(
       }
     }
   }
+  #else
+  for (int r = start_row; r < start_row + 1; r++) {
+    for (int c = 0; c < beginCol; c+=dim*FILTER_DIM) {
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
+          int aIdx = (r + k1) * ncols + (c + (k2 * dim));
+          // printf("r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
+          spadIdx++;
+        }
+      }
+    }
+  }
+  #endif
 
   #ifndef REUSE
   for (int r = start_row; r < end_row; r++) {
@@ -197,20 +214,20 @@ stencil(
     if (r == start_row) startCol = beginCol;
     for (int c = startCol; c < effCols; c+=dim) {
       // prefetch all 9 values required for computation
-      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
-          int aIdx = (r + k1) * ncols + (c + k2);
+      // for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+      //   for (int k2 = 0; k2 < 1; k2++) {
+      //     int aIdx = (r + k1) * ncols + (c + k2);
           
-          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
-          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
+      //     VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
+      //     VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
 
-          // spad is circular buffer so do cheap mod here
-          spadIdx++;
-          if (spadIdx == POST_REGION_WORD) {
-            spadIdx = 0;
-          }
-        }
-      }
+      //     // spad is circular buffer so do cheap mod here
+      //     spadIdx++;
+      //     if (spadIdx == POST_REGION_WORD) {
+      //       spadIdx = 0;
+      //     }
+      //   }
+      // }
 
       // issue every 3 prefetches
       issueCntr++;
@@ -222,7 +239,9 @@ stencil(
   }
   #endif
 
+  #ifdef LARGE_FRAME
   completeHardwareFrame(spadIdx, a);
+  #endif
 
   // issue the rest of blocks
   for (int r = start_row; r < end_row; r++) {
@@ -295,58 +314,58 @@ stencil(
     // or could even have 3 seperate issue block
 
 
-    int spIdx0 = spIdx + 0;
-    int spIdx1 = spIdx + 1;
-    int spIdx2 = spIdx + 2;
-    int spIdx3 = spIdx + 3;
-    int spIdx4 = spIdx + 4;
-    int spIdx5 = spIdx + 5;
-    int spIdx6 = spIdx + 6;
-    int spIdx7 = spIdx + 7;
-    int spIdx8 = spIdx + 8;
+    int spData0 = spadAddr[spIdx + 0];
+    int spData1 = spadAddr[spIdx + 1];
+    int spData2 = spadAddr[spIdx + 2];
+    int spData3 = spadAddr[spIdx + 3];
+    int spData4 = spadAddr[spIdx + 4];
+    int spData5 = spadAddr[spIdx + 5];
+    int spData6 = spadAddr[spIdx + 6];
+    int spData7 = spadAddr[spIdx + 7];
+    int spData8 = spadAddr[spIdx + 8];
 
     // center computation with local values
     // important to put non-predicated first so any shared values between pred blocks
     // are not masked out... really need compiler help on this
     c_ = 0;
-    c_ += b0 * spadAddr[spIdx0];
-    c_ += b1 * spadAddr[spIdx1];
-    c_ += b2 * spadAddr[spIdx2];
-    c_ += b3 * spadAddr[spIdx3];
-    c_ += b4 * spadAddr[spIdx4];
-    c_ += b5 * spadAddr[spIdx5];
-    c_ += b6 * spadAddr[spIdx6];
-    c_ += b7 * spadAddr[spIdx7];
-    c_ += b8 * spadAddr[spIdx8];
+    c_ += b0 * spData0;
+    c_ += b1 * spData1;
+    c_ += b2 * spData2;
+    c_ += b3 * spData3;
+    c_ += b4 * spData4;
+    c_ += b5 * spData5;
+    c_ += b6 * spData6;
+    c_ += b7 * spData7;
+    c_ += b8 * spData8;
     STORE_NOACK(c_, cPtr + 1, 0);
 
     // fetch one column from the left to perform leftmost computation
     PRED_NEQ(vtid, 0);
     c_ = 0;
-    c_ += b0 * prevSpadAddr[spIdx6];
-    c_ += b1 * prevSpadAddr[spIdx7];
-    c_ += b2 * prevSpadAddr[spIdx8];
-    c_ += b3 * spadAddr[spIdx0];
-    c_ += b4 * spadAddr[spIdx1];
-    c_ += b5 * spadAddr[spIdx2];
-    c_ += b6 * spadAddr[spIdx3];
-    c_ += b7 * spadAddr[spIdx4];
-    c_ += b8 * spadAddr[spIdx5];
+    c_ += b0 * prevSpadAddr[spIdx + 2];
+    c_ += b1 * spData0;
+    c_ += b2 * spData1;
+    c_ += b3 * prevSpadAddr[spIdx + 5];
+    c_ += b4 * spData3;
+    c_ += b5 * spData4;
+    c_ += b6 * prevSpadAddr[spIdx + 8];
+    c_ += b7 * spData6;
+    c_ += b8 * spData7;
     STORE_NOACK(c_, cPtr, 0);
     PRED_EQ(vtid, vtid);
 
     // fetch one column from the right to perform rightmost computation
     PRED_NEQ(vtid, 3); // last core in group can't do this
     c_ = 0;
-    c_ += b0 * spadAddr[spIdx3];
-    c_ += b1 * spadAddr[spIdx4];
-    c_ += b2 * spadAddr[spIdx5];
-    c_ += b3 * spadAddr[spIdx6];
-    c_ += b4 * spadAddr[spIdx7];
-    c_ += b5 * spadAddr[spIdx8];
-    c_ += b6 * nextSpadAddr[spIdx0];
-    c_ += b7 * nextSpadAddr[spIdx1];
-    c_ += b8 * nextSpadAddr[spIdx2];
+    c_ += b0 * spData1;
+    c_ += b1 * spData2;
+    c_ += b2 * nextSpadAddr[spIdx + 0];
+    c_ += b3 * spData4;
+    c_ += b4 * spData5;
+    c_ += b5 * nextSpadAddr[spIdx + 3];
+    c_ += b6 * spData7;
+    c_ += b7 * spData8;
+    c_ += b8 * nextSpadAddr[spIdx + 6];
     STORE_NOACK(c_, cPtr + 2, 0);
     PRED_EQ(vtid, vtid);
 

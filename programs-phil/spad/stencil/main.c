@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
   
   // default values
   int nrows = 1 + (FILTER_DIM - 1); // single row
-  int ncols = 36; //32; // + (FILTER_DIM - 1);
+  int ncols = 12; //32; // + (FILTER_DIM - 1);
   
   // parse positional arguments (X Y)
   if (argc > 1) {
@@ -38,10 +38,10 @@ int main(int argc, char *argv[]) {
     nrows = atoi(argv[2]);
   }
 
-  if (ncols < 32) {
-    printf("[[TODO]] size too small for good prefetching. exiting\n");
-    return 1;
-  }
+  // if (ncols < 32) {
+  //   printf("[[TODO]] size too small for good prefetching. exiting\n");
+  //   return 1;
+  // }
   
   printf("Stencil %dx%d on %dx%d image. Num cores is %d\n", FILTER_DIM, FILTER_DIM, ncols, nrows, num_cores);
 
@@ -59,6 +59,18 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < nrows * ncols; i++) {
     a[i] = i + 1;
   }
+    for (int i = 0; i < ncols; i++) {
+    printf("%d ", a[i]);
+  }
+  printf("\n");
+  for (int i = ncols; i < 2*ncols; i++) {
+    printf("%d ", a[i]);
+  }
+  printf("\n");
+  for (int i = 2*ncols; i < 3*ncols; i++) {
+    printf("%d ", a[i]);
+  }
+  printf("\n");
   #ifndef REUSE
   int group_len = 4;
   DTYPE *a_re_ptr;
@@ -78,14 +90,18 @@ int main(int argc, char *argv[]) {
       }
     }
   }
-  // for (int i = 0; i < ncols; i++) {
-  //   printf("%d ", a_re[i]);
-  // }
-  // printf("\n");
-  // for (int i = ncols; i < 2*ncols; i++) {
-  //   printf("%d ", a_re[i]);
-  // }
-  // printf("\n");
+  for (int i = 0; i < ncols; i++) {
+    printf("%d ", a_re[i]);
+  }
+  printf("\n");
+  for (int i = ncols; i < 2*ncols; i++) {
+    printf("%d ", a_re[i]);
+  }
+  printf("\n");
+  for (int i = 2*ncols; i < 3*ncols; i++) {
+    printf("%d ", a_re[i]);
+  }
+  printf("\n");
   #endif
 
   // filter
@@ -111,7 +127,11 @@ int main(int argc, char *argv[]) {
   for (int y = 0; y < cores_y; y++) {
     for (int x = 0; x < cores_x; x++){
       int i = x + y * cores_x; 
+      #ifndef REUSE
+      kern_args[i] = construct_args(a_re, b, c, nrows, ncols, x, y, cores_x, cores_y);
+      #else
       kern_args[i] = construct_args(a, b, c, nrows, ncols, x, y, cores_x, cores_y);
+      #endif
     }  
   }
 
@@ -139,16 +159,18 @@ int main(int argc, char *argv[]) {
       if (c[row * (ncols /*- boundOffset*/) + col] != cexp) {
         printf("%d != %d @ row %d cold %d\n", c[row * (ncols /*- boundOffset*/) + col], cexp, row, col);
         printf("[[FAIL]]\n");
-        return 1;
+        // return 1;
       }
-      // printf("%d == %d @ row %d cold %d\n", c[row * (ncols /*- boundOffset*/) + col], cexp, row, col);
+      else {
+        printf("%d == %d @ row %d cold %d\n", c[row * (ncols /*- boundOffset*/) + col], cexp, row, col);
+      }
     }
   }
   
   free(a_ptr);
   free(b_ptr);
   free(c_ptr);
-  
+
   #ifndef REUSE
   free(a_re_ptr);
   #endif
