@@ -940,7 +940,7 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
    * From a remote CPU/Xcel, access to data
    */
   else {
-    // check if this remote access is to a framed region of the scratchpad
+    /*// check if this remote access is to a framed region of the scratchpad
     // and then force to abide by frame rules
     if (isRegionAccess(pkt_p)) {
       DPRINTF(Mesh, "region access from remote store %s\n", pkt_p->print());
@@ -950,14 +950,14 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
       pkt_p = new Packet(pkt_p, false, false);
       pkt_p->makeResponse();
     }
-    else {
+    else {*/
       // record remote access here
       if (pkt_p->isRead()) m_remote_loads++;
       else if (pkt_p->isWrite()) m_remote_stores++;
       
       // access data array
       accessDataArray(pkt_p);
-    }
+    // }
   }
 
   // Make and queue the message

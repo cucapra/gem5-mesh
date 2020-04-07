@@ -107,13 +107,24 @@ stencil(
   else if (vtid == 2) prevSpadAddr = (int*)getSpAddr(ptid - 3, 0); // GRID_DIM = 4 - 1 = 3
   if (vtid == 0 || vtid == 2) nextSpadAddr = (int*)getSpAddr(ptid + 1, 0);
   if (vtid == 1) nextSpadAddr = (int*)getSpAddr(ptid + 3, 0);
+
+  // start offset for cptr
+  int startOffset = 0;
+  if (vtid == 0) startOffset = -1;
+  else if (vtid == 1) startOffset = 2;
+  else if (vtid == 2) startOffset = 5;
+  else if (vtid == 3) startOffset = 8;
+  #else
+  int startOffset = vtid;
   #endif
 
   int frameSize = FILTER_DIM * FILTER_DIM;
 
+
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
-
+  volatile int ohjeez = 1;
+  if (ohjeez) {
   // have r = 0 for now
   // will need broadcast to support r > 0
   int spadIdx = 0;
@@ -232,8 +243,9 @@ stencil(
 
   // we are doing lazy store acks, so use this to make sure all stores have commited to memory
   asm volatile("fence\n\t");
-
+  }
   return;
+  
 
   // vector engine code
 
@@ -254,7 +266,7 @@ stencil(
   //   }
     iter = 0;
     spIdx = 0;
-    cPtr = c + (start_row * ncols) + vtid;
+    cPtr = c + (start_row * ncols) + startOffset;
     b0 = b[0];
     b1 = b[1];
     b2 = b[2];
@@ -267,7 +279,7 @@ stencil(
   
   // loop body block
   fable1:
-    c_ = 0;
+
     // frameStart = iter * frameSize;
     // baseIdx = iter * FILTER_DIM * FILTER_DIM;
     spIdx = spIdx % POST_REGION_WORD;
@@ -282,46 +294,64 @@ stencil(
     // also could access an indirection array that gives and then have counter mod 3
     // or could even have 3 seperate issue block
 
-    // fetch one column from the left to perform leftmost computation
-    c_ += b0 * nextSpadAddr[spIdx + 6];
-    c_ += b1 * nextSpadAddr[spIdx + 7];
-    c_ += b2 * nextSpadAddr[spIdx + 8];
-    c_ += b3 * spadAddr[spIdx + 0];
-    c_ += b4 * spadAddr[spIdx + 1];
-    c_ += b5 * spadAddr[spIdx + 2];
-    c_ += b6 * spadAddr[spIdx + 3];
-    c_ += b7 * spadAddr[spIdx + 4];
-    c_ += b8 * spadAddr[spIdx + 5];
-    STORE_NOACK(c_, cPtr, 0);
-    cPtr++;
+
+    int spIdx0 = spIdx + 0;
+    int spIdx1 = spIdx + 1;
+    int spIdx2 = spIdx + 2;
+    int spIdx3 = spIdx + 3;
+    int spIdx4 = spIdx + 4;
+    int spIdx5 = spIdx + 5;
+    int spIdx6 = spIdx + 6;
+    int spIdx7 = spIdx + 7;
+    int spIdx8 = spIdx + 8;
 
     // center computation with local values
+    // important to put non-predicated first so any shared values between pred blocks
+    // are not masked out... really need compiler help on this
     c_ = 0;
-    c_ += b0 * spadAddr[spIdx + 0];
-    c_ += b1 * spadAddr[spIdx + 1];
-    c_ += b2 * spadAddr[spIdx + 2];
-    c_ += b3 * spadAddr[spIdx + 3];
-    c_ += b4 * spadAddr[spIdx + 4];
-    c_ += b5 * spadAddr[spIdx + 5];
-    c_ += b6 * spadAddr[spIdx + 6];
-    c_ += b7 * spadAddr[spIdx + 7];
-    c_ += b8 * spadAddr[spIdx + 8];
+    c_ += b0 * spadAddr[spIdx0];
+    c_ += b1 * spadAddr[spIdx1];
+    c_ += b2 * spadAddr[spIdx2];
+    c_ += b3 * spadAddr[spIdx3];
+    c_ += b4 * spadAddr[spIdx4];
+    c_ += b5 * spadAddr[spIdx5];
+    c_ += b6 * spadAddr[spIdx6];
+    c_ += b7 * spadAddr[spIdx7];
+    c_ += b8 * spadAddr[spIdx8];
+    STORE_NOACK(c_, cPtr + 1, 0);
+
+    // fetch one column from the left to perform leftmost computation
+    PRED_NEQ(vtid, 0);
+    c_ = 0;
+    c_ += b0 * prevSpadAddr[spIdx6];
+    c_ += b1 * prevSpadAddr[spIdx7];
+    c_ += b2 * prevSpadAddr[spIdx8];
+    c_ += b3 * spadAddr[spIdx0];
+    c_ += b4 * spadAddr[spIdx1];
+    c_ += b5 * spadAddr[spIdx2];
+    c_ += b6 * spadAddr[spIdx3];
+    c_ += b7 * spadAddr[spIdx4];
+    c_ += b8 * spadAddr[spIdx5];
     STORE_NOACK(c_, cPtr, 0);
-    cPtr++;
+    PRED_EQ(vtid, vtid);
 
     // fetch one column from the right to perform rightmost computation
+    PRED_NEQ(vtid, 3); // last core in group can't do this
     c_ = 0;
-    c_ += b0 * spadAddr[spIdx + 3];
-    c_ += b1 * spadAddr[spIdx + 4];
-    c_ += b2 * spadAddr[spIdx + 5];
-    c_ += b3 * spadAddr[spIdx + 6];
-    c_ += b4 * spadAddr[spIdx + 7];
-    c_ += b5 * spadAddr[spIdx + 8];
-    c_ += b6 * prevSpadAddr[spIdx + 0];
-    c_ += b7 * prevSpadAddr[spIdx + 1];
-    c_ += b8 * prevSpadAddr[spIdx + 2];
-    STORE_NOACK(c_, cPtr, 0);
-    cPtr+=dim*3;
+    c_ += b0 * spadAddr[spIdx3];
+    c_ += b1 * spadAddr[spIdx4];
+    c_ += b2 * spadAddr[spIdx5];
+    c_ += b3 * spadAddr[spIdx6];
+    c_ += b4 * spadAddr[spIdx7];
+    c_ += b5 * spadAddr[spIdx8];
+    c_ += b6 * nextSpadAddr[spIdx0];
+    c_ += b7 * nextSpadAddr[spIdx1];
+    c_ += b8 * nextSpadAddr[spIdx2];
+    STORE_NOACK(c_, cPtr + 2, 0);
+    PRED_EQ(vtid, vtid);
+
+    // 10 results are computed per reuse iteration
+    cPtr+=10;
 
     #else
     // #pragma GCC unroll 9
@@ -482,7 +512,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = (float)effRows / 3.0f;
+    end = effRows; //(float)effRows / 3.0f;
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -556,7 +586,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VEC)
-  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
+  if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #else
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
