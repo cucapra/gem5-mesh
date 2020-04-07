@@ -12,15 +12,29 @@
   Filter is cached in each spad.
   9 values are prefetched per frame
   Parallelize innermost loops (unrolled) so we can get away with codegen trick
+
+  Reuse strategy - constraint is equal frame sizes and can't do remote stores to fill frames
+  Each core gets 3 elements just like no reuse case but none are overlapping
+  Its up to each core to do compute for those 3 elements and the two adjacents ones 
+  Load x + 0, x + 1, x + 2
+  Compute
+  x - 1, x + 0, x + 1
+         x + 0, x + 1, x + 2
+                x + 1, x + 2, x + 3
+  With this strategy you are the only core to have to load x + 1
+  You have to reorder the data to implement! ( spaced out by strides )
+  0 1 2 3 | 4 5 6 7  | 8 9 10 11 || 12 13 14 15
+  0 3 6 9 | 1 4 7 10 | 2 5 8  11 || 12 15 18 21 
+
 */
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
-// #define VEC_4_SIMD_REUSE 1
+#define VEC_4_SIMD_REUSE 1
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
-#define VEC_4_SIMD_LARGE_FRAME 1
+// #define VEC_4_SIMD_LARGE_FRAME 1
 
 // vvadd_execute config directives
 #if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
@@ -86,23 +100,16 @@ stencil(
   int *spadAddr = (int*)getSpAddr(ptid, 0);
 
   #ifdef REUSE
-  // calculate next spAddr for reuse
-  int *prevSpAddr = NULL;
-  if (vtid == 1 || vtid == 3) prevSpAddr = (int*)getSpAddr(ptid - 1, 0);
-  else if (vtid == 2) prevSpAddr = (int*)getSpAddr(ptid - 3, 0); // GRID_DIM = 4 - 1 = 3
-  // vtid=3 doesn't do this and must be predicated
-  int frameSize = FILTER_DIM;
-  if (vtid == 0) frameSize = FILTER_DIM * FILTER_DIM;
-  int *leftCol = prevSpAddr + 0;
-  int *midCol = prevSpAddr + 3;
-  int *rightCol = spadAddr;
-  if (vtid == 0) {
-    leftCol = spadAddr + 3;
-    midCol = spadAddr + 6;
-  }
-  #else
+  // calculate prev and next spAddr for reuse
+  int *prevSpadAddr = NULL;
+  int *nextSpadAddr = NULL;
+  if (vtid == 1 || vtid == 3) prevSpadAddr = (int*)getSpAddr(ptid - 1, 0);
+  else if (vtid == 2) prevSpadAddr = (int*)getSpAddr(ptid - 3, 0); // GRID_DIM = 4 - 1 = 3
+  if (vtid == 0 || vtid == 2) nextSpadAddr = (int*)getSpAddr(ptid + 1, 0);
+  if (vtid == 1) nextSpadAddr = (int*)getSpAddr(ptid + 3, 0);
+  #endif
+
   int frameSize = FILTER_DIM * FILTER_DIM;
-  #endif 
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
@@ -118,9 +125,6 @@ stencil(
   int effCols = ncols - (FILTER_DIM - 1);
 
   // do initial batch of prefetching. only prefetch part of the first row
-  #ifdef REUSE
-  int beginCol = 0;
-  #else
   // you need to guarentee that a full region worth of frames are in flight before issuing a block that will consume
   #ifdef LARGE_FRAME
   int prefetchFrames = FRAMES_PER_REGION;
@@ -141,42 +145,13 @@ stencil(
       }
     }
   }
-  #endif
 
+  #ifndef REUSE
   for (int r = start_row; r < end_row; r++) {
     int startCol = 0;
     // we've prefetch part of the first row to get ahead
     if (r == start_row) startCol = beginCol;
     for (int c = startCol; c < effCols; c+=dim) {
-      #ifdef REUSE
-      int frameIdx = 0;
-
-      // load the last value into each core which cannot be received from prev core
-      // these need to go first b/c all cores will recv this in their frame
-      // a2 a5 a8 | a0 a1 a3 a4 a6 a7
-      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = FILTER_DIM - 1; k2 < FILTER_DIM; k2++) {
-          int aIdx = (r + k1) * ncols + (c + k2);
-
-          VPREFETCH_L(frameIdx, a + aIdx, 0, 4);
-          VPREFETCH_R(frameIdx, a + aIdx, 0, 4);
-          frameIdx++;
-        }
-      }
-
-      // load the first two columns just into vtid0 to be shared
-      for (int k2 = 0; k2 < FILTER_DIM - 1; k2++) {
-        for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-          int aIdx = (r + k1) * ncols + (c + k2);
-          
-          VPREFETCH_L(frameIdx, a + aIdx, 0, 1);
-          frameIdx++;
-        }
-      }
-
-
-
-      #else
       // prefetch all 9 values required for computation
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
@@ -199,25 +174,58 @@ stencil(
           }
         }
       }
-      #endif
 
       ISSUE_VINST(fable1);
     }
   }
+  #elif defined(REUSE)
+  int issueCntr = 0;
+  for (int r = start_row; r < end_row; r++) {
+    int startCol = 0;
+    // we've prefetch part of the first row to get ahead
+    if (r == start_row) startCol = beginCol;
+    for (int c = startCol; c < effCols; c+=dim) {
+      // prefetch all 9 values required for computation
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
+          int aIdx = (r + k1) * ncols + (c + k2);
+          
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
+
+          // spad is circular buffer so do cheap mod here
+          spadIdx++;
+          if (spadIdx == POST_REGION_WORD) {
+            spadIdx = 0;
+          }
+        }
+      }
+
+      // issue every 3 prefetches
+      issueCntr++;
+      if (issueCntr == 3) {
+        issueCntr = 0;
+        ISSUE_VINST(fable1);
+      }
+    }
+  }
+  #endif
 
   completeHardwareFrame(spadIdx, a);
 
-  #ifndef REUSE
   // issue the rest of blocks
   for (int r = start_row; r < end_row; r++) {
     // take some loads off the last row b/c already prefetched
     int colStart = effCols;
     if (r == end_row - 1) colStart = effCols - beginCol;
     for (int c = colStart; c < effCols; c+=dim) {
-      ISSUE_VINST(fable1);
+      issueCntr++;
+      if (issueCntr == 3) {
+        issueCntr = 0;
+        ISSUE_VINST(fable1);
+      }
     }
   }
-  #endif
 
   // devec with unique tag
   DEVEC(devec_0);
@@ -269,33 +277,51 @@ stencil(
 
     #ifdef REUSE
 
-    // shared computation of first part
-    // note since this part has common memory structure
-    // a2 a5 a8 | a0 a3 a6 a1 a4 a7
-    // LWSPEC(a2, spadAddr + frameStart + 0, 0);
-    // LWSPEC(a5, spadAddr + frameStart + 1, 0);
-    // LWSPEC(a8, spadAddr + frameStart + 2, 0);
-    a2 = rightCol[frameStart + 0];
-    a5 = rightCol[frameStart + 1];
-    a8 = rightCol[frameStart + 2];
-    c_ += a2 * b2;
-    c_ += a5 * b5;
-    c_ += a8 * b8;
+    // note we need to unroll in order to get cPtr indexing to work b/c it goes +1 +1 +3*dim
+    // potentially can move routine into a function call?
+    // also could access an indirection array that gives and then have counter mod 3
+    // or could even have 3 seperate issue block
 
-    // vectorize load (diff address but same number of loads) so don't need predication
-    a0 = leftCol[baseIdx + 0];
-    a3 = leftCol[baseIdx + 1];
-    a6 = leftCol[baseIdx + 2];
-    c_ += a0 * b0;
-    c_ += a3 * b3;
-    c_ += a6 * b6;
+    // fetch one column from the left to perform leftmost computation
+    c_ += b0 * nextSpadAddr[spIdx + 6];
+    c_ += b1 * nextSpadAddr[spIdx + 7];
+    c_ += b2 * nextSpadAddr[spIdx + 8];
+    c_ += b3 * spadAddr[spIdx + 0];
+    c_ += b4 * spadAddr[spIdx + 1];
+    c_ += b5 * spadAddr[spIdx + 2];
+    c_ += b6 * spadAddr[spIdx + 3];
+    c_ += b7 * spadAddr[spIdx + 4];
+    c_ += b8 * spadAddr[spIdx + 5];
+    STORE_NOACK(c_, cPtr, 0);
+    cPtr++;
 
-    a1 = midCol[baseIdx + 1];
-    a4 = midCol[baseIdx + 2];
-    a7 = midCol[baseIdx + 3];
-    c_ += a1 * b1;
-    c_ += a4 * a4;
-    c_ += a7 * a7;
+    // center computation with local values
+    c_ = 0;
+    c_ += b0 * spadAddr[spIdx + 0];
+    c_ += b1 * spadAddr[spIdx + 1];
+    c_ += b2 * spadAddr[spIdx + 2];
+    c_ += b3 * spadAddr[spIdx + 3];
+    c_ += b4 * spadAddr[spIdx + 4];
+    c_ += b5 * spadAddr[spIdx + 5];
+    c_ += b6 * spadAddr[spIdx + 6];
+    c_ += b7 * spadAddr[spIdx + 7];
+    c_ += b8 * spadAddr[spIdx + 8];
+    STORE_NOACK(c_, cPtr, 0);
+    cPtr++;
+
+    // fetch one column from the right to perform rightmost computation
+    c_ = 0;
+    c_ += b0 * spadAddr[spIdx + 3];
+    c_ += b1 * spadAddr[spIdx + 4];
+    c_ += b2 * spadAddr[spIdx + 5];
+    c_ += b3 * spadAddr[spIdx + 6];
+    c_ += b4 * spadAddr[spIdx + 7];
+    c_ += b5 * spadAddr[spIdx + 8];
+    c_ += b6 * prevSpadAddr[spIdx + 0];
+    c_ += b7 * prevSpadAddr[spIdx + 1];
+    c_ += b8 * prevSpadAddr[spIdx + 2];
+    STORE_NOACK(c_, cPtr, 0);
+    cPtr+=dim*3;
 
     #else
     // #pragma GCC unroll 9
@@ -313,19 +339,73 @@ stencil(
     c_ += b6 * spadAddr[spIdx + 6];
     c_ += b7 * spadAddr[spIdx + 7];
     c_ += b8 * spadAddr[spIdx + 8];
+
+    STORE_NOACK(c_, cPtr, 0);
+    cPtr += dim;
     #endif
 
     REMEM(frameSize);
 
-    STORE_NOACK(c_, cPtr, 0);
-    // do no reuse version for now
-    cPtr += dim;
     spIdx += frameSize;
     
     // need this jump to create loop carry dependencies
     // an assembly pass will remove this instruction
     asm volatile goto("j %l[fable1]\n\t"::::fable1);
-  
+  // #else
+  // fable1:
+  //   // fetch one column from the left to perform leftmost computation
+  //   c_ = 0;
+  //   spIdx = spIdx % POST_REGION_WORD;
+  //   FRAME_START(frameSize);
+  //   c_ += b0 * nextSpadAddr[spIdx + 6];
+  //   c_ += b1 * nextSpadAddr[spIdx + 7];
+  //   c_ += b2 * nextSpadAddr[spIdx + 8];
+  //   c_ += b3 * spadAddr[spIdx + 0];
+  //   c_ += b4 * spadAddr[spIdx + 1];
+  //   c_ += b5 * spadAddr[spIdx + 2];
+  //   c_ += b6 * spadAddr[spIdx + 3];
+  //   c_ += b7 * spadAddr[spIdx + 4];
+  //   c_ += b8 * spadAddr[spIdx + 5];
+  //   STORE_NOACK(c_, cPtr, 0);
+  //   cPtr++;
+  // fable2:
+  //   // center computation with local values
+  //   c_ = 0;
+  //   spIdx = spIdx % POST_REGION_WORD;
+  //   FRAME_START(frameSize);
+  //   c_ += b0 * spadAddr[spIdx + 0];
+  //   c_ += b1 * spadAddr[spIdx + 1];
+  //   c_ += b2 * spadAddr[spIdx + 2];
+  //   c_ += b3 * spadAddr[spIdx + 3];
+  //   c_ += b4 * spadAddr[spIdx + 4];
+  //   c_ += b5 * spadAddr[spIdx + 5];
+  //   c_ += b6 * spadAddr[spIdx + 6];
+  //   c_ += b7 * spadAddr[spIdx + 7];
+  //   c_ += b8 * spadAddr[spIdx + 8];
+  //   STORE_NOACK(c_, cPtr, 0);
+  //   cPtr++;
+
+  // fable3:
+  //   // fetch one column from the right to perform rightmost computation
+  //   c_ = 0;
+  //   spIdx = spIdx % POST_REGION_WORD;
+  //   FRAME_START(frameSize);
+  //   c_ += b0 * spadAddr[spIdx + 3];
+  //   c_ += b1 * spadAddr[spIdx + 4];
+  //   c_ += b2 * spadAddr[spIdx + 5];
+  //   c_ += b3 * spadAddr[spIdx + 6];
+  //   c_ += b4 * spadAddr[spIdx + 7];
+  //   c_ += b5 * spadAddr[spIdx + 8];
+  //   c_ += b6 * prevSpadAddr[spIdx + 0];
+  //   c_ += b7 * prevSpadAddr[spIdx + 1];
+  //   c_ += b8 * prevSpadAddr[spIdx + 2];
+  //   STORE_NOACK(c_, cPtr, 0);
+  //   cPtr+=dim*3;
+  //   REMEM(frameSize);
+  //   spIdx += frameSize;
+  //   asm volatile goto("j %l[fable1]\n\t"::::fable1);
+  // #endif
+
   return;
 }
 #else

@@ -28,7 +28,7 @@ int main(int argc, char *argv[]) {
   
   // default values
   int nrows = 3 + (FILTER_DIM - 1); // single row
-  int ncols = 32; // + (FILTER_DIM - 1);
+  int ncols = 36; //32; // + (FILTER_DIM - 1);
   
   // parse positional arguments (X Y)
   if (argc > 1) {
@@ -54,11 +54,39 @@ int main(int argc, char *argv[]) {
   DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_ptr);
   DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), FILTER_DIM * FILTER_DIM, (void**)&b_ptr);
   DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), (nrows - boundOffset) * (ncols /*- boundOffset*/), (void**)&c_ptr);
-  printf("a %p b %p c %p\n", a, b, c);
+
   // image
   for (int i = 0; i < nrows * ncols; i++) {
     a[i] = i + 1;
   }
+  #ifndef REUSE
+  int group_len = 4;
+  DTYPE *a_re_ptr;
+  DTYPE *a_re = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_re_ptr); 
+  // 0 1 2 3 | 4 5 6 7  | 8 9 10 11 || 12 13 14 15
+  // 0 3 6 9 | 1 4 7 10 | 2 5 8  11 || 12 15 18 21 
+  for (int r = 0; r < nrows; r++) { // each row is independent
+    for (int g = 0; g < ncols; g+=group_len*FILTER_DIM) { // reuse groups ( see || above )
+      for (int f = 0; f < FILTER_DIM; f++) { // number of elements per core ( see | above )
+        for (int c = 0; c < group_len; c++) { // vector fetch
+          int thisCol = f * group_len + c;
+          int replCol = f + c * FILTER_DIM;
+          int thisIdx = r * ncols + thisCol + g;
+          int replIdx = r * ncols + replCol + g;
+          a_re[thisIdx] = a[replIdx];
+        }
+      }
+    }
+  }
+  // for (int i = 0; i < ncols; i++) {
+  //   printf("%d ", a_re[i]);
+  // }
+  // printf("\n");
+  // for (int i = ncols; i < 2*ncols; i++) {
+  //   printf("%d ", a_re[i]);
+  // }
+  // printf("\n");
+  #endif
 
   // filter
   // 1 2 3
@@ -120,6 +148,10 @@ int main(int argc, char *argv[]) {
   free(a_ptr);
   free(b_ptr);
   free(c_ptr);
+  
+  #ifndef REUSE
+  free(a_re_ptr);
+  #endif
   
   printf("[[SUCCESS]]\n");
   
