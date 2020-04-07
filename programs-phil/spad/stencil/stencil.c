@@ -343,6 +343,7 @@ stencil(
     // definetly something wrong with pred...
     // fetch one column from the left to perform leftmost computation
     PRED_NEQ(vtid, 0);
+    if (ohjeez) {
     c_ = 0;
     c_ += b0 * prevSpadAddr[spIdx + 2];
     c_ += b1 * spData0;
@@ -354,10 +355,12 @@ stencil(
     c_ += b7 * spData6;
     c_ += b8 * spData7;
     STORE_NOACK(c_, cPtr, 0);
+    }
     PRED_EQ(vtid, vtid);
 
     // fetch one column from the right to perform rightmost computation
     PRED_NEQ(vtid, 3); // last core in group can't do this
+    if (ohjeez) { 
     c_ = 0;
     c_ += b0 * spData1;
     c_ += b1 * spData2;
@@ -369,6 +372,7 @@ stencil(
     c_ += b7 * spData8;
     c_ += b8 * nextSpadAddr[spIdx + 6];
     STORE_NOACK(c_, cPtr + 2, 0);
+    }
     PRED_EQ(vtid, vtid);
 
     // 10 results are computed per reuse iteration
