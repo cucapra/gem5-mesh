@@ -79,18 +79,21 @@ int main(int argc, char *argv[]) {
       // the first group in a section gets special behavior
       // and the first group in the first sharing section gets very special behavior
       int offset = 0;
+      int rowStart = r * ncols;
       for (int g = 0; g < group_len; g++) {
         if (g == 0) {
-          offset = colIdx; // base
+          offset = rowStart + colIdx; // base
           if (section == 0) {
             for (int i = 0; i < FILTER_DIM; i++) {
-              a_re[colIdx] = a[colIdx];
+              int idx = rowStart + colIdx;
+              a_re[idx] = a[idx];
               colIdx++;
             }
             offset += FILTER_DIM;
           }
           else {
-            a_re[colIdx] = a[colIdx];
+            int idx = rowStart + colIdx;
+            a_re[idx] = a[idx];
             colIdx++;
             offset++;
           }
@@ -98,7 +101,7 @@ int main(int argc, char *argv[]) {
         else {
           for (int i = 0; i < (group_len - 1); i++) {
             int replIdx = offset + (g - 1) + i * FILTER_DIM;
-            a_re[colIdx] = a[replIdx];
+            a_re[rowStart + colIdx] = a[replIdx];
             colIdx++;
           }
         }
@@ -116,15 +119,18 @@ int main(int argc, char *argv[]) {
     //   }
     // }
   }
+  for (int r = 0; r < nrows; r++) {
   for (int i = 0; i < ncols; i++) {
-    printf("%d ", a[i]);
+    printf("%d ", a[r * ncols + i]);
   }
   printf("\n");
+  }
+  for (int r = 0; r < nrows; r++) {
   for (int i = 0; i < ncols; i++) {
-    printf("%d ", a_re[i]);
+    printf("%d ", a_re[r * ncols + i]);
   }
   printf("\n");
-  return 1;
+  }
   #endif
 
   // filter
