@@ -366,7 +366,7 @@ stencil(
     PRED_EQ(vtid, vtid);
 
     // 10 results are computed per reuse iteration
-    cPtr+=10;
+    cPtr+=FILTER_DIM*dim - 2;
 
     #else
     // #pragma GCC unroll 9

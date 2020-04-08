@@ -53,7 +53,7 @@ int main(int argc, char *argv[]) {
   DTYPE *a_ptr, *b_ptr, *c_ptr;
   DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_ptr);
   DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), FILTER_DIM * FILTER_DIM, (void**)&b_ptr);
-  DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), (nrows - boundOffset) * (ncols /*- boundOffset*/), (void**)&c_ptr);
+  DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), (nrows - boundOffset) * (ncols - boundOffset), (void**)&c_ptr);
 
   // image
   for (int i = 0; i < nrows * ncols; i++) {
@@ -89,7 +89,7 @@ int main(int argc, char *argv[]) {
   }
 
   // result
-  for (int i = 0; i < (nrows - boundOffset) * (ncols /*- boundOffset*/); i++) {
+  for (int i = 0; i < (nrows - boundOffset) * (ncols - boundOffset); i++) {
     c[i] = 0;
   }
   
@@ -132,13 +132,13 @@ int main(int argc, char *argv[]) {
           cexp += b[bIdx] * a[aIdx];
         }
       }
-      if (c[row * (ncols /*- boundOffset*/) + col] != cexp) {
-        printf("%d != %d @ row %d cold %d\n", c[row * (ncols /*- boundOffset*/) + col], cexp, row, col);
+      if (c[row * (ncols - boundOffset) + col] != cexp) {
+        printf("%d != %d @ row %d cold %d\n", c[row * (ncols - boundOffset) + col], cexp, row, col);
         printf("[[FAIL]]\n");
         // return 1;
       }
       else {
-        printf("%d == %d @ row %d cold %d\n", c[row * (ncols /*- boundOffset*/) + col], cexp, row, col);
+        printf("%d == %d @ row %d cold %d\n", c[row * (ncols - boundOffset) + col], cexp, row, col);
       }
     }
   }
