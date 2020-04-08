@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int nrows = 1 + (FILTER_DIM - 1); // single row
+  int nrows = 2 + (FILTER_DIM - 1); // single row
   int ncols = 12; //32; // + (FILTER_DIM - 1);
   
   // parse positional arguments (X Y)
@@ -59,18 +59,6 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < nrows * ncols; i++) {
     a[i] = i + 1;
   }
-    for (int i = 0; i < ncols; i++) {
-    printf("%d ", a[i]);
-  }
-  printf("\n");
-  for (int i = ncols; i < 2*ncols; i++) {
-    printf("%d ", a[i]);
-  }
-  printf("\n");
-  for (int i = 2*ncols; i < 3*ncols; i++) {
-    printf("%d ", a[i]);
-  }
-  printf("\n");
   #ifndef REUSE
   int group_len = 4;
   DTYPE *a_re_ptr;
@@ -90,18 +78,6 @@ int main(int argc, char *argv[]) {
       }
     }
   }
-  for (int i = 0; i < ncols; i++) {
-    printf("%d ", a_re[i]);
-  }
-  printf("\n");
-  for (int i = ncols; i < 2*ncols; i++) {
-    printf("%d ", a_re[i]);
-  }
-  printf("\n");
-  for (int i = 2*ncols; i < 3*ncols; i++) {
-    printf("%d ", a_re[i]);
-  }
-  printf("\n");
   #endif
 
   // filter

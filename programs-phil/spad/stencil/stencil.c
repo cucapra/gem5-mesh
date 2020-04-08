@@ -207,34 +207,28 @@ stencil(
     }
   }
   #elif defined(REUSE)
-  int issueCntr = 0;
   for (int r = start_row; r < end_row; r++) {
     int startCol = 0;
     // we've prefetch part of the first row to get ahead
     if (r == start_row) startCol = beginCol;
-    for (int c = startCol; c < effCols; c+=dim) {
+    for (int c = startCol; c < effCols; c+=dim*FILTER_DIM) {
       // prefetch all 9 values required for computation
-      // for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-      //   for (int k2 = 0; k2 < 1; k2++) {
-      //     int aIdx = (r + k1) * ncols + (c + k2);
-          
-      //     VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
-      //     VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
+          int aIdx = (r + k1) * ncols + (c + (k2 *dim));
+          // printf("r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
 
-      //     // spad is circular buffer so do cheap mod here
-      //     spadIdx++;
-      //     if (spadIdx == POST_REGION_WORD) {
-      //       spadIdx = 0;
-      //     }
-      //   }
-      // }
-
-      // issue every 3 prefetches
-      issueCntr++;
-      if (issueCntr == 3) {
-        issueCntr = 0;
-        ISSUE_VINST(fable1);
+          // spad is circular buffer so do cheap mod here
+          spadIdx++;
+          if (spadIdx == POST_REGION_WORD) {
+            spadIdx = 0;
+          }
+        }
       }
+
+      ISSUE_VINST(fable1);
     }
   }
   #endif
@@ -248,12 +242,8 @@ stencil(
     // take some loads off the last row b/c already prefetched
     int colStart = effCols;
     if (r == end_row - 1) colStart = effCols - beginCol;
-    for (int c = colStart; c < effCols; c+=dim) {
-      issueCntr++;
-      if (issueCntr == 3) {
-        issueCntr = 0;
-        ISSUE_VINST(fable1);
-      }
+    for (int c = colStart; c < effCols; c+=dim*FILTER_DIM) {
+      ISSUE_VINST(fable1);
     }
   }
 
