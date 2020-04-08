@@ -160,15 +160,44 @@ stencil(
   }
   #else
   for (int r = start_row; r < start_row + 1; r++) {
-    for (int c = 0; c < beginCol; c+=dim*FILTER_DIM) {
+    int c = 0;
+    while (c < beginCol) {
+    // for (int c = 0; c < beginCol; c+=dim*FILTER_DIM) {
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
-          int aIdx = (r + k1) * ncols + (c + (k2 * dim));
-          // printf("r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
-          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
-          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
-          spadIdx++;
+
+        // do the three loads for the first core, which is somewhat complicated
+        // because needs individually picked loads
+        int core0Idx = (r + k1) * ncols + c;
+        if (c == 0) {
+          VPREFETCH_L(spadIdx, a + core0Idx, 0, 1);
+          VPREFETCH_L(spadIdx, a + core0Idx + 1, 0, 1);
+          VPREFETCH_L(spadIdx, a + core0Idx + 2, 0, 1);
+
+          for (int k2 = 0; k2 < FILTER_DIM; k2++) {
+            int aIdx = (r + k1) * ncols + (c + FILTER_DIM + (k2 * (dim - 1)));
+            // printf("r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
+
+            VPREFETCH_L(spadIdx, a + aIdx, 1, 3);
+            VPREFETCH_R(spadIdx, a + aIdx, 1, 3);
+            spadIdx++;
+          }
         }
+        else {
+          VPREFETCH_L(spadIdx, a + core0Idx, 0, 1);
+          VPREFETCH_L(spadIdx, a + core0Idx - 1, 0, 1);
+          VPREFETCH_L(spadIdx, a + core0Idx - 1 - (dim - 1), 0, 1);
+
+          for (int k2 = 0; k2 < FILTER_DIM; k2++) {
+            int aIdx = (r + k1) * ncols + (c + (k2 * dim));
+            // printf("r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
+
+            VPREFETCH_L(spadIdx, a + aIdx, 1, 3);
+            VPREFETCH_R(spadIdx, a + aIdx, 1, 3);
+            spadIdx++;
+          }
+        }
+
+        
       }
     }
   }

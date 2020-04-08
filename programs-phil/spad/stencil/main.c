@@ -27,8 +27,8 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int nrows = 2 + (FILTER_DIM - 1); // single row
-  int ncols = 12; //32; // + (FILTER_DIM - 1);
+  int nrows = 1 + (FILTER_DIM - 1); // single row
+  int ncols = 24; // + (FILTER_DIM - 1);
   
   // parse positional arguments (X Y)
   if (argc > 1) {
@@ -61,23 +61,70 @@ int main(int argc, char *argv[]) {
   }
   #ifndef REUSE
   int group_len = 4;
+  int first_group_size = FILTER_DIM * group_len;
+  int normal_group_size = 1 + (FILTER_DIM * (group_len - 1));
+  int without_initial = ncols - first_group_size;
+  int num_sections = 1 + (without_initial / normal_group_size);
   DTYPE *a_re_ptr;
   DTYPE *a_re = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_re_ptr); 
   // 0 1 2 3 | 4 5 6 7  | 8 9 10 11 || 12 13 14 15
   // 0 3 6 9 | 1 4 7 10 | 2 5 8  11 || 12 15 18 21 
+  // if want to scale requires a different reorder. because first core needs to tie into last core
+  // 0 1 2 | 3 6 9 | 4 7 10 | 5 8 11 || 12 | 13 16 19 | 14 17 20 | 15 18 21 || 22 | 
   for (int r = 0; r < nrows; r++) { // each row is independent
-    for (int g = 0; g < ncols; g+=group_len*FILTER_DIM) { // reuse groups ( see || above )
-      for (int f = 0; f < FILTER_DIM; f++) { // number of elements per core ( see | above )
-        for (int c = 0; c < group_len; c++) { // vector fetch
-          int thisCol = f * group_len + c;
-          int replCol = f + c * FILTER_DIM;
-          int thisIdx = r * ncols + thisCol + g;
-          int replIdx = r * ncols + replCol + g;
-          a_re[thisIdx] = a[replIdx];
+    int colIdx = 0;
+    // sharing sections
+    for (int section = 0; section < num_sections; section++) {
+      // always 4 groups per sharing section
+      // the first group in a section gets special behavior
+      // and the first group in the first sharing section gets very special behavior
+      int offset = 0;
+      for (int g = 0; g < group_len; g++) {
+        if (g == 0) {
+          offset = colIdx; // base
+          if (section == 0) {
+            for (int i = 0; i < FILTER_DIM; i++) {
+              a_re[colIdx] = a[colIdx];
+              colIdx++;
+            }
+            offset += FILTER_DIM;
+          }
+          else {
+            a_re[colIdx] = a[colIdx];
+            colIdx++;
+            offset++;
+          }
+        }
+        else {
+          for (int i = 0; i < (group_len - 1); i++) {
+            int replIdx = offset + (g - 1) + i * FILTER_DIM;
+            a_re[colIdx] = a[replIdx];
+            colIdx++;
+          }
         }
       }
     }
+    // for (int g = 0; g < ncols; g+=group_len*FILTER_DIM) { // reuse groups ( see || above )
+    //   for (int f = 0; f < FILTER_DIM; f++) { // number of elements per core ( see | above )
+    //     for (int c = 0; c < group_len; c++) { // vector fetch
+    //       int thisCol = f * group_len + c;
+    //       int replCol = f + c * FILTER_DIM;
+    //       int thisIdx = r * ncols + thisCol + g;
+    //       int replIdx = r * ncols + replCol + g;
+    //       a_re[thisIdx] = a[replIdx];
+    //     }
+    //   }
+    // }
   }
+  for (int i = 0; i < ncols; i++) {
+    printf("%d ", a[i]);
+  }
+  printf("\n");
+  for (int i = 0; i < ncols; i++) {
+    printf("%d ", a_re[i]);
+  }
+  printf("\n");
+  return 1;
   #endif
 
   // filter
