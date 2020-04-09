@@ -56,6 +56,11 @@ stencil(
 
   int *spadAddr = (int*)getSpAddr(ptid, 0);
 
+  // TODO fails if put this here... sigh
+  // // how much we're actually going to do (ignore edges)
+  // // TODO can we use predication instead?
+  // int effCols = ncols - (FILTER_DIM - 1);
+
   #ifdef REUSE
   // calculate prev and next spAddr for reuse
   int *prevSpadAddr = NULL;
@@ -87,7 +92,7 @@ stencil(
   int spadIdx = 0;
 
   ISSUE_VINST(fable0);
-  
+
   // how much we're actually going to do (ignore edges)
   // TODO can we use predication instead?
   int effCols = ncols - (FILTER_DIM - 1);
@@ -304,11 +309,8 @@ stencil(
   //   }
     iter = 0;
     spIdx = 0;
-    #ifdef REUSE
     cPtr = c + (start_row * (ncols-(FILTER_DIM-1))) + startOffset;
-    #else
-    cPtr = c + (start_row * ncols) + startOffset;
-    #endif
+    
     b0 = b[0];
     b1 = b[1];
     b2 = b[2];

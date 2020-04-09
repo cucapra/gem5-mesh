@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
   #ifdef REUSE
   int ncols = 12 + (10 * 2); // + (FILTER_DIM - 1);
   #else
-  int ncols = 24; // factor of 4
+  int ncols = 24 + (FILTER_DIM - 1); // factor of 4
   #endif
   
   // parse positional arguments (X Y)
@@ -56,11 +56,7 @@ int main(int argc, char *argv[]) {
 
   // TODO why can't non reuse version trim the edge??
   int rowOffset = (FILTER_DIM - 1);
-  #ifdef REUSE
   int colOffset = (FILTER_DIM - 1);
-  #else
-  int colOffset = 0;//(FILTER_DIM - 1);
-  #endif
   DTYPE *a_ptr, *b_ptr, *c_ptr;
   DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_ptr);
   DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), FILTER_DIM * FILTER_DIM, (void**)&b_ptr);
