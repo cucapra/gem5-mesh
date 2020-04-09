@@ -169,6 +169,7 @@ stencil(
         // because needs individually picked loads
         int core0Idx = (r + k1) * ncols + c;
         if (c == 0) {
+          // printf("fetch base sp %d addr %d\n", spadIdx, core0Idx);
           VPREFETCH_L(spadIdx + 0, a + core0Idx + 0, 0, 1);
           VPREFETCH_L(spadIdx + 1, a + core0Idx + 1, 0, 1);
           VPREFETCH_L(spadIdx + 2, a + core0Idx + 2, 0, 1);
@@ -341,7 +342,11 @@ stencil(
   //   }
     iter = 0;
     spIdx = 0;
+    #ifdef REUSE
+    cPtr = c + (start_row * (ncols-(FILTER_DIM-1))) + startOffset;
+    #else
     cPtr = c + (start_row * ncols) + startOffset;
+    #endif
     b0 = b[0];
     b1 = b[1];
     b2 = b[2];
@@ -593,7 +598,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = effRows; //(float)effRows / 3.0f;
+    end = (float)effRows / 3.0f;
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -667,7 +672,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VEC)
-  if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
+  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #else
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
