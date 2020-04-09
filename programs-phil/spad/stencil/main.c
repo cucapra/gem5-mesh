@@ -29,7 +29,11 @@ int main(int argc, char *argv[]) {
   // default values
   int nrows = 3 + (FILTER_DIM - 1); // single row
   // reuse has very stingy requirements on what sizes are allowed
+  #ifdef REUSE
   int ncols = 12 + (10 * 2); // + (FILTER_DIM - 1);
+  #else
+  int ncols = 24;
+  #endif
   
   // parse positional arguments (X Y)
   if (argc > 1) {
@@ -60,7 +64,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < nrows * ncols; i++) {
     a[i] = i + 1;
   }
-  #ifndef REUSE
+  #ifdef REUSE
   int group_len = 4;
   int first_group_size = FILTER_DIM * group_len;
   int normal_group_size = 1 + (FILTER_DIM * (group_len - 1));
@@ -108,17 +112,6 @@ int main(int argc, char *argv[]) {
         }
       }
     }
-    // for (int g = 0; g < ncols; g+=group_len*FILTER_DIM) { // reuse groups ( see || above )
-    //   for (int f = 0; f < FILTER_DIM; f++) { // number of elements per core ( see | above )
-    //     for (int c = 0; c < group_len; c++) { // vector fetch
-    //       int thisCol = f * group_len + c;
-    //       int replCol = f + c * FILTER_DIM;
-    //       int thisIdx = r * ncols + thisCol + g;
-    //       int replIdx = r * ncols + replCol + g;
-    //       a_re[thisIdx] = a[replIdx];
-    //     }
-    //   }
-    // }
   }
   // for (int r = 0; r < nrows; r++) {
   // for (int i = 0; i < ncols; i++) {
@@ -157,7 +150,7 @@ int main(int argc, char *argv[]) {
   for (int y = 0; y < cores_y; y++) {
     for (int x = 0; x < cores_x; x++){
       int i = x + y * cores_x; 
-      #ifndef REUSE
+      #ifdef REUSE
       kern_args[i] = construct_args(a_re, b, c, nrows, ncols, x, y, cores_x, cores_y);
       #else
       kern_args[i] = construct_args(a, b, c, nrows, ncols, x, y, cores_x, cores_y);
@@ -201,7 +194,7 @@ int main(int argc, char *argv[]) {
   free(b_ptr);
   free(c_ptr);
 
-  #ifndef REUSE
+  #ifdef REUSE
   free(a_re_ptr);
   #endif
   

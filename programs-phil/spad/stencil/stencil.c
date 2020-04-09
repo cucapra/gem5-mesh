@@ -28,49 +28,6 @@
 
 */
 
-// one of these should be defined to dictate config
-// #define NO_VEC 1
-// #define VEC_4_SIMD 1
-// #define VEC_4_SIMD_BCAST 1
-#define VEC_4_REUSE 1
-// #define VEC_4_SIMD_SINGLE_PREFETCH 1
-// #define VEC_4_SIMD_LARGE_FRAME 1
-
-// vvadd_execute config directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
-#define USE_VEC 1
-#endif
-
-// vector grouping directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
-#define VEC_SIZE_4_SIMD 1
-#endif
-
-// kernel settings 
-#if defined(VEC_4_SIMD_SINGLE_PREFETCH)
-#define SINGLE_PREFETCH 1
-#endif
-#if defined(VEC_4_REUSE)
-#define REUSE 1
-#endif
-#if defined(VEC_4_SIMD_LARGE_FRAME)
-#define LARGE_FRAME 1
-#endif
-
-// prefetch sizings
-#if defined(USE_VEC)
-#if defined(LARGE_FRAME)
-#define FRAMES_PER_REGION 8
-#define REGION_SIZE (FILTER_DIM * FILTER_DIM * FRAMES_PER_REGION)
-#define NUM_REGIONS 8
-#define POST_REGION_WORD (REGION_SIZE * NUM_REGIONS)
-#else
-#define REGION_SIZE (FILTER_DIM * FILTER_DIM)
-#define NUM_REGIONS 64
-#define POST_REGION_WORD (REGION_SIZE * NUM_REGIONS)
-#endif
-#endif
-
 inline int min(int a, int b) {
   if (a > b) {
     return b;
