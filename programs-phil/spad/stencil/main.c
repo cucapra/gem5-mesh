@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int nrows = 1 + (FILTER_DIM - 1); // single row
+  int nrows = 2 + (FILTER_DIM - 1); // single row
   int ncols = 22; // + (FILTER_DIM - 1);
   
   // parse positional arguments (X Y)
