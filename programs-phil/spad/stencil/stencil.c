@@ -183,9 +183,9 @@ stencil(
           }
         }
         else {
-          VPREFETCH_L(spadIdx, a + core0Idx, 0, 1);
+          VPREFETCH_L(spadIdx, a + core0Idx - 1 - (dim - 1), 0, 1);
           VPREFETCH_L(spadIdx + 1, a + core0Idx - 1, 0, 1);
-          VPREFETCH_L(spadIdx + 2, a + core0Idx - 1 - (dim - 1), 0, 1);
+          VPREFETCH_L(spadIdx + 2, a + core0Idx, 0, 1);
 
           for (int k2 = 0; k2 < FILTER_DIM; k2++) {
             int aIdx = (r + k1) * ncols + (c + 1 + (k2 * (dim - 1)));
