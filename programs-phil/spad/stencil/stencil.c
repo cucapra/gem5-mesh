@@ -195,12 +195,14 @@ stencil(
           VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
           #endif
 
-          // spad is circular buffer so do cheap mod here
           spadIdx++;
-          if (spadIdx == POST_REGION_WORD) {
-            spadIdx = 0;
-          }
+          
         }
+      }
+
+      // spad is circular buffer so do cheap mod here
+      if (spadIdx == POST_REGION_WORD) {
+        spadIdx = 0;
       }
 
       ISSUE_VINST(fable1);
@@ -247,7 +249,6 @@ stencil(
             spadIdx++;
           }
         }
-
          
       }
       // TODO sometimes its not this
@@ -256,6 +257,10 @@ stencil(
       }
       else {
         c+=FILTER_DIM*(dim-1) + 1;
+      }
+
+      if (spadIdx == POST_REGION_WORD) {
+        spadIdx = 0;
       }
 
       ISSUE_VINST(fable1);
@@ -310,7 +315,7 @@ stencil(
     iter = 0;
     spIdx = 0;
     cPtr = c + (start_row * (ncols-(FILTER_DIM-1))) + startOffset;
-    
+
     b0 = b[0];
     b1 = b[1];
     b2 = b[2];

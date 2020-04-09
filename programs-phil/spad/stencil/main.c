@@ -30,9 +30,9 @@ int main(int argc, char *argv[]) {
   int nrows = 3 + (FILTER_DIM - 1); // single row
   // reuse has very stingy requirements on what sizes are allowed
   #ifdef REUSE
-  int ncols = 12 + (10 * 2); // + (FILTER_DIM - 1);
+  int ncols = 12 + (10 * 2); // 12 + factor of 10... wow i.e. 1212
   #else
-  int ncols = 24 + (FILTER_DIM - 1); // factor of 4
+  int ncols = 24 + (FILTER_DIM - 1); // factor of 12 + 2... wow i.e. 1214
   #endif
   
   // parse positional arguments (X Y)
