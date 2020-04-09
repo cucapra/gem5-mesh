@@ -32,7 +32,7 @@ int main(int argc, char *argv[]) {
   #ifdef REUSE
   int ncols = 12 + (10 * 2); // + (FILTER_DIM - 1);
   #else
-  int ncols = 24;
+  int ncols = 24; // factor of 4
   #endif
   
   // parse positional arguments (X Y)
@@ -54,11 +54,17 @@ int main(int argc, char *argv[]) {
   * Data initialization
   *-------------------------------------------------------------------*/
 
-  int boundOffset = (FILTER_DIM - 1);
+  // TODO why can't non reuse version trim the edge??
+  int rowOffset = (FILTER_DIM - 1);
+  #ifdef REUSE
+  int colOffset = (FILTER_DIM - 1);
+  #else
+  int colOffset = 0;//(FILTER_DIM - 1);
+  #endif
   DTYPE *a_ptr, *b_ptr, *c_ptr;
   DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_ptr);
   DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), FILTER_DIM * FILTER_DIM, (void**)&b_ptr);
-  DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), (nrows - boundOffset) * (ncols - boundOffset), (void**)&c_ptr);
+  DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), (nrows - rowOffset) * (ncols - colOffset), (void**)&c_ptr);
 
   // image
   for (int i = 0; i < nrows * ncols; i++) {
@@ -136,7 +142,7 @@ int main(int argc, char *argv[]) {
   }
 
   // result
-  for (int i = 0; i < (nrows - boundOffset) * (ncols - boundOffset); i++) {
+  for (int i = 0; i < (nrows - rowOffset) * (ncols - colOffset); i++) {
     c[i] = 0;
   }
   
@@ -169,8 +175,8 @@ int main(int argc, char *argv[]) {
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
   
-  for (int row = 0; row < nrows - boundOffset; row++) {
-    for (int col = 0; col < ncols - boundOffset; col++) {
+  for (int row = 0; row < nrows - rowOffset; row++) {
+    for (int col = 0; col < ncols - colOffset; col++) {
       int cexp = 0;
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
@@ -179,13 +185,13 @@ int main(int argc, char *argv[]) {
           cexp += b[bIdx] * a[aIdx];
         }
       }
-      if (c[row * (ncols - boundOffset) + col] != cexp) {
-        printf("%d != %d @ row %d cold %d\n", c[row * (ncols - boundOffset) + col], cexp, row, col);
+      if (c[row * (ncols - colOffset) + col] != cexp) {
+        printf("%d != %d @ row %d cold %d\n", c[row * (ncols - colOffset) + col], cexp, row, col);
         printf("[[FAIL]]\n");
         return 1;
       }
       // else {
-      //   printf("%d == %d @ row %d cold %d\n", c[row * (ncols - boundOffset) + col], cexp, row, col);
+      //   printf("%d == %d @ row %d cold %d\n", c[row * (ncols - colOffset) + col], cexp, row, col);
       // }
     }
   }

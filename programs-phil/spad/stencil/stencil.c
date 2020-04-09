@@ -108,6 +108,7 @@ stencil(
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
+          // printf("prelw sp %d r %d c %d k1 %d k2 %d idx %d\n", spadIdx, r, c, k1, k2, aIdx);
           VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
           VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
           spadIdx++;
@@ -266,7 +267,11 @@ stencil(
     // take some loads off the last row b/c already prefetched
     int colStart = effCols;
     if (r == end_row - 1) colStart = effCols - beginCol;
+    #ifdef REUSE
     for (int c = colStart; c < effCols; c+=dim*FILTER_DIM) {
+    #else
+    for (int c = colStart; c < effCols; c+= dim) {
+    #endif
       ISSUE_VINST(fable1);
     }
   }
@@ -403,6 +408,7 @@ stencil(
     //   b_ = spadAddr[POST_REGION_WORD + i];
     //   c_ += a_ * b_;
     // }
+    c_ = 0;
     c_ += b0 * spadAddr[spIdx + 0];
     c_ += b1 * spadAddr[spIdx + 1];
     c_ += b2 * spadAddr[spIdx + 2];
