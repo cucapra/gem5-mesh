@@ -1033,11 +1033,11 @@ bool Scratchpad::handleRemoteReq(Packet *pkt_p, MachineID remote_sender)
     // else
     // {
 
-    if (isRegionAccess(pkt_p) && !isWordRdyForRemote(pkt_p->getAddr()))
-    {
-      DPRINTF(Mesh, "remote region access into a region not ready (not cool bro) %s\n", pkt_p->print());
-      return false;
-    }
+    // if (isRegionAccess(pkt_p) && !isWordRdyForRemote(pkt_p->getAddr()))
+    // {
+    //   DPRINTF(Mesh, "remote region access into a region not ready (not cool bro) %s\n", pkt_p->print());
+    //   return false;
+    // }
     // record remote access here
     if (pkt_p->isRead())
       m_remote_loads++;
