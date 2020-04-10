@@ -78,6 +78,16 @@ void __attribute__((optimize("-fno-reorder-blocks")))
   else if (vtid == 3) nextTid = ptid - pdim - 1; // wrap
   DTYPE *nextSpad = (DTYPE*)getSpAddr(nextTid, 0);
 
+  // actually do stores at the end
+  int v0 = 0;
+  int v1 = 0;
+  int v2 = 0;
+  int v3 = 0;
+  int v4 = 0;
+  int v5 = 0;
+  int v6 = 0;
+  int v7 = 0;
+
   // start recording all stats (all cores)
   if (ptid == 0) {
     stats_on();
@@ -86,25 +96,25 @@ void __attribute__((optimize("-fno-reorder-blocks")))
   #ifndef USE_VEC
 
   #ifdef USE_DIRECT_L2
-  b[0] = a[0];
-  b[1] = a[1];
-  b[2] = a[2];
-  b[3] = a[3];
-  b[4] = a[4];
-  b[5] = a[5];
-  b[6] = a[6];
-  b[7] = a[7];
+  v0 = a[0];
+  v1 = a[1];
+  v2 = a[2];
+  v3 = a[3];
+  v4 = a[4];
+  v5 = a[5];
+  v6 = a[6];
+  v7 = a[7];
   #endif
 
   #ifdef USE_REMOTE_LOADS
-  b[0] = nextSpad[0];
-  b[1] = nextSpad[1];
-  b[2] = nextSpad[2];
-  b[3] = nextSpad[3];
-  b[4] = nextSpad[4];
-  b[5] = nextSpad[5];
-  b[6] = nextSpad[6];
-  b[7] = nextSpad[7];
+  v0 = nextSpad[0];
+  v1 = nextSpad[1];
+  v2 = nextSpad[2];
+  v3 = nextSpad[3];
+  v4 = nextSpad[4];
+  v5 = nextSpad[5];
+  v6 = nextSpad[6];
+  v7 = nextSpad[7];
   #endif
 
   #endif
@@ -114,6 +124,16 @@ void __attribute__((optimize("-fno-reorder-blocks")))
   if (ptid == 0) {
     stats_off();
   }
+  // memory barrier so we don't do stores during the kernel
+  asm volatile ("":::"memory");
+  b[0] = v0;
+  b[1] = v1;
+  b[2] = v2;
+  b[3] = v3;
+  b[4] = v4;
+  b[5] = v5;
+  b[6] = v6;
+  b[7] = v7;
   
 }
 
