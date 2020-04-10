@@ -1,7 +1,13 @@
 #include "gemm_kernel.h"
 
 #define BLK_DIM 4
-//#define SHARING
+
+//#define SIMD_PRIVATE
+// #define SIMD_SHARING
+
+#ifdef SIMD_SHARING
+#define SHARING
+#endif
 
 #ifdef SHARING
 #define REGION_SIZE BLK_DIM

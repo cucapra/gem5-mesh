@@ -6,169 +6,161 @@
 	.type	gemm_vec_simd, @function
 gemm_vec_simd:
 #APP
-# 20 "gemm_kernel.c" 1
+# 32 "gemm_kernel.c" 1
 	.insn i 0x77, 0, x0, a0, 0x401
 	
 # 0 "" 2
-#NO_APP
+# 51 "gemm_kernel.c" 1
 	addi	sp,sp,-16
 	sd	s0,8(sp)
 	sd	s1,0(sp)
 	lw	a5,16(sp)
-	lw	t6,24(sp)
-	lw	t0,32(sp)
-	lw	a3,64(sp)
+	lw	t0,24(sp)
+	lw	t2,32(sp)
 
-	li	a0,15
-	bgt	a3,a0,.L19
-	lui	a0,%hi(spm_base_ptr_arr)
-	addi	a0,a0,%lo(spm_base_ptr_arr)
-	slli	a3,a3,3
-	add	a3,a3,a0
-	ld	a0,0(a3)
-	addi	a0,a0,16
-.L2:
-#APP
-# 36 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L3
+	.insn uj 0x6b, x0, .L2
 	
 # 0 "" 2
 #NO_APP
-	bge	a7,a5,.L17
+	bge	a7,a5,.L16
 	addiw	a5,a5,-1
-	addiw	a3,t0,-1
+	addiw	a3,t2,-1
 	subw	a5,a5,a7
-	subw	a3,a3,t6
+	subw	a3,a3,t0
 	srliw	a5,a5,3
 	srliw	a3,a3,3
 	slli	a5,a5,3
 	slli	a3,a3,3
 	add	a5,a5,a7
-	add	a3,a3,t6
-	addi	t2,a1,32
-	slli	a3,a3,2
-	addi	s0,a2,32
+	add	a3,a3,t0
 	slli	a7,a7,2
+	addi	t6,a1,32
 	slli	a5,a5,2
-	slli	t1,t6,2
-	add	s0,a3,s0
+	slli	s0,t0,2
+	slli	a3,a3,2
+	addi	a0,a2,32
 	add	a1,a1,a7
-	add	t2,a5,t2
-	add	a2,a2,t1
+	add	s0,a2,s0
+	add	t6,a5,t6
+	add	a2,a3,a0
 	slli	a4,a4,2
-	li	a3,0
-.L16:
+	li	a7,0
+.L15:
 #APP
-# 42 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L7
+# 57 "gemm_kernel.c" 1
+	.insn uj 0x6b, x0, .L6
 	
 # 0 "" 2
 #NO_APP
-	bge	t6,t0,.L8
-	mv	s1,a2
-.L14:
-#APP
-# 46 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L9
-	
-# 0 "" 2
-#NO_APP
-	blez	a6,.L10
-	mv	t3,s1
-	mv	t1,a1
-	li	t4,0
-.L12:
-	slli	a5,a3,2
-	slli	a7,a5,2
-	add	a7,a0,a7
-#APP
-# 55 "gemm_kernel.c" 1
-	.insn sb 0x23, 0x4, a7, 0(t1)
-	
-# 0 "" 2
-#NO_APP
-	addi	a5,a5,1
-	slli	a5,a5,2
-	add	a7,a0,a5
-	addi	t5,t1,16
-#APP
-# 55 "gemm_kernel.c" 1
-	.insn sb 0x23, 0x4, a7, 0(t5)
-	
-# 0 "" 2
-#NO_APP
-	addi	a7,a5,4
-	add	a7,a0,a7
+	bge	t0,t2,.L7
+	mv	s1,s0
+.L13:
 #APP
 # 61 "gemm_kernel.c" 1
-	.insn sb 0x23, 0x4, a7, 0(t3)
+	.insn uj 0x6b, x0, .L8
 	
 # 0 "" 2
 #NO_APP
-	addi	a5,a5,8
-	add	a5,a0,a5
-	addi	a7,t3,16
+	blez	a6,.L9
+	mv	a0,s1
+	mv	a3,a1
+	li	t5,0
+.L11:
+	slliw	a5,a7,2
+	addiw	t1,a5,2
 #APP
-# 61 "gemm_kernel.c" 1
-	.insn sb 0x23, 0x4, a5, 0(a7)
+# 75 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x6, a5, 4(a3)
 	
 # 0 "" 2
-# 63 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L11
+# 76 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x7, a5, 4(a3)
 	
 # 0 "" 2
 #NO_APP
-	addi	a3,a3,1
-	addiw	t4,t4,1
-	andi	a3,a3,127
-	add	t1,t1,a4
-	add	t3,t3,a4
-	bne	a6,t4,.L12
-.L10:
+	addiw	t3,a5,1
+	addi	t4,a3,16
 #APP
-# 66 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L13
+# 75 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x6, t3, 4(t4)
+	
+# 0 "" 2
+# 76 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x7, t3, 4(t4)
+	
+# 0 "" 2
+# 83 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x6, t1, 4(a0)
+	
+# 0 "" 2
+# 84 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x7, t1, 4(a0)
+	
+# 0 "" 2
+#NO_APP
+	addiw	a5,a5,3
+	addi	t1,a0,16
+#APP
+# 83 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x6, a5, 4(t1)
+	
+# 0 "" 2
+# 84 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x7, a5, 4(t1)
+	
+# 0 "" 2
+# 111 "gemm_kernel.c" 1
+	.insn uj 0x6b, x0, .L10
+	
+# 0 "" 2
+#NO_APP
+	addi	a7,a7,1
+	addiw	t5,t5,1
+	andi	a7,a7,127
+	add	a3,a3,a4
+	add	a0,a0,a4
+	bne	a6,t5,.L11
+.L9:
+#APP
+# 114 "gemm_kernel.c" 1
+	.insn uj 0x6b, x0, .L12
 	
 # 0 "" 2
 #NO_APP
 	addi	s1,s1,32
-	bne	s0,s1,.L14
-.L8:
+	bne	a2,s1,.L13
+.L7:
 #APP
-# 68 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L15
+# 116 "gemm_kernel.c" 1
+	.insn uj 0x6b, x0, .L14
 	
 # 0 "" 2
 #NO_APP
 	addi	a1,a1,32
-	bne	t2,a1,.L16
-.L17:
-
+	bne	a1,t6,.L15
+.L16:
 ld	s0,8(sp)
 	ld	s1,0(sp)
 	addi	sp,sp,16
-	
 #APP
-# 71 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L5
+# 119 "gemm_kernel.c" 1
+	.insn uj 0x6b, x0, .L4
 	
 # 0 "" 2
 #NO_APP
-.L6:
+.L5:
 #APP
-# 73 "gemm_kernel.c" 1
-	.insn uj 0x2b, x0, .L6
+# 121 "gemm_kernel.c" 1
+	.insn uj 0x2b, x0, .L5
 	
 # 0 "" 2
-# 145 "gemm_kernel.c" 1
+# 197 "gemm_kernel.c" 1
 	fence
 	
 # 0 "" 2
 #NO_APP
 	j	.L1
-.L3:
-
-
+.L2:
 
 addi	sp,sp,-256
 	sd	s6,200(sp)
@@ -304,11 +296,7 @@ addi	sp,sp,-256
 	sd	a5,48(sp)
 
 
-
-.L7:
-
-
-
+.L6:
 ld	a5,88(sp)
 	ld	a4,72(sp)
 	add	s11,a4,a5
@@ -328,11 +316,7 @@ ld	a5,88(sp)
 	add	s9,a5,s9
 	add	a5,a5,s8
 	sd	a5,0(sp)
-
-
-.L9:
-
-
+.L8:
 ld	a5,8(sp)
 	ld	t1,128(sp)
 	flw	ft8,-2048(a6)
@@ -362,12 +346,7 @@ ld	a5,8(sp)
 	flw	fa2,-1996(a6)
 	flw	fa3,-1992(a6)
 	flw	fa4,-1988(a6)
-
-
-.L11:
-
-
-
+.L10:
 slli	a5,a7,2
 	add	a1,s6,a5
 	add	a2,t6,a5
@@ -385,14 +364,14 @@ slli	a5,a7,2
 	add	a4,s3,a4
 	add	a0,t1,a0
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a0)
 	
 # 0 "" 2
 #NO_APP
 	fmv.s.x	fa5,s8
 #APP
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a1)
 	
 # 0 "" 2
@@ -400,14 +379,14 @@ slli	a5,a7,2
 	fmv.s.x	ft9,s8
 	fmadd.s	ft8,ft9,fa5,ft8
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a0)
 	
 # 0 "" 2
 #NO_APP
 	fmv.s.x	fa5,s8
 #APP
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a2)
 	
 # 0 "" 2
@@ -415,14 +394,14 @@ slli	a5,a7,2
 	fmv.s.x	ft9,s8
 	fmadd.s	fa7,ft9,fa5,fa7
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a0)
 	
 # 0 "" 2
 #NO_APP
 	fmv.s.x	fa5,s8
 #APP
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a3)
 	
 # 0 "" 2
@@ -430,14 +409,14 @@ slli	a5,a7,2
 	fmv.s.x	ft9,s8
 	fmadd.s	fa6,ft9,fa5,fa6
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a0, 0(a0)
 	
 # 0 "" 2
 #NO_APP
 	fmv.s.x	fa5,a0
 #APP
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a0, 0(a4)
 	
 # 0 "" 2
@@ -448,14 +427,14 @@ slli	a5,a7,2
 	fmadd.s	ft7,ft9,fa5,ft7
 	add	a0,s2,a0
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a0)
 	
 # 0 "" 2
 #NO_APP
 	fmv.s.x	fa5,s8
 #APP
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a1)
 	
 # 0 "" 2
@@ -463,14 +442,14 @@ slli	a5,a7,2
 	fmv.s.x	ft9,s8
 	fmadd.s	ft6,ft9,fa5,ft6
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a0)
 	
 # 0 "" 2
 #NO_APP
 	fmv.s.x	fa5,s8
 #APP
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a2)
 	
 # 0 "" 2
@@ -478,14 +457,14 @@ slli	a5,a7,2
 	fmv.s.x	ft9,s8
 	fmadd.s	ft5,ft9,fa5,ft5
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a0)
 	
 # 0 "" 2
 #NO_APP
 	fmv.s.x	fa5,s8
 #APP
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a3)
 	
 # 0 "" 2
@@ -493,14 +472,14 @@ slli	a5,a7,2
 	fmv.s.x	ft9,s8
 	fmadd.s	ft4,ft9,fa5,ft4
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a0, 0(a0)
 	
 # 0 "" 2
 #NO_APP
 	fmv.s.x	fa5,a0
 #APP
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a0, 0(a4)
 	
 # 0 "" 2
@@ -511,14 +490,14 @@ slli	a5,a7,2
 	fmadd.s	ft3,ft9,fa5,ft3
 	add	a0,s1,a0
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a0)
 	
 # 0 "" 2
 #NO_APP
 	fmv.s.x	fa5,s8
 #APP
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a1)
 	
 # 0 "" 2
@@ -526,14 +505,14 @@ slli	a5,a7,2
 	fmv.s.x	ft9,s8
 	fmadd.s	ft2,ft9,fa5,ft2
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a0)
 	
 # 0 "" 2
 #NO_APP
 	fmv.s.x	fa5,s8
 #APP
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a2)
 	
 # 0 "" 2
@@ -541,14 +520,14 @@ slli	a5,a7,2
 	fmv.s.x	ft9,s8
 	fmadd.s	ft1,ft9,fa5,ft1
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a0)
 	
 # 0 "" 2
 #NO_APP
 	fmv.s.x	fa5,s8
 #APP
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a3)
 	
 # 0 "" 2
@@ -556,11 +535,11 @@ slli	a5,a7,2
 	fmv.s.x	ft9,s8
 	fmadd.s	ft0,ft9,fa5,ft0
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a0, 0(a0)
 	
 # 0 "" 2
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, s8, 0(a4)
 	
 # 0 "" 2
@@ -572,11 +551,11 @@ slli	a5,a7,2
 	fmadd.s	fa0,fa5,ft9,fa0
 	add	a5,s0,a5
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a0, 0(a5)
 	
 # 0 "" 2
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a1, 0(a1)
 	
 # 0 "" 2
@@ -585,11 +564,11 @@ slli	a5,a7,2
 	fmv.s.x	ft9,a1
 	fmadd.s	fa1,fa5,ft9,fa1
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a1, 0(a5)
 	
 # 0 "" 2
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a2, 0(a2)
 	
 # 0 "" 2
@@ -598,11 +577,11 @@ slli	a5,a7,2
 	fmv.s.x	ft9,a2
 	fmadd.s	fa2,fa5,ft9,fa2
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a2, 0(a5)
 	
 # 0 "" 2
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a3, 0(a3)
 	
 # 0 "" 2
@@ -611,11 +590,11 @@ slli	a5,a7,2
 	fmv.s.x	ft9,a3
 	fmadd.s	fa3,fa5,ft9,fa3
 #APP
-# 119 "gemm_kernel.c" 1
+# 171 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a5, 0(a5)
 	
 # 0 "" 2
-# 120 "gemm_kernel.c" 1
+# 172 "gemm_kernel.c" 1
 	.insn s 0x03, 0x7, a4, 0(a4)
 	
 # 0 "" 2
@@ -626,7 +605,7 @@ slli	a5,a7,2
 	andi	a7,a7,127
 	fmadd.s	fa4,fa5,ft9,fa4
 #APP
-# 126 "gemm_kernel.c" 1
+# 178 "gemm_kernel.c" 1
 	.insn u 0x0b, x0, 0
 	
 # 0 "" 2
@@ -634,10 +613,7 @@ slli	a5,a7,2
 	lw	a5,124(sp)
 	sext.w	a5,a5
 	
-
-.L13:
-
-
+.L12:
 fsw	ft8,-2048(a6)
 	fsw	fa7,-2044(a6)
 	fsw	fa6,-2040(a6)
@@ -654,10 +630,9 @@ fsw	ft8,-2048(a6)
 	fsw	fa2,-1996(a6)
 	fsw	fa3,-1992(a6)
 	fsw	fa4,-1988(a6)
-
 	lw	a5,-2048(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a5, 0(s11)
 	
 # 0 "" 2
@@ -666,7 +641,7 @@ fsw	ft8,-2048(a6)
 	addi	a5,s11,4
 	lw	a4,-2044(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a4, 0(a5)
 	
 # 0 "" 2
@@ -675,7 +650,7 @@ fsw	ft8,-2048(a6)
 	addi	a5,s11,8
 	lw	a4,-2040(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a4, 0(a5)
 	
 # 0 "" 2
@@ -684,7 +659,7 @@ fsw	ft8,-2048(a6)
 	addi	a5,s11,12
 	lw	a4,-2036(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a4, 0(a5)
 	
 # 0 "" 2
@@ -692,7 +667,7 @@ fsw	ft8,-2048(a6)
 	sw	zero,-2036(a6)
 	lw	a5,-2032(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a5, 0(s10)
 	
 # 0 "" 2
@@ -701,7 +676,7 @@ fsw	ft8,-2048(a6)
 	addi	a5,s10,4
 	lw	a4,-2028(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a4, 0(a5)
 	
 # 0 "" 2
@@ -710,7 +685,7 @@ fsw	ft8,-2048(a6)
 	addi	a5,s10,8
 	lw	a4,-2024(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a4, 0(a5)
 	
 # 0 "" 2
@@ -719,7 +694,7 @@ fsw	ft8,-2048(a6)
 	addi	a5,s10,12
 	lw	a4,-2020(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a4, 0(a5)
 	
 # 0 "" 2
@@ -727,7 +702,7 @@ fsw	ft8,-2048(a6)
 	sw	zero,-2020(a6)
 	lw	a5,-2016(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a5, 0(s9)
 	
 # 0 "" 2
@@ -736,7 +711,7 @@ fsw	ft8,-2048(a6)
 	addi	a5,s9,4
 	lw	a4,-2012(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a4, 0(a5)
 	
 # 0 "" 2
@@ -745,7 +720,7 @@ fsw	ft8,-2048(a6)
 	addi	a5,s9,8
 	lw	a4,-2008(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a4, 0(a5)
 	
 # 0 "" 2
@@ -754,7 +729,7 @@ fsw	ft8,-2048(a6)
 	addi	a5,s9,12
 	lw	a4,-2004(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a4, 0(a5)
 	
 # 0 "" 2
@@ -763,7 +738,7 @@ fsw	ft8,-2048(a6)
 	lw	a5,-2000(a6)
 	ld	a3,0(sp)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a5, 0(a3)
 	
 # 0 "" 2
@@ -772,7 +747,7 @@ fsw	ft8,-2048(a6)
 	addi	a5,a3,4
 	lw	a4,-1996(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a4, 0(a5)
 	
 # 0 "" 2
@@ -781,7 +756,7 @@ fsw	ft8,-2048(a6)
 	addi	a5,a3,8
 	lw	a4,-1992(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a4, 0(a5)
 	
 # 0 "" 2
@@ -790,7 +765,7 @@ fsw	ft8,-2048(a6)
 	addi	a5,a3,12
 	lw	a4,-1988(a6)
 #APP
-# 134 "gemm_kernel.c" 1
+# 186 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a4, 0(a5)
 	
 # 0 "" 2
@@ -803,11 +778,11 @@ fsw	ft8,-2048(a6)
 	addi	s11,s11,32
 	addi	s10,s10,32
 	addi	s9,s9,32
+	
 
-
-.L15:
-
-
+	
+	
+.L14:
 ld	a4,96(sp)
 	ld	a3,72(sp)
 	lw	a5,116(sp)
@@ -823,9 +798,7 @@ ld	a4,96(sp)
 	ld	a3,56(sp)
 	addw	a4,a3,a4
 	sd	a4,56(sp)
-
-	
-.L5:
+.L4:
 ld	s0,248(sp)
 	ld	s1,240(sp)
 	ld	s2,232(sp)
@@ -839,13 +812,9 @@ ld	s0,248(sp)
 	ld	s10,168(sp)
 	ld	s11,160(sp)
 	addi	sp,sp,256
-
 .L1:
 	
 	jr	ra
-.L19:
-	li	a0,0
-	j	.L2
 	.size	gemm_vec_simd, .-gemm_vec_simd
 	.comm	start_barrier,32,8
 	.ident	"GCC: (GNU) 8.3.0"

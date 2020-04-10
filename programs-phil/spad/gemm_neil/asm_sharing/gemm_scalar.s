@@ -9,196 +9,192 @@ gemm_vec_simd:
 	sd	s0,8(sp)
 	sd	s1,0(sp)
 	lw	a5,16(sp)
-	lw	t6,24(sp)
-	lw	t0,32(sp)
-	lw	a3,64(sp)
+	lw	t0,24(sp)
+	lw	t2,32(sp)
 #APP
-# 20 "gemm_kernel.c" 1
+# 32 "gemm_kernel.c" 1
 	.insn i 0x77, 0, x0, a0, 0x401
 	
 # 0 "" 2
-#NO_APP
-	li	a0,15
-	bgt	a3,a0,.L19
-	lui	a0,%hi(spm_base_ptr_arr)
-	addi	a0,a0,%lo(spm_base_ptr_arr)
-	slli	a3,a3,3
-	add	a3,a3,a0
-	ld	a0,0(a3)
-	addi	a0,a0,16
-.L2:
-#APP
-# 36 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L3
+# 51 "gemm_kernel.c" 1
+	.insn uj 0x6b, x0, .L2
 	
 # 0 "" 2
 #NO_APP
-	bge	a7,a5,.L17
+	bge	a7,a5,.L16
 	addiw	a5,a5,-1
-	addiw	a3,t0,-1
+	addiw	a3,t2,-1
 	subw	a5,a5,a7
-	subw	a3,a3,t6
+	subw	a3,a3,t0
 	srliw	a5,a5,3
 	srliw	a3,a3,3
 	slli	a5,a5,3
 	slli	a3,a3,3
 	add	a5,a5,a7
-	add	a3,a3,t6
-	addi	t2,a1,32
-	slli	a3,a3,2
-	addi	s0,a2,32
+	add	a3,a3,t0
 	slli	a7,a7,2
+	addi	t6,a1,32
 	slli	a5,a5,2
-	slli	t1,t6,2
-	add	s0,a3,s0
+	slli	s0,t0,2
+	slli	a3,a3,2
+	addi	a0,a2,32
 	add	a1,a1,a7
-	add	t2,a5,t2
-	add	a2,a2,t1
+	add	s0,a2,s0
+	add	t6,a5,t6
+	add	a2,a3,a0
 	slli	a4,a4,2
-	li	a3,0
-.L16:
+	li	a7,0
+.L15:
 #APP
-# 42 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L7
+# 57 "gemm_kernel.c" 1
+	.insn uj 0x6b, x0, .L6
 	
 # 0 "" 2
 #NO_APP
-	bge	t6,t0,.L8
-	mv	s1,a2
-.L14:
-#APP
-# 46 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L9
-	
-# 0 "" 2
-#NO_APP
-	blez	a6,.L10
-	mv	t3,s1
-	mv	t1,a1
-	li	t4,0
-.L12:
-	slli	a5,a3,2
-	slli	a7,a5,2
-	add	a7,a0,a7
-#APP
-# 55 "gemm_kernel.c" 1
-	.insn sb 0x23, 0x4, a7, 0(t1)
-	
-# 0 "" 2
-#NO_APP
-	addi	a5,a5,1
-	slli	a5,a5,2
-	add	a7,a0,a5
-	addi	t5,t1,16
-#APP
-# 55 "gemm_kernel.c" 1
-	.insn sb 0x23, 0x4, a7, 0(t5)
-	
-# 0 "" 2
-#NO_APP
-	addi	a7,a5,4
-	add	a7,a0,a7
+	bge	t0,t2,.L7
+	mv	s1,s0
+.L13:
 #APP
 # 61 "gemm_kernel.c" 1
-	.insn sb 0x23, 0x4, a7, 0(t3)
+	.insn uj 0x6b, x0, .L8
 	
 # 0 "" 2
 #NO_APP
-	addi	a5,a5,8
-	add	a5,a0,a5
-	addi	a7,t3,16
+	blez	a6,.L9
+	mv	a0,s1
+	mv	a3,a1
+	li	t5,0
+.L11:
+	slliw	a5,a7,2
+	addiw	t1,a5,2
 #APP
-# 61 "gemm_kernel.c" 1
-	.insn sb 0x23, 0x4, a5, 0(a7)
+# 75 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x6, a5, 4(a3)
 	
 # 0 "" 2
-# 63 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L11
+# 76 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x7, a5, 4(a3)
 	
 # 0 "" 2
 #NO_APP
-	addi	a3,a3,1
-	addiw	t4,t4,1
-	andi	a3,a3,127
-	add	t1,t1,a4
-	add	t3,t3,a4
-	bne	a6,t4,.L12
-.L10:
+	addiw	t3,a5,1
+	addi	t4,a3,16
 #APP
-# 66 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L13
+# 75 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x6, t3, 4(t4)
+	
+# 0 "" 2
+# 76 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x7, t3, 4(t4)
+	
+# 0 "" 2
+# 83 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x6, t1, 4(a0)
+	
+# 0 "" 2
+# 84 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x7, t1, 4(a0)
+	
+# 0 "" 2
+#NO_APP
+	addiw	a5,a5,3
+	addi	t1,a0,16
+#APP
+# 83 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x6, a5, 4(t1)
+	
+# 0 "" 2
+# 84 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x7, a5, 4(t1)
+	
+# 0 "" 2
+# 111 "gemm_kernel.c" 1
+	.insn uj 0x6b, x0, .L10
+	
+# 0 "" 2
+#NO_APP
+	addi	a7,a7,1
+	addiw	t5,t5,1
+	andi	a7,a7,127
+	add	a3,a3,a4
+	add	a0,a0,a4
+	bne	a6,t5,.L11
+.L9:
+#APP
+# 114 "gemm_kernel.c" 1
+	.insn uj 0x6b, x0, .L12
 	
 # 0 "" 2
 #NO_APP
 	addi	s1,s1,32
-	bne	s0,s1,.L14
-.L8:
+	bne	a2,s1,.L13
+.L7:
 #APP
-# 68 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L15
+# 116 "gemm_kernel.c" 1
+	.insn uj 0x6b, x0, .L14
 	
 # 0 "" 2
 #NO_APP
 	addi	a1,a1,32
-	bne	t2,a1,.L16
-.L17:
+	bne	a1,t6,.L15
+.L16:
 #APP
-# 71 "gemm_kernel.c" 1
-	.insn uj 0x6b, x0, .L5
+# 119 "gemm_kernel.c" 1
+	.insn uj 0x6b, x0, .L4
 	
 # 0 "" 2
 #NO_APP
-.L6:
+.L5:
 #APP
-# 73 "gemm_kernel.c" 1
-	.insn uj 0x2b, x0, .L6
+# 121 "gemm_kernel.c" 1
+	.insn uj 0x2b, x0, .L5
 	
 # 0 "" 2
-# 145 "gemm_kernel.c" 1
+# 197 "gemm_kernel.c" 1
 	fence
 	
 # 0 "" 2
 #NO_APP
 	j	.L1
-.L3:
+.L2:
 #APP
-# 151 "gemm_kernel.c" 1
+# 203 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
-.L7:
+.L6:
 #APP
-# 153 "gemm_kernel.c" 1
+# 205 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
-.L9:
+.L8:
 #APP
-# 155 "gemm_kernel.c" 1
+# 207 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
-.L11:
+.L10:
 #APP
-# 157 "gemm_kernel.c" 1
+# 209 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
-.L13:
+.L12:
 #APP
-# 159 "gemm_kernel.c" 1
+# 211 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
-.L15:
+.L14:
 #APP
-# 161 "gemm_kernel.c" 1
+# 213 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
-.L5:
+.L4:
 #APP
-# 163 "gemm_kernel.c" 1
+# 215 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
@@ -207,9 +203,6 @@ gemm_vec_simd:
 	ld	s1,0(sp)
 	addi	sp,sp,16
 	jr	ra
-.L19:
-	li	a0,0
-	j	.L2
 	.size	gemm_vec_simd, .-gemm_vec_simd
 	.comm	start_barrier,32,8
 	.ident	"GCC: (GNU) 8.3.0"

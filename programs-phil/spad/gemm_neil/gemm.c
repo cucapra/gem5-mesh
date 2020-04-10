@@ -6,10 +6,26 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
-// #define DRAM
+#include "gemm_kernel.h"
 
+//#define SIMD_PRIVATE
+// #define SIMD_SHARING
+// #define NO_VEC
+
+#ifdef SIMD_SHARING
 #define _VEC
 #define USE_VECTOR_SIMD
+#define SHARING
+#endif
+#ifdef SIMD_PRIVATE
+#define _VEC
+#define USE_VECTOR_SIMD
+#endif
+#ifdef NO_VEC
+#define IN_SPAD
+#define OUT_SPAD
+#define INTERLEAVED
+#endif
 
 // #ifdef USE_VECTOR_SIMD
 // #define VPF
@@ -39,7 +55,6 @@
 //#define _VEC
 //#define UNBLOCKED_INNER
 //#define BLOCKED
-#define INTERLEAVED
 
 static inline int _idx_(int y, int x, int width)
 {
@@ -59,11 +74,7 @@ static inline int get_blk_end(int iter, int bound, int blk_dim)
   }
 }
 
-#ifdef USE_VECTOR_SIMD
-
-#include "gemm_kernel.h"
-
-#else
+/*
 void __attribute__((optimize("-fno-inline")))
 gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
          int m_start, int m_end, int n_start, int n_end, int tid)
@@ -205,6 +216,8 @@ gemm_vec(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   }
 }
 
+*/
+
 void __attribute__((optimize("-fno-inline")))
 gemm(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
      int m_start, int m_end, int n_start, int n_end, int tid)
@@ -336,8 +349,6 @@ gemm(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
 #endif
 }
 
-#endif
-
 // actual kernel
 void kernel(
     DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
@@ -356,11 +367,7 @@ void kernel(
   int n_start = 0;
   int m_end = m;
   int n_end = n;
-#elif (defined _VEC && defined VPF)
-  int m_start = 0;
-  int n_start = 0;
-  int m_end = m;
-  int n_end = n;
+
 #elif defined INTERLEAVED
   int m_start = tid_y * BLK_DIM;
   int n_start = tid_x * BLK_DIM;
@@ -423,25 +430,68 @@ void kernel(
   vtid_y = vtid / vdim_y;
 
 #else
-
-  int orig_x = 0;
-  int orig_y = 0; //only have 1 group for now
+  orig_x = 0;
+  orig_y = 0; //only have 1 group for now
 #endif
 
-  //printf("iterations %d %d\n", n_end - n_start, m_end - m_start);
-
+#ifdef _VEC
   int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
   PREFETCH_EPOCH(prefetchMask);
+#endif
   //pthread_barrier_wait(&start_barrier);
 
-#if defined USE_VECTOR_SIMD
+#ifdef USE_VECTOR_SIMD
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+#elif defined _VEC
+  int mask = getVecMask(orig_x, orig_y, tid_x, tid_y, dim_x, dim_y);
+#elif defined NO_VEC
+  int mask = 0;
+#endif
+
+  // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
+  // reset after the kernel is done
+  // do before the function call so the arg stack frame is on the spad
+  // store the the current spAddr to restore later
+
+  unsigned long long *spTop = getSpTop(tid);
+  // // guess the remaining of the part of the frame that might be needed??
+  spTop -= 10;
+
+  unsigned long long stackLoc;
+  asm volatile(
+      // copy part of the stack onto the scratchpad in case there are any loads to scratchpad right before
+      // function call
+      "ld t0, 0(sp)\n\t"
+      "sd t0, 0(%[spad])\n\t"
+      "ld t0, 8(sp)\n\t"
+      "sd t0, 8(%[spad])\n\t"
+      "ld t0, 16(sp)\n\t"
+      "sd t0, 16(%[spad])\n\t"
+      "ld t0, 24(sp)\n\t"
+      "sd t0, 24(%[spad])\n\t"
+      "ld t0, 32(sp)\n\t"
+      "sd t0, 32(%[spad])\n\t"
+      "ld t0, 40(sp)\n\t"
+      "sd t0, 40(%[spad])\n\t"
+      "ld t0, 48(sp)\n\t"
+      "sd t0, 48(%[spad])\n\t"
+      "ld t0, 56(sp)\n\t"
+      "sd t0, 56(%[spad])\n\t"
+      "ld t0, 64(sp)\n\t"
+      "sd t0, 64(%[spad])\n\t"
+      "ld t0, 72(sp)\n\t"
+      "sd t0, 72(%[spad])\n\t"
+      // save the stack ptr
+      "addi %[dest], sp, 0\n\t"
+      // overwrite stack ptr
+      "addi sp, %[spad], 0\n\t"
+      : [ dest ] "=r"(stackLoc)
+      : [ spad ] "r"(spTop));
+
+#if defined USE_VECTOR_SIMD
   gemm_vec_simd(mask, a, b, c, m, n, t, m_start, m_end, n_start, n_end, vtid_x, vtid_y, vtid, tid);
 #elif defined _VEC
-  int mask = 0;
-  mask = getVecMask(orig_x, orig_y, tid_x, tid_y, dim_x, dim_y);
-
-  // configure
+  //configure
   VECTOR_EPOCH(mask);
 #if defined VPF
   gemm_vec(a, b, c, m, n, t, m_start, m_end, n_start, n_end, tid);
@@ -456,6 +506,10 @@ void kernel(
 #else
   gemm(a, b, c, m, n, t, m_start, m_end, n_start, n_end, tid);
 #endif
+
+  // restore stack pointer
+  asm volatile(
+      "addi sp, %[stackTop], 0\n\t" ::[stackTop] "r"(stackLoc));
 }
 
 // helper functions
