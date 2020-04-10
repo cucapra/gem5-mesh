@@ -12,8 +12,8 @@
 */
 
 // one of these should be defined to dictate config
-// #define NO_VEC_L2 1
-#define NO_VEC_RL 1
+#define NO_VEC_L2 1
+// #define NO_VEC_RL 1
 // #define VEC_PF 1
 // #define VEC_L2 1
 // #define VEC_RL 1
@@ -74,8 +74,8 @@ void __attribute__((optimize("-fno-reorder-blocks")))
   DTYPE *thisSpad = (DTYPE*)getSpAddr(ptid, 0);
   int nextTid = 0;
   if (vtid == 0 || vtid == 2) nextTid = ptid + 1;
-  else if (vtid == 1) nextTid = ptid + pdim;
-  else if (vtid == 3) nextTid = ptid - pdim - 1; // wrap
+  else if (vtid == 1) nextTid = ptid + 4;
+  else if (vtid == 3) nextTid = ptid - 5; // wrap
   DTYPE *nextSpad = (DTYPE*)getSpAddr(nextTid, 0);
 
   // actually do stores at the end
@@ -89,6 +89,7 @@ void __attribute__((optimize("-fno-reorder-blocks")))
   int v7 = 0;
 
   // start recording all stats (all cores)
+  asm volatile("":::"memory");
   if (ptid == 0) {
     stats_on();
   }
@@ -120,7 +121,7 @@ void __attribute__((optimize("-fno-reorder-blocks")))
   #endif
 
 
-    // start recording all stats (all cores)
+  // start recording all stats (all cores)
   if (ptid == 0) {
     stats_off();
   }
