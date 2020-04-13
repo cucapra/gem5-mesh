@@ -177,7 +177,7 @@ VecInstSel::dequeueInst() {
 // the head
 void
 VecInstSel::processHead() {
-  DPRINTF(Mesh, "process head rem uops %d\n", _uopIssueLen - _uopCnt);
+  // DPRINTF(Mesh, "process head rem uops %d\n", _uopIssueLen - _uopCnt);
   // pop off pc head if finished
   // TODO need uopIssueLen > 0 b/c not popping inst cmd here
   if (!_vecCmds.empty() && !_vecCmds.front()->isInst && !isPCGenActive() && /* TODO is next part needed?*/(_uopIssueLen > 0 || _waitingForTerminator)) {

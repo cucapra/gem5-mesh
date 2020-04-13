@@ -106,11 +106,11 @@ class CpuPort : public SlavePort
 // | SPMBaseAddr (64 bits) | xcelgo flag (32 bits) | xceldone flag (32 bits) |
 // +-----------------------+-----------------------+-------------------------+
 
-#define SPM_BASE_ADDR_OFFSET  0
-#define SPM_GO_FLAG_OFFSET    (SPM_BASE_ADDR_OFFSET + sizeof(uint64_t))
-#define SPM_DONE_FLAG_OFFSET  (SPM_GO_FLAG_OFFSET   + sizeof(uint32_t))
-#define SPM_ARGS_OFFSET       (SPM_DONE_FLAG_OFFSET + sizeof(uint32_t))
-#define SPM_DATA_WORD_OFFSET  4
+// #define SPM_BASE_ADDR_OFFSET  0
+// #define SPM_GO_FLAG_OFFSET    (SPM_BASE_ADDR_OFFSET + sizeof(uint64_t))
+// #define SPM_DONE_FLAG_OFFSET  (SPM_GO_FLAG_OFFSET   + sizeof(uint32_t))
+// #define SPM_ARGS_OFFSET       (SPM_DONE_FLAG_OFFSET + sizeof(uint32_t))
+#define SPM_DATA_WORD_OFFSET  0
 
 class Scratchpad : public AbstractController
 {
@@ -341,17 +341,17 @@ class Scratchpad : public AbstractController
     /**
      * Queue of pending control requests
      */
-    typedef std::pair<MachineID, Packet*> CtrlReq;
-    CtrlReq m_pending_base_addr_req;
-    CtrlReq m_pending_go_flag_req;
-    CtrlReq m_pending_done_flag_req;
+    // typedef std::pair<MachineID, Packet*> CtrlReq;
+    // CtrlReq m_pending_base_addr_req;
+    // CtrlReq m_pending_go_flag_req;
+    // CtrlReq m_pending_done_flag_req;
 
     /**
      * Pointers to control fields
      */
-    uint64_t* const m_base_addr_p;
-    uint32_t* const m_go_flag_p;
-    uint32_t* const m_done_flag_p;
+    // uint64_t* const m_base_addr_p;
+    // uint32_t* const m_go_flag_p;
+    // uint32_t* const m_done_flag_p;
 
     // Number of L2 banks
     const int m_num_l2s;
