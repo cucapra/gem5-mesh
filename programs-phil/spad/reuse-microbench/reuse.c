@@ -12,8 +12,8 @@
 */
 
 // one of these should be defined to dictate config
-#define NO_VEC_L2 1
-// #define NO_VEC_RL 1
+// #define NO_VEC_L2 1
+#define NO_VEC_RL 1
 // #define VEC_PF 1
 // #define VEC_L2 1
 // #define VEC_RL 1
@@ -71,6 +71,10 @@ inline void completeHardwareFrame(int spadIdx, int *someData) {
 void __attribute__((optimize("-fno-reorder-blocks"))) 
     microbench(DTYPE *a, DTYPE *b, int start, int end, int vtid, int ptid, int vdim, int pdim) {
     
+  // turn on a 'vector' config so that we can get targetted debug flags
+  VECTOR_EPOCH((1 << FET_XLEN_SHAMT) |
+            (1 << FET_YLEN_SHAMT));
+
   DTYPE *thisSpad = (DTYPE*)getSpAddr(ptid, 0);
   int nextTid = 0;
   if (vtid == 0 || vtid == 2) nextTid = ptid + 1;
@@ -135,6 +139,8 @@ void __attribute__((optimize("-fno-reorder-blocks")))
   b[5] = v5;
   b[6] = v6;
   b[7] = v7;
+
+  VECTOR_EPOCH(0);
   
 }
 
@@ -226,16 +232,20 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   #elif !defined(USE_VEC)
 
-  vdim_x = 1;
-  vdim_y = 1;
-  vtid_x = 0;
-  vtid_y = 0;
-  vtid   = 0;
-  start  = ptid * ( n / pdim );
-  end    = ( ptid + 1 ) * ( n / pdim );
+  if (ptid == 1) vtid = 0;
+  if (ptid == 2) vtid = 1;
+  if (ptid == 5) vtid = 2;
+  if (ptid == 6) vtid = 3;
+
+  vdim_x = 2;
+  vdim_y = 2;
+  start  = vtid * ( n / pdim );
+  end    = ( vtid + 1 ) * ( n / pdim );
 
   #endif
 
+  vtid_x = vtid % vdim_x;
+  vtid_y = vtid / vdim_y;
   // linearize some fields
   vdim = vdim_x * vdim_y;
   int orig = orig_x + orig_y * dim_x;
@@ -261,13 +271,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #else
-  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
-    vtid = ptid;
-    vdim = 4;
-  }
-  else {
-    return;
-  }
+  if (ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   #endif
 
   // warmup the cache to ignore dram latency

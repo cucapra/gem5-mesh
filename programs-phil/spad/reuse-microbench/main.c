@@ -13,6 +13,10 @@ int main(int argc, char *argv[]) {
    *------------------------------------------------------------------*/ 
   
   initScratchpads();
+  printf("spad base addr 0: %p\n", getSpAddr(0, 0));
+  printf("spad base addr 1: %p\n", getSpAddr(1, 0));
+  printf("spad base addr 2: %p\n", getSpAddr(2, 0));
+  printf("spad base addr 3: %p\n", getSpAddr(3, 0));
 
   /*--------------------------------------------------------------------
   * Get info about manycore
