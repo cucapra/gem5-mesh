@@ -113,13 +113,13 @@ void __attribute__((optimize("-fno-reorder-blocks")))
 
   #ifdef USE_REMOTE_LOADS
   v0 = nextSpad[0];
-  v1 = nextSpad[1];
-  v2 = nextSpad[2];
-  v3 = nextSpad[3];
-  v4 = nextSpad[4];
-  v5 = nextSpad[5];
-  v6 = nextSpad[6];
-  v7 = nextSpad[7];
+  // v1 = nextSpad[1];
+  // v2 = nextSpad[2];
+  // v3 = nextSpad[3];
+  // v4 = nextSpad[4];
+  // v5 = nextSpad[5];
+  // v6 = nextSpad[6];
+  // v7 = nextSpad[7];
   #endif
 
   #endif
@@ -132,13 +132,13 @@ void __attribute__((optimize("-fno-reorder-blocks")))
   // memory barrier so we don't do stores during the kernel
   asm volatile ("":::"memory");
   b[0] = v0;
-  b[1] = v1;
-  b[2] = v2;
-  b[3] = v3;
-  b[4] = v4;
-  b[5] = v5;
-  b[6] = v6;
-  b[7] = v7;
+  // b[1] = v1;
+  // b[2] = v2;
+  // b[3] = v3;
+  // b[4] = v4;
+  // b[5] = v5;
+  // b[6] = v6;
+  // b[7] = v7;
 
   VECTOR_EPOCH(0);
   
@@ -294,6 +294,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     spadAddr[i] = a[i];
   }
   // #endif
+
+  // only have one do the test
+  if (ptid != 1) return;
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done

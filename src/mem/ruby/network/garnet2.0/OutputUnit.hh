@@ -96,9 +96,14 @@ class OutputUnit : public Consumer
     {
         m_out_buffer->insert(t_flit);
         auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
-        if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
-          DPRINTF(Mesh, "OutputUnit %d Router %d push %#x\n", m_id, m_router->get_id(), mem_msg->getPacket()->getAddr());
-        m_out_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
+        // if this is an off cycle due to 'zero' cycle send, then we want to send it on this clockedge not the next one
+        // m_out_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
+        if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) {
+          m_out_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(0)));
+          DPRINTF(Mesh, "OutputUnit %d Router %d push %#x @ tick %llu\n", m_id, m_router->get_id(), mem_msg->getPacket()->getAddr(), m_router->clockEdge(Cycles(0)));
+        }
+        else
+          m_out_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
     }
 
     uint32_t functionalWrite(Packet *pkt);

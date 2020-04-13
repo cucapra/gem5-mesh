@@ -42,6 +42,7 @@ NetworkLink::NetworkLink(const Params *p)
     : ClockedObject(p), Consumer(this), m_id(p->link_id),
       m_type(NUM_LINK_TYPES_),
       m_latency(p->link_latency),
+    //   m_latency(0),
       linkBuffer(new flitBuffer()), link_consumer(nullptr),
       link_srcQueue(nullptr), m_link_utilized(0),
       m_vc_load(p->vcs_per_vnet * p->virt_nets)
@@ -70,15 +71,23 @@ NetworkLink::wakeup()
 {
     if (link_srcQueue->isReady(curCycle())) {
         flit *t_flit = link_srcQueue->getTopFlit();
-        t_flit->set_time(curCycle() + m_latency);
-        linkBuffer->insert(t_flit);
-        link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
-        m_link_utilized++;
-        m_vc_load[t_flit->get_vc()]++;
 
         auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
         if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
           DPRINTF(Mesh, "NetworkLink %d delay %d push %#x\n", m_id, m_latency, mem_msg->getPacket()->getAddr());
+
+        t_flit->set_time(curCycle() + m_latency);
+        linkBuffer->insert(t_flit);
+        // link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
+        if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) {
+            link_consumer->scheduleEventAbsolute(clockEdge(Cycles(0)) + 1);
+            t_flit->set_time(curCycle());
+        }
+        else
+            link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
+        m_link_utilized++;
+        m_vc_load[t_flit->get_vc()]++;
+
     }
 }
 
