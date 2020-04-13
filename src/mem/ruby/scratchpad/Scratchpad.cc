@@ -413,6 +413,8 @@ Scratchpad::wakeup()
       DPRINTF(Scratchpad, "Handling mem resp pkt %s from a remote "
                           "scratchpad\n", pkt_p->print());
 
+      if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Recv remote resp pkt %#x\n", pkt_p->getAddr());
+
       // Pop the message from mem_resp_buffer
       m_mem_resp_buffer_p->dequeue(clockEdge());
       
@@ -849,6 +851,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 
     DPRINTF(Scratchpad, "Sending pkt %s to %s\n", pkt_p->print(), dst_port);
 
+    if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Sending remote req pkt %#x to %s\n", pkt_p->getAddr(), dst_port);
+
     // Make and queue the message
     std::shared_ptr<MemMessage> msg_p =
           std::make_shared<MemMessage>(clockEdge(), src_port, dst_port, pkt_p);
@@ -874,6 +878,8 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
 
   MachineID src_port = m_machineID;
   MachineID dst_port = remote_sender;
+
+  if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Recv remote req pkt %#x\n", pkt_p->getAddr());
 
   bool respond_sender = true;
 
@@ -959,6 +965,8 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
       accessDataArray(pkt_p);
     // }
   // }
+
+
 
   // Make and queue the message
   if (respond_sender) {

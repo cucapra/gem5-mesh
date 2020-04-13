@@ -38,6 +38,9 @@
 #include "mem/ruby/network/garnet2.0/OutputUnit.hh"
 #include "mem/ruby/network/garnet2.0/Router.hh"
 
+#include "mem/ruby/scratchpad/MemMessage.hh"
+#include "debug/Mesh.hh"
+
 using m5::stl_helpers::deletePointers;
 
 CrossbarSwitch::CrossbarSwitch(Router *router)
@@ -89,6 +92,11 @@ CrossbarSwitch::wakeup()
             // flit performs LT_ in the next cycle
             t_flit->advance_stage(LT_, m_router->curCycle() + Cycles(1));
             t_flit->set_time(m_router->curCycle() + Cycles(1));
+
+            auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
+            if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
+                DPRINTF(Mesh, "Router switch %d inject %#x\n", m_router->get_id(), mem_msg->getPacket()->getAddr());
+
 
             // This will take care of waking up the Network Link
             // in the next cycle

@@ -259,17 +259,17 @@ IEW::doWriteback()
           }
         }
 
-        if (m_cpu_p->getEarlyVector()->getConfigured() && inst->numDestRegs() > 0 && inst->numSrcRegs() > 1) {
+        if (m_cpu_p->getEarlyVector()->isSlave() && inst->numDestRegs() > 0 && inst->numSrcRegs() > 1) {
           DPRINTF(Mesh, "writeback %s %lx %lx %lx\n", inst->toString(true), 
             m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
             m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
         }
-        else if (m_cpu_p->getEarlyVector()->getConfigured() && inst->numDestRegs() > 0 && inst->numSrcRegs() > 0) {
+        else if (m_cpu_p->getEarlyVector()->isSlave() && inst->numDestRegs() > 0 && inst->numSrcRegs() > 0) {
           DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true), 
             m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
             m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)));
         }
-        else if (m_cpu_p->getEarlyVector()->getConfigured() && inst->numDestRegs() > 0)
+        else if (m_cpu_p->getEarlyVector()->isSlave() && inst->numDestRegs() > 0)
           DPRINTF(Mesh, "writeback %s %lx\n", inst->toString(true), 
             m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)));
         

@@ -35,6 +35,9 @@
 
 #include "mem/ruby/network/garnet2.0/CreditLink.hh"
 
+#include "mem/ruby/scratchpad/MemMessage.hh"
+#include "debug/Mesh.hh"
+
 NetworkLink::NetworkLink(const Params *p)
     : ClockedObject(p), Consumer(this), m_id(p->link_id),
       m_type(NUM_LINK_TYPES_),
@@ -72,6 +75,10 @@ NetworkLink::wakeup()
         link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
         m_link_utilized++;
         m_vc_load[t_flit->get_vc()]++;
+
+        auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
+        if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
+          DPRINTF(Mesh, "NetworkLink %d delay %d push %#x\n", m_id, m_latency, mem_msg->getPacket()->getAddr());
     }
 }
 

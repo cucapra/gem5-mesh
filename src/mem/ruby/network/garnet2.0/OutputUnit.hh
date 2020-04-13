@@ -45,6 +45,10 @@
 #include "mem/ruby/network/garnet2.0/Router.hh"
 #include "mem/ruby/network/garnet2.0/flitBuffer.hh"
 
+#include "mem/ruby/scratchpad/MemMessage.hh"
+#include "debug/Mesh.hh"
+
+
 class OutputUnit : public Consumer
 {
   public:
@@ -91,6 +95,9 @@ class OutputUnit : public Consumer
     insert_flit(flit *t_flit)
     {
         m_out_buffer->insert(t_flit);
+        auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
+        if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
+          DPRINTF(Mesh, "OutputUnit %d Router %d push %#x\n", m_id, m_router->get_id(), mem_msg->getPacket()->getAddr());
         m_out_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
     }
 
