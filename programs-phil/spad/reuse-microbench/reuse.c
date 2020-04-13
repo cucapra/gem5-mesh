@@ -78,7 +78,7 @@ void __attribute__((optimize("-fno-reorder-blocks")))
   DTYPE *thisSpad = (DTYPE*)getSpAddr(ptid, 0);
   int nextTid = 0;
   if (vtid == 0 || vtid == 2) nextTid = ptid + 1;
-  else if (vtid == 1) nextTid = ptid + 4;
+  else if (vtid == 1) nextTid = ptid + 3;
   else if (vtid == 3) nextTid = ptid - 5; // wrap
   DTYPE *nextSpad = (DTYPE*)getSpAddr(nextTid, 0);
 
