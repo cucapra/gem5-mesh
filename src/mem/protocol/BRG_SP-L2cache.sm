@@ -114,6 +114,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     Addr      PrefetchAddress, desc = "Prefetch address, same wire as datablk";
     int       CoreOffset, desc = "Offset from core origin to start";
     int       RespCnt,    desc = "The number of resps to provide for this pending req";
+    int       PrefetchConfig, desc = "Extra info about how to do wide load";
     // int       Epoch,      desc = "Epoch of the requester";
     LLCRequestType InType, desc = "Keep track of input event to know what to do when get mem";
   }
@@ -241,14 +242,23 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return a - (a / b) * b;
   }
 
+  bool isVerticalLoad(int config) {
+    return (config == 1);
+  }
+
   // can linearize with respect to x or y and get diff sends
   // currently doing by x first
-  int getCoreIdx(int coreIdx, int coreOffset, int vecDimX, int vecDimY) {
+  int getCoreIdx(int coreIdx, int coreOffset, int vecDimX, int vecDimY, int config) {
     // get the starting core idx, always 0 in our encoding (no offset for DA core)
     int startingCoreIdx := coreIdx;
 
     // add flat offset to vec cnt
-    int vecFlat := _vecCnt + coreOffset;
+    // int vecFlat := _vecCnt + coreOffset;
+    int vecFlat := coreOffset;
+    // only go to next vector cores if spatial load
+    if (!isVerticalLoad(config)) {
+      vecFlat := vecFlat + _vecCnt;
+    }
 
     // get the x y of the current vec count
     int vecX := mod(vecFlat, vecDimX);
@@ -260,6 +270,24 @@ machine(MachineType:L2Cache, "SP LLC cache")
     // linearize on mesh cores
     int respIdx := startingCoreIdx + meshVecFlat;
     return respIdx;
+  }
+
+  int getWordIdx(Addr lineAddress, Addr wordAddress, int config) {
+      int wordAddr := addressToInt(wordAddress); // cast to int so can subtract
+      int lineAddr := addressToInt(lineAddress);
+      
+      // get offset IN WORDS, need to divide by word size
+      int wordOffset := ((wordAddr - lineAddr) / 4) + _vecCnt;
+      return wordOffset;
+  }
+
+  Addr getSpadIdx(Addr baseSpadAddr, int coreOffset, int config) {
+    int spadIdx := addressToInt(baseSpadAddr) + (coreOffset << 12);
+    // move up count
+    if (isVerticalLoad(config)) {
+      spadIdx := spadIdx + (_vecCnt * 4);
+    }
+    return intToAddress(spadIdx);
   }
 
   bool isFirstLoadOfVec() {
@@ -498,33 +526,29 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // based on vector count get the word in the cache line to send
       // this will always(?) be a linearization
       // put this in the reponse packet so know what to read
-      int linOffset := getLinearIdx(in_msg.XDim, in_msg.YDim);
-      if (!isVector(in_msg.RespCnt)) {
-        assert(linOffset == 0);
-      }
+      // int linOffset := getLinearIdx(in_msg.XDim, in_msg.YDim);
+      // if (!isVector(in_msg.RespCnt)) {
+      //   assert(linOffset == 0);
+      // }
       
       // get the spad to send this to 
       assert(machineIDToMachineType(in_msg.Requestor) == MachineType:Scratchpad);
       NodeID baseId := machineIDToNodeID(in_msg.Requestor);
       // int spadIdx := IDToInt(baseId) + linOffset;
       int coreIdx := IDToInt(baseId);
-      int spadIdx := getCoreIdx(coreIdx, in_msg.CoreOffset, in_msg.XDim, in_msg.YDim);
+      int spadIdx := getCoreIdx(coreIdx, in_msg.CoreOffset, in_msg.XDim, in_msg.YDim, in_msg.PrefetchConfig);
       int coreOffset := spadIdx - coreIdx;
       MachineID spad := createMachineID(MachineType:Scratchpad, intToID(spadIdx));
       
       // in case the base address is not aligned to the cache block
       // figure out the block idx for the word this reponse should send
-      int wordAddr := addressToInt(in_msg.WordAddress); // cast to int so can subtract
-      int lineAddr := addressToInt(in_msg.LineAddress);
-      
-      // get offset IN WORDS, need to divide by word size
-      int wordOffset := ((wordAddr - lineAddr) / 4) + linOffset;
+      int wordOffset := getWordIdx(in_msg.LineAddress, in_msg.WordAddress, in_msg.PrefetchConfig);
       
       //DPRINTF(Mesh, "offset %d line %d addr %d\n", wordOffset, lineAddr, wordAddr);
       
       // because this mimics a remote store, the return address should be
       // the storage address in the spad
-      Addr spadAddr := intToAddress(addressToInt(in_msg.PrefetchAddress) + (coreOffset << 12)); //intToAddress(268435472 + (spadIdx << 12));
+      Addr spadAddr := getSpadIdx(in_msg.PrefetchAddress, coreOffset, in_msg.PrefetchConfig);
       
       DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d\n", 
         spadIdx, coreIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset);
@@ -562,25 +586,19 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   action(rsm_remoteStoreFromMem, "rsm", desc = "A remote store to a spad who did not request from mem") {
     peek(memQueue_in, MemoryMsg) {
-      // get vec offset
-      int linOffset := getLinearIdx(tbe.XDim, tbe.YDim);
       
       // get the spad to send this to 
       assert(machineIDToMachineType(tbe.Requestor) == MachineType:Scratchpad);
       NodeID baseId := machineIDToNodeID(tbe.Requestor);
       int coreIdx := IDToInt(baseId);
-      int spadIdx := getCoreIdx(coreIdx, tbe.CoreOffset, tbe.XDim, tbe.YDim);
+      int spadIdx := getCoreIdx(coreIdx, tbe.CoreOffset, tbe.XDim, tbe.YDim, tbe.PrefetchConfig);
       int coreOffset := spadIdx - coreIdx;
       MachineID spad := createMachineID(MachineType:Scratchpad, intToID(spadIdx));
       
       // get offset into cache blk
-      int wordAddr := addressToInt(tbe.WordAddress);
-      int lineAddr := addressToInt(in_msg.addr);
-      // get offset IN WORDS, need to divide by word size
-      int wordOffset := ((wordAddr - lineAddr) / 4) + linOffset;
+      int wordOffset := getWordIdx(in_msg.addr, tbe.WordAddress, tbe.PrefetchConfig);
       
-      //Addr spadAddr := intToAddress(268435472 + (spadIdx << 12));
-      Addr spadAddr := intToAddress(addressToInt(tbe.PrefetchAddress) + (coreOffset << 12));
+      Addr spadAddr := getSpadIdx(tbe.PrefetchAddress, coreOffset, tbe.PrefetchConfig);
       
       // if vector then send REVDATA, otherwise REDATA
       LLCResponseType respType;
@@ -671,6 +689,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       tbe.PrefetchAddress := in_msg.PrefetchAddress;
       tbe.CoreOffset := in_msg.CoreOffset;
       tbe.RespCnt := in_msg.RespCnt;
+      tbe.PrefetchConfig := in_msg.PrefetchConfig;
       // tbe.Epoch := in_msg.Epoch;
       tbe.InType := in_msg.Type;
     }

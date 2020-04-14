@@ -666,10 +666,12 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       // right : offset = coreOffset + leftCount   rightCount = count - leftCount 
       bool prefetchLeft = m_s1_inst->static_inst_p->isLeftSide();
       size_t lineSize = m_cpu_p->getCacheLineSize();
-      size_t count = imm;
+      size_t count = bits(imm, 11, 2);
+      int config = bits(imm, 1, 0);
       size_t wordOffset = addr & (lineSize - 1);
       size_t wordsRemInLine = (lineSize - wordOffset) / size;
       size_t leftCount = std::min(wordsRemInLine, count);
+      m_s1_inst->mem_req_p->prefetchConfig = config;
       if (prefetchLeft) {
         m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
         m_s1_inst->mem_req_p->respCnt = leftCount;
@@ -685,7 +687,12 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
             rightCount);
         }
         else {
-          m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount;
+          bool isVerticalLoad = (config == 1);
+          if (isVerticalLoad) {
+            m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
+            m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + leftCount;
+          }
+          else m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount;
           m_s1_inst->mem_req_p->respCnt = rightCount;
           // change vaddr to reflect new baseOffset
           Addr rightVirtAddr = addr + (leftCount * size);
