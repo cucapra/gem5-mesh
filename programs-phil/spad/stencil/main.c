@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int nrows = 1 + (FILTER_DIM - 1); // single row
+  int nrows = 3 + (FILTER_DIM - 1); // single row
   int ncols = 16 /*+ (FILTER_DIM - 1)*/;
   
   // parse positional arguments (X Y)
@@ -94,10 +94,10 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   for (int row = 0; row < nrows - boundOffset; row++) {
-    for (int col = 0; col < ncols /*- boundOffset*/; col++) {
+    for (int col = 0; col < ncols - boundOffset; col++) {
       int cexp = 0;
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = 0; k2 < 1; k2++) {
+        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (row + k1) * ncols + (col + k2);
           int bIdx = k1 * FILTER_DIM + k2;
           cexp += b[bIdx] * a[aIdx];
@@ -108,6 +108,7 @@ int main(int argc, char *argv[]) {
         printf("[[FAIL]]\n");
         return 1;
       }
+      // printf("%d == %d @ row %d cold %d\n", c[row * (ncols /*- boundOffset*/) + col], cexp, row, col);
     }
   }
   

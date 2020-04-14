@@ -9,24 +9,61 @@
 
 #define RAND_MAT
 
-void fill_matrix(DTYPE* m, int row, int col){
+#if defined SIMD_PRIVATE || defined SIMD_SHARING
+#define TRANSPOSE
+#endif
+
+void fill_matrix(DTYPE *m, int row, int col)
+{
   srand(0);
-  for (int i = 0; i < row; i++){
-    for (int j = 0; j<col ; j++){
-      m[i*col+j] = rand()%10;
+  for (int i = 0; i < row; i++)
+  {
+    for (int j = 0; j < col; j++)
+    {
+      m[i * col + j] = rand() % 10;
     }
   }
-
 }
 
-int check_matmul(DTYPE* a, DTYPE*b, DTYPE*c, int m, int n, int t){
-  for (int i = 0; i < m; i++) {
-    for (int j = 0; j < n; j++) {
+int check_matmul(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t)
+{
+
+  for (int i = 0; i < m; i++)
+  {
+    for (int j = 0; j < n; j++)
+    {
+      printf("%f ", c[i * n + j]);
+    }
+    printf("\n");
+  }
+
+  printf("------------\n \n");
+
+  for (int i = 0; i < m; i++)
+  {
+    for (int j = 0; j < n; j++)
+    {
       DTYPE c_temp = 0;
-      for (int k = 0; k < t; k++) {
-         c_temp += a[i*t+k] * b[k*n+j];
+      for (int k = 0; k < t; k++)
+      {
+        c_temp += a[i * t + k] * b[k * n + j];
       }
-      if (c[i*n+j] != c_temp) {
+      printf("%f ", c_temp);
+    }
+    printf("\n");
+  }
+
+  for (int i = 0; i < m; i++)
+  {
+    for (int j = 0; j < n; j++)
+    {
+      DTYPE c_temp = 0;
+      for (int k = 0; k < t; k++)
+      {
+        c_temp += a[i * t + k] * b[k * n + j];
+      }
+      if (c[i * n + j] != c_temp)
+      {
         printf("[[FAIL]]\n");
         return 1;
       }
@@ -35,30 +72,33 @@ int check_matmul(DTYPE* a, DTYPE*b, DTYPE*c, int m, int n, int t){
   return 0;
 }
 
-int main(int argc, char *argv[]) {
-  
+int main(int argc, char *argv[])
+{
+
   /*--------------------------------------------------------------------
    * Setup scratchpads
-   *------------------------------------------------------------------*/ 
-  
+   *------------------------------------------------------------------*/
+
+  printf("starting\n");
+
   initScratchpads();
 
   /*--------------------------------------------------------------------
   * Get info about manycore
-  *-------------------------------------------------------------------*/  
-  
+  *-------------------------------------------------------------------*/
+
   int cores_x, cores_y;
   int num_cores = get_dimensions(&cores_x, &cores_y);
 
   /*--------------------------------------------------------------------
   * Put the command line arguments into variables
   *-------------------------------------------------------------------*/
-  
+
   // default values
   int m = 4;
   int n = 4;
   int t = 4;
-  
+
   // parse positional arguments
   if (argc > 1)
     m = atoi(argv[1]);
@@ -66,53 +106,55 @@ int main(int argc, char *argv[]) {
     n = atoi(argv[2]);
   if (argc > 3)
     t = atoi(argv[3]);
-  
+
   printf("Problem size is (x,y) A: %d,%d x B: %d,%d -> C: %d,%d\n", t, m, n, t, n, m);
 
   /*--------------------------------------------------------------------
   * Data initialization
   *-------------------------------------------------------------------*/
- 
+
   size_t sizeA = t * m;
   size_t sizeB = n * t;
   size_t sizeC = n * m;
-  
+
   // DTYPE *a_ptr, *b_ptr, *c_ptr;
   // DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeA, (void**)&a_ptr);
   // DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeB, (void**)&b_ptr);
   // DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeC, (void**)&c_ptr);
 
-  DTYPE *a = (DTYPE*)malloc(sizeof(DTYPE) * sizeA);
-  DTYPE *b = (DTYPE*)malloc(sizeof(DTYPE) * sizeB);
-  DTYPE *c = (DTYPE*)malloc(sizeof(DTYPE) * sizeC);
-  
-  #ifdef RAND_MAT
-  fill_matrix(a,m,t);
-  fill_matrix(b,t,n);
-  #else
+  DTYPE *a = (DTYPE *)malloc(sizeof(DTYPE) * sizeA);
+  DTYPE *b = (DTYPE *)malloc(sizeof(DTYPE) * sizeB);
+  DTYPE *c = (DTYPE *)malloc(sizeof(DTYPE) * sizeC);
+
+#ifdef RAND_MAT
+  fill_matrix(a, m, t);
+  fill_matrix(b, t, n);
+#else
   for (int i = 0; i < sizeA; i++)
     a[i] = 3;
   for (int i = 0; i < sizeB; i++)
     b[i] = 2;
-  #endif
-  
+#endif
+
   for (int i = 0; i < sizeC; i++)
     c[i] = 0;
 
-  #if (defined(_VEC) && defined(VEC_PFETCH)) || defined(USE_VECTOR_SIMD)
+#ifdef TRANSPOSE
   //do transpose of a for contiguous access
-  DTYPE *a_= (DTYPE*)malloc(sizeof(DTYPE) * sizeA);
+  DTYPE *a_ = (DTYPE *)malloc(sizeof(DTYPE) * sizeA);
   DTYPE *_temp;
-  for (int k = 0; k < t; k++){
-    for (int i = 0; i < m; i++){
-      a_[k*m+i]= a[i*t+k];
+  for (int k = 0; k < t; k++)
+  {
+    for (int i = 0; i < m; i++)
+    {
+      a_[k * m + i] = a[i * t + k];
     }
   }
   _temp = a;
-  a=a_;
+  a = a_;
   a_ = _temp;
-  #endif
-  
+#endif
+
   // figure out good tile size for the architecture
   // i.e. the 2d tiles for the three matrices should fit into scratchpad
   const int num_mat = 3;
@@ -120,51 +162,56 @@ int main(int argc, char *argv[]) {
 
   /*--------------------------------------------------------------------
   * Pack argument for kernel
-  *-------------------------------------------------------------------*/  
+  *-------------------------------------------------------------------*/
 
   // initialize the arguments to send to each device core
-  Kern_Args **kern_args = (Kern_Args**)malloc(sizeof(Kern_Args*) * num_cores);
+  Kern_Args **kern_args = (Kern_Args **)malloc(sizeof(Kern_Args *) * num_cores);
 
-  for (int y = 0; y < cores_y; y++) {
-    for (int x = 0; x < cores_x; x++){
+  for (int y = 0; y < cores_y; y++)
+  {
+    for (int x = 0; x < cores_x; x++)
+    {
       int i = x + y * cores_x;
-      
-      #ifdef _USE_SCRATCHPAD
-      //kern_args[i] = construct_args(sp_a[i], sp_b[i], sp_c[i], size, x, y, cores_x, cores_y);
-      #else
+
+#ifdef _USE_SCRATCHPAD
+//kern_args[i] = construct_args(sp_a[i], sp_b[i], sp_c[i], size, x, y, cores_x, cores_y);
+#else
       kern_args[i] = construct_args(a, b, c, m, n, t, x, y, cores_x, cores_y);
-      #endif
-    }  
+#endif
+    }
   }
 
   /*--------------------------------------------------------------------
   * Run the kernel
   *-------------------------------------------------------------------*/
-  
+
   printf("Begin kernel on %d cores\n", num_cores);
-  printf("Cores x:%d Cores y:%d\n",cores_x,cores_y);
-  launch_kernel(pthread_kernel, (void**)kern_args, cores_x, cores_y);
-  
-  /*--------------------------------------------------------------------
+  printf("Cores x:%d Cores y:%d\n", cores_x, cores_y);
+  launch_kernel(pthread_kernel, (void **)kern_args, cores_x, cores_y);
+
+/*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
-  #if (defined(_VEC) && defined(VEC_PFETCH)) || defined(USE_VECTOR_SIMD)
+#ifdef TRANSPOSE
   a = a_;
-  #endif
-  
-  #ifdef RAND_MAT
-  int fail = check_matmul(a,b,c,m,n,t);
-  if(fail) return 1;
-  #else
-  for (int i = 0; i < sizeC; i++) {
+#endif
+
+#ifdef RAND_MAT
+  int fail = check_matmul(a, b, c, m, n, t);
+  if (fail)
+    return 1;
+#else
+  for (int i = 0; i < sizeC; i++)
+  {
     //printf("%f\n", c[i]);
-    if (c[i] != 6 * t) {
+    if (c[i] != 6 * t)
+    {
       printf("[[FAIL]]\n");
       return 1;
     }
   }
-  #endif
-  
+#endif
+
   free(a);
   free(b);
   free(c);

@@ -12,13 +12,7 @@
 
 #if !defined(__x86_64__) && !defined(__i386__)
 // SPM space mapped to scratchpads
-uint8_t spm[SP_SIZE * N_SPS] __attribute__ ((section(".spm")));
-uint8_t*  spm_base_ptr_arr     [N_SPS];
-uint8_t*  spm_next_ptr_arr     [N_SPS];
-uint64_t* spm_base_addr_ptr_arr[N_SPS];
-uint32_t* spm_go_flag_ptr_arr  [N_SPS];
-uint32_t* spm_done_flag_ptr_arr[N_SPS];
-
+extern uint8_t*  spm_base_ptr_arr     [N_SPS];
 
 #endif
 

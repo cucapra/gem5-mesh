@@ -18,49 +18,36 @@
 // #define NO_VEC 1
 #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_BCAST 1
+// #define VEC_4_SIMD_REUSE 1
+// #define VEC_4_SIMD_SINGLE_PREFETCH 1
 
 // vvadd_execute config directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE)
 #define USE_VEC 1
 #endif
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE)
 #define USE_VECTOR_SIMD 1
 #endif
 
 // vector grouping directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_SIMD_REUSE)
 #define VEC_SIZE_4_SIMD 1
 #endif
 
-// prefetch sizings
-#if defined(VEC_4_DA) || defined(NO_VEC_DA) || defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_16_UNROLL_SERIAL) \
- || defined(SIM_DA_VLOAD_SIZE_1)
-#define REGION_SIZE 32
-#define NUM_REGIONS 16
-#elif defined(USE_VECTOR_SIMD)
-#define REGION_SIZE 3
-#define NUM_REGIONS 256
-#define POST_REGION_WORD NUM_REGIONS * REGION_SIZE
+// kernel settings 
+#if defined(VEC_4_SIMD_SINGLE_PREFETCH)
+#define SINGLE_PREFETCH 1
+#endif
+#if defined(VEC_4_SIMD_REUSE)
+#define REUSE 1
 #endif
 
-// https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
-int roundUp(int numToRound, int multiple) {
-  if (multiple == 0) {
-    return numToRound;
-  }
-
-  int remainder = abs(numToRound) % multiple;
-  if (remainder == 0) {
-    return numToRound;
-  }
-
-  if (numToRound < 0) {
-    return -(abs(numToRound) - remainder);
-  }
-  else {
-    return numToRound + multiple - remainder;
-  }
-}
+// prefetch sizings
+#if defined(USE_VECTOR_SIMD)
+#define REGION_SIZE FILTER_DIM * FILTER_DIM
+#define NUM_REGIONS 64
+#define POST_REGION_WORD NUM_REGIONS * REGION_SIZE
+#endif
 
 inline int min(int a, int b) {
   if (a > b) {
@@ -71,15 +58,21 @@ inline int min(int a, int b) {
   }
 }
 
-// NOTE optimize("-fno-inline") prevents return block from being at the end, which is kind of needed for the scheme
-// ACTUALLY any second label causes a problem???
 #ifdef USE_VECTOR_SIMD
 void __attribute__((optimize("-fno-reorder-blocks")))
 stencil(
-    DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols,
-    int ptid, int vtid, int dim, int mask, int is_master) {
+    DTYPE *a, DTYPE *b, DTYPE *c, int start_row, int end_row, int ncols,
+    int ptid, int vtid, int dim, int mask) {
 
   int *spadAddr = (int*)getSpAddr(ptid, 0);
+
+  #ifdef REUSE
+  // calculate next spAddr for reuse
+  int *nSpAddr = NULL;
+  if (vtid == 0 || vtid == 2) nSpAddr = (int*)getSpAddr(ptid + 1, 0);
+  else if (vtid == 1) nSpAddr = (int*)getSpAddr(ptid + 3, 0); // GRID_DIM = 4 - 1 = 3
+  // vtid=3 doesn't do this and must be predicated
+  #endif 
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
@@ -89,49 +82,77 @@ stencil(
   int spadIdx = 0;
 
   ISSUE_VINST(fable0);
+  
+  // how much we're actually going to do (ignore edges)
+  // TODO can we use predication instead?
+  int effCols = ncols - (FILTER_DIM - 1);
 
-  // do initial batch of prefetching
+  // do initial batch of prefetching. only prefetch part of the first row
+  #ifdef REUSE
+  int beginCol = 0;
+  #else
   int prefetchFrames = 8;
-  int beginCol = min(prefetchFrames * dim, ncols);
-  for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
+  int beginCol = min(prefetchFrames * dim, effCols);
+  for (int r = start_row; r < start_row + 1; r++) {
     for (int c = 0; c < beginCol; c+=dim) {
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = 0; k2 < 1; k2++) {
+        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
-          // TODO can't handle when this inevitably goes off cacheline
-          VPREFETCH(spadAddr + spadIdx, a + aIdx, 25);
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
           spadIdx++;
         }
       }
     }
   }
+  #endif
 
-  for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
-    for (int c = beginCol; c < ncols /*- (FILTER_DIM - 1)*/; c+=dim) {
-      // prefetch all 9 values required for computation
-      // prevent unroll b/c doesnt work well if VISSUE in the loop
-      // #pragma GCC unroll 0
-      // for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-      //   #pragma GCC unroll 0
-      //   for (int k2 = 0; k2 < FILTER_DIM; k2++) {
-      //     int aIdx = (r + k1) * ncols + (c + k2);
-      //     // TODO can't handle when this inevitably goes off cacheline
-      //     VPREFETCH(spadAddr + spadIdx, a + aIdx, 0);
+  for (int r = start_row; r < end_row; r++) {
+    int startCol = 0;
+    // we've prefetch part of the first row to get ahead
+    if (r == start_row) startCol = beginCol;
+    for (int c = startCol; c < effCols; c+=dim) {
 
-      //     // spad is circular buffer so do cheap mod here
-      //     spadIdx++;
-      //     if (spadIdx == POST_REGION_WORD) {
-      //       spadIdx = 0;
-      //     }
-      //   }
-      // }
-
-      // just do stencil with 3 values prefetched by row
+      #ifdef REUSE
+      // load the first two columns just into vtid0 to be shared
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = 0; k2 < 1; k2++) {
+        for (int k2 = 0; k2 < FILTER_DIM - 1; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
-          // TODO can't handle when this inevitably goes off cacheline
-          VPREFETCH(spadAddr + spadIdx, a + aIdx, 24);
+          
+          VPREFETCH_L(spadIdx + (k1 * FILTER_DIM + k2), a + aIdx, 0, 1);
+        }
+      }
+
+      // load the last value into each core which cannot be received from prev core
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        for (int k2 = FILTER_DIM - 1; k2 < FILTER_DIM; k2++) {
+          int aIdx = (r + k1) * ncols + (c + k2);
+
+          VPREFETCH_L(spadIdx + (k1 * FILTER_DIM + k2), a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx + (k1 * FILTER_DIM + k2), a + aIdx, 0, 4);
+        }
+      }
+
+      spadIdx += REGION_SIZE;
+      if (spadIdx == POST_REGION_WORD) {
+        spadIdx = 0;
+      }
+
+      #else
+      // prefetch all 9 values required for computation
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
+          int aIdx = (r + k1) * ncols + (c + k2);
+          
+          #ifdef SINGLE_PREFETCH
+          VPREFETCH_L(spadIdx, a + aIdx + 0, 0, 1);
+          VPREFETCH_L(spadIdx, a + aIdx + 1, 1, 1);
+          VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
+          VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
+          #else
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
+          #endif
 
           // spad is circular buffer so do cheap mod here
           spadIdx++;
@@ -140,17 +161,23 @@ stencil(
           }
         }
       }
+      #endif
 
       ISSUE_VINST(fable1);
     }
   }
 
+  #ifndef REUSE
   // issue the rest of blocks
-  for (int r = 0; r < nrows - (FILTER_DIM - 1); r++) {
-    for (int c = ncols  /*- (FILTER_DIM - 1)*/ - beginCol; c < ncols /*- (FILTER_DIM - 1)*/; c+=dim) {
+  for (int r = start_row; r < end_row; r++) {
+    // take some loads off the last row b/c already prefetched
+    int colStart = effCols;
+    if (r == end_row - 1) colStart = effCols - beginCol;
+    for (int c = colStart; c < effCols; c+=dim) {
       ISSUE_VINST(fable1);
     }
   }
+  #endif
 
   // devec with unique tag
   DEVEC(devec_0);
@@ -164,7 +191,7 @@ stencil(
 
   // declarations
   DTYPE a_, b_, c_;
-  int64_t iter; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
+  int64_t iter, baseIdx; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
   DTYPE b0, b1, b2, b3, b4, b5, b6, b7, b8;
 
@@ -176,34 +203,20 @@ stencil(
   //     spadAddr[POST_REGION_WORD + i] = b[i];
   //     // b_ = b[i]; // keep filter in regfile
   //   }
-  // fable0b:
     iter = 0;
-    cPtr = c + /*(startRow * ncols + startCol)*/ + vtid;
-    // b0 = b[0];
-    // b1 = b[1];
-    // b2 = b[2];
-    // b3 = b[3];
-    // b4 = b[4];
-    // b5 = b[5];
-    // b6 = b[6];
-    // b7 = b[7];
-    // b8 = b[8];
+    cPtr = c + (start_row * ncols) + vtid;
     b0 = b[0];
-    b1 = b[3];
-    b2 = b[6];
-    
+    b1 = b[1];
+    b2 = b[2];
+    b3 = b[3];
+    b4 = b[4];
+    b5 = b[5];
+    b6 = b[6];
+    b7 = b[7];
+    b8 = b[8];
   
   // loop body block
   fable1:
-    #ifdef SIMD_BCAST
-    // try to get compiler to use register that will recv broadcasted values
-    // can make compiler pass
-    asm volatile(
-      "add %[var], t0, x0\n\t"
-      : [var] "=r" (iter)
-    );
-    #endif
-
     c_ = 0;
     // #pragma GCC unroll 9
     // for (int i = 0; i < FILTER_DIM * FILTER_DIM; i++) {
@@ -211,32 +224,50 @@ stencil(
     //   b_ = spadAddr[POST_REGION_WORD + i];
     //   c_ += a_ * b_;
     // }
-    LWSPEC(a_, spadAddr + (iter * 3) + 0, 0);
+    baseIdx = iter * FILTER_DIM * FILTER_DIM;
+    LWSPEC(a_, spadAddr + baseIdx + 0, 0);
     c_ += b0 * a_;
-    LWSPEC(a_, spadAddr + (iter * 3) + 1, 0);
+    LWSPEC(a_, spadAddr + baseIdx + 1, 0);
     c_ += b1 * a_;
-    LWSPEC(a_, spadAddr + (iter * 3) + 2, 0);
+    LWSPEC(a_, spadAddr + baseIdx + 2, 0);
     c_ += b2 * a_;
-    // LWSPEC(a_, spadAddr + 3, 0);
-    // c_ += b3 * a_;
-    // LWSPEC(a_, spadAddr + 4, 0);
-    // c_ += b4 * a_;
-    // LWSPEC(a_, spadAddr + 5, 0);
-    // c_ += b5 * a_;
-    // LWSPEC(a_, spadAddr + 6, 0);
-    // c_ += b6 * a_;
-    // LWSPEC(a_, spadAddr + 7, 0);
-    // c_ += b7 * a_;
-    // LWSPEC(a_, spadAddr + 8, 0);
-    // c_ += b8 * a_;
+    LWSPEC(a_, spadAddr + baseIdx + 3, 0);
+    c_ += b3 * a_;
+    LWSPEC(a_, spadAddr + baseIdx + 4, 0);
+    c_ += b4 * a_;
+    LWSPEC(a_, spadAddr + baseIdx + 5, 0);
+    c_ += b5 * a_;
+    LWSPEC(a_, spadAddr + baseIdx + 6, 0);
+    c_ += b6 * a_;
+    LWSPEC(a_, spadAddr + baseIdx + 7, 0);
+    c_ += b7 * a_;
+    LWSPEC(a_, spadAddr + baseIdx + 8, 0);
+    c_ += b8 * a_;
+
+    // forward middle and right values to the next core if doing reuse
+    // TODO remote stores should use lazy ack!
+    #ifdef REUSE
+    // do the following instructions if vtid != 3
+    PRED_NEQ(vtid, 3);
+    // {
+      nSpAddr[baseIdx + 0] = spadAddr[baseIdx + 1];
+      nSpAddr[baseIdx + 1] = spadAddr[baseIdx + 2];
+      nSpAddr[baseIdx + 3] = spadAddr[baseIdx + 4];
+      nSpAddr[baseIdx + 4] = spadAddr[baseIdx + 5];
+      nSpAddr[baseIdx + 6] = spadAddr[baseIdx + 7];
+      nSpAddr[baseIdx + 7] = spadAddr[baseIdx + 8];
+    // }
+    // resume execution of all instructions
+    PRED_EQ(vtid, vtid);
+    #endif
 
     REMEM(0);
+
     STORE_NOACK(c_, cPtr, 0);
     // do no reuse version for now
     cPtr += dim;
     iter = (iter + 1) % (NUM_REGIONS);
     
-
     // need this jump to create loop carry dependencies
     // an assembly pass will remove this instruction
     asm volatile goto("j %l[fable1]\n\t"::::fable1);
@@ -247,10 +278,13 @@ stencil(
 void /*__attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) */
 stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, int dim) {
    for (int row = 0; row < nrows - (FILTER_DIM - 1); row++) {
-    for (int col = vtid; col < ncols /*- (FILTER_DIM - 1)*/; col+=dim) {
+    // #pragma GCC unroll 4
+    for (int col = vtid; col < ncols - (FILTER_DIM - 1); col+=dim) {
       int temp = 0;
+      #pragma GCC unroll 3
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = 0; k2 < 1; k2++) {
+        #pragma GCC unroll 3
+        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (row + k1) * ncols + (col + k2);
           int bIdx = k1 * FILTER_DIM + k2;
           temp += a[aIdx] * b[bIdx];
@@ -273,9 +307,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     stats_on();
   }
 
-  // for now we're just doing one row
-  // so n can be ncols - 2
-  int n = ncols - (FILTER_DIM - 1);
+  // chunk across rows
+  int effRows = nrows - (FILTER_DIM - 1);
 
   // linearize tid and dim
   int tid = tid_x + tid_y * dim_x;
@@ -307,8 +340,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim_x = 2;
   vdim_y = 2;
 
-  int alignment = 16 * vdim_x * vdim_y;
-
   // group 1 top left (master = 0)
   if (ptid == 1) vtid = 0;
   if (ptid == 2) vtid = 1;
@@ -317,7 +348,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = ncols - (FILTER_DIM - 1); //roundUp(n / 3, alignment); // make sure aligned to cacheline 
+    end = (float)effRows / 3.0f;
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -331,13 +362,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 13) vtid = 3;
   if (ptid == 4) is_da = 1;
   if (ptid == 4 || ptid == 8 || ptid == 9 || ptid == 12 || ptid == 13) {
-    start = roundUp(n / 3, alignment);
-    end = roundUp(2 * n / 3, alignment);
+    start = (float)effRows / 3.0f;
+    end = (float)(2 * effRows) / 3.0f;
     orig_x = 0;
     orig_y = 2;
     master_x = 0;
     master_y = 1;
-    // TODO for some reason can't return here...
   }
 
   // group 3 bottom right (master == 7)
@@ -347,20 +377,16 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 15) vtid = 3;
   if (ptid == 7) is_da = 1;
   if (ptid == 7 || ptid == 10 || ptid == 11 || ptid == 14 || ptid == 15) {
-    start = roundUp(2 * n / 3, alignment);
-    end = n;
+    start = (float)(2 * effRows) / 3.0f;
+    end = effRows;
     orig_x = 2;
     orig_y = 2;
     master_x = 3;
     master_y = 1;
   }
 
-  // unused core
-  // if (ptid == 3) return;
-
   vtid_x = vtid % vdim_x;
   vtid_y = vtid / vdim_y;
-
 
   #elif !defined(USE_VEC)
 
@@ -396,7 +422,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VECTOR_SIMD)
-  if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
+  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #else
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
@@ -414,7 +440,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // store the the current spAddr to restore later 
   unsigned long long *spTop = getSpTop(ptid);
   // guess the remaining of the part of the frame that might be needed??
-  spTop -= 4;
+  spTop -= 6;
 
   unsigned long long stackLoc;
   asm volatile (
@@ -428,6 +454,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     "sd t0, 16(%[spad])\n\t"
     "ld t0, 24(sp)\n\t"
     "sd t0, 24(%[spad])\n\t"
+    "ld t0, 32(sp)\n\t"
+    "sd t0, 32(%[spad])\n\t"
+    "ld t0, 40(sp)\n\t"
+    "sd t0, 40(%[spad])\n\t"
     // save the stack ptr
     "addi %[dest], sp, 0\n\t" 
     // overwrite stack ptr
@@ -437,7 +467,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   );
 
   #ifdef USE_VECTOR_SIMD
-  stencil(a, b, c, nrows, ncols, ptid, vtid, vdim, mask, is_da);
+  stencil(a, b, c, start, end, ncols, ptid, vtid, vdim, mask);
   #else
   stencil(a, b, c, nrows, ncols, ptid, vtid, vdim);
   #endif

@@ -88,20 +88,6 @@ public:
       NumStatus
     };
 
-private:
-  enum IEWStatus
-  {
-    // Issue stage
-    IssueSquashed,
-    IssueInitStall,
-    IssueBusy,
-    // Writeback stage
-    WBSquashed,
-    WBStalled,
-    WBInitSquash,
-    WBBusy,
-    NumStatus
-  };
 
 private:
   /** Do issue */

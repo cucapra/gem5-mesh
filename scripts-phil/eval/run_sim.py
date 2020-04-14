@@ -20,23 +20,23 @@ parser = argparse.ArgumentParser(
 )
 parser.add_argument(
     "--build",
-    default="/home/na469/phil/gem5-mesh/build/RVSP/gem5.opt",
+    default="build/RVSP/gem5.opt",
     help="Path to gem5 build",
 )
 parser.add_argument(
     "--config",
-    default="/home/na469/phil/gem5-mesh/configs/phil/brg_hammerblade.py",
+    default="configs/phil/brg_hammerblade.py",
     help="Path to gem5 build",
 )
 parser.add_argument(
     "--results",
-    default="/home/na469/phil/gem5-mesh/results",
+    default="results",
     help="Path to place to store results",
 )
 args = parser.parse_args()
 
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful
-progDir0 = "/home/na469/phil/gem5-mesh/programs-phil/spad/"
+progDir0 = "programs-phil/spad/"
 programs = {
     "vvadd": {
         "name": "vvadd",
@@ -142,7 +142,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
 numCpus = 16
 use_sps = True
 
-size = 32  # 65536  # 32768 #8192
+size = 8# 65536  # 32768 #8192
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 # seed = random.randint(1,2**20)
@@ -175,8 +175,8 @@ use_vec_arr = [True]
 make_flags_vvadd = ["VEC_4_SIMD"]
 
 # make_flags_gemm = ["UNBLOCKED_INNER", "BLOCKED", "INTERLEAVED", "UNBLOCKED_OUTER"]
-# make_flags_gemm = ["VPF", "SP", "DRAM"]
-make_flags_gemm = ["USE_VECTOR_SIMD"]
+make_flags_gemm = ["SIMD_SHARING"] # ["NO_VEC"]
+# make_flags_gemm = ["SIMD_PRIVATE", "SIMD_SHARING", "NO_VEC"]
 # program = "vvadd"
 program = "gemm"
 
