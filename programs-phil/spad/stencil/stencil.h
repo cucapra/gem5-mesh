@@ -10,18 +10,21 @@
 // one of these should be defined to dictate config
 // #define NO_VEC 1
 // #define VEC_4_SIMD 1
+#define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_BCAST 1
-#define VEC_4_REUSE 1
+// #define VEC_4_REUSE 1
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
 // #define VEC_4_SIMD_LARGE_FRAME 1
 
 // vvadd_execute config directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME) \
+  || defined(VEC_4_SIMD_VERTICAL)
 #define USE_VEC 1
 #endif
 
 // vector grouping directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME) \
+  || defined(VEC_4_SIMD_VERTICAL)
 #define VEC_SIZE_4_SIMD 1
 #endif
 
@@ -34,6 +37,9 @@
 #endif
 #if defined(VEC_4_SIMD_LARGE_FRAME)
 #define LARGE_FRAME 1
+#endif
+#if defined(VEC_4_SIMD_VERTICAL)
+#define VERTICAL_LOADS 1
 #endif
 
 // prefetch sizings

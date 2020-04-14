@@ -43,7 +43,7 @@ inline int min(int a, int b) {
 inline void completeHardwareFrame(int spadIdx, int *someData) {
   int remainingEntries = REGION_SIZE - (spadIdx % REGION_SIZE);
   for (int i = 0; i < remainingEntries; i++) {
-    VPREFETCH_L(spadIdx, someData, 0, 4);
+    VPREFETCH_L(spadIdx, someData, 0, 4, 0);
     spadIdx++;
   }
 }
@@ -111,13 +111,22 @@ stencil(
   for (int r = start_row; r < start_row + 1; r++) {
     for (int c = 0; c < beginCol; c+=dim) {
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        #ifdef VERTICAL_LOADS
+        int aIdx = (r + k1) * ncols + c;
+        for (int core = 0; core < dim; core++) {
+          VPREFETCH_L(spadIdx, a + aIdx, core, FILTER_DIM, 1);
+          VPREFETCH_R(spadIdx, a + aIdx, core, FILTER_DIM, 1);
+        }
+        spadIdx+=FILTER_DIM;
+        #else
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           // printf("prelw sp %d r %d c %d k1 %d k2 %d idx %d\n", spadIdx, r, c, k1, k2, aIdx);
-          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
-          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
           spadIdx++;
         }
+        #endif
       }
     }
   }
@@ -133,30 +142,30 @@ stencil(
         int core0Idx = (r + k1) * ncols + c;
         if (c == 0) {
           // printf("fetch base sp %d addr %d\n", spadIdx, core0Idx);
-          VPREFETCH_L(spadIdx + 0, a + core0Idx + 0, 0, 1);
-          VPREFETCH_L(spadIdx + 1, a + core0Idx + 1, 0, 1);
-          VPREFETCH_L(spadIdx + 2, a + core0Idx + 2, 0, 1);
+          VPREFETCH_L(spadIdx + 0, a + core0Idx + 0, 0, 1, 0);
+          VPREFETCH_L(spadIdx + 1, a + core0Idx + 1, 0, 1, 0);
+          VPREFETCH_L(spadIdx + 2, a + core0Idx + 2, 0, 1, 0);
 
           for (int k2 = 0; k2 < FILTER_DIM; k2++) {
             int aIdx = (r + k1) * ncols + (c + FILTER_DIM + (k2 * (dim - 1)));
             // printf("c==0: r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
 
-            VPREFETCH_L(spadIdx, a + aIdx, 1, 3);
-            VPREFETCH_R(spadIdx, a + aIdx, 1, 3);
+            VPREFETCH_L(spadIdx, a + aIdx, 1, 3, 0);
+            VPREFETCH_R(spadIdx, a + aIdx, 1, 3, 0);
             spadIdx++;
           }
         }
         else {
-          VPREFETCH_L(spadIdx, a + core0Idx - 1 - (dim - 1), 0, 1);
-          VPREFETCH_L(spadIdx + 1, a + core0Idx - 1, 0, 1);
-          VPREFETCH_L(spadIdx + 2, a + core0Idx, 0, 1);
+          VPREFETCH_L(spadIdx, a + core0Idx - 1 - (dim - 1), 0, 1, 0);
+          VPREFETCH_L(spadIdx + 1, a + core0Idx - 1, 0, 1, 0);
+          VPREFETCH_L(spadIdx + 2, a + core0Idx, 0, 1, 0);
 
           for (int k2 = 0; k2 < FILTER_DIM; k2++) {
             int aIdx = (r + k1) * ncols + (c + 1 + (k2 * (dim - 1)));
             // printf("c!=0: r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
 
-            VPREFETCH_L(spadIdx, a + aIdx, 1, 3);
-            VPREFETCH_R(spadIdx, a + aIdx, 1, 3);
+            VPREFETCH_L(spadIdx, a + aIdx, 1, 3, 0);
+            VPREFETCH_R(spadIdx, a + aIdx, 1, 3, 0);
             spadIdx++;
           }
         }
@@ -182,6 +191,14 @@ stencil(
     for (int c = startCol; c < effCols; c+=dim) {
       // prefetch all 9 values required for computation
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        #ifdef VERTICAL_LOADS
+        int aIdx = (r + k1) * ncols + c;
+        for (int core = 0; core < dim; core++) {
+          VPREFETCH_L(spadIdx, a + aIdx, core, FILTER_DIM, 1);
+          VPREFETCH_R(spadIdx, a + aIdx, core, FILTER_DIM, 1);
+        }
+        spadIdx+=FILTER_DIM;
+        #else
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           
@@ -191,13 +208,14 @@ stencil(
           VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
           VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
           #else
-          VPREFETCH_L(spadIdx, a + aIdx, 0, 4);
-          VPREFETCH_R(spadIdx, a + aIdx, 0, 4);
+          VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
+          VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
           #endif
 
           spadIdx++;
           
         }
+        #endif
       }
 
       // spad is circular buffer so do cheap mod here
@@ -222,30 +240,30 @@ stencil(
         // because needs individually picked loads
         int core0Idx = (r + k1) * ncols + c;
         if (c == 0) {
-          VPREFETCH_L(spadIdx + 0, a + core0Idx + 0, 0, 1);
-          VPREFETCH_L(spadIdx + 1, a + core0Idx + 1, 0, 1);
-          VPREFETCH_L(spadIdx + 2, a + core0Idx + 2, 0, 1);
+          VPREFETCH_L(spadIdx + 0, a + core0Idx + 0, 0, 1, 0);
+          VPREFETCH_L(spadIdx + 1, a + core0Idx + 1, 0, 1, 0);
+          VPREFETCH_L(spadIdx + 2, a + core0Idx + 2, 0, 1, 0);
 
           for (int k2 = 0; k2 < FILTER_DIM; k2++) {
             int aIdx = (r + k1) * ncols + (c + FILTER_DIM + (k2 * (dim - 1)));
             // printf("c==0: r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
 
-            VPREFETCH_L(spadIdx, a + aIdx, 1, 3);
-            VPREFETCH_R(spadIdx, a + aIdx, 1, 3);
+            VPREFETCH_L(spadIdx, a + aIdx, 1, 3, 0);
+            VPREFETCH_R(spadIdx, a + aIdx, 1, 3, 0);
             spadIdx++;
           }
         }
         else {
-          VPREFETCH_L(spadIdx, a + core0Idx - 1 - (dim - 1), 0, 1);
-          VPREFETCH_L(spadIdx + 1, a + core0Idx - 1, 0, 1);
-          VPREFETCH_L(spadIdx + 2, a + core0Idx, 0, 1);
+          VPREFETCH_L(spadIdx, a + core0Idx - 1 - (dim - 1), 0, 1, 0);
+          VPREFETCH_L(spadIdx + 1, a + core0Idx - 1, 0, 1, 0);
+          VPREFETCH_L(spadIdx + 2, a + core0Idx, 0, 1, 0);
 
           for (int k2 = 0; k2 < FILTER_DIM; k2++) {
             int aIdx = (r + k1) * ncols + (c + 1 + (k2 * (dim - 1)));
             // printf("c!=0: r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
 
-            VPREFETCH_L(spadIdx, a + aIdx, 1, 3);
-            VPREFETCH_R(spadIdx, a + aIdx, 1, 3);
+            VPREFETCH_L(spadIdx, a + aIdx, 1, 3, 0);
+            VPREFETCH_R(spadIdx, a + aIdx, 1, 3, 0);
             spadIdx++;
           }
         }

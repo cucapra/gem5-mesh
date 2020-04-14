@@ -167,11 +167,13 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   #ifdef VERTICAL_LOADS
   for (int i = beginIter; i < totalIter; i+=loadLen) {
     for (int core = 0; core < dim; core++) {
-      VPREFETCH_L(localIter + 0       , a + start + LOAD_LEN * core, core, LOAD_LEN, 1);
-      VPREFETCH_L(localIter + LOAD_LEN, b + start + LOAD_LEN * core, core, LOAD_LEN, 1);
+      VPREFETCH_L(localIter + 0       , a + start + i * dim + LOAD_LEN * core, core, LOAD_LEN, 1);
+      VPREFETCH_L(localIter + LOAD_LEN, b + start + i * dim + LOAD_LEN * core, core, LOAD_LEN, 1);
     }
 
     ISSUE_VINST(fable1);
+    localIter+=REGION_SIZE;
+    if (localIter == (NUM_REGIONS * REGION_SIZE)) localIter = 0;
   }
   #else
   for (int i = beginIter; i < totalIter; i++) {
@@ -618,7 +620,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = n; //roundUp(n / 3, alignment); // make sure aligned to cacheline 
+    end = roundUp(n / 3, alignment); // make sure aligned to cacheline 
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -720,7 +722,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef VEC_SIZE_4_DA
   if (tid == 12) return;
   #elif defined(USE_VECTOR_SIMD)
-  if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return; 
+  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return; 
   if (ptid == 3) return;
   #endif
 
