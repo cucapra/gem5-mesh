@@ -8,7 +8,10 @@
 #include "gemm.h"
 
 #define RAND_MAT
-//#define USE_VECTOR_SIMD
+
+#if defined SIMD_PRIVATE || defined SIMD_SHARING
+#define TRANSPOSE
+#endif
 
 void fill_matrix(DTYPE *m, int row, int col)
 {
@@ -136,7 +139,7 @@ int main(int argc, char *argv[])
   for (int i = 0; i < sizeC; i++)
     c[i] = 0;
 
-#if (defined(_VEC) && defined(VPF)) || defined(USE_VECTOR_SIMD)
+#ifdef TRANSPOSE
   //do transpose of a for contiguous access
   DTYPE *a_ = (DTYPE *)malloc(sizeof(DTYPE) * sizeA);
   DTYPE *_temp;
@@ -189,7 +192,7 @@ int main(int argc, char *argv[])
 /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
-#if (defined(_VEC) && defined(VEC_PFETCH)) || defined(USE_VECTOR_SIMD)
+#ifdef TRANSPOSE
   a = a_;
 #endif
 

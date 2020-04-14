@@ -30,7 +30,7 @@ else
 endif
 
 ifeq ($(ENV_NO_VEC),)
-	EXTRA_FLAGS := $(EXTRA_FLAGS) -D_VEC
+	EXTRA_FLAGS := $(EXTRA_FLAGS)
 else
 	EXTRA_FLAGS := $(EXTRA_FLAGS)
 endif
@@ -47,12 +47,15 @@ RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
 _GCC=gcc
 
 # script to find the correct vissue length
-VISS=python /home/na469/phil/gem5-mesh/scripts-phil/vissue-asm.py
+VISS=python ../../../scripts-phil/vissue-asm.py
 
 
-C_OBJS_FIL := $(filter-out gemm_kernel.o, $(C_OBJS))
+C_OBJS_FIL := $(filter-out $(EXEC)_kernel.o, $(C_OBJS))
 # C_OBJS_FIL = $(C_OBJS)
-C_OBJS_FIL += $(EXEC)_final.o
+ifneq (,$(wildcard ./$(EXEC)_final.o))
+	C_OBJS_FIL += $(EXEC)_final.o
+	DEPS += $(EXEC)_final.o
+endif
 
 CFLAGS=-DSCALAR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 vector: CFLAGS=-DVECTOR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
@@ -71,6 +74,7 @@ pass: $(EXEC)_combined.s
 
 combine: $(EXEC)_final.s
 	$(RV_CC) $(CFLAGS) -c -o $(EXEC)_final.o $(notdir $<)
+
 
 $(EXEC).neil: $(DEPS)
 	$(RV_CC) $(C_OBJS_FIL) $(CFLAGS) -o $(EXEC)	
