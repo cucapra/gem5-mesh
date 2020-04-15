@@ -142,7 +142,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
 numCpus = 16
 use_sps = True
 
-size = 8# 65536  # 32768 #8192
+size = 1024# 65536  # 32768 #8192
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 # seed = random.randint(1,2**20)
@@ -177,8 +177,8 @@ make_flags_vvadd = ["VEC_4_SIMD"]
 # make_flags_gemm = ["UNBLOCKED_INNER", "BLOCKED", "INTERLEAVED", "UNBLOCKED_OUTER"]
 make_flags_gemm = ["SIMD_SHARING"] # ["NO_VEC"]
 # make_flags_gemm = ["SIMD_PRIVATE", "SIMD_SHARING", "NO_VEC"]
-# program = "vvadd"
-program = "gemm"
+program = "vvadd"
+# program = "gemm"
 
 # TODO need a struct describing the experiment. Not all settings match idenpendently
 
@@ -192,7 +192,7 @@ def pack_and_run(numCpus, use_vec, use_sps, prog, i, extra_info):
 pool = multiprocessing.Pool(processes=4)
 
 for use_vec in use_vec_arr:
-    for make_flag in make_flags_gemm:
+    for make_flag in make_flags_vvadd:
         # use_vec = False
         print(make_flag)
         # run a program from the list above with different parameters
