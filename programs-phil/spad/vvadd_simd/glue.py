@@ -25,20 +25,20 @@ def copy_vector_code(vector_file):
 
     state = VectorParseState.SIFTING
     for l in vector_file.readlines():
-        if(state == VectorParseState.SIFTING):
-            if(header_block_start in l):
+        if state == VectorParseState.SIFTING:
+            if header_block_start in l:
                 state = VectorParseState.HEADER
-            elif(vector_body_start in l):
+            elif vector_body_start in l:
                 state = VectorParseState.BODY
-            elif(vector_ret in l):
+            elif vector_ret in l:
                 state = VectorParseState.RETURN_MANIP
 
-        elif(state == VectorParseState.HEADER):
+        elif state == VectorParseState.HEADER:
             if(header_block_end in l):
                 state = VectorParseState.SIFTING
             else:
                 header.append(l)
-        elif(state == VectorParseState.BODY):
+        elif state == VectorParseState.BODY:
             if(vector_body_end in l):
                 state = VectorParseState.SIFTING
             else:
@@ -79,7 +79,7 @@ def copy_scalar_code(scalar_file):
                 scalar_code.append(l)
 
         elif state == ScalarParseState.RETURN_STACK_MANIP:
-            if l in return_inst_formats:
+            if is_return_inst(l):
                 scalar_code.append(l)
                 state = ScalarParseState.CODE
             else:
