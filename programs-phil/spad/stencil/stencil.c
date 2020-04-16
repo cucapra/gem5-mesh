@@ -134,11 +134,11 @@ stencil(
     // But maybe can't do memory layout restrictions
     for (int c = 0; c < beginCol; c+=step) {
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        // printf("issue r %d c %d k1 %d depth %d\n", r, c, k1, LOAD_DEPTH);
-        int aIdx = (r + k1) * ncols + c;
         for (int core = 0; core < dim; core++) {
-          VPREFETCH_L(spadIdx, a + aIdx + core * CORE_STEP, core, LOAD_DEPTH, 1);
-          VPREFETCH_R(spadIdx, a + aIdx + core * CORE_STEP, core, LOAD_DEPTH, 1);
+          int aIdx = (r + k1) * ncols + c + core * CORE_STEP;
+          // printf("issue r %d c %d k1 %d core %d, depth %d, aIdx %d\n", r, c, k1, core, LOAD_DEPTH, aIdx);
+          VPREFETCH_L(spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
+          VPREFETCH_R(spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
         }
         spadIdx+=LOAD_DEPTH;
       }
@@ -341,15 +341,15 @@ stencil(
 
   // we are doing lazy store acks, so use this to make sure all stores have commited to memory
   asm volatile("fence\n\t");
-  }
-  return;
   
+  return;
+  }
 
   // vector engine code
 
   // declarations
   DTYPE a_, b_, c_;
-  int64_t iter, baseIdx, frameStart, spIdx; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
+  int64_t baseIdx, frameStart, spIdx; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
   DTYPE b0, b1, b2, b3, b4, b5, b6, b7, b8;
   DTYPE a0, a1, a2, a3, a4, a5, a6, a7, a8;
@@ -364,7 +364,6 @@ stencil(
   //     spadAddr[POST_REGION_WORD + i] = b[i];
   //     // b_ = b[i]; // keep filter in regfile
   //   }
-    iter = 0;
     spIdx = 0;
     #ifdef REUSE
     step = dim*FILTER_DIM;

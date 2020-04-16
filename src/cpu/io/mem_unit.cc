@@ -690,7 +690,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
           bool isVerticalLoad = (config == 1);
           if (isVerticalLoad) {
             m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
-            m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + leftCount;
+            m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + leftCount * sizeof(uint32_t);
           }
           else m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount;
           m_s1_inst->mem_req_p->respCnt = rightCount;
