@@ -66,9 +66,6 @@ stencil(
   // // TODO can we use predication instead?
   // int effCols = ncols - (FILTER_DIM - 1);
 
-  volatile int ohjeez = 1;
-  if (ohjeez) {
-
   #ifdef REUSE
   int step = dim*FILTER_DIM;
   #elif defined(VERTICAL_LOADS)
@@ -101,6 +98,10 @@ stencil(
   #else
   int frameSize = FILTER_DIM * FILTER_DIM;
   #endif
+
+  volatile int ohjeez = 1;
+  if (ohjeez) {
+
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
 
@@ -354,7 +355,6 @@ stencil(
   DTYPE b0, b1, b2, b3, b4, b5, b6, b7, b8;
   DTYPE a0, a1, a2, a3, a4, a5, a6, a7, a8;
   int *spadAddr; // important don't share this variable with above!
-  int step, startOffset, frameSize;
 
   // entry block
   // load the full filter into spad
@@ -365,39 +365,6 @@ stencil(
   //     // b_ = b[i]; // keep filter in regfile
   //   }
     spIdx = 0;
-    #ifdef REUSE
-    step = dim*FILTER_DIM;
-    #elif defined(VERTICAL_LOADS)
-    step = CORE_STEP*dim;
-    #else
-    step = dim;
-    #endif
-
-    #ifdef REUSE
-    // calculate prev and next spAddr for reuse
-    int *prevSpadAddr = NULL;
-    int *nextSpadAddr = NULL;
-    if (vtid == 1 || vtid == 3) prevSpadAddr = (int*)getSpAddr(ptid - 1, 0);
-    else if (vtid == 2) prevSpadAddr = (int*)getSpAddr(ptid - 3, 0); // GRID_DIM = 4 - 1 = 3
-    if (vtid == 0 || vtid == 2) nextSpadAddr = (int*)getSpAddr(ptid + 1, 0);
-    if (vtid == 1) nextSpadAddr = (int*)getSpAddr(ptid + 3, 0);
-
-    // start offset for cptr
-    int startOffset = 0;
-    if (vtid == 0) startOffset = -1;
-    else if (vtid == 1) startOffset = 2;
-    else if (vtid == 2) startOffset = 5;
-    else if (vtid == 3) startOffset = 8;
-    #else
-    startOffset = vtid * (step/dim);
-    #endif
-
-    #ifdef VERTICAL_LOADS
-    frameSize = REGION_SIZE;
-    #else
-    frameSize = FILTER_DIM * FILTER_DIM;
-    #endif
-
 
     cPtr = c + (start_row * (ncols-(FILTER_DIM-1))) + startOffset;
     spadAddr = (int*)getSpAddr(ptid, 0);
@@ -671,7 +638,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = effRows; //(float)effRows / 3.0f;
+    end = (float)effRows / 3.0f;
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -745,7 +712,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VEC)
-  if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
+  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #else
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
