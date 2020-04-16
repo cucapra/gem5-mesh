@@ -94,7 +94,7 @@ void __attribute__((optimize("-fno-reorder-blocks")))
 
   // start recording all stats (all cores)
   asm volatile("":::"memory");
-  if (ptid == 0) {
+  if (ptid == 1) {
     stats_on();
   }
 
@@ -126,7 +126,7 @@ void __attribute__((optimize("-fno-reorder-blocks")))
 
 
   // start recording all stats (all cores)
-  if (ptid == 0) {
+  if (ptid == 1) {
     stats_off();
   }
   // memory barrier so we don't do stores during the kernel
