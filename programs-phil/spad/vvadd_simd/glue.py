@@ -78,37 +78,37 @@ def copy_scalar_code(scalar_file):
   for l in scalar_file.readlines():
     if state == ScalarParseState.HEADER:
       if kernel_name in l:
-	before_VECTOR_EPOCH.add(l)
-	state = ScalarParseState.BEFORE_VECTOR_EPOCH
+        before_VECTOR_EPOCH.append(l)
+        state = ScalarParseState.BEFORE_VECTOR_EPOCH
       else:
-	header.add(l)
-	
-  elif state == ScalarParseState.BEFORE_VECTOR_EPOCH:
-    if is_VECTOR_EPOCH_inst(l):
-	after_VECTOR_EPOCH.add(l);
-	state = ScalarParseState.AFTER_VECTOR_EPOCH
-    else:
-	before_VECTOR_EPOCH.add(l)
+        header.append(l)
 
-  elif state == ScalarParseState.AFTER_VECTOR_EPOCH:
-    if is_DEVEC(l):
-	after_DEVEC.append(l)
-	state = ScalarParseState.AFTER_DEVEC
-    else:
-	after_VECTOR_EPOCH.append(l)
+    elif state == ScalarParseState.BEFORE_VECTOR_EPOCH:
+        if is_VECTOR_EPOCH_inst(l):
+            after_VECTOR_EPOCH.append(l);
+            state = ScalarParseState.AFTER_VECTOR_EPOCH
+        else:
+            before_VECTOR_EPOCH.append(l)
 
-  elif state == ScalarParseState.AFTER_DEVEC:
-    if scalar_ret in l:
-	state = ScalarParseState.RETURN_STACK_MANIP
-    else: 
-	after_DEVEC.append(l)
+    elif state == ScalarParseState.AFTER_VECTOR_EPOCH:
+        if is_DEVEC(l):
+            after_DEVEC.append(l)
+            state = ScalarParseState.AFTER_DEVEC
+        else:
+            after_VECTOR_EPOCH.append(l)
 
-  elif state == ScalarParseState.RETURN_STACK_MANIP:
-    if is_return_inst(l):
-	after_DEVEC.append(l)
-	state = ScalarParseState.AFTER_DEVEC
-    else:
-	scalar_ret.append(l)
+    elif state == ScalarParseState.AFTER_DEVEC:
+        if scalar_ret in l:
+            state = ScalarParseState.RETURN_STACK_MANIP
+        else:
+            after_DEVEC.append(l)
+
+    elif state == ScalarParseState.RETURN_STACK_MANIP:
+        if is_return_inst(l):
+            after_DEVEC.append(l)
+            state = ScalarParseState.AFTER_DEVEC
+        else:
+            scalar_ret.append(l)
 
   # rearrange components as follows
   return header + [after_VECTOR_EPOCH[0]] + before_VECTOR_EPOCH + after_VECTOR_EPOCH[1:] + scalar_ret + after_DEVEC
@@ -125,13 +125,13 @@ def glue(vector_components, scalar_code):
     state = BODY
     for l in scalar_code:
          if vector_init_label in l:
-  	   combined.append(vector_init)
+            combined.append(vector_init)
          elif vector_body_label in l:
-  	   combined.append(vector_body)
+            combined.append(vector_body)
          elif vector_ret_label in l:
-  	   combined.append(vector_ret_manip)
+            combined.append(vector_ret_manip)
          else:
-  	   combined.append(l)
+            combined.append(l)
 
     return "\n".join(combined)
 
