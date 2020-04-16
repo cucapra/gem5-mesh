@@ -79,12 +79,12 @@ NetworkLink::wakeup()
 
         t_flit->set_time(curCycle() + m_latency);
         linkBuffer->insert(t_flit);
-        // // link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
-        // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) {
-        //     link_consumer->scheduleEventAbsolute(clockEdge(Cycles(0)) + 1);
-        //     t_flit->set_time(curTick() + (Tick)1);
-        // }
-        // else
+        // link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
+        if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) {
+            link_consumer->scheduleEventAbsolute(clockEdge(Cycles(0)) + 1);
+            t_flit->set_time(curTick() + (Tick)1);
+        }
+        else
             link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
         m_link_utilized++;
         m_vc_load[t_flit->get_vc()]++;
