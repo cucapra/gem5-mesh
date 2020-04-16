@@ -60,7 +60,6 @@ class ScalarParseState(Enum):
 
 vector_header_label = "vector_header_label"
 vector_body_label = "vector_body_label"
-vector_epoch_instr_format = ".insn i 0x77"
 scalar_ret = "scalar_ret"
 
 # dissects scalar assembly into 2 components:
@@ -83,62 +82,46 @@ def copy_scalar_code(scalar_file):
             else:
                 return_stack_manip.append(l)
 
-    return "\n".join(body), "\n".join(return_stack_manip)
+    return body, "\n".join(return_stack_manip)
 
 
 
-#class CombinedParseState(Enum):
-#    WRITING_SCALAR_CODE = auto()
-#    WRITING_VECTOR_HEADER = auto()
-#    COPYING_VECTOR_BODY = auto()
-#    WRITING_RETURN_STACK_MANIP = auto()
-#def glue(combined_file, scalar_file, vector_file):
-#    vector_header, vector_body = copy_vector_code(vector_file)
-#
-#    state = LIFTING_VECTOR_EPOCH
-#    lines_before_VECTOR_EPOCH = []
-#    devec_inst = None
-#    for l in scalar_file.readlines():
-#        if state == LIFTING_VECTOR_EPOCH:
-#            if vector_epoch_instr_format in l:
-#                combined_file.write(lines_before_VECTOR_EPOCH)
-#                combined_file.write(l)
-#                state = WRITING_SCALAR_CODE
-#            else:
-#                lines_before_VECTOR_EPOCH.append(l)
-#
-#        elif state == WRITING_SCALAR_CODE:
-#            if vector_header_label in l:
-#                state = COPYING_VECTOR_HEADER
-#            elif vector_body_label in l:
-#                state = COPYING_VECTOR_BODY
-#            elif devec_inst_format in l:
-#                devec_inst = l
-#                state = WRITING_RETURN_STACK_MANIP
-#            else:
-#                combined_file.write(l)
-#
-#        elif state == COPYING_VECTOR_HEADER:
-#            combined_file.write(vector_header)
-#            state = WRITING_SCALAR_CODE
-#
-#        elif state == COPYING_VECTOR_BODY:
-#            combined_file.write(vector_body)
-#            state = WRITING_SCALAR_CODE
-#
-#        elif state == WRITING_RETURN_STACK_MANIP:
-#
-#
-#        else:
-#            combined_file.write(l)
-#    return combined_file
+vector_epoch_instr_format = ".insn i 0x77"
+vector_ret = "vector_ret"
+
+def glue(scalar_components, vector_components):
+    vector_header, vector_body, vector_ret_manip = vector_components
+    scalar_body, scalar_ret_manip = scalar_components
+
+    combined = []
+
+    for l in scalar_body:
+       # lift VECTOR_EPOCH to top of function
+       if vector_epoch_instr_format in l:
+           combined = [l] + combined
+       elif vector_header_label in l:
+           combined.append(vector_header)
+       elif vector_body_label in l:
+           combined.append(vector_body)
+       elif vector_ret in l:
+           combined.append(vector_ret_manip)
+       elif devec_inst_format in l:
+           combined.append(scalar_ret_manip)
+           combined.append(l)
+       else:
+           combined.append(l)
+
+    return "\n".join(combined_file)
 
 if __name__ == "__main__":
     vector_file = open("vvadd_vector.s", "r")
     scalar_file = open("vvadd_scalar.s", "r")
     combined_file = open("vvadd_combined.s", "w+")
 
-    header, vector_body, vector_manip= copy_vector_code(vector_file)
+    vector_components = copy_vector_code(vector_file)
+    scalar_components = copy_scalar_code(scalar_file)
+
+    header, vector_body, vector_manip= vector_components
     print("vector file dissection:")
     print("header part:")
     print(header)
@@ -147,12 +130,13 @@ if __name__ == "__main__":
     print("return stack manipulation part:")
     print(vector_manip)
 
-    scalar_body, scalar_manip = copy_scalar_code(scalar_file)
+    scalar_body, scalar_manip = scalar_components
     print("scalar file dissection:")
     print("body part:")
     print(scalar_body)
     print("scalar file dissection:")
     print(scalar_manip)
     print("return stack manipulation part:")
-    
-    #glue(combined_file, scalar_file, vector_file)
+
+    combined_file.write(glue(vector_components, scalar_components))
+    print("Finished.")
