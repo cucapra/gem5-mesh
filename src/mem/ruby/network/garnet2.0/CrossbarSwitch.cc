@@ -93,14 +93,13 @@ CrossbarSwitch::wakeup()
             t_flit->advance_stage(LT_, m_router->curCycle() + Cycles(1));
             // t_flit->set_time(m_router->curCycle() + Cycles(1));
 
-            auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
-            if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000)  {
-                DPRINTF(Mesh, "Router switch %d inject %#x\n", m_router->get_id(), mem_msg->getPacket()->getAddr());
-                t_flit->set_time(m_router->curCycle() + Cycles(0));
-            }
-            else {
+            // auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
+            // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000)  {
+            //     DPRINTF(Mesh, "Router switch %d inject %#x\n", m_router->get_id(), mem_msg->getPacket()->getAddr());
+            //     t_flit->set_time(m_router->curCycle() + Cycles(0));
+            // }
+            // else
                 t_flit->set_time(m_router->curCycle() + Cycles(1));
-            }
 
 
             // This will take care of waking up the Network Link
