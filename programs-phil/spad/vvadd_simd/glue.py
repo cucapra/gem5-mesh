@@ -6,38 +6,38 @@ def is_return_inst(inst):
 
 class VectorParseState(Enum):
     SIFTING = auto()
-    HEADER = auto()
+    INIT = auto()
     BODY = auto()
     RETURN_MANIP = auto()
 
-header_block_start = "header_block_start"
-header_block_end = "header_block_end"
+init_block_start = "init_block_start"
+init_block_end = "init_block_end"
 vector_body_start = "vector_body_start"
 vector_body_end = "vector_body_end"
-vector_ret = "vector_ret"
+vector_return = "vector_return"
 
 # dissects vector assembly into 3 components:
-# 1. header code
+# 1. init code
 # 2. body code
 # 3. return stack manipulation
 def copy_vector_code(vector_file):
-    header, body, ret_manip = [], [], []
+    init, body, ret_manip = [], [], []
 
     state = VectorParseState.SIFTING
     for l in vector_file.readlines():
         if state == VectorParseState.SIFTING:
-            if header_block_start in l:
-                state = VectorParseState.HEADER
+            if init_block_start in l:
+                state = VectorParseState.INIT
             elif vector_body_start in l:
                 state = VectorParseState.BODY
-            elif vector_ret in l:
+            elif vector_return in l:
                 state = VectorParseState.RETURN_MANIP
 
-        elif state == VectorParseState.HEADER:
-            if(header_block_end in l):
+        elif state == VectorParseState.INIT:
+            if(init_block_end in l):
                 state = VectorParseState.SIFTING
             else:
-                header.append(l)
+                init.append(l)
         elif state == VectorParseState.BODY:
             if(vector_body_end in l):
                 state = VectorParseState.SIFTING
@@ -50,68 +50,90 @@ def copy_vector_code(vector_file):
             else:
                 ret_manip.append(l)
 
-    return "\n".join(header), "\n".join(body), "\n".join(ret_manip)
+    return init, body, ret_manip
 
 
+
+def is_DEVEC(inst):
+  return "DEVEC" in inst
+
+def is_VECTOR_EPOCH_inst(inst):
+  return ".insn i 0x77" in inst
 
 class ScalarParseState(Enum):
-    BODY = auto()
+    HEADER = auto()
+    BEFORE_VECTOR_EPOCH = auto()
+    AFTER_VECTOR_EPOCH = auto()
+    AFTER_DEVEC = auto()
     RETURN_STACK_MANIP = auto()
 
-vector_header_label = "vector_header_label"
-vector_body_label = "vector_body_label"
 scalar_ret = "scalar_ret"
+kernel_name = "vvadd_execute_simd"
 
-# dissects scalar assembly into 2 components:
-# 1. the scalar code body
-# 2. stack manipulations occuring immediately after a marker (placed immediately after fence) and before returning
 def copy_scalar_code(scalar_file):
-    state = ScalarParseState.BODY
-    body, return_stack_manip = [], []
-    for l in scalar_file.readlines():
-        if state == ScalarParseState.BODY:
-            if scalar_ret in l:
-                state = ScalarParseState.RETURN_STACK_MANIP
-            else:
-                body.append(l)
+  # dissects scalar assembly into the following non-overlapping components:
+  header, before_VECTOR_EPOCH, after_VECTOR_EPOCH, scalar_ret, after_DEVEC = [], [], [], [], []
 
-        elif state == ScalarParseState.RETURN_STACK_MANIP:
-            if is_return_inst(l):
-                body.append(l)
-                state = ScalarParseState.CODE
-            else:
-                return_stack_manip.append(l)
+  state = ScalarParseState.HEADER
+  for l in scalar_file.readlines():
+    if state == ScalarParseState.HEADER:
+      if kernel_name in l:
+	before_VECTOR_EPOCH.add(l)
+	state = ScalarParseState.BEFORE_VECTOR_EPOCH
+      else:
+	header.add(l)
+	
+  elif state == ScalarParseState.BEFORE_VECTOR_EPOCH:
+    if is_VECTOR_EPOCH_inst(l):
+	after_VECTOR_EPOCH.add(l);
+	state = ScalarParseState.AFTER_VECTOR_EPOCH
+    else:
+	before_VECTOR_EPOCH.add(l)
 
-    return body, "\n".join(return_stack_manip)
+  elif state == ScalarParseState.AFTER_VECTOR_EPOCH:
+    if is_DEVEC(l):
+	after_DEVEC.append(l)
+	state = ScalarParseState.AFTER_DEVEC
+    else:
+	after_VECTOR_EPOCH.append(l)
+
+  elif state == ScalarParseState.AFTER_DEVEC:
+    if scalar_ret in l:
+	state = ScalarParseState.RETURN_STACK_MANIP
+    else: 
+	after_DEVEC.append(l)
+
+  elif state == ScalarParseState.RETURN_STACK_MANIP:
+    if is_return_inst(l):
+	after_DEVEC.append(l)
+	state = ScalarParseState.AFTER_DEVEC
+    else:
+	scalar_ret.append(l)
+
+  # rearrange components as follows
+  return header + [after_VECTOR_EPOCH[0]] + before_VECTOR_EPOCH + after_VECTOR_EPOCH[1:] + scalar_ret + after_DEVEC
 
 
+vector_init_label = "vector_init_label"
+vector_body_label = "vector_body_label"
+vector_ret_label = "vector_ret_label"
 
-vector_epoch_instr_format = ".insn i 0x77"
-vector_ret = "vector_ret"
-
-def glue(scalar_components, vector_components):
-    vector_header, vector_body, vector_ret_manip = vector_components
-    scalar_body, scalar_ret_manip = scalar_components
+def glue(vector_components, scalar_code):
+    vector_init, vector_body, vector_ret_manip = vector_components
 
     combined = []
+    state = BODY
+    for l in scalar_code:
+         if vector_init_label in l:
+  	   combined.append(vector_init)
+         elif vector_body_label in l:
+  	   combined.append(vector_body)
+         elif vector_ret_label in l:
+  	   combined.append(vector_ret_manip)
+         else:
+  	   combined.append(l)
 
-    for l in scalar_body:
-       # lift VECTOR_EPOCH to top of function
-       if vector_epoch_instr_format in l:
-           combined = [l] + combined
-       elif vector_header_label in l:
-           combined.append(vector_header)
-       elif vector_body_label in l:
-           combined.append(vector_body)
-       elif vector_ret in l:
-           combined.append(vector_ret_manip)
-       elif devec_inst_format in l:
-           combined.append(scalar_ret_manip)
-           combined.append(l)
-       else:
-           combined.append(l)
-
-    return "\n".join(combined_file)
+    return "\n".join(combined)
 
 if __name__ == "__main__":
     vector_file = open("vvadd_vector.s", "r")
@@ -121,22 +143,4 @@ if __name__ == "__main__":
     vector_components = copy_vector_code(vector_file)
     scalar_components = copy_scalar_code(scalar_file)
 
-    header, vector_body, vector_manip= vector_components
-    print("vector file dissection:")
-    print("header part:")
-    print(header)
-    print("body part:")
-    print(vector_body)
-    print("return stack manipulation part:")
-    print(vector_manip)
-
-    scalar_body, scalar_manip = scalar_components
-    print("scalar file dissection:")
-    print("body part:")
-    print(scalar_body)
-    print("scalar file dissection:")
-    print(scalar_manip)
-    print("return stack manipulation part:")
-
-    combined_file.write(glue(vector_components, scalar_components))
     print("Finished.")
