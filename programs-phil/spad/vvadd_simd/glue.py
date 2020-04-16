@@ -1,7 +1,8 @@
 import itertools
 from enum import Enum, auto
 
-return_inst_formats = ["jr ra", "ret"]
+def is_return_inst(inst):
+  return ("jr" in inst and "ra" in inst) or inst == "ret"
 
 class VectorParseState(Enum):
     SIFTING = auto()
@@ -44,10 +45,11 @@ def copy_vector_code(vector_file):
                 body.append(l)
 
         elif(state == VectorParseState.RETURN_MANIP):
-            if(l in return_inst_formats):
+            if(is_return_inst(l)):
                 state = VectorParseState.SIFTING
             else:
                 ret_manip.append(l)
+
     return "\n".join(header), "\n".join(body), "\n".join(ret_manip)
 
 
@@ -137,8 +139,8 @@ if __name__ == "__main__":
     scalar_file = open("vvadd_scalar.s", "r")
     combined_file = open("vvadd_combined.s", "w+")
 
-    one, two, three = copy_vector_code(vector_file)
-    print(one)
-    print(two)
-    print(three)
+    header, body, manip= copy_vector_code(vector_file)
+    #print(one)
+    #print(two)
+    print(manip)
     #glue(combined_file, scalar_file, vector_file)
