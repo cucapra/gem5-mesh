@@ -55,36 +55,35 @@ def copy_vector_code(vector_file):
 
 
 class ScalarParseState(Enum):
-    CODE = auto()
+    BODY = auto()
     RETURN_STACK_MANIP = auto()
 
 vector_header_label = "vector_header_label"
 vector_body_label = "vector_body_label"
 vector_epoch_instr_format = ".insn i 0x77"
+scalar_ret = "scalar_ret"
 
 # dissects scalar assembly into 2 components:
-# 1. the bulk of the scalar code, with VECTOR_EPOCH lifted to the start
+# 1. the scalar code body
 # 2. stack manipulations occuring immediately after a marker (placed immediately after fence) and before returning
 def copy_scalar_code(scalar_file):
-    state = ScalarParseState.CODE
-    scalar_code, return_stack_manip = [], []
+    state = ScalarParseState.BODY
+    body, return_stack_manip = [], []
     for l in scalar_file.readlines():
-        if state == ScalarParseState.CODE:
-            # lift VECTOR_EPOCH to start of scalar code
-            if vector_epoch_instr_format in l:
-                scalar_code = [l] + scalar_code
-            elif scalar_ret in l:
+        if state == ScalarParseState.BODY:
+            if scalar_ret in l:
                 state = ScalarParseState.RETURN_STACK_MANIP
             else:
-                scalar_code.append(l)
+                body.append(l)
 
         elif state == ScalarParseState.RETURN_STACK_MANIP:
             if is_return_inst(l):
-                scalar_code.append(l)
+                body.append(l)
                 state = ScalarParseState.CODE
             else:
                 return_stack_manip.append(l)
-    return "\n".join(scalar_code), "\n".join(return_stack_manip)
+
+    return "\n".join(body), "\n".join(return_stack_manip)
 
 
 
@@ -139,8 +138,21 @@ if __name__ == "__main__":
     scalar_file = open("vvadd_scalar.s", "r")
     combined_file = open("vvadd_combined.s", "w+")
 
-    header, body, manip= copy_vector_code(vector_file)
-    #print(one)
-    #print(two)
-    print(manip)
+    header, vector_body, vector_manip= copy_vector_code(vector_file)
+    print("vector file dissection:")
+    print("header part:")
+    print(header)
+    print("body part:")
+    print(vector_body)
+    print("return stack manipulation part:")
+    print(vector_manip)
+
+    scalar_body, scalar_manip = copy_scalar_code(scalar_file)
+    print("scalar file dissection:")
+    print("body part:")
+    print(scalar_body)
+    print("scalar file dissection:")
+    print(scalar_manip)
+    print("return stack manipulation part:")
+    
     #glue(combined_file, scalar_file, vector_file)
