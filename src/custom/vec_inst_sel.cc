@@ -91,7 +91,7 @@ VecInstSel::willHaveOpening() {
 
   // otherwise a slot will open up at b/c we're going to pull the vec cmd off this cycle
   Vector *vec = m_cpu_p->getEarlyVector();
-  return !vec->canPullMesh();
+  return vec->canPullMesh();
 }
 
 // dequeue an instruction (either from icache or mesh, but unknown to caller and frankly does not matter)
