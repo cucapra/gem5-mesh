@@ -28,6 +28,11 @@
 
 */
 
+#ifdef VERTICAL_LOADS
+// number of filters done per iteration per core
+#define CORE_STEP (LOAD_DEPTH - (FILTER_DIM - 1))
+#endif
+
 inline int min(int a, int b) {
   if (a > b) {
     return b;
@@ -37,6 +42,7 @@ inline int min(int a, int b) {
   }
 }
 
+#ifdef LARGE_FRAME
 // having this function not inlined messing up hacky host/vec seperation
 // maybe not prefetch all the way, so fill in rest or hardware frame
 // this kinda sux
@@ -47,6 +53,7 @@ inline void completeHardwareFrame(int spadIdx, int *someData) {
     spadIdx++;
   }
 }
+#endif
 
 #ifdef USE_VEC
 void __attribute__((optimize("-fno-reorder-blocks")))
@@ -54,12 +61,21 @@ stencil(
     DTYPE *a, DTYPE *b, DTYPE *c, int start_row, int end_row, int ncols,
     int ptid, int vtid, int dim, int mask) {
 
-  int *spadAddr = (int*)getSpAddr(ptid, 0);
-
   // TODO fails if put this here... sigh
   // // how much we're actually going to do (ignore edges)
   // // TODO can we use predication instead?
   // int effCols = ncols - (FILTER_DIM - 1);
+
+  volatile int ohjeez = 1;
+  if (ohjeez) {
+
+  #ifdef REUSE
+  int step = dim*FILTER_DIM;
+  #elif defined(VERTICAL_LOADS)
+  int step = CORE_STEP*dim;
+  #else
+  int step = dim;
+  #endif
 
   #ifdef REUSE
   // calculate prev and next spAddr for reuse
@@ -77,16 +93,19 @@ stencil(
   else if (vtid == 2) startOffset = 5;
   else if (vtid == 3) startOffset = 8;
   #else
-  int startOffset = vtid;
+  int startOffset = vtid * (step/dim);
   #endif
 
+  #ifdef VERTICAL_LOADS
+  int frameSize = REGION_SIZE;
+  #else
   int frameSize = FILTER_DIM * FILTER_DIM;
-
-
+  #endif
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
-  volatile int ohjeez = 1;
-  if (ohjeez) {
+
+
+  int *spadAddr = (int*)getSpAddr(ptid, 0);
   // have r = 0 for now
   // will need broadcast to support r > 0
   int spadIdx = 0;
@@ -103,22 +122,30 @@ stencil(
   int prefetchFrames = FRAMES_PER_REGION;
   #else
   // arbitrary in this case
-  int prefetchFrames = 8;
+  int prefetchFrames = 4;
   #endif
 
-  int beginCol = min(prefetchFrames * dim, effCols);
+  int beginCol = min(prefetchFrames * step, effCols);
   #ifndef REUSE
   for (int r = start_row; r < start_row + 1; r++) {
-    for (int c = 0; c < beginCol; c+=dim) {
+    #ifdef VERTICAL_LOADS
+    // exhibit temporal reuse within a frame in a cacheline (16) can do 16-2=14 3x1 filters
+    // TODO spatial should also do reuse maybe between frames (by putting in temporal storage). 
+    // But maybe can't do memory layout restrictions
+    for (int c = 0; c < beginCol; c+=step) {
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        #ifdef VERTICAL_LOADS
+        // printf("issue r %d c %d k1 %d depth %d\n", r, c, k1, LOAD_DEPTH);
         int aIdx = (r + k1) * ncols + c;
         for (int core = 0; core < dim; core++) {
-          VPREFETCH_L(spadIdx, a + aIdx, core, FILTER_DIM, 1);
-          VPREFETCH_R(spadIdx, a + aIdx, core, FILTER_DIM, 1);
+          VPREFETCH_L(spadIdx, a + aIdx + core * CORE_STEP, core, LOAD_DEPTH, 1);
+          VPREFETCH_R(spadIdx, a + aIdx + core * CORE_STEP, core, LOAD_DEPTH, 1);
         }
-        spadIdx+=FILTER_DIM;
-        #else
+        spadIdx+=LOAD_DEPTH;
+      }
+    }
+    #else
+    for (int c = 0; c < beginCol; c+=step) {
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           // printf("prelw sp %d r %d c %d k1 %d k2 %d idx %d\n", spadIdx, r, c, k1, k2, aIdx);
@@ -126,9 +153,9 @@ stencil(
           VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
           spadIdx++;
         }
-        #endif
       }
     }
+    #endif
   }
   #else
   for (int r = start_row; r < start_row + 1; r++) {
@@ -188,17 +215,26 @@ stencil(
     int startCol = 0;
     // we've prefetch part of the first row to get ahead
     if (r == start_row) startCol = beginCol;
-    for (int c = startCol; c < effCols; c+=dim) {
-      // prefetch all 9 values required for computation
+    #ifdef VERTICAL_LOADS
+    for (int c = startCol; c < effCols; c+=step) {
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        #ifdef VERTICAL_LOADS
         int aIdx = (r + k1) * ncols + c;
         for (int core = 0; core < dim; core++) {
-          VPREFETCH_L(spadIdx, a + aIdx, core, FILTER_DIM, 1);
-          VPREFETCH_R(spadIdx, a + aIdx, core, FILTER_DIM, 1);
+          VPREFETCH_L(spadIdx, a + aIdx + core * CORE_STEP, core, LOAD_DEPTH, 1);
+          VPREFETCH_R(spadIdx, a + aIdx + core * CORE_STEP, core, LOAD_DEPTH, 1);
         }
-        spadIdx+=FILTER_DIM;
-        #else
+        spadIdx+=LOAD_DEPTH;
+      }
+
+      if (spadIdx == POST_REGION_WORD) spadIdx = 0;
+
+      ISSUE_VINST(fable1);
+
+    }
+    #else
+    for (int c = startCol; c < effCols; c+=step) {
+      // prefetch all 9 values required for computation
+      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           
@@ -215,7 +251,6 @@ stencil(
           spadIdx++;
           
         }
-        #endif
       }
 
       // spad is circular buffer so do cheap mod here
@@ -225,6 +260,7 @@ stencil(
 
       ISSUE_VINST(fable1);
     }
+    #endif
   }
   #elif defined(REUSE)
   for (int r = start_row; r < end_row; r++) {
@@ -295,11 +331,7 @@ stencil(
     // take some loads off the last row b/c already prefetched
     int colStart = effCols;
     if (r == end_row - 1) colStart = effCols - beginCol;
-    #ifdef REUSE
-    for (int c = colStart; c < effCols; c+=dim*FILTER_DIM) {
-    #else
-    for (int c = colStart; c < effCols; c+= dim) {
-    #endif
+    for (int c = colStart; c < effCols; c+=step) {
       ISSUE_VINST(fable1);
     }
   }
@@ -321,6 +353,8 @@ stencil(
   DTYPE *cPtr;
   DTYPE b0, b1, b2, b3, b4, b5, b6, b7, b8;
   DTYPE a0, a1, a2, a3, a4, a5, a6, a7, a8;
+  int *spadAddr; // important don't share this variable with above!
+  int step, startOffset, frameSize;
 
   // entry block
   // load the full filter into spad
@@ -332,7 +366,42 @@ stencil(
   //   }
     iter = 0;
     spIdx = 0;
+    #ifdef REUSE
+    step = dim*FILTER_DIM;
+    #elif defined(VERTICAL_LOADS)
+    step = CORE_STEP*dim;
+    #else
+    step = dim;
+    #endif
+
+    #ifdef REUSE
+    // calculate prev and next spAddr for reuse
+    int *prevSpadAddr = NULL;
+    int *nextSpadAddr = NULL;
+    if (vtid == 1 || vtid == 3) prevSpadAddr = (int*)getSpAddr(ptid - 1, 0);
+    else if (vtid == 2) prevSpadAddr = (int*)getSpAddr(ptid - 3, 0); // GRID_DIM = 4 - 1 = 3
+    if (vtid == 0 || vtid == 2) nextSpadAddr = (int*)getSpAddr(ptid + 1, 0);
+    if (vtid == 1) nextSpadAddr = (int*)getSpAddr(ptid + 3, 0);
+
+    // start offset for cptr
+    int startOffset = 0;
+    if (vtid == 0) startOffset = -1;
+    else if (vtid == 1) startOffset = 2;
+    else if (vtid == 2) startOffset = 5;
+    else if (vtid == 3) startOffset = 8;
+    #else
+    startOffset = vtid * (step/dim);
+    #endif
+
+    #ifdef VERTICAL_LOADS
+    frameSize = REGION_SIZE;
+    #else
+    frameSize = FILTER_DIM * FILTER_DIM;
+    #endif
+
+
     cPtr = c + (start_row * (ncols-(FILTER_DIM-1))) + startOffset;
+    spadAddr = (int*)getSpAddr(ptid, 0);
 
     b0 = b[0];
     b1 = b[1];
@@ -426,6 +495,23 @@ stencil(
     // 10 results are computed per reuse iteration
     cPtr+=FILTER_DIM*dim - 2;
 
+    #elif defined(VERTICAL_LOADS)
+    #pragma GCC unroll(14)
+    for (int i = 0; i < CORE_STEP; i++) {
+      c_ = 0;
+      int baseSpIdx = spIdx + i;
+      c_ += b0 * spadAddr[baseSpIdx + 0];
+      c_ += b1 * spadAddr[baseSpIdx + 1];
+      c_ += b2 * spadAddr[baseSpIdx + 2];
+      c_ += b3 * spadAddr[baseSpIdx + LOAD_DEPTH + 0];
+      c_ += b4 * spadAddr[baseSpIdx + LOAD_DEPTH + 1];
+      c_ += b5 * spadAddr[baseSpIdx + LOAD_DEPTH + 2];
+      c_ += b6 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 0];
+      c_ += b7 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 1];
+      c_ += b8 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 2];
+      STORE_NOACK(c_, cPtr + i, 0);
+    }
+    cPtr += step;
     #else
     // #pragma GCC unroll 9
     // for (int i = 0; i < FILTER_DIM * FILTER_DIM; i++) {
@@ -586,7 +672,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (ptid == 0) is_da = 1;
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
     start = 0;
-    end = (float)effRows / 3.0f;
+    end = effRows; //(float)effRows / 3.0f;
     orig_x = 1;
     orig_y = 0;
     master_x = 0;
@@ -660,7 +746,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VEC)
-  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
+  if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
   if (ptid == 3) return;
   #else
   if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {

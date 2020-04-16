@@ -27,7 +27,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int nrows = 3 + (FILTER_DIM - 1); // single row
+  int nrows = 1 + (FILTER_DIM - 1); // single row
   // reuse has very stingy requirements on what sizes are allowed
   #ifdef REUSE
   int ncols = 12 + (10 * 2); // 12 + factor of 10... wow i.e. 1212
