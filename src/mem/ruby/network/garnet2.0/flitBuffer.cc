@@ -60,6 +60,17 @@ flitBuffer::isReady(Cycles curTime)
     return false;
 }
 
+bool
+flitBuffer::isReady(Tick curTick)
+{
+    if (m_buffer.size() != 0 ) {
+        flit *t_flit = peekTopFlit();
+        if (t_flit->get_time_ticks() <= curTick)
+            return true;
+    }
+    return false;
+}
+
 void
 flitBuffer::print(std::ostream& out) const
 {

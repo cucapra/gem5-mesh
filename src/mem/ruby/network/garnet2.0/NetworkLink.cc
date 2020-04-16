@@ -70,6 +70,7 @@ void
 NetworkLink::wakeup()
 {
     if (link_srcQueue->isReady(curCycle())) {
+    // if (link_srcQueue->isReady(curTick())) {
         flit *t_flit = link_srcQueue->getTopFlit();
 
         auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
@@ -81,7 +82,7 @@ NetworkLink::wakeup()
         // // link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
         // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) {
         //     link_consumer->scheduleEventAbsolute(clockEdge(Cycles(0)) + 1);
-        //     t_flit->set_time(curCycle());
+        //     t_flit->set_time(curTick() + (Tick)1);
         // }
         // else
             link_consumer->scheduleEventAbsolute(clockEdge(m_latency));

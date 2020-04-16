@@ -88,7 +88,8 @@ void
 InputUnit::wakeup()
 {
     flit *t_flit;
-    if (m_in_link->isReady(m_router->curCycle())) {
+    // if (m_in_link->isReady(m_router->curCycle())) {
+    if (m_in_link->isReady(curTick())) {
 
         t_flit = m_in_link->consumeLink();
         int vc = t_flit->get_vc();
