@@ -24,7 +24,8 @@
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
 // #define VEC_4_SIMD 1
-#define VEC_4_SIMD_VERTICAL 1
+// #define VEC_4_SIMD_VERTICAL 1
+#define VEC_4_SIMD_SPATIAL_UNROLLED 1
 // #define VEC_4_SIMD_BCAST 1
 
 // vvadd_execute config directives
@@ -34,7 +35,7 @@
 #if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) \
   || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_4_DA_SMALL_FRAME) \
   || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD) || defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) \
-  || defined(VEC_4_SIMD_VERTICAL)
+  || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED)
 #define USE_VEC 1
 #endif
 #if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) \
@@ -44,7 +45,7 @@
 #if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
 #define USE_DA 1
 #endif
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_VERTICAL)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED)
 #define USE_VECTOR_SIMD 1
 #endif
 #if !defined(UNROLL) && !defined(USE_NORMAL_LOAD)
@@ -62,6 +63,9 @@
 #if defined(VEC_4_SIMD_VERTICAL)
 #define VERTICAL_LOADS 1
 #endif
+#if defined(VEC_4_SIMD_SPATIAL_UNROLLED)
+#define SPATIAL_UNROLL 1
+#endif
 
 // vector grouping directives
 #if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_16_NORM_LOAD)
@@ -73,7 +77,7 @@
 #if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
 #define VEC_SIZE_4_DA 1
 #endif
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_VERTICAL)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED)
 #define VEC_SIZE_4_SIMD 1
 #endif
 
@@ -82,7 +86,7 @@
  || defined(SIM_DA_VLOAD_SIZE_1)
 #define REGION_SIZE 32
 #define NUM_REGIONS 16
-#elif defined(VERTICAL_LOADS)
+#elif defined(VERTICAL_LOADS) || defined(VEC_4_SIMD_SPATIAL_UNROLLED)
 // load 16 words (whole cacheline at a time)
 #define LOAD_LEN 16
 #define REGION_SIZE LOAD_LEN * 2
@@ -132,7 +136,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   VECTOR_EPOCH(mask); 
 
 
-  #ifdef VERTICAL_LOADS
+  #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
   int numInitFetch = LOAD_LEN;
   #else
   int numInitFetch = 16;
