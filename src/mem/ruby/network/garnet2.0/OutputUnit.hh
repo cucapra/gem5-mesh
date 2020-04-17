@@ -100,6 +100,7 @@ class OutputUnit : public Consumer
         // m_out_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
         if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) {
           m_out_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(0)));
+          // m_out_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
           DPRINTF(Mesh, "OutputUnit %d Router %d push %#x @ tick %llu\n", m_id, m_router->get_id(), mem_msg->getPacket()->getAddr(), m_router->clockEdge(Cycles(0)));
         }
         else
