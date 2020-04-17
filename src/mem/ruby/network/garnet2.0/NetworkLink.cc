@@ -37,6 +37,7 @@
 
 #include "mem/ruby/scratchpad/MemMessage.hh"
 #include "debug/Mesh.hh"
+#include "debug/RubyNetwork.hh"
 
 NetworkLink::NetworkLink(const Params *p)
     : ClockedObject(p), Consumer(this), m_id(p->link_id),
@@ -77,15 +78,20 @@ NetworkLink::wakeup()
         if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
           DPRINTF(Mesh, "NetworkLink %d delay %d push %#x\n", m_id, m_latency, mem_msg->getPacket()->getAddr());
 
-        t_flit->set_time(curCycle() + m_latency);
+
+        DPRINTF(RubyNetwork, "NetworkLink %d wakeup flit ptr %p\n", m_id, t_flit);
+
+        // t_flit->set_time(curCycle() + m_latency);
         linkBuffer->insert(t_flit);
         // link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
-        if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) {
-            link_consumer->scheduleEventAbsolute(clockEdge(Cycles(0)) + 1);
-            t_flit->set_time(curTick() + (Tick)1);
-        }
-        else
-            link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
+        // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) {
+        //     link_consumer->scheduleEventAbsolute(clockEdge(Cycles(0)) + 1);
+        //     t_flit->set_time(curTick() + (Tick)1);
+        // }
+        // else
+        //     link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
+        link_consumer->scheduleEventAbsolute(curTick() + (Tick)1);
+        t_flit->set_time(curTick() + (Tick)1);
         m_link_utilized++;
         m_vc_load[t_flit->get_vc()]++;
 

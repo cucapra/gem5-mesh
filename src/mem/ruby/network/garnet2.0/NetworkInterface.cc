@@ -231,6 +231,10 @@ NetworkInterface::wakeup()
                 if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
                     DPRINTF(Mesh, "Net interface %d Router %d pull pkt %#x\n", m_id, m_router_id, mem_msg->getPacket()->getAddr());
 
+
+                DPRINTF(RubyNetwork, "Net interface %d Router %d pull flit %#x\n", m_id, m_router_id, t_flit);
+
+
                 // Space is available. Enqueue to protocol buffer.
                 outNode_ptr[vnet]->enqueue(t_flit->get_msg_ptr(), curTime,
                                            cyclesToTicks(Cycles(1)));
@@ -485,9 +489,14 @@ NetworkInterface::scheduleOutputLink()
             m_out_vc_state[vc]->decrement_credit();
             // Just removing the flit
             flit *t_flit = m_ni_out_vcs[vc]->getTopFlit();
-            t_flit->set_time(curCycle() + Cycles(1));
+            t_flit->set_time(curCycle() + Cycles(1)); // potentially incorrect?
+            // t_flit->set_time(curTick() + (Tick)1);
+
+            DPRINTF(RubyNetwork, "Net interface %d Router %d push flit %p @time %llu\n", m_id, m_router_id, t_flit, t_flit->get_time_ticks());
+
             outFlitQueue->insert(t_flit);
             // schedule the out link
+            // outNetLink->scheduleEventAbsolute(clockEdge(Cycles(1)));
             outNetLink->scheduleEventAbsolute(clockEdge(Cycles(1)));
 
             if (t_flit->get_type() == TAIL_ ||

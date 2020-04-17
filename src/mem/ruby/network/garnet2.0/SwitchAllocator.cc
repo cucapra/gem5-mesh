@@ -360,7 +360,8 @@ SwitchAllocator::check_for_wakeup()
     for (int i = 0; i < m_num_inports; i++) {
         for (int j = 0; j < m_num_vcs; j++) {
             if (m_input_unit[i]->need_stage(j, SA_, nextCycle)) {
-                m_router->schedule_wakeup(Cycles(1));
+                // m_router->schedule_wakeup(Cycles(1)); // TODO bad
+                m_router->schedule_wakeup(1000 + 1);
                 return;
             }
         }

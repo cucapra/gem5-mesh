@@ -98,14 +98,17 @@ CrossbarSwitch::wakeup()
 
             m_num_flits_pushed_this_cycle++;
 
-            auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
-            if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000)  {
-                DPRINTF(Mesh, "Router switch %d inject %#x\n", m_router->get_id(), mem_msg->getPacket()->getAddr());
-                t_flit->set_time(m_router->curCycle() + Cycles(0));
-                // t_flit->set_time(m_router->curCycle() + Cycles(1));
-            }
-            else
-                t_flit->set_time(m_router->curCycle() + Cycles(1));
+            // auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
+            // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000)  {
+            //     DPRINTF(Mesh, "Router switch %d inject %#x\n", m_router->get_id(), mem_msg->getPacket()->getAddr());
+            //     t_flit->set_time(m_router->curCycle() + Cycles(0));
+            //     // t_flit->set_time(m_router->curCycle() + Cycles(1));
+            // }
+            // else
+            //     t_flit->set_time(m_router->curCycle() + Cycles(1));
+            t_flit->set_time(m_router->curCycle() + Cycles(0));
+
+            DPRINTF(RubyNetwork, "Router switch %d inject flit ptr %p\n", m_router->get_id(), t_flit);
 
             // This will take care of waking up the Network Link
             // in the next cycle

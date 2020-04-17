@@ -94,6 +94,7 @@ class Router : public BasicRouter, public Consumer
     int route_compute(RouteInfo route, int inport, PortDirection direction);
     void grant_switch(int inport, flit *t_flit);
     void schedule_wakeup(Cycles time);
+    void schedule_wakeup(Tick time);
 
     std::string getPortDirectionName(PortDirection direction);
     void printFaultVector(std::ostream& out);
