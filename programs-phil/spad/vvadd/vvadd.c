@@ -23,9 +23,11 @@
 // #define SIM_DA_VLOAD_SIZE_1 1
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
-// #define VEC_4_SIMD 1
+
+#define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
-#define VEC_4_SIMD_SPATIAL_UNROLLED 1
+// #define VEC_4_SIMD_SPATIAL_UNROLLED 1
+
 // #define VEC_4_SIMD_BCAST 1
 
 // vvadd_execute config directives
@@ -130,7 +132,8 @@ inline int min(int a, int b) {
 void __attribute__((optimize("-fno-reorder-blocks")))
 vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
-  int *spadAddr = (int*)getSpAddr(ptid, 0);
+  volatile int ohjeez = 1;
+  if (ohjeez) {
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask); 
@@ -147,7 +150,6 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   int beginIter = min(numInitFetch, totalIter);
 
   #ifdef VERTICAL_LOADS
-  int loadLen = 16; // load 16 words (whole cacheline at a time)
   for (int core = 0; core < dim; core++) {
     VPREFETCH_L(0       , a + start + LOAD_LEN * core, core, LOAD_LEN, 1);
     VPREFETCH_L(LOAD_LEN, b + start + LOAD_LEN * core, core, LOAD_LEN, 1);
@@ -169,10 +171,21 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   #endif
 
   #ifdef VERTICAL_LOADS
-  for (int i = beginIter; i < totalIter; i+=loadLen) {
+  for (int i = beginIter; i < totalIter; i+=LOAD_LEN) {
     for (int core = 0; core < dim; core++) {
       VPREFETCH_L(localIter + 0       , a + start + i * dim + LOAD_LEN * core, core, LOAD_LEN, 1);
       VPREFETCH_L(localIter + LOAD_LEN, b + start + i * dim + LOAD_LEN * core, core, LOAD_LEN, 1);
+    }
+
+    ISSUE_VINST(fable1);
+    localIter+=REGION_SIZE;
+    if (localIter == (NUM_REGIONS * REGION_SIZE)) localIter = 0;
+  }
+  #elif defined(SPATIAL_UNROLL)
+  for (int i = beginIter; i < totalIter; i+=LOAD_LEN*dim) {
+    for (int j = 0; j < LOAD_LEN; j++) {
+      VPREFETCH_L(localIter + 0, a + start + (i + j * dim), 0, 4, 0);
+      VPREFETCH_L(localIter + 1, b + start + (i + j * dim), 0, 4, 0);
     }
 
     ISSUE_VINST(fable1);
@@ -185,10 +198,6 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     // prefetch for future iterations
     VPREFETCH_L(localIter + 0, a + start + (i * dim), 0, 4, 0);
     VPREFETCH_L(localIter + 1, b + start + (i * dim), 0, 4, 0);
-    localIter+=2;
-    if (localIter == (NUM_REGIONS * 2)) {
-      localIter = 0;
-    }
 
     #ifdef SIMD_BCAST
     // broadcast values needed to execute
@@ -205,11 +214,17 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
       deviceIter = 0;
     }
     #endif
+
+
+    localIter+=REGION_SIZE;
+    if (localIter == (NUM_REGIONS * REGION_SIZE)) {
+      localIter = 0;
+    }
   }
   #endif
 
   // issue the rest
-  #ifdef VERTICAL_LOADS
+  #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
   for (int i = totalIter - beginIter; i < totalIter; i+=LOAD_LEN) {
     ISSUE_VINST(fable1);
   }
@@ -237,6 +252,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   asm volatile("fence\n\t");
 
   return;
+  }
 
   // vector engine code
 
@@ -244,11 +260,13 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   DTYPE a_, b_, c_;
   int64_t iter; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
+  int *spadAddr;
 
   // entry block
   // NOTE need to do own loop-invariant code hoisting?
   fable0:
     iter = 0;
+    spadAddr = (int*)getSpAddr(ptid, 0);
     #ifdef VERTICAL_LOADS
     cPtr = c + start + vtid * LOAD_LEN;
     #else
@@ -276,6 +294,24 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
     cPtr += LOAD_LEN * dim;
     iter = (iter + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
+    #elif defined(SPATIAL_UNROLL)
+    FRAME_START(REGION_SIZE);
+
+    // load values from scratchpad
+    #pragma GCC unroll(16)
+    for (int i = 0; i < LOAD_LEN; i++) {
+      a_ = spadAddr[iter + i + 0];
+      b_ = spadAddr[iter + i + LOAD_LEN];
+
+      // compute and store
+      c_ = a_ + b_;
+      STORE_NOACK(c_, cPtr + i * dim, 0);
+    }
+
+    REMEM(REGION_SIZE);
+
+    cPtr += LOAD_LEN * dim;
+    iter = (iter + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
     #else
     #ifdef SIMD_BCAST
     // try to get compiler to use register that will recv broadcasted values
@@ -286,7 +322,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     );
     #endif
 
-    FRAME_START(2);
+    FRAME_START(REGION_SIZE);
 
     // load values from scratchpad
     a_ = spadAddr[iter + 0];
@@ -294,7 +330,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
     // remem as soon as possible, so don't stall loads for next iterations
     // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
-    REMEM(2);
+    REMEM(REGION_SIZE);
 
     // compute and store
     c_ = a_ + b_;
@@ -302,7 +338,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     cPtr += dim;
 
     #ifndef SIMD_BCAST
-    iter = (iter + 2) % (NUM_REGIONS * 2);
+    iter = (iter + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
     #endif
     #endif
 
