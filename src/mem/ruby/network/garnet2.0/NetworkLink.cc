@@ -36,6 +36,7 @@
 #include "mem/ruby/network/garnet2.0/CreditLink.hh"
 
 #include "mem/ruby/scratchpad/MemMessage.hh"
+#include "mem/ruby/network/garnet2.0/NetworkInterface.hh"
 #include "debug/Mesh.hh"
 #include "debug/RubyNetwork.hh"
 
@@ -74,9 +75,9 @@ NetworkLink::wakeup()
     // if (link_srcQueue->isReady(curTick())) {
         flit *t_flit = link_srcQueue->getTopFlit();
 
-        auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
-        if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
-          DPRINTF(Mesh, "NetworkLink %d delay %d push %#x\n", m_id, m_latency, mem_msg->getPacket()->getAddr());
+        // auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
+        // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
+        //   DPRINTF(Mesh, "NetworkLink %d delay %d push %#x\n", m_id, m_latency, mem_msg->getPacket()->getAddr());
 
 
         DPRINTF(RubyNetwork, "NetworkLink %d wakeup flit ptr %p\n", m_id, t_flit);
@@ -90,8 +91,18 @@ NetworkLink::wakeup()
         // }
         // else
         //     link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
-        link_consumer->scheduleEventAbsolute(curTick() + (Tick)1);
-        t_flit->set_time(curTick() + (Tick)1);
+
+        // if this is going to a network interface don't allow on odd cycle
+        Tick schedTime;
+        if (dynamic_cast<NetworkInterface*>(link_consumer)) {
+            schedTime = clockEdge(m_latency);
+        }
+        else {
+            schedTime = curTick() + 1;
+        }
+
+        link_consumer->scheduleEventAbsolute(schedTime);
+        t_flit->set_time(schedTime);
         m_link_utilized++;
         m_vc_load[t_flit->get_vc()]++;
 

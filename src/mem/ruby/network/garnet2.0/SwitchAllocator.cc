@@ -361,7 +361,7 @@ SwitchAllocator::check_for_wakeup()
         for (int j = 0; j < m_num_vcs; j++) {
             if (m_input_unit[i]->need_stage(j, SA_, nextCycle)) {
                 // m_router->schedule_wakeup(Cycles(1)); // TODO bad
-                m_router->schedule_wakeup(1000 + 1);
+                m_router->schedule_wakeup((Tick)m_router->clockEdge(Cycles(0)) + (Tick)1);
                 return;
             }
         }

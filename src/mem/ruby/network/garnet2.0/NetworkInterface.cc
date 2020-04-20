@@ -232,7 +232,7 @@ NetworkInterface::wakeup()
                     DPRINTF(Mesh, "Net interface %d Router %d pull pkt %#x\n", m_id, m_router_id, mem_msg->getPacket()->getAddr());
 
 
-                DPRINTF(RubyNetwork, "Net interface %d Router %d pull flit %#x\n", m_id, m_router_id, t_flit);
+                DPRINTF(RubyNetwork, "Net interface %d Router %d ifs pull flit %#x\n", m_id, m_router_id, t_flit);
 
 
                 // Space is available. Enqueue to protocol buffer.
@@ -492,7 +492,7 @@ NetworkInterface::scheduleOutputLink()
             t_flit->set_time(curCycle() + Cycles(1)); // potentially incorrect?
             // t_flit->set_time(curTick() + (Tick)1);
 
-            DPRINTF(RubyNetwork, "Net interface %d Router %d push flit %p @time %llu\n", m_id, m_router_id, t_flit, t_flit->get_time_ticks());
+            DPRINTF(RubyNetwork, "Net interface %d Router %d net push flit %p @time %llu\n", m_id, m_router_id, t_flit, t_flit->get_time_ticks());
 
             outFlitQueue->insert(t_flit);
             // schedule the out link
