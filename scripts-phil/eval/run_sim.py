@@ -43,7 +43,7 @@ programs = {
 
 # create a template for the gem5 command line
 gem5_cmd = lambda program, options, result, cpus, vec: \
-  '{} -d {}/{} {} --cmd={} --options=\"{}\" --mem-size=1GB --num-cpus={} {}'.format(
+  '{} -d {}/{} {} --cmd={} --options=\"{}\" --num-cpus={} {}'.format(
       args.build, args.results, result, args.config, program, options, str(cpus), '--vector' if vec else '')
   
 # compile command that chooses whether to use scratchpad optimizations
