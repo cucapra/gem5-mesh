@@ -512,6 +512,111 @@ vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
 #endif // VECTOR_SIMD
 
 
+// if don't inline then need to copy stack pointer up to addr 88, which too lazy to do atm
+// create a template for a vlen=4 config that can copy and paste multiple times on a large mesh
+inline void vector_group_template_4(
+    // inputs
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y, int n,
+    // outputs
+    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, 
+    int *start, int *end
+  ) {
+
+  // virtual group dimension
+  int vdim_x = 2;
+  int vdim_y = 2;
+
+  // recover trivial fields
+  int vdim = vdim_x * vdim_y;
+  int ptid = ptid_x + ptid_y * pdim_x;
+  int pdim = pdim_x * pdim_y;
+
+  // this is a design for a 4x4 zone
+  // potentially there are more than one 4x4 zones in the mesh
+  // get ids within the template
+  int template_dim_x = 4;
+  int template_dim_y = 4;
+  int template_dim = template_dim_x * template_dim_y;
+  int template_x = ptid_x % template_dim_x;
+  int template_y = ptid_y % template_dim_y;
+  int template_id = template_x + template_y * template_dim_x;
+
+  // which group it belongs to for absolute core coordinates
+  int template_group_x = ptid_x / template_dim_x;
+  int template_group_y = ptid_y / template_dim_y;
+  int template_group_dim_x = pdim_x / template_dim_x;
+  int template_group_dim_y = pdim_y / template_dim_y;
+  int template_group_dim = template_group_dim_x * template_group_dim_y;
+  int template_group = template_group_x + template_group_y * template_group_dim_x;
+
+  // figure out how big chunks of the data should be assigned
+  int alignment = 16 * vdim_x * vdim_y;
+  int groupSize = vdim + 1; // +scalar core
+  int groups_per_template = template_dim / groupSize;
+  int vGroups = groups_per_template * template_group_dim;
+
+  int chunk_offset = template_group  * groups_per_template;
+
+  // group 1 top left (master = 0)
+  if (template_id == 1) *vtid = 0;
+  if (template_id == 2) *vtid = 1;
+  if (template_id == 5) *vtid = 2;
+  if (template_id == 6) *vtid = 3;
+  if (template_id == 0) *is_scalar = 1;
+  if (template_id == 0 || template_id == 1 || template_id == 2 || template_id == 5 || template_id == 6) {
+    *start = roundUp((chunk_offset + 0) * n / vGroups, alignment);
+    *end   = roundUp((chunk_offset + 1) * n / vGroups, alignment); // make sure aligned to cacheline 
+    *orig_x = 1;
+    *orig_y = 0;
+    *master_x = 0;
+    *master_y = 0;
+  }
+
+  // group 2 bot left (master == 4)
+  if (template_id == 8) *vtid = 0;
+  if (template_id == 9) *vtid = 1;
+  if (template_id == 12) *vtid = 2;
+  if (template_id == 13) *vtid = 3;
+  if (template_id == 4) *is_scalar = 1;
+  if (template_id == 4 || template_id == 8 || template_id == 9 || template_id == 12 || template_id == 13) {
+    *start = roundUp((chunk_offset + 1) * n / vGroups, alignment);
+    *end   = roundUp((chunk_offset + 2) * n / vGroups, alignment);
+    *orig_x = 0;
+    *orig_y = 2;
+    *master_x = 0;
+    *master_y = 1;
+  }
+
+  // group 3 bottom right (master == 7)
+  if (template_id == 10) *vtid = 0;
+  if (template_id == 11) *vtid = 1;
+  if (template_id == 14) *vtid = 2;
+  if (template_id == 15) *vtid = 3;
+  if (template_id == 7) *is_scalar = 1;
+  if (template_id == 7 || template_id == 10 || template_id == 11 || template_id == 14 || template_id == 15) {
+    *start = roundUp((chunk_offset + 2) * n / vGroups, alignment);
+    *end   = roundUp((chunk_offset + 3) * n / vGroups, alignment);
+    *orig_x = 2;
+    *orig_y = 2;
+    *master_x = 3;
+    *master_y = 1;
+  }
+
+  // need to shift the absolute coordinates based on which group this is for
+  *orig_x = *orig_x + template_group_x * template_dim_x;
+  *orig_y = *orig_y + template_group_y * template_dim_y;
+  *master_x = *master_x + template_group_x * template_dim_x;
+  *master_y = *master_y + template_group_y * template_dim_y;
+
+  // unused core
+  if (template_id == 3) *vtid = -1;
+
+  *vtid_x = *vtid % vdim_x;
+  *vtid_y = *vtid / vdim_y;
+  
+
+}
+
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *b, DTYPE *c, int n,
     int tid_x, int tid_y, int dim_x, int dim_y) {
@@ -660,60 +765,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     // virtual group dimension
   vdim_x = 2;
   vdim_y = 2;
+  vdim = vdim_x * vdim_y;
 
-  int alignment = 16 * vdim_x * vdim_y;
-
-  // group 1 top left (master = 0)
-  if (ptid == 1) vtid = 0;
-  if (ptid == 2) vtid = 1;
-  if (ptid == 5) vtid = 2;
-  if (ptid == 6) vtid = 3;
-  if (ptid == 0) is_da = 1;
-  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
-    start = 0;
-    end = roundUp(n / 3, alignment); // make sure aligned to cacheline 
-    orig_x = 1;
-    orig_y = 0;
-    master_x = 0;
-    master_y = 0;
-  }
-
-  // group 2 bot left (master == 4)
-  if (ptid == 8) vtid = 0;
-  if (ptid == 9) vtid = 1;
-  if (ptid == 12) vtid = 2;
-  if (ptid == 13) vtid = 3;
-  if (ptid == 4) is_da = 1;
-  if (ptid == 4 || ptid == 8 || ptid == 9 || ptid == 12 || ptid == 13) {
-    start = roundUp(n / 3, alignment);
-    end = roundUp(2 * n / 3, alignment);
-    orig_x = 0;
-    orig_y = 2;
-    master_x = 0;
-    master_y = 1;
-    // TODO for some reason can't return here...
-  }
-
-  // group 3 bottom right (master == 7)
-  if (ptid == 10)  vtid = 0;
-  if (ptid == 11) vtid = 1;
-  if (ptid == 14) vtid = 2;
-  if (ptid == 15) vtid = 3;
-  if (ptid == 7) is_da = 1;
-  if (ptid == 7 || ptid == 10 || ptid == 11 || ptid == 14 || ptid == 15) {
-    start = roundUp(2 * n / 3, alignment);
-    end = n;
-    orig_x = 2;
-    orig_y = 2;
-    master_x = 3;
-    master_y = 1;
-  }
-
-  // unused core
-  // if (ptid == 3) return;
-
-  vtid_x = vtid % vdim_x;
-  vtid_y = vtid / vdim_y;
+  vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, n, 
+    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &start, &end);
 
 
   #elif !defined(USE_VEC)
@@ -729,7 +784,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   // linearize some fields
-  vdim = vdim_x * vdim_y;
   int orig = orig_x + orig_y * dim_x;
 
   // construct special mask for dae example
@@ -752,7 +806,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
         (pdim_x << FET_XLEN_SHAMT) | (pdim_x << FET_YLEN_SHAMT);
   #endif
   #else
-  // volatile so dont reorder this function call
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
   #endif
 
@@ -774,7 +827,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (tid == 12) return;
   #elif defined(USE_VECTOR_SIMD)
   // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return; 
-  if (ptid == 3) return;
+  // if (ptid == 3) return;
+  if (vtid == -1) return;
   #endif
 
   // run the actual kernel with the configuration
