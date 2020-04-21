@@ -26,9 +26,12 @@
 
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
-// #define VEC_4_SIMD_SPATIAL_UNROLLED 1
+#define VEC_4_SIMD_SPATIAL_UNROLLED 1
 
 // #define VEC_4_SIMD_BCAST 1
+
+// define prefetch size
+#define PREFETCH_LEN 4
 
 // vvadd_execute config directives
 #if defined(NO_VEC) || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD)
@@ -138,6 +141,8 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask); 
 
+  // should be a constant from static analysis of dim
+  int pRatio = dim / PREFETCH_LEN;
 
   #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
   int numInitFetch = LOAD_LEN;
@@ -156,8 +161,10 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   }
   #else
   for (int i = 0; i < beginIter; i++) {
-    VPREFETCH_L(i * 2 + 0, a + start + (i * dim), 0, 4, 0);
-    VPREFETCH_L(i * 2 + 1, b + start + (i * dim), 0, 4, 0);
+    for (int p = 0; p < pRatio; p++) { // NOTE unrolled b/c can statically determine pRatio is const
+      VPREFETCH_L(i * 2 + 0, a + start + (i * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+      VPREFETCH_L(i * 2 + 1, b + start + (i * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+    }
   }
   #endif
 
@@ -184,8 +191,10 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   #elif defined(SPATIAL_UNROLL)
   for (int i = beginIter; i < totalIter; i+=LOAD_LEN) {
     for (int j = 0; j < LOAD_LEN; j++) {
-      VPREFETCH_L(localIter + j * 2 + 0, a + start + ((i + j) * dim), 0, 4, 0);
-      VPREFETCH_L(localIter + j * 2 + 1, b + start + ((i + j) * dim), 0, 4, 0);
+      for (int p = 0; p < pRatio; p++) {
+        VPREFETCH_L(localIter + j * 2 + 0, a + start + ((i + j) * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+        VPREFETCH_L(localIter + j * 2 + 1, b + start + ((i + j) * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+      }
     }
 
     ISSUE_VINST(fable1);
@@ -196,8 +205,10 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   for (int i = beginIter; i < totalIter; i++) {
 
     // prefetch for future iterations
-    VPREFETCH_L(localIter + 0, a + start + (i * dim), 0, 4, 0);
-    VPREFETCH_L(localIter + 1, b + start + (i * dim), 0, 4, 0);
+    for (int p = 0; p < pRatio; p++) {
+      VPREFETCH_L(localIter + 0, a + start + (i * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+      VPREFETCH_L(localIter + 1, b + start + (i * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+    }
 
     #ifdef SIMD_BCAST
     // broadcast values needed to execute
