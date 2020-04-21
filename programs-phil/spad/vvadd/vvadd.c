@@ -129,7 +129,7 @@ inline int min(int a, int b) {
 // NOTE optimize("-fno-inline") prevents return block from being at the end, which is kind of needed for the scheme
 // ACTUALLY any second label causes a problem???
 #ifdef USE_VECTOR_SIMD
-void __attribute__((optimize("-fno-reorder-blocks")))
+void __attribute__((optimize("-fno-reorder-blocks"), optimize("-fno-align-labels")))
 vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
   volatile int ohjeez = 1;
