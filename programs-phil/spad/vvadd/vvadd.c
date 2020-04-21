@@ -24,9 +24,9 @@
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
 
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
-// #define VEC_4_SIMD_SPATIAL_UNROLLED 1
+#define VEC_4_SIMD_SPATIAL_UNROLLED 1
 
 // #define VEC_4_SIMD_BCAST 1
 
@@ -182,10 +182,10 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     if (localIter == (NUM_REGIONS * REGION_SIZE)) localIter = 0;
   }
   #elif defined(SPATIAL_UNROLL)
-  for (int i = beginIter; i < totalIter; i+=LOAD_LEN*dim) {
+  for (int i = beginIter; i < totalIter; i+=LOAD_LEN) {
     for (int j = 0; j < LOAD_LEN; j++) {
-      VPREFETCH_L(localIter + 0, a + start + (i + j * dim), 0, 4, 0);
-      VPREFETCH_L(localIter + 1, b + start + (i + j * dim), 0, 4, 0);
+      VPREFETCH_L(localIter + j * 2 + 0, a + start + ((i + j) * dim), 0, 4, 0);
+      VPREFETCH_L(localIter + j * 2 + 1, b + start + ((i + j) * dim), 0, 4, 0);
     }
 
     ISSUE_VINST(fable1);
@@ -300,8 +300,8 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     // load values from scratchpad
     #pragma GCC unroll(16)
     for (int i = 0; i < LOAD_LEN; i++) {
-      a_ = spadAddr[iter + i + 0];
-      b_ = spadAddr[iter + i + LOAD_LEN];
+      a_ = spadAddr[iter + i * 2 + 0];
+      b_ = spadAddr[iter + i * 2 + 1];
 
       // compute and store
       c_ = a_ + b_;
