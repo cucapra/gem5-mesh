@@ -43,7 +43,7 @@ programs = {
 
 # create a template for the gem5 command line
 gem5_cmd = lambda program, options, result, cpus, vec: \
-  '{} -d {}/{} {} --cmd={} --options=\"{}\" --num-cpus={} {}'.format(
+  '{} -d {}/{} {} --cmd={} --options=\"{}\" --mem-size=1GB --num-cpus={} {}'.format(
       args.build, args.results, result, args.config, program, options, str(cpus), '--vector' if vec else '')
   
 # compile command that chooses whether to use scratchpad optimizations
@@ -94,10 +94,10 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
 # choose which programs to run with diff parameters
 
 # fixed parameters for the run, compile the binary for these
-numCpus = 16
+numCpus = 64
 use_sps = True
 
-size = 32768 #8192
+size = 1024 #8192 #32768
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 #seed = random.randint(1,2**20) 
@@ -110,12 +110,8 @@ run_id = 1
 # whether to use vector or not
 use_vec_arr = [True]
 
-# make_flags = ['NO_VEC','VEC_16','VEC_16_UNROLL','VEC_4','VEC_4_UNROLL','VEC_4_DA', \
-#   'VEC_16_UNROLL_SERIAL','VEC_4_DA_SMALL_FRAME','NO_VEC_DA','NO_VEC_W_VLOAD','SIM_DA_VLOAD_SIZE_1', \
-#   'VEC_4_NORM_LOAD', 'VEC_16_NORM_LOAD', 'VEC_4_SIMD' ]
-
-# make_flags = [ 'VEC_4_SIMD', 'VEC_4_SIMD_BCAST', 'NO_VEC', 'VEC_4', 'VEC_4_UNROLL' ]
-make_flags = [ 'NO_VEC', 'VEC_4_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_4_SIMD_SPATIAL_UNROLLED' ]
+# make_flags = [ 'NO_VEC', 'VEC_4_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_4_SIMD_SPATIAL_UNROLLED' ]
+make_flags = [ 'VEC_4_SIMD' ]
 
 program = 'vvadd'
 
