@@ -114,7 +114,8 @@ use_vec_arr = [True]
 #   'VEC_16_UNROLL_SERIAL','VEC_4_DA_SMALL_FRAME','NO_VEC_DA','NO_VEC_W_VLOAD','SIM_DA_VLOAD_SIZE_1', \
 #   'VEC_4_NORM_LOAD', 'VEC_16_NORM_LOAD', 'VEC_4_SIMD' ]
 
-make_flags = [ 'VEC_4_SIMD', 'VEC_4_SIMD_BCAST', 'NO_VEC', 'VEC_4', 'VEC_4_UNROLL' ]
+# make_flags = [ 'VEC_4_SIMD', 'VEC_4_SIMD_BCAST', 'NO_VEC', 'VEC_4', 'VEC_4_UNROLL' ]
+make_flags = [ 'NO_VEC', 'VEC_4_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_4_SIMD_SPATIAL_UNROLLED' ]
 
 program = 'vvadd'
 

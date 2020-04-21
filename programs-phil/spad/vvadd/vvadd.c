@@ -26,7 +26,7 @@
 
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
-#define VEC_4_SIMD_SPATIAL_UNROLLED 1
+// #define VEC_4_SIMD_SPATIAL_UNROLLED 1
 
 // #define VEC_4_SIMD_BCAST 1
 
