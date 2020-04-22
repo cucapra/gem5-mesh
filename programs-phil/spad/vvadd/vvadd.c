@@ -917,6 +917,8 @@ void *pthread_kernel(void *args) {
   kernel(a->a, a->b, a->c, a->size, 
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
       
+  // for 64 cores this barrier seemingly needs to be here in order to work
+  // not the case for 16cores. annoying b/c a lot of overhead in 64core case
   pthread_barrier_wait(&start_barrier);
 
   if (a->tid_x == 0 && a->tid_y == 0) {
