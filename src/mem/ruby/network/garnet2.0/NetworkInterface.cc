@@ -198,9 +198,9 @@ NetworkInterface::wakeup()
         if (b->isReady(curTime)) { // Is there a message waiting
             msg_ptr = b->peekMsgPtr();
 
-            auto mem_msg = std::dynamic_pointer_cast<MemMessage>(msg_ptr);
-            if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
-                DPRINTF(Mesh, "Net interface %d Router %d push pkt %#x\n", m_id, m_router_id, mem_msg->getPacket()->getAddr());
+            // auto mem_msg = std::dynamic_pointer_cast<MemMessage>(msg_ptr);
+            // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
+            //     DPRINTF(Mesh, "Net interface %d Router %d push pkt %#x\n", m_id, m_router_id, mem_msg->getPacket()->getAddr());
 
             if (flitisizeMessage(msg_ptr, vnet)) {
                 b->dequeue(curTime);
@@ -227,9 +227,9 @@ NetworkInterface::wakeup()
             if (!messageEnqueuedThisCycle &&
                 outNode_ptr[vnet]->areNSlotsAvailable(1, curTime)) {
 
-                auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
-                if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
-                    DPRINTF(Mesh, "Net interface %d Router %d pull pkt %#x\n", m_id, m_router_id, mem_msg->getPacket()->getAddr());
+                // auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
+                // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
+                //     DPRINTF(Mesh, "Net interface %d Router %d pull pkt %#x\n", m_id, m_router_id, mem_msg->getPacket()->getAddr());
 
 
                 DPRINTF(RubyNetwork, "Net interface %d Router %d ifs pull flit %#x\n", m_id, m_router_id, t_flit);
