@@ -29,12 +29,12 @@
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
 
 // in current system cacheline size is 16 so doesn't make sense to go beyond this for now
-#define VEC_16_SIMD 1
+// #define VEC_16_SIMD 1
+// #define VEC_16_SIMD_VERTICAL 1
+// #define VEC_16_SIMD_SPATIAL_UNROLLED 1
 
 // #define VEC_4_SIMD_BCAST 1
 
-// define prefetch size
-#define PREFETCH_LEN 4
 
 // vvadd_execute config directives
 #if defined(NO_VEC) || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD)
@@ -43,7 +43,8 @@
 #if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) \
   || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_4_DA_SMALL_FRAME) \
   || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD) || defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) \
-  || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED) || defined(VEC_16_SIMD)
+  || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED) || defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL) \
+  || defined(VEC_16_SIMD_SPATIAL_UNROLLED)
 #define USE_VEC 1
 #endif
 #if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) \
@@ -54,7 +55,7 @@
 #define USE_DA 1
 #endif
 #if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED) \
-  || defined(VEC_16_SIMD)
+  || defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_16_SIMD_SPATIAL_UNROLLED)
 #define USE_VECTOR_SIMD 1
 #endif
 #if !defined(UNROLL) && !defined(USE_NORMAL_LOAD)
@@ -69,10 +70,10 @@
 #if defined(VEC_4_SIMD_BCAST)
 #define SIMD_BCAST 1
 #endif
-#if defined(VEC_4_SIMD_VERTICAL)
+#if defined(VEC_4_SIMD_VERTICAL) || defined(VEC_16_SIMD_VERTICAL)
 #define VERTICAL_LOADS 1
 #endif
-#if defined(VEC_4_SIMD_SPATIAL_UNROLLED)
+#if defined(VEC_4_SIMD_SPATIAL_UNROLLED) || defined(VEC_16_SIMD_SPATIAL_UNROLLED)
 #define SPATIAL_UNROLL 1
 #endif
 
@@ -89,7 +90,7 @@
 #if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED)
 #define VEC_SIZE_4_SIMD 1
 #endif
-#if defined(VEC_16_SIMD)
+#if defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_16_SPATIAL_UNROLLED)
 #define VEC_SIZE_16_SIMD 1
 #endif
 
@@ -106,6 +107,18 @@
 #elif defined(VEC_4_DA_SMALL_FRAME) || defined(WEIRD_PREFETCH)
 #define REGION_SIZE 2
 #define NUM_REGIONS 256
+#endif
+
+// define prefetch len externally
+#ifdef _SET_PREFETCH_LEN
+#define PREFETCH_LEN SET_PREFETCH_LEN
+// default size is the vlen
+#else
+#ifdef VEC_SIZE_4_SIMD
+#define PREFETCH_LEN 4
+#elif defined(VEC_SIZE_16_SIMD)
+#define PREFETCH_LEN 16
+#endif
 #endif
 
 // https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number

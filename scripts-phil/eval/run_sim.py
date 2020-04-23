@@ -97,7 +97,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
 numCpus = 64
 use_sps = True
 
-size = 32768 #8192 #32768
+size = 131072 #8192 #32768
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 #seed = random.randint(1,2**20) 
@@ -110,8 +110,8 @@ run_id = 1
 # whether to use vector or not
 use_vec_arr = [True]
 
-# make_flags = [ 'NO_VEC', 'VEC_4_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_4_SIMD_SPATIAL_UNROLLED', 'VEC_16_SIMD' ]
-make_flags = [ 'VEC_16_SIMD' ]
+# make_flags = [ 'NO_VEC', 'VEC_4_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_4_SIMD_SPATIAL_UNROLLED', 'VEC_16_SIMD', 'VEC_16_SIMD_VERTICAL', 'VEC_16_SIMD_SPATIAL_UNROLLED' ]
+make_flags = [ 'VEC_16_SIMD', 'VEC_4_SIMD' ]
 
 program = 'vvadd'
 
