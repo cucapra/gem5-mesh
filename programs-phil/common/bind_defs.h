@@ -42,7 +42,7 @@
   
 // remem instruction with unique hash id (mem barrier instead of control barrier)
 #define REMEM(count)                                                           \
-  asm volatile (".insn i 0x1b, 0x2, x0, %[src0], 0\n\t":: [src0] "r" (count))
+  asm volatile (".insn i 0x1b, 0x2, x0, %[src0], 0\n\t":: [src0] "r" (count) : "memory")
 
 #define FRAME_START(count)                                                     \
   asm volatile (".insn i 0x1b, 0x3, x0, %[src0], 0\n\t":: [src0] "r" (count) : "memory")
