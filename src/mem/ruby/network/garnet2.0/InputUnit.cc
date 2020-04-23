@@ -38,6 +38,9 @@
 #include "mem/ruby/network/garnet2.0/Credit.hh"
 #include "mem/ruby/network/garnet2.0/Router.hh"
 
+#include "mem/ruby/scratchpad/MemMessage.hh"
+#include "debug/Mesh.hh"
+
 using namespace std;
 using m5::stl_helpers::deletePointers;
 
@@ -85,7 +88,8 @@ void
 InputUnit::wakeup()
 {
     flit *t_flit;
-    if (m_in_link->isReady(m_router->curCycle())) {
+    // if (m_in_link->isReady(m_router->curCycle())) {
+    if (m_in_link->isReady(curTick())) {
 
         t_flit = m_in_link->consumeLink();
         int vc = t_flit->get_vc();
@@ -122,6 +126,11 @@ InputUnit::wakeup()
 
         Cycles pipe_stages = m_router->get_pipe_stages();
         if (pipe_stages == 1) {
+
+            // auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
+            // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
+            //     DPRINTF(Mesh, "InputUnit %d Router %d single-cycle buffer %#x\n", m_id, m_router->get_id(), mem_msg->getPacket()->getAddr());
+
             // 1-cycle router
             // Flit goes for SA directly
             t_flit->advance_stage(SA_, m_router->curCycle());

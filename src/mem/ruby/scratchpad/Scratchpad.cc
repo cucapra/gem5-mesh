@@ -105,12 +105,12 @@ Scratchpad::Scratchpad(const Params* p)
                        false),
       m_cur_seq_num(0),
       m_max_num_pending_pkts(p->maxNumPendingReqs),
-      m_pending_base_addr_req(MachineID(), nullptr),
-      m_pending_go_flag_req(MachineID(), nullptr),
-      m_pending_done_flag_req(MachineID(), nullptr),
-      m_base_addr_p((uint64_t* const) (m_data_array + SPM_BASE_ADDR_OFFSET)),
-      m_go_flag_p((uint32_t* const)(m_data_array + SPM_GO_FLAG_OFFSET)),
-      m_done_flag_p((uint32_t* const)(m_data_array + SPM_DONE_FLAG_OFFSET)),
+      // m_pending_base_addr_req(MachineID(), nullptr),
+      // m_pending_go_flag_req(MachineID(), nullptr),
+      // m_pending_done_flag_req(MachineID(), nullptr),
+      // m_base_addr_p((uint64_t* const) (m_data_array + SPM_BASE_ADDR_OFFSET)),
+      // m_go_flag_p((uint32_t* const)(m_data_array + SPM_GO_FLAG_OFFSET)),
+      // m_done_flag_p((uint32_t* const)(m_data_array + SPM_DONE_FLAG_OFFSET)),
       m_num_l2s(p->num_l2s),
       m_grid_dim_x(p->grid_dim_x),
       m_grid_dim_y(p->grid_dim_y),
@@ -413,6 +413,8 @@ Scratchpad::wakeup()
       DPRINTF(Scratchpad, "Handling mem resp pkt %s from a remote "
                           "scratchpad\n", pkt_p->print());
 
+      if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Recv remote resp pkt %#x\n", pkt_p->getAddr());
+
       // Pop the message from mem_resp_buffer
       m_mem_resp_buffer_p->dequeue(clockEdge());
       
@@ -559,88 +561,88 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 {
   assert(pkt_p->isRequest());
 
-  /**
-   * From Xcel, access to base_addr field
-   */
-  if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_BASE_ADDR_OFFSET) {
-    assert(pkt_p->isRead());
+  // /**
+  //  * From Xcel, access to base_addr field
+  //  */
+  // if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_BASE_ADDR_OFFSET) {
+  //   assert(pkt_p->isRead());
 
-    DPRINTF(Scratchpad, "Handling SPM_BASE_ADDR read: pkt %s\n",
-                        pkt_p->print());
+  //   DPRINTF(Scratchpad, "Handling SPM_BASE_ADDR read: pkt %s\n",
+  //                       pkt_p->print());
 
-    if (*m_base_addr_p == 0) {
-      m_pending_base_addr_req = std::make_pair(MachineID(), pkt_p);
-    } else {
-      pkt_p->setData((uint8_t*) m_base_addr_p);
-      pkt_p->makeResponse();
-      // Save the response packet and schedule an event in the next cycle to
-      // send it to CPU
-      m_cpu_resp_pkts.push_back(pkt_p);
-      if (!m_cpu_resp_event.scheduled())
-        schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-    }
+  //   if (*m_base_addr_p == 0) {
+  //     m_pending_base_addr_req = std::make_pair(MachineID(), pkt_p);
+  //   } else {
+  //     pkt_p->setData((uint8_t*) m_base_addr_p);
+  //     pkt_p->makeResponse();
+  //     // Save the response packet and schedule an event in the next cycle to
+  //     // send it to CPU
+  //     m_cpu_resp_pkts.push_back(pkt_p);
+  //     if (!m_cpu_resp_event.scheduled())
+  //       schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+  //   }
 
-    return true;
-  }
+  //   return true;
+  // }
 
-  /**
-   * From Xcel, access to go_flag field
-   */
-  if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_GO_FLAG_OFFSET) {
-    assert(pkt_p->isRead());
+  // /**
+  //  * From Xcel, access to go_flag field
+  //  */
+  // if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_GO_FLAG_OFFSET) {
+  //   assert(pkt_p->isRead());
 
-    DPRINTF(Scratchpad, "Handling SPM_GO_FLAG read: pkt %s\n",
-                        pkt_p->print());
+  //   DPRINTF(Scratchpad, "Handling SPM_GO_FLAG read: pkt %s\n",
+  //                       pkt_p->print());
 
-    if (*m_go_flag_p == 0) {
-      m_pending_go_flag_req = std::make_pair(m_machineID, pkt_p);
-    } else {
-      pkt_p->setData((uint8_t *) m_go_flag_p);
-      pkt_p->makeResponse();
-      *m_go_flag_p = 0;
-      // Save the response packet and schedule an event in the next cycle to
-      // send it to CPU
-      m_cpu_resp_pkts.push_back(pkt_p);
-      if (!m_cpu_resp_event.scheduled())
-        schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-    }
+  //   if (*m_go_flag_p == 0) {
+  //     m_pending_go_flag_req = std::make_pair(m_machineID, pkt_p);
+  //   } else {
+  //     pkt_p->setData((uint8_t *) m_go_flag_p);
+  //     pkt_p->makeResponse();
+  //     *m_go_flag_p = 0;
+  //     // Save the response packet and schedule an event in the next cycle to
+  //     // send it to CPU
+  //     m_cpu_resp_pkts.push_back(pkt_p);
+  //     if (!m_cpu_resp_event.scheduled())
+  //       schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+  //   }
 
-    return true;
-  }
+  //   return true;
+  // }
 
-  /**
-   * From Xcel, access to done_flag field
-   */
-  if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_DONE_FLAG_OFFSET) {
-    assert(pkt_p->isWrite());
+  // /**
+  //  * From Xcel, access to done_flag field
+  //  */
+  // if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_DONE_FLAG_OFFSET) {
+  //   assert(pkt_p->isWrite());
 
-    DPRINTF(Scratchpad, "Handling SPM_DONE_FLAG write: pkt %s\n",
-                        pkt_p->print());
+  //   DPRINTF(Scratchpad, "Handling SPM_DONE_FLAG write: pkt %s\n",
+  //                       pkt_p->print());
 
-    pkt_p->writeData((uint8_t*) m_done_flag_p);
+  //   pkt_p->writeData((uint8_t*) m_done_flag_p);
 
-    DPRINTF(Scratchpad, "Done value: %d\n", *m_done_flag_p);
+  //   DPRINTF(Scratchpad, "Done value: %d\n", *m_done_flag_p);
 
-    pkt_p->makeResponse();
-    // Save the response packet and schedule an event in the next cycle to
-    // send it to CPU
-    m_cpu_resp_pkts.push_back(pkt_p);
-    if (!m_cpu_resp_event.scheduled())
-      schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+  //   pkt_p->makeResponse();
+  //   // Save the response packet and schedule an event in the next cycle to
+  //   // send it to CPU
+  //   m_cpu_resp_pkts.push_back(pkt_p);
+  //   if (!m_cpu_resp_event.scheduled())
+  //     schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
 
-    // wake up any remote request reading this flag
-    if (m_pending_done_flag_req.second) {
-      DPRINTF(Scratchpad, "Waking up a deferred SPM_DONE_FLAG read: pkt %s\n",
-                          m_pending_done_flag_req.second);
+  //   // wake up any remote request reading this flag
+  //   if (m_pending_done_flag_req.second) {
+  //     DPRINTF(Scratchpad, "Waking up a deferred SPM_DONE_FLAG read: pkt %s\n",
+  //                         m_pending_done_flag_req.second);
 
-      assert(handleRemoteReq(m_pending_done_flag_req.second,
-                             m_pending_done_flag_req.first));
-      m_pending_done_flag_req.first = MachineID();
-      m_pending_done_flag_req.second = nullptr;
-    }
+  //     assert(handleRemoteReq(m_pending_done_flag_req.second,
+  //                            m_pending_done_flag_req.first));
+  //     m_pending_done_flag_req.first = MachineID();
+  //     m_pending_done_flag_req.second = nullptr;
+  //   }
 
-    return true;
-  }
+  //   return true;
+  // }
 
   /**
    * From either CPU or Xcel, access to data
@@ -850,6 +852,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 
     DPRINTF(Scratchpad, "Sending pkt %s to %s\n", pkt_p->print(), dst_port);
 
+    if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Sending remote req pkt %#x to %s\n", pkt_p->getAddr(), dst_port);
+
     // Make and queue the message
     std::shared_ptr<MemMessage> msg_p =
           std::make_shared<MemMessage>(clockEdge(), src_port, dst_port, pkt_p);
@@ -876,71 +880,73 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
   MachineID src_port = m_machineID;
   MachineID dst_port = remote_sender;
 
+  if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Recv remote req pkt %#x\n", pkt_p->getAddr());
+
   bool respond_sender = true;
 
-  /**
-   * From a remote CPU, access to base_addr field
-   */
-  if (getLocalAddr(pkt_p->getAddr()) == SPM_BASE_ADDR_OFFSET) {
-    assert(pkt_p->isWrite());
+  // /**
+  //  * From a remote CPU, access to base_addr field
+  //  */
+  // if (getLocalAddr(pkt_p->getAddr()) == SPM_BASE_ADDR_OFFSET) {
+  //   assert(pkt_p->isWrite());
 
-    DPRINTF(Scratchpad, "Handling remote SPM_BASE_ADDR write: pkt %s\n",
-                        pkt_p->print());
+  //   DPRINTF(Scratchpad, "Handling remote SPM_BASE_ADDR write: pkt %s\n",
+  //                       pkt_p->print());
 
-    pkt_p->writeData((uint8_t*) m_base_addr_p);
-    pkt_p->makeResponse();
+  //   pkt_p->writeData((uint8_t*) m_base_addr_p);
+  //   pkt_p->makeResponse();
 
-    // wake up pending request reading base_addr
-    if (m_pending_base_addr_req.second) {
-      assert(handleCpuReq(m_pending_base_addr_req.second));
-      m_pending_base_addr_req.first = MachineID();
-      m_pending_base_addr_req.second = nullptr;
-    }
-  }
-  /**
-   * From a remote CPU, access to go_flag field
-   */
-  else if (getLocalAddr(pkt_p->getAddr()) == SPM_GO_FLAG_OFFSET) {
-    assert(pkt_p->isWrite());
+  //   // wake up pending request reading base_addr
+  //   if (m_pending_base_addr_req.second) {
+  //     assert(handleCpuReq(m_pending_base_addr_req.second));
+  //     m_pending_base_addr_req.first = MachineID();
+  //     m_pending_base_addr_req.second = nullptr;
+  //   }
+  // }
+  // /**
+  //  * From a remote CPU, access to go_flag field
+  //  */
+  // else if (getLocalAddr(pkt_p->getAddr()) == SPM_GO_FLAG_OFFSET) {
+  //   assert(pkt_p->isWrite());
 
-    DPRINTF(Scratchpad, "Handling remote SPM_GO_FLAG write: pkt %s\n",
-                        pkt_p->print());
+  //   DPRINTF(Scratchpad, "Handling remote SPM_GO_FLAG write: pkt %s\n",
+  //                       pkt_p->print());
 
-    pkt_p->writeData((uint8_t*) m_go_flag_p);
-    pkt_p->makeResponse();
+  //   pkt_p->writeData((uint8_t*) m_go_flag_p);
+  //   pkt_p->makeResponse();
 
-    // wake up pending request reading go_flag
-    if (m_pending_go_flag_req.second) {
-      assert(handleCpuReq(m_pending_go_flag_req.second));
-      m_pending_go_flag_req.first = MachineID();
-      m_pending_go_flag_req.second = nullptr;
-    }
-  }
-  /**
-   * From a remote CPU, access to done_flag field
-   */
-  else if (getLocalAddr(pkt_p->getAddr()) == SPM_DONE_FLAG_OFFSET) {
-    assert(pkt_p->isRead());
+  //   // wake up pending request reading go_flag
+  //   if (m_pending_go_flag_req.second) {
+  //     assert(handleCpuReq(m_pending_go_flag_req.second));
+  //     m_pending_go_flag_req.first = MachineID();
+  //     m_pending_go_flag_req.second = nullptr;
+  //   }
+  // }
+  // /**
+  //  * From a remote CPU, access to done_flag field
+  //  */
+  // else if (getLocalAddr(pkt_p->getAddr()) == SPM_DONE_FLAG_OFFSET) {
+  //   assert(pkt_p->isRead());
 
-    DPRINTF(Scratchpad, "Handling remote SPM_DONE_FLAG read: pkt %s\n",
-                        pkt_p->print());
+  //   DPRINTF(Scratchpad, "Handling remote SPM_DONE_FLAG read: pkt %s\n",
+  //                       pkt_p->print());
 
-    if (*m_done_flag_p == 0) {
-      DPRINTF(Scratchpad, "Deferring SPM_GO_FLAG write request: pkt %s\n",
-                          pkt_p->print());
-      m_pending_done_flag_req = std::make_pair(remote_sender, pkt_p);
-      respond_sender = false;
-    } else {
-      // read and reset
-      pkt_p->setData((uint8_t*) m_done_flag_p);
-      pkt_p->makeResponse();
-      *m_done_flag_p = 0;
-    }
-  }
+  //   if (*m_done_flag_p == 0) {
+  //     DPRINTF(Scratchpad, "Deferring SPM_GO_FLAG write request: pkt %s\n",
+  //                         pkt_p->print());
+  //     m_pending_done_flag_req = std::make_pair(remote_sender, pkt_p);
+  //     respond_sender = false;
+  //   } else {
+  //     // read and reset
+  //     pkt_p->setData((uint8_t*) m_done_flag_p);
+  //     pkt_p->makeResponse();
+  //     *m_done_flag_p = 0;
+  //   }
+  // }
   /**
    * From a remote CPU/Xcel, access to data
    */
-  else {
+  // else {
     /*// check if this remote access is to a framed region of the scratchpad
     // and then force to abide by frame rules
     if (isRegionAccess(pkt_p)) {
@@ -959,7 +965,9 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
       // access data array
       accessDataArray(pkt_p);
     // }
-  }
+  // }
+
+
 
   // Make and queue the message
   if (respond_sender) {

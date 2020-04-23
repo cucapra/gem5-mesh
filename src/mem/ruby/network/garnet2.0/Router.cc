@@ -177,6 +177,14 @@ Router::schedule_wakeup(Cycles time)
     scheduleEvent(time);
 }
 
+
+void
+Router::schedule_wakeup(Tick time)
+{
+    // wake up after num ticks
+    scheduleEventAbsolute(curTick() + time);
+}
+
 std::string
 Router::getPortDirectionName(PortDirection direction)
 {

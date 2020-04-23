@@ -35,10 +35,16 @@
 
 #include "mem/ruby/network/garnet2.0/CreditLink.hh"
 
+#include "mem/ruby/scratchpad/MemMessage.hh"
+#include "mem/ruby/network/garnet2.0/NetworkInterface.hh"
+#include "debug/Mesh.hh"
+#include "debug/RubyNetwork.hh"
+
 NetworkLink::NetworkLink(const Params *p)
     : ClockedObject(p), Consumer(this), m_id(p->link_id),
       m_type(NUM_LINK_TYPES_),
       m_latency(p->link_latency),
+    //   m_latency(0),
       linkBuffer(new flitBuffer()), link_consumer(nullptr),
       link_srcQueue(nullptr), m_link_utilized(0),
       m_vc_load(p->vcs_per_vnet * p->virt_nets)
@@ -66,12 +72,40 @@ void
 NetworkLink::wakeup()
 {
     if (link_srcQueue->isReady(curCycle())) {
+    // if (link_srcQueue->isReady(curTick())) {
         flit *t_flit = link_srcQueue->getTopFlit();
-        t_flit->set_time(curCycle() + m_latency);
+
+        // auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
+        // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
+        //   DPRINTF(Mesh, "NetworkLink %d delay %d push %#x\n", m_id, m_latency, mem_msg->getPacket()->getAddr());
+
+
+        DPRINTF(RubyNetwork, "NetworkLink %d wakeup flit ptr %p\n", m_id, t_flit);
+
+        // t_flit->set_time(curCycle() + m_latency);
         linkBuffer->insert(t_flit);
-        link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
+        // link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
+        // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) {
+        //     link_consumer->scheduleEventAbsolute(clockEdge(Cycles(0)) + 1);
+        //     t_flit->set_time(curTick() + (Tick)1);
+        // }
+        // else
+        //     link_consumer->scheduleEventAbsolute(clockEdge(m_latency));
+
+        // if this is going to a network interface don't allow on odd cycle
+        Tick schedTime;
+        if (dynamic_cast<NetworkInterface*>(link_consumer)) {
+            schedTime = clockEdge(m_latency);
+        }
+        else {
+            schedTime = curTick() + 1;
+        }
+
+        link_consumer->scheduleEventAbsolute(schedTime);
+        t_flit->set_time(schedTime);
         m_link_utilized++;
         m_vc_load[t_flit->get_vc()]++;
+
     }
 }
 
