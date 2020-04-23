@@ -1273,14 +1273,15 @@ Scratchpad::setWordRdy(Addr addr) {
   incRegionCntr(addr);
 
   // if reaches number of expected then reset and move to next region 
-  // publish group of tokens to be accessed
-  if (m_region_cntrs[0] == getRegionElements()) {
+  // publish group of tokens to be accessed/
+  // NOTE need a while loop here b/c possible the next region is also full and needs to be swapped
+  while (m_region_cntrs[0] == getRegionElements()) {
     resetRdyArray();
   }
 
   // m_last_word_recv = (getLocalAddr(addr) / sizeof(uint32_t)) - SPM_DATA_WORD_OFFSET;
   // m_cpu_p->produceMemTokens(1);
-  DPRINTF(Mesh, "recv addr %lx region cntr %d tokens %d\n", addr, m_region_cntrs[0], m_cpu_p->getMemTokens());
+  DPRINTF(Mesh, "recv addr %lx first region cntr %d tokens %d\n", addr, m_region_cntrs[0], m_cpu_p->getMemTokens());
 
   // DPRINTF(Mesh, "increment region wiht addr %#x cnt now %d\n", addr, m_region_cntr);
 }
