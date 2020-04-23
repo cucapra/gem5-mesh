@@ -24,12 +24,12 @@
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
 
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
 
 // in current system cacheline size is 16 so doesn't make sense to go beyond this for now
-// #define VEC_16_SIMD 1
+#define VEC_16_SIMD 1
 
 // #define VEC_4_SIMD_BCAST 1
 
@@ -615,8 +615,6 @@ inline void vector_group_template_4(
   *master_x = *master_x + template_group_x * template_dim_x;
   *master_y = *master_y + template_group_y * template_dim_y;
 
-
-
   // unused core
   if (template_id == 3) {
     *vtid = -1;
@@ -627,89 +625,80 @@ inline void vector_group_template_4(
   
 }
 
-// inline void vector_group_template_16(
-//     // inputs
-//     int ptid_x, int ptid_y, int pdim_x, int pdim_y, int n,
-//     // outputs
-//     int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, 
-//     int *start, int *end
-//   ) {
+inline void vector_group_template_16(
+    // inputs
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y, int n,
+    // outputs
+    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, 
+    int *start, int *end
+  ) {
 
-//   // virtual group dimension
-//   int vdim_x = 4;
-//   int vdim_y = 4;
+  // virtual group dimension
+  int vdim_x = 4;
+  int vdim_y = 4;
 
-//   // recover trivial fields
-//   int vdim = vdim_x * vdim_y;
-//   int ptid = ptid_x + ptid_y * pdim_x;
-//   int pdim = pdim_x * pdim_y;
+  // recover trivial fields
+  int vdim = vdim_x * vdim_y;
+  int ptid = ptid_x + ptid_y * pdim_x;
+  int pdim = pdim_x * pdim_y;
 
-//   // this is a design for a 8x8 zone
-//   // potentially there are more than one 8x8 zones in the mesh
-//   // get ids within the template
-//   int template_dim_x = 8;
-//   int template_dim_y = 8;
-//   int template_dim = template_dim_x * template_dim_y;
-//   int template_id_x = ptid_x % template_dim_x;
-//   int template_id_y = ptid_y % template_dim_y;
-//   int template_id = template_id_x + template_id_y * template_dim_x;
+  // this is a design for a 8x8 zone
+  // potentially there are more than one 8x8 zones in the mesh
+  // get ids within the template
+  int template_dim_x = 8;
+  int template_dim_y = 8;
+  int template_dim = template_dim_x * template_dim_y;
+  int template_id_x = ptid_x % template_dim_x;
+  int template_id_y = ptid_y % template_dim_y;
+  int template_id = template_id_x + template_id_y * template_dim_x;
 
-//   // which group it belongs to for absolute core coordinates
-//   int template_group_x = ptid_x / template_dim_x;
-//   int template_group_y = ptid_y / template_dim_y;
-//   int template_group_dim_x = pdim_x / template_dim_x;
-//   int template_group_dim_y = pdim_y / template_dim_y;
-//   int template_group_dim = template_group_dim_x * template_group_dim_y;
-//   int template_group = template_group_x + template_group_y * template_group_dim_x;
+  // which group it belongs to for absolute core coordinates
+  int template_group_x = ptid_x / template_dim_x;
+  int template_group_y = ptid_y / template_dim_y;
+  int template_group_dim_x = pdim_x / template_dim_x;
+  int template_group_dim_y = pdim_y / template_dim_y;
+  int template_group_dim = template_group_dim_x * template_group_dim_y;
+  int template_group = template_group_x + template_group_y * template_group_dim_x;
 
-//   // figure out how big chunks of the data should be assigned
-//   int alignment = 16 * vdim_x * vdim_y;
-//   int groupSize = vdim + 1; // +scalar core
-//   int groups_per_template = template_dim / groupSize;
-//   int vGroups = groups_per_template * template_group_dim;
+  // figure out how big chunks of the data should be assigned
+  int alignment = 16 * vdim_x * vdim_y;
+  int groupSize = vdim + 1; // +scalar core
+  int groups_per_template = template_dim / groupSize;
+  int vGroups = groups_per_template * template_group_dim;
 
-//   int chunk_offset = template_group  * groups_per_template;
+  int chunk_offset = template_group  * groups_per_template;
 
-//   // group 1 top left (master = 0,4)
-//   // int group1_vector_start_x = 0;
-//   // int group1_vector_start_y = 0;
-//   // int group1_vector_end_x = 4; // not inclusive
-//   // int group1_vector_end_y = 4;
-//   // int group1_scalar_x = 0;
-//   // int group1_scalar_y = 4;
-//   // rect_vector_group(group1_scalar_x, group1_scalar_y, group1_vector_start_x, group1_vector_start_y, group1_vector_end_x, group1_vector_end_y,
-//   //   template_id_x, template_id_y, 0, n, vGroups, alignment, chunk_offset, vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);
+  // group 1 top left (master = 0,4)
+  rect_vector_group(0, 0, 4, 0, 0,
+    vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);
 
-//   rect_vector_group(0, 0, 4, 0, 0,
-//     vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-//     vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);
+  // group 2 top right (master = 7, 4)
+  rect_vector_group(1, 7, 4, 4, 0,
+    vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);
 
-//   // group 2 top right (master = 7, 4)
-//   rect_vector_group(1, 7, 4, 4, 0,
-//     vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-//     vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);
+  // group 3 middle (master 1, 4)
+  rect_vector_group(2, 1, 4, 2, 4,
+    vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);  
 
-//   // group 3 middle (master 1, 4)
-//   rect_vector_group(2, 1, 4, 2, 4,
-//     vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-//     vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);  
+  // need to shift the absolute coordinates based on which group this is for
+  *orig_x = *orig_x + template_group_x * template_dim_x;
+  *orig_y = *orig_y + template_group_y * template_dim_y;
+  *master_x = *master_x + template_group_x * template_dim_x;
+  *master_y = *master_y + template_group_y * template_dim_y;
 
-//   // need to shift the absolute coordinates based on which group this is for
-//   *orig_x = *orig_x + template_group_x * template_dim_x;
-//   *orig_y = *orig_y + template_group_y * template_dim_y;
-//   *master_x = *master_x + template_group_x * template_dim_x;
-//   *master_y = *master_y + template_group_y * template_dim_y;
-
-//   // unused cores (51/64 cores used)
-//   if ((template_id_x < 2 && template_id_y >= 5) || // 6 cores
-//       (template_id_x >= 6 && template_id_y >= 4 && !(template_id_x == 7 && template_id_y == 4))) { // 8-1=7 cores
-//     *vtid = -1;
-//   }
-//   else {
-//     *vtid = *vtid_x + *vtid_y * vdim_x;
-//   }
+  // unused cores (51/64 cores used)
+  if ((template_id_x < 2 && template_id_y >= 5) || // 6 cores
+      (template_id_x >= 6 && template_id_y >= 4 && !(template_id_x == 7 && template_id_y == 4))) { // 8-1=7 cores
+    *vtid = -1;
+  }
+  else {
+    *vtid = *vtid_x + *vtid_y * vdim_x;
+  }
   
-// }
+}
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *b, DTYPE *c, int n,

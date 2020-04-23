@@ -110,8 +110,8 @@ run_id = 1
 # whether to use vector or not
 use_vec_arr = [True]
 
-# make_flags = [ 'NO_VEC', 'VEC_4_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_4_SIMD_SPATIAL_UNROLLED' ]
-make_flags = [ 'VEC_4_SIMD' ]
+# make_flags = [ 'NO_VEC', 'VEC_4_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_4_SIMD_SPATIAL_UNROLLED', 'VEC_16_SIMD' ]
+make_flags = [ 'VEC_16_SIMD' ]
 
 program = 'vvadd'
 
