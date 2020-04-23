@@ -179,10 +179,10 @@ Router::schedule_wakeup(Cycles time)
 
 
 void
-Router::schedule_wakeup(Tick time)
+Router::schedule_wakeup(Tick absTick)
 {
     // wake up after num ticks
-    scheduleEventAbsolute(curTick() + time);
+    scheduleEventAbsolute(absTick);
 }
 
 std::string
