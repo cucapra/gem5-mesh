@@ -10,7 +10,7 @@
 #define SYNC_ADDR 1000
 
 // one of these should be defined to dictate config
-#define NO_VEC 1
+// #define NO_VEC 1
 // #define VEC_16 1
 // #define VEC_16_UNROLL 1
 // #define VEC_4 1
@@ -24,7 +24,7 @@
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
 
-// #define VEC_4_SIMD 1
+#define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
 
@@ -535,7 +535,7 @@ vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
 inline void rect_vector_group(
     int group_num, int scalar_x, int scalar_y, int vector_start_x, int vector_start_y, int vector_dim_x, int vector_dim_y, int id_x, int id_y, 
     int n, int vGroups, int alignment, int chunk_offset,
-    int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, int *start, int *end) {
+    int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, int *used, int *start, int *end) {
   
   int vector_end_x = vector_start_x + vector_dim_x;
   int vector_end_y = vector_start_y + vector_dim_y;
@@ -558,19 +558,25 @@ inline void rect_vector_group(
     *orig_y = vector_start_y;
     *master_x = scalar_x;
     *master_y = scalar_y;
+    *used = 1;
   }
 }
 
 
 // if don't inline then need to copy stack pointer up to addr 88, which too lazy to do atm
 // create a template for a vlen=4 config that can copy and paste multiple times on a large mesh
-inline void vector_group_template_4(
+// ret whether core used in template
+inline int vector_group_template_4(
     // inputs
     int ptid_x, int ptid_y, int pdim_x, int pdim_y, int n,
     // outputs
-    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, 
+    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
     int *start, int *end
   ) {
+
+  // keep track of which cores will be used in this configuration
+  // will want to terminate any cores not apart of a vector group
+  int used = 0;
 
   // virtual group dimension
   int vdim_x = 2;
@@ -610,17 +616,17 @@ inline void vector_group_template_4(
   // group 1 top left (master = 0)
   rect_vector_group(0, 0, 0, 1, 0,
     vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, start, end);
 
   // group 2 bot left (master == 4)
   rect_vector_group(1, 0, 1, 0, 2,
     vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, start, end);
 
   // group 3 bottom right (master == 7)
   rect_vector_group(2, 3, 1, 2, 2,
     vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, start, end);
 
   // need to shift the absolute coordinates based on which group this is for
   *orig_x = *orig_x + template_group_x * template_dim_x;
@@ -628,13 +634,10 @@ inline void vector_group_template_4(
   *master_x = *master_x + template_group_x * template_dim_x;
   *master_y = *master_y + template_group_y * template_dim_y;
 
-  // unused core
-  if (template_id == 3) {
-    *vtid = -1;
-  }
-  else {
-    *vtid = *vtid_x + *vtid_y * vdim_x;
-  }
+  // handle unused cores
+  *vtid = *vtid_x + *vtid_y * vdim_x;
+
+  return used;
   
 }
 
@@ -642,9 +645,13 @@ inline void vector_group_template_16(
     // inputs
     int ptid_x, int ptid_y, int pdim_x, int pdim_y, int n,
     // outputs
-    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, 
+    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, int *used,
     int *start, int *end
   ) {
+
+  // keep track of which cores will be used in this configuration
+  // will want to terminate any cores not apart of a vector group
+  *used = 0;
 
   // virtual group dimension
   int vdim_x = 4;
@@ -684,17 +691,17 @@ inline void vector_group_template_16(
   // group 1 top left (master = 0,4)
   rect_vector_group(0, 0, 4, 0, 0,
     vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, used, start, end);
 
   // group 2 top right (master = 7, 4)
   rect_vector_group(1, 7, 4, 4, 0,
     vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, used, start, end);
 
   // group 3 middle (master 1, 4)
   rect_vector_group(2, 1, 4, 2, 4,
     vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, start, end);  
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, used, start, end);  
 
   // need to shift the absolute coordinates based on which group this is for
   *orig_x = *orig_x + template_group_x * template_dim_x;
@@ -863,7 +870,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim_y = 2;
   vdim = vdim_x * vdim_y;
 
-  vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, n, 
+  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, n, 
     &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &start, &end);
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
@@ -935,7 +942,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #elif defined(USE_VECTOR_SIMD)
   // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return; 
   // if (ptid == 3) return;
-  if (vtid == -1) return;
+  if (used == 0) return;
   #endif
 
   // run the actual kernel with the configuration
