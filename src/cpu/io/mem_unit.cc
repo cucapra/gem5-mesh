@@ -645,8 +645,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       // fake the virtual scratchpad address for this core
       // TODO this should put the vector group origin on instead of the scratchpad
       Addr spadIdx = bits(spadVAddr, 11, 0);
-      uint32_t deprecatedOffset = 0x10;
-      spadVAddr = 0x10000000 | (m_cpu_p->cpuId() << 12) | ( spadIdx * size + deprecatedOffset );
+      spadVAddr = 0x10000000 | (m_cpu_p->cpuId() << 12) | ( spadIdx * size );
       
       // need to translate the address, do atomically,
       // real hammerblade doesnt have virtual addresses anyway
