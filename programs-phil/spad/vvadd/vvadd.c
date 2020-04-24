@@ -882,6 +882,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   vdim_x = 1;
   vdim_y = 1;
+  vdim   = vdim_x * vdim_y;
   vtid_x = 0;
   vtid_y = 0;
   vtid   = 0;
