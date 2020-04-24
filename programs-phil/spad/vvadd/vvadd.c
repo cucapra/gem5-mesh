@@ -24,12 +24,12 @@
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
 
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
 
 // in current system cacheline size is 16 so doesn't make sense to go beyond this for now
-// #define VEC_16_SIMD 1
+#define VEC_16_SIMD 1
 // #define VEC_16_SIMD_VERTICAL 1
 // #define VEC_16_SIMD_SPATIAL_UNROLLED 1
 
@@ -641,17 +641,17 @@ inline int vector_group_template_4(
   
 }
 
-inline void vector_group_template_16(
+inline int vector_group_template_16(
     // inputs
     int ptid_x, int ptid_y, int pdim_x, int pdim_y, int n,
     // outputs
-    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, int *used,
+    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
     int *start, int *end
   ) {
 
   // keep track of which cores will be used in this configuration
   // will want to terminate any cores not apart of a vector group
-  *used = 0;
+  int used = 0;
 
   // virtual group dimension
   int vdim_x = 4;
@@ -691,17 +691,17 @@ inline void vector_group_template_16(
   // group 1 top left (master = 0,4)
   rect_vector_group(0, 0, 4, 0, 0,
     vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, used, start, end);
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, start, end);
 
   // group 2 top right (master = 7, 4)
   rect_vector_group(1, 7, 4, 4, 0,
     vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, used, start, end);
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, start, end);
 
   // group 3 middle (master 1, 4)
   rect_vector_group(2, 1, 4, 2, 4,
     vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, used, start, end);  
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, start, end);  
 
   // need to shift the absolute coordinates based on which group this is for
   *orig_x = *orig_x + template_group_x * template_dim_x;
@@ -709,14 +709,10 @@ inline void vector_group_template_16(
   *master_x = *master_x + template_group_x * template_dim_x;
   *master_y = *master_y + template_group_y * template_dim_y;
 
-  // unused cores (51/64 cores used)
-  if ((template_id_x < 2 && template_id_y >= 5) || // 6 cores
-      (template_id_x >= 6 && template_id_y >= 4 && !(template_id_x == 7 && template_id_y == 4))) { // 8-1=7 cores
-    *vtid = -1;
-  }
-  else {
-    *vtid = *vtid_x + *vtid_y * vdim_x;
-  }
+  // handle unused cores (51/64 cores used)
+  *vtid = *vtid_x + *vtid_y * vdim_x;
+
+  return used;
   
 }
 
@@ -881,7 +877,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim_y = 4;
   vdim = vdim_x * vdim_y;
 
-  vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y, n,
+  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y, n,
     &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &start, &end);
 
 
