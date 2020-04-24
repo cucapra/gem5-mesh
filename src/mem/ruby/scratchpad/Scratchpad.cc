@@ -39,6 +39,7 @@
 #include "mem/ruby/scratchpad/MemMessage.hh"
 
 #include "debug/Mesh.hh"
+#include "debug/RubyNetwork.hh"
 
 int Scratchpad::m_num_scratchpads = 0;
 
@@ -398,8 +399,6 @@ Scratchpad::wakeup()
             dynamic_cast<const MemMessage*>(m_mem_resp_buffer_p->peek());
     const LLCResponseMsg* llc_msg_p =
             dynamic_cast<const LLCResponseMsg*>(m_mem_resp_buffer_p->peek());
-            
-
 
     // sanity check: either MemMessage or LLCResponseMsg but not both
     assert(mem_msg_p || llc_msg_p);
@@ -414,6 +413,8 @@ Scratchpad::wakeup()
                           "scratchpad\n", pkt_p->print());
 
       if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Recv remote resp pkt %#x\n", pkt_p->getAddr());
+
+      DPRINTF(RubyNetwork, "spad pull msg %p @addr %#x\n", mem_msg_p, pkt_p->getAddr());
 
       // Pop the message from mem_resp_buffer
       m_mem_resp_buffer_p->dequeue(clockEdge());
@@ -437,6 +438,8 @@ Scratchpad::wakeup()
         // req->epoch = llc_msg_p->m_Epoch;
         
         PacketPtr pkt_p = Packet::createWrite(req);
+
+        DPRINTF(RubyNetwork, "spad pull msg %p @addr %#x\n", llc_msg_p, pkt_p->getAddr());
         
         // we really only sent a word of data, so extract that
         int blkIdx = llc_msg_p->m_BlkIdx;
@@ -481,6 +484,8 @@ Scratchpad::wakeup()
       // sanity check: make sure this is the response we're waiting for
       assert(m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 1);
       Packet* pending_mem_pkt_p = m_pending_pkt_map[llc_msg_p->m_SeqNum];
+
+      DPRINTF(RubyNetwork, "spad pull msg %p @addr %#x\n", llc_msg_p, pending_mem_pkt_p->getAddr());
 
       assert(pending_mem_pkt_p &&
              llc_msg_p->m_LineAddress ==
@@ -827,6 +832,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
         (msg_p->m_DataBlk).setData(pkt_p->getConstPtr<uint8_t>(), offset, len);
         (msg_p->m_writeMask).setMask(offset, len);
       }
+
+      DPRINTF(RubyNetwork, "spad push msg %p @addr %#x\n", msg_p.get(), pkt_p->getAddr());
 
       m_mem_req_buffer_p->enqueue(msg_p,
                                   clockEdge(),

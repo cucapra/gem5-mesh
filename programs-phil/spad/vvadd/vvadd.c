@@ -10,7 +10,7 @@
 #define SYNC_ADDR 1000
 
 // one of these should be defined to dictate config
-// #define NO_VEC 1
+#define NO_VEC 1
 // #define VEC_16 1
 // #define VEC_16_UNROLL 1
 // #define VEC_4 1
@@ -24,7 +24,7 @@
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
 
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
 

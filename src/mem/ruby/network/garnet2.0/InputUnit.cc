@@ -131,6 +131,8 @@ InputUnit::wakeup()
             // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
             //     DPRINTF(Mesh, "InputUnit %d Router %d single-cycle buffer %#x\n", m_id, m_router->get_id(), mem_msg->getPacket()->getAddr());
 
+             DPRINTF(RubyNetwork, "InputUnit %d Router %d buffer %p\n", m_id, m_router->get_id(), t_flit);
+
             // 1-cycle router
             // Flit goes for SA directly
             t_flit->advance_stage(SA_, m_router->curCycle());

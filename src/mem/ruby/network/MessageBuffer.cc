@@ -37,6 +37,8 @@
 #include "debug/RubyQueue.hh"
 #include "mem/ruby/system/RubySystem.hh"
 
+#include "debug/RubyNetwork.hh"
+
 using namespace std;
 using m5::stl_helpers::operator<<;
 
@@ -209,6 +211,9 @@ MessageBuffer::enqueue(MsgPtr message, Tick current_time, Tick delta)
     DPRINTF(RubyQueue, "Enqueue arrival_time: %lld, Message: %s\n",
             arrival_time, *(message.get()));
 
+    DPRINTF(RubyQueue, "Enqueue arrival_time: %lld, Message: %p %s\n",
+            arrival_time, message.get(), *(message.get()));
+
     // Schedule the wakeup
     assert(m_consumer != NULL);
     m_consumer->scheduleEventAbsolute(arrival_time);
@@ -223,6 +228,8 @@ MessageBuffer::dequeue(Tick current_time, bool decrement_messages)
 
     // get MsgPtr of the message about to be dequeued
     MsgPtr message = m_prio_heap.front();
+
+    DPRINTF(RubyNetwork, "Popping msg %p\n", message.get());
 
     // get the delay cycles
     message->updateDelayedTicks(current_time);

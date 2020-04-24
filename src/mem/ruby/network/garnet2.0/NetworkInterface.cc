@@ -203,6 +203,7 @@ NetworkInterface::wakeup()
             //     DPRINTF(Mesh, "Net interface %d Router %d push pkt %#x\n", m_id, m_router_id, mem_msg->getPacket()->getAddr());
 
             if (flitisizeMessage(msg_ptr, vnet)) {
+                DPRINTF(RubyNetwork, "send message %p\n", msg_ptr.get());
                 b->dequeue(curTime);
             }
         }

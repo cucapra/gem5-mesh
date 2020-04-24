@@ -80,7 +80,7 @@ NetworkLink::wakeup()
         //   DPRINTF(Mesh, "NetworkLink %d delay %d push %#x\n", m_id, m_latency, mem_msg->getPacket()->getAddr());
 
 
-        DPRINTF(RubyNetwork, "NetworkLink %d wakeup flit ptr %p\n", m_id, t_flit);
+        DPRINTF(RubyNetwork, "NetworkLink %d wakeup flit ptr %p rem flits %d\n", m_id, t_flit, link_srcQueue->getSize());
 
         // t_flit->set_time(curCycle() + m_latency);
         linkBuffer->insert(t_flit);
