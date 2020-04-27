@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
   /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
-  
+  // printf("Checking results\n");
   for (int i = 0; i < size; i++) {
     // printf("%d\n", c[i]);
     if (c[i] != 2 * ( i + 1 )) {

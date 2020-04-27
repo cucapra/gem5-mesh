@@ -48,7 +48,7 @@ gem5_cmd = lambda program, options, result, cpus, vec: \
   
 # compile command that chooses whether to use scratchpad optimizations
 # how many cores/sps are present, and whether to use vector mode
-def compile_cmd(program_dir, cpus, use_sp, use_vec):
+def compile_cmd(program_dir, cpus, use_sp, use_vec, extra_flags):
   cmd = 'make clean -C {}'.format(program_dir)
   cmd += ' && '
   if (not use_sp):
@@ -56,13 +56,13 @@ def compile_cmd(program_dir, cpus, use_sp, use_vec):
   if (not use_vec):
     cmd += 'ENV_NO_VEC=1 '
     
-  cmd += 'ENV_N_SPS={} make -C {}'.format(cpus, program_dir)
+  cmd += extra_flags + ' ENV_N_SPS={} make -C {}'.format(cpus, program_dir)
   return cmd
 
 
 # just compile with args needed for makefile (#cores, and whether vec enabled...etc)
 def compile_prog(numCpus, use_vec, use_sps, prog_name, extra_flags):
-  cmplCmd = compile_cmd(os.path.dirname(programs[prog_name]['path']), numCpus, use_sps, use_vec) + " " + extra_flags
+  cmplCmd = compile_cmd(os.path.dirname(programs[prog_name]['path']), numCpus, use_sps, use_vec, extra_flags)
   result = subprocess.check_output(cmplCmd, shell=True)
   print(result)
 
@@ -90,6 +90,64 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
   else:
     return False
 
+# consturct a valid config from the args
+# filters out configurations that don't make sense
+# only works for vec configs
+def vvadd_merge_args(vec_size, prefetch_len, load_type):
+  config = []
+
+  # vec size flag
+  if (vec_size == 1):
+    assert(0)
+  if (vec_size == 4):
+    config.append('VEC_SIZE_4_SIMD')
+  elif (vec_size == 16):
+    config.append('VEC_SIZE_16_SIMD')
+
+  # load type flag
+  if (load_type == 'SPATIAL'):
+    pass
+  elif (load_type == 'VERTICAL'):
+    config.append('VERTICAL_LOADS')
+  elif (load_type == 'SPATIAL_UNROLL'):
+    config.append('SPATIAL_UNROLL')
+
+  # vertical only works with prefetch 16
+  if (load_type == 'VERTICAL'):
+    if (prefetch_len != 16):
+      return (False, config)
+    else:
+      config.append('PF=16')
+      return (True, config)
+
+  # remove configs where vec size exceeds prefetch size
+  if (vec_size < prefetch_len):
+    return (False, config)
+  else:
+    config.append('PF=' + str(prefetch_len))
+    return (True, config)
+
+# either array or single string
+def strings_to_make_args(args):
+  cmd_line = 'ENV_EXTRA_MAKE_FLAGS=\''
+  if (isinstance(args, list)):
+    for a in args:
+      cmd_line += '-D' + a + ' '
+    cmd_line += '\''
+  else:
+    cmd_line += '-D' + args + '\''
+  return cmd_line
+
+# turn config into metadata to make which run was used
+def strings_to_metadata(args):
+  meta = ''
+  if (isinstance(args, list)):
+    for a in args:
+      meta += a + '_'
+  else:
+    meta = args
+  return meta
+
   
 # choose which programs to run with diff parameters
 
@@ -97,7 +155,7 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
 numCpus = 64
 use_sps = True
 
-size = 131072 #8192 #32768
+size = 1024 #131072 #8192 #32768
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 #seed = random.randint(1,2**20) 
@@ -111,7 +169,23 @@ run_id = 1
 use_vec_arr = [True]
 
 # make_flags = [ 'NO_VEC', 'VEC_4_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_4_SIMD_SPATIAL_UNROLLED', 'VEC_16_SIMD', 'VEC_16_SIMD_VERTICAL', 'VEC_16_SIMD_SPATIAL_UNROLLED' ]
-make_flags = [ 'VEC_16_SIMD', 'VEC_4_SIMD' ]
+# make_flags = [ 'VEC_16_SIMD', 'VEC_4_SIMD' ]
+
+make_flags = []
+vec_sizes = [ 4, 16 ]
+load_types = [ 'SPATIAL', 'VERTICAL', 'SPATIAL_UNROLL' ]
+prefetch_sizes = [ 1, 2, 4, 8, 16 ]
+for v in vec_sizes:
+  for l in load_types:
+    for p in prefetch_sizes:
+      (is_valid, config) = vvadd_merge_args(v, p, l)
+      if is_valid:
+        make_flags.append(config)
+
+# add no vec config as well
+make_flags.append('NO_VEC')
+
+make_flags = [ make_flags[3] ]
 
 program = 'vvadd'
 
@@ -128,14 +202,14 @@ pool = multiprocessing.Pool(processes=4)
 for make_flag in make_flags:
   use_vec = True
   # run a program from the list above with different parameters
-  compile_prog(numCpus, use_vec, use_sps, program, 'ENV_EXTRA_MAKE_FLAGS=-D' + make_flag)
+  compile_prog(numCpus, use_vec, use_sps, program, strings_to_make_args(make_flag))
 
   jobs = []
   
   for i in range(runs):
     #pack_and_run(numCpus, use_vec, use_sps, program, i, make_flag)
     # the new file will have the same name as the old file, but also specify the new dir
-    proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, program, i, make_flag ))
+    proc = pool.apply_async(pack_and_run, args=(numCpus, use_vec, use_sps, program, i, strings_to_metadata(make_flag) ))
     jobs.append(proc)
     pass
 
