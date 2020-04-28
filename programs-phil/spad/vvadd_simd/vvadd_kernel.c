@@ -216,7 +216,7 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
     return;
 
     fable0:
-      asm("vector_header_label");
+      asm("vector_init_label");
 
     fable1:
       asm("vector_body_label");
@@ -226,13 +226,13 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
 
 
   #elif defined VECTOR_CORE
-    asm("header_block_start");
+    asm("init_block_start");
     volatile int bh; // while loop variables
     DTYPE a_, b_, c_;
     int64_t iter = 0;
     DTYPE *cPtr = c + start + vtid;
     int *spadAddr = (int *)getSpAddr(ptid, 0);
-    asm("header_block_end");
+    asm("init_block_end");
 
     while (bh)
     {

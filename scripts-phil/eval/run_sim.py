@@ -105,6 +105,8 @@ def compile_prog(numCpus, use_vec, use_sps, prog_name, extra_flags):
         + " "
         + extra_flags
     )
+    print("Running compile command:")
+    print(cmplCmd)
     result = subprocess.check_output(cmplCmd, shell=True)
     print(result)
 
