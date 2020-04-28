@@ -33,6 +33,7 @@ class VectorParseState(Enum):
     INIT = auto()
     BODY = auto()
     RETURN_MANIP = auto()
+    EXTRA_BBS = auto()
 
 def print_cfg_parse(cfg_label):
     print("parsing cfg {}...".format(cfg_label))
@@ -49,12 +50,14 @@ def read_vector_cfgs(vector_code):
     vector_return = "vector_return"
 
     # dissects vector assembly into the following:
-    # init code
+    # init cfg
     init = []
-    # body code
+    # body cfg
     body = []
-    # return stack manipulation
+    # return stack manipulation cfg
     ret_manip = []
+    # extra labels shared among cfgs
+    extra_bbs = []
 
     state = VectorParseState.SIFTING
     for l in vector_code:
@@ -67,6 +70,10 @@ def read_vector_cfgs(vector_code):
             elif l == vector_return:
                 print_cfg_parse(vector_return)
                 state = VectorParseState.RETURN_MANIP
+
+            elif is_label(l):
+               extra_bbs.append(l)
+               state = VectorParseState.EXTRA_BBS
 
         elif state == VectorParseState.INIT:
             # if(init_block_end in l):
@@ -91,8 +98,12 @@ def read_vector_cfgs(vector_code):
                 state = VectorParseState.SIFTING
             else:
                 ret_manip.append(l)
+                state = VectorParseState.SIFTING
+       
+        elif state == VectorParseState.EXTRA_BBS:
+            extra_bbs.append(l)
 
-    return {vector_init_label:init, vector_body_label:body, vector_ret_label:ret_manip}
+    return {vector_init_label:init, vector_body_label:body, vector_ret_label:ret_manip, "extra":extra_bbs}
 
 
 
@@ -158,7 +169,7 @@ def glue(control_flow, cfgs):
             else:
                 scalar_ret.append(l)
 
-        elif state == ScalarParserState.REPLACE_PLACEHOLDER_CFGS:
+        elif state == ScalarParseState.REPLACE_PLACEHOLDER_CFGS:
             if l.strip() in cfgs.keys():
                 after_DEVEC.extend(cfgs[l])
             else:
@@ -171,7 +182,8 @@ def glue(control_flow, cfgs):
         before_VECTOR_EPOCH +
         after_VECTOR_EPOCH[1:] +
         scalar_ret +
-        after_DEVEC )
+        after_DEVEC +
+        cfgs["extra"])
 
 
 def preprocess(code):
