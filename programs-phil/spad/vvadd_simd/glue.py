@@ -7,24 +7,25 @@ def is_return_inst(inst):
         ("jr" in stripped and "ra" in stripped) or
         stripped == "ret")
 
-def is_whitespace(inst):
+def is_whitespace_or_comment(inst):
     stripped = inst.strip()
     return stripped == "" or stripped[0] == "#"
 
 def is_DEVEC(inst):
-  return ".insn uj 0x2b" in inst
+    return ".insn uj 0x2b" in inst
 
 def is_VECTOR_EPOCH_inst(inst):
-  return ".insn i 0x77" in inst
+    return ".insn i 0x77" in inst
 
 def is_label(inst):
-  return ".L" == inst[0:2]
+    return "." == inst[0] and ":" == inst[-1]
 
 def is_placeholder(inst):
-  return (
-    vector_init_label in inst or
-    vector_body_label in inst or
-    vector_ret_label in inst)
+    return (
+        vector_init_label in inst or
+        vector_body_label in inst or
+        vector_ret_label in inst)
+
 
 
 class VectorParseState(Enum):
@@ -33,15 +34,20 @@ class VectorParseState(Enum):
     BODY = auto()
     RETURN_MANIP = auto()
 
+def print_cfg_parse(cfg_label):
+    print("parsing cfg {}...".format(cfg_label))
 
+def read_vector_cfgs(vector_code):
+    vector_init_label = "vector_init_label"
+    vector_body_label = "vector_body_label"
+    vector_ret_label = "vector_return_label"
 
-init_block_start = "init_block_start"
-init_block_end = "init_block_end"
-vector_body_start = "vector_body_start"
-vector_body_end = "vector_body_end"
-vector_return = "vector_return"
+    init_block_start = "init_block_start"
+    init_block_end = "init_block_end"
+    vector_body_start = "vector_body_start"
+    vector_body_end = "vector_body_end"
+    vector_return = "vector_return"
 
-def read_vector_cfgs(vector_file):
     # dissects vector assembly into the following:
     # init code
     init = []
@@ -51,37 +57,42 @@ def read_vector_cfgs(vector_file):
     ret_manip = []
 
     state = VectorParseState.SIFTING
-    for l in vector_file.readlines():
-        if is_whitespace(l): continue
+    for l in vector_code:
         if state == VectorParseState.SIFTING:
-            if init_block_start in l:
+            if l == init_block_start:
+                print_cfg_parse(init_block_start)
                 state = VectorParseState.INIT
             # elif vector_body_start in l:
             #     state = VectorParseState.BODY
-            elif vector_return in l:
+            elif l == vector_return:
+                print_cfg_parse(vector_return)
                 state = VectorParseState.RETURN_MANIP
 
         elif state == VectorParseState.INIT:
             # if(init_block_end in l):
             #     state = VectorParseState.SIFTING
-            if vector_body_start in l:
+            if l == vector_body_start:
+                print_cfg_parse(vector_body_start)
                 state = VectorParseState.BODY
             elif (not (init_block_end in l or
                         "beqz" in l)):
                 init.append(l)
 
         elif state == VectorParseState.BODY:
-            if vector_body_end in l:
+            if l == vector_body_end:
+                print_cfg_parse(vector_body_end)
                 state = VectorParseState.SIFTING
             else:
                 body.append(l)
 
         elif(state == VectorParseState.RETURN_MANIP):
             if(is_return_inst(l)):
+                print_cfg_parse(vector_return)
                 state = VectorParseState.SIFTING
             else:
                 ret_manip.append(l)
-    return init, body, ret_manip
+
+    return {vector_init_label:init, vector_body_label:body, vector_ret_label:ret_manip}
 
 
 
@@ -91,14 +102,13 @@ class ScalarParseState(Enum):
     AFTER_VECTOR_EPOCH = auto()
     AFTER_DEVEC = auto()
     RETURN_STACK_MANIP = auto()
-    #REPLACE_PLACEHOLDER_BB = auto()
+    REPLACE_PLACEHOLDER_CFGS = auto()
 
-scalar_ret_label = "scalar_ret"
-kernel_name = "vvadd_execute_simd"
+def glue(control_flow, cfgs):
+    scalar_ret_label = "scalar_ret"
+    kernel_name = "vvadd_execute_simd"
 
-def scalar_control_flow(scalar_file):
-  return lambda x:
-  # dissects scalar assembly into the following non-overlapping components:
+    # dissects scalar assembly into the following non-overlapping components:
     # interval notation: open, closed, half-open intervals
     # [start of file, kernel launch label)
     header = []
@@ -112,9 +122,7 @@ def scalar_control_flow(scalar_file):
     scalar_ret = []
 
     state = ScalarParseState.HEADER
-    for l in scalar_file.readlines():
-        if is_whitespace(l): continue
-
+    for l in control_flow:
         if state == ScalarParseState.HEADER:
           if l.strip() == kernel_name + ":":
             before_VECTOR_EPOCH.append(l)
@@ -145,12 +153,16 @@ def scalar_control_flow(scalar_file):
         # assumption: label happens right after return jump instr
         elif state == ScalarParseState.RETURN_STACK_MANIP:
             if is_return_inst(l):
-                print("found scalar ret")
                 after_DEVEC.append(l)
-                state = ScalarParseState.AFTER_DEVEC
+                state = ScalarParseState.REPLACE_PLACEHOLDER_CFGS
             else:
                 scalar_ret.append(l)
-         
+
+        elif state == ScalarParserState.REPLACE_PLACEHOLDER_CFGS:
+            if l.strip() in cfgs.keys():
+                after_DEVEC.extend(cfgs[l])
+            else:
+               after_DEVEC.append(l)
 
       # rearrange components as follows
     return (
@@ -161,32 +173,39 @@ def scalar_control_flow(scalar_file):
         scalar_ret +
         after_DEVEC )
 
-vector_init_label = "vector_init_label"
-vector_body_label = "vector_body_label"
-vector_ret_label = "vector_return_label"
 
-def glue(vector_components, scalar_code):
-    vector_init, vector_body, vector_ret_manip = vector_components
+def preprocess(code):
+    pass1 = filter(lambda l: not is_whitespace_or_comment(l), code)
+    pass2 = map(lambda l: l.strip(), pass1)
+    return list(pass2)
 
-    combined = []
-    for l in scalar_code:
-         if vector_init_label in l:
-            combined.extend(vector_init)
-         elif vector_body_label in l:
-            combined.extend(vector_body)
-         elif vector_ret_label in l:
-            combined.extend(vector_ret_manip)
-         else:
-            combined.append(l)
+def change_label_prefix(old_prefix, new_prefix, code):
+    return ["."+new_prefix+l[2:]
+                if is_label(l)
+                else l.replace("."+old_prefix,"."+new_prefix)
+                    for l in code]
 
-    return "\n".join(combined)
+# assume assembly stripped of whitespace and comments
+def pretty(code):
+    return "\n".join(["\t"+l if not is_label(l) else l for l in code])
 
 if __name__ == "__main__":
     vector_file = open("vvadd_vector.s", "r")
     scalar_file = open("vvadd_scalar.s", "r")
     combined_file = open("vvadd_combined.s", "w+")
 
-    vector_components = copy_vector_code(vector_file)
-    scalar_components = copy_scalar_code(scalar_file)
-    combined_file.write(glue(vector_components, scalar_components))
+    vector_code = preprocess(vector_file.readlines())
+    vector_code = change_label_prefix("L", "VECTOR", vector_code)
+
+    scalar_code = preprocess(scalar_file.readlines())
+    scalar_code = change_label_prefix("L", "SCALAR", scalar_code)
+
+    vector_cfgs = read_vector_cfgs(vector_code)
+    for cfg in vector_cfgs.values():
+        print("printing a vector CFG of length {}".format(len(cfg)))
+        print(pretty(cfg))
+
+    combined_code = glue(scalar_code, vector_cfgs)
+    combined_file.write(pretty(combined_code))
+
     print("Finished.")
