@@ -481,6 +481,7 @@ Scratchpad::wakeup()
       enqueueRubyRespToSp(pending_mem_pkt_p, Packet::RespPktType::LLC_Data_Resp);
 
     }*/ else {
+
       // sanity check: make sure this is the response we're waiting for
       assert(m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 1);
       Packet* pending_mem_pkt_p = m_pending_pkt_map[llc_msg_p->m_SeqNum];
@@ -781,6 +782,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       msg_p->m_CoreOffset = pkt_p->getCoreOffset();
       msg_p->m_RespCnt = pkt_p->getRespCnt();
       msg_p->m_PrefetchConfig = pkt_p->getPrefetchConfig();
+      msg_p->m_InstSeqNum = pkt_p->getCoreOffset(); // temp
       // send local epoch so mem can sync
       // msg_p->m_Epoch = pkt_p->getEpoch();
       // whether a store requires an ack
@@ -845,11 +847,11 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
         m_cur_seq_num++;
       }
 
-      if (msg_p->m_SeqNum == 143 && m_cpu_p->cpuId() == 13) {
-        DPRINTF(Mesh, "Sent pkt %s to LLC seq_num %d\n",
-          pkt_p->print(), m_cur_seq_num - 1);
-        assert(m_pending_pkt_map.count(143) == 1);
-      }
+      // if (msg_p->m_SeqNum == 143 && m_cpu_p->cpuId() == 13) {
+      //   DPRINTF(Mesh, "Sent pkt %s to LLC seq_num %d\n",
+      //     pkt_p->print(), m_cur_seq_num - 1);
+      //   assert(m_pending_pkt_map.count(143) == 1);
+      // }
       DPRINTF(Scratchpad, "Sent pkt %s to LLC seq_num %d\n",
                         pkt_p->print(), m_cur_seq_num - 1);
     }

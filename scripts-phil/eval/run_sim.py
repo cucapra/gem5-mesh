@@ -155,7 +155,7 @@ def strings_to_metadata(args):
 numCpus = 64
 use_sps = True
 
-size = 1024 #131072 #8192 #32768
+size = 131072 #131072 #8192 #32768
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 #seed = random.randint(1,2**20) 
@@ -184,8 +184,6 @@ for v in vec_sizes:
 
 # add no vec config as well
 make_flags.append('NO_VEC')
-
-make_flags = [ make_flags[3] ]
 
 program = 'vvadd'
 

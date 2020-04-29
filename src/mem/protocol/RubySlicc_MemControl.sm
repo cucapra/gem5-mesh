@@ -119,6 +119,7 @@ structure(LLCRequestMsg, desc = "...", interface = "Message") {
   int             CoreOffset,   desc = "offset from origin to issue req from";
   int             RespCnt,      desc = "number of resps for this vector req";
   int             PrefetchConfig, desc = "config of the prefetch i.e. vertical or horizontal load";
+  int             InstSeqNum, desc = "corresponding seq num of instruction spawning the request";
 
   bool functionalRead(Packet* pkt) {
     return testAndRead(LineAddress, DataBlk, pkt);

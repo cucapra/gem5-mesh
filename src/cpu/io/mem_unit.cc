@@ -717,6 +717,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->yDim = 1;
       m_s1_inst->mem_req_p->xOrigin = 0;
       m_s1_inst->mem_req_p->yOrigin = 0;
+      m_s1_inst->mem_req_p->coreOffset = m_s1_inst->seq_num;
     }
     
     // allow load to issue to spad without getting any acks the load is there
