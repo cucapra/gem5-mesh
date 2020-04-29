@@ -259,7 +259,7 @@ IEW::doWriteback()
           }
         }
 
-        // if (m_cpu_p->getEarlyVector()->isSlave()) {
+        if (m_cpu_p->getEarlyVector()->isSlave()) {
         if (inst->numDestRegs() > 0 && inst->numSrcRegs() > 1) {
           DPRINTF(Mesh, "writeback %s %lx %lx %lx\n", inst->toString(true), 
             m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
@@ -276,7 +276,7 @@ IEW::doWriteback()
         else if (inst->numSrcRegs() > 1 && inst->renamedSrcRegIdx(0)->isIntPhysReg() && inst->renamedSrcRegIdx(1)->isIntPhysReg())
           DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true),
             m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
-        // }
+        }
 
         // set values as temp renamed dest reg
         if (inst->static_inst_p->isBroadcast()) {
