@@ -150,7 +150,7 @@ gemm_vec_simd:
 	.insn uj 0x2b, x0, .L5
 	
 # 0 "" 2
-# 197 "gemm_kernel.c" 1
+# 200 "gemm_kernel.c" 1
 	fence
 	
 # 0 "" 2
@@ -158,43 +158,43 @@ gemm_vec_simd:
 	j	.L1
 .L2:
 #APP
-# 203 "gemm_kernel.c" 1
+# 206 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
 .L6:
 #APP
-# 205 "gemm_kernel.c" 1
+# 208 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
 .L8:
 #APP
-# 207 "gemm_kernel.c" 1
+# 210 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
 .L10:
 #APP
-# 209 "gemm_kernel.c" 1
+# 212 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
 .L12:
 #APP
-# 211 "gemm_kernel.c" 1
+# 214 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
 .L14:
 #APP
-# 213 "gemm_kernel.c" 1
+# 216 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
 .L4:
 #APP
-# 215 "gemm_kernel.c" 1
+# 218 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
