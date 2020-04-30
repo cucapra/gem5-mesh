@@ -710,6 +710,8 @@ bool Scratchpad::handleCpuReq(Packet *pkt_p)
     //   DPRINTF(Mesh, "Doing a local access for pkt %s coreepoch %d prefetchEpoch %d cnt%d\n",
     //     pkt_p->print(), getCoreEpoch(), m_cur_prefetch_region, m_region_cntr);
 
+    if (isRegionAccess(pkt_p) && pkt_p->isRead()) m_local_loads_region++;
+    if (isRegionAccess(pkt_p) && pkt_p->isWrite()) m_local_stores_region++;
     // record local access here
     if (pkt_p->isRead())
     {
@@ -1033,11 +1035,13 @@ bool Scratchpad::handleRemoteReq(Packet *pkt_p, MachineID remote_sender)
     // else
     // {
 
-    // if (isRegionAccess(pkt_p) && !isWordRdyForRemote(pkt_p->getAddr()))
-    // {
-    //   DPRINTF(Mesh, "remote region access into a region not ready (not cool bro) %s\n", pkt_p->print());
-    //   return false;
-    // }
+    if (isRegionAccess(pkt_p) && !isWordRdyForRemote(pkt_p->getAddr()))
+    //TODO: Will fail if remote access to past region and prefetching going on, but then again accessing into past region is faulty
+    {
+      DPRINTF(Mesh, "remote region access into a region not ready (not cool bro) %s\n", pkt_p->print());
+      return false;
+    }
+
     // record remote access here
     if (pkt_p->isRead())
       m_remote_loads++;
@@ -1395,9 +1399,17 @@ void Scratchpad::regStats()
       .name(name() + ".local_loads")
       .desc("Number of loads completed by the local core");
 
+  m_local_loads_region
+      .name(name() + ".local_loads_region")
+      .desc("Number of loads completed by the local core in the region");
+
   m_local_stores
       .name(name() + ".local_stores")
       .desc("Number of stores completed by the local core");
+
+  m_local_stores_region
+      .name(name() + ".local_stores_region")
+      .desc("Number of stores completed by the local core in the region");
 
   m_remote_loads
       .name(name() + ".remote_loads")

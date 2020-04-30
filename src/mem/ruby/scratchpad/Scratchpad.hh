@@ -451,7 +451,9 @@ private:
      * Stats to keep track of for the scratchpad
      */
    Stats::Scalar m_local_loads;
+   Stats::Scalar m_local_loads_region;
    Stats::Scalar m_local_stores;
+   Stats::Scalar m_local_stores_region;
    Stats::Scalar m_remote_loads;
    Stats::Scalar m_remote_stores;
 
