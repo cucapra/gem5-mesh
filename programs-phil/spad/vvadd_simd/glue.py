@@ -7,6 +7,10 @@ def is_return_inst(inst):
         ("jr" in stripped and "ra" in stripped) or
         stripped == "ret")
 
+def is_jump(inst):
+    jump_opcodes = ["bgt", "beqz", "bnez", "jr", "j"]
+    return inst.split()[0] in jump_opcodes
+
 def is_whitespace_or_comment(inst):
     stripped = inst.strip()
     return stripped == "" or stripped[0] == "#"
@@ -19,12 +23,6 @@ def is_VECTOR_EPOCH_inst(inst):
 
 def is_label(inst):
     return "." == inst[0] and ":" == inst[-1]
-
-def is_placeholder(inst):
-    return (
-        vector_init_label in inst or
-        vector_body_label in inst or
-        vector_ret_label in inst)
 
 def is_footer_start(inst):
     return ".size " in inst
@@ -40,18 +38,6 @@ def change_label_prefix(old_prefix, new_prefix, code):
                 else l.replace("."+old_prefix,"."+new_prefix)
                     for l in code]
 
-def vector_preprocess(code):
-    pass1 = remove_whitespace_and_comments(code)
-    return list(filter(lambda l: not is_label(l), pass1))
-
-def scalar_preprocess(code):
-    pass1 = remove_whitespace_and_comments(code)
-    return change_label_prefix("L", "SCALAR", pass1)
-
-
-
-
-
 class VectorParseState(Enum):
     SIFTING = auto()
     INIT = auto()
@@ -59,8 +45,8 @@ class VectorParseState(Enum):
     RETURN_MANIP = auto()
     EXTRA_BBS = auto()
 
-def print_cfg_parse(cfg_label):
-    print("parsing cfg {}...".format(cfg_label))
+def print_parsing_bb(bb_label):
+    print("parsing bb {}...".format(bb_label))
 
 def read_vector_cfgs(vector_code):
     vector_init_label = "vector_init_label"
@@ -80,32 +66,26 @@ def read_vector_cfgs(vector_code):
     body = []
     # return stack manipulation cfg
     ret_manip = []
-    # extra labels shared among cfgs
-    extra_bbs = []
 
-    prevState = VectorParseState.SIFTING
     state = VectorParseState.SIFTING
     for l in vector_code:
-        prevState = state
         if state == VectorParseState.SIFTING:
             if l == init_block_start:
-                print_cfg_parse(init_block_start)
+                print_parsing_bb(init_block_start)
                 state = VectorParseState.INIT
             # elif vector_body_start in l:
             #     state = VectorParseState.BODY
             elif l == vector_return:
-                print_cfg_parse(vector_return)
+                print_parsing_bb(vector_return)
                 state = VectorParseState.RETURN_MANIP
-
-            elif is_label(l):
-               extra_bbs.append(l)
-               state = VectorParseState.EXTRA_BBS
+            else:
+                continue
 
         elif state == VectorParseState.INIT:
             # if(init_block_end in l):
             #     state = VectorParseState.SIFTING
             if l == vector_body_start:
-                print_cfg_parse(vector_body_start)
+                print_parsing_bb(vector_body_start)
                 state = VectorParseState.BODY
             elif (not (init_block_end in l or
                         "beqz" in l)):
@@ -113,30 +93,22 @@ def read_vector_cfgs(vector_code):
 
         elif state == VectorParseState.BODY:
             if l == vector_body_end:
-                print_cfg_parse(vector_body_end)
+                print_parsing_bb(vector_body_end)
                 state = VectorParseState.SIFTING
             else:
                 body.append(l)
 
         elif state == VectorParseState.RETURN_MANIP:
             if(is_return_inst(l)):
-                print_cfg_parse(vector_return)
+                print_parsing_bb(vector_return)
                 state = VectorParseState.SIFTING
             else:
                 ret_manip.append(l)
                 state = VectorParseState.SIFTING
 
-        elif state == VectorParseState.EXTRA_BBS:
-            if not is_footer_start(l):
-                extra_bbs.append(l)
-            else:
-                break
-
     return {vector_init_label:init,
             vector_body_label:body,
-            vector_ret_label:ret_manip,
-            "extra":extra_bbs}
-
+            vector_ret_label:ret_manip}
 
 
 class ScalarParseState(Enum):
@@ -145,9 +117,9 @@ class ScalarParseState(Enum):
     AFTER_VECTOR_EPOCH = auto()
     AFTER_DEVEC = auto()
     RETURN_STACK_MANIP = auto()
-    REPLACE_PLACEHOLDER_CFGS = auto()
+    REPLACE_BB_PLACEHOLDERS = auto()
 
-def glue(control_flow, cfgs):
+def glue(scalar_control_flow, vector_bbs):
     scalar_ret_label = "scalar_ret"
     kernel_name = "vvadd_execute_simd"
 
@@ -165,7 +137,7 @@ def glue(control_flow, cfgs):
     scalar_ret = []
 
     state = ScalarParseState.HEADER
-    for l in control_flow:
+    for l in scalar_control_flow:
         if state == ScalarParseState.HEADER:
           if l.strip() == kernel_name + ":":
             before_VECTOR_EPOCH.append(l)
@@ -197,13 +169,13 @@ def glue(control_flow, cfgs):
         elif state == ScalarParseState.RETURN_STACK_MANIP:
             if is_return_inst(l):
                 after_DEVEC.append(l)
-                state = ScalarParseState.REPLACE_PLACEHOLDER_CFGS
+                state = ScalarParseState.REPLACE_BB_PLACEHOLDERS
             else:
                 scalar_ret.append(l)
 
-        elif state == ScalarParseState.REPLACE_PLACEHOLDER_CFGS:
-            if l in cfgs.keys():
-                after_DEVEC.extend(cfgs[l])
+        elif state == ScalarParseState.REPLACE_BB_PLACEHOLDERS:
+            if l in vector_bbs.keys():
+                after_DEVEC.extend(vector_bbs[l])
             else:
                after_DEVEC.append(l)
 
@@ -214,13 +186,25 @@ def glue(control_flow, cfgs):
         before_VECTOR_EPOCH +
         after_VECTOR_EPOCH[1:] +
         scalar_ret +
-        after_DEVEC +
-        cfgs["extra"])
+        after_DEVEC)
+
 
 
 # assume assembly stripped of whitespace and comments
 def pretty(code):
     return "\n".join(["\t"+l if not is_label(l) else l for l in code])
+
+def vector_preprocess(code):
+    pass1 = remove_whitespace_and_comments(code)
+    return list(filter(lambda l: not (is_label(l) or is_jump(l)), pass1))
+
+def scalar_preprocess(code):
+    pass1 = remove_whitespace_and_comments(code)
+    return change_label_prefix("L", "SCALAR", pass1)
+
+
+
+
 
 if __name__ == "__main__":
     vector_file = open("vvadd_vector.s", "r")
@@ -231,8 +215,9 @@ if __name__ == "__main__":
     scalar_code = scalar_preprocess(scalar_file.readlines())
 
     vector_cfgs = read_vector_cfgs(vector_code)
-    for cfg in vector_cfgs.values():
-        print("printing a vector CFG of length {}".format(len(cfg)))
+    for cfg_name in vector_cfgs.keys():
+        cfg = vector_cfgs[cfg_name]
+        print("printing {} CFG of length {}".format(cfg_name, len(cfg)))
         print(pretty(cfg))
 
     combined_code = glue(scalar_code, vector_cfgs)
