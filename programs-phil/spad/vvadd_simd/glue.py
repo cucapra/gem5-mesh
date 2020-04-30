@@ -202,7 +202,7 @@ def glue(control_flow, cfgs):
                 scalar_ret.append(l)
 
         elif state == ScalarParseState.REPLACE_PLACEHOLDER_CFGS:
-            if l.strip() in cfgs.keys():
+            if l in cfgs.keys():
                 after_DEVEC.extend(cfgs[l])
             else:
                after_DEVEC.append(l)
