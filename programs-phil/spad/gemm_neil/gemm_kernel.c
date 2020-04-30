@@ -1,8 +1,10 @@
 #include "gemm_kernel.h"
 
 #define BLK_DIM 4
+#define SCALAR_AHEAD
+//#define SCALAR_AHEAD_INITIAL
 
-//#define SIMD_PRIVATE
+// #define SIMD_PRIVATE
 // #define SIMD_SHARING
 
 #ifdef SIMD_SHARING
@@ -16,6 +18,8 @@
 #define REGION_SIZE (BLK_DIM * 2)
 #define NUM_REGIONS (512 / REGION_SIZE)
 #endif
+
+#define MIN(a,b) (((a)<(b))?(a):(b))
 
 // #define VECTOR_CORE
 // #define SCALAR_CORE
@@ -47,8 +51,62 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   // DTYPE *sp_b;
 
   int sp_a_offset, sp_b_offset;
+  int iter_ahead=0;
+  
 
   ISSUE_VINST(fable0);
+
+  #ifdef SCALAR_AHEAD
+  int prefetch_end=0;
+  iter_ahead = MIN(t,1);
+  for (int k = 0; k < iter_ahead; k++){
+    sp_a_offset = spadRegion * REGION_SIZE;
+    sp_b_offset = sp_a_offset + REGION_SIZE / 2;
+
+  // fetch a in scratchpad
+  #ifdef SHARING
+    for (int i = 0; i < (offset_y / total_cores); i++)
+    {
+      // VPREFETCH(sp_a + i, a + _idx_(k, m_start + (i * total_cores), m), 0);
+      VPREFETCH_L(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, 4);
+      VPREFETCH_R(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, 4);
+    }
+
+    // fetch b in scratchpad
+    for (int j = 0; j < (offset_x / total_cores); j++)
+    {
+      // VPREFETCH(sp_b + j, b + _idx_(k, n_start + (j * total_cores), m), 0);
+      VPREFETCH_L(sp_b_offset + j, b + _idx_(k, n_start + (j * total_cores), m), 0, 4);
+      VPREFETCH_R(sp_b_offset + j, b + _idx_(k, n_start + (j * total_cores), m), 0, 4);
+    }
+  #else
+    //fetch a one element at a time (todo: might need to vectorize the loads)
+    for (int yy = 0; yy < dim_y; yy++)
+    {
+      for (int i = 0; i < BLK_DIM; i++)
+      {
+        for (int xx = 0; xx < dim_x; xx++)
+        {
+          VPREFETCH_L(sp_a_offset + i, a + _idx_(k, m_start + i + yy * BLK_DIM, m), xx + yy * dim_x, 1);
+        }
+      }
+    }
+
+    //fetch b
+    for (int xx = 0; xx < dim_x; xx++)
+    {
+      for (int j = 0; j < BLK_DIM; j++)
+      {
+        for (int yy = 0; yy < dim_y; yy++)
+        {
+          VPREFETCH_L(sp_b_offset + j, b + _idx_(k, n_start + j + xx * BLK_DIM, m), xx + yy * dim_x, 1);
+        }
+      }
+    }
+  #endif
+    spadRegion = (spadRegion + 1) % NUM_REGIONS;
+  }
+  #endif
 
   //assuming m_start-m_end is divisble by BLK_DIM
   for (int i0 = m_start; i0 < m_end; i0 += offset_y)
@@ -59,57 +117,95 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
     {
       // int j_st = j0 + (tid_x * BLK_DIM);
       ISSUE_VINST(hoist2);
+
+      #ifdef SCALAR_AHEAD_INITIAL
+      if(i0==m_start && j0==n_start) iter_ahead = MIN(t,1);
+      else iter_ahead=0;
+      #endif
+      int i0_ = i0;
+      int j0_ = j0;
+
+      #ifdef SCALAR_AHEAD_INITIAL
+      for (int k = 0; k < t + iter_ahead; k++) //scalar prefetches 0->t and vector runs iter_ahead->t+iter_ahead
+      #elif defined SCALAR_AHEAD
       for (int k = 0; k < t; k++)
+      #endif
       {
-        // sp_a = spAddr + spadRegion * REGION_SIZE + 0;
-        // sp_b = spAddr + spadRegion * REGION_SIZE + REGION_SIZE / 2;
-
-        sp_a_offset = spadRegion * REGION_SIZE;
-        sp_b_offset = sp_a_offset + REGION_SIZE / 2;
-
-// fetch a in scratchpad
-#ifdef SHARING
-        for (int i = 0; i < (offset_y / total_cores); i++)
-        {
-          // VPREFETCH(sp_a + i, a + _idx_(k, i0 + (i * total_cores), m), 0);
-          VPREFETCH_L(sp_a_offset + i, a + _idx_(k, i0 + (i * total_cores), m), 0, 4);
-          VPREFETCH_R(sp_a_offset + i, a + _idx_(k, i0 + (i * total_cores), m), 0, 4);
+        int k_=k;
+        #ifdef SCALAR_AHEAD
+        if(k<t-iter_ahead){
+          k_ = k+iter_ahead;
         }
-
-        // fetch b in scratchpad
-        for (int j = 0; j < (offset_x / total_cores); j++)
-        {
-          // VPREFETCH(sp_b + j, b + _idx_(k, j0 + (j * total_cores), m), 0);
-          VPREFETCH_L(sp_b_offset + j, b + _idx_(k, j0 + (j * total_cores), m), 0, 4);
-          VPREFETCH_R(sp_b_offset + j, b + _idx_(k, j0 + (j * total_cores), m), 0, 4);
+        else{
+          j0_+=offset_x;
+          if(j0_>=n_end){
+            j0_=n_start;
+            i0_+=offset_y;
+            if(i0_>=m_end) prefetch_end=1;;//end
+          }
+          k_=k - (t-iter_ahead);
         }
-#else
-        //fetch a one element at a time (todo: might need to vectorize the loads)
-        for (int yy = 0; yy < dim_y; yy++)
-        {
-          for (int i = 0; i < BLK_DIM; i++)
+        if(prefetch_end==0){
+        #elif defined SCALAR_AHEAD_INITIAL
+        if (k<t){
+        #endif
+          sp_a_offset = spadRegion * REGION_SIZE;
+          sp_b_offset = sp_a_offset + REGION_SIZE / 2;
+
+  // fetch a in scratchpad
+  #ifdef SHARING
+          for (int i = 0; i < (offset_y / total_cores); i++)
           {
-            for (int xx = 0; xx < dim_x; xx++)
+            // VPREFETCH(sp_a + i, a + _idx_(k, i0 + (i * total_cores), m), 0);
+            VPREFETCH_L(sp_a_offset + i, a + _idx_(k_, i0_ + (i * total_cores), m), 0, 4);
+            VPREFETCH_R(sp_a_offset + i, a + _idx_(k_, i0_ + (i * total_cores), m), 0, 4);
+          }
+
+          // fetch b in scratchpad
+          for (int j = 0; j < (offset_x / total_cores); j++)
+          {
+            // VPREFETCH(sp_b + j, b + _idx_(k, j0 + (j * total_cores), m), 0);
+            VPREFETCH_L(sp_b_offset + j, b + _idx_(k_, j0_ + (j * total_cores), m), 0, 4);
+            VPREFETCH_R(sp_b_offset + j, b + _idx_(k_, j0_ + (j * total_cores), m), 0, 4);
+          }
+  #else
+          //fetch a one element at a time (todo: might need to vectorize the loads)
+          for (int yy = 0; yy < dim_y; yy++)
+          {
+            for (int i = 0; i < BLK_DIM; i++)
             {
-              VPREFETCH_L(sp_a_offset + i, a + _idx_(k, i0 + i + yy * BLK_DIM, m), xx + yy * dim_x, 1);
+              for (int xx = 0; xx < dim_x; xx++)
+              {
+                VPREFETCH_L(sp_a_offset + i, a + _idx_(k_, i0_ + i + yy * BLK_DIM, m), xx + yy * dim_x, 1);
+              }
             }
           }
-        }
 
-        //fetch b
-        for (int xx = 0; xx < dim_x; xx++)
-        {
-          for (int j = 0; j < BLK_DIM; j++)
+          //fetch b
+          for (int xx = 0; xx < dim_x; xx++)
           {
-            for (int yy = 0; yy < dim_y; yy++)
+            for (int j = 0; j < BLK_DIM; j++)
             {
-              VPREFETCH_L(sp_b_offset + j, b + _idx_(k, j0 + j + xx * BLK_DIM, m), xx + yy * dim_x, 1);
+              for (int yy = 0; yy < dim_y; yy++)
+              {
+                VPREFETCH_L(sp_b_offset + j, b + _idx_(k_, j0_ + j + xx * BLK_DIM, m), xx + yy * dim_x, 1);
+              }
             }
           }
+  #endif
+          spadRegion = (spadRegion + 1) % NUM_REGIONS;
+        #if (defined SCALAR_AHEAD_INITIAL  || defined SCALAR_AHEAD)
         }
-#endif
+        #endif
+
+        #ifdef SCALAR_CORE_INITIAL
+        if(k>=iter_ahead){
+          ISSUE_VINST(fable123);
+        }
+        #else
         ISSUE_VINST(fable123);
-        spadRegion = (spadRegion + 1) % NUM_REGIONS;
+        #endif
+        
       }
       ISSUE_VINST(fable4567);
     }
@@ -168,8 +264,11 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
             DTYPE *addr_a = spAddr + spadRegion * REGION_SIZE + i;
             DTYPE *addr_b = spAddr + spadRegion * REGION_SIZE + REGION_SIZE / 2 + j;
 #endif
-            LWSPEC(a_, addr_a, 0);
-            LWSPEC(b_, addr_b, 0);
+            // LWSPEC(a_, addr_a, 0);
+            // LWSPEC(b_, addr_b, 0);
+
+            a_= *addr_a;
+            b_= *addr_b;
 
             sp_c[_idx_(i, j, BLK_DIM)] += a_ * b_;
           }
