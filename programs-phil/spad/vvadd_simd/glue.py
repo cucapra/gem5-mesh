@@ -26,6 +26,30 @@ def is_placeholder(inst):
         vector_body_label in inst or
         vector_ret_label in inst)
 
+def is_footer_start(inst):
+    return ".size " in inst
+
+def remove_whitespace_and_comments(code):
+    pass1 = filter(lambda l: not is_whitespace_or_comment(l), code)
+    pass2 = map(lambda l: l.strip(), pass1)
+    return list(pass2)
+
+def change_label_prefix(old_prefix, new_prefix, code):
+    return ["."+new_prefix+l[2:]
+                if is_label(l)
+                else l.replace("."+old_prefix,"."+new_prefix)
+                    for l in code]
+
+def vector_preprocess(code):
+    pass1 = remove_whitespace_and_comments(code)
+    return list(filter(lambda l: not is_label(l), pass1))
+
+def scalar_preprocess(code):
+    pass1 = remove_whitespace_and_comments(code)
+    return change_label_prefix("L", "SCALAR", pass1)
+
+
+
 
 
 class VectorParseState(Enum):
@@ -59,8 +83,10 @@ def read_vector_cfgs(vector_code):
     # extra labels shared among cfgs
     extra_bbs = []
 
+    prevState = VectorParseState.SIFTING
     state = VectorParseState.SIFTING
     for l in vector_code:
+        prevState = state
         if state == VectorParseState.SIFTING:
             if l == init_block_start:
                 print_cfg_parse(init_block_start)
@@ -92,18 +118,24 @@ def read_vector_cfgs(vector_code):
             else:
                 body.append(l)
 
-        elif(state == VectorParseState.RETURN_MANIP):
+        elif state == VectorParseState.RETURN_MANIP:
             if(is_return_inst(l)):
                 print_cfg_parse(vector_return)
                 state = VectorParseState.SIFTING
             else:
                 ret_manip.append(l)
                 state = VectorParseState.SIFTING
-       
-        elif state == VectorParseState.EXTRA_BBS:
-            extra_bbs.append(l)
 
-    return {vector_init_label:init, vector_body_label:body, vector_ret_label:ret_manip, "extra":extra_bbs}
+        elif state == VectorParseState.EXTRA_BBS:
+            if not is_footer_start(l):
+                extra_bbs.append(l)
+            else:
+                break
+
+    return {vector_init_label:init,
+            vector_body_label:body,
+            vector_ret_label:ret_manip,
+            "extra":extra_bbs}
 
 
 
@@ -186,17 +218,6 @@ def glue(control_flow, cfgs):
         cfgs["extra"])
 
 
-def preprocess(code):
-    pass1 = filter(lambda l: not is_whitespace_or_comment(l), code)
-    pass2 = map(lambda l: l.strip(), pass1)
-    return list(pass2)
-
-def change_label_prefix(old_prefix, new_prefix, code):
-    return ["."+new_prefix+l[2:]
-                if is_label(l)
-                else l.replace("."+old_prefix,"."+new_prefix)
-                    for l in code]
-
 # assume assembly stripped of whitespace and comments
 def pretty(code):
     return "\n".join(["\t"+l if not is_label(l) else l for l in code])
@@ -206,11 +227,8 @@ if __name__ == "__main__":
     scalar_file = open("vvadd_scalar.s", "r")
     combined_file = open("vvadd_combined.s", "w+")
 
-    vector_code = preprocess(vector_file.readlines())
-    vector_code = change_label_prefix("L", "VECTOR", vector_code)
-
-    scalar_code = preprocess(scalar_file.readlines())
-    scalar_code = change_label_prefix("L", "SCALAR", scalar_code)
+    vector_code = vector_preprocess(vector_file.readlines())
+    scalar_code = scalar_preprocess(scalar_file.readlines())
 
     vector_cfgs = read_vector_cfgs(vector_code)
     for cfg in vector_cfgs.values():
