@@ -2,10 +2,10 @@ import itertools
 from enum import Enum, auto
 
 def is_return_inst(inst):
-    stripped = inst.strip()
-    return (
-        ("jr" in stripped and "ra" in stripped) or
-        stripped == "ret")
+    inst_components = inst.split()
+    opcode = inst_components[0]
+    arg = inst_components[1] if len(inst_components) >= 2 else None
+    return opcode == "ret" or (opcode == "jr" and arg == "ra")
 
 def is_jump(inst):
     jump_opcodes = ["bgt", "beqz", "bnez", "jr", "j"]
@@ -196,7 +196,8 @@ def pretty(code):
 
 def vector_preprocess(code):
     pass1 = remove_whitespace_and_comments(code)
-    return list(filter(lambda l: not (is_label(l) or is_jump(l)), pass1))
+    return list(filter(lambda inst: not (is_label(inst) or
+                                        (is_jump(inst) and not is_return_inst(inst))), pass1))
 
 def scalar_preprocess(code):
     pass1 = remove_whitespace_and_comments(code)
