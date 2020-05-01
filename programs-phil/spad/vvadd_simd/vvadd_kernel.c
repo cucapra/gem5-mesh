@@ -212,31 +212,30 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
     DEVEC(devec_0);
 
     asm volatile("fence\n\t");
-    asm("scalar_ret");
+    asm("scalar_return");
     return;
 
     fable0:
-      asm("vector_init_label");
+      asm("vector_init");
 
     fable1:
-      asm("vector_body_label");
+      asm("vector_body");
 
     fable2:
-      asm("vector_ret");
+      asm("vector_return");
 
 
   #elif defined VECTOR_CORE
-    asm("init_block_start");
+    asm("vector_init");
     volatile int bh; // while loop variables
     DTYPE a_, b_, c_;
     int64_t iter = 0;
     DTYPE *cPtr = c + start + vtid;
     int *spadAddr = (int *)getSpAddr(ptid, 0);
-    asm("init_block_end");
 
     while (bh)
     {
-      asm("vector_body_start");
+      asm("vector_body");
       #ifdef SIMD_BCAST
         // try to get compiler to use register that will recv broadcasted values
         // can make compiler pass
@@ -261,7 +260,6 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
       #ifndef SIMD_BCAST
       iter = (iter + 2) % (NUM_REGIONS * 2);
       #endif
-      asm("vector_body_end");
     }
     asm("vector_return");
     return;

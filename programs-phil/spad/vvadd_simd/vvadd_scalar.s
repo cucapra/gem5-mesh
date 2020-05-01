@@ -572,7 +572,7 @@ vvadd_execute_simd:
 	
 # 0 "" 2
 # 215 "vvadd_kernel.c" 1
-	scalar_ret
+	scalar_return
 # 0 "" 2
 #NO_APP
 	ret
@@ -586,19 +586,19 @@ vvadd_execute_simd:
 .L4:
 #APP
 # 219 "vvadd_kernel.c" 1
-	vector_init_label
+	vector_init
 # 0 "" 2
 #NO_APP
 .L7:
 #APP
 # 222 "vvadd_kernel.c" 1
-	vector_body_label
+	vector_body
 # 0 "" 2
 #NO_APP
 .L12:
 #APP
 # 225 "vvadd_kernel.c" 1
-	vector_ret
+	vector_return
 # 0 "" 2
 #NO_APP
 	ret

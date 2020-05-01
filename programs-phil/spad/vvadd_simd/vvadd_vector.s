@@ -8,7 +8,7 @@ vvadd_execute_simd:
 	addi	sp,sp,-16
 #APP
 # 229 "vvadd_kernel.c" 1
-	init_block_start
+	vector_init
 # 0 "" 2
 #NO_APP
 	add	a4,a4,a7
@@ -23,11 +23,6 @@ vvadd_execute_simd:
 	ld	a1,0(a6)
 	addi	a1,a1,16
 .L2:
-#APP
-# 235 "vvadd_kernel.c" 1
-	init_block_end
-# 0 "" 2
-#NO_APP
 	lw	a5,12(sp)
 	sext.w	a5,a5
 	beqz	a5,.L3
@@ -36,14 +31,14 @@ vvadd_execute_simd:
 	slli	a0,a0,2
 .L4:
 #APP
-# 239 "vvadd_kernel.c" 1
-	vector_body_start
+# 238 "vvadd_kernel.c" 1
+	vector_body
 # 0 "" 2
 #NO_APP
 	slli	a5,a2,2
 	add	a4,a1,a5
 #APP
-# 249 "vvadd_kernel.c" 1
+# 248 "vvadd_kernel.c" 1
 	.insn s 0x03, 0x7, a4, 0(a4)
 	
 # 0 "" 2
@@ -51,36 +46,31 @@ vvadd_execute_simd:
 	addi	a5,a5,4
 	add	a5,a1,a5
 #APP
-# 250 "vvadd_kernel.c" 1
+# 249 "vvadd_kernel.c" 1
 	.insn s 0x03, 0x7, a5, 0(a5)
 	
 # 0 "" 2
-# 254 "vvadd_kernel.c" 1
+# 253 "vvadd_kernel.c" 1
 	.insn u 0x0b, x0, 0
 	
 # 0 "" 2
 #NO_APP
 	addw	a5,a4,a5
 #APP
-# 258 "vvadd_kernel.c" 1
+# 257 "vvadd_kernel.c" 1
 	.insn sb 0x23, 0x5, a5, 0(a3)
 	
 # 0 "" 2
 #NO_APP
+	lw	a5,12(sp)
 	addi	a2,a2,2
 	add	a3,a3,a0
-	andi	a2,a2,511
-#APP
-# 264 "vvadd_kernel.c" 1
-	vector_body_end
-# 0 "" 2
-#NO_APP
-	lw	a5,12(sp)
 	sext.w	a5,a5
+	andi	a2,a2,511
 	bnez	a5,.L4
 .L3:
 #APP
-# 266 "vvadd_kernel.c" 1
+# 264 "vvadd_kernel.c" 1
 	vector_return
 # 0 "" 2
 #NO_APP
