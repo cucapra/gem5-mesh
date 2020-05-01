@@ -42,22 +42,18 @@ class VectorParseState(Enum):
     SIFTING = auto()
     INIT = auto()
     BODY = auto()
-    RETURN_MANIP = auto()
+    RETURN_BLOCK = auto()
     EXTRA_BBS = auto()
 
 def print_parsing_bb(bb_label):
     print("parsing bb {}...".format(bb_label))
 
-def read_vector_cfgs(vector_code):
-    vector_init_label = "vector_init_label"
-    vector_body_label = "vector_body_label"
-    vector_ret_label = "vector_return_label"
-
-    init_block_start = "init_block_start"
-    init_block_end = "init_block_end"
-    vector_body_start = "vector_body_start"
-    vector_body_end = "vector_body_end"
+def read_vector_cfgs(raw_vector_code):
+    vector_init = "vector_init"
+    vector_body = "vector_body"
     vector_return = "vector_return"
+
+    vector_code = vector_preprocess(raw_vector_code)
 
     # dissects vector assembly into the following:
     # init cfg
@@ -65,50 +61,39 @@ def read_vector_cfgs(vector_code):
     # body cfg
     body = []
     # return stack manipulation cfg
-    ret_manip = []
+    ret_block = []
 
     state = VectorParseState.SIFTING
     for l in vector_code:
         if state == VectorParseState.SIFTING:
-            if l == init_block_start:
-                print_parsing_bb(init_block_start)
+            if l == vector_init:
+                print("found vector_init")
                 state = VectorParseState.INIT
-            # elif vector_body_start in l:
-            #     state = VectorParseState.BODY
-            elif l == vector_return:
-                print_parsing_bb(vector_return)
-                state = VectorParseState.RETURN_MANIP
-            else:
-                continue
 
         elif state == VectorParseState.INIT:
-            # if(init_block_end in l):
-            #     state = VectorParseState.SIFTING
-            if l == vector_body_start:
-                print_parsing_bb(vector_body_start)
+            if l == vector_body:
+                print("found vector_body")
                 state = VectorParseState.BODY
-            elif (not (init_block_end in l or
-                        "beqz" in l)):
+            else:
                 init.append(l)
 
         elif state == VectorParseState.BODY:
-            if l == vector_body_end:
-                print_parsing_bb(vector_body_end)
-                state = VectorParseState.SIFTING
+            if l == vector_return:
+                print("found vector_return")
+                state = VectorParseState.RETURN_BLOCK
             else:
                 body.append(l)
 
-        elif state == VectorParseState.RETURN_MANIP:
+        elif state == VectorParseState.RETURN_BLOCK:
             if(is_return_inst(l)):
-                print_parsing_bb(vector_return)
+                print("found return jump")
                 state = VectorParseState.SIFTING
             else:
-                ret_manip.append(l)
-                state = VectorParseState.SIFTING
+                ret_block.append(l)
 
-    return {vector_init_label:init,
-            vector_body_label:body,
-            vector_ret_label:ret_manip}
+    return {vector_init:init,
+            vector_body:body,
+            vector_return:ret_block}
 
 
 class ScalarParseState(Enum):
@@ -119,9 +104,11 @@ class ScalarParseState(Enum):
     RETURN_STACK_MANIP = auto()
     REPLACE_BB_PLACEHOLDERS = auto()
 
-def glue(scalar_control_flow, vector_bbs):
-    scalar_ret_label = "scalar_ret"
+def glue(raw_scalar_control_flow, vector_bbs):
+    scalar_return = "scalar_return"
     kernel_name = "vvadd_execute_simd"
+
+    scalar_control_flow = scalar_preprocess(raw_scalar_control_flow)
 
     # dissects scalar assembly into the following non-overlapping components:
     # interval notation: open, closed, half-open intervals
@@ -160,7 +147,7 @@ def glue(scalar_control_flow, vector_bbs):
                 after_VECTOR_EPOCH.append(l)
 
         elif state == ScalarParseState.AFTER_DEVEC:
-            if scalar_ret_label in l:
+            if scalar_return in l:
                 state = ScalarParseState.RETURN_STACK_MANIP
             else:
                 after_DEVEC.append(l)
@@ -175,6 +162,7 @@ def glue(scalar_control_flow, vector_bbs):
 
         elif state == ScalarParseState.REPLACE_BB_PLACEHOLDERS:
             if l in vector_bbs.keys():
+                print("Gluing {}...".format(l))
                 after_DEVEC.extend(vector_bbs[l])
             else:
                after_DEVEC.append(l)
@@ -212,8 +200,8 @@ if __name__ == "__main__":
     scalar_file = open("vvadd_scalar.s", "r")
     combined_file = open("vvadd_combined.s", "w+")
 
-    vector_code = vector_preprocess(vector_file.readlines())
-    scalar_code = scalar_preprocess(scalar_file.readlines())
+    vector_code = vector_file.readlines()
+    scalar_code = scalar_file.readlines()
 
     vector_cfgs = read_vector_cfgs(vector_code)
     for cfg_name in vector_cfgs.keys():
