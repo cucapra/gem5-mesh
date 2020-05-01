@@ -48,7 +48,7 @@ class VectorParseState(Enum):
 def print_parsing_bb(bb_label):
     print("parsing bb {}...".format(bb_label))
 
-def read_vector_cfgs(raw_vector_code):
+def read_vector_bbs(raw_vector_code):
     vector_init = "vector_init"
     vector_body = "vector_body"
     vector_return = "vector_return"
@@ -98,8 +98,8 @@ def read_vector_cfgs(raw_vector_code):
     # insert terminator in each block
     terminator = ".insn i 0x1b, 0x7, x0, x0, 0"
 
-    for b in blocks.values():
-        b.append(terminator)
+    # for b in blocks.values():
+    #     b.append(terminator)
 
     return blocks
 
@@ -112,11 +112,11 @@ class ScalarParseState(Enum):
     RETURN_STACK_MANIP = auto()
     REPLACE_BB_PLACEHOLDERS = auto()
 
-def glue(raw_scalar_control_flow, vector_bbs):
+def glue(raw_scalar_code, vector_bbs):
     scalar_return = "scalar_return"
     kernel_name = "vvadd_execute_simd"
 
-    scalar_control_flow = scalar_preprocess(raw_scalar_control_flow)
+    scalar_code = scalar_preprocess(raw_scalar_code)
 
     # dissects scalar assembly into the following non-overlapping components:
     # interval notation: open, closed, half-open intervals
@@ -132,7 +132,7 @@ def glue(raw_scalar_control_flow, vector_bbs):
     scalar_ret = []
 
     state = ScalarParseState.HEADER
-    for l in scalar_control_flow:
+    for l in scalar_code:
         if state == ScalarParseState.HEADER:
           if l.strip() == kernel_name + ":":
             before_VECTOR_EPOCH.append(l)
@@ -170,11 +170,12 @@ def glue(raw_scalar_control_flow, vector_bbs):
 
         elif state == ScalarParseState.REPLACE_BB_PLACEHOLDERS:
             if l in vector_bbs.keys():
-                print("Gluing {}...".format(l))
-                after_DEVEC.append("# Glued bb from {}".format(l))
+                comment = "#Gluing {}-sized block, {}...".format(len(vector_bbs[l]), l)
+                print(comment)
+                after_DEVEC.append(comment)
                 after_DEVEC.extend(vector_bbs[l])
-            else:
-               after_DEVEC.append(l)
+            elif not is_return_inst(l):
+                after_DEVEC.append(l)
 
       # rearrange components as follows
     return (
@@ -212,7 +213,7 @@ if __name__ == "__main__":
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()
 
-    vector_blocks = read_vector_cfgs(vector_code)
+    vector_blocks = read_vector_bbs(vector_code)
     for block_name in vector_blocks.keys():
         block = vector_blocks[block_name]
         print("printing {} CFG of length {}".format(block_name, len(block)))
