@@ -1,5 +1,6 @@
 C_SRCS = $(wildcard *.c) $(wildcard ../common/*.c)
 DEPS = $(C_SRCS:.c=.o)
+DEPS_FIL := $(filter-out $(EXEC)_kernel.o, $(DEPS))
 C_OBJS = $(notdir $(C_SRCS:.c=.o))
 S_DEPS = $(C_SRCS:.c=.s)
 S_OBJS = $(notdir $(C_SRCS:.c=.s))
@@ -75,7 +76,7 @@ combine: $(EXEC)_final.s
 $(EXEC).orig: $(DEPS)
 	$(RV_CC) $(C_OBJS) $(CFLAGS) -o $(EXEC)
 
-$(EXEC).neil: $(DEPS)
+$(EXEC).neil: $(DEPS_FIL)
 	$(RV_CC) $(C_OBJS_FIL) $(CFLAGS) -o $(EXEC)
 
 # compile first to asm so we can modify vissue insts and then compile to .o
