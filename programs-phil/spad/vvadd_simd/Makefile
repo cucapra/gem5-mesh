@@ -1,9 +1,15 @@
 EXEC = vvadd
 
-C_SRCS = $(wildcard *.c) $(wildcard ../common/*.c)
-DEPS = $(C_SRCS:.c=.o)
-DEPS_FIL := $(filter-out $(EXEC)_kernel.o, $(DEPS))
-C_OBJS = $(notdir $(C_SRCS:.c=.o))
+SRC_COMMON := $(wildcard ../common/*.c)
+SRC_MAIN   := main.c $(EXEC).c
+SRC_KERNEL := $(EXEC)_kernel.c
+
+C_SRCS        := $(SRC_MAIN) $(SRC_KERNEL) $(SRC_COMMON)
+C_SRCS_NOKERN := $(SRC_MAIN) $(SRC_COMMON)
+
+C_OBJS        := $(notdir $(C_SRCS:.c=.o))
+C_OBJS_NOKERN := $(notdir $(C_SRCS_NOKERN:.c=.o))
+
 S_DEPS = $(C_SRCS:.c=.s)
 S_OBJS = $(notdir $(C_SRCS:.c=.s))
 # object files compiled via the ASM route
@@ -45,11 +51,6 @@ RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
 # script to find the correct vissue length
 VISS=python ../../../scripts-phil/vissue-asm.py
 
-#in case of vector and scalar compilations
-C_OBJS_FIL := $(filter-out vvadd_kernel.o, $(C_OBJS))
-# C_OBJS_FIL = $(C_OBJS)
-C_OBJS_FIL += $(EXEC)_final.o
-
 CFLAGS=-DSCALAR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 vector: CFLAGS=-DVECTOR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 scalar: CFLAGS=-DSCALAR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
@@ -73,11 +74,11 @@ combine: $(EXEC)_final.s
 	$(RV_CC) $(CFLAGS) -c -o $(EXEC)_final.o $(notdir $<)
 
 # compile directly from .c to .o with no mods
-$(EXEC).orig: $(DEPS)
-	$(RV_CC) $(C_OBJS) $(CFLAGS) -o $(EXEC)
+$(EXEC).orig: $(C_OBJS)
+	$(RV_CC) $^ $(CFLAGS) -o $(EXEC)
 
-$(EXEC).neil: $(DEPS_FIL)
-	$(RV_CC) $(C_OBJS_FIL) $(CFLAGS) -o $(EXEC)
+$(EXEC).neil: $(C_OBJS_NOKERN) $(EXEC)_final.o
+	$(RV_CC) $^ $(CFLAGS) -o $(EXEC)
 
 # compile first to asm so we can modify vissue insts and then compile to .o
 $(EXEC): $(ASMO_DEPS)
