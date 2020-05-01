@@ -84,6 +84,13 @@ $(EXEC)_kernel.o: $(EXEC)_kernel.s
 $(EXEC): $(C_OBJS_NOKERN) $(EXEC)_kernel.o
 	$(RV_CC) $(notdir $^) $(CFLAGS) -o $(EXEC)
 
+run : $(EXEC)
+	~/gem5-mesh/build/RVSP/gem5.opt ~/gem5-mesh/configs/phil/brg_hammerblade.py \
+	--cmd=vvadd \
+	--options="1024" \
+	--num-cpus=16 \
+	--vector
+
 # compile directly from .c to .o with no mods
 #$(EXEC).orig: $(C_OBJS)
 #	$(RV_CC) $^ $(CFLAGS) -o $(EXEC)

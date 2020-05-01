@@ -171,6 +171,7 @@ def glue(raw_scalar_control_flow, vector_bbs):
         elif state == ScalarParseState.REPLACE_BB_PLACEHOLDERS:
             if l in vector_bbs.keys():
                 print("Gluing {}...".format(l))
+                after_DEVEC.append("# Glued bb from {}".format(l))
                 after_DEVEC.extend(vector_bbs[l])
             else:
                after_DEVEC.append(l)

@@ -98,6 +98,10 @@ int main(int argc, char *argv[]) {
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
   
+  /* Print output */ 
+  for (int i = 0; i < size; i++) {
+    printf("c[%d] = %d\n", i, c[i]);
+  }
   for (int i = 0; i < size; i++) {
     printf("%d\n", c[i]);
     if (c[i] != 2 * ( i + 1 )) {
