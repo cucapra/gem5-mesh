@@ -1,3 +1,5 @@
+EXEC = vvadd
+
 C_SRCS = $(wildcard *.c) $(wildcard ../common/*.c)
 DEPS = $(C_SRCS:.c=.o)
 DEPS_FIL := $(filter-out $(EXEC)_kernel.o, $(DEPS))
@@ -11,14 +13,12 @@ ASMO_OBJS = $(notdir $(C_SRCS:.c=.O))
 SM_DEPS = $(C_SRCS:.c=.S)
 SM_OBJS = $(notdir $(C_SRCS:.c=.S))
 
-EXEC = vvadd
-
 # defaults if environment variables not set
 
 ifeq ($(ENV_N_SPS),)
-	N_SPS = 16
+N_SPS = 16
 else
-	N_SPS = $(ENV_N_SPS)
+N_SPS = $(ENV_N_SPS)
 endif	
 
 EXTRA_FLAGS:= 
