@@ -91,9 +91,17 @@ def read_vector_cfgs(raw_vector_code):
             else:
                 ret_block.append(l)
 
-    return {vector_init:init,
-            vector_body:body,
-            vector_return:ret_block}
+    blocks = {  vector_init:init,
+                vector_body:body,
+                vector_return:ret_block}
+
+    # insert terminator in each block
+    terminator = ".insn i 0x1b, 0x7, x0, x0, 0"
+
+    for b in blocks.values():
+        b.append(terminator)
+
+    return blocks
 
 
 class ScalarParseState(Enum):
@@ -203,13 +211,13 @@ if __name__ == "__main__":
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()
 
-    vector_cfgs = read_vector_cfgs(vector_code)
-    for cfg_name in vector_cfgs.keys():
-        cfg = vector_cfgs[cfg_name]
-        print("printing {} CFG of length {}".format(cfg_name, len(cfg)))
-        print(pretty(cfg))
+    vector_blocks = read_vector_cfgs(vector_code)
+    for block_name in vector_blocks.keys():
+        block = vector_blocks[block_name]
+        print("printing {} CFG of length {}".format(block_name, len(block)))
+        print(pretty(block))
 
-    combined_code = glue(scalar_code, vector_cfgs)
+    combined_code = glue(scalar_code, vector_blocks)
     combined_file.write(pretty(combined_code))
 
     print("Finished.")
