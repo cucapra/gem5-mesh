@@ -66,7 +66,7 @@ VISS: $(SM_DEPS)
 	$(RV_CC) $(CFLAGS) -c -o $(notdir $@) $(notdir $<)
 
 %.S:%.s
-	$(VISS) $(notdir $<) $(notdir $@)
+	$(VISS) $(notdir $<) $(notdir $@) 1
 
 %.s:%.c
 	$(RV_CC) $(CFLAGS) -S -o $(notdir $@) $<

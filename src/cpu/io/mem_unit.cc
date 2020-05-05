@@ -27,8 +27,7 @@ MemUnit::MemUnit(const char *_iew_name, const char *_name,
       m_s0_inst(nullptr),
       m_s1_inst(nullptr),
       m_store_diff_reg(0)
-{
-}
+{ }
 
 const std::string
 MemUnit::name() const
@@ -684,8 +683,8 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
       // TODO this should put the vector group origin on instead of the scratchpad
       Addr spadIdx = bits(spadVAddr, 11, 0);
       uint32_t deprecatedOffset = 0x10;
-      spadVAddr = 0x10000000 | (m_cpu_p->cpuId() << 12) | (spadIdx * size + deprecatedOffset);
-
+      spadVAddr = 0x10000000 | (m_cpu_p->cpuId() << 12) | ( spadIdx * size + deprecatedOffset );
+      
       // need to translate the address, do atomically,
       // real hammerblade doesnt have virtual addresses anyway
       Addr spadPAddr = 0;
@@ -704,12 +703,13 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
       // right : offset = coreOffset + leftCount   rightCount = count - leftCount
       bool prefetchLeft = m_s1_inst->static_inst_p->isLeftSide();
       size_t lineSize = m_cpu_p->getCacheLineSize();
-      size_t count = imm;
+      size_t count = bits(imm, 11, 2);
+      int config = bits(imm, 1, 0);
       size_t wordOffset = addr & (lineSize - 1);
       size_t wordsRemInLine = (lineSize - wordOffset) / size;
       size_t leftCount = std::min(wordsRemInLine, count);
-      if (prefetchLeft)
-      {
+      m_s1_inst->mem_req_p->prefetchConfig = config;
+      if (prefetchLeft) {
         m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
         m_s1_inst->mem_req_p->respCnt = leftCount;
         DPRINTF(Mesh, "send vec load left %lx offset %d cnt %d\n", m_s1_inst->mem_req_p->getVaddr(),
@@ -725,9 +725,13 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
           DPRINTF(Mesh, "don't send vec load right %lx cnt %d\n", m_s1_inst->mem_req_p->getVaddr(),
                   rightCount);
         }
-        else
-        {
-          m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount;
+        else {
+          bool isVerticalLoad = (config == 1);
+          if (isVerticalLoad) {
+            m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
+            m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + leftCount * sizeof(uint32_t);
+          }
+          else m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount;
           m_s1_inst->mem_req_p->respCnt = rightCount;
           // change vaddr to reflect new baseOffset
           Addr rightVirtAddr = addr + (leftCount * size);
@@ -777,8 +781,10 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
                                   trans,
                                   is_load ? BaseTLB::Read : BaseTLB::Write);
 
-    if (m_s1_inst->isFault())
+    if (m_s1_inst->isFault()) {
+      DPRINTF(Mesh, "fault could not translate %lx for inst %s\n", addr, m_s1_inst->toString(true));
       m_s1_inst->setExecuted();
+    }
   }
 
   // place the translated inst into LQ or SQ

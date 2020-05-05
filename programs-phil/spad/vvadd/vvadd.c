@@ -23,14 +23,24 @@
 // #define SIM_DA_VLOAD_SIZE_1 1
 // #define VEC_4_NORM_LOAD 1
 // #define VEC_16_NORM_LOAD 1
+
 // #define VEC_4_SIMD 1
-#define VEC_4_SIMD_BCAST 1
+// #define VEC_4_SIMD_VERTICAL 1
+#define VEC_4_SIMD_SPATIAL_UNROLLED 1
+
+// #define VEC_4_SIMD_BCAST 1
+
+// define prefetch size
+#define PREFETCH_LEN 4
 
 // vvadd_execute config directives
 #if defined(NO_VEC) || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD)
 #define USE_NORMAL_LOAD 1
 #endif
-#if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_4_DA_SMALL_FRAME) || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD) || defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
+#if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_4) || defined(VEC_4_UNROLL) \
+  || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_4_DA_SMALL_FRAME) \
+  || defined(VEC_4_NORM_LOAD) || defined(VEC_16_NORM_LOAD) || defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) \
+  || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED)
 #define USE_VEC 1
 #endif
 #if defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_4_DA) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
@@ -39,7 +49,7 @@
 #if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
 #define USE_DA 1
 #endif
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED)
 #define USE_VECTOR_SIMD 1
 #endif
 #if !defined(UNROLL) && !defined(USE_NORMAL_LOAD)
@@ -54,6 +64,12 @@
 #if defined(VEC_4_SIMD_BCAST)
 #define SIMD_BCAST 1
 #endif
+#if defined(VEC_4_SIMD_VERTICAL)
+#define VERTICAL_LOADS 1
+#endif
+#if defined(VEC_4_SIMD_SPATIAL_UNROLLED)
+#define SPATIAL_UNROLL 1
+#endif
 
 // vector grouping directives
 #if defined(VEC_16) || defined(VEC_16_UNROLL) || defined(VEC_16_UNROLL_SERIAL) || defined(VEC_16_NORM_LOAD)
@@ -65,13 +81,18 @@
 #if defined(VEC_4_DA) || defined(VEC_4_DA_SMALL_FRAME) || defined(NO_VEC_DA) || defined(SIM_DA_VLOAD_SIZE_1)
 #define VEC_SIZE_4_DA 1
 #endif
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED)
 #define VEC_SIZE_4_SIMD 1
 #endif
 
 // prefetch sizings
 #if defined(VEC_4_DA) || defined(NO_VEC_DA) || defined(VEC_16_UNROLL) || defined(VEC_4_UNROLL) || defined(VEC_16_UNROLL_SERIAL) || defined(SIM_DA_VLOAD_SIZE_1)
 #define REGION_SIZE 32
+#define NUM_REGIONS 16
+#elif defined(VERTICAL_LOADS) || defined(VEC_4_SIMD_SPATIAL_UNROLLED)
+// load 16 words (whole cacheline at a time)
+#define LOAD_LEN 16
+#define REGION_SIZE LOAD_LEN * 2
 #define NUM_REGIONS 16
 #elif defined(VEC_4_DA_SMALL_FRAME) || defined(WEIRD_PREFETCH)
 #define REGION_SIZE 2
@@ -117,24 +138,41 @@ inline int min(int a, int b)
 // NOTE optimize("-fno-inline") prevents return block from being at the end, which is kind of needed for the scheme
 // ACTUALLY any second label causes a problem???
 #ifdef USE_VECTOR_SIMD
-void __attribute__((optimize("-fno-reorder-blocks")))
-vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master)
-{
+void __attribute__((optimize("-fno-reorder-blocks"), optimize("-fno-align-labels")))
+vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int mask, int is_master) {
 
-  int *spadAddr = (int *)getSpAddr(ptid, 0);
+  volatile int ohjeez = 1;
+  if (ohjeez) {
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
 
+  // should be a constant from static analysis of dim
+  int pRatio = dim / PREFETCH_LEN;
+
+  #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
+  int numInitFetch = LOAD_LEN;
+  #else
+  int numInitFetch = 16;
+  #endif
+
   // do a bunch of prefetching in the beginning to get ahead
   int totalIter = (end - start) / dim;
-  int numInitFetch = 16;
   int beginIter = min(numInitFetch, totalIter);
-  for (int i = 0; i < beginIter; i++)
-  {
-    VPREFETCH(spadAddr + i * 2 + 0, a + start + (i * dim), 0);
-    VPREFETCH(spadAddr + i * 2 + 1, b + start + (i * dim), 0);
+
+  #ifdef VERTICAL_LOADS
+  for (int core = 0; core < dim; core++) {
+    VPREFETCH_L(0       , a + start + LOAD_LEN * core, core, LOAD_LEN, 1);
+    VPREFETCH_L(LOAD_LEN, b + start + LOAD_LEN * core, core, LOAD_LEN, 1);
   }
+  #else
+  for (int i = 0; i < beginIter; i++) {
+    for (int p = 0; p < pRatio; p++) { // NOTE unrolled b/c can statically determine pRatio is const
+      VPREFETCH_L(i * 2 + 0, a + start + (i * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+      VPREFETCH_L(i * 2 + 1, b + start + (i * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+    }
+  }
+  #endif
 
   // issue header instructions
   ISSUE_VINST(fable0);
@@ -145,9 +183,40 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   int deviceIter = 0;
 #endif
 
-  for (int i = beginIter; i < totalIter; i++)
-  {
-#ifdef SIMD_BCAST
+  #ifdef VERTICAL_LOADS
+  for (int i = beginIter; i < totalIter; i+=LOAD_LEN) {
+    for (int core = 0; core < dim; core++) {
+      VPREFETCH_L(localIter + 0       , a + start + i * dim + LOAD_LEN * core, core, LOAD_LEN, 1);
+      VPREFETCH_L(localIter + LOAD_LEN, b + start + i * dim + LOAD_LEN * core, core, LOAD_LEN, 1);
+    }
+
+    ISSUE_VINST(fable1);
+    localIter+=REGION_SIZE;
+    if (localIter == (NUM_REGIONS * REGION_SIZE)) localIter = 0;
+  }
+  #elif defined(SPATIAL_UNROLL)
+  for (int i = beginIter; i < totalIter; i+=LOAD_LEN) {
+    for (int j = 0; j < LOAD_LEN; j++) {
+      for (int p = 0; p < pRatio; p++) {
+        VPREFETCH_L(localIter + j * 2 + 0, a + start + ((i + j) * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+        VPREFETCH_L(localIter + j * 2 + 1, b + start + ((i + j) * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+      }
+    }
+
+    ISSUE_VINST(fable1);
+    localIter+=REGION_SIZE;
+    if (localIter == (NUM_REGIONS * REGION_SIZE)) localIter = 0;
+  }
+  #else
+  for (int i = beginIter; i < totalIter; i++) {
+
+    // prefetch for future iterations
+    for (int p = 0; p < pRatio; p++) {
+      VPREFETCH_L(localIter + 0, a + start + (i * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+      VPREFETCH_L(localIter + 1, b + start + (i * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+    }
+
+    #ifdef SIMD_BCAST
     // broadcast values needed to execute
     // in this case the spad loc
     BROADCAST(t0, deviceIter, 0);
@@ -156,28 +225,29 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     // issue fable1
     ISSUE_VINST(fable1);
 
-    // prefetch for future iterations
-    VPREFETCH(spadAddr + localIter + 0, a + start + (i * dim), 0);
-    VPREFETCH(spadAddr + localIter + 1, b + start + (i * dim), 0);
-    localIter += 2;
-    if (localIter == (NUM_REGIONS * 2))
-    {
-      localIter = 0;
-    }
-
-#ifdef SIMD_BCAST
-    deviceIter += 2;
-    if (deviceIter == (NUM_REGIONS * 2))
-    {
+    #ifdef SIMD_BCAST
+    deviceIter+=2;
+    if (deviceIter == (NUM_REGIONS * 2)) {
       deviceIter = 0;
     }
-#endif
+    #endif
+
+
+    localIter+=REGION_SIZE;
+    if (localIter == (NUM_REGIONS * REGION_SIZE)) {
+      localIter = 0;
+    }
   }
+  #endif
 
   // issue the rest
-  for (int i = totalIter - beginIter; i < totalIter; i++)
-  {
-#ifdef SIMD_BCAST
+  #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
+  for (int i = totalIter - beginIter; i < totalIter; i+=LOAD_LEN) {
+    ISSUE_VINST(fable1);
+  }
+  #else
+  for (int i = totalIter - beginIter; i < totalIter; i++) {
+    #ifdef SIMD_BCAST
     BROADCAST(t0, deviceIter, 0);
 #endif
 
@@ -191,6 +261,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     }
 #endif
   }
+  #endif
 
   // devec with unique tag
   DEVEC(devec_0);
@@ -199,6 +270,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   asm volatile("fence\n\t");
 
   return;
+  }
 
   // vector engine code
 
@@ -206,39 +278,86 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   DTYPE a_, b_, c_;
   int64_t iter; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
+  int *spadAddr;
 
-// entry block
-// NOTE need to do own loop-invariant code hoisting?
-fable0:
-  iter = 0;
-  cPtr = c + start + vtid;
+  // entry block
+  // NOTE need to do own loop-invariant code hoisting?
+  fable0:
+    iter = 0;
+    spadAddr = (int*)getSpAddr(ptid, 0);
+    #ifdef VERTICAL_LOADS
+    cPtr = c + start + vtid * LOAD_LEN;
+    #else
+    cPtr = c + start + vtid;
+    #endif
+  
+  // loop body block
+  fable1:
+    // unrolled version when doing vertical loads
+    #ifdef VERTICAL_LOADS
+    FRAME_START(REGION_SIZE);
 
-// loop body block
-fable1:
-#ifdef SIMD_BCAST
-  // try to get compiler to use register that will recv broadcasted values
-  // can make compiler pass
-  asm volatile(
+    // load values from scratchpad
+    #pragma GCC unroll(16)
+    for (int i = 0; i < LOAD_LEN; i++) {
+      a_ = spadAddr[iter + i + 0];
+      b_ = spadAddr[iter + i + LOAD_LEN];
+
+      // compute and store
+      c_ = a_ + b_;
+      STORE_NOACK(c_, cPtr + i, 0);
+    }
+
+    REMEM(REGION_SIZE);
+
+    cPtr += LOAD_LEN * dim;
+    iter = (iter + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
+    #elif defined(SPATIAL_UNROLL)
+    FRAME_START(REGION_SIZE);
+
+    // load values from scratchpad
+    #pragma GCC unroll(16)
+    for (int i = 0; i < LOAD_LEN; i++) {
+      a_ = spadAddr[iter + i * 2 + 0];
+      b_ = spadAddr[iter + i * 2 + 1];
+
+      // compute and store
+      c_ = a_ + b_;
+      STORE_NOACK(c_, cPtr + i * dim, 0);
+    }
+
+    REMEM(REGION_SIZE);
+
+    cPtr += LOAD_LEN * dim;
+    iter = (iter + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
+    #else
+    #ifdef SIMD_BCAST
+    // try to get compiler to use register that will recv broadcasted values
+    // can make compiler pass
+    asm volatile(
       "add %[var], t0, x0\n\t"
       : [ var ] "=r"(iter));
 #endif
 
-  // load values from scratchpad
-  LWSPEC(a_, spadAddr + iter, 0);
-  LWSPEC(b_, spadAddr + iter + 1, 0);
+    FRAME_START(REGION_SIZE);
 
-  // remem as soon as possible, so don't stall loads for next iterations
-  // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
-  REMEM(0);
+    // load values from scratchpad
+    a_ = spadAddr[iter + 0];
+    b_ = spadAddr[iter + 1];
+
+    // remem as soon as possible, so don't stall loads for next iterations
+    // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
+    REMEM(REGION_SIZE);
 
   // compute and store
   c_ = a_ + b_;
   STORE_NOACK(c_, cPtr, 0);
   cPtr += dim;
 
-#ifndef SIMD_BCAST
-  iter = (iter + 2) % (NUM_REGIONS * 2);
-#endif
+    #ifndef SIMD_BCAST
+    iter = (iter + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
+    #endif
+    #endif
 
   // need this jump to create loop carry dependencies
   // an assembly pass will remove this instruction
@@ -707,14 +826,13 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   pthread_barrier_wait(&start_barrier);
 #endif
 
-// only let certain tids continue
-#ifdef VEC_SIZE_4_DA
-  if (tid == 12)
-    return;
-#elif defined(USE_VECTOR_SIMD)
-  if (ptid == 3)
-    return;
-#endif
+  // only let certain tids continue
+  #ifdef VEC_SIZE_4_DA
+  if (tid == 12) return;
+  #elif defined(USE_VECTOR_SIMD)
+  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return; 
+  if (ptid == 3) return;
+  #endif
 
 // run the actual kernel with the configuration
 #ifdef UNROLL

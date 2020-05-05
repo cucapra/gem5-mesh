@@ -478,12 +478,20 @@ decode QUADRANT default Unknown::unknown() {
                         Rd_sd = Rs1_sw >> SHAMT5;
                     }});
                 }
+                0x2: eframe ({{
+                    // end frame and consume tokens
+                    Rd_sd = Rs1_sd;
+                }}, int32_t, IsRemem, IsNonSpeculative);
+                0x3: sframe ({{
+                    // begin frame and wait for tokens
+                    Rd_sd = Rs1_sd;
+                }}, int32_t, IsFrameStart, IsNonSpeculative);
                 0x6: bcast({{
                     Rd_sd = Rs1_sd + imm;
                 }}, int32_t, IsBroadcast);
                 0x7: arnold({{
                     // nada, just terminator marker
-
+                    Rd_sd = Rs1_sd;
                 }}, int32_t, IsTerminator);
             }
         }
@@ -1907,9 +1915,9 @@ decode QUADRANT default Unknown::unknown() {
         //    Rd = imm;
         //}})
 
-        0x02: BUOp::remem ({{
-            // nada
-        }}, IsRemem, IsNonSpeculative, No_OpClass);
+        //0x02: BUOp::remem ({{
+        //    // nada
+        //}}, IsRemem, IsNonSpeculative, No_OpClass);
 
         0x1a: JOp::vissue({{
             // note the compiler is smart enough to mark which resources you use based on this description

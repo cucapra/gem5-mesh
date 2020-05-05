@@ -192,6 +192,7 @@ IOCPU::IOCPU(IOCPUParams *params)
       m_global_seq_num(1),
       m_revec_cntr(0),
       m_mem_epoch(0),
+      m_tokens(0),
       m_last_active_cycle(0)
 
 {
@@ -1011,8 +1012,19 @@ void IOCPU::incMemEpoch()
   DPRINTF(Mesh, "increment remem %d\n", m_mem_epoch);
 }
 
-int IOCPU::getSpadNumRegions()
-{
+
+void
+IOCPU::produceMemTokens(int tokens) {
+  m_tokens += tokens;
+}
+
+void
+IOCPU::consumeMemTokens(int tokens) {
+  m_tokens -= tokens;
+}
+
+int
+IOCPU::getSpadNumRegions() {
   // return 16;
   int tid = 0;
   RegVal csrVal = readMiscRegNoEffect(RiscvISA::MISCREG_PREFETCH, tid);

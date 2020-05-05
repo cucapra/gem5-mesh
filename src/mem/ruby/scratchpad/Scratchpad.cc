@@ -86,7 +86,10 @@ void CpuPort::recvFunctional(Packet *pkt)
 // Scratchpad
 //-----------------------------------------------------------------------------
 
-Scratchpad::Scratchpad(const Params *p)
+
+#define NUM_REGION_CNTRS 2
+
+Scratchpad::Scratchpad(const Params* p)
     : AbstractController(p),
       m_ruby_system_p(p->ruby_system),
       m_size(p->sp_size),
@@ -134,7 +137,9 @@ Scratchpad::Scratchpad(const Params *p)
   // for(int i = 0; i < m_size / sizeof(uint32_t); i++) {
   //   m_fresh_array.push_back(0);
   // }
-  m_region_cntr = 0;
+  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
+    m_region_cntrs.push_back(0);
+  }
   m_cur_prefetch_region = 0;
 }
 
@@ -422,46 +427,45 @@ void Scratchpad::wakeup()
       m_mem_resp_buffer_p->dequeue(clockEdge());
 
       enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Remote_Resp);
-    }
-    else if (llc_msg_p && ((llc_msg_p->m_Type == LLCResponseType_REVDATA) ||
-                           (llc_msg_p->m_Type == LLCResponseType_REDATA)))
-    {
-      // data from a vector request on this scratchpads behalf
-      // mimic as a remote store from the master core
-
-      //DPRINTF(Mesh, "ruby pkt %s\n", *llc_msg_p);
-
-      // need to 'fake' a Packet from the LLC response and then go
-      // through the regular remote store channels
-      std::shared_ptr<Request> req =
-          std::make_shared<Request>(llc_msg_p->m_LineAddress, // vaddr
-                                    sizeof(uint32_t),         // size
-                                    0, 0);
-
-      // req->epoch = llc_msg_p->m_Epoch;
-
-      PacketPtr pkt_p = Packet::createWrite(req);
-
-      // we really only sent a word of data, so extract that
-      int blkIdx = llc_msg_p->m_BlkIdx;
-      uint8_t *buff = new uint8_t[sizeof(uint32_t)];
-      const uint8_t *data = llc_msg_p->m_DataBlk.getData(sizeof(uint32_t) * blkIdx, sizeof(uint32_t));
-      memcpy(buff, data, sizeof(uint32_t));
-      pkt_p->dataDynamic(buff);
-
-      DPRINTF(Mesh, "Recv remote store %#x from cache epoch %d data %d %d %d %d\n",
-              llc_msg_p->m_LineAddress, llc_msg_p->m_Epoch, data[3], data[2], data[1], data[0]);
-
-      assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
-
-      if (llc_msg_p->m_Type == LLCResponseType_REDATA)
-        enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Self_Resp);
-      else
-        enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Patron_Resp);
-
-      // delete the pending packet // why would there be a pending pkt for this?
-      // m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
-      m_mem_resp_buffer_p->dequeue(clockEdge());
+      
+    } else if (llc_msg_p && ((llc_msg_p->m_Type == LLCResponseType_REVDATA) || 
+        (llc_msg_p->m_Type == LLCResponseType_REDATA))) {
+        // data from a vector request on this scratchpads behalf
+        // mimic as a remote store from the master core
+        
+        //DPRINTF(Mesh, "ruby pkt %s\n", *llc_msg_p);
+        
+        // need to 'fake' a Packet from the LLC response and then go
+        // through the regular remote store channels
+        std::shared_ptr<Request> req =
+                std::make_shared<Request>(llc_msg_p->m_LineAddress,    // vaddr
+                                          sizeof(uint32_t),    // size
+                                          0, 0);
+        
+        // req->epoch = llc_msg_p->m_Epoch;
+        
+        PacketPtr pkt_p = Packet::createWrite(req);
+        
+        // we really only sent a word of data, so extract that
+        int blkIdx = llc_msg_p->m_BlkIdx;
+        uint8_t *buff = new uint8_t[sizeof(uint32_t)];
+        const uint8_t *data = llc_msg_p->m_DataBlk.getData(sizeof(uint32_t) * blkIdx, sizeof(uint32_t));
+        memcpy(buff, data, sizeof(uint32_t));
+        pkt_p->dataDynamic(buff);
+        
+        DPRINTF(Mesh, "Recv remote store %#x from cache epoch %d data %d %d %d %d\n", 
+          llc_msg_p->m_LineAddress, llc_msg_p->m_Epoch, data[3], data[2], data[1], data[0]);
+        
+        assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
+      
+        if (llc_msg_p->m_Type == LLCResponseType_REDATA)
+          enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Self_Resp);
+        else
+          enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Patron_Resp);
+      
+        // delete the pending packet // why would there be a pending pkt for this?
+        // m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
+        m_mem_resp_buffer_p->dequeue(clockEdge());
 
     } /*else if (m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 0 && 
               llc_msg_p->m_Type == LLCResponseType_ACK) {
@@ -822,6 +826,7 @@ bool Scratchpad::handleCpuReq(Packet *pkt_p)
       msg_p->m_PrefetchAddress = pkt_p->getPrefetchAddr();
       msg_p->m_CoreOffset = pkt_p->getCoreOffset();
       msg_p->m_RespCnt = pkt_p->getRespCnt();
+      msg_p->m_PrefetchConfig = pkt_p->getPrefetchConfig();
       // send local epoch so mem can sync
       // msg_p->m_Epoch = pkt_p->getEpoch();
       // whether a store requires an ack
@@ -1296,23 +1301,49 @@ bool Scratchpad::memoryDiverged(Addr addr)
 bool Scratchpad::isPrefetchAhead(Addr addr)
 {
   int pktEpochMod = getDesiredRegion(addr);
-  int coreEpochMod = getCoreEpoch(); // TODO can we just mod everything to keep numbers cycling rather than go on forever?
-  // bool overlap = (pktEpoch - coreEpoch >= getNumRegions());
-  // NOTE In the cirular epoch scheme there is no way to know whether you have overlapped b/c mod removes info
-  // HOWEVER We prevent overlap from ever happening by preventing the prefetch region from moving into the region currently
-  // being accessed by the core.
 
-  // packet is ahead of the prefetch region, so can't process yet
-  bool aheadCntr = (pktEpochMod != m_cur_prefetch_region);
+  // packet is ahead of any prefetch region, so can't process yet
+  bool aheadCntr = true;
+  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
+    if (pktEpochMod == getCurRegion(i)) {
+      aheadCntr = false;
+    }
+  }
 
   // packet would bring prefetch region to overlap with core access region and would cause undetectable overwrite
   // don't allow to be processed yet
-  int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
-  bool wouldOverlap = (nextPrefectchRegion == coreEpochMod) && (m_region_cntr + 1 == getRegionElements());
+  // int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
+  bool wouldOverlap = m_cpu_p->getMemTokens() + getRegionElements() >= getAllRegionSize();
 
-  DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d coreEpoch %d prefetchRegion %d region cntr %d\n",
-          wouldOverlap, aheadCntr, pktEpochMod, coreEpochMod, m_cur_prefetch_region, m_region_cntr);
+  DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d tokens %d prefetchRegion %d region cntr %d\n", 
+    wouldOverlap, aheadCntr, pktEpochMod, m_cpu_p->getMemTokens(), m_cur_prefetch_region, m_region_cntrs[0]);
   return wouldOverlap || aheadCntr;
+
+
+  // Addr thisWord = (getLocalAddr(addr) / sizeof(uint32_t)) - SPM_DATA_WORD_OFFSET;
+  // Addr nextWord = (getLastWordRecv() + 1) % getAllRegionSize();
+  // DPRINTF(Mesh, "check prefetch addr %lx local %d cur local %d\n", addr, thisWord, getLastWordRecv());
+  // return (nextWord != thisWord && m_cpu_p->getMemTokens() < getAllRegionSize());
+
+
+  // int pktEpochMod = getDesiredRegion(addr);
+  // int coreEpochMod = getCoreEpoch(); // TODO can we just mod everything to keep numbers cycling rather than go on forever?
+  // // bool overlap = (pktEpoch - coreEpoch >= getNumRegions());
+  // // NOTE In the cirular epoch scheme there is no way to know whether you have overlapped b/c mod removes info
+  // // HOWEVER We prevent overlap from ever happening by preventing the prefetch region from moving into the region currently
+  // // being accessed by the core.
+
+  // // packet is ahead of the prefetch region, so can't process yet
+  // bool aheadCntr = (pktEpochMod != m_cur_prefetch_region);
+
+  // // packet would bring prefetch region to overlap with core access region and would cause undetectable overwrite
+  // // don't allow to be processed yet
+  // int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
+  // bool wouldOverlap = (nextPrefectchRegion == coreEpochMod) && (m_region_cntr + 1 == getRegionElements());
+
+  // DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d coreEpoch %d prefetchRegion %d region cntr %d\n", 
+  //   wouldOverlap, aheadCntr, pktEpochMod, coreEpochMod, m_cur_prefetch_region, m_region_cntr);
+  // return wouldOverlap || aheadCntr;
 }
 
 //edit: Neil
@@ -1335,10 +1366,14 @@ bool Scratchpad::isWordRdy(Addr addr)
   // TODO prefetch region can't go into the current epoch region for this to work
   // i.e. prefetch all 8 regions then move prefetch region into coreepoch, even if don't
   // overfetch will still prevent this condition
-  // int epochModRegion = getCoreEpoch() % getNumRegions();
-  int epochModRegion = getCoreEpoch();
-  bool ret = (epochModRegion != m_cur_prefetch_region);
-  return ret;
+  // int epochModRegion = getCoreEpoch();
+  // bool ret = (epochModRegion != m_cur_prefetch_region);
+  // return ret;
+
+  // just make sure have enough tokens
+  // TODO should check in mem unit
+  // DPRINTF(Mesh, "check if enough tokens to read cur %d need %d\n", m_cpu_p->getMemTokens(), getRegionElements());
+  return (m_cpu_p->getMemTokens() >= getRegionElements());
 }
 
 void Scratchpad::setWordRdy(Addr addr)
@@ -1355,13 +1390,19 @@ void Scratchpad::setWordRdy(Addr addr)
   // tag = 1;
 
   // increment the counter for number of expected loads
-  m_region_cntr++;
+  // need to find the right regon cntr
+  // m_region_cntr++;
+  incRegionCntr(addr);
 
-  // if reaches number of expected then reset and move to next region
-  if (m_region_cntr == getRegionElements())
-  {
+  // if reaches number of expected then reset and move to next region 
+  // publish group of tokens to be accessed
+  if (m_region_cntrs[0] == getRegionElements()) {
     resetRdyArray();
   }
+
+  // m_last_word_recv = (getLocalAddr(addr) / sizeof(uint32_t)) - SPM_DATA_WORD_OFFSET;
+  // m_cpu_p->produceMemTokens(1);
+  DPRINTF(Mesh, "recv addr %lx region cntr %d tokens %d\n", addr, m_region_cntrs[0], m_cpu_p->getMemTokens());
 
   // DPRINTF(Mesh, "increment region wiht addr %#x cnt now %d\n", addr, m_region_cntr);
 }
@@ -1373,8 +1414,10 @@ void Scratchpad::setWordNotRdy(Addr addr)
   // tag = 0;
 }
 
-void Scratchpad::resetRdyArray()
-{
+
+
+void
+Scratchpad::resetRdyArray() {
   // // just reset for the current region
   // // TODO potentially can get away with only marking region as being ready?
   // // or having the first spad entry at the beginning of each region mark whether ready or not
@@ -1385,13 +1428,43 @@ void Scratchpad::resetRdyArray()
   // }
 
   // we can now prefetch in the next region
-  m_cur_prefetch_region = (m_cur_prefetch_region + 1) % getNumRegions();
+  m_cur_prefetch_region = getCurRegion(1); //(m_cur_prefetch_region + 1) % getNumRegions();
 
   // start counting for that next region
-  m_region_cntr = 0;
+  // do swap chain
+  for (int i = 0; i < NUM_REGION_CNTRS - 1; i++) {
+    m_region_cntrs[i] = m_region_cntrs[i + 1];
+  }
+  m_region_cntrs[NUM_REGION_CNTRS - 1] = 0;
+
+  m_cpu_p->produceMemTokens(getRegionElements());
 }
 
-void Scratchpad::regStats()
+void
+Scratchpad::incRegionCntr(Addr addr) {
+  // figure out which region this belongs to
+  int region = getDesiredRegion(addr);
+  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
+    if (region == getCurRegion(i)) {
+      m_region_cntrs[i]++;
+      return;
+    }
+  }
+  assert(false);
+}
+
+int
+Scratchpad::getCurRegion(int offset) {
+  return (m_cur_prefetch_region + offset) % getNumRegions();
+}
+
+int
+Scratchpad::getAllRegionSize() {
+  return getNumRegions() * getRegionElements();
+}
+
+void
+Scratchpad::regStats()
 {
   AbstractController::regStats();
 

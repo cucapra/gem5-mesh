@@ -821,6 +821,11 @@ class Packet : public Printable
      */
     int getRespCnt() const  { return req->respCnt; }
 
+    /**
+     * Accessor to prefetch config
+     */ 
+    int getPrefetchConfig() const { return req->prefetchConfig; }
+
     // packet type for processing scratchpad
     typedef enum RespPktType {
         NotVal = 0,

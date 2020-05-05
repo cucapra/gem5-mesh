@@ -285,14 +285,20 @@ void IEW::doWriteback()
           }
         }
 
-        // if (m_cpu_p->getEarlyVector()->isSlave() && inst->numDestRegs() > 0)
-        //   DPRINTF(Mesh, "writeback %s %lx\n", inst->toString(true),
-        //           m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)));
-        if (m_cpu_p->getEarlyVector()->isSlave() && inst->isStore() && !inst->isFloating())
-        {
-          DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true),
-                  m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
+        if (m_cpu_p->getEarlyVector()->isSlave() && inst->numDestRegs() > 0 && inst->numSrcRegs() > 1) {
+          DPRINTF(Mesh, "writeback %s %lx %lx %lx\n", inst->toString(true), 
+            m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
+            m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
         }
+        else if (m_cpu_p->getEarlyVector()->isSlave() && inst->numDestRegs() > 0 && inst->numSrcRegs() > 0) {
+          DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true), 
+            m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
+            m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)));
+        }
+        else if (m_cpu_p->getEarlyVector()->isSlave() && inst->numDestRegs() > 0)
+          DPRINTF(Mesh, "writeback %s %lx\n", inst->toString(true), 
+            m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)));
+        
 
         // set values as temp renamed dest reg
         if (inst->static_inst_p->isBroadcast())
@@ -499,8 +505,8 @@ void IEW::doIssue()
       return;
     }
 
-    if (inst->static_inst_p->isSpadSpeculative() && m_robs[tid]->getRememInstCount() > 0)
-    {
+    // TODO don't need anymore??? maybe need to sync between start and end frames???
+    if (inst->static_inst_p->isSpadSpeculative() && m_robs[tid]->getRememInstCount() > 0) {
       DPRINTF(Mesh, "[sn:%d] Can't issue lwspec due to pending younger "
                     "remem instructions\n",
               inst->seq_num);
@@ -508,6 +514,20 @@ void IEW::doIssue()
       return;
     }
 
+    // frame start can stall if there aren't enough tokens to being the frame
+    // also need to wait for remem to take away tokens
+    if (inst->static_inst_p->isFrameStart() && (m_robs[tid]->getRememInstCount() > 0 || 
+        m_cpu_p->getMemTokens() < m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)))) {
+      if (m_robs[tid]->getRememInstCount() > 0) {
+        DPRINTF(Mesh, "[sn:%d] Can't issue frame start because remem in flight\n", inst->seq_num);
+      }
+      else {
+        DPRINTF(Mesh, "[sn:%d] Can't issue frame start because not enough tokens. Have %d need %d\n", inst->seq_num,
+          m_cpu_p->getMemTokens(), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)));
+      }
+      return;
+    }
+    
     // if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getUnresolvedCondInstCount() > 0) {
     //   DPRINTF(Mesh, "[sn:%d] Can't issue prelw due to pending younger "
     //                "unresolved cond ctrl instructions\n", inst->seq_num);

@@ -34,15 +34,18 @@
   
 // 0x401 is MISCREG_FET
 #define VECTOR_EPOCH(val) \
-  asm volatile (".insn i 0x77, 0, x0, %[x], 0x401\n\t" :: [x] "r" (val))
+  asm volatile (".insn i 0x77, 0, x0, %[x], 0x401\n\t" :: [x] "r" (val) : "memory")
 
 // revec instruction with unique hash id
 #define REVEC(hash)                                                           \
   asm volatile (".insn u 0x7b, x0, %[id]\n\t" :: [id] "i" (hash))
   
 // remem instruction with unique hash id (mem barrier instead of control barrier)
-#define REMEM(hash)                                                           \
-  asm volatile (".insn u 0x0b, x0, %[id]\n\t":: [id] "i" (hash))
+#define REMEM(count)                                                           \
+  asm volatile (".insn i 0x1b, 0x2, x0, %[src0], 0\n\t":: [src0] "r" (count))
+
+#define FRAME_START(count)                                                     \
+  asm volatile (".insn i 0x1b, 0x3, x0, %[src0], 0\n\t":: [src0] "r" (count) : "memory")
 
 #define ISSUE_VINST(label)                                                    \
   asm volatile goto (".insn uj 0x6b, x0, %l[" #label "]\n\t"                  \
@@ -72,12 +75,12 @@
 // allow following instructions to proceed if registers equal
 #define PRED_EQ(reg0, reg1) \
   asm volatile (".insn r 0x33, 0x7, 0x5, x0, %[rs1], %[rs2]\n\t" \
-  :: [rs1] "r" (reg0), [rs2] "r" (reg1))
+  :: [rs1] "r" (reg0), [rs2] "r" (reg1) : "memory")
 
 // allow following instructions to proceed if registers not equal
 #define PRED_NEQ(reg0, reg1) \
   asm volatile (".insn r 0x33, 0x7, 0x6, x0, %[rs1], %[rs2]\n\t" \
-  :: [rs1] "r" (reg0), [rs2] "r" (reg1))
+  :: [rs1] "r" (reg0), [rs2] "r" (reg1) : "memory")
 
 #define TERMINATE_BLOCK() \
   asm volatile(".insn i 0x1b, 0x7, x0, x0, 0\n\t")
@@ -97,17 +100,17 @@
 //   asm volatile (".insn sb 0x23, 0x4, %[spad], %[off](%[mem])\n\t" :: \
 //     [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" ((group_start << 6) | (group_end - group_start)))
 
-#define VPREFETCH_L(spadOffset, memAddr, coreOffset, count)        \
+#define VPREFETCH_L(spadOffset, memAddr, coreOffset, count, config)   \
   asm volatile (".insn sb 0x23, 0x6, %[spad], %[off](%[mem])\n\t" ::  \
     [spad] "r" ((coreOffset << 12) | spadOffset),                     \
     [mem] "r" (memAddr),                                              \
-    [off] "i" (count))
+    [off] "i" ((count << 2) | config))
 
-#define VPREFETCH_R(spadOffset, memAddr, coreOffset, count)       \
+#define VPREFETCH_R(spadOffset, memAddr, coreOffset, count, config)   \
   asm volatile (".insn sb 0x23, 0x7, %[spad], %[off](%[mem])\n\t" ::  \
     [spad] "r" ((coreOffset << 12) | spadOffset),                     \
     [mem] "r" (memAddr),                                              \
-    [off] "i" (count))
+    [off] "i" ((count << 2) | config))
 
 #define LWSPEC(dest, spadAddr, offset)                    \
   asm volatile (                                          \

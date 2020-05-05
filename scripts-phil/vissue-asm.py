@@ -37,14 +37,15 @@ def get_reg(num):
 
 
 # define how to modify and what we are looking for
-label_iden = "[a-zA-Z0-9_.]+"
-vissue_regex = re.compile(".insn uj {0}, x0, ({1})".format(vissue_opcode, label_iden))
-devec_regex = re.compile(".insn uj {0}, x0, ({1})".format(devec_opcode, label_iden))
-anylabel_regex = re.compile("({0})[:]".format(label_iden))
-jump_regex = re.compile("j[\t\s]({0})".format(label_iden))
-comment_regex = re.compile("[#]")
-call_regex = re.compile("call\t({0})".format(label_iden))
-ret_regex = re.compile("ret")
+label_iden = '[a-zA-Z0-9_.]+'
+vissue_regex = re.compile('.insn uj {0}, x0, ({1})'.format(vissue_opcode, label_iden))
+devec_regex = re.compile('.insn uj {0}, x0, ({1})'.format(devec_opcode, label_iden))
+anylabel_regex = re.compile('({0})[:]'.format(label_iden))
+jump_regex = re.compile('j[\t\s]({0})'.format(label_iden))
+comment_regex = re.compile('[#]')
+call_regex = re.compile('call\t({0})'.format(label_iden))
+ret_regex = re.compile('ret')
+beqz_regex = re.compile('beqz\t[a-z0-9]+,({})'.format(label_iden))
 
 cached_src_file = []
 
@@ -245,7 +246,20 @@ def check_jump(line):
         return (True, jlabel)
 
     else:
-        return (False, "")
+        return (False, '')
+
+# check if conditional branch
+# ret (is_cond_branch, branch_label)
+def check_cond_branch(line):
+    if (is_comment(line)):
+        return (False, '')
+    match = beqz_regex.search(line)
+    if (match):
+        jlabel = match.group(1)
+        return (True, jlabel)
+    else:
+        return (False, '')
+
 
 
 # check if label is pointed to by a vissue
@@ -364,6 +378,35 @@ def add_terminator(vissue_line):
             cached_src_file.insert(i + cnt + 1, construct_terminator())
             return
 
+# start at vissue label and remove branches and associated labels
+def remove_branches_from_block(vissue_line):
+    # find the label we are point to
+    found_label = False
+    for i in range(0, len(cached_src_file)):
+        line = cached_src_file[i]
+        # try to find label, if we've already found a label and encounter another then we need to stop!
+        (is_label, line_label) = check_label(line)
+        if (line_label == vissue_table[vissue_line]['label']):
+            found_label = True
+            continue
+        elif (is_label and found_label):
+            print('stopping at label ' + line_label)
+            return
+
+        # remote branches in this block and assocaited labels
+        if (found_label):
+            (is_branch, branch_label) = check_cond_branch(line)
+            if (is_branch):
+                # remote this line and then search future lines for the label
+                cached_src_file[i] = removed_line(line)
+                print('remove branch ' + line)
+                # for j in range(i + 1, len(cached_src_file)):
+                #     line = cached_src_file[j]
+                #     (is_label, label) = check_label(line)
+                #     if (is_label and label == branch_label):
+                #         print('remove branch ' + line)
+                #         cached_src_file[j] = removed_line(line)
+                #         break
 
 def count_vissue(vissue_line):
     label = vissue_table[vissue_line]["label"]
@@ -408,14 +451,18 @@ vissue_table = build_vissue_table()
 #   init code/more init code
 # L2:
 #   loop body
-
-# for k, v in vissue_table.items():
+# for k,v in vissue_table.items():
 #     adjust_vissue_label(k)
 
 # TODO this step produces a nice objdump, but gem5 not liking it
 # we need to modify code after the labels from the vissue table
 # for k, v in vissue_table.items():
 #     flatten_vissue(k)
+
+# remove any branches in the block and associated labels
+# assume conditional branches never go up in our case
+# for k,v in vissue_table.items():
+#     remove_branches_from_block(k)
 
 # add terminators at the end of each block
 if use_term:

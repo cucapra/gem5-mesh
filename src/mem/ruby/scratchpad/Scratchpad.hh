@@ -228,13 +228,8 @@ public:
       warn("Scratchpad does not support collateStats()\n");
    }
 
-   // reset all tags in rdy array
-   // TODO called from CPU, not sure how realistic? it's a 1bit wire
-   // or maybe it could be a special packet...
-   void resetRdyArray();
-
-private:
-   /**
+  private:
+    /**
      * Return NodeID of scratchpad owning the given address
      */
    NodeID getScratchpadIdFromAddr(Addr addr) const;
@@ -301,14 +296,24 @@ private:
      * Logic for handling any resp packet to spad
      * Have a seperate method from wakeup() because we want to handle 
      * packets not from ruby
-     */
-   void processRespToSpad();
+     */ 
+    void processRespToSpad();
+    
+    void enqueueRubyRespToSp(PacketPtr pkt_p, Packet::RespPktType type);
+    void enqueueStallRespToSp(PacketPtr pkt_p);
 
-   void enqueueRubyRespToSp(PacketPtr pkt_p, Packet::RespPktType type);
-   void enqueueStallRespToSp(PacketPtr pkt_p);
+    // get the total size all regions take up in the scratchpad
+    int getAllRegionSize();
 
-private:
-   /**
+    // reset current region counter
+    void resetRdyArray();
+    // increment region counter, if multiple use address to determine which one
+    void incRegionCntr(Addr addr);
+    // get the current region (offset = 0) or a future region (offset > 1)
+    int getCurRegion(int offset);
+
+  private:
+    /**
      * Pointer to Ruby system
      */
    RubySystem *m_ruby_system_p;
@@ -438,16 +443,16 @@ private:
    /**
      * Counter to keep track of how many pkts have arrived for a region
      * Should only be a 10bit counter and adder setup
-     */
-   int m_region_cntr;
+     */ 
+    std::vector<int> m_region_cntrs;
 
    /**
      * Keep track of which region we are currently prefetching into
      * i.e. which region the counter is associated with (<10 bits)
-     */
-   int m_cur_prefetch_region;
-
-   /**
+     */ 
+    int m_cur_prefetch_region;
+    
+    /**
      * Stats to keep track of for the scratchpad
      */
    Stats::Scalar m_local_loads;
