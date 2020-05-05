@@ -7,6 +7,7 @@
 #include "pthread_launch.h"
 #include "gemm.h"
 
+// #define PRINT_OUT
 #define RAND_MAT
 
 #if defined SIMD_PRIVATE || defined SIMD_SHARING
@@ -28,6 +29,7 @@ void fill_matrix(DTYPE *m, int row, int col)
 int check_matmul(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t)
 {
 
+#ifdef PRINT_OUT
   for (int i = 0; i < m; i++)
   {
     for (int j = 0; j < n; j++)
@@ -52,6 +54,7 @@ int check_matmul(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t)
     }
     printf("\n");
   }
+  #endif
 
   for (int i = 0; i < m; i++)
   {
@@ -64,6 +67,7 @@ int check_matmul(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t)
       }
       if (c[i * n + j] != c_temp)
       {
+        printf("%f %f\n",c[i * n + j],c_temp);
         printf("[[FAIL]]\n");
         return 1;
       }

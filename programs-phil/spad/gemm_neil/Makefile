@@ -51,6 +51,8 @@ VISS=python ../../../scripts-phil/vissue-asm.py
 
 
 C_OBJS_FIL := $(filter-out $(EXEC)_kernel.o, $(C_OBJS))
+DEPS_FIL := $(filter-out $(EXEC)_kernel.o, $(DEPS))
+
 # C_OBJS_FIL = $(C_OBJS)
 ifneq (,$(wildcard ./$(EXEC)_final.o))
 	C_OBJS_FIL += $(EXEC)_final.o
@@ -76,7 +78,7 @@ combine: $(EXEC)_final.s
 	$(RV_CC) $(CFLAGS) -c -o $(EXEC)_final.o $(notdir $<)
 
 
-$(EXEC).neil: $(DEPS)
+$(EXEC).neil: $(DEPS_FIL)
 	$(RV_CC) $(C_OBJS_FIL) $(CFLAGS) -o $(EXEC)	
 
 # compile directly from .c to .o with no mods

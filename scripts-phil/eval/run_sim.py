@@ -139,10 +139,10 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
 # choose which programs to run with diff parameters
 
 # fixed parameters for the run, compile the binary for these
-numCpus = 4
+numCpus = 16
 use_sps = True
 
-size = 32  # 65536  # 32768 #8192
+size =32  # 65536  # 32768 #8192
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 # seed = random.randint(1,2**20)
@@ -175,7 +175,7 @@ use_vec_arr = [True]
 make_flags_vvadd = ["VEC_4_SIMD"]
 
 # make_flags_gemm = ["UNBLOCKED_INNER", "BLOCKED", "INTERLEAVED", "UNBLOCKED_OUTER"]
-make_flags_gemm = ["NO_VEC"]
+make_flags_gemm = ["SIMD_PRIVATE"]
 # make_flags_gemm = ["SIMD_PRIVATE", "SIMD_SHARING", "NO_VEC"]
 # program = "vvadd"
 program = "gemm"
