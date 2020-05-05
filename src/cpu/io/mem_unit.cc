@@ -674,7 +674,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       if (prefetchLeft) {
         m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
         m_s1_inst->mem_req_p->respCnt = leftCount;
-        DPRINTF(Mesh, "send vec load left %lx offset %d cnt %d\n", m_s1_inst->mem_req_p->getVaddr(),
+        DPRINTF(Mesh, "send vec load left global %#x spad %#x core offset %d cnt %d\n", 
+          m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
           m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
       }
       else {
@@ -682,7 +683,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
         // don't execute this the right prefetch because no overshoot
         if (rightCount <= 0) {
           m_s1_inst->setExecuted();
-          DPRINTF(Mesh, "don't send vec load right %lx cnt %d\n", m_s1_inst->mem_req_p->getVaddr(),
+          DPRINTF(Mesh, "don't send vec load right global %#x spad %#x cnt %d\n", 
+            m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
             rightCount);
         }
         else {
@@ -717,6 +719,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->yDim = 1;
       m_s1_inst->mem_req_p->xOrigin = 0;
       m_s1_inst->mem_req_p->yOrigin = 0;
+      m_s1_inst->mem_req_p->respCnt = 1;
       // m_s1_inst->mem_req_p->coreOffset = m_s1_inst->seq_num; // for debugging normal loads and stores
     }
     

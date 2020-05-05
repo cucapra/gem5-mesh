@@ -10,11 +10,15 @@
 // one of these should be defined to dictate config
 // #define NO_VEC 1
 // #define VEC_4_SIMD 1
-#define VEC_4_SIMD_VERTICAL 1
+// #define VEC_4_SIMD_VERTICAL 1
+
 // #define VEC_4_SIMD_BCAST 1
 // #define VEC_4_REUSE 1
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
 // #define VEC_4_SIMD_LARGE_FRAME 1
+
+// #define VEC_16_SIMD 1
+// #define VEC_16_SIMD_VERTICAL 1
 
 // vvadd_execute config directives
 #if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME) \
@@ -27,6 +31,9 @@
   || defined(VEC_4_SIMD_VERTICAL)
 #define VEC_SIZE_4_SIMD 1
 #endif
+#if defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL)
+#define VEC_SIZE_16_SIMD 1
+#endif
 
 // kernel settings 
 #if defined(VEC_4_SIMD_SINGLE_PREFETCH)
@@ -38,7 +45,7 @@
 #if defined(VEC_4_SIMD_LARGE_FRAME)
 #define LARGE_FRAME 1
 #endif
-#if defined(VEC_4_SIMD_VERTICAL)
+#if defined(VEC_4_SIMD_VERTICAL) || defined(VEC_16_SIMD_VERTICAL)
 #define VERTICAL_LOADS 1
 #endif
 
@@ -60,6 +67,19 @@
 #define POST_REGION_WORD (REGION_SIZE * NUM_REGIONS)
 #endif
 #endif
+
+// define prefetch len externally
+#ifdef PF
+#define PREFETCH_LEN PF
+// default size is the vlen
+#else
+#ifdef VEC_SIZE_4_SIMD
+#define PREFETCH_LEN 4
+#elif defined(VEC_SIZE_16_SIMD)
+#define PREFETCH_LEN 16
+#endif
+#endif
+
 
 // pthread argument for the kernel
 typedef struct Kern_Args {

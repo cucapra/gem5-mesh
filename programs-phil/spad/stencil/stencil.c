@@ -105,6 +105,8 @@ stencil(
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
 
+  // should be a constant from static analysis of dim
+  int pRatio = dim / PREFETCH_LEN;
 
   int *spadAddr = (int*)getSpAddr(ptid, 0);
   // have r = 0 for now
@@ -150,8 +152,12 @@ stencil(
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           // printf("prelw sp %d r %d c %d k1 %d k2 %d idx %d\n", spadIdx, r, c, k1, k2, aIdx);
-          VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
-          VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
+          // VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
+          // VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
+          for (int p = 0; p < pRatio; p++) { // NOTE unrolled b/c can statically determine pRatio is const
+            VPREFETCH_L(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
+            VPREFETCH_R(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
+          }
           spadIdx++;
         }
       }
@@ -245,8 +251,12 @@ stencil(
           VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
           VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
           #else
-          VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
-          VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
+          // VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
+          // VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
+          for (int p = 0; p < pRatio; p++) {
+            VPREFETCH_L(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
+            VPREFETCH_R(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
+          }
           #endif
 
           spadIdx++;
@@ -625,58 +635,24 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int master_x = 0;
   int master_y = 0;
 
+  // group construction
   #if defined(VEC_SIZE_4_SIMD)
-    // virtual group dimension
+  // virtual group dimension
   vdim_x = 2;
   vdim_y = 2;
 
-  // group 1 top left (master = 0)
-  if (ptid == 1) vtid = 0;
-  if (ptid == 2) vtid = 1;
-  if (ptid == 5) vtid = 2;
-  if (ptid == 6) vtid = 3;
-  if (ptid == 0) is_da = 1;
-  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
-    start = 0;
-    end = (float)effRows / 3.0f;
-    orig_x = 1;
-    orig_y = 0;
-    master_x = 0;
-    master_y = 0;
-  }
+  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, n, 
+    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &start, &end);
 
-  // group 2 bot left (master == 4)
-  if (ptid == 8) vtid = 0;
-  if (ptid == 9) vtid = 1;
-  if (ptid == 12) vtid = 2;
-  if (ptid == 13) vtid = 3;
-  if (ptid == 4) is_da = 1;
-  if (ptid == 4 || ptid == 8 || ptid == 9 || ptid == 12 || ptid == 13) {
-    start = (float)effRows / 3.0f;
-    end = (float)(2 * effRows) / 3.0f;
-    orig_x = 0;
-    orig_y = 2;
-    master_x = 0;
-    master_y = 1;
-  }
+  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
-  // group 3 bottom right (master == 7)
-  if (ptid == 10)  vtid = 0;
-  if (ptid == 11) vtid = 1;
-  if (ptid == 14) vtid = 2;
-  if (ptid == 15) vtid = 3;
-  if (ptid == 7) is_da = 1;
-  if (ptid == 7 || ptid == 10 || ptid == 11 || ptid == 14 || ptid == 15) {
-    start = (float)(2 * effRows) / 3.0f;
-    end = effRows;
-    orig_x = 2;
-    orig_y = 2;
-    master_x = 3;
-    master_y = 1;
-  }
+  #elif defined(VEC_SIZE_16_SIMD)
 
-  vtid_x = vtid % vdim_x;
-  vtid_y = vtid / vdim_y;
+  vdim_x = 4;
+  vdim_y = 4;
+
+  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y, n,
+    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &start, &end);
 
   #elif !defined(USE_VEC)
 
@@ -712,16 +688,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VEC)
-  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
-  if (ptid == 3) return;
-  #else
-  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
-    vtid = ptid;
-    vdim = 4;
-  }
-  else {
-    return;
-  }
+  if (used == 0) return;
   #endif
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad

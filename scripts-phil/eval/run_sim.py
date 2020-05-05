@@ -143,7 +143,19 @@ def strings_to_metadata(args):
   meta = ''
   if (isinstance(args, list)):
     for a in args:
-      meta += a + '_'
+      # special interpretations
+      arg = a
+      if (a == 'VERTICAL'):
+        arg = 'V'
+      elif (a == 'SPATIAL_UNROLL'):
+        arg = 'S'
+      elif (a == 'VEC_SIZE_16_SIMD'):
+        arg = '16'
+      elif (a == 'VEC_SIZE_4_SIMD'):
+        arg = '4'
+      elif (a[0:3] == 'PF='):
+        arg = a[3:len(a)]
+      meta += arg + '_'
   else:
     meta = args
   return meta
@@ -172,8 +184,11 @@ use_vec_arr = [True]
 # make_flags = [ 'VEC_16_SIMD', 'VEC_4_SIMD' ]
 
 make_flags = []
+# vec_sizes = [ 4, 16 ]
+# load_types = [ 'SPATIAL', 'VERTICAL', 'SPATIAL_UNROLL' ]
+# prefetch_sizes = [ 1, 2, 4, 8, 16 ]
 vec_sizes = [ 4, 16 ]
-load_types = [ 'SPATIAL', 'VERTICAL', 'SPATIAL_UNROLL' ]
+load_types = [ 'SPATIAL', 'VERTICAL' ]
 prefetch_sizes = [ 1, 2, 4, 8, 16 ]
 for v in vec_sizes:
   for l in load_types:
@@ -185,7 +200,7 @@ for v in vec_sizes:
 # add no vec config as well
 make_flags.append('NO_VEC')
 
-program = 'vvadd'
+program = 'stencil'
 
 # TODO need a struct describing the experiment. Not all settings match idenpendently
 

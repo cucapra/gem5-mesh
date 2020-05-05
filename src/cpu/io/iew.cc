@@ -510,8 +510,8 @@ IEW::doIssue()
       return;
     }
 
-    if (inst->static_inst_p->isSpadPrefetch())
-      DPRINTF(Mesh, "[sn:%d] issue prelw\n", inst->seq_num);
+    // if (inst->static_inst_p->isSpadPrefetch())
+    //   DPRINTF(Mesh, "[sn:%d] issue prelw\n", inst->seq_num);
 
     // issue the instruction now
     exec_unit_p->insert(inst);

@@ -521,7 +521,7 @@ for i in xrange(n_l2s):
   l2_cache = RubyCache(size = l2_size, assoc = 4)
   l2_cntrl = L2Cache_Controller(version = i,
                                 cacheMemory = l2_cache,
-                                transitions_per_cycle = 4,
+                                transitions_per_cycle = 16,
                                 meshDimX = n_cols,
                                 meshDimY = n_cols,
                                 ruby_system = system.ruby
