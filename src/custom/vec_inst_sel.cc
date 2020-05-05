@@ -64,7 +64,7 @@ VecInstSel::getRdy() {
   // we can safely push onto the queue for two of the following cases
   // 1) there is space now
   // 2) there is not space now, but we are guarenteed to consume a slot this cycle due to vec pipe state
-  return (_vecCmds.size() < _maxVecCmds || willHaveOpening());
+  return (_vecCmds.size() < _maxVecCmds ); //|| willHaveOpening());
 }
 
 // actually enqueue at beginnign of the cycle to be usable
