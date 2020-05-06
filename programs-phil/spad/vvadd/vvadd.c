@@ -70,6 +70,25 @@
 #endif
 #endif
 
+// https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
+int roundUp(int numToRound, int multiple) {
+  if (multiple == 0) {
+    return numToRound;
+  }
+
+  int remainder = abs(numToRound) % multiple;
+  if (remainder == 0) {
+    return numToRound;
+  }
+
+  if (numToRound < 0) {
+    return -(abs(numToRound) - remainder);
+  }
+  else {
+    return numToRound + multiple - remainder;
+  }
+}
+
 inline int min(int a, int b) {
   if (a > b) {
     return b;
@@ -358,6 +377,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int is_da  = 0;
   int master_x = 0;
   int master_y = 0;
+  int unique_id = 0;
+  int total_groups = 0;
 
   // group construction
   #if defined(VEC_SIZE_4_SIMD)
@@ -366,8 +387,14 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim_y = 2;
   vdim = vdim_x * vdim_y;
 
-  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, n, 
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &start, &end);
+  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y,
+    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
+
+  if (used) {
+    int alignment = 16 * vdim;
+    start = roundUp((unique_id + 0) * n / total_groups, alignment);
+    end   = roundUp((unique_id + 1) * n / total_groups, alignment);
+  }
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
@@ -377,9 +404,14 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim_y = 4;
   vdim = vdim_x * vdim_y;
 
-  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y, n,
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &start, &end);
+  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y,
+    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
 
+  if (used) {
+    int alignment = 16 * vdim;
+    start = roundUp((unique_id + 0) * n / total_groups, alignment);
+    end   = roundUp((unique_id + 1) * n / total_groups, alignment);
+  }
 
   #elif !defined(USE_VEC)
 

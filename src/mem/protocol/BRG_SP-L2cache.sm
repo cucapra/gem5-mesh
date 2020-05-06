@@ -785,7 +785,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     assert(is_valid(tbe));
     assert(is_valid(cache_entry));
     cache_entry.LLSC_owner := tbe.Requestor;
-    DPRINTF(Mesh, "set %s as owner for %#x\n", cache_entry.LLSC_owner, address);
+    // DPRINTF(Mesh, "set %s as owner for %#x\n", cache_entry.LLSC_owner, address);
   }
 
   action(sor_setLLSCOwnerFromRequest, "sor", desc = "Set LL owner from requests") {
@@ -793,7 +793,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     peek(requestNetwork_in, LLCRequestMsg) {
       cache_entry.LLSC_owner := in_msg.Requestor;
     }
-    DPRINTF(Mesh, "set %s as owner for %#x\n", cache_entry.LLSC_owner, address);
+    // DPRINTF(Mesh, "set %s as owner for %#x\n", cache_entry.LLSC_owner, address);
   }
 
   action(scf_sendFailedSCAck, "scf", desc = "Send Failed SC ACK") {
@@ -818,7 +818,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
         // reply requestor
         enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
-          DPRINTF(Mesh, "succeed store conditional on %#x from owner %s\n", address, in_msg.Requestor);
+          // DPRINTF(Mesh, "succeed store conditional on %#x from owner %s\n", address, in_msg.Requestor);
           out_msg.Type        := LLCResponseType:ACK;
           out_msg.LineAddress := address;
           out_msg.Destination.add(in_msg.Requestor);
@@ -832,7 +832,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       } else {
         // send Fail ACK
         enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
-          DPRINTF(Mesh, "fail store conditional on %#x from %s actual owner %s\n", address, cache_entry.LLSC_owner, in_msg.Requestor);
+          DPRINTF(Mesh, "[[WARNING]] fail store conditional on %#x from %s actual owner %s\n", address, cache_entry.LLSC_owner, in_msg.Requestor);
           // assert(is_valid(tbe)); // why???
           out_msg.Type        := LLCResponseType:ACK;
           out_msg.LineAddress := address;

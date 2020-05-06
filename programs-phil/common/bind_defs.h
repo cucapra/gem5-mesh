@@ -459,30 +459,11 @@ static int getSIMDMask(int master_x, int master_y, int origin_x, int origin_y, i
   return mask;
 }
 
-// https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
-int roundUp(int numToRound, int multiple) {
-  if (multiple == 0) {
-    return numToRound;
-  }
-
-  int remainder = abs(numToRound) % multiple;
-  if (remainder == 0) {
-    return numToRound;
-  }
-
-  if (numToRound < 0) {
-    return -(abs(numToRound) - remainder);
-  }
-  else {
-    return numToRound + multiple - remainder;
-  }
-}
-
 // design a rectangular vector group with an attached scalar core
 inline void rect_vector_group(
-    int group_num, int scalar_x, int scalar_y, int vector_start_x, int vector_start_y, int vector_dim_x, int vector_dim_y, int id_x, int id_y, 
-    int n, int vGroups, int alignment, int chunk_offset,
-    int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, int *used, int *start, int *end) {
+    int group_id, int scalar_x, int scalar_y, int vector_start_x, int vector_start_y, int vector_dim_x, int vector_dim_y, int id_x, int id_y,
+    int template_offset,
+    int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, int *used, int *unique_id) {
   
   int vector_end_x = vector_start_x + vector_dim_x;
   int vector_end_y = vector_start_y + vector_dim_y;
@@ -499,13 +480,14 @@ inline void rect_vector_group(
     *is_scalar = 1;
   }
   if (is_vector_group || is_scalar_group) {
-    *start = roundUp((chunk_offset + group_num + 0) * n / vGroups, alignment);
-    *end   = roundUp((chunk_offset + group_num + 1) * n / vGroups, alignment); // make sure aligned to cacheline 
+    // *start = roundUp((chunk_offset + group_num + 0) * n / vGroups, alignment);
+    // *end   = roundUp((chunk_offset + group_num + 1) * n / vGroups, alignment); // make sure aligned to cacheline 
     *orig_x = vector_start_x;
     *orig_y = vector_start_y;
     *master_x = scalar_x;
     *master_y = scalar_y;
     *used = 1;
+    *unique_id = template_offset + group_id;
   }
 }
 
@@ -515,10 +497,10 @@ inline void rect_vector_group(
 // ret whether core used in template
 inline int vector_group_template_4(
     // inputs
-    int ptid_x, int ptid_y, int pdim_x, int pdim_y, int n,
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y,
     // outputs
     int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
-    int *start, int *end
+    int *unique_id, int *total_groups
   ) {
 
   // keep track of which cores will be used in this configuration
@@ -552,28 +534,27 @@ inline int vector_group_template_4(
   int template_group_dim = template_group_dim_x * template_group_dim_y;
   int template_group = template_group_x + template_group_y * template_group_dim_x;
 
-  // figure out how big chunks of the data should be assigned
-  int alignment = 16 * vdim_x * vdim_y;
+  // used to determine a unique group id
   int groupSize = vdim + 1; // +scalar core
   int groups_per_template = template_dim / groupSize;
-  int vGroups = groups_per_template * template_group_dim;
+  *total_groups = groups_per_template * template_group_dim;
 
-  int chunk_offset = template_group  * groups_per_template;
+  int template_offset = template_group  * groups_per_template;
 
   // group 1 top left (master = 0)
   rect_vector_group(0, 0, 0, 1, 0,
-    vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, start, end);
+    vdim_x, vdim_y, template_id_x, template_id_y, template_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id);
 
   // group 2 bot left (master == 4)
   rect_vector_group(1, 0, 1, 0, 2,
-    vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, start, end);
+    vdim_x, vdim_y, template_id_x, template_id_y, template_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id);
 
   // group 3 bottom right (master == 7)
   rect_vector_group(2, 3, 1, 2, 2,
-    vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, start, end);
+    vdim_x, vdim_y, template_id_x, template_id_y, template_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id);
 
   // need to shift the absolute coordinates based on which group this is for
   *orig_x = *orig_x + template_group_x * template_dim_x;
@@ -590,10 +571,10 @@ inline int vector_group_template_4(
 
 inline int vector_group_template_16(
     // inputs
-    int ptid_x, int ptid_y, int pdim_x, int pdim_y, int n,
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y,
     // outputs
     int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
-    int *start, int *end
+    int *unique_id, int *total_groups
   ) {
 
   // keep track of which cores will be used in this configuration
@@ -627,28 +608,27 @@ inline int vector_group_template_16(
   int template_group_dim = template_group_dim_x * template_group_dim_y;
   int template_group = template_group_x + template_group_y * template_group_dim_x;
 
-  // figure out how big chunks of the data should be assigned
-  int alignment = 16 * vdim_x * vdim_y;
+  // used to determine a uniuqe group id
   int groupSize = vdim + 1; // +scalar core
   int groups_per_template = template_dim / groupSize;
-  int vGroups = groups_per_template * template_group_dim;
+  *total_groups = groups_per_template * template_group_dim;
 
-  int chunk_offset = template_group  * groups_per_template;
+  int template_offset = template_group  * groups_per_template;
 
   // group 1 top left (master = 0,4)
   rect_vector_group(0, 0, 4, 0, 0,
-    vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, start, end);
+    vdim_x, vdim_y, template_id_x, template_id_y, template_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id);
 
   // group 2 top right (master = 7, 4)
   rect_vector_group(1, 7, 4, 4, 0,
-    vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, start, end);
+    vdim_x, vdim_y, template_id_x, template_id_y, template_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id);
 
   // group 3 middle (master 1, 4)
   rect_vector_group(2, 1, 4, 2, 4,
-    vdim_x, vdim_y, template_id_x, template_id_y, n, vGroups, alignment, chunk_offset,
-    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, start, end);  
+    vdim_x, vdim_y, template_id_x, template_id_y, template_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id); 
 
   // need to shift the absolute coordinates based on which group this is for
   *orig_x = *orig_x + template_group_x * template_dim_x;

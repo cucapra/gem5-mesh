@@ -634,6 +634,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int is_da  = 0;
   int master_x = 0;
   int master_y = 0;
+  int unique_id = 0;
+  int total_groups = 0;
 
   // group construction
   #if defined(VEC_SIZE_4_SIMD)
@@ -641,18 +643,28 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim_x = 2;
   vdim_y = 2;
 
-  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, n, 
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &start, &end);
+  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, 
+    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
 
-  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
+  if (used) {
+    start = (unique_id + 0) * effRows / total_groups;
+    end   = (unique_id + 1) * effRows / total_groups;
+  }
+
+  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used); 
 
   #elif defined(VEC_SIZE_16_SIMD)
 
   vdim_x = 4;
   vdim_y = 4;
 
-  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y, n,
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &start, &end);
+  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y, 
+    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
+
+  if (used) {
+    start = (unique_id + 0) * effRows / total_groups;
+    end   = (unique_id + 1) * effRows / total_groups;
+  }
 
   #elif !defined(USE_VEC)
 
@@ -661,8 +673,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vtid_x = 0;
   vtid_y = 0;
   vtid   = 0;
-  start  = ptid * ( n / pdim );
-  end    = ( ptid + 1 ) * ( n / pdim );
+  start  = ptid * ( effRows / pdim );
+  end    = ( ptid + 1 ) * ( effRows / pdim );
 
   #endif
 
@@ -767,15 +779,12 @@ void *pthread_kernel(void *args) {
   
   kernel(a->a, a->b, a->c, a->nrows, a->ncols, 
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
-      
+
   pthread_barrier_wait(&start_barrier);
 
   if (a->tid_x == 0 && a->tid_y == 0) {
     stats_off();
   }
-
-  // BUG: note this printf fails if have the VECTOR_EPOCH(0), but mayber just timing thing
-  // printf("ptid (%d,%d)\n", a->tid_x, a->tid_y);
 
   return NULL;
 }
