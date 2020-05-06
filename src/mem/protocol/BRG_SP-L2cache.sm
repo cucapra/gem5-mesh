@@ -408,7 +408,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
             // multiple reqs.... 
             // See transitions_per_cycle in Controller.py
             if (in_msg.Type == LLCRequestType:SPLOAD) {
-              if (isVector(in_msg.RespCnt)) {
+              // if (isVector(in_msg.RespCnt)) {
                 DPRINTF(Mesh, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", canIssueVecLoad(true), getState(tbe, cache_entry, LineAddress), in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
                 // if currently issuing a vector load and a new one comes, then need to stallAndWait until the first one finishes
                 if (otherVecLoadInProgress(LineAddress)) {
@@ -416,7 +416,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
                 }
                 
                 if (canIssueVecLoad(true)) {
-                  if (isFirstLoadOfVec()) { // TODO need to support non-vec sp load, need special req type
+                  if (!isVector(in_msg.RespCnt)) {
+                    trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
+                  }
+                  else if (isFirstLoadOfVec()) {
                     trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
                   }
                   else if (!isLastLoadOfVec(in_msg.RespCnt)) {
@@ -431,9 +434,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
                   // stall bro
                   trigger(Event:STALL, LineAddress, cache_entry, tbe);
                 }
-              } else { // single remote store
-                trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
-              }
+              // } else { // single remote store
+              //   trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
+              // }
             } else if (in_msg.Type == LLCRequestType:READ) {
               trigger(Event:READ, LineAddress, cache_entry, tbe);
             } else if (in_msg.Type == LLCRequestType:WRITE) {
@@ -469,11 +472,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
         Entry cache_entry := getCacheEntry(in_msg.addr);
 
         if (tbe.InType == LLCRequestType:SPLOAD) {
-          if (isVector(tbe.RespCnt)) {
+          // if (isVector(tbe.RespCnt)) {
             if (canIssueVecLoad(false)) {
               assert(is_valid(cache_entry));
               DPRINTF(Mesh, "req %d %d\n", canIssueVecLoad(false), getState(tbe, cache_entry, in_msg.addr));
-              if (isFirstLoadOfVec()) {
+              if (!isVector(tbe.RespCnt)) {
+                trigger(Event:SP_Mem_Data, in_msg.addr, cache_entry, tbe);
+              }
+              else if (isFirstLoadOfVec()) {
                 trigger(Event:VData0, in_msg.addr, cache_entry, tbe);
               }
               else if (!isLastLoadOfVec(tbe.RespCnt)) {
@@ -487,10 +493,11 @@ machine(MachineType:L2Cache, "SP LLC cache")
               // stall bro
               trigger(Event:STALL, in_msg.addr, cache_entry, tbe);
             }
-          } else {
-            // single spread
-            trigger(Event:SP_Mem_Data, in_msg.addr, cache_entry, tbe);
-          }
+          // } else {
+          //   // single spread
+          //   DPRINTF(Mesh, "single req %d %d\n", canIssueVecLoad(false), getState(tbe, cache_entry, in_msg.addr));
+          //   trigger(Event:SP_Mem_Data, in_msg.addr, cache_entry, tbe);
+          // }
         } else if (in_msg.Type == MemoryRequestType:MEMORY_READ) {
           assert(is_valid(cache_entry));
           trigger(Event:Memory_Data, in_msg.addr, cache_entry, tbe);
@@ -662,8 +669,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
         respType := LLCResponseType:REDATA;
       }
       
-      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d\n", 
-        spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset);
+      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d core offset %d\n", 
+        spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.CoreOffset);
       
       enqueue(responseNetwork_out, LLCResponseMsg, mem_to_cpu_latency) {
         assert(is_valid(tbe));
