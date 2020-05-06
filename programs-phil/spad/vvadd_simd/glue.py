@@ -98,8 +98,8 @@ def read_vector_bbs(raw_vector_code):
     # insert terminator in each block
     terminator = ".insn i 0x1b, 0x7, x0, x0, 0"
 
-    # for b in blocks.values():
-    #     b.append(terminator)
+    for b in blocks.values():
+        b.append(terminator)
 
     return blocks
 
@@ -111,6 +111,9 @@ class ScalarParseState(Enum):
     AFTER_DEVEC = auto()
     RETURN_STACK_MANIP = auto()
     REPLACE_BB_PLACEHOLDERS = auto()
+    FOOTER = auto()
+    # SIFT_BB = auto()
+    # NON_VECTOR_BB = auto()
 
 def glue(raw_scalar_code, vector_bbs):
     scalar_return = "scalar_return"
@@ -130,6 +133,10 @@ def glue(raw_scalar_code, vector_bbs):
     after_DEVEC = []
     # [scalar_ret label, "return, jump-like instruction"]
     scalar_ret = []
+    # ("return, jump-like instruction", labels pointing to vector blocks]
+    v_bbs = []
+    # (return statement after labels pointing to vector blocks, rest of file]
+    footer = []
 
     state = ScalarParseState.HEADER
     for l in scalar_code:
@@ -168,23 +175,52 @@ def glue(raw_scalar_code, vector_bbs):
             else:
                 scalar_ret.append(l)
 
-        elif state == ScalarParseState.REPLACE_BB_PLACEHOLDERS:
-            if l in vector_bbs.keys():
-                comment = "#Gluing {}-sized block, {}...".format(len(vector_bbs[l]), l)
-                print(comment)
-                after_DEVEC.append(comment)
-                after_DEVEC.extend(vector_bbs[l])
-            elif not is_return_inst(l):
-                after_DEVEC.append(l)
+        # elif state == ScalarParseState.REPLACE_BB_PLACEHOLDERS:
+        #     if is_label(l):
+        #         prevLabel = l
+        #     elif l in vector_bbs.keys():
+        #         assert(is_label(prevLabel))
+        #         comment = "#Gluing {}-sized block, {}...".format(len(vector_bbs[l]), l)
+        #         print(comment)
+        #         v_bbs.extend([comment, prevLabel] + vector_bbs[l])
+        #     else:
+        #         assert(is_label(prevLabel))
+        #         non_vector_bbs.add(prevLabel)
+        #         prevLabel = None
+        #         state = ScalarParseState.NON_VECTOR_BB
+        #
+        # elif state == ScalarParseState.NON_VECTOR_BB:
+        #     if is_label(l):
+        #         state = ScalarParseState.REPLACE_BB_PLACEHOLDERS
+        #     else:
+        #         non_vector_bbs.add(l)
 
-      # rearrange components as follows
+        elif state == ScalarParseState.REPLACE_BB_PLACEHOLDERS:
+            if is_label(l):
+                v_bbs.append(l)
+            elif l in vector_bbs.keys():
+                bb = vector_bbs[l]
+                print("Gluing {}-sized block: {}".format(len(bb), l))
+                start = "#Start {}".format(l)
+                v_bbs.append(start)
+                v_bbs.extend(bb)
+                v_bbs.append("#End {}".format(l))
+            elif is_return_inst(l):
+                state = ScalarParseState.FOOTER
+
+        elif state == ScalarParseState.FOOTER:
+            footer.append(l)
+
+    # rearrange components as follows
     return (
         header +
         [after_VECTOR_EPOCH[0]] +
         before_VECTOR_EPOCH +
         after_VECTOR_EPOCH[1:] +
         scalar_ret +
-        after_DEVEC)
+        after_DEVEC +
+        v_bbs +
+        footer)
 
 
 
