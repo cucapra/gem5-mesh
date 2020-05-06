@@ -646,6 +646,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, 
     &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
 
+  // TODO should use alignment
   if (used) {
     start = (unique_id + 0) * effRows / total_groups;
     end   = (unique_id + 1) * effRows / total_groups;
@@ -665,6 +666,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     start = (unique_id + 0) * effRows / total_groups;
     end   = (unique_id + 1) * effRows / total_groups;
   }
+
+  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 16, vdim_x, vdim_y, start, end, used); 
 
   #elif !defined(USE_VEC)
 

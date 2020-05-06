@@ -27,12 +27,16 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int nrows = 3 + (FILTER_DIM - 1); // single row
+  #ifdef VEC_SIZE_4_SIMD
+  int nrows = ( _N_SPS / 5 ) + (FILTER_DIM - 1); // single row
+  #elif defined(VEC_SIZE_16_SIMD)
+  int nrows = ( _N_SPS / 17 ) + (FILTER_DIM - 1);
+  #endif
   // reuse has very stingy requirements on what sizes are allowed
   #ifdef REUSE
   int ncols = 12 + (10 * 2); // 12 + factor of 10... wow i.e. 1212
   #else
-  int ncols = 24 + (FILTER_DIM - 1); // factor of 12 + 2... wow i.e. 1214 // vertical needs to be factor of 24 + 2... i.e. 1224 + 2 = 1226
+  int ncols = 96 + (FILTER_DIM - 1); // factor of 12 + 2... wow i.e. 1214 // vertical needs to be factor of 24 + 2... i.e. 1224 + 2 = 1226
   #endif
   
   // parse positional arguments (X Y)

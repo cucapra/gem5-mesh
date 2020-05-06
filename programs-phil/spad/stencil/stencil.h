@@ -9,7 +9,7 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 
 // #define VEC_4_SIMD_BCAST 1
@@ -17,12 +17,12 @@
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
 // #define VEC_4_SIMD_LARGE_FRAME 1
 
-// #define VEC_16_SIMD 1
+#define VEC_16_SIMD 1
 // #define VEC_16_SIMD_VERTICAL 1
 
 // vvadd_execute config directives
 #if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME) \
-  || defined(VEC_4_SIMD_VERTICAL)
+  || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL)
 #define USE_VEC 1
 #endif
 
