@@ -123,9 +123,9 @@ def glue(raw_scalar_code, vector_bbs):
 
     # dissects scalar assembly into the following non-overlapping components:
     # interval notation: open, closed, half-open intervals
-    # [start of file, kernel launch label)
+    # [start of file, kernel launch label]
     header = []
-    # [kernel launch label, first VECTOR_EPOCH call)
+    # (kernel launch label, first VECTOR_EPOCH call)
     before_VECTOR_EPOCH = []
     # [first VECTOR_EPOCH call, first DEVEC call)
     after_VECTOR_EPOCH = []
@@ -142,7 +142,7 @@ def glue(raw_scalar_code, vector_bbs):
     for l in scalar_code:
         if state == ScalarParseState.HEADER:
           if l.strip() == kernel_name + ":":
-            before_VECTOR_EPOCH.append(l)
+            header.append(l)
             state = ScalarParseState.BEFORE_VECTOR_EPOCH
           else:
             header.append(l)
