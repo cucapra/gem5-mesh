@@ -11,9 +11,6 @@ def is_jump(inst):
     jump_opcodes = ["bgt", "beqz", "bnez", "jr", "j"]
     return inst.split()[0] in jump_opcodes
 
-def strip_whitespace_and_comments(instr):
-    return instr.split("#",1)[0].strip()
-
 def is_whitespace_or_comment(inst):
     stripped = inst.strip()
     return stripped == "" or stripped[0] == "#"
@@ -40,6 +37,42 @@ def change_label_prefix(old_prefix, new_prefix, instr):
                 if is_label(instr)
                 else instr.replace("."+old_prefix,"."+new_prefix))
 
+def pretty(code):
+    return "\n".join(["\t"+l
+        if not is_label(l)
+        else l for l in code])
+
+# def vector_preprocess1(code):
+#     pass1 = remove_whitespace_and_comments(code)
+#     return list(filter(lambda inst: not (is_label(inst) or
+#                                         (is_jump(inst) and not is_return_inst(inst))), pass1))
+
+def strip_whitespace_and_comments(instr):
+    return instr.split("#",1)[0].strip()
+
+def vector_preprocess(code):
+    with_line_nos = list(enumerate(code))
+    pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
+    pass2 = apply_filter(lambda instr: instr != "", pass1)
+    pass3 = apply_filter(lambda instr: not (is_label(instr) or
+                                           (is_jump(instr) and not is_return_inst(instr))), pass2)
+    return pass3
+
+def scalar_preprocess(code):
+    with_line_nos = list(enumerate(code))
+    pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
+    pass2 = apply_filter(lambda instr: instr != "", pass1)
+    pass3 = apply_transformation(lambda instr: change_label_prefix("L", "SCALAR", instr), pass2)
+    return pass3
+
+def apply_transformation(f, code_with_line_no):
+    apply_instr_transform = lambda f, line: (line[0], f(line[1]))
+    return [apply_instr_transform(f,line)  for line in code_with_line_no]
+
+def apply_filter(f, code_with_line_no):
+    return list(filter(lambda code_line: f(code_line[1]), code_with_line_no))
+
+
 class VectorParseState(Enum):
     SIFTING = auto()
     INIT = auto()
@@ -50,6 +83,7 @@ class VectorParseState(Enum):
 def print_parsing_bb(bb_label):
     print("parsing bb {}...".format(bb_label))
 
+kernel_name = "vvadd_execute_simd"
 def read_vector_bbs(raw_vector_code):
     vector_init = "vector_init"
     vector_body = "vector_body"
@@ -66,14 +100,16 @@ def read_vector_bbs(raw_vector_code):
     ret_block = []
 
     state = VectorParseState.SIFTING
-    for l in vector_code:
+    for (line_no, l) in vector_code:
         if state == VectorParseState.SIFTING:
-            if l == vector_init:
-                print("found vector_init")
+            if l == kernel_name + ":":
+                print("found vector_init (delimited by {}:) at line {}".format(kernel_name, line_no))
                 state = VectorParseState.INIT
 
         elif state == VectorParseState.INIT:
-            if l == vector_body:
+            if l == vector_init:
+                continue
+            elif l == vector_body:
                 print("found vector_body")
                 state = VectorParseState.BODY
             else:
@@ -121,7 +157,6 @@ class ScalarParseState(Enum):
 
 def glue(raw_scalar_code, vector_bbs):
     scalar_return = "scalar_return"
-    kernel_name = "vvadd_execute_simd"
 
     scalar_code = scalar_preprocess(raw_scalar_code)
 
@@ -291,27 +326,6 @@ def glue(raw_scalar_code, vector_bbs):
 
 
 # assume assembly stripped of whitespace and comments
-def pretty(code):
-    return "\n".join(["\t"+l
-        if not is_label(l)
-        else l for l in code])
-
-def vector_preprocess(code):
-    pass1 = remove_whitespace_and_comments(code)
-    return list(filter(lambda inst: not (is_label(inst) or
-                                        (is_jump(inst) and not is_return_inst(inst))), pass1))
-
-def scalar_preprocess(code):
-    with_line_nos = list(enumerate(code))
-    pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
-    pass2 = apply_transformation(lambda instr: change_label_prefix("L", "SCALAR", instr), pass1)
-    return pass2
-
-def apply_transformation(f, code_with_line_no):
-    return [(line_no, f(instr).strip())
-                for (line_no, instr) in code_with_line_no
-                if f(instr).strip() != ""]
-
 if __name__ == "__main__":
     vector_file = open("vvadd_vector.s", "r")
     scalar_file = open("vvadd_scalar.s", "r")
