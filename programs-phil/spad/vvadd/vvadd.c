@@ -417,8 +417,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vtid_x = 0;
   vtid_y = 0;
   vtid   = 0;
-  start  = ptid * ( n / pdim );
-  end    = ( ptid + 1 ) * ( n / pdim );
+  start  = ( ( ptid + 0 ) * n ) / pdim;
+  end    = ( ( ptid + 1 ) * n ) / pdim;
+
 
   #endif
 
