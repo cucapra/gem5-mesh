@@ -104,7 +104,7 @@ def vvadd_merge_args(vec_size, prefetch_len, load_type):
   # vec size flag
   if (vec_size == 1):
     assert(0)
-  if (vec_size == 4):
+  if (vec_size > 1):
     config.append('VECTOR_LEN=' + str(vec_size))
 
   # load type flag
