@@ -41,10 +41,10 @@
 
 // vector grouping directives
 #if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED)
-#define VEC_SIZE_4_SIMD 1
+#define VECTOR_LEN 4
 #endif
 #if defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_16_SPATIAL_UNROLLED)
-#define VEC_SIZE_16_SIMD 1
+#define VECTOR_LEN 16
 #endif
 
 // prefetch sizings
@@ -63,11 +63,7 @@
 #define PREFETCH_LEN PF
 // default size is the vlen
 #else
-#ifdef VEC_SIZE_4_SIMD
-#define PREFETCH_LEN 4
-#elif defined(VEC_SIZE_16_SIMD)
-#define PREFETCH_LEN 16
-#endif
+#define PREFETCH_LEN VECTOR_LEN
 #endif
 
 // https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
@@ -111,7 +107,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   VECTOR_EPOCH(mask); 
 
   // should be a constant from static analysis of dim
-  int pRatio = dim / PREFETCH_LEN;
+  int pRatio = VECTOR_LEN / PREFETCH_LEN;
 
   #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
   int numInitFetch = LOAD_LEN;
@@ -381,7 +377,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int total_groups = 0;
 
   // group construction
-  #if defined(VEC_SIZE_4_SIMD)
+  #if VECTOR_LEN==4
     // virtual group dimension
   vdim_x = 2;
   vdim_y = 2;
@@ -398,7 +394,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
-  #elif defined(VEC_SIZE_16_SIMD)
+  #elif VECTOR_LEN==16
 
   vdim_x = 4;
   vdim_y = 4;

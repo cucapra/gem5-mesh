@@ -105,9 +105,7 @@ def vvadd_merge_args(vec_size, prefetch_len, load_type):
   if (vec_size == 1):
     assert(0)
   if (vec_size == 4):
-    config.append('VEC_SIZE_4_SIMD')
-  elif (vec_size == 16):
-    config.append('VEC_SIZE_16_SIMD')
+    config.append('VECTOR_LEN=' + str(vec_size))
 
   # load type flag
   if (load_type == 'SPATIAL'):
@@ -154,10 +152,8 @@ def strings_to_metadata(args):
         arg = 'V'
       elif (a == 'SPATIAL_UNROLL'):
         arg = 'S'
-      elif (a == 'VEC_SIZE_16_SIMD'):
-        arg = '16'
-      elif (a == 'VEC_SIZE_4_SIMD'):
-        arg = '4'
+      elif (a[0:11] == 'VECTOR_LEN='):
+        arg = a[11:len(a)]
       elif (a[0:3] == 'PF='):
         arg = a[3:len(a)]
       meta += arg + '_'
@@ -195,7 +191,7 @@ make_flags = []
 # vec_sizes = [ 4, 16 ]
 # load_types = [ 'SPATIAL', 'VERTICAL', 'SPATIAL_UNROLL' ]
 # prefetch_sizes = [ 1, 2, 4, 8, 16 ]
-vec_sizes = [ 16 ]
+vec_sizes = [ 4, 16 ]
 load_types = [ 'SPATIAL', ]
 prefetch_sizes = [ 1, 2, 4, 8, 16 ]
 for v in vec_sizes:
