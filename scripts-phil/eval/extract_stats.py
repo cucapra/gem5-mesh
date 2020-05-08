@@ -23,9 +23,10 @@ prog = 'stencil'
 # created by top/eval/run_sim.py
 nameConv = r'^' + prog + r'(.*)$'
 annoConv = r'-([a-zA-Z]+)(\d+\.?\d*)'
+metaConv = r'-([a-zA-Z0-9_]+)'
 dirRegex = re.compile(nameConv)
 annoRegex = re.compile(annoConv)
-
+metaRegex = re.compile(metaConv)
 
 #
 # Function defs
@@ -46,8 +47,15 @@ def parse_dir_name(prog, dirName):
   for match in annoRegex.finditer(annotation):
     field = match.group(1)
     value = match.group(2)
-    
+
     annos[field] = value
+
+  # check for any meta data that isn't field-val
+  for match in metaRegex.finditer(annotation):
+      fullStr = match.group(0)
+      meta = match.group(1)
+      if (not annoRegex.search(fullStr)):
+        annos['meta'] = meta
     
   return annos
 
