@@ -106,7 +106,7 @@ stencil(
   VECTOR_EPOCH(mask);
 
   // should be a constant from static analysis of dim
-  int pRatio = dim / PREFETCH_LEN;
+  int pRatio = VECTOR_LEN / PREFETCH_LEN;
 
   int *spadAddr = (int*)getSpAddr(ptid, 0);
   // have r = 0 for now
@@ -241,7 +241,9 @@ stencil(
     #else
     for (int c = startCol; c < effCols; c+=step) {
       // prefetch all 9 values required for computation
+      #pragma GCC unroll 3
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        #pragma GCC unroll 3
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           
