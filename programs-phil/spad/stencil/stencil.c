@@ -576,10 +576,11 @@ stencil(
 }
 #else
 void /*__attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) */
-stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, int dim) {
-   for (int row = 0; row < nrows - (FILTER_DIM - 1); row++) {
+stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, int dim, int row_start, int row_end) {
+  int outputCols = ncols - (FILTER_DIM - 1);
+  for (int row = row_start; row < row_end; row++) {
     // #pragma GCC unroll 4
-    for (int col = vtid; col < ncols - (FILTER_DIM - 1); col+=dim) {
+    for (int col = 0; col < outputCols; col++) {
       int temp = 0;
       #pragma GCC unroll 3
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
@@ -590,7 +591,7 @@ stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, 
           temp += a[aIdx] * b[bIdx];
         }
       }
-      int cIdx = row * ncols + col;
+      int cIdx = row * outputCols + col;
       c[cIdx] = temp;
     }
   }
@@ -638,7 +639,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int total_groups = 0;
 
   // group construction
-  #if defined(VEC_SIZE_4_SIMD)
+  #if VECTOR_LEN==4
   // virtual group dimension
   vdim_x = 2;
   vdim_y = 2;
@@ -654,7 +655,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used); 
 
-  #elif defined(VEC_SIZE_16_SIMD)
+  #elif VECTOR_LEN==16
 
   vdim_x = 4;
   vdim_y = 4;
@@ -676,8 +677,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vtid_x = 0;
   vtid_y = 0;
   vtid   = 0;
-  start  = ptid * ( effRows / pdim );
-  end    = ( ptid + 1 ) * ( effRows / pdim );
+  start  = ( ( ptid + 0 ) * effRows ) / pdim;
+  end    = ( ( ptid + 1 ) * effRows ) / pdim;
+
+  // printf("%d->%d\n", start, end); 
 
   #endif
 
@@ -741,7 +744,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef USE_VEC
   stencil(a, b, c, start, end, ncols, ptid, vtid, vdim, mask);
   #else
-  stencil(a, b, c, nrows, ncols, ptid, vtid, vdim);
+  stencil(a, b, c, nrows, ncols, ptid, vtid, vdim, start, end);
   #endif
 
   // restore stack pointer

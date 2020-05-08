@@ -37,7 +37,12 @@ programs = {
   'synth' : { 'name': 'synth', 'path' : progDir0 + 'synth-diverge/synth', 
     'options' : lambda argv: '{0} {1} {2}'.format(str(argv[0]), str(argv[1]), str(argv[2])),
     'serialize' : lambda argv: '-size{0}-frac{1}'.format(str(argv[0]), str(argv[1])),
-    'success' : '\[\[SUCCESS\]\]'}
+    'success' : '\[\[SUCCESS\]\]'},
+
+  'stencil' : { 'name': 'stencil', 'path' : progDir0 + 'stencil/stencil', 
+    'options' : lambda argv: str(argv[0]) + " " + str(argv[1]), 
+    'serialize' : lambda argv: '-cols{0}-rows{1}'.format(str(argv[0]), str(argv[1])),
+    'success' : '\[\[SUCCESS\]\]'},
 
 }
 
@@ -167,7 +172,10 @@ def strings_to_metadata(args):
 numCpus = 64
 use_sps = True
 
-size = 131072 #131072 #8192 #32768
+# size = 8402 #131072 #8192 #32768
+
+ncols = 1730
+nrows = 60
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 #seed = random.randint(1,2**20) 
@@ -187,8 +195,8 @@ make_flags = []
 # vec_sizes = [ 4, 16 ]
 # load_types = [ 'SPATIAL', 'VERTICAL', 'SPATIAL_UNROLL' ]
 # prefetch_sizes = [ 1, 2, 4, 8, 16 ]
-vec_sizes = [ 4, 16 ]
-load_types = [ 'SPATIAL', 'VERTICAL' ]
+vec_sizes = [ 16 ]
+load_types = [ 'SPATIAL', ]
 prefetch_sizes = [ 1, 2, 4, 8, 16 ]
 for v in vec_sizes:
   for l in load_types:
@@ -206,7 +214,8 @@ program = 'stencil'
 
 def pack_and_run(numCpus, use_vec, use_sps, prog, i, extra_info):
   frac = 1.0 - float(i) / 10.0
-  argv = [ size, frac, seed ]
+  # argv = [ size, frac, seed ]
+  argv = [ ncols, nrows, frac, seed ]
   return run_prog(numCpus, use_vec, use_sps, program, argv, extra_info)
 
 pool = multiprocessing.Pool(processes=4)
