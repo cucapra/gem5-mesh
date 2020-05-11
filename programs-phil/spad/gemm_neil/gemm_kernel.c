@@ -5,6 +5,8 @@
 // #define SIMD_PRIVATE
 // #define SIMD_SHARING
 
+#define VERT_LOADS
+
 #ifdef SIMD_SHARING
 #define SHARING
 #endif
@@ -62,7 +64,7 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
     for (int i = 0; i < (offset_y / total_cores); i++)
     {
       // VPREFETCH(sp_a + i, a + _idx_(k, m_start + (i * total_cores), m), 0);
-      VPREFETCH_L(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, 4.0);
+      VPREFETCH_L(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, 4,0);
       VPREFETCH_R(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, 4,0);
     }
 
@@ -74,6 +76,23 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
       VPREFETCH_R(sp_b_offset + j, b + _idx_(k, n_start + (j * total_cores), m), 0, 4,0);
     }
   #else
+
+    #ifdef VERT_LOADS
+    for (int yy = 0; yy < dim_y; yy++)
+    {
+      for (int xx = 0; xx < dim_x; xx++)
+      {
+        //fetch a
+        VPREFETCH_L(sp_a_offset, a + _idx_(k, m_start + yy * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
+        VPREFETCH_R(sp_a_offset, a + _idx_(k, m_start + yy * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
+
+        //fetch b
+        VPREFETCH_L(sp_b_offset, b + _idx_(k, n_start + xx * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
+        VPREFETCH_R(sp_b_offset, b + _idx_(k, n_start + xx * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
+      }
+    }
+
+    #else
     //fetch a one element at a time (todo: might need to vectorize the loads)
     for (int yy = 0; yy < dim_y; yy++)
     {
@@ -97,6 +116,7 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         }
       }
     }
+    #endif
   #endif
     spadRegion = (spadRegion + 1) % NUM_REGIONS;
   }
@@ -142,6 +162,22 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
           VPREFETCH_R(sp_b_offset + j, b + _idx_(k, j0 + (j * total_cores), m), 0, 4,0);
         }
 #else
+        #ifdef VERT_LOADS
+        for (int yy = 0; yy < dim_y; yy++)
+        {
+          for (int xx = 0; xx < dim_x; xx++)
+          {
+            //fetch a
+            VPREFETCH_L(sp_a_offset, a + _idx_(k, i0 + yy * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
+            VPREFETCH_R(sp_a_offset, a + _idx_(k, i0 + yy * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
+
+            //fetch b
+            VPREFETCH_L(sp_b_offset, b + _idx_(k, j0 + xx * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
+            VPREFETCH_R(sp_b_offset, b + _idx_(k, j0 + xx * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
+          }
+        }
+        
+        #else
         //fetch a one element at a time (todo: might need to vectorize the loads)
         for (int yy = 0; yy < dim_y; yy++)
         {
@@ -165,6 +201,7 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
             }
           }
         }
+        #endif
 #endif
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
         // ----------------prefetch end --------------------
