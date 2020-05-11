@@ -62,16 +62,16 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
     for (int i = 0; i < (offset_y / total_cores); i++)
     {
       // VPREFETCH(sp_a + i, a + _idx_(k, m_start + (i * total_cores), m), 0);
-      VPREFETCH_L(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, 4);
-      VPREFETCH_R(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, 4);
+      VPREFETCH_L(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, 4.0);
+      VPREFETCH_R(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, 4,0);
     }
 
     // fetch b in scratchpad
     for (int j = 0; j < (offset_x / total_cores); j++)
     {
       // VPREFETCH(sp_b + j, b + _idx_(k, n_start + (j * total_cores), m), 0);
-      VPREFETCH_L(sp_b_offset + j, b + _idx_(k, n_start + (j * total_cores), m), 0, 4);
-      VPREFETCH_R(sp_b_offset + j, b + _idx_(k, n_start + (j * total_cores), m), 0, 4);
+      VPREFETCH_L(sp_b_offset + j, b + _idx_(k, n_start + (j * total_cores), m), 0, 4,0);
+      VPREFETCH_R(sp_b_offset + j, b + _idx_(k, n_start + (j * total_cores), m), 0, 4,0);
     }
   #else
     //fetch a one element at a time (todo: might need to vectorize the loads)
@@ -81,7 +81,7 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
       {
         for (int xx = 0; xx < dim_x; xx++)
         {
-          VPREFETCH_L(sp_a_offset + i, a + _idx_(k, m_start + i + yy * BLK_DIM, m), xx + yy * dim_x, 1);
+          VPREFETCH_L(sp_a_offset + i, a + _idx_(k, m_start + i + yy * BLK_DIM, m), xx + yy * dim_x, 1,0);
         }
       }
     }
@@ -93,7 +93,7 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
       {
         for (int yy = 0; yy < dim_y; yy++)
         {
-          VPREFETCH_L(sp_b_offset + j, b + _idx_(k, n_start + j + xx * BLK_DIM, m), xx + yy * dim_x, 1);
+          VPREFETCH_L(sp_b_offset + j, b + _idx_(k, n_start + j + xx * BLK_DIM, m), xx + yy * dim_x, 1,0);
         }
       }
     }
@@ -130,16 +130,16 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         for (int i = 0; i < (offset_y / total_cores); i++)
         {
           // VPREFETCH(sp_a + i, a + _idx_(k, i0 + (i * total_cores), m), 0);
-          VPREFETCH_L(sp_a_offset + i, a + _idx_(k, i0 + (i * total_cores), m), 0, 4);
-          VPREFETCH_R(sp_a_offset + i, a + _idx_(k, i0 + (i * total_cores), m), 0, 4);
+          VPREFETCH_L(sp_a_offset + i, a + _idx_(k, i0 + (i * total_cores), m), 0, 4,0);
+          VPREFETCH_R(sp_a_offset + i, a + _idx_(k, i0 + (i * total_cores), m), 0, 4,0);
         }
 
         // fetch b in scratchpad
         for (int j = 0; j < (offset_x / total_cores); j++)
         {
           // VPREFETCH(sp_b + j, b + _idx_(k, j0 + (j * total_cores), m), 0);
-          VPREFETCH_L(sp_b_offset + j, b + _idx_(k, j0 + (j * total_cores), m), 0, 4);
-          VPREFETCH_R(sp_b_offset + j, b + _idx_(k, j0 + (j * total_cores), m), 0, 4);
+          VPREFETCH_L(sp_b_offset + j, b + _idx_(k, j0 + (j * total_cores), m), 0, 4,0);
+          VPREFETCH_R(sp_b_offset + j, b + _idx_(k, j0 + (j * total_cores), m), 0, 4,0);
         }
 #else
         //fetch a one element at a time (todo: might need to vectorize the loads)
@@ -149,7 +149,7 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
           {
             for (int xx = 0; xx < dim_x; xx++)
             {
-              VPREFETCH_L(sp_a_offset + i, a + _idx_(k, i0 + i + yy * BLK_DIM, m), xx + yy * dim_x, 1);
+              VPREFETCH_L(sp_a_offset + i, a + _idx_(k, i0 + i + yy * BLK_DIM, m), xx + yy * dim_x, 1,0);
             }
           }
         }
@@ -161,7 +161,7 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
           {
             for (int yy = 0; yy < dim_y; yy++)
             {
-              VPREFETCH_L(sp_b_offset + j, b + _idx_(k, j0 + j + xx * BLK_DIM, m), xx + yy * dim_x, 1);
+              VPREFETCH_L(sp_b_offset + j, b + _idx_(k, j0 + j + xx * BLK_DIM, m), xx + yy * dim_x, 1,0);
             }
           }
         }
@@ -247,7 +247,7 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
           }
         }
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
-        REMEM(0); //need to do this collectively for all vector cores if values shared!!
+        REMEM(REGION_SIZE); //need to do this collectively for all vector cores if values shared!!
       }
     fable456:
 #pragma unroll
