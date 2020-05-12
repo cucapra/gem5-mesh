@@ -11,10 +11,6 @@ def is_jump(inst):
     jump_opcodes = ["bgt", "beqz", "bnez", "jr", "j"]
     return inst.split()[0] in jump_opcodes
 
-def is_whitespace_or_comment(inst):
-    stripped = inst.strip()
-    return stripped == "" or stripped[0] == "#"
-
 def is_DEVEC(inst):
     return ".insn uj 0x2b" in inst
 
@@ -27,11 +23,6 @@ def is_label(inst):
 def is_footer_start(inst):
     return ".size " in inst
 
-def remove_whitespace_and_comments(code):
-    pass1 = filter(lambda l: not is_whitespace_or_comment(l), code)
-    pass2 = map(lambda l: l.strip(), pass1)
-    return list(pass2)
-
 def change_label_prefix(old_prefix, new_prefix, instr):
     return ("."+new_prefix+instr[2:]
                 if is_label(instr)
@@ -41,11 +32,6 @@ def pretty(code):
     return "\n".join(["\t"+l
         if not is_label(l)
         else l for l in code])
-
-# def vector_preprocess1(code):
-#     pass1 = remove_whitespace_and_comments(code)
-#     return list(filter(lambda inst: not (is_label(inst) or
-#                                         (is_jump(inst) and not is_return_inst(inst))), pass1))
 
 def strip_whitespace_and_comments(instr):
     return instr.split("#",1)[0].strip()
