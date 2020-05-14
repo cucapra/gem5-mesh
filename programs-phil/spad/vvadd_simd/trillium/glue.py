@@ -1,63 +1,6 @@
+from glue_util import *
 import itertools, argparse
 from enum import Enum, auto
-
-def is_return_inst(inst):
-    inst_components = inst.split()
-    opcode = inst_components[0]
-    arg = inst_components[1] if len(inst_components) >= 2 else None
-    return opcode == "ret" or (opcode == "jr" and arg == "ra")
-
-def is_jump(inst):
-    jump_opcodes = ["bgt", "beqz", "bnez", "jr", "j"]
-    return inst.split()[0] in jump_opcodes
-
-def is_DEVEC(inst):
-    return ".insn uj 0x2b" in inst
-
-def is_VECTOR_EPOCH_inst(inst):
-    return ".insn i 0x77" in inst
-
-def is_label(inst):
-    return "." == inst[0] and ":" == inst[-1]
-
-def is_footer_start(inst):
-    return ".size " in inst
-
-def change_label_prefix(old_prefix, new_prefix, instr):
-    return ("."+new_prefix+instr[2:]
-                if is_label(instr)
-                else instr.replace("."+old_prefix,"."+new_prefix))
-
-def pretty(code):
-    return "\n".join(["\t"+l
-        if not is_label(l)
-        else l for l in code])
-
-def strip_whitespace_and_comments(instr):
-    return instr.split("#",1)[0].strip()
-
-def vector_preprocess(code):
-    with_line_nos = list(enumerate(code))
-    pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
-    pass2 = apply_filter(lambda instr: instr != "", pass1)
-    pass3 = apply_filter(lambda instr: not (is_label(instr) or
-                                           (is_jump(instr) and not is_return_inst(instr))), pass2)
-    return pass3
-
-def scalar_preprocess(code):
-    with_line_nos = list(enumerate(code))
-    pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
-    pass2 = apply_filter(lambda instr: instr != "", pass1)
-    pass3 = apply_transformation(lambda instr: change_label_prefix("L", "SCALAR", instr), pass2)
-    return pass3
-
-def apply_transformation(f, code_with_line_no):
-    apply_instr_transform = lambda f, line: (line[0], f(line[1]))
-    return [apply_instr_transform(f,line)  for line in code_with_line_no]
-
-def apply_filter(f, code_with_line_no):
-    return list(filter(lambda code_line: f(code_line[1]), code_with_line_no))
-
 
 class VectorParseState(Enum):
     SIFTING = auto()
@@ -65,9 +8,6 @@ class VectorParseState(Enum):
     BODY = auto()
     RETURN_BLOCK = auto()
     EXTRA_BBS = auto()
-
-def print_parsing_bb(bb_label):
-    print("parsing bb {}...".format(bb_label))
 
 kernel_name = "vvadd_execute_simd"
 def read_vector_bbs(raw_vector_code):
@@ -311,11 +251,10 @@ def glue(raw_scalar_code, vector_bbs):
 
 
 
-# assume assembly stripped of whitespace and comments
 if __name__ == "__main__":
-    vector_file = open("vvadd_vector.s", "r")
-    scalar_file = open("vvadd_scalar.s", "r")
-    combined_file = open("vvadd_kernel.s", "w+")
+    vector_file = open("../vvadd_vector.s", "r")
+    scalar_file = open("../vvadd_scalar.s", "r")
+    combined_file = open("../vvadd_kernel.s", "w+")
 
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()
