@@ -1,3 +1,7 @@
+Trillium
+=======
+![this was fake anyway](https://github.com/dwyl/repo-badges/blob/master/highresPNGs/build-passing.png "most professional git repo ever")
+
 This is the gem5 simulator.
 
 The main website can be found at http://www.gem5.org
