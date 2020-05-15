@@ -41,6 +41,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
   bool _vecFromMem, default=0;
   bool _vecFromLLC, default=0;
 
+  Tick _lastVecRespTime, default=0;
+  Addr _lastServicedVecAddr, default=0;
+
   // only uses contructor when its a TBETable...
     //TBETable lloool, template="<L2Cache_TBE>", constructor="0";
   
@@ -54,6 +57,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
     IM,    AccessPermission:Busy,        desc = "Waiting for data";
     V,     AccessPermission:Read_Write,  desc = "Valid & clean";
     M,     AccessPermission:Read_Write,  desc = "Valid & dirty";
+    VV,    AccessPermission:Read_Write,  desc = "Valid & clean. Being read out by vec request";
+    VM,    AccessPermission:Read_Write,  desc = "Valid & dirty. Being read out by vec request";
     MI,    AccessPermission:Busy,        desc = "Waiting for writeback ACK";
     IV_LL, AccessPermission:Busy,        desc = "Waiting for data (LL request)";
     IA,    AccessPermission:Busy,        desc = "Waiting for data (ATOMIC request)";
@@ -76,7 +81,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     ATOMIC, desc = "An ATOMIC request arrives";
     Repl,   desc = "Replacement";
     STALL,  desc = "Just stall for the cycle";
-
+    VEC_STALL_WAIT, desc = "Stall wait the message due to vector";
     // from memory
     Memory_Data,  desc = "Fetched data from memory arrives";
     VData0,       desc = "Fetched data from memory arrives and do vec op"; // kinda hacky
@@ -307,17 +312,46 @@ machine(MachineType:L2Cache, "SP LLC cache")
     //   _yCnt := _yCnt + 1;
     // }
     _vecCnt := _vecCnt + 1;
+    DPRINTF(Mesh, "increase vec cnt to %d\n", _vecCnt);
   }
 
   void resetVecCntr() {
     //_xCnt := 0;
     //_yCnt := 0;
     _vecCnt := 0;
+    DPRINTF(Mesh, "reset vec cnt\n");
   }
   
   bool isVector(int count) {
     // return (xDim > 1 && yDim > 1);
     return count > 1;
+  }
+
+  // see if can do a vec load on this transition
+  // otherwise need to stall. TODO don't like this that much because consumes a transition to stall?
+  bool canIssueVecLoad(bool isCpuSide) {
+    // if vec load being done by another port, can't do here
+    if (isCpuSide) {
+      if (_vecFromMem) {
+        return false;
+      }
+    }
+    else {
+      if (_vecFromLLC) {
+        return false;
+      }
+    }
+
+    // check if we've already issue a vec resp this cycle, and if so prevent future
+    if (_lastVecRespTime == clockEdge()) {
+      return false;
+    }
+
+    return true;
+  }
+
+  bool otherVecLoadInProgress(Addr attemptedAddr) {
+    return ((_vecFromLLC && (attemptedAddr != _lastServicedVecAddr)) || _vecFromMem);
   }
 
   //---------------------------------------------------------------------------
@@ -341,14 +375,24 @@ machine(MachineType:L2Cache, "SP LLC cache")
         
         Entry cache_entry := getCacheEntry(LineAddress);
         
+        if (isVector(in_msg.RespCnt)) {
+          DPRINTF(Mesh, "wakeup req addr %#x line %#x curCnt %d to cnt %d\n", in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+        }
+
         DPRINTF(RubySlicc, "%s arrived\n", in_msg);
         //DPRINTF(Mesh, "slots available %d\n", TBEs.areNSlotsAvailable(1, clockEdge()));
         if (TBEs.areNSlotsAvailable(1, clockEdge())) {
           if (is_invalid(cache_entry) &&
               cacheMemory.cacheAvail(LineAddress) == false) {
+
+            if (isVector(in_msg.RespCnt)) {
+              DPRINTF(Mesh, "invalid line req addr %#x line %#x curCnt %d to cnt %d\n", in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+            }
+
             // No available cache line for this address -> trigger cache
             // replacement
             Addr victim := cacheMemory.cacheProbe(LineAddress);
+            // DPRINTF(Mesh, "doing replacement on line %#x\n", LineAddress);
             trigger(Event:Repl, victim, getCacheEntry(victim), TBEs.lookup(victim));
           } else {
             
@@ -364,10 +408,18 @@ machine(MachineType:L2Cache, "SP LLC cache")
             // multiple reqs.... 
             // See transitions_per_cycle in Controller.py
             if (in_msg.Type == LLCRequestType:SPLOAD) {
-              if (isVector(in_msg.RespCnt)) {
-                //DPRINTF(Mesh, "req (%d %d) %d %d\n", _xCnt, _yCnt, _vecFromMem, getState(tbe, cache_entry, LineAddress));
-                if (!_vecFromMem) {
-                  if (isFirstLoadOfVec()) { // TODO need to support non-vec sp load, need special req type
+              // if (isVector(in_msg.RespCnt)) {
+                DPRINTF(Mesh, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", canIssueVecLoad(true), getState(tbe, cache_entry, LineAddress), in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+                // if currently issuing a vector load and a new one comes, then need to stallAndWait until the first one finishes
+                if (otherVecLoadInProgress(LineAddress)) {
+                  trigger(Event:VEC_STALL_WAIT, LineAddress, cache_entry, tbe);
+                }
+                
+                if (canIssueVecLoad(true)) {
+                  if (!isVector(in_msg.RespCnt)) {
+                    trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
+                  }
+                  else if (isFirstLoadOfVec()) {
                     trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
                   }
                   else if (!isLastLoadOfVec(in_msg.RespCnt)) {
@@ -377,13 +429,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
                     trigger(Event:VREAD2, LineAddress, cache_entry, tbe);
                   }
                 } else {
-                  DPRINTF(Mesh, "[[WARNING]] stalling req pkt %#x\n", in_msg.WordAddress);
+                  DPRINTF(Mesh, "stall req addr %#x line %#x curCnt %d to cnt %d\n", in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+                  // DPRINTF(Mesh, "[[WARNING]] stalling req pkt %#x\n", in_msg.WordAddress);
                   // stall bro
                   trigger(Event:STALL, LineAddress, cache_entry, tbe);
                 }
-              } else { // single remote store
-                trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
-              }
+              // } else { // single remote store
+              //   trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
+              // }
             } else if (in_msg.Type == LLCRequestType:READ) {
               trigger(Event:READ, LineAddress, cache_entry, tbe);
             } else if (in_msg.Type == LLCRequestType:WRITE) {
@@ -399,6 +452,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
             }
           }
         } else {
+          if (isVector(in_msg.RespCnt)) {
+            DPRINTF(Mesh, "no tbes req addr %#x line %#x curCnt %d to cnt %d\n", in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+          }
           TBE tbe := TBEs[LineAddress];
           trigger(Event:STALL, LineAddress, cache_entry, tbe);
         }
@@ -416,11 +472,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
         Entry cache_entry := getCacheEntry(in_msg.addr);
 
         if (tbe.InType == LLCRequestType:SPLOAD) {
-          if (isVector(tbe.RespCnt)) {
-            if (!_vecFromLLC) {
+          // if (isVector(tbe.RespCnt)) {
+            if (canIssueVecLoad(false)) {
               assert(is_valid(cache_entry));
-              //DPRINTF(Mesh, "req (%d,%d) %d %d\n", _xCnt, _yCnt, _vecFromLLC, getState(tbe, cache_entry, in_msg.addr));
-              if (isFirstLoadOfVec()) {
+              DPRINTF(Mesh, "req %d %d\n", canIssueVecLoad(false), getState(tbe, cache_entry, in_msg.addr));
+              if (!isVector(tbe.RespCnt)) {
+                trigger(Event:SP_Mem_Data, in_msg.addr, cache_entry, tbe);
+              }
+              else if (isFirstLoadOfVec()) {
                 trigger(Event:VData0, in_msg.addr, cache_entry, tbe);
               }
               else if (!isLastLoadOfVec(tbe.RespCnt)) {
@@ -434,10 +493,11 @@ machine(MachineType:L2Cache, "SP LLC cache")
               // stall bro
               trigger(Event:STALL, in_msg.addr, cache_entry, tbe);
             }
-          } else {
-            // single spread
-            trigger(Event:SP_Mem_Data, in_msg.addr, cache_entry, tbe);
-          }
+          // } else {
+          //   // single spread
+          //   DPRINTF(Mesh, "single req %d %d\n", canIssueVecLoad(false), getState(tbe, cache_entry, in_msg.addr));
+          //   trigger(Event:SP_Mem_Data, in_msg.addr, cache_entry, tbe);
+          // }
         } else if (in_msg.Type == MemoryRequestType:MEMORY_READ) {
           assert(is_valid(cache_entry));
           trigger(Event:Memory_Data, in_msg.addr, cache_entry, tbe);
@@ -609,8 +669,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
         respType := LLCResponseType:REDATA;
       }
       
-      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d\n", 
-        spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset);
+      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d core offset %d\n", 
+        spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.CoreOffset);
       
       enqueue(responseNetwork_out, LLCResponseMsg, mem_to_cpu_latency) {
         assert(is_valid(tbe));
@@ -732,6 +792,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     assert(is_valid(tbe));
     assert(is_valid(cache_entry));
     cache_entry.LLSC_owner := tbe.Requestor;
+    // DPRINTF(Mesh, "set %s as owner for %#x\n", cache_entry.LLSC_owner, address);
   }
 
   action(sor_setLLSCOwnerFromRequest, "sor", desc = "Set LL owner from requests") {
@@ -739,6 +800,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     peek(requestNetwork_in, LLCRequestMsg) {
       cache_entry.LLSC_owner := in_msg.Requestor;
     }
+    // DPRINTF(Mesh, "set %s as owner for %#x\n", cache_entry.LLSC_owner, address);
   }
 
   action(scf_sendFailedSCAck, "scf", desc = "Send Failed SC ACK") {
@@ -763,6 +825,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
         // reply requestor
         enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
+          // DPRINTF(Mesh, "succeed store conditional on %#x from owner %s\n", address, in_msg.Requestor);
           out_msg.Type        := LLCResponseType:ACK;
           out_msg.LineAddress := address;
           out_msg.Destination.add(in_msg.Requestor);
@@ -776,7 +839,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
       } else {
         // send Fail ACK
         enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
-          assert(is_valid(tbe));
+          DPRINTF(Mesh, "[[WARNING]] fail store conditional on %#x from %s actual owner %s\n", address, cache_entry.LLSC_owner, in_msg.Requestor);
+          // assert(is_valid(tbe)); // why???
           out_msg.Type        := LLCResponseType:ACK;
           out_msg.LineAddress := address;
           out_msg.Destination.add(in_msg.Requestor);
@@ -823,19 +887,32 @@ machine(MachineType:L2Cache, "SP LLC cache")
     stall_and_wait(requestNetwork_in, address);
   }
 
+  action(z_vecStallAndWait, "vsw", desc = "Stall and wait due to active vector read") {
+    stall_and_wait(requestNetwork_in, _lastServicedVecAddr);
+  }
+
   action(wua_wakeupAllDependents, "wua", desc = "Wake up all buffers") {
     wakeUpAllBuffers();
   }
   
   // initialize vector request (to 0)
   action(rvm_resetVectorFromMem, "rvm", desc = "Initialize vector req counter") {
+    DPRINTF(Mesh, "reset vec cnt from mem\n");
     resetVecCntr();
     _vecFromMem := false;
   }
   
   action(rvl_resetVectorFromLLC, "rvl", desc = "Initialize vector req counter") {
+    DPRINTF(Mesh, "reset vec cnt from LLC\n");
     resetVecCntr();
     _vecFromLLC := false;
+  }
+
+  // mark that we've done a vector resp this cycle and don't allow anymore this cycle
+  action(mvr_markVectorRespThisCycle, "mvr", desc = "Mark vec resp this cycle") {
+    _lastVecRespTime := clockEdge();
+    _lastServicedVecAddr := address;
+    DPRINTF(Mesh, "mark vec resp this cycle %llu addr %#x\n", _lastVecRespTime, _lastServicedVecAddr);
   }
   
   // handle vector decrement
@@ -856,6 +933,18 @@ machine(MachineType:L2Cache, "SP LLC cache")
   action(ivt_incVectorCountTBE, "ivt", desc = "Increment vector count TBE") {
     increaseVecCount(tbe.XDim);
     _vecFromMem := true;
+  }
+
+  // check vector error. in this case stall map interrupting in progress vector load
+  // might have to give each req a counter (i.e. <10 bits from the TBE)
+  action(cve_checkVectorError0, "cve", desc = "Check for known failure case during vector load") {
+    if (_vecCnt != 0) {
+      DPRINTF(Mesh, "[[WARNING]] preempting in flight vec req\n");
+      assert(false);
+    }
+    else {
+      DPRINTF(Mesh, "no vector error\n");
+    }
   }
 
   //---------------------------------------------------------------------------
@@ -892,7 +981,6 @@ machine(MachineType:L2Cache, "SP LLC cache")
     wdc_writeDataToCache;
     smu_setMRU;
     sdm_sendDataFromMem;
-    rvm_resetVectorFromMem;
     dtb_deallocateTBE;
     pmq_popMemResponseQueue;
     wua_wakeupAllDependents;
@@ -911,7 +999,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     wdc_writeDataToCache;
     smu_setMRU;
     rsm_remoteStoreFromMem;
-    rvm_resetVectorFromMem;
+    // rvm_resetVectorFromMem;
     dtb_deallocateTBE;
     pmq_popMemResponseQueue;
     wua_wakeupAllDependents;
@@ -922,40 +1010,69 @@ machine(MachineType:L2Cache, "SP LLC cache")
 // ... both have pro-cons, but saved by serialization of message in toSPAD outport (presumably serialized)
 // TODO since a prefetch is modeled as a write we place into the st queue, need to ack this
 // for the master.
-  transition({V, M}, VREAD0) {
+  transition(V, VREAD0, VV) {
+    // set mru now so _very_ unlkiley to be freed while reading the line
+    // eventually will want to make the line with a 'being read' to assure success
+    cve_checkVectorError0;
+    smu_setMRU; 
     rsc_remoteStoreFromCache;
     ivc_incVectorCount;
+    // stall this so we don't handle multiple resps in the same cycle
+    // and this potentially can starve other ports of transition cycles
+    mvr_markVectorRespThisCycle;
     //pah_prefetchAckHit;
   }
-  
-  transition({V, M}, VREAD1) {
+
+  transition(M, VREAD0, VM) {
+    cve_checkVectorError0;
+    smu_setMRU; 
     rsc_remoteStoreFromCache;
     ivc_incVectorCount;
+    mvr_markVectorRespThisCycle;
   }
   
-  transition({V, M}, VREAD2) {
-    smu_setMRU;
+  transition({VV, VM}, VREAD1) {
+    rsc_remoteStoreFromCache;
+    ivc_incVectorCount;
+    mvr_markVectorRespThisCycle;
+  }
+  
+  transition(VV, VREAD2, V) {
+    // smu_setMRU;
     rsc_remoteStoreFromCache;
     rvl_resetVectorFromLLC; // last read (vector or not vector) so reset count
     prq_popRequestQueue;
     pht_profileHitAccess;
+    wua_wakeupAllDependents;
+  }
+
+  transition(VM, VREAD2, M) {
+    rsc_remoteStoreFromCache;
+    rvl_resetVectorFromLLC;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+    wua_wakeupAllDependents;
   }
   
   transition(IV, VData0) {
+    cve_checkVectorError0;
     wdc_writeDataToCache
+    smu_setMRU;
     rsm_remoteStoreFromMem;
     ivt_incVectorCountTBE;
+    mvr_markVectorRespThisCycle;
     //pam_prefetchAckMiss;
   }
   
   transition(IV, VData1) {
     rsm_remoteStoreFromMem;
     ivt_incVectorCountTBE;
+    mvr_markVectorRespThisCycle;
   }
   
   transition(IV, VData2, V) {
     //wdc_writeDataToCache;
-    smu_setMRU;
+    // smu_setMRU;
     rsm_remoteStoreFromMem;
     rvm_resetVectorFromMem;
     dtb_deallocateTBE;
@@ -1004,7 +1121,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     wua_wakeupAllDependents;
   }
 
-  transition({IV, MI, IM, IV_LL, IA}, LL) {
+  transition({IV, MI, IM, IV_LL, IA, VV, VM}, LL) {
     z_stallAndWait;
   }
 
@@ -1052,7 +1169,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     wua_wakeupAllDependents;
   }
 
-  transition({IV, MI, IM, IV_LL, IA}, WRITE) {
+  transition({IV, MI, IM, IV_LL, IA, VV, VM}, WRITE) {
     z_stallAndWait;
   }
 
@@ -1079,7 +1196,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     pht_profileHitAccess;
   }
 
-  transition({IV, MI, IM, IV_LL, IA}, SC) {
+  transition({IV, MI, IM, IV_LL, IA, VV, VM}, SC) {
     z_stallAndWait;
   }
 
@@ -1126,7 +1243,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     wua_wakeupAllDependents;
   }
 
-  transition({IV, MI, IM, IV_LL, IA}, ATOMIC) {
+  transition({IV, MI, IM, IV_LL, IA, VV, VM}, ATOMIC) {
     z_stallAndWait;
   }
 
@@ -1148,11 +1265,15 @@ machine(MachineType:L2Cache, "SP LLC cache")
     wua_wakeupAllDependents;
   }
 
-  transition({IV, MI, IM, IV_LL, IA}, Repl) {
+  transition({IV, MI, IM, IV_LL, IA, VV, VM}, Repl) {
     z_stallAndWait;
   }
   
-  transition({V, I, M, IV, MI, IM, IV_LL, IA}, STALL) {
+  transition({V, I, M, IV, MI, IM, IV_LL, IA, VV, VM}, STALL) {
     z_stall;
+  }
+
+  transition({V, I, M, IV, MI, IM, IV_LL, IA, VV, VM}, VEC_STALL_WAIT) {
+    z_vecStallAndWait;
   }
 }

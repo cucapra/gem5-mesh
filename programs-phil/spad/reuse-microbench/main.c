@@ -4,8 +4,7 @@
 
 #include "spad.h"
 #include "pthread_launch.h"
-#include "vvadd.h"
-// #include "../../common/bind_defs.h"
+#include "reuse.h"
 
 int main(int argc, char *argv[]) {
   
@@ -26,29 +25,22 @@ int main(int argc, char *argv[]) {
   * Put the command line arguments into variables
   *-------------------------------------------------------------------*/
   
-  // default values
-  int size = 1024;
+  // should hardcode!
+  int n = 8;
   
-  // parse positional arguments
-  if (argc > 1) {
-    size = atoi(argv[1]);
-  }
-  
-  printf("Vector size is %d. Num cores is %d\n", size, num_cores);
+  printf("Reuse microbench size %d. Num cores is %d\n", n, num_cores);
 
   /*--------------------------------------------------------------------
   * Data initialization
   *-------------------------------------------------------------------*/
 
-  DTYPE *a_ptr, *b_ptr, *c_ptr;
-  DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), size, (void**)&a_ptr);
-  DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), size, (void**)&b_ptr);
-  DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), size, (void**)&c_ptr);
+  DTYPE *a_ptr, *b_ptr;
+  DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), n, (void**)&a_ptr);
+  DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), n, (void**)&b_ptr);
 
-  for (int i = 0; i < size; i++) {
+  for (int i = 0; i < n; i++) {
     a[i] = i + 1;
-    b[i] = i + 1;
-    c[i] = 0;
+    b[i] = 0;
   }
   
   /*--------------------------------------------------------------------
@@ -60,8 +52,8 @@ int main(int argc, char *argv[]) {
 
   for (int y = 0; y < cores_y; y++) {
     for (int x = 0; x < cores_x; x++){
-      int i = x + y * cores_x; 
-      kern_args[i] = construct_args(a, b, c, size, x, y, cores_x, cores_y);
+      int i = x + y * cores_x;
+      kern_args[i] = construct_args(a, b, n, x, y, cores_x, cores_y);
     }  
   }
 
@@ -75,11 +67,10 @@ int main(int argc, char *argv[]) {
   /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
-  // printf("Checking results\n");
-  for (int i = 0; i < size; i++) {
-    // printf("%d\n", c[i]);
-    if (c[i] != 2 * ( i + 1 )) {
-      // printf("%d %d\n", i, c[i]);
+  
+  for (int i = 0; i < n; i++) {
+    if (b[i] != i + 1) {
+      printf("%d != %d at idx %d\n", b[i], i + 1, i);
       printf("[[FAIL]]\n");
       return 1;
     }
@@ -87,10 +78,8 @@ int main(int argc, char *argv[]) {
   
   free(a_ptr);
   free(b_ptr);
-  free(c_ptr);
   
   printf("[[SUCCESS]]\n");
-  
   
   return 0;
 }

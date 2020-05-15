@@ -38,31 +38,27 @@ args = parser.parse_args()
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful
 progDir0 = "/home/na469/phil/gem5-mesh/programs-phil/spad/"
 programs = {
-    "vvadd": {
-        "name": "vvadd",
-        "path": progDir0 + "vvadd_simd/vvadd",
-        "options": lambda argv: str(argv[0]),
-        "serialize": lambda argv: "-size{0}".format(str(argv[0])),
-        "success": "\[\[SUCCESS\]\]",
-    },
-    "gemm": {
-        "name": "gemm",
-        "path": progDir0 + "gemm_neil/gemm",
-        "options": lambda argv: "{0} {0} {0}".format(str(argv[0])),
-        "serialize": lambda argv: "-size_mnt{0}".format(str(argv[0])),
-        "success": "\[\[SUCCESS\]\]",
-    },
-    "synth": {
-        "name": "synth",
-        "path": progDir0 + "synth-diverge/synth",
-        "options": lambda argv: "{0} {1} {2}".format(
-            str(argv[0]), str(argv[1]), str(argv[2])
-        ),
-        "serialize": lambda argv: "-size{0}-frac{1}-run{2}".format(
-            str(argv[0]), str(argv[1]), str(argv[3])
-        ),
-        "success": "\[\[SUCCESS\]\]",
-    },
+
+  'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd/vvadd', 
+    'options' : lambda argv: str(argv[0]), 
+    'serialize' : lambda argv: '-size{0}'.format(str(argv[0])),
+    'success' : '\[\[SUCCESS\]\]'},
+    
+  'gemm'  : { 'name': 'gemm',  'path' : progDir0 + 'gemm_neil/gemm', 
+    'options' : lambda argv: '{0} {0} {0}'.format(str(argv[0])),
+    "serialize": lambda argv: "-size_mnt{0}".format(str(argv[0])),
+    'success' : '\[\[SUCCESS\]\]'},
+    
+  'synth' : { 'name': 'synth', 'path' : progDir0 + 'synth-diverge/synth', 
+    'options' : lambda argv: '{0} {1} {2}'.format(str(argv[0]), str(argv[1]), str(argv[2])),
+    'serialize' : lambda argv: '-size{0}-frac{1}'.format(str(argv[0]), str(argv[1])),
+    'success' : '\[\[SUCCESS\]\]'},
+
+  'stencil' : { 'name': 'stencil', 'path' : progDir0 + 'stencil/stencil', 
+    'options' : lambda argv: str(argv[0]) + " " + str(argv[1]), 
+    'serialize' : lambda argv: '-cols{0}-rows{1}'.format(str(argv[0]), str(argv[1])),
+    'success' : '\[\[SUCCESS\]\]'},
+
 }
 
 # create a template for the gem5 command line
@@ -81,33 +77,24 @@ gem5_cmd = lambda program, options, result, cpus, vec: '{} -d {}/{} {}  --cmd={}
 
 # compile command that chooses whether to use scratchpad optimizations
 # how many cores/sps are present, and whether to use vector mode
-def compile_cmd(program_dir, cpus, use_sp, use_vec):
-    # cmd = "make clean -C {}".format(program_dir)
-    # cmd += " && "
-    cmd = ""
-    if not use_sp:
-        cmd += "ENV_NO_SP=1 "
-    if not use_vec:
-        cmd += "ENV_NO_VEC=1 "
-
-    # cmd += "ENV_N_SPS={} make -C {}".format(cpus, program_dir)
-    cmd += "ENV_N_SPS={} make -C {}".format(cpus, program_dir)
-    return cmd
+def compile_cmd(program_dir, cpus, use_sp, use_vec, extra_flags):
+#   cmd = 'make clean -C {}'.format(program_dir)
+#   cmd += ' && '
+  cmd = ""
+  if (not use_sp):
+    cmd += 'ENV_NO_SP=1 '
+  if (not use_vec):
+    cmd += 'ENV_NO_VEC=1 '
+    
+  cmd += extra_flags + ' ENV_N_SPS={} make -C {}'.format(cpus, program_dir)
+  return cmd
 
 
 # just compile with args needed for makefile (#cores, and whether vec enabled...etc)
 def compile_prog(numCpus, use_vec, use_sps, prog_name, extra_flags):
-    print(extra_flags)
-    cmplCmd = (
-        compile_cmd(
-            os.path.dirname(programs[prog_name]["path"]), numCpus, use_sps, use_vec
-        )
-        + " "
-        + extra_flags
-    )
-    result = subprocess.check_output(cmplCmd, shell=True)
-    print(result)
-
+  cmplCmd = compile_cmd(os.path.dirname(programs[prog_name]['path']), numCpus, use_sps, use_vec, extra_flags)
+  result = subprocess.check_output(cmplCmd, shell=True)
+  print(result)
 
 def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
 
@@ -136,13 +123,84 @@ def run_prog(numCpus, use_vec, use_sps, prog_name, argv, extra_info):
         return False
 
 
+# consturct a valid config from the args
+# filters out configurations that don't make sense
+# only works for vec configs
+def vvadd_merge_args(vec_size, prefetch_len, load_type):
+  config = []
+
+  # vec size flag
+  if (vec_size == 1):
+    assert(0)
+  if (vec_size > 1):
+    config.append('VECTOR_LEN=' + str(vec_size))
+
+  # load type flag
+  if (load_type == 'SPATIAL'):
+    pass
+  elif (load_type == 'VERTICAL'):
+    config.append('VERTICAL_LOADS')
+  elif (load_type == 'SPATIAL_UNROLL'):
+    config.append('SPATIAL_UNROLL')
+
+  # vertical only works with prefetch 16
+  if (load_type == 'VERTICAL'):
+    if (prefetch_len != 16):
+      return (False, config)
+    else:
+      config.append('PF=16')
+      return (True, config)
+
+  # remove configs where vec size exceeds prefetch size
+  if (vec_size < prefetch_len):
+    return (False, config)
+  else:
+    config.append('PF=' + str(prefetch_len))
+    return (True, config)
+
+# either array or single string
+def strings_to_make_args(args):
+  cmd_line = 'ENV_EXTRA_MAKE_FLAGS=\''
+  if (isinstance(args, list)):
+    for a in args:
+      cmd_line += '-D' + a + ' '
+    cmd_line += '\''
+  else:
+    cmd_line += '-D' + args + '\''
+  return cmd_line
+
+# turn config into metadata to make which run was used
+def strings_to_metadata(args):
+  meta = ''
+  if (isinstance(args, list)):
+    for a in args:
+      # special interpretations
+      arg = a
+      if (a == 'VERTICAL'):
+        arg = 'V'
+      elif (a == 'SPATIAL_UNROLL'):
+        arg = 'S'
+      elif (a[0:11] == 'VECTOR_LEN='):
+        arg = a[11:len(a)]
+      elif (a[0:3] == 'PF='):
+        arg = a[3:len(a)]
+      meta += arg + '_'
+  else:
+    meta = args
+  return meta
+
+  
 # choose which programs to run with diff parameters
 
 # fixed parameters for the run, compile the binary for these
-numCpus = 16
+numCpus = 64
 use_sps = True
 
 size =32  # 65536  # 32768 #8192
+# size = 8402 #131072 #8192 #32768
+
+# ncols = 1730
+# nrows = 60
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 # seed = random.randint(1,2**20)
@@ -155,24 +213,24 @@ run_id = 1
 # whether to use vector or not
 use_vec_arr = [True]
 
-# make_flags = ['NO_VEC','VEC_16','VEC_16_UNROLL','VEC_4','VEC_4_UNROLL','VEC_4_DA', \
-#   'VEC_16_UNROLL_SERIAL','VEC_4_DA_SMALL_FRAME','NO_VEC_DA','NO_VEC_W_VLOAD','SIM_DA_VLOAD_SIZE_1', \
-#   'VEC_4_NORM_LOAD', 'VEC_16_NORM_LOAD', 'VEC_4_SIMD' ]
+# make_flags = [ 'NO_VEC', 'VEC_4_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_4_SIMD_SPATIAL_UNROLLED', 'VEC_16_SIMD', 'VEC_16_SIMD_VERTICAL', 'VEC_16_SIMD_SPATIAL_UNROLLED' ]
+# make_flags = [ 'VEC_16_SIMD', 'VEC_4_SIMD' ]
 
-# make_flags_vvadd = [
-#     "NO_VEC",
-#     "VEC_16",
-#     "VEC_16_UNROLL",
-#     "VEC_4",
-#     "VEC_4_UNROLL",
-#     "VEC_4_DA",
-#     "VEC_4_DA_SMALL_FRAME",
-#     "NO_VEC_DA",
-#     "NO_VEC_W_VLOAD",
-#     "SIM_DA_VLOAD_SIZE_1",
-# ]
+make_flags = []
+# vec_sizes = [ 4, 16 ]
+# load_types = [ 'SPATIAL', 'VERTICAL', 'SPATIAL_UNROLL' ]
+# prefetch_sizes = [ 1, 2, 4, 8, 16 ]
+vec_sizes = [ 4, 16 ]
+load_types = [ 'SPATIAL', ]
+prefetch_sizes = [ 1, 2, 4, 8, 16 ]
+for v in vec_sizes:
+  for l in load_types:
+    for p in prefetch_sizes:
+      (is_valid, config) = vvadd_merge_args(v, p, l)
+      if is_valid:
+        make_flags.append(config)
 
-make_flags_vvadd = ["VEC_4_SIMD"]
+
 
 # make_flags_gemm = ["UNBLOCKED_INNER", "BLOCKED", "INTERLEAVED", "UNBLOCKED_OUTER"]
 make_flags_gemm = ["SIMD_PRIVATE"]
@@ -180,12 +238,14 @@ make_flags_gemm = ["SIMD_PRIVATE"]
 # program = "vvadd"
 program = "gemm"
 
+
 # TODO need a struct describing the experiment. Not all settings match idenpendently
 
 
 def pack_and_run(numCpus, use_vec, use_sps, prog, i, extra_info):
     frac = 1.0 - float(i) / 10.0
     argv = [size, frac, seed]
+    # argv = [ ncols, nrows, frac, seed ]
     return run_prog(numCpus, use_vec, use_sps, program, argv, extra_info)
 
 
@@ -196,9 +256,10 @@ for use_vec in use_vec_arr:
         # use_vec = False
         print(make_flag)
         # run a program from the list above with different parameters
-        compile_prog(
-            numCpus, use_vec, use_sps, program, "ENV_EXTRA_MAKE_FLAGS=-D" + make_flag
-        )
+        # compile_prog(
+        #     numCpus, use_vec, use_sps, program, "ENV_EXTRA_MAKE_FLAGS=-D" + make_flag
+        # )
+        compile_prog(numCpus, use_vec, use_sps, program, strings_to_make_args(make_flag))
 
         jobs = []
 

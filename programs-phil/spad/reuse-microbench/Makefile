@@ -10,17 +10,23 @@ ASMO_OBJS = $(notdir $(C_SRCS:.c=.O))
 SM_DEPS = $(C_SRCS:.c=.S)
 SM_OBJS = $(notdir $(C_SRCS:.c=.S))
 
-EXEC = vvadd
+EXEC = reuse
 
 # defaults if environment variables not set
 
 ifeq ($(ENV_N_SPS),)
-	N_SPS = 64
+	N_SPS = 16
 else
 	N_SPS = $(ENV_N_SPS)
 endif	
 
 EXTRA_FLAGS:= 
+
+ifeq ($(ENV_NO_SP),)
+	EXTRA_FLAGS := $(EXTRA_FLAGS) -D_USE_SCRATCHPAD
+else
+	EXTRA_FLAGS := $(EXTRA_FLAGS)
+endif
 
 ifeq ($(ENV_NO_VEC),)
 	EXTRA_FLAGS := $(EXTRA_FLAGS) -D_VEC
@@ -36,7 +42,7 @@ endif
 RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
 
 # script to find the correct vissue length
-VISS=python /home/na469/phil/gem5-mesh/scripts-phil/vissue-asm.py
+VISS=python /home/pbb59/hammerblade/gem5/scripts-phil/vissue-asm.py
 
 CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 

@@ -15,24 +15,12 @@ EXEC = stencil
 # defaults if environment variables not set
 
 ifeq ($(ENV_N_SPS),)
-	N_SPS = 16
+	N_SPS = 64
 else
 	N_SPS = $(ENV_N_SPS)
 endif	
 
 EXTRA_FLAGS:= 
-
-ifeq ($(ENV_NO_SP),)
-	EXTRA_FLAGS := $(EXTRA_FLAGS) -D_USE_SCRATCHPAD
-else
-	EXTRA_FLAGS := $(EXTRA_FLAGS)
-endif
-
-ifeq ($(ENV_NO_VEC),)
-	EXTRA_FLAGS := $(EXTRA_FLAGS) -D_VEC
-else
-	EXTRA_FLAGS := $(EXTRA_FLAGS)
-endif
 
 ifneq ($(ENV_EXTRA_MAKE_FLAGS),)
 	EXTRA_FLAGS := $(EXTRA_FLAGS) $(ENV_EXTRA_MAKE_FLAGS)

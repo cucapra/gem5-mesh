@@ -105,6 +105,8 @@ stencil(
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
 
+  // should be a constant from static analysis of dim
+  int pRatio = VECTOR_LEN / PREFETCH_LEN;
 
   int *spadAddr = (int*)getSpAddr(ptid, 0);
   // have r = 0 for now
@@ -150,8 +152,12 @@ stencil(
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           // printf("prelw sp %d r %d c %d k1 %d k2 %d idx %d\n", spadIdx, r, c, k1, k2, aIdx);
-          VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
-          VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
+          // VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
+          // VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
+          for (int p = 0; p < pRatio; p++) { // NOTE unrolled b/c can statically determine pRatio is const
+            VPREFETCH_L(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
+            VPREFETCH_R(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
+          }
           spadIdx++;
         }
       }
@@ -235,7 +241,9 @@ stencil(
     #else
     for (int c = startCol; c < effCols; c+=step) {
       // prefetch all 9 values required for computation
+      #pragma GCC unroll 3
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+        #pragma GCC unroll 3
         for (int k2 = 0; k2 < FILTER_DIM; k2++) {
           int aIdx = (r + k1) * ncols + (c + k2);
           
@@ -245,8 +253,12 @@ stencil(
           VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
           VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
           #else
-          VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
-          VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
+          // VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
+          // VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
+          for (int p = 0; p < pRatio; p++) {
+            VPREFETCH_L(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
+            VPREFETCH_R(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
+          }
           #endif
 
           spadIdx++;
@@ -566,10 +578,11 @@ stencil(
 }
 #else
 void /*__attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) */
-stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, int dim) {
-   for (int row = 0; row < nrows - (FILTER_DIM - 1); row++) {
+stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, int dim, int row_start, int row_end) {
+  int outputCols = ncols - (FILTER_DIM - 1);
+  for (int row = row_start; row < row_end; row++) {
     // #pragma GCC unroll 4
-    for (int col = vtid; col < ncols - (FILTER_DIM - 1); col+=dim) {
+    for (int col = 0; col < outputCols; col++) {
       int temp = 0;
       #pragma GCC unroll 3
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
@@ -580,7 +593,7 @@ stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, 
           temp += a[aIdx] * b[bIdx];
         }
       }
-      int cIdx = row * ncols + col;
+      int cIdx = row * outputCols + col;
       c[cIdx] = temp;
     }
   }
@@ -624,59 +637,40 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int is_da  = 0;
   int master_x = 0;
   int master_y = 0;
+  int unique_id = 0;
+  int total_groups = 0;
 
-  #if defined(VEC_SIZE_4_SIMD)
-    // virtual group dimension
+  // group construction
+  #if VECTOR_LEN==4
+  // virtual group dimension
   vdim_x = 2;
   vdim_y = 2;
 
-  // group 1 top left (master = 0)
-  if (ptid == 1) vtid = 0;
-  if (ptid == 2) vtid = 1;
-  if (ptid == 5) vtid = 2;
-  if (ptid == 6) vtid = 3;
-  if (ptid == 0) is_da = 1;
-  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 5 || ptid == 6) {
-    start = 0;
-    end = (float)effRows / 3.0f;
-    orig_x = 1;
-    orig_y = 0;
-    master_x = 0;
-    master_y = 0;
+  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, 
+    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
+
+  // TODO should use alignment
+  if (used) {
+    start = (unique_id + 0) * effRows / total_groups;
+    end   = (unique_id + 1) * effRows / total_groups;
   }
 
-  // group 2 bot left (master == 4)
-  if (ptid == 8) vtid = 0;
-  if (ptid == 9) vtid = 1;
-  if (ptid == 12) vtid = 2;
-  if (ptid == 13) vtid = 3;
-  if (ptid == 4) is_da = 1;
-  if (ptid == 4 || ptid == 8 || ptid == 9 || ptid == 12 || ptid == 13) {
-    start = (float)effRows / 3.0f;
-    end = (float)(2 * effRows) / 3.0f;
-    orig_x = 0;
-    orig_y = 2;
-    master_x = 0;
-    master_y = 1;
+  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used); 
+
+  #elif VECTOR_LEN==16
+
+  vdim_x = 4;
+  vdim_y = 4;
+
+  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y, 
+    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
+
+  if (used) {
+    start = (unique_id + 0) * effRows / total_groups;
+    end   = (unique_id + 1) * effRows / total_groups;
   }
 
-  // group 3 bottom right (master == 7)
-  if (ptid == 10)  vtid = 0;
-  if (ptid == 11) vtid = 1;
-  if (ptid == 14) vtid = 2;
-  if (ptid == 15) vtid = 3;
-  if (ptid == 7) is_da = 1;
-  if (ptid == 7 || ptid == 10 || ptid == 11 || ptid == 14 || ptid == 15) {
-    start = (float)(2 * effRows) / 3.0f;
-    end = effRows;
-    orig_x = 2;
-    orig_y = 2;
-    master_x = 3;
-    master_y = 1;
-  }
-
-  vtid_x = vtid % vdim_x;
-  vtid_y = vtid / vdim_y;
+  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 16, vdim_x, vdim_y, start, end, used); 
 
   #elif !defined(USE_VEC)
 
@@ -685,8 +679,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vtid_x = 0;
   vtid_y = 0;
   vtid   = 0;
-  start  = ptid * ( n / pdim );
-  end    = ( ptid + 1 ) * ( n / pdim );
+  start  = ( ( ptid + 0 ) * effRows ) / pdim;
+  end    = ( ( ptid + 1 ) * effRows ) / pdim;
+
+  // printf("%d->%d\n", start, end); 
 
   #endif
 
@@ -712,16 +708,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VEC)
-  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return;
-  if (ptid == 3) return;
-  #else
-  if (ptid == 0 || ptid == 1 || ptid == 2 || ptid == 3) {
-    vtid = ptid;
-    vdim = 4;
-  }
-  else {
-    return;
-  }
+  if (used == 0) return;
   #endif
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
@@ -759,7 +746,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef USE_VEC
   stencil(a, b, c, start, end, ncols, ptid, vtid, vdim, mask);
   #else
-  stencil(a, b, c, nrows, ncols, ptid, vtid, vdim);
+  stencil(a, b, c, nrows, ncols, ptid, vtid, vdim, start, end);
   #endif
 
   // restore stack pointer
@@ -800,15 +787,12 @@ void *pthread_kernel(void *args) {
   
   kernel(a->a, a->b, a->c, a->nrows, a->ncols, 
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
-      
+
   pthread_barrier_wait(&start_barrier);
 
   if (a->tid_x == 0 && a->tid_y == 0) {
     stats_off();
   }
-
-  // BUG: note this printf fails if have the VECTOR_EPOCH(0), but mayber just timing thing
-  // printf("ptid (%d,%d)\n", a->tid_x, a->tid_y);
 
   return NULL;
 }

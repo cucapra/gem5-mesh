@@ -682,8 +682,7 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
       // fake the virtual scratchpad address for this core
       // TODO this should put the vector group origin on instead of the scratchpad
       Addr spadIdx = bits(spadVAddr, 11, 0);
-      uint32_t deprecatedOffset = 0x10;
-      spadVAddr = 0x10000000 | (m_cpu_p->cpuId() << 12) | ( spadIdx * size + deprecatedOffset );
+      spadVAddr = 0x10000000 | (m_cpu_p->cpuId() << 12) | ( spadIdx * size );
       
       // need to translate the address, do atomically,
       // real hammerblade doesnt have virtual addresses anyway
@@ -712,8 +711,9 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
       if (prefetchLeft) {
         m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
         m_s1_inst->mem_req_p->respCnt = leftCount;
-        DPRINTF(Mesh, "send vec load left %lx offset %d cnt %d\n", m_s1_inst->mem_req_p->getVaddr(),
-                m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
+        DPRINTF(Mesh, "send vec load left global %#x spad %#x core offset %d cnt %d\n", 
+          m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
+          m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
       }
       else
       {
@@ -722,8 +722,9 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
         if (rightCount <= 0)
         {
           m_s1_inst->setExecuted();
-          DPRINTF(Mesh, "don't send vec load right %lx cnt %d\n", m_s1_inst->mem_req_p->getVaddr(),
-                  rightCount);
+          DPRINTF(Mesh, "don't send vec load right global %#x spad %#x cnt %d\n", 
+            m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
+            rightCount);
         }
         else {
           bool isVerticalLoad = (config == 1);
@@ -738,8 +739,9 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
           m_s1_inst->mem_req_p->setVirt(0, rightVirtAddr, size, flags,
                                         m_cpu_p->dataMasterId(), m_s1_inst->pc.pc(), amo_op);
 
-          DPRINTF(Mesh, "send vec load right %lx offset %d cnt %d\n", m_s1_inst->mem_req_p->getVaddr(),
-                  m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
+          DPRINTF(Mesh, "send vec load right %#x spad %#x offset %d cnt %d\n", 
+            m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
+            m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
         }
       }
 
@@ -756,6 +758,8 @@ Fault MemUnit::pushMemReq(IODynInst *inst, bool is_load, uint8_t *data,
       m_s1_inst->mem_req_p->yDim = 1;
       m_s1_inst->mem_req_p->xOrigin = 0;
       m_s1_inst->mem_req_p->yOrigin = 0;
+      m_s1_inst->mem_req_p->respCnt = 1;
+      // m_s1_inst->mem_req_p->coreOffset = m_s1_inst->seq_num; // for debugging normal loads and stores
     }
 
     // allow load to issue to spad without getting any acks the load is there

@@ -66,6 +66,9 @@ class NetworkLink : public ClockedObject, public Consumer
     inline bool isReady(Cycles curTime)
     { return linkBuffer->isReady(curTime); }
 
+    inline bool isReady(Tick curTick)
+    { return linkBuffer->isReady(curTick); }
+
     inline flit* peekLink()       { return linkBuffer->peekTopFlit(); }
     inline flit* consumeLink()    { return linkBuffer->getTopFlit(); }
 

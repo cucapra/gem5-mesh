@@ -27,12 +27,16 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int nrows = 3 + (FILTER_DIM - 1); // single row
+  #ifdef VECTOR_LEN
+  int nrows = ( _N_SPS / ( VECTOR_LEN + 1 ) ) + (FILTER_DIM - 1);
+  #else
+  int nrows = _N_SPS + ( FILTER_DIM - 1);
+  #endif
   // reuse has very stingy requirements on what sizes are allowed
   #ifdef REUSE
   int ncols = 12 + (10 * 2); // 12 + factor of 10... wow i.e. 1212
   #else
-  int ncols = 24 + (FILTER_DIM - 1); // factor of 12 + 2... wow i.e. 1214 // vertical needs to be factor of 24 + 2... i.e. 1224 + 2 = 1226
+  int ncols = 96 + (FILTER_DIM - 1); // factor of DIM * FILTER_DIM (12) + 2... wow i.e. 1214 // vertical needs to be factor of 24 + 2... i.e. 1224 + 2 = 1226
   #endif
   
   // parse positional arguments (X Y)
