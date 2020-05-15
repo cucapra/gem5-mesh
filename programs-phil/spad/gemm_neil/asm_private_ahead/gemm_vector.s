@@ -6,16 +6,17 @@
 	.type	gemm_vec_simd, @function
 gemm_vec_simd:
 	addi	sp,sp,-112
-	sd	s3,80(sp)
+	sd	s4,72(sp)
 	sd	s0,104(sp)
 	sd	s1,96(sp)
 	sd	s2,88(sp)
-	sd	s4,72(sp)
+	sd	s3,80(sp)
 	sd	s5,64(sp)
 	sd	s6,56(sp)
-	mv	s3,a3
+	sd	s7,48(sp)
+	mv	s4,a3
 #APP
-# 32 "gemm_kernel.c" 1
+# 34 "gemm_kernel.c" 1
 	.insn i 0x77, 0, x0, a0, 0x401
 	
 # 0 "" 2
@@ -28,7 +29,7 @@ gemm_vec_simd:
 	ld	a1,40(a4)
 	lw	a4,152(sp)
 	lw	a3,4(sp)
-	lw	s0,144(sp)
+	lw	s1,144(sp)
 	addi	a2,a2,16
 	sd	a2,40(sp)
 	addi	a6,a6,16
@@ -40,51 +41,52 @@ gemm_vec_simd:
 	sd	a0,24(sp)
 	sd	a1,32(sp)
 	add	a4,a2,a4
-	slliw	s0,s0,2
+	slliw	s1,s1,2
 	sext.w	a3,a3
 	ld	t4,-32(a4)
-	addw	s0,s0,a7
+	addw	s1,s1,a7
 	beqz	a3,.L9
 	sext.w	a4,a5
-	addiw	s6,s0,1
-	addiw	s5,s0,2
-	addiw	s4,s0,3
-	mulw	s6,s6,a4
-	lw	s1,136(sp)
+	addiw	s7,s1,1
+	addiw	s6,s1,2
+	addiw	s5,s1,3
+	mulw	s7,s7,a4
+	lw	s2,136(sp)
 	lw	a5,120(sp)
-	slliw	s2,a4,3
-	slliw	s1,s1,2
-	addw	s1,s1,a5
+	slliw	s3,a4,3
+	slliw	s2,s2,2
+	addw	s2,s2,a5
 	li	a5,4096
 	li	t5,0
 	add	a5,t4,a5
-	mulw	s0,s0,a4
+	li	t6,8
+	mulw	s1,s1,a4
+	mulw	s6,s6,a4
 	mulw	s5,s5,a4
-	mulw	s4,s4,a4
 .L8:
 #APP
-# 146 "gemm_kernel.c" 1
+# 215 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
 	lw	a4,8(sp)
 	sext.w	a4,a4
 	beqz	a4,.L3
-	add	a3,s0,s1
-	add	t2,s6,s1
-	add	t0,s5,s1
-	add	t6,s4,s1
+	add	s0,s1,s2
+	add	a3,s7,s2
+	add	t2,s6,s2
+	add	t0,s5,s2
+	slli	s0,s0,2
 	slli	a3,a3,2
 	slli	t2,t2,2
 	slli	t0,t0,2
-	slli	t6,t6,2
-	add	a3,s3,a3
-	add	t2,s3,t2
-	add	t0,s3,t0
-	add	t6,s3,t6
+	add	s0,s4,s0
+	add	a3,s4,a3
+	add	t2,s4,t2
+	add	t0,s4,t0
 .L7:
 #APP
-# 150 "gemm_kernel.c" 1
+# 219 "gemm_kernel.c" 1
 	nop
 # 0 "" 2
 #NO_APP
@@ -193,8 +195,8 @@ gemm_vec_simd:
 	fmadd.s	fa5,ft9,ft8,fa5
 	fsw	fa5,-1988(a5)
 #APP
-# 181 "gemm_kernel.c" 1
-	.insn u 0x0b, x0, 0
+# 250 "gemm_kernel.c" 1
+	.insn i 0x1b, 0x2, x0, t6, 0
 	
 # 0 "" 2
 #NO_APP
@@ -204,34 +206,34 @@ gemm_vec_simd:
 .L6:
 	fmv.x.s	a4,fa7
 #APP
-# 189 "gemm_kernel.c" 1
-	.insn sb 0x23, 0x5, a4, 0(a3)
+# 258 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x5, a4, 0(s0)
 	
 # 0 "" 2
 #NO_APP
 	sw	zero,-2048(a5)
-	addi	a4,a3,4
+	addi	a4,s0,4
 	fmv.x.s	a2,fa6
 #APP
-# 189 "gemm_kernel.c" 1
+# 258 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a2, 0(a4)
 	
 # 0 "" 2
 #NO_APP
 	sw	zero,-2044(a5)
-	addi	a4,a3,8
+	addi	a4,s0,8
 	fmv.x.s	a2,ft7
 #APP
-# 189 "gemm_kernel.c" 1
+# 258 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a2, 0(a4)
 	
 # 0 "" 2
 #NO_APP
 	sw	zero,-2040(a5)
-	addi	a4,a3,12
+	addi	a4,s0,12
 	fmv.x.s	a2,ft6
 #APP
-# 189 "gemm_kernel.c" 1
+# 258 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a2, 0(a4)
 	
 # 0 "" 2
@@ -239,34 +241,34 @@ gemm_vec_simd:
 	sw	zero,-2036(a5)
 	fmv.x.s	a4,ft5
 #APP
-# 189 "gemm_kernel.c" 1
-	.insn sb 0x23, 0x5, a4, 0(t2)
+# 258 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x5, a4, 0(a3)
 	
 # 0 "" 2
 #NO_APP
 	sw	zero,-2032(a5)
-	addi	a4,t2,4
+	addi	a4,a3,4
 	fmv.x.s	a2,ft4
 #APP
-# 189 "gemm_kernel.c" 1
+# 258 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a2, 0(a4)
 	
 # 0 "" 2
 #NO_APP
 	sw	zero,-2028(a5)
-	addi	a4,t2,8
+	addi	a4,a3,8
 	fmv.x.s	a2,ft3
 #APP
-# 189 "gemm_kernel.c" 1
+# 258 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a2, 0(a4)
 	
 # 0 "" 2
 #NO_APP
 	sw	zero,-2024(a5)
-	addi	a4,t2,12
+	addi	a4,a3,12
 	fmv.x.s	a2,ft2
 #APP
-# 189 "gemm_kernel.c" 1
+# 258 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a2, 0(a4)
 	
 # 0 "" 2
@@ -274,34 +276,34 @@ gemm_vec_simd:
 	sw	zero,-2020(a5)
 	fmv.x.s	a4,ft1
 #APP
-# 189 "gemm_kernel.c" 1
-	.insn sb 0x23, 0x5, a4, 0(t0)
+# 258 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x5, a4, 0(t2)
 	
 # 0 "" 2
 #NO_APP
 	sw	zero,-2016(a5)
-	addi	a4,t0,4
+	addi	a4,t2,4
 	fmv.x.s	a2,ft0
 #APP
-# 189 "gemm_kernel.c" 1
+# 258 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a2, 0(a4)
 	
 # 0 "" 2
 #NO_APP
 	sw	zero,-2012(a5)
-	addi	a4,t0,8
+	addi	a4,t2,8
 	fmv.x.s	a2,fa0
 #APP
-# 189 "gemm_kernel.c" 1
+# 258 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a2, 0(a4)
 	
 # 0 "" 2
 #NO_APP
 	sw	zero,-2008(a5)
-	addi	a4,t0,12
+	addi	a4,t2,12
 	fmv.x.s	a2,fa1
 #APP
-# 189 "gemm_kernel.c" 1
+# 258 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a2, 0(a4)
 	
 # 0 "" 2
@@ -309,57 +311,57 @@ gemm_vec_simd:
 	sw	zero,-2004(a5)
 	fmv.x.s	a4,fa2
 #APP
-# 189 "gemm_kernel.c" 1
-	.insn sb 0x23, 0x5, a4, 0(t6)
+# 258 "gemm_kernel.c" 1
+	.insn sb 0x23, 0x5, a4, 0(t0)
 	
 # 0 "" 2
 #NO_APP
 	sw	zero,-2000(a5)
-	addi	a4,t6,4
+	addi	a4,t0,4
 	fmv.x.s	a2,fa3
 #APP
-# 189 "gemm_kernel.c" 1
+# 258 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a2, 0(a4)
 	
 # 0 "" 2
 #NO_APP
 	sw	zero,-1996(a5)
-	addi	a4,t6,8
+	addi	a4,t0,8
 	fmv.x.s	a2,fa4
 #APP
-# 189 "gemm_kernel.c" 1
+# 258 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a2, 0(a4)
 	
 # 0 "" 2
 #NO_APP
 	sw	zero,-1992(a5)
-	addi	a4,t6,12
+	addi	a4,t0,12
 	fmv.x.s	a2,fa5
 #APP
-# 189 "gemm_kernel.c" 1
+# 258 "gemm_kernel.c" 1
 	.insn sb 0x23, 0x5, a2, 0(a4)
 	
 # 0 "" 2
 #NO_APP
 	lw	a4,8(sp)
 	sw	zero,-1988(a5)
-	addi	a3,a3,32
+	addi	s0,s0,32
 	sext.w	a4,a4
+	addi	a3,a3,32
 	addi	t2,t2,32
 	addi	t0,t0,32
-	addi	t6,t6,32
 	bnez	a4,.L7
 .L3:
 	lw	a4,4(sp)
-	addw	s0,s2,s0
-	addw	s6,s6,s2
+	addw	s1,s3,s1
+	addw	s7,s7,s3
 	sext.w	a4,a4
-	addw	s5,s5,s2
-	addw	s4,s4,s2
+	addw	s6,s6,s3
+	addw	s5,s5,s3
 	bnez	a4,.L8
 .L9:
 #APP
-# 200 "gemm_kernel.c" 1
+# 269 "gemm_kernel.c" 1
 	fence
 	
 # 0 "" 2
@@ -371,6 +373,7 @@ gemm_vec_simd:
 	ld	s4,72(sp)
 	ld	s5,64(sp)
 	ld	s6,56(sp)
+	ld	s7,48(sp)
 	addi	sp,sp,112
 	jr	ra
 	.size	gemm_vec_simd, .-gemm_vec_simd
