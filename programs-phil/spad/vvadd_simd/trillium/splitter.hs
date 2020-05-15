@@ -18,34 +18,39 @@ import qualified Data.Text.IO as T_IO
 import qualified Data.Map.Strict as M
 import Text.Regex.TDFA
 import Text.Regex.TDFA.Text ()
+import Text.Printf (printf)
 
 data ProgAST = 
   VecSimcV1 {
     kernel_name :: T.Text,
-    body :: [T.Text],
-    vissue_blocks :: M.Map Int BasicBlock
+    body :: T.Text,
+    vissue_blocks :: M.Map Int T.Text
   }
-type BasicBlock = [T.Text]
+
 emptyProg = 
   VecSimcV1 {
       kernel_name="", 
-      body=[],
+      body="",
       vissue_blocks=M.empty }
 
 
 main :: IO ()
-main = compile KernelStart "empty_kernel.c"
+main = compile KernelStart "vvadd.c"
 
 compile component filename = do
   vec_simcv2_src <- T_IO.readFile filename
   let vec_simcv1_ast = split component emptyProg $ T.lines vec_simcv2_src
-  T_IO.putStrLn $ intermingled_vvadd_simcv1 vec_simcv1_ast
+  T_IO.putStrLn $ emit_intermingled_simcv1 vec_simcv1_ast
 
 
-intermingled_vvadd_simcv1 :: ProgAST -> T.Text
-intermingled_vvadd_simcv1 prog =
+emit_intermingled_simcv1 :: ProgAST -> T.Text
+emit_intermingled_simcv1 prog =
   let fun_name = kernel_name prog
-      kernel_body = T.intercalate "\n" (body prog)
+      kernel_body = body prog
+      blocks = M.foldMapWithKey
+        (\blk_key blk -> 
+          "vissue block #" +++ (T.pack. show) blk_key +++ ":\n" +++ blk) 
+        (vissue_blocks prog)
   in
     [text|
       void $fun_name(int $mask) {
@@ -54,6 +59,10 @@ intermingled_vvadd_simcv1 prog =
         /* ----- boilerplate ----- */
 
 
+        // vissue blocks found:
+        /*
+        $blocks
+        */
         /* ----- kernel start -----*/
         $kernel_body        
         /* ----- kernel end -----*/
@@ -94,7 +103,7 @@ intermingle scalar vector =
 
 
 
-data SplitterState = KernelStart | KernelBody | KernelEnd
+data SplitterState = KernelStart | KernelBody | KernelEnd | Vissue T.Text
 
 split :: SplitterState -> ProgAST -> [T.Text] -> ProgAST
 split KernelStart accum_ast (line:rest)
@@ -103,23 +112,36 @@ split KernelStart accum_ast (line:rest)
   | otherwise
       = error [qq|expected kernel start pragma matching regex: 
                   $start_pragma_regex|]
-  where start_pragma_regex = [qq|#pragma trillium vec_simd start ([$alpha]+[alpha_num|_]*)|]
+  where start_pragma_regex = [qq|#pragma trillium vec_simd begin ([$alpha]+[alpha_num|_]*)|]
 
 split KernelBody accum_ast (line:rest)
   | line =~ "for(.+;.+;.+) {"
-      = split KernelBody (accum_ast { body = reflected_for:(body accum_ast) }) rest
+      = split KernelBody (accum_ast { body = body accum_ast +++ reflected_for } ) rest
+  | line =~ vissue_begin_regex
+      = split (Vissue "") accum_ast rest
   | line =~ end_pragma_regex 
       = accum_ast
   | otherwise
       = error "error while parsing kernel body"
-
   where end_pragma_regex = [qq|#pragma trillium vec_simd end|]
+        vissue_begin_regex = [qq|#pragma trillium vector begin|]
         reflected_for = intermingle line [qq|while($blackhole) \{|]
         blackhole = "bh"
 
+split (Vissue block) accum_ast (line:rest)
+  | line =~ end_vissue_pragma_regex 
+      = split KernelBody (insert_block 0 block accum_ast) rest
+  | otherwise
+      = split (Vissue (block +++ line)) accum_ast rest
+  where end_vissue_pragma_regex = [qq|#pragma trillium vector end|] 
+        insert_block key bb prog =
+          accum_ast {vissue_blocks= M.insert key bb $ vissue_blocks prog}
+
 split _ _ [] = error "reached end of file unexpectedly"
 
-kernel_start_pragma = "#pragma trillium vec_simd start"
+(+++) :: T.Text -> T.Text -> T.Text
+t1 +++ t2 = T.intercalate "" [t1, t2]
+
 alpha = "a-z|A-Z"
 num = "0-9"
 alpha_num = [text|$alpha|$num|]
@@ -128,5 +150,3 @@ decompose :: T.Text -> T.Text -> [T.Text]
 decompose line regex =  
   let (_,_,_,matches) = line =~ regex :: (T.Text,T.Text,T.Text,[T.Text])
   in matches
-
-
