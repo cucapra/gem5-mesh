@@ -43,7 +43,7 @@
 class IEW : public Stage
 {
 public:
-  IEW(IOCPU *_cpu_p, IOCPUParams *params, size_t in_size, size_t out_size);
+    IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size);
   ~IEW();
 
   /** Init (this is called after all CPU structures are created) */
@@ -65,10 +65,10 @@ public:
   void suspend() override;
 
   /** Get pointer to memory unit */
-  MemUnit *getMemUnitPtr();
+    MemUnit* getMemUnitPtr();
 
   /** Line trace */
-  void linetrace(std::stringstream &ss) override;
+    void linetrace(std::stringstream& ss) override;
 
     /** Accessor to predicate */
     bool getPred() const;
@@ -87,7 +87,6 @@ public:
       WBBusy,
       NumStatus
     };
-
 
 private:
   /** Do issue */
@@ -119,10 +118,10 @@ private:
   size_t m_wb_width;
 
   /** Vector of execution units */
-  std::vector<ExecUnit *> m_exec_units;
+    std::vector<ExecUnit*> m_exec_units;
 
   /** List of exec units that are traced */
-  std::vector<ExecUnit *> m_traced_exec_units;
+    std::vector<ExecUnit*> m_traced_exec_units;
 
   /** Map of Op_Class and index to the execution unit vector */
   std::unordered_map<OpClass, size_t> m_op_to_unit_map;
@@ -131,7 +130,7 @@ private:
   std::vector<std::string> m_exec_unit_names;
 
   /** Pointer to the memory unit */
-  MemUnit *m_mem_unit_p;
+    MemUnit* m_mem_unit_p;
 
   /** Index of the next exec unit to be selected to write back (used in
      * round-robin selection in Writeback stage) */
@@ -146,10 +145,10 @@ private:
   std::vector<TheISA::PCState> m_trace_pcs;
 
   /** ROBs */
-  std::vector<ROB *> m_robs;
+    std::vector<ROB*> m_robs;
 
   /** Global scoreboard (for all threads) */
-  Scoreboard *m_scoreboard_p;
+    Scoreboard* m_scoreboard_p;
 
 private:
   /** stats */

@@ -1,6 +1,9 @@
-
+#include <stdint.h>
 #include "spad.h"
 
+// 4 kB
+#define SP_SIZE 4096
+#define N_SPS _N_SPS
 
 #if !defined(__x86_64__) && !defined(__i386__)
 // SPM space mapped to scratchpads
@@ -42,7 +45,7 @@ void initScratchpads() {
   }
 #endif
 }
-/*
+
 
 void *getSpAddr(int pad, size_t wordOffset) {
 #if !defined(__x86_64__) && !defined(__i386__)
@@ -57,7 +60,7 @@ void *getSpAddr(int pad, size_t wordOffset) {
   return NULL;
 #endif
 }
-*/
+
 void *getSpTop(int pad) {
 #if !defined(__x86_64__) && !defined(__i386__)
   if (pad >= N_SPS) return NULL;

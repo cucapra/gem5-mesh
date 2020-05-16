@@ -67,37 +67,29 @@
 #endif
 
 // https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
-int roundUp(int numToRound, int multiple)
-{
-  if (multiple == 0)
-  {
+int roundUp(int numToRound, int multiple) {
+  if (multiple == 0) {
     return numToRound;
   }
 
   int remainder = abs(numToRound) % multiple;
-  if (remainder == 0)
-  {
+  if (remainder == 0) {
     return numToRound;
   }
 
-  if (numToRound < 0)
-  {
+  if (numToRound < 0) {
     return -(abs(numToRound) - remainder);
   }
-  else
-  {
+  else {
     return numToRound + multiple - remainder;
   }
 }
 
-inline int min(int a, int b)
-{
-  if (a > b)
-  {
+inline int min(int a, int b) {
+  if (a > b) {
     return b;
   }
-  else
-  {
+  else {
     return a;
   }
 }
@@ -112,7 +104,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   if (ohjeez) {
 
   // enter vector epoch within function, b/c vector-simd can't have control flow
-  VECTOR_EPOCH(mask);
+  VECTOR_EPOCH(mask); 
 
   // should be a constant from static analysis of dim
   int pRatio = VECTOR_LEN / PREFETCH_LEN;
@@ -146,9 +138,9 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
 
   int localIter = beginIter * 2;
 
-#ifdef SIMD_BCAST
+  #ifdef SIMD_BCAST
   int deviceIter = 0;
-#endif
+  #endif
 
   #ifdef VERTICAL_LOADS
   for (int i = beginIter; i < totalIter; i+=LOAD_LEN) {
@@ -187,7 +179,7 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     // broadcast values needed to execute
     // in this case the spad loc
     BROADCAST(t0, deviceIter, 0);
-#endif
+    #endif
 
     // issue fable1
     ISSUE_VINST(fable1);
@@ -216,17 +208,16 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
   for (int i = totalIter - beginIter; i < totalIter; i++) {
     #ifdef SIMD_BCAST
     BROADCAST(t0, deviceIter, 0);
-#endif
+    #endif
 
     ISSUE_VINST(fable1);
 
-#ifdef SIMD_BCAST
-    deviceIter += 2;
-    if (deviceIter == (NUM_REGIONS * 2))
-    {
+    #ifdef SIMD_BCAST
+    deviceIter+=2;
+    if (deviceIter == (NUM_REGIONS * 2)) {
       deviceIter = 0;
     }
-#endif
+    #endif
   }
   #endif
 
@@ -303,8 +294,9 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     // can make compiler pass
     asm volatile(
       "add %[var], t0, x0\n\t"
-      : [ var ] "=r"(iter));
-#endif
+      : [var] "=r" (iter)
+    );
+    #endif
 
     FRAME_START(REGION_SIZE);
 
@@ -316,19 +308,19 @@ vvadd_execute(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vt
     // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
     REMEM(REGION_SIZE);
 
-  // compute and store
-  c_ = a_ + b_;
-  STORE_NOACK(c_, cPtr, 0);
-  cPtr += dim;
+    // compute and store
+    c_ = a_ + b_;
+    STORE_NOACK(c_, cPtr, 0);
+    cPtr += dim;
 
     #ifndef SIMD_BCAST
     iter = (iter + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
     #endif
     #endif
 
-  // need this jump to create loop carry dependencies
-  // an assembly pass will remove this instruction
-  asm volatile goto("j %l[fable1]\n\t" :: ::fable1);
+    // need this jump to create loop carry dependencies
+    // an assembly pass will remove this instruction
+    asm volatile goto("j %l[fable1]\n\t"::::fable1);
 
   return;
 }
@@ -350,12 +342,10 @@ vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *b, DTYPE *c, int n,
-    int tid_x, int tid_y, int dim_x, int dim_y)
-{
-
+    int tid_x, int tid_y, int dim_x, int dim_y) {
+  
   // start recording all stats (all cores)
-  if (tid_x == 0 && tid_y == 0)
-  {
+  if (tid_x == 0 && tid_y == 0) {
     stats_on();
   }
 
@@ -366,21 +356,21 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // split into physical and virtual tids + dim
   int ptid_x = tid_x;
   int ptid_y = tid_y;
-  int ptid = tid;
+  int ptid   = tid;
   int pdim_x = dim_x;
   int pdim_y = dim_y;
-  int pdim = dim;
+  int pdim   = dim;
   int vtid_x = 0;
   int vtid_y = 0;
-  int vtid = 0;
+  int vtid   = 0;
   int vdim_x = 0;
   int vdim_y = 0;
-  int vdim = 0;
-  int start = 0;
-  int end = 0;
+  int vdim   = 0;
+  int start  = 0;
+  int end    = 0;
   int orig_x = 0;
   int orig_y = 0;
-  int is_da = 0;
+  int is_da  = 0;
   int master_x = 0;
   int master_y = 0;
   int unique_id = 0;
@@ -431,7 +421,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   end    = ( ( ptid + 1 ) * n ) / pdim;
 
 
-#endif
+  #endif
 
   // linearize some fields
   int orig = orig_x + orig_y * dim_x;
@@ -443,14 +433,14 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
-#ifdef NUM_REGIONS
+  #ifdef NUM_REGIONS
   int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
   PREFETCH_EPOCH(prefetchMask);
 
   // make sure all cores have done this before begin kernel section --> do thread barrier for now
   // TODO hoping for a cleaner way to do this
   pthread_barrier_wait(&start_barrier);
-#endif
+  #endif
 
   // only let certain tids continue
   #if defined(USE_VEC)
@@ -459,17 +449,17 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (used == 0) return;
   #endif
 
-// run the actual kernel with the configuration
-#ifdef UNROLL
+  // run the actual kernel with the configuration
+  #ifdef UNROLL
   int unroll_len = REGION_SIZE / 2;
-#else
+  #else
   int unroll_len = 1;
-#endif
+  #endif
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
   // do before the function call so the arg stack frame is on the spad
-  // store the the current spAddr to restore later
+  // store the the current spAddr to restore later 
   unsigned long long *spTop = getSpTop(ptid);
   // guess the remaining of the part of the frame that might be needed??
   spTop -= 4;
@@ -497,22 +487,24 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // configure
   #ifdef USE_VEC
   vvadd_execute(a, b, c, start, end, ptid, vtid, vdim, mask, is_da);
-#else
+  #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   #endif
 
   // restore stack pointer
-  asm volatile(
-      "addi sp, %[stackTop], 0\n\t" ::[stackTop] "r"(stackLoc));
+  asm volatile (
+    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
+  );
+
 }
+
 
 // helper functions
 Kern_Args *construct_args(DTYPE *a, DTYPE *b, DTYPE *c, int size,
-                          int tid_x, int tid_y, int dim_x, int dim_y)
-{
+  int tid_x, int tid_y, int dim_x, int dim_y) {
 
-  Kern_Args *args = (Kern_Args *)malloc(sizeof(Kern_Args));
-
+  Kern_Args *args = (Kern_Args*)malloc(sizeof(Kern_Args));
+  
   args->a = a;
   args->b = b;
   args->c = c;
@@ -521,26 +513,25 @@ Kern_Args *construct_args(DTYPE *a, DTYPE *b, DTYPE *c, int size,
   args->tid_y = tid_y;
   args->dim_x = dim_x;
   args->dim_y = dim_y;
-
+  
   return args;
+      
 }
 
-void *pthread_kernel(void *args)
-{
+void *pthread_kernel(void *args) {
   // guarentee one thread goes to each core, by preventing any threads
   // from finishing early
   pthread_barrier_wait(&start_barrier);
-
+  
   // call the spmd kernel
-  Kern_Args *a = (Kern_Args *)args;
-
-  kernel(a->a, a->b, a->c, a->size,
-         a->tid_x, a->tid_y, a->dim_x, a->dim_y);
-
+  Kern_Args *a = (Kern_Args*)args;
+  
+  kernel(a->a, a->b, a->c, a->size, 
+      a->tid_x, a->tid_y, a->dim_x, a->dim_y);
+      
   pthread_barrier_wait(&start_barrier);
 
-  if (a->tid_x == 0 && a->tid_y == 0)
-  {
+  if (a->tid_x == 0 && a->tid_y == 0) {
     stats_off();
   }
 
