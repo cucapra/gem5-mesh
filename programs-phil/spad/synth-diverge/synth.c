@@ -13,96 +13,78 @@
 #define UNROLL 1
 #define SPEC_PREFETCH 1
 
-#define SPAD_STORE 1
-
 // if don't have this attribute potentially will duplicate inline assembly due
 // to code layout reordering. this happens in -O2+ with -freorder-blocks-algorithm=stc
 // this is problematic with revec call which needs to sync pc between multiple traces on a revec
-void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
-synthetic(int *a, int *b, int *c, int *d, int n, int tid, int dim)
-{
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
+synthetic(int *a, int *b, int *c, int *d, int n, int tid, int dim) {
   int *spAddr = getSpAddr(tid, 0);
-  int *sp_c = getSpAddr(tid, 1000);
-
-  for (int i = tid; i < n; i += dim)
-  {
-
+  
+  for (int i = tid; i < n; i+=dim) {
+    
     int a_;
-#ifdef _USE_VLOAD
+    #ifdef _USE_VLOAD
     VPREFETCH(spAddr, a + i, 0);
     LWSPEC(a_, spAddr, 0);
-#else
+    #else
     a_ = a[i];
-#endif
-
-    if (a_ == 0)
-    {
+    #endif
+    
+    if (a_ == 0) {
       int b_;
-#ifdef _USE_VLOAD
+      #ifdef _USE_VLOAD
       VPREFETCH(spAddr + 1, b + i, 0);
       LWSPEC(b_, spAddr + 1, 0);
-#else
+      #else
       b_ = b[i];
-#endif
+      #endif
       int c_ = b_;
-      for (int j = 0; j < 2; j++)
-      {
+      for (int j = 0; j < 2; j++) {
         c_ *= b_;
       }
       c[i] = c_;
-      //sp_c[0] = c_;
     }
-    else
-    {
+    else {
       int b_;
-#ifdef _USE_VLOAD
+      #ifdef _USE_VLOAD
       // need memory alignment, so needs to be divisible by vlen now
       // if no alignment would need to send two seperate packets to different
       // cache banks
       VPREFETCH(spAddr + 1, d + i, 0);
-      LWSPEC(b_, spAddr + 1, 0);
-#else
+      LWSPEC(b_, spAddr + 1,  0);
+      #else
       b_ = d[i];
-#endif
+      #endif
       int c_ = b_;
-      for (int j = 0; j < 2; j++)
-      {
+      for (int j = 0; j < 2; j++) {
         c_ *= b_;
       }
-#ifdef SPAD_STORE
-          sp_c[0] = c_;
-#else
-          c[idx] = c_;
-#endif
-      //c[0] = c_;
-      //sp_c[0] = c_;
+      c[i] = c_;
     }
-
+    
+    
     // try to revec at the end of loop iteration
     REVEC(0);
   }
 }
 
-void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
-loop_body(int a, int *b, int *c, int *d, int i, int *spAddr)
-{
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
+  loop_body(int a, int *b, int *c, int *d, int i, int *spAddr) {
 
-  // TODO can we unroll the loads for these somehow? potentially speculatively?
-  // presumably there is a hot path known so should get perf improvement doing so!
-  if (a == 0)
-  {
-    int b_;
-    VPREFETCH(spAddr, b + i, 0);
-    LWSPEC(b_, spAddr, 0);
+    // TODO can we unroll the loads for these somehow? potentially speculatively?
+    // presumably there is a hot path known so should get perf improvement doing so!
+    if (a == 0) {
+      int b_;
+      VPREFETCH(spAddr, b + i, 0);
+      LWSPEC(b_, spAddr, 0);
 
-    int c_ = b_;
-    for (int j = 0; j < 2; j++)
-    {
-      c_ *= b_;
+      int c_ = b_;
+      for (int j = 0; j < 2; j++) {
+        c_ *= b_;
+      }
+      c[i] = c_;
     }
-    c[i] = c_;
-  }
-  else {
+    else {
       int b_;
       VPREFETCH(spAddr, d + i, 0);
       LWSPEC(b_, spAddr,  0);
@@ -115,33 +97,28 @@ loop_body(int a, int *b, int *c, int *d, int i, int *spAddr)
       // STORE_NOACK(c_, c + i, 0);
     }
 
-  // try to revec at the end of loop iteration
-  //REVEC(0);
+    // try to revec at the end of loop iteration
+    //REVEC(0);
 }
 
 // don't want to unroll b/c then need to use the stack, which currently skips spad so will get more
 // LLC accesses when do more prefetching
 // although doesn't seem to respect hint @ 8
-void __attribute__((optimize("-freorder-blocks-algorithm=simple")))
-synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len)
-{
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) 
+synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int unroll_len) {
   int *spAddr = getSpAddr(tid, 0);
-  int *sp_c = getSpAddr(tid, 1000);
 
-  for (int i = tid; i < n; i += unroll_len * dim)
-  {
-
+  for (int i = tid; i < n; i+=unroll_len*dim) {
+    
     // load everybody up front, cheap temporal multithreading
     // maybe the non-vector version can't handle this increased mem traffic?
-    for (int j = 0; j < unroll_len; j++)
-    {
+    for (int j = 0; j < unroll_len; j++) {
       int idx = i + j * dim;
       VPREFETCH(spAddr + j, a + idx, 0);
     }
 
-#ifdef SPEC_PREFETCH
-    for (int j = 0; j < unroll_len; j++)
-    {
+    #ifdef SPEC_PREFETCH
+    for (int j = 0; j < unroll_len; j++) {
       // speculate on load for the hot path
       // not only assuming threads will do the same thing across space, but
       // also speculating will do the same thing across time
@@ -149,37 +126,31 @@ synthetic_uthread(int *a, int *b, int *c, int *d, int n, int tid, int dim, int u
       int idx = i + j * dim;
       VPREFETCH(spAddr + j + unroll_len, b + idx, 0);
     }
-#endif
+    #endif
 
-    for (int j = 0; j < unroll_len; j++)
-    {
+
+
+    for (int j = 0; j < unroll_len; j++) {
       int idx = i + j * dim;
       int a_;
       LWSPEC(a_, spAddr + j, 0);
-      if (a_ == 0)
-      {
+      if (a_ == 0) {
         int b_;
 
-#ifndef SPEC_PREFETCH
+        #ifndef SPEC_PREFETCH
         VPREFETCH(spAddr + unroll_len, b + idx, 0);
         LWSPEC(b_, spAddr + unroll_len, 0);
-#else
+        #else
         LWSPEC(b_, spAddr + j + unroll_len, 0);
-#endif
+        #endif
 
         int c_ = b_;
-        for (int k = 0; k < 2; k++)
-        {
+        for (int k = 0; k < 2; k++) {
           c_ *= b_;
         }
-#ifdef SPAD_STORE
-          sp_c[0] = c_;
-#else
-          c[idx] = c_;
-#endif
+        c[idx] = c_;
       }
-      else
-      { // unused in convergent example
+      else { // unused in convergent example
         // int b_;
         // VPREFETCH(spAddr + unroll_len, d + idx, 0);
         // LWSPEC(b_, spAddr + unroll_len,  0);
@@ -336,12 +307,10 @@ int roundUp(int numToRound, int multiple) {
 // actual kernel
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     int *a, int *b, int *c, int *d, int n,
-    int tid_x, int tid_y, int dim_x, int dim_y)
-{
-
+    int tid_x, int tid_y, int dim_x, int dim_y) {
+  
   // start recording all stats (all cores)
-  if (tid_x == 0 && tid_y == 0)
-  {
+  if (tid_x == 0 && tid_y == 0) {
     stats_on();
   }
 
@@ -455,13 +424,13 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   
 }
 
+
 // helper functions
 Kern_Args *construct_args(int *a, int *b, int *c, int *d, int n,
-                          int tid_x, int tid_y, int dim_x, int dim_y)
-{
-
-  Kern_Args *args = (Kern_Args *)malloc(sizeof(Kern_Args));
-
+  int tid_x, int tid_y, int dim_x, int dim_y) {
+      
+  Kern_Args *args = (Kern_Args*)malloc(sizeof(Kern_Args));
+  
   args->a = a;
   args->b = b;
   args->c = c;
@@ -471,16 +440,16 @@ Kern_Args *construct_args(int *a, int *b, int *c, int *d, int n,
   args->tid_y = tid_y;
   args->dim_x = dim_x;
   args->dim_y = dim_y;
-
+  
   return args;
+      
 }
 
-void *pthread_kernel(void *args)
-{
+void *pthread_kernel(void *args) {
   // guarentee one thread goes to each core, by preventing any threads
   // from finishing early
   pthread_barrier_wait(&start_barrier);
-
+  
   // call the spmd kernel
   Kern_Args *a = (Kern_Args*)args;
 
