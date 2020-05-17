@@ -10,6 +10,6 @@
 #include "../../common/bind_defs.h"
 
 void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
-                   int m_start, int m_end, int n_start, int n_end, int tid_x, int tid_y, int tid, int ptid);
+                   int m_start, int m_end, int n_start, int n_end, int tid_x, int tid_y, int tid, int ptid, int* ptid_group);
 
 #endif

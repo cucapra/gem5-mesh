@@ -1,11 +1,14 @@
 #include "gemm_kernel.h"
 
 #define BLK_DIM 4
+#define VEC_LEN 4
 
 // #define SIMD_PRIVATE
 // #define SIMD_SHARING
 
+#ifdef SIMD_PRIVATE
 #define VERT_LOADS
+#endif
 
 #ifdef SIMD_SHARING
 #define SHARING
@@ -30,7 +33,7 @@ static inline int _idx_(int y, int x, int width)
 }
 
 void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
-                   int m_start, int m_end, int n_start, int n_end, int tid_x, int tid_y, int tid, int ptid)
+                   int m_start, int m_end, int n_start, int n_end, int tid_x, int tid_y, int tid, int ptid, int* ptid_group)
 {
 
   VECTOR_EPOCH(mask);
@@ -232,7 +235,14 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   volatile int bh1, bh2, bh3;
   DTYPE a_, b_;
   int spadRegion;
-  DTYPE *sp_all[4] = {(DTYPE *)getSpAddr(1, 0), (DTYPE *)getSpAddr(2, 0), (DTYPE *)getSpAddr(5, 0), (DTYPE *)getSpAddr(6, 0)};
+  #ifdef SIMD_SHARING
+  DTYPE *sp_all[VEC_LEN];
+  #pragma GCC unroll (16)
+  for(int i=0;i<VEC_LEN;i++){
+    sp_all[i] = (DTYPE *)getSpAddr(ptid_group[i], 0);
+  }
+  #endif
+  
   DTYPE *spAddr;
   int offset_x, offset_y;
 
@@ -240,8 +250,10 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   int dim_y = 2;
   int total_cores = dim_x * dim_y;
 
+  
   spadRegion = 0;
-  spAddr = sp_all[tid];
+  // spAddr = sp_all[tid];
+  spAddr = (DTYPE *)getSpAddr(ptid, 0);
   sp_c = spAddr + NUM_REGIONS * REGION_SIZE;
   offset_x = BLK_DIM * dim_x;
   offset_y = BLK_DIM * dim_y;
@@ -257,6 +269,7 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
       while (bh3)
       {
       fable123:
+        FRAME_START(REGION_SIZE);
 #pragma unroll
         for (int i = 0; i < BLK_DIM; i++)
         {
