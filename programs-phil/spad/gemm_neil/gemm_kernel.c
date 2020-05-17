@@ -1,21 +1,36 @@
 #include "gemm_kernel.h"
 
 #define BLK_DIM 4
-#define VEC_LEN 4
 
-// #define SIMD_PRIVATE
-// #define SIMD_SHARING
+// #define SIMD_PRIVATE_16
+// #define SIMD_SHARING_16
 
-#ifdef SIMD_PRIVATE
+#ifdef SIMD_PRIVATE_16
 #define VERT_LOADS
+#define VEC_LEN_16
+#define DIM_X 4
 #endif
 
-#ifdef SIMD_SHARING
+#ifdef SIMD_PRIVATE_4
+#define VERT_LOADS
+#define VEC_LEN_4
+#define DIM_X 2
+#endif
+
+#ifdef SIMD_SHARING_16
 #define SHARING
+#define VEC_LEN_16
+#define DIM_X 4
+#endif
+
+#ifdef SIMD_SHARING_4
+#define SHARING
+#define VEC_LEN_4
+#define DIM_X 2
 #endif
 
 #ifdef SHARING
-#define REGION_SIZE BLK_DIM
+#define REGION_SIZE (BLK_DIM * 2)/DIM_X
 #define NUM_REGIONS (512 / REGION_SIZE)
 #else
 #define REGION_SIZE (BLK_DIM * 2)
@@ -42,10 +57,16 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   ISSUE_VINST(fable0); // issue vector block early so that vector cores don't stay idol
   int spadRegion = 0;
 
+#ifdef VEC_LEN_4
   int dim_x = 2; //num cpu in a group in x dim
   int dim_y = 2;
-  int total_cores = dim_x * dim_y;
 
+#elif defined VEC_LEN_16
+  int dim_x = 4; //num cpu in a group in x dim
+  int dim_y = 4;
+#endif
+
+  int total_cores = dim_x * dim_y;
   int offset_x, offset_y;
   offset_x = BLK_DIM * dim_x;
   offset_y = BLK_DIM * dim_y;
@@ -67,16 +88,16 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
     for (int i = 0; i < (offset_y / total_cores); i++)
     {
       // VPREFETCH(sp_a + i, a + _idx_(k, m_start + (i * total_cores), m), 0);
-      VPREFETCH_L(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, 4,0);
-      VPREFETCH_R(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, 4,0);
+      VPREFETCH_L(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, total_cores,0);
+      VPREFETCH_R(sp_a_offset + i, a + _idx_(k, m_start + (i * total_cores), m), 0, total_cores,0);
     }
 
     // fetch b in scratchpad
     for (int j = 0; j < (offset_x / total_cores); j++)
     {
       // VPREFETCH(sp_b + j, b + _idx_(k, n_start + (j * total_cores), m), 0);
-      VPREFETCH_L(sp_b_offset + j, b + _idx_(k, n_start + (j * total_cores), m), 0, 4,0);
-      VPREFETCH_R(sp_b_offset + j, b + _idx_(k, n_start + (j * total_cores), m), 0, 4,0);
+      VPREFETCH_L(sp_b_offset + j, b + _idx_(k, n_start + (j * total_cores), n), 0, total_cores,0);
+      VPREFETCH_R(sp_b_offset + j, b + _idx_(k, n_start + (j * total_cores), n), 0, total_cores,0);
     }
   #else
 
@@ -90,13 +111,13 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         VPREFETCH_R(sp_a_offset, a + _idx_(k, m_start + yy * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
 
         //fetch b
-        VPREFETCH_L(sp_b_offset, b + _idx_(k, n_start + xx * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
-        VPREFETCH_R(sp_b_offset, b + _idx_(k, n_start + xx * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
+        VPREFETCH_L(sp_b_offset, b + _idx_(k, n_start + xx * BLK_DIM, n), xx + yy * dim_x, BLK_DIM,1);
+        VPREFETCH_R(sp_b_offset, b + _idx_(k, n_start + xx * BLK_DIM, n), xx + yy * dim_x, BLK_DIM,1);
       }
     }
 
     #else
-    //fetch a one element at a time (todo: might need to vectorize the loads)
+    //fetch a one element at a time
     for (int yy = 0; yy < dim_y; yy++)
     {
       for (int i = 0; i < BLK_DIM; i++)
@@ -153,16 +174,16 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         for (int i = 0; i < (offset_y / total_cores); i++)
         {
           // VPREFETCH(sp_a + i, a + _idx_(k, i0 + (i * total_cores), m), 0);
-          VPREFETCH_L(sp_a_offset + i, a + _idx_(k, i0 + (i * total_cores), m), 0, 4,0);
-          VPREFETCH_R(sp_a_offset + i, a + _idx_(k, i0 + (i * total_cores), m), 0, 4,0);
+          VPREFETCH_L(sp_a_offset + i, a + _idx_(k, i0 + (i * total_cores), m), 0, total_cores,0);
+          VPREFETCH_R(sp_a_offset + i, a + _idx_(k, i0 + (i * total_cores), m), 0, total_cores,0);
         }
 
         // fetch b in scratchpad
         for (int j = 0; j < (offset_x / total_cores); j++)
         {
           // VPREFETCH(sp_b + j, b + _idx_(k, j0 + (j * total_cores), m), 0);
-          VPREFETCH_L(sp_b_offset + j, b + _idx_(k, j0 + (j * total_cores), m), 0, 4,0);
-          VPREFETCH_R(sp_b_offset + j, b + _idx_(k, j0 + (j * total_cores), m), 0, 4,0);
+          VPREFETCH_L(sp_b_offset + j, b + _idx_(k, j0 + (j * total_cores), n), 0, total_cores,0);
+          VPREFETCH_R(sp_b_offset + j, b + _idx_(k, j0 + (j * total_cores), n), 0, total_cores,0);
         }
 #else
         #ifdef VERT_LOADS
@@ -175,8 +196,8 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
             VPREFETCH_R(sp_a_offset, a + _idx_(k, i0 + yy * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
 
             //fetch b
-            VPREFETCH_L(sp_b_offset, b + _idx_(k, j0 + xx * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
-            VPREFETCH_R(sp_b_offset, b + _idx_(k, j0 + xx * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
+            VPREFETCH_L(sp_b_offset, b + _idx_(k, j0 + xx * BLK_DIM, n), xx + yy * dim_x, BLK_DIM,1);
+            VPREFETCH_R(sp_b_offset, b + _idx_(k, j0 + xx * BLK_DIM, n), xx + yy * dim_x, BLK_DIM,1);
           }
         }
         
@@ -235,21 +256,38 @@ void gemm_vec_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   volatile int bh1, bh2, bh3;
   DTYPE a_, b_;
   int spadRegion;
-  #ifdef SIMD_SHARING
-  DTYPE *sp_all[VEC_LEN];
-  #pragma GCC unroll (16)
-  for(int i=0;i<VEC_LEN;i++){
+  
+  #ifdef VEC_LEN_4
+
+  #ifdef SHARING
+  DTYPE *sp_all[4];
+  #pragma GCC unroll (4)
+  for(int i=0;i<4;i++){
     sp_all[i] = (DTYPE *)getSpAddr(ptid_group[i], 0);
   }
   #endif
-  
-  DTYPE *spAddr;
-  int offset_x, offset_y;
 
   int dim_x = 2; //num cpu in a group in x dim
   int dim_y = 2;
-  int total_cores = dim_x * dim_y;
 
+  #elif defined VEC_LEN_16
+
+  #ifdef SHARING
+  DTYPE *sp_all[16];
+  #pragma GCC unroll (16)
+  for(int i=0;i<16;i++){
+    sp_all[i] = (DTYPE *)getSpAddr(ptid_group[i], 0);
+  }
+  #endif
+
+  int dim_x = 4; //num cpu in a group in x dim
+  int dim_y = 4;
+  
+  #endif
+  
+  int total_cores = dim_x * dim_y;
+  DTYPE *spAddr;
+  int offset_x, offset_y;
   
   spadRegion = 0;
   // spAddr = sp_all[tid];

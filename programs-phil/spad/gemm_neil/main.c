@@ -10,19 +10,21 @@
 // #define PRINT_OUT
 #define RAND_MAT
 
-#if defined SIMD_PRIVATE || defined SIMD_SHARING
+#if !defined NO_VEC
 #define TRANSPOSE
 #endif
 
 void fill_matrix(DTYPE *m, int row, int col)
 {
-  srand(0);
+  
   for (int i = 0; i < row; i++)
   {
     for (int j = 0; j < col; j++)
     {
       m[i * col + j] = rand() % 10;
+      // printf("%d ", (int)m[i * col + j]);
     }
+    // printf("\n");
   }
 }
 
@@ -34,7 +36,7 @@ int check_matmul(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t)
   {
     for (int j = 0; j < n; j++)
     {
-      printf("%f ", c[i * n + j]);
+      printf("%d ", (int)c[i * n + j]);
     }
     printf("\n");
   }
@@ -50,7 +52,7 @@ int check_matmul(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t)
       {
         c_temp += a[i * t + k] * b[k * n + j];
       }
-      printf("%f ", c_temp);
+      printf("%d ", (int)c_temp);
     }
     printf("\n");
   }
@@ -131,7 +133,11 @@ int main(int argc, char *argv[])
   DTYPE *c = (DTYPE *)malloc(sizeof(DTYPE) * sizeC);
 
 #ifdef RAND_MAT
+  srand(0);
+  printf("matrix a\n");
   fill_matrix(a, m, t);
+  printf("------------\n \n");
+  printf("matrix b\n");
   fill_matrix(b, t, n);
 #else
   for (int i = 0; i < sizeA; i++)

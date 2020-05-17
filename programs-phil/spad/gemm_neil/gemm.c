@@ -8,18 +8,37 @@
 
 #include "gemm_kernel.h"
 
-// #define SIMD_PRIVATE
-// #define SIMD_SHARING
+
+// #define SIMD_PRIVATE_16
+// #define SIMD_SHARING_16
 // #define NO_VEC
 
-#ifdef SIMD_SHARING
+// #define VEC_LEN_16
+// #define VEC_LEN_4
+
+#ifdef SIMD_SHARING_4
 #define _VEC
 #define USE_VECTOR_SIMD
 #define SHARING
+#define VEC_LEN_4
+#define DIM_X 2
 #endif
-#ifdef SIMD_PRIVATE
+#ifdef SIMD_SHARING_16
 #define _VEC
 #define USE_VECTOR_SIMD
+#define SHARING
+#define VEC_LEN_16
+#define DIM_X 4
+#endif
+#ifdef SIMD_PRIVATE_4
+#define _VEC
+#define USE_VECTOR_SIMD
+#define VEC_LEN_4
+#endif
+#ifdef SIMD_PRIVATE_16
+#define _VEC
+#define USE_VECTOR_SIMD
+#define VEC_LEN_16
 #endif
 #ifdef NO_VEC
 #define IN_SPAD
@@ -45,7 +64,7 @@
 #define BLK_DIM 4
 
 #ifdef SHARING
-#define REGION_SIZE BLK_DIM
+#define REGION_SIZE (BLK_DIM*2)/DIM_X
 #define NUM_REGIONS (512 / REGION_SIZE)
 #else
 #define REGION_SIZE (BLK_DIM * 2)
@@ -296,6 +315,7 @@ void kernel(
 
 #if defined USE_VECTOR_SIMD
 
+  #ifdef VEC_LEN_4
   // vec len 4 currently
  // virtual group dimension
   vdim_x = 2;
@@ -308,11 +328,12 @@ void kernel(
     &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
 
   if(used && is_da==0){
-    //linearize origin vector ptid
+    
     //-----------og_ptid-------v2_ptid------------//
     //             |              |
     //             |              |
     //-----------v3_ptid--------v4_ptid------------//
+    //linearize origin vector ptid
     int og_ptid = orig_x + orig_y*dim_x;
     int v2_ptid = og_ptid+1;
     int v3_ptid = og_ptid+dim_x;
@@ -340,7 +361,43 @@ void kernel(
   if (m_start == m_end) return;
 
   // if (unique_id>0) return; //only keep the 1st group for now
+  #elif defined VEC_LEN_16
+  vdim_x = 4;
+  vdim_y = 4;
+  vdim = vdim_x * vdim_y;
 
+  int ptid_group_[16];
+
+  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y,
+    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
+
+  
+  int m_start=0;
+  int n_start = 0;
+  int m_end=m;
+  int n_end = n;
+
+  if (used) {
+    int alignment = BLK_DIM * vdim_x;
+    // divide 'm' among groups, each groups works on [0,n) for output matrix mxn
+    m_start = roundUp((unique_id + 0) * m / total_groups, alignment); 
+    m_end   = roundUp((unique_id + 1) * m / total_groups, alignment); //TODO:m_end can be greater than m in cases of m%alignment !=0
+  }
+  else return;
+
+  if (m_start == m_end) return;
+
+  if(used && is_da==0){
+    int og_ptid = orig_x + orig_y*dim_x;
+    for(int i=0; i<vdim_y;i++){
+      for(int j=0; j<vdim_x; j++){
+        ptid_group_[i*vdim_x+j]=og_ptid;
+        og_ptid++;
+      }
+      og_ptid+=dim_x-vdim_x;
+    }
+  }
+  #endif
 #else
   vdim_x = 1;
   vdim_y = 1;
@@ -374,12 +431,12 @@ void kernel(
 
   unsigned long long *spTop = getSpTop(ptid);
   // // guess the remaining of the part of the frame that might be needed??
-  spTop -= 15;
+  spTop -= 30;
 
   unsigned long long stackLoc;
   unsigned long long temp;
-  #pragma GCC unroll(15)
-  for(int i=0;i<15;i++){
+  #pragma GCC unroll(30)
+  for(int i=0;i<30;i++){
     asm volatile("ld t0, %[id](sp)\n\t"
                 "sd t0, %[id](%[spad])\n\t"
                 : "=r"(temp)
@@ -450,6 +507,7 @@ void *pthread_kernel(void *args)
 
   kernel(a->a, a->b, a->c, a->m, a->n, a->t,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
+
 
   if (a->tid_x == 1 && a->tid_y == 1)
   {
