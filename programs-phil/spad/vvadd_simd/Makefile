@@ -42,7 +42,7 @@ endif
 RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
 
 # script to find the correct vissue length
-VISS=python /home/na469/phil/gem5-mesh/scripts-phil/vissue-asm.py
+VISS=python ../../../scripts-phil/vissue-asm.py
 
 #in case of vector and scalar compilations
 C_OBJS_FIL := $(filter-out vvadd_kernel.o, $(C_OBJS))
@@ -76,7 +76,7 @@ $(EXEC).neil: $(DEPS_FIL)
 	$(RV_CC) $(C_OBJS_FIL) $(CFLAGS) -o $(EXEC)
 
 run: $(EXEC).neil
-	../../../build/RVSP/gem5.opt -d /home/na469/phil/gem5-mesh/results/vvadd_simd-SIZE1024 \
+	../../../build/RVSP/gem5.opt -d ../../../results/vvadd_simd-SIZE1024 \
 	../../../configs/phil/brg_hammerblade.py --cmd=vvadd --options=1024 --num-cpus=16 --vector
 
 
