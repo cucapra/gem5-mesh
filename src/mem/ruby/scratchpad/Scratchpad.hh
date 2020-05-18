@@ -49,7 +49,7 @@
 class CpuPort : public SlavePort
 {
 public:
-   CpuPort(Scratchpad *_scratchpad_p, const std::string &_name);
+    CpuPort(Scratchpad* _scratchpad_p, const std::string& _name);
    ~CpuPort() = default;
 
    /**
@@ -70,38 +70,31 @@ public:
    /**
      * Receive timing request from CPU
      */
-   bool recvTimingReq(Packet *pkt) override;
+    bool recvTimingReq(Packet* pkt) override;
 
    /**
      * Receive functional request from CPU
      */
-   void recvFunctional(Packet *pkt) override;
+    void recvFunctional(Packet* pkt) override;
 
    /**
      * Receive atomic request from CPU
      */
    Tick recvAtomic(Packet *pkt) override
-   {
-      panic("recvAtomic Not implemented\n");
-   }
+    { panic("recvAtomic Not implemented\n"); }
 
    void recvRespRetry() override
-   {
-      panic("recvRespRetry Not implemented!\n");
-   }
+    { panic("recvRespRetry Not implemented!\n"); }
 
    AddrRangeList getAddrRanges() const override
-   {
-      panic("getAddrRanges Not implemented!\n");
-   }
+    { panic("getAddrRanges Not implemented!\n"); }
 
-   Scratchpad *getAttachedSpad() const
-   {
+    Scratchpad *getAttachedSpad() const {
       return m_scratchpad_p;
    }
 
 private:
-   Scratchpad *m_scratchpad_p;
+    Scratchpad* m_scratchpad_p;
    bool m_need_retry;
 };
 
@@ -123,7 +116,7 @@ class Scratchpad : public AbstractController
 {
 public:
    typedef ScratchpadParams Params;
-   Scratchpad(const Params *p);
+    Scratchpad(const Params* p);
    ~Scratchpad();
 
    /**
@@ -132,7 +125,8 @@ public:
    //BaseSlavePort& getSlavePort(const std::string& if_name,
    //                            PortID idx = InvalidPortID); //override;
    Port &getPort(const std::string &if_name,
-                 PortID idx = InvalidPortID) override;
+                  PortID idx=InvalidPortID) override;
+
 
    /**
      * Initialize network queues from/to Ruby network
@@ -147,22 +141,22 @@ public:
    /**
      * Print out network port's name
      */
-   void print(std::ostream &out) const override;
+    void print(std::ostream& out) const override;
 
    /**
      * handle CPU request
      */
-   bool handleCpuReq(Packet *pkt_p);
+    bool handleCpuReq(Packet* pkt_p);
 
    /**
      * handle remote request
      */
-   bool handleRemoteReq(Packet *pkt_p, MachineID remote_sender);
+    bool handleRemoteReq(Packet* pkt_p, MachineID remote_sender);
 
    /**
      * handle functional request
      */
-   void handleFunctionalCpuReq(Packet *pkt_p);
+    void handleFunctionalCpuReq(Packet* pkt_p);
 
    /**
      * return number of scratchpad controllers
@@ -178,55 +172,36 @@ public:
      * unused inherited functions
      */
 
-   void resetStats() override {}
+    void resetStats() override { }
 
-   MessageBuffer *getMandatoryQueue() const override
-   {
-      return nullptr;
-   }
+    MessageBuffer* getMandatoryQueue() const override
+    { return nullptr; }
 
-   MessageBuffer *getMemoryQueue() const override
-   {
-      return nullptr;
-   }
+    MessageBuffer* getMemoryQueue() const override
+    { return nullptr; }
 
    AccessPermission getAccessPermission(const Addr &addr) override
-   {
-      return AccessPermission_Invalid;
-   }
+    { return AccessPermission_Invalid; }
 
-   void recordCacheTrace(int cntrl, CacheRecorder *tr) override
-   {
-   }
+    void recordCacheTrace(int cntrl, CacheRecorder* tr) override
+    { }
 
-   Sequencer *getCPUSequencer() const override
-   {
-      return nullptr;
-   }
+    Sequencer* getCPUSequencer() const override
+    { return nullptr; }
 
-   GPUCoalescer *getGPUCoalescer() const override
-   {
-      return nullptr;
-   }
+    GPUCoalescer* getGPUCoalescer() const override
+    { return nullptr; }
 
    bool functionalRead(const Addr &addr, PacketPtr pkt) override
-   {
-      warn("Scratchpad does not support functionalRead\n");
-      return false;
-   }
+    { warn("Scratchpad does not support functionalRead\n"); return false; }
 
-   int functionalWriteBuffers(PacketPtr &pkt) override;
+    int functionalWriteBuffers(PacketPtr& pkt) override;
 
    int functionalWrite(const Addr &addr, PacketPtr pkt) override
-   {
-      warn("Scratchpad does not support functionalWrite\n");
-      return false;
-   }
+    { warn("Scratchpad does not support functionalWrite\n"); return false; }
 
    void collateStats() override
-   {
-      warn("Scratchpad does not support collateStats()\n");
-   }
+    { warn("Scratchpad does not support collateStats()\n"); }
 
   private:
     /**
@@ -240,14 +215,12 @@ public:
    Addr getLocalAddr(Addr addr) const;
 
    bool isLocalAddr(Addr addr) const
-   {
-      return getScratchpadIdFromAddr(addr) < m_num_scratchpads;
-   }
+    { return getScratchpadIdFromAddr(addr) < m_num_scratchpads; }
 
    /**
      * Access data array
      */
-   void accessDataArray(Packet *pkt_p);
+    void accessDataArray(Packet* pkt_p);
 
    /**
      * Send pending responses to CPU
@@ -274,7 +247,7 @@ public:
    //bool cpuIsSynced(int pktEpoch);
    //void updateMasterEpoch(const LLCResponseMsg *llc_msg_p);
 
-   //edit: Neil for remote access LWSPEC
+   //edit: Neil for remote access LW to region
    bool isWordRdyForRemote(Addr addr);
 
    /**
@@ -290,7 +263,7 @@ public:
    int getDesiredRegion(Addr addr);
 
    //Edit: Neil to check if load is within the region for prefetch
-   bool isRegionAccess(Packet *pkt_p);
+    bool isRegionAccess(Packet* pkt_p);
 
    /**
      * Logic for handling any resp packet to spad
@@ -316,7 +289,7 @@ public:
     /**
      * Pointer to Ruby system
      */
-   RubySystem *m_ruby_system_p;
+    RubySystem* m_ruby_system_p;
 
    /**
      * This scratchpad's size
@@ -331,15 +304,15 @@ public:
    /**
      * CPU port
      */
-   CpuPort *m_cpu_port_p;
+    CpuPort* m_cpu_port_p;
 
    /**
      * Ruby network buffers
      */
-   MessageBuffer *m_mem_req_buffer_p;     // Mem req from this scratchpad
-   MessageBuffer *m_mem_resp_buffer_p;    // Mem resp to this scratchpad
-   MessageBuffer *m_remote_req_buffer_p;  // Remote req from other scratchpads
-   MessageBuffer *m_remote_resp_buffer_p; // Remote resp to other scratchpads
+    MessageBuffer* m_mem_req_buffer_p;     // Mem req from this scratchpad
+    MessageBuffer* m_mem_resp_buffer_p;    // Mem resp to this scratchpad
+    MessageBuffer* m_remote_req_buffer_p;  // Remote req from other scratchpads
+    MessageBuffer* m_remote_resp_buffer_p; // Remote resp to other scratchpads
 
    /**
      * Number of scratchpads
@@ -349,12 +322,12 @@ public:
    /**
      * Internal data array
      */
-   uint8_t *m_data_array;
+    uint8_t* m_data_array;
 
    /**
      * List of pending CPU response packets
      */
-   std::deque<Packet *> m_cpu_resp_pkts;
+    std::deque<Packet*> m_cpu_resp_pkts;
 
    /**
      * Event used to respond CPU
@@ -364,7 +337,7 @@ public:
    /**
      * List of all pending memory packets
      */
-   std::unordered_map<uint64_t, Packet *> m_pending_pkt_map;
+    std::unordered_map<uint64_t, Packet*> m_pending_pkt_map;
    uint64_t m_cur_seq_num;
    const uint64_t m_max_num_pending_pkts;
 
