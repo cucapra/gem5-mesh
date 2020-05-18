@@ -16,7 +16,7 @@ EXEC = gemm
 # defaults if environment variables not set
 
 ifeq ($(ENV_N_SPS),)
-	N_SPS = 16
+	N_SPS = 64
 else
 	N_SPS = $(ENV_N_SPS)
 endif	
@@ -37,6 +37,13 @@ endif
 
 ifneq ($(ENV_EXTRA_MAKE_FLAGS),)
 	EXTRA_FLAGS := $(EXTRA_FLAGS) $(ENV_EXTRA_MAKE_FLAGS)
+endif
+
+ifeq ($(OUT),)
+	OUT := gemm_default
+endif
+ifeq ($(SIZE),)
+	SIZE := 32
 endif
 
 
@@ -80,6 +87,10 @@ combine: $(EXEC)_final.s
 
 $(EXEC).neil: $(DEPS_FIL)
 	$(RV_CC) $(C_OBJS_FIL) $(CFLAGS) -o $(EXEC)	
+
+run: $(EXEC).neil
+	../../../build/RVSP/gem5.opt -d ../../../results/$(OUT) \
+	../../../configs/phil/brg_hammerblade.py --cmd=$(EXEC) --options="$(SIZE) $(SIZE) $(SIZE)" --num-cpus=$(ENV_N_SPS) --vector
 
 # compile directly from .c to .o with no mods
 $(EXEC).orig: $(DEPS)
