@@ -5,13 +5,14 @@
 	.globl	vvadd_execute_simd
 	.type	vvadd_execute_simd, @function
 vvadd_execute_simd:
-	lw	t1,0(sp)
 #APP
 # 25 "vvadd_kernel.c" 1
 	.insn i 0x77, 0, x0, a0, 0x401
 	
 # 0 "" 2
 #NO_APP
+	lw	t1,0(sp)
+
 	subw	a5,a5,a4
 	divw	a6,a5,t1
 	li	a5,15
@@ -564,7 +565,7 @@ vvadd_execute_simd:
 .L13:
 #APP
 # 190 "vvadd_kernel.c" 1
-	.insn uj 0x2b, x0, .L13
+	.insn uj 0x2b, x1, .L13
 	
 # 0 "" 2
 # 194 "vvadd_kernel.c" 1
@@ -581,24 +582,64 @@ vvadd_execute_simd:
 	li	a5,0
 	j	.L6
 .L4:
-#APP
-# 200 "vvadd_kernel.c" 1
-	nop
-# 0 "" 2
-#NO_APP
+
+addi	sp,sp,-48
+	sd	s1,24(sp)
+	sd	ra,40(sp)
+	sd	s0,32(sp)
+	lw	s1,48(sp)
+	add	a4,a4,a7
+	slli	a4,a4,2
+	li	a1,0
+	mv	a0,a6
+	add	s0,a3,a4
+	call	getSpAddr
+	lw	a5,8(sp)
+	sext.w	a5,a5
+	slli	a1,s1,2
+	li	a5,0
+	li	a2,2
+	.insn i 0x1b, 0x7, x0, x0, 0
 .L7:
+
 #APP
-# 203 "vvadd_kernel.c" 1
-	nop
+# 109 "vvadd_kernel.c" 1
+	.insn i 0x1b, 0x3, x0, a2, 0
+	
 # 0 "" 2
 #NO_APP
+	slli	a4,a5,2
+	add	a4,a0,a4
+	lw	a3,0(a4)
+	lw	a4,4(a4)
+#APP
+# 119 "vvadd_kernel.c" 1
+	.insn i 0x1b, 0x2, x0, a2, 0
+	
+# 0 "" 2
+#NO_APP
+	addw	a4,a3,a4
+#APP
+# 123 "vvadd_kernel.c" 1
+	.insn sb 0x23, 0x5, a4, 0(s0)
+	
+# 0 "" 2
+#NO_APP
+	lw	a4,8(sp)
+	addi	a5,a5,2
+	add	s0,s0,a1
+	sext.w	a4,a4
+	andi	a5,a5,511
+
+	
+	.insn i 0x1b, 0x7, x0, x0, 0
 .L12:
-#APP
-# 206 "vvadd_kernel.c" 1
-	nop
-# 0 "" 2
-#NO_APP
-	ret
+ld	ra,40(sp)
+	ld	s0,32(sp)
+	ld	s1,24(sp)
+	addi	sp,sp,48
+	
+	.insn i 0x1b, 0x7, x0, x0, 0
 .L17:
 	li	a7,15
 	j	.L3

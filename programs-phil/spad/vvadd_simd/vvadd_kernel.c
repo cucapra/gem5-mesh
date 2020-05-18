@@ -32,13 +32,11 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
   int beginIter = min(numInitFetch, totalIter);
   for (int i = 0; i < beginIter; i++)
   {
-    // VPREFETCH(spadAddr + i * 2 + 0, a + start + (i * dim), 0);
-    // VPREFETCH(spadAddr + i * 2 + 1, b + start + (i * dim), 0);
 
-    VPREFETCH_L(i * 2 + 0, a + start + (i * dim), 0, 4);
-    VPREFETCH_R(i * 2 + 0, a + start + (i * dim), 0, 4);
-    VPREFETCH_L(i * 2 + 1, b + start + (i * dim), 0, 4);
-    VPREFETCH_R(i * 2 + 1, b + start + (i * dim), 0, 4);
+    VPREFETCH_L(i * 2 + 0, a + start + (i * dim), 0, 4, 0);
+    VPREFETCH_R(i * 2 + 0, a + start + (i * dim), 0, 4, 0);
+    VPREFETCH_L(i * 2 + 1, b + start + (i * dim), 0, 4, 0);
+    VPREFETCH_R(i * 2 + 1, b + start + (i * dim), 0, 4, 0);
   }
 
   // issue header instructions
@@ -80,10 +78,10 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
     // prefetch for future iterations
     // VPREFETCH(spadAddr + localIter + 0, a + start + (i * dim), 0);
     // VPREFETCH(spadAddr + localIter + 1, b + start + (i * dim), 0);
-    VPREFETCH_L(localIter + 0, a + start + (i * dim), 0, 4);
-    VPREFETCH_R(localIter + 0, a + start + (i * dim), 0, 4);
-    VPREFETCH_L(localIter + 1, b + start + (i * dim), 0, 4);
-    VPREFETCH_R(localIter + 1, b + start + (i * dim), 0, 4);
+    VPREFETCH_L(localIter + 0, a + start + (i * dim), 0, 4, 0);
+    VPREFETCH_R(localIter + 0, a + start + (i * dim), 0, 4, 0);
+    VPREFETCH_L(localIter + 1, b + start + (i * dim), 0, 4, 0);
+    VPREFETCH_R(localIter + 1, b + start + (i * dim), 0, 4, 0);
 
     localIter += 2;
     if (localIter == (NUM_REGIONS * 2))
@@ -108,13 +106,17 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
         : [ var ] "=r"(iter));
 #endif
 
+    FRAME_START(REGION_SIZE);
     // load values from scratchpad
-    LWSPEC(a_, spadAddr + iter, 0);
-    LWSPEC(b_, spadAddr + iter + 1, 0);
+    // LWSPEC(a_, spadAddr + iter, 0);
+    // LWSPEC(b_, spadAddr + iter + 1, 0);
+
+    a_ = *(spadAddr + iter);
+    b_ = *(spadAddr + iter + 1);
 
     // remem as soon as possible, so don't stall loads for next iterations
     // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
-    REMEM(0);
+    REMEM(REGION_SIZE);
 
     // compute and store
     c_ = a_ + b_;
@@ -159,13 +161,17 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
         : [ var ] "=r"(iter));
 #endif
 
+    FRAME_START(REGION_SIZE);
     // load values from scratchpad
-    LWSPEC(a_, spadAddr + iter, 0);
-    LWSPEC(b_, spadAddr + iter + 1, 0);
+    // LWSPEC(a_, spadAddr + iter, 0);
+    // LWSPEC(b_, spadAddr + iter + 1, 0);
+
+    a_ = *(spadAddr + iter);
+    b_ = *(spadAddr + iter + 1);  
 
     // remem as soon as possible, so don't stall loads for next iterations
     // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
-    REMEM(0);
+    REMEM(REGION_SIZE);
 
     // compute and store
     c_ = a_ + b_;
@@ -201,53 +207,4 @@ fable2:
 
 #endif
 
-  /*
-  // vector engine code
-
-  // declarations
-  DTYPE a_, b_, c_;
-  int64_t iter; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
-  DTYPE *cPtr;
-
-  // entry block
-  // NOTE need to do own loop-invariant code hoisting?
-  fable0:
-    iter = 0;
-    cPtr = c + start + vtid;
-  
-  // loop body block
-  fable1:
-    #ifdef SIMD_BCAST
-    // try to get compiler to use register that will recv broadcasted values
-    // can make compiler pass
-    asm volatile(
-      "add %[var], t0, x0\n\t"
-      : [var] "=r" (iter)
-    );
-    #endif
-
-    // load values from scratchpad
-    LWSPEC(a_, spadAddr + iter, 0);
-    LWSPEC(b_, spadAddr + iter + 1, 0);
-
-    // remem as soon as possible, so don't stall loads for next iterations
-    // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
-    REMEM(0);
-
-    // compute and store
-    c_ = a_ + b_;
-    STORE_NOACK(c_, cPtr, 0);
-    cPtr += dim;
-
-    #ifndef SIMD_BCAST
-    iter = (iter + 2) % (NUM_REGIONS * 2);
-    #endif
-
-    // need this jump to create loop carry dependencies
-    // an assembly pass will remove this instruction
-    asm volatile goto("j %l[fable1]\n\t"::::fable1);
-
-    */
-
-  return;
 }
