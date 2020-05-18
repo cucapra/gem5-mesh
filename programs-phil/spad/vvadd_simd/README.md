@@ -1,5 +1,4 @@
 # VVADD SIMD
-========
 
 Compiler hack for `vvadd_simd`. Aim is to write the scalar and vector code separately with different register mappings and compiler optimizations since they are meant to run on separate cores. We then compile them into separate assembly files which need to be combined/glued together in a smart way. As with 19th century industrialization, it can be hand-tuned but eventually will be replaced by an automatic process for better scaling (yes, compiler).
 
