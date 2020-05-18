@@ -14,7 +14,7 @@ make pass
 ```
 make combine
 ```
-`make combine` compiles `vvadd_final.s` to generate an object file. This might be a redundant step now that I think of it. It is there to support another script `run_sim.py`. 
+`make combine` compiles `vvadd_final.s` to generate an object file.
 ```
 make 
 make run
