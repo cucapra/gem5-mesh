@@ -40,7 +40,7 @@ Now compile the `gemm_kernel` using:
 make combine
 ```
 
-Then compile the kernel with the following flags. Use one of the version flags from [here](make-flags). Make sure you also pass the total cores using `ENV_N_SPS=64`. Remember for  `16` group size, we need at least 64 cores in the mesh. Hence we use:
+Then compile the kernel with the following flags. Use one of the version flags from [here](#make-flags). Make sure you also pass the total cores using `ENV_N_SPS=64`. Remember for  `16` group size, we need at least 64 cores in the mesh. Hence we use:
 ```
 ENV_EXTRA_MAKE_FLAGS=-DSIMD_PRIVATE_16 ENV_N_SPS=64 make
 ```
