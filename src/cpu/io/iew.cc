@@ -78,7 +78,7 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
   // init other exec_unit fields
   m_mem_unit_p = dynamic_cast<MemUnit*>(m_exec_units.back());
   m_next_wb_exec_unit_idx = 0;
-
+  
   // HACK fields
   m_trace_pcs.push_back(0);
   
@@ -112,18 +112,25 @@ IEW::name() const
 void
 IEW::regStats()
 {
-  iew_stalls_revec
-      .name(name() + ".iew_stalls_revec")
-      .desc("number of stalls in the iew stage due to stalling for revec in pipeline");
+  m_dep_stalls
+    .name(name() + ".issue_dep_stalls")
+    .desc("number of stalls issue dep")
+  ;
 
-  iew_stalls_control
-      .name(name() + ".iew_stalls_control")
-      .desc("number of stalls in the iew stage due to stalling for control flow insts in pipeline");
+  m_commit_buf_stalls
+    .name(name() + ".issue_rob_stalls")
+    .desc("number of stalls no space in rob on issue")
+  ;
 
-  iew_dep
-      .name(name() + ".iew_stalls_dep")
-      .desc("number of stalls in the iew stage due to dependency");
+  m_exe_unit_busy_stalls
+    .name(name() + ".issue_exe_busy")
+    .desc("number of stalls due to exe unit busy")
+  ;
 
+  m_mem_barrier_stalls
+    .name(name() + ".issue_mem_barrier")
+    .desc("number of stalls due to pending mem barrier in issue")
+  ;
   iew_dep_insts
       .init(1, Enums::Num_OpClass)
       .name(name() + ".dep_stall_insts")
@@ -137,24 +144,11 @@ IEW::regStats()
       .desc("Class of instruction due to which  instructions have been blocked in Issue due to dependency")
       .flags(Stats::total | Stats::pdf | Stats::dist);
   iew_dep_on.ysubnames(Enums::OpClassStrings);
-
-  iew_execbusy
-      .name(name() + ".iew_stalls_execbusy")
-      .desc("number of stalls in the iew stage due to exec stage being busy");
-
-  iew_membarrier
-      .name(name() + ".iew_stalls_membarrier")
-      .desc("number of stalls in the iew stage due to pending mem barrier");
-
-  iew_robfull
-      .name(name() + ".robfull")
-      .desc("number of stalls in the iew stage due to rob being full");
-
   m_stall_rob_head_insts
-      .init(1, Enums::Num_OpClass)
-      .name(name() + ".rob_head_stall_class")
-      .desc("Class of instruction blocking at head of ROB")
-      .flags(Stats::total | Stats::pdf | Stats::dist);
+    .init(1, Enums::Num_OpClass)
+    .name(name() + ".rob_head_stall_class")
+    .desc("Class of instruction blocking at head of ROB")
+    .flags(Stats::total | Stats::pdf | Stats::dist);
   m_stall_rob_head_insts.ysubnames(Enums::OpClassStrings);
 }
 
@@ -242,15 +236,15 @@ IEW::doWriteback()
         // if (inst->isControl()) {
         //   local_taken = inst->pc.npc() == inst->branchTarget().pc();
         // }
-
+        
         //if (inst->predicted_taken && inst->branchTarget() != temp_pc) local_taken = false;
         //else if (!inst->predicted_taken && (inst->pc.npc() != temp_pc.pc())) local_taken = true;
-
+        
         // check if this is a mispredicted instruction. If so, init a squash
         if (inst->isMispredicted()) {
           DPRINTF(IEW, "Branch misprediction: "
                        "[sn:%d] predicted target PC: %s\n",
-                  inst->seq_num, inst->readPredTarg());
+                       inst->seq_num, inst->readPredTarg());
 #ifdef DEBUG
           // record
           m_stage_status.set(IEWStatus::WBInitSquash);
@@ -258,9 +252,9 @@ IEW::doWriteback()
           // initiate a squash signal
           initiateSquash(inst);
         }
-
+        
         // inst->setCondResolved();
-
+        
         
         // if (!inst->from_trace) {
         //   // update some fields in case send to slave
@@ -271,8 +265,8 @@ IEW::doWriteback()
         // make sure all dest regs are marked as ready by exec units
         for (int i = 0; i < inst->numDestRegs(); ++i) {
           if (!m_scoreboard_p->getReg(inst->renamedDestRegIdx(i))) {
-            DPRINTF(Mesh, "dest reg %i (%s) from inst %s not ready\n",
-                    inst->renamedDestRegIdx(i)->index(), inst->renamedDestRegIdx(i)->className(), inst->toString(true));
+            DPRINTF(Mesh, "dest reg %i (%s) from inst %s not ready\n", 
+              inst->renamedDestRegIdx(i)->index(), inst->renamedDestRegIdx(i)->className(), inst->toString(true));
             assert(0);
           }
         }
@@ -313,7 +307,7 @@ IEW::doWriteback()
     // move to the next unit
     i++;
     m_next_wb_exec_unit_idx =
-        (m_next_wb_exec_unit_idx + 1) % m_exec_units.size();
+                      (m_next_wb_exec_unit_idx + 1) % m_exec_units.size();
   }
 }
 
@@ -328,7 +322,7 @@ IEW::doExecute()
   // for (auto exec_unit_p : m_exec_units) {
   //   IODynInstPtr inst = exec_unit_p->peekIntroInst();
   //   if (inst && inst->from_trace) {
-
+      
   //     // check if instruction is compressed and has diff increment
   //     TheISA::PCState cur_pc = m_trace_pcs[inst->thread_id];
   //     RiscvISA::Decoder decoder;
@@ -340,29 +334,29 @@ IEW::doExecute()
   //     }
 
   //     inst->pcState(cur_pc);
-
+      
   //     // this is a gem5 specific thing, but checking the outcome of a branch
   //     // involves stuff generated by a branch predictor, so just check that now
   //     // with the new pc. In real hardware would just ignore branch prediction and branch taken/not taken
   //     TheISA::PCState next_pc = cur_pc;
-  //     bool pred_taken = m_cpu_p->getFetch()->lookupAndUpdateNextPC(inst, next_pc);
+  //     bool pred_taken = m_cpu_p->getFetch()->lookupAndUpdateNextPC(inst, next_pc); 
   //     inst->predicted_taken = pred_taken;
   //     inst->setPredTarg(next_pc);
-
+      
   //     //DPRINTF(Mesh, "setup inst based on trace %s . %s\n", m_trace_pcs[inst->thread_id], cur_pc);
-
+      
   //   }
-
+    
   //   //if (inst) DPRINTF(Mesh, "1cycle [%s] pc %s. trace pc %s\n", inst->toString(true), inst->pc, m_trace_pcs[inst->thread_id]);
 
   // }
-
+  
   // // do the functional ticks where applicable to get the appropriate next PC
   // // assume everything relevant to PC can occur in a single cycle so this is find to check now
   // // (really at the end of the cycle)
   // for (auto exec_unit_p : m_exec_units)
   //   exec_unit_p->functionalExecute();
-
+    
   // // Set update for the PC register to be read at the beginning of the next
   // // execute cycle
   // // TODO potentially adds a mux to crit path
@@ -376,7 +370,7 @@ IEW::doExecute()
   //     TheISA::PCState cur_pc = inst->pc;
   //     TheISA::advancePC(cur_pc, inst->static_inst_p);
   //     m_trace_pcs[inst->thread_id] = cur_pc;
-
+  
   //     // make sure only one instruction was inserted last cycle
   //     // the hack only works if this is the case
   //     if (!found) found = true;
@@ -403,7 +397,7 @@ IEW::doIssue()
 
     // check predication
     // if active send thru execute unit as usual
-    // if inactive send a noop thru
+    // if inactive send a noop thru 
     // unless a predication instructoin in which case we need to send
     inst->pred_at_issue = m_pred_flag; //getPred();
     if (!inst->pred_at_issue && !inst->static_inst_p->isPredicate()) {
@@ -424,50 +418,30 @@ IEW::doIssue()
       // but maybe guarenteed that the next instruction is either also going to have its regs freed
       // or cmp inst.? but with if cmp tries to use this
       // like rename()->readInfo()
+
+      
     }
 
     OpClass op_class = inst->static_inst_p->opClass();
 
-    if (m_robs[tid]->isFull())
-    {
-      DPRINTF(IEW, "[tid:%d] ROB is full. Can't issue [sn:%d]\n",
-              tid, inst->seq_num);
-#ifdef DEBUG
-      // record
-      m_stage_status.set(IEWStatus::IssueInitStall);
-#endif
-      iew_robfull++;
-      auto rob = m_cpu_p->getROBPtr(0);
-      auto head_inst = rob->getHead();
-      m_stall_rob_head_insts[0][head_inst->static_inst_p->opClass()]++;
-
-      return;
-    }
-
     // Check this instruction's dependencies are cleared
-    for (int i = 0; i < inst->numSrcRegs(); ++i)
-    {
-      if (!m_scoreboard_p->getReg(inst->renamedSrcRegIdx(i)))
-      {
+    for (int i = 0; i < inst->numSrcRegs(); ++i) {
+      if (!m_scoreboard_p->getReg(inst->renamedSrcRegIdx(i))) {
         DPRINTF(IEW, "[sn:%d] Can't issue due to src reg %i %s not ready\n",
-                inst->seq_num,
-                inst->renamedSrcRegIdx(i)->index(),
-                inst->renamedSrcRegIdx(i)->className());
+                      inst->seq_num,
+                      inst->renamedSrcRegIdx(i)->index(),
+                      inst->renamedSrcRegIdx(i)->className());
 #ifdef DEBUG
         // record
         m_stage_status.set(IEWStatus::IssueInitStall);
 #endif
-        iew_dep++;
+        m_dep_stalls++;
         iew_dep_insts[0][inst->static_inst_p->opClass()]++;
 
         IODynInstPtr inst_dep_on = m_robs[tid]->getInstwithDestreg(inst->renamedSrcRegIdx(i));
         if (inst_dep_on)
         {
           iew_dep_on[0][inst_dep_on->static_inst_p->opClass()]++;
-        }
-        if (inst->static_inst_p->opClass() == IntMultOp)
-        {
-          DPRINTF(Mesh, "inst dep on %s , the inst %s\n", inst_dep_on->toString(true), inst->toString(true));
         }
         return;
       }
@@ -482,17 +456,7 @@ IEW::doIssue()
       // record
       m_stage_status.set(IEWStatus::IssueInitStall);
 #endif
-      iew_membarrier++;
-      return;
-    }
-
-    if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getRevecInstCount() > 0)
-    {
-      DPRINTF(IEW, "[sn:%d] Can't issue prelw due to pending younger "
-                   "revec instructions\n",
-              inst->seq_num);
-
-      iew_stalls_revec++;
+      m_mem_barrier_stalls++;
       return;
     }
 
@@ -500,7 +464,7 @@ IEW::doIssue()
     if (inst->static_inst_p->isSpadSpeculative() && m_robs[tid]->getRememInstCount() > 0) {
       DPRINTF(Mesh, "[sn:%d] Can't issue lwspec due to pending younger "
                    "remem instructions\n", inst->seq_num);
-
+                   
       return;
     }
 
@@ -521,11 +485,29 @@ IEW::doIssue()
     // if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getUnresolvedCondInstCount() > 0) {
     //   DPRINTF(Mesh, "[sn:%d] Can't issue prelw due to pending younger "
     //                "unresolved cond ctrl instructions\n", inst->seq_num);
-
+                   
     //   return;
     // }
 
     // Check if ROB is full
+    if (m_robs[tid]->isFull()) {
+      DPRINTF(IEW, "[tid:%d] ROB is full. Can't issue [sn:%d]\n",
+                    tid, inst->seq_num);
+#ifdef DEBUG
+      // record
+      m_stage_status.set(IEWStatus::IssueInitStall);
+#endif
+      if (inst->static_inst_p->isSpadPrefetch())
+        DPRINTF(Mesh, "[sn:%d] rob full for prelw\n", inst->seq_num);
+      m_commit_buf_stalls++;
+
+      // record which instruction is on the head of the queue that is causing this blockage
+      auto rob = m_cpu_p->getROBPtr(0);
+      auto head_inst = rob->getHead();
+      m_stall_rob_head_insts[0][head_inst->static_inst_p->opClass()]++;
+
+      return;
+    }
 
     // make sure we have a unit that can execute this instruction
     if (m_op_to_unit_map.count(op_class) != 1)
@@ -537,12 +519,14 @@ IEW::doIssue()
     // Check if exec pipe is able to take this instruction this cycle
     if (exec_unit_p->isBusy()) {
       DPRINTF(IEW, "Exec unit %s is busy. Can't issue [sn:%d]\n",
-              exec_unit_p->name(), inst->seq_num);
+                    exec_unit_p->name(), inst->seq_num);
 #ifdef DEBUG
       // record
       m_stage_status.set(IEWStatus::IssueInitStall);
 #endif
-      iew_execbusy++;
+      if (inst->static_inst_p->isSpadPrefetch())
+        DPRINTF(Mesh, "[sn:%d] exec unit busy for prelw\n", inst->seq_num);
+      m_exe_unit_busy_stalls++;
       return;
     }
 
@@ -556,7 +540,7 @@ IEW::doIssue()
     for (int i = 0; i < inst->numDestRegs(); ++i) {
       m_scoreboard_p->unsetReg(inst->renamedDestRegIdx(i));
       // if (m_cpu_p->getEarlyVector()->isSlave())
-      //    DPRINTF(Mesh, "set dest reg %i (%s) from inst %s not ready\n",
+      //    DPRINTF(Mesh, "set dest reg %i (%s) from inst %s not ready\n", 
       //         inst->renamedDestRegIdx(i)->index(), inst->renamedDestRegIdx(i)->className(), inst->toString(true));
 
     }
@@ -568,17 +552,17 @@ IEW::doIssue()
     // but cycle level modeling remains the same
     if (inst->static_inst_p->isPredicate()) {
       if (inst->static_inst_p->isPredEq()) {
-        m_pred_flag =
-            m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)) == m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1));
+        m_pred_flag = 
+          m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)) == m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1));
       }
       else if (inst->static_inst_p->isPredNeq()) {
-        m_pred_flag =
-            m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)) != m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1));
+        m_pred_flag = 
+          m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)) != m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1));
       }
     }
 
     // if (inst->static_inst_p->isPredicate() || !m_pred_flag) {
-    // DPRINTF(Mesh, "inst %s pred %d\n", inst->toString(true), m_pred_flag);
+      // DPRINTF(Mesh, "inst %s pred %d\n", inst->toString(true), m_pred_flag);
     // }
 
     // if (m_cpu_p->getEarlyVector()->isSlave()) DPRINTF(Mesh, "issue %s\n", inst->toString(true));
@@ -604,17 +588,17 @@ void
 IEW::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator)
 {
   IODynInstPtr squash_inst = squashInfo.trig_inst;
-
+  
   if (initiator == StageIdx::CommitIdx)
     DPRINTF(IEW, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
-            squash_inst->thread_id, squash_inst->seq_num);
+                    squash_inst->thread_id, squash_inst->seq_num);
   else if (initiator == StageIdx::IEWIdx)
     DPRINTF(IEW, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
-            squash_inst->thread_id, squash_inst->seq_num);
-
+                    squash_inst->thread_id, squash_inst->seq_num);
+  
   ThreadID tid = squash_inst->thread_id;
 
-  /*if (initiator == StageIdx::CommitIdx && !((SquashComm::CommitSquash*)&squashInfo)->is_trap_pending) {
+/*if (initiator == StageIdx::CommitIdx && !((SquashComm::CommitSquash*)&squashInfo)->is_trap_pending) {
   DPRINTF(Mesh, "updating pc to %s from %s\n", squashInfo.next_pc, m_trace_pcs[tid]);
 }*/
   // update the PC to the new_pc
@@ -660,14 +644,14 @@ IEW::initiateSquash(const IODynInstPtr mispred_inst)
   DPRINTF(IEW, "[tid:%d]: IEW is initiating a squash due to incorrect "
                "branch prediction. Squashing instruction [sn:%d]."
                "Redirecting to pc %s\n",
-          mispred_inst->thread_id, mispred_inst->seq_num,
-          target_pc);
+                mispred_inst->thread_id, mispred_inst->seq_num,
+                target_pc);
 
   m_outgoing_squash_wire->iew_squash()->squash = true;
   m_outgoing_squash_wire->iew_squash()->trig_inst = mispred_inst;
   m_outgoing_squash_wire->iew_squash()->next_pc = target_pc;
   m_outgoing_squash_wire->iew_squash()->branch_taken =
-      mispred_inst->pc.branching();
+                                                  mispred_inst->pc.branching();
 }
 
 void
@@ -695,7 +679,7 @@ IEW::getPred() const {
 
 void
 IEW::setPred(bool val) {
-  m_pred_flag = val;
+  m_pred_flag = val; 
 }
 
 void
