@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
   #endif
   // reuse has very stingy requirements on what sizes are allowed
   #ifdef REUSE
-  int ncols = 10 * ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1)) + (FILTER_DIM - 1); // factor of (DIM * FILTER_DIM) - ( FILTER_DIM + 1 ), + edge case
+  int ncols = 3 * ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1)) + (FILTER_DIM - 1); // factor of (DIM * FILTER_DIM) - ( FILTER_DIM + 1 ), + edge case
   #else
   int ncols = 10 * ( VECTOR_LEN * FILTER_DIM ) + (FILTER_DIM - 1); // factor of DIM * FILTER_DIM (12) + 2... wow i.e. 1214 // vertical needs to be factor of 24 + 2... i.e. 1224 + 2 = 1226
   #endif
@@ -192,7 +192,7 @@ int main(int argc, char *argv[]) {
         return 1;
       }
       // else {
-      //   printf("%d == %d @ row %d cold %d\n", c[row * (ncols - colOffset) + col], cexp, row, col);
+        // printf("%d == %d @ row %d cold %d\n", c[row * (ncols - colOffset) + col], cexp, row, col);
       // }
     }
   }

@@ -63,12 +63,15 @@ inline void completeHardwareFrame(int spadIdx, int *someData) {
 void __attribute__((optimize("-fno-reorder-blocks")))
 stencil(
     DTYPE *a, DTYPE *b, DTYPE *c, int start_row, int end_row, int ncols,
-    int ptid, int vtid, int dim, int mask) {
+    int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y, int mask) {
 
   // TODO fails if put this here... sigh
   // // how much we're actually going to do (ignore edges)
   // // TODO can we use predication instead?
   // int effCols = ncols - (FILTER_DIM - 1);
+
+  int dim = vdim_x * vdim_y;
+  int vtid = vtid_x + vtid_y * vdim_x;
 
   #ifdef REUSE
   int step = dim*FILTER_DIM - (FILTER_DIM - 1);
@@ -83,10 +86,18 @@ stencil(
   // calculate prev and next spAddr for reuse
   int *prevSpadAddr = NULL;
   int *nextSpadAddr = NULL;
-  if (vtid == 1 || vtid == 3) prevSpadAddr = (int*)getSpAddr(ptid - 1, 0);
-  else if (vtid == 2) prevSpadAddr = (int*)getSpAddr(ptid - (GRID_XDIM - 1), 0); // GRID_DIM = 4 - 1 = 3
-  if (vtid == 0 || vtid == 2) nextSpadAddr = (int*)getSpAddr(ptid + 1, 0);
-  if (vtid == 1) nextSpadAddr = (int*)getSpAddr(ptid + (GRID_XDIM - 1), 0);
+  if (vtid != 0) {
+    if (vtid_x == 0) prevSpadAddr = (int*)getSpAddr(ptid - (GRID_XDIM - (vdim_x - 1)), 0);
+    else prevSpadAddr = (int*)getSpAddr(ptid - 1, 0);
+  }
+  if (vtid != dim - 1) {
+    if (vtid_x == vdim_x - 1) nextSpadAddr = (int*)getSpAddr(ptid + (GRID_XDIM - (vdim_x - 1)), 0);
+    else nextSpadAddr = (int*)getSpAddr(ptid + 1, 0);
+  }
+  // if (vtid == 1 || vtid == 3) prevSpadAddr = (int*)getSpAddr(ptid - 1, 0);
+  // else if (vtid == 2) prevSpadAddr = (int*)getSpAddr(ptid - (GRID_XDIM - 1), 0); // GRID_DIM = 4 - 1 = 3
+  // if (vtid == 0 || vtid == 2) nextSpadAddr = (int*)getSpAddr(ptid + 1, 0);
+  // if (vtid == 1) nextSpadAddr = (int*)getSpAddr(ptid + (GRID_XDIM - 1), 0);
   #endif
 
   #ifdef REUSE
@@ -345,7 +356,7 @@ stencil(
     PRED_EQ(vtid, vtid);
 
     // fetch one column from the right to perform rightmost computation
-    PRED_NEQ(vtid, 3); // last core in group can't do this
+    PRED_NEQ(vtid, dim - 1); // last core in group can't do this
     if (ohjeez) { 
     c_ = 0;
     c_ += b0 * spData1;
@@ -554,7 +565,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // store the the current spAddr to restore later 
   unsigned long long *spTop = getSpTop(ptid);
   // guess the remaining of the part of the frame that might be needed??
-  spTop -= 6;
+  spTop -= 8;
 
   unsigned long long stackLoc;
   asm volatile (
@@ -572,6 +583,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     "sd t0, 32(%[spad])\n\t"
     "ld t0, 40(sp)\n\t"
     "sd t0, 40(%[spad])\n\t"
+    "ld t0, 48(sp)\n\t"
+    "sd t0, 48(%[spad])\n\t"
+    "ld t0, 56(sp)\n\t"
+    "sd t0, 56(%[spad])\n\t"
     // save the stack ptr
     "addi %[dest], sp, 0\n\t" 
     // overwrite stack ptr
@@ -581,7 +596,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   );
 
   #ifdef USE_VEC
-  stencil(a, b, c, start, end, ncols, ptid, vtid, vdim, mask);
+  stencil(a, b, c, start, end, ncols, ptid, vtid_x, vtid_y, vdim_x, vdim_y, mask);
   #else
   stencil(a, b, c, nrows, ncols, ptid, vtid, vdim, start, end);
   #endif

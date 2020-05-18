@@ -11,18 +11,19 @@
 // #define NO_VEC 1
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
+// #define VEC_4_REUSE_VERTICAL 1
 
 // #define VEC_4_SIMD_BCAST 1
 
 // spatial reuse no longer supported
 // #define VEC_4_REUSE 1
 
-#define VEC_4_REUSE_VERTICAL 1
 // #define VEC_4_SIMD_SINGLE_PREFETCH 1
 // #define VEC_4_SIMD_LARGE_FRAME 1
 
 // #define VEC_16_SIMD 1
 // #define VEC_16_SIMD_VERTICAL 1
+#define VEC_16_REUSE_VERTICAL 1
 
 // vvadd_execute config directives
 #if !defined(NO_VEC)
@@ -34,7 +35,7 @@
   || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_REUSE_VERTICAL)
 #define VECTOR_LEN 4
 #endif
-#if defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL)
+#if defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_16_REUSE_VERTICAL)
 #define VECTOR_LEN 16
 #endif
 
@@ -51,13 +52,13 @@
 #if defined(VEC_4_SIMD_SINGLE_PREFETCH)
 #define SINGLE_PREFETCH 1
 #endif
-#if defined(VEC_4_REUSE) || defined(VEC_4_REUSE_VERTICAL)
+#if defined(VEC_4_REUSE) || defined(VEC_4_REUSE_VERTICAL) || defined(VEC_16_REUSE_VERTICAL)
 #define REUSE 1
 #endif
 #if defined(VEC_4_SIMD_LARGE_FRAME)
 #define LARGE_FRAME 1
 #endif
-#if defined(VEC_4_SIMD_VERTICAL) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_4_REUSE_VERTICAL)
+#if defined(VEC_4_SIMD_VERTICAL) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_4_REUSE_VERTICAL) || defined(VEC_16_REUSE_VERTICAL)
 #define VERTICAL_LOADS 1
 #endif
 
