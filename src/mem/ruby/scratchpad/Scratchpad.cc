@@ -74,7 +74,7 @@ CpuPort::recvTimingReq(Packet *pkt)
   
   setRetry();
   return false;*/
-
+  
   return m_scratchpad_p->handleCpuReq(pkt);
 }
 
@@ -133,7 +133,7 @@ Scratchpad::Scratchpad(const Params* p)
 
   // fill m_data_array with 0s
   std::fill_n(m_data_array, m_size, 0);
-
+  
   // setup cpu touched array to keep track of divergences (TODO not sure how should be implemetned in practice?)
   // maybe use a single bit/byte of data towards this purpose
   // for(int i = 0; i < m_size / sizeof(uint32_t); i++) {
@@ -161,7 +161,7 @@ Port &
 Scratchpad::getPort(const std::string &if_name, PortID idx)
 {
   if (if_name == "cpu_port") {
-    return *m_cpu_port_p;
+    return *m_cpu_port_p; 
   }
   else {
     return AbstractController::getPort(if_name, idx);
@@ -212,13 +212,13 @@ Scratchpad::processRespToSpad() {
   // pull a packet off the queue
   // every packet on this queue should be ready as long as only do once
   // per cycle
-
+  
   // pick a resp from either the ruby queue or internal buffer queue to process
   // Aribtration logic here!
   bool hasBufPkt = !m_prefetch_resp_queue.empty();
   bool hasMemPkt = !m_ruby_resp_queue.empty();
   assert(hasBufPkt || hasMemPkt);
-
+  
   PacketPtr pkt_p;
   if (hasMemPkt && (!hasBufPkt || !m_proc_ruby_last)) {
     pkt_p = m_ruby_resp_queue.front();
@@ -230,87 +230,88 @@ Scratchpad::processRespToSpad() {
     m_prefetch_resp_queue.pop();
     m_proc_ruby_last = false;
   }
-
+  
   // if either buffer has a packet not used then schedule again for next cycle
   if (!m_prefetch_resp_queue.empty() || !m_ruby_resp_queue.empty()) {
     if (!m_process_resp_event.scheduled())
       schedule(m_process_resp_event, clockEdge(Cycles(1)));
   }
-
+  
   switch (pkt_p->spRespType) {
-  case Packet::RespPktType::LLC_Data_Resp:
+    case Packet::RespPktType::LLC_Data_Resp:
     case Packet::RespPktType::Remote_Resp: {
-    // Save the response packet and schedule an event in the next cycle to
-    // send it to CPU. In scratchpads, don't directly store this. Need CPU to explicitly write later on
-    m_cpu_resp_pkts.push_back(pkt_p);
-    if (!m_cpu_resp_event.scheduled())
-      schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-
-    break;
-  }
-  case Packet::RespPktType::Prefetch_Self_Resp:
+      // Save the response packet and schedule an event in the next cycle to
+      // send it to CPU. In scratchpads, don't directly store this. Need CPU to explicitly write later on
+      m_cpu_resp_pkts.push_back(pkt_p);
+      if (!m_cpu_resp_event.scheduled())
+        schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+        
+      break;
+    }
+    case Packet::RespPktType::Prefetch_Self_Resp:
     case Packet::RespPktType::Prefetch_Patron_Resp: {
-    bool memDiv = memoryDiverged(pkt_p->getAddr()); //setPrefetchFresh(pkt_p);
+      bool memDiv = memoryDiverged(pkt_p->getAddr()); //setPrefetchFresh(pkt_p);
+      
+      // bool isSelfResp = pkt_p->spRespType == Packet::RespPktType::Prefetch_Self_Resp; // TODO deprecated
+      // throw away if diverged and its not for future epochs
+      // TODO not sure if it's the right thing to throw away here
+      // but definetly need to update the counter signalling it was recv
+      // bool controlDiv = controlDiverged();
+      // bool throwAway = controlDiv && !memDiv;
+  
+      // if (throwAway) {
+      //   DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
 
-    // bool isSelfResp = pkt_p->spRespType == Packet::RespPktType::Prefetch_Self_Resp; // TODO deprecated
-    // throw away if diverged and its not for future epochs
-    // TODO not sure if it's the right thing to throw away here
-    // but definetly need to update the counter signalling it was recv
-    // bool controlDiv = controlDiverged();
-    // bool throwAway = controlDiv && !memDiv;
+      //   // TODO not sure if actually need to drop here?
+      //   // def need to update the counter as rdy
+      //   if (pkt_p->isRead())
+      //     m_remote_loads++;
+      //   else if (pkt_p->isWrite())
+      //     m_remote_stores++;
+      //   // access data array
+      //   accessDataArray(pkt_p);
+      //   // set the word as ready for future packets
+      //   setWordRdy(pkt_p->getAddr());
 
-    // if (throwAway) {
-    //   DPRINTF(Mesh, "[[WARNING]] drop due to control div\n");
-
-    //   // TODO not sure if actually need to drop here?
-    //   // def need to update the counter as rdy
-    //   if (pkt_p->isRead())
-    //     m_remote_loads++;
-    //   else if (pkt_p->isWrite())
-    //     m_remote_stores++;
-    //   // access data array
-    //   accessDataArray(pkt_p);
-    //   // set the word as ready for future packets
-    //   setWordRdy(pkt_p->getAddr());
-
-    //   // just drop the packet if there's divergence and this is from vector prefetch
-    //   delete pkt_p;
-    //   pkt_p = nullptr;
-    // }
+      //   // just drop the packet if there's divergence and this is from vector prefetch
+      //   delete pkt_p;
+      //   pkt_p = nullptr;
+      // }
       /*else*/ if (memDiv) {
+        
+        // place packet into buffer to use later
+        // assure that this is a very small buffer otherwise actually diverge
+        // in wakeup check this buffer too to see if rdy and can place into queue (or maybe somehwere else
+        //m_sp_prefetch_buffer.push_back(pkt_p);
+        enqueueStallRespToSp(pkt_p);
+        
 
-      // place packet into buffer to use later
-      // assure that this is a very small buffer otherwise actually diverge
-      // in wakeup check this buffer too to see if rdy and can place into queue (or maybe somehwere else
-      //m_sp_prefetch_buffer.push_back(pkt_p);
-      enqueueStallRespToSp(pkt_p);
-
-      DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending epoch %d core epoch %d addr %#x spadEntry %d\n",
-              m_prefetch_resp_queue.size(), getDesiredRegion(m_prefetch_resp_queue.front()->getAddr()), getCoreEpoch(),
-              m_prefetch_resp_queue.front()->getAddr(),
+        DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending epoch %d core epoch %d addr %#x spadEntry %d\n", 
+          m_prefetch_resp_queue.size(), getDesiredRegion(m_prefetch_resp_queue.front()->getAddr()), getCoreEpoch(),
+          m_prefetch_resp_queue.front()->getAddr(),
           getLocalAddr(m_prefetch_resp_queue.front()->getAddr()) / sizeof(uint32_t)
           );
 
-      // record the max size ever seen for stats
+        // record the max size ever seen for stats
         if (m_prefetch_resp_queue.size() > (int)m_max_queue_size.total()) {
-        m_max_queue_size = m_prefetch_resp_queue.size();
-      }
-
-      // TODO I don't think it's possible for this to be active? even when there is
-      // tons or unhandled reqs?
-      // TODO this is limiting number of prefetch requests that can be active in a single
-      // epoch.... need to fix. Either remove since never run into problem here??? or
-      // somehow detect which epochs are still active
+          m_max_queue_size = m_prefetch_resp_queue.size();
+        }
+        
+        // TODO I don't think it's possible for this to be active? even when there is
+        // tons or unhandled reqs?
+        // TODO this is limiting number of prefetch requests that can be active in a single
+        // epoch.... need to fix. Either remove since never run into problem here??? or 
+        // somehow detect which epochs are still active
         if (m_prefetch_resp_queue.size() > m_max_pending_sp_prefetches) {
-        DPRINTF(Mesh, "[[WARNING]] must diverge now\n");
-        assert(false);
-        // clear the pending buffer and inform cpu of divergence, to get squash
-        //m_sp_prefetch_buffer.clear();
-
-        // TODO inform CPU of divergence
-        // should be extremely rare
+          DPRINTF(Mesh, "[[WARNING]] must diverge now\n");
+          assert(false);
+          // clear the pending buffer and inform cpu of divergence, to get squash
+          //m_sp_prefetch_buffer.clear();
+          
+          // TODO inform CPU of divergence
+          // should be extremely rare
+        }
       }
-    }
       else {
       // profile, TODO should classify different than just remote load/store?
       if (pkt_p->isRead())
@@ -336,13 +337,13 @@ Scratchpad::processRespToSpad() {
     break;
   }
     default: {
-
-    break;
-  }
+      
+      break;
+    }
         
         
   }
-
+  
   // if CPU needs to retry, wake it up
   if (m_cpu_port_p->needRetry()) {
     m_cpu_port_p->sendRetryReq();
@@ -368,7 +369,7 @@ void
 Scratchpad::enqueueRubyRespToSp(PacketPtr pkt_p, Packet::RespPktType type) {
   pkt_p->spRespType = type;
   m_ruby_resp_queue.push(pkt_p);
-
+  
   // schedule for next cycle if not already scheduled
   if (!m_process_resp_event.scheduled())
     schedule(m_process_resp_event, clockEdge(Cycles(1)));
@@ -377,7 +378,7 @@ Scratchpad::enqueueRubyRespToSp(PacketPtr pkt_p, Packet::RespPktType type) {
 void
 Scratchpad::enqueueStallRespToSp(PacketPtr pkt_p) {
   m_prefetch_resp_queue.push(pkt_p);
-
+  
   // schedule for next cycle if not already scheduled
   if (!m_process_resp_event.scheduled())
     schedule(m_process_resp_event, clockEdge(Cycles(1)));
@@ -395,7 +396,7 @@ Scratchpad::arbitrate() {
 void
 Scratchpad::wakeup()
 {
-
+  
   // handle this cycle, TODO but need to say next cycle so don't double schedule...
   //if (!m_process_resp_event.scheduled())
   //  schedule(m_process_resp_event, clockEdge(Cycles(0)));
@@ -427,7 +428,7 @@ Scratchpad::wakeup()
 
       // Pop the message from mem_resp_buffer
       m_mem_resp_buffer_p->dequeue(clockEdge());
-
+      
       enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Remote_Resp);
       
     } else if (llc_msg_p && ((llc_msg_p->m_Type == LLCResponseType_REVDATA) || 
@@ -499,7 +500,7 @@ Scratchpad::wakeup()
 
       assert(pending_mem_pkt_p &&
              llc_msg_p->m_LineAddress ==
-                 makeLineAddress(pending_mem_pkt_p->getAddr()));
+                            makeLineAddress(pending_mem_pkt_p->getAddr()));
 
       if (llc_msg_p->m_Type == LLCResponseType_DATA) {
         // copy data from DataBlock to pending_mem_pkt_p
@@ -523,14 +524,14 @@ Scratchpad::wakeup()
       pending_mem_pkt_p->makeResponse();
 
       DPRINTF(Scratchpad, "Handling mem resp pkt %s from LLC seq_num %d\n",
-              pending_mem_pkt_p->print(), llc_msg_p->m_SeqNum);
+                          pending_mem_pkt_p->print(), llc_msg_p->m_SeqNum);
 
       // remove pending_mem_pkt_p from the pending pkt map
       m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
 
       // Pop the message from mem_resp_buffer
       m_mem_resp_buffer_p->dequeue(clockEdge());
-
+      
       enqueueRubyRespToSp(pending_mem_pkt_p, Packet::RespPktType::LLC_Data_Resp);
     }
   }
@@ -548,7 +549,7 @@ Scratchpad::wakeup()
     assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
 
     DPRINTF(Scratchpad, "Handling remote req pkt %s from %s\n",
-            pkt_p->print(), msg_p->getSenderID());
+                        pkt_p->print(), msg_p->getSenderID());
 
     if (!handleRemoteReq(pkt_p, msg_p->getSenderID())) {
       DPRINTF(Scratchpad, "Not able to handle remote req. \
@@ -672,7 +673,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
   assert(dst_sp_id <= m_num_scratchpads);
 
   if (dst_sp_id == m_version) {
-
+    
     // If this is a speculative load and the data isn't present, then
     // allow the packets equal to ld queue size be buffered here
     // if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
@@ -684,14 +685,14 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       DPRINTF(Mesh, "not rdy for packet to addr %#x\n", pkt_p->getAddr());
       return false;
     }
-
+    
     // TODO stats might be incorrect with these stalls
     // should move into accessDataArray rather than keep out here
-
+    
     // This is a local access
     DPRINTF(Scratchpad, "Doing a local access for pkt %s\n", pkt_p->print());
-    // if (m_cpu_p->getEarlyVector()->getConfigured())
-    //   DPRINTF(Mesh, "Doing a local access for pkt %s coreepoch %d prefetchEpoch %d cnt%d\n",
+    // if (m_cpu_p->getEarlyVector()->getConfigured()) 
+    //   DPRINTF(Mesh, "Doing a local access for pkt %s coreepoch %d prefetchEpoch %d cnt%d\n", 
     //     pkt_p->print(), getCoreEpoch(), m_cur_prefetch_region, m_region_cntr);
 
     if (isRegionAccess(pkt_p) && pkt_p->isRead()) m_local_loads_region++;
@@ -703,7 +704,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       DPRINTF(LoadTrack, "Processing local load with addr %#x\n", pkt_p->getAddr());
     }
     else if (pkt_p->isWrite()) m_local_stores++;
-
+    
     accessDataArray(pkt_p);
 
     // if (isRegionAccess(pkt_p) && pkt_p->isRead()){
@@ -720,7 +721,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       pkt_p->writeData(tmp_buf);
       DPRINTF(Mesh, "sending pkt back for %#x -- %d \n", pkt_p->getAddr(), *temp);
     }*/
-
+    
     // Save the response packet and schedule an event in the next cycle to send
     // it to CPU
     m_cpu_resp_pkts.push_back(pkt_p);
@@ -750,9 +751,9 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     bool pendingPktSpad = (m_pending_pkt_map.size() < m_max_num_pending_pkts) || noLLCAck;
     if (isPrefetch && pendingPktSpad) {
       // setWordNotRdy(pkt_p->getPrefetchAddr());
-
+      
       // DPRINTF(Mesh, "reset word %#x\n", pkt_p->getPrefetchAddr());
-
+      
       // deliver a response packet to the core that this was completed
       // but need to copy it because will be delete there
       PacketPtr resp_pkt_p = new Packet(pkt_p, true, false);
@@ -775,7 +776,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // we aren't going to track any information about the store beyond did we recv
     // an ACK or not
     // noLLCAck |= pkt_p->isWrite();
-
+    
     // This packet will be delivered to LLC
     if (m_pending_pkt_map.size() == m_max_num_pending_pkts && !noLLCAck) {
       DPRINTF(Scratchpad, "Blocking. Pending pkt buffer is full\n");
@@ -877,7 +878,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       //   assert(m_pending_pkt_map.count(143) == 1);
       // }
       DPRINTF(Scratchpad, "Sent pkt %s to LLC seq_num %d\n",
-              pkt_p->print(), m_cur_seq_num - 1);
+                        pkt_p->print(), m_cur_seq_num - 1);
     }
   } else if (dst_sp_id != m_version) {
     // This packet will be delivered to a remote scratchpad
@@ -890,7 +891,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 
     // Make and queue the message
     std::shared_ptr<MemMessage> msg_p =
-        std::make_shared<MemMessage>(clockEdge(), src_port, dst_port, pkt_p);
+          std::make_shared<MemMessage>(clockEdge(), src_port, dst_port, pkt_p);
 
     m_mem_req_buffer_p->enqueue(msg_p,
                                 clockEdge(),
@@ -987,7 +988,7 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
     // if (isRegionAccess(pkt_p)) {
     //   DPRINTF(Mesh, "region access from remote store %s\n", pkt_p->print());
     //   enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Patron_Resp);
-
+      
     //   // need to copy this packet and make up a response
     //   pkt_p = new Packet(pkt_p, false, false);
     //   pkt_p->makeResponse();
@@ -999,12 +1000,13 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
       DPRINTF(Mesh, "remote region access into a region not ready (not cool bro) %s\n", pkt_p->print());
       return false;
     }
-    // record remote access here
+
+      // record remote access here
       if (pkt_p->isRead()) m_remote_loads++;
       else if (pkt_p->isWrite()) m_remote_stores++;
-
-    // access data array
-    accessDataArray(pkt_p);
+      
+      // access data array
+      accessDataArray(pkt_p);
     // }
   // }
 
@@ -1120,7 +1122,7 @@ void
 Scratchpad::handleFunctionalCpuReq(Packet* pkt_p)
 {
   DPRINTF(Scratchpad, "Functional access for address: %#x pkt: %s\n",
-          pkt_p->getAddr(), pkt_p->print());
+                      pkt_p->getAddr(), pkt_p->print());
 
   RubySystem *rs = m_ruby_system_p;
 
@@ -1132,23 +1134,23 @@ Scratchpad::handleFunctionalCpuReq(Packet* pkt_p)
 
   // Do the functional access on ruby memory
   if (pkt_p->isRead()) {
-    accessSucceeded = rs->functionalRead(pkt_p);
+      accessSucceeded = rs->functionalRead(pkt_p);
   } else if (pkt_p->isWrite()) {
-    accessSucceeded = rs->functionalWrite(pkt_p);
+      accessSucceeded = rs->functionalWrite(pkt_p);
   } else {
-    panic("Unsupported functional command %s\n", pkt_p->cmdString());
+      panic("Unsupported functional command %s\n", pkt_p->cmdString());
   }
 
   // Unless the requester explicitly said otherwise, generate an error if
   // the functional request failed
   if (!accessSucceeded && !pkt_p->suppressFuncError()) {
-    fatal("Ruby functional %s failed for address %#x\n",
-          pkt_p->isWrite() ? "write" : "read", pkt_p->getAddr());
+      fatal("Ruby functional %s failed for address %#x\n",
+            pkt_p->isWrite() ? "write" : "read", pkt_p->getAddr());
   }
 
   // turn packet around to go back to requester if response expected
   if (needsResponse) {
-    pkt_p->setFunctionalResponseStatus(accessSucceeded);
+      pkt_p->setFunctionalResponseStatus(accessSucceeded);
   }
 
   DPRINTF(Scratchpad, "Functional access %s!\n",
@@ -1365,7 +1367,7 @@ Scratchpad::resetRdyArray() {
   // // TODO potentially can get away with only marking region as being ready?
   // // or having the first spad entry at the beginning of each region mark whether ready or not
   // int regionIdx = (getCoreEpoch() - 1) % getNumRegions(); // epoch will have update so use the last one
-  // int startOffset = SPM_DATA_WORD_OFFSET; // 4 * 32bits
+  // int startOffset = SPM_DATA_WORD_OFFSET; // 4 * 32bits 
   // for (int i = regionIdx * getRegionElements() + startOffset; i < (regionIdx + 1) * getRegionElements() + startOffset; i++) {
   //   m_fresh_array[i] = 0;
   // }
@@ -1410,9 +1412,9 @@ void
 Scratchpad::regStats()
 {
   AbstractController::regStats();
-
+  
   m_local_loads
-      .name(name() + ".local_loads")
+        .name(name() + ".local_loads")
         .desc("Number of loads completed by the local core")
         ;
   m_local_loads_region
@@ -1428,42 +1430,42 @@ Scratchpad::regStats()
       .desc("Number of stores completed by the local core in the region");
 
   m_remote_loads
-      .name(name() + ".remote_loads")
+        .name(name() + ".remote_loads")
         .desc("Number of loads completed by a remote core")
         ;
-
+        
   m_remote_stores
-      .name(name() + ".remote_stores")
+        .name(name() + ".remote_stores")
         .desc("Number of stores completed by a remote core")
         ;
-
+        
   m_local_accesses
-      .name(name() + ".local_accesses")
+        .name(name() + ".local_accesses")
         .desc("Number of local accesses completed")
         ;
-
+        
   m_remote_accesses
-      .name(name() + ".remote_accesses")
+        .name(name() + ".remote_accesses")
         .desc("Number of remote accesses completed")
         ;
-
+        
   m_total_accesses
-      .name(name() + ".total_accesses")
+        .name(name() + ".total_accesses")
         .desc("Number of accesses completed")
         ;
 
   m_max_queue_size
-      .name(name() + ".max_queue_size")
+        .name(name() + ".max_queue_size")
         .desc("The larget amount of pending entries in this queue")
         ;
 
   m_not_rdy_stalls
-      .name(name() + ".lwspec_not_rdy")
+        .name(name() + ".lwspec_not_rdy")
         .desc("lwspec can't proceed due to rdy bit not set")
         ;
 
   m_exceed_stream_width
-      .name(name() + ".exceed_stream_width")
+        .name(name() + ".exceed_stream_width")
         .desc("spad can't process request because no buffer space")
         ;
 
