@@ -32,7 +32,7 @@ cp asm_<private/sharing>_float<4/16>/* .
 ```
 For eg, if you want to run `SIMD_PRIVATE` with groups of `16` vector cores:
 ```
-cp asm_private_float16/*
+cp asm_private_float16/* .
 ```
 
 Now compile the `gemm_kernel` using:
@@ -47,6 +47,11 @@ ENV_EXTRA_MAKE_FLAGS=-DSIMD_PRIVATE_16 ENV_N_SPS=64 make
 To run it on gem5 use the command `make run` and use the variable assignment for output address of the stats, size of matrix and total cores to simulate on:
 ```
 OUT=gemm-vec1-SIMD_PRIVATE-size_mnt32 SIZE=32 ENV_N_SPS=64 make run
+```
+
+And as all always, please make sure to clean the mess you created :)
+```
+make clean
 ```
 
 
