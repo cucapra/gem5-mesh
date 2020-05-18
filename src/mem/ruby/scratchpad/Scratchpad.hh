@@ -48,54 +48,54 @@
 
 class CpuPort : public SlavePort
 {
-public:
+  public:
     CpuPort(Scratchpad* _scratchpad_p, const std::string& _name);
-   ~CpuPort() = default;
+    ~CpuPort() = default;
 
-   /**
+    /**
      * Mark that CPU will need to retry sending the last request
      */
-   void setRetry() { m_need_retry = true; }
+    void setRetry() { m_need_retry = true; }
 
-   /**
+    /**
      * Clear retry flag
      */
-   void clearRetry() { m_need_retry = false; }
+    void clearRetry() { m_need_retry = false; }
 
-   /**
+    /**
      * Check if retry is needed
      */
-   bool needRetry() const { return m_need_retry; }
+    bool needRetry() const { return m_need_retry; }
 
-   /**
+    /**
      * Receive timing request from CPU
      */
     bool recvTimingReq(Packet* pkt) override;
 
-   /**
+    /**
      * Receive functional request from CPU
      */
     void recvFunctional(Packet* pkt) override;
 
-   /**
+    /**
      * Receive atomic request from CPU
      */
-   Tick recvAtomic(Packet *pkt) override
+    Tick recvAtomic(Packet *pkt) override
     { panic("recvAtomic Not implemented\n"); }
 
-   void recvRespRetry() override
+    void recvRespRetry() override
     { panic("recvRespRetry Not implemented!\n"); }
 
-   AddrRangeList getAddrRanges() const override
+    AddrRangeList getAddrRanges() const override
     { panic("getAddrRanges Not implemented!\n"); }
 
     Scratchpad *getAttachedSpad() const {
       return m_scratchpad_p;
-   }
+    }
 
-private:
+  private:
     Scratchpad* m_scratchpad_p;
-   bool m_need_retry;
+    bool m_need_retry;
 };
 
 // We reserve the following fields for control flags. Since this is scratchpad,
@@ -114,61 +114,61 @@ private:
 
 class Scratchpad : public AbstractController
 {
-public:
-   typedef ScratchpadParams Params;
+  public:
+    typedef ScratchpadParams Params;
     Scratchpad(const Params* p);
-   ~Scratchpad();
+    ~Scratchpad();
 
-   /**
+    /**
      * Return slave port
      */
-   //BaseSlavePort& getSlavePort(const std::string& if_name,
-   //                            PortID idx = InvalidPortID); //override;
-   Port &getPort(const std::string &if_name,
+    //BaseSlavePort& getSlavePort(const std::string& if_name,
+    //                            PortID idx = InvalidPortID); //override;
+    Port &getPort(const std::string &if_name,
                   PortID idx=InvalidPortID) override;
 
 
-   /**
+    /**
      * Initialize network queues from/to Ruby network
      */
-   void initNetQueues() override;
+    void initNetQueues() override;
 
-   /**
+    /**
      * Wakeup scratchpad when there're incoming messages from network
      */
-   void wakeup() override;
+    void wakeup() override;
 
-   /**
+    /**
      * Print out network port's name
      */
     void print(std::ostream& out) const override;
 
-   /**
+    /**
      * handle CPU request
      */
     bool handleCpuReq(Packet* pkt_p);
 
-   /**
+    /**
      * handle remote request
      */
     bool handleRemoteReq(Packet* pkt_p, MachineID remote_sender);
 
-   /**
+    /**
      * handle functional request
      */
     void handleFunctionalCpuReq(Packet* pkt_p);
 
-   /**
+    /**
      * return number of scratchpad controllers
      */
-   static int getNumControllers() { return m_num_scratchpads; }
+    static int getNumControllers() { return m_num_scratchpads; }
 
-   /**
+    /**
      * setup stats for this scratchpad
-     */
-   void regStats() override;
+     */ 
+    void regStats() override;
 
-   /**
+    /**
      * unused inherited functions
      */
 
@@ -180,7 +180,7 @@ public:
     MessageBuffer* getMemoryQueue() const override
     { return nullptr; }
 
-   AccessPermission getAccessPermission(const Addr &addr) override
+    AccessPermission getAccessPermission(const Addr &addr) override
     { return AccessPermission_Invalid; }
 
     void recordCacheTrace(int cntrl, CacheRecorder* tr) override
@@ -192,47 +192,47 @@ public:
     GPUCoalescer* getGPUCoalescer() const override
     { return nullptr; }
 
-   bool functionalRead(const Addr &addr, PacketPtr pkt) override
+    bool functionalRead(const Addr &addr, PacketPtr pkt) override
     { warn("Scratchpad does not support functionalRead\n"); return false; }
 
     int functionalWriteBuffers(PacketPtr& pkt) override;
 
-   int functionalWrite(const Addr &addr, PacketPtr pkt) override
+    int functionalWrite(const Addr &addr, PacketPtr pkt) override
     { warn("Scratchpad does not support functionalWrite\n"); return false; }
 
-   void collateStats() override
+    void collateStats() override
     { warn("Scratchpad does not support collateStats()\n"); }
 
   private:
     /**
      * Return NodeID of scratchpad owning the given address
      */
-   NodeID getScratchpadIdFromAddr(Addr addr) const;
+    NodeID getScratchpadIdFromAddr(Addr addr) const;
 
-   /**
+    /**
      * Return local address from the given address
      */
-   Addr getLocalAddr(Addr addr) const;
+    Addr getLocalAddr(Addr addr) const;
 
-   bool isLocalAddr(Addr addr) const
+    bool isLocalAddr(Addr addr) const
     { return getScratchpadIdFromAddr(addr) < m_num_scratchpads; }
 
-   /**
+    /**
      * Access data array
      */
     void accessDataArray(Packet* pkt_p);
 
-   /**
+    /**
      * Send pending responses to CPU
      */
-   void sendCPUResponse();
+    void sendCPUResponse();
 
-   /**
+    /**
      * Get L2 bank ID from address
      */
-   NodeID getL2BankFromAddr(Addr addr) const;
-
-   /**
+    NodeID getL2BankFromAddr(Addr addr) const;
+    
+    /**
      * Mem divergence. Check CPU registers
      */
    int getCoreEpoch();
@@ -252,20 +252,20 @@ public:
 
    /**
      * For bitarray accessign to make sure load not too early to prefetch
-     */
-   bool isWordRdy(Addr addr);
-   void setWordRdy(Addr addr);
-   void setWordNotRdy(Addr addr);
+     */ 
+    bool isWordRdy(Addr addr);
+    void setWordRdy(Addr addr);
+    void setWordNotRdy(Addr addr);
 
-   /**
+    /**
      * Get expected region/epoch based on pkt address
-     */
-   int getDesiredRegion(Addr addr);
+     */ 
+    int getDesiredRegion(Addr addr);
 
-   //Edit: Neil to check if load is within the region for prefetch
+    //Edit: Neil to check if load is within the region for prefetch
     bool isRegionAccess(Packet* pkt_p);
-
-   /**
+    
+    /**
      * Logic for handling any resp packet to spad
      * Have a seperate method from wakeup() because we want to handle 
      * packets not from ruby
@@ -291,22 +291,22 @@ public:
      */
     RubySystem* m_ruby_system_p;
 
-   /**
+    /**
      * This scratchpad's size
      */
-   const size_t m_size;
+    const size_t m_size;
 
-   /**
+    /**
      * Base address of the SPM
      */
-   const Addr m_base_spm_addr;
+    const Addr m_base_spm_addr;
 
-   /**
+    /**
      * CPU port
      */
     CpuPort* m_cpu_port_p;
 
-   /**
+    /**
      * Ruby network buffers
      */
     MessageBuffer* m_mem_req_buffer_p;     // Mem req from this scratchpad
@@ -314,34 +314,34 @@ public:
     MessageBuffer* m_remote_req_buffer_p;  // Remote req from other scratchpads
     MessageBuffer* m_remote_resp_buffer_p; // Remote resp to other scratchpads
 
-   /**
+    /**
      * Number of scratchpads
      */
-   static int m_num_scratchpads;
+    static int m_num_scratchpads;
 
-   /**
+    /**
      * Internal data array
      */
     uint8_t* m_data_array;
 
-   /**
+    /**
      * List of pending CPU response packets
      */
     std::deque<Packet*> m_cpu_resp_pkts;
 
-   /**
+    /**
      * Event used to respond CPU
      */
-   EventFunctionWrapper m_cpu_resp_event;
+    EventFunctionWrapper m_cpu_resp_event;
 
-   /**
+    /**
      * List of all pending memory packets
      */
     std::unordered_map<uint64_t, Packet*> m_pending_pkt_map;
-   uint64_t m_cur_seq_num;
-   const uint64_t m_max_num_pending_pkts;
+    uint64_t m_cur_seq_num;
+    const uint64_t m_max_num_pending_pkts;
 
-   /**
+    /**
      * Queue of pending control requests
      */
     // typedef std::pair<MachineID, Packet*> CtrlReq;
@@ -349,77 +349,77 @@ public:
     // CtrlReq m_pending_go_flag_req;
     // CtrlReq m_pending_done_flag_req;
 
-   /**
+    /**
      * Pointers to control fields
      */
     // uint64_t* const m_base_addr_p;
     // uint32_t* const m_go_flag_p;
     // uint32_t* const m_done_flag_p;
 
-   // Number of L2 banks
-   const int m_num_l2s;
+    // Number of L2 banks
+    const int m_num_l2s;
 
-   // The grid dimensions of the mesh
-   const int m_grid_dim_x;
-   const int m_grid_dim_y;
-
-   /**
+    // The grid dimensions of the mesh
+    const int m_grid_dim_x;
+    const int m_grid_dim_y;
+    
+    /**
      * Keep a pointer to the local CPU to allow reading of some of its 
      * register. This is valid according to the DJ
-     */
-   IOCPU *m_cpu_p;
-
-   /**
+     */ 
+    IOCPU *m_cpu_p;
+    
+    /**
      * Store the current epoch of the proccessor, given by pkt
-     */
-   //int m_proc_epoch;
-
-   /**
+     */ 
+    //int m_proc_epoch;
+    
+    /**
      * The number of outstanding sp.loads allowed
-     */
-   const int m_max_pending_sp_prefetches;
-
-   /**
+     */ 
+    const int m_max_pending_sp_prefetches;
+    
+    /**
      * Bit array for each word tracking whether a prefetch has arrived
      * Reset on every trace prefetch, and set when recv the prefetch from master
-     */
-   // std::vector<int> m_fresh_array;
-
-   /**
+     */ 
+    // std::vector<int> m_fresh_array;
+    
+    /**
      * Event to process a mem resp packet
      */
-   EventFunctionWrapper m_process_resp_event;
-
-   /**
+    EventFunctionWrapper m_process_resp_event;
+    
+    /**
      * For arbitration keep track of last process resp
-     */
-   bool m_proc_ruby_last;
-
-   /**
+     */ 
+    bool m_proc_ruby_last;
+    
+    /**
      * Keep track of the last cycle we processed a packet
      * Because wakeup does the event in the same cycle (b/c already delayed)
      * Possible that one already fired from the stored buffer
-     */
-
-   /**
+     */ 
+    
+    /**
      * Allow a small number of sp.load packets to be buffered
      * We should only get these if in trace mode. If exceed size, drop all
      * and diverge
-     */
-   std::queue<PacketPtr> m_prefetch_resp_queue;
-
-   /**
+     */ 
+    std::queue<PacketPtr> m_prefetch_resp_queue;
+    
+    /**
      * Incoming queue from ruby
      */
-   std::queue<PacketPtr> m_ruby_resp_queue;
-
-   /**
+    std::queue<PacketPtr> m_ruby_resp_queue;
+    
+    /**
      * Counter to keep track of how many pkts have arrived for a region
      * Should only be a 10bit counter and adder setup
      */ 
     std::vector<int> m_region_cntrs;
 
-   /**
+    /**
      * Keep track of which region we are currently prefetching into
      * i.e. which region the counter is associated with (<10 bits)
      */ 
@@ -439,10 +439,10 @@ public:
    Stats::Formula m_remote_accesses;
    Stats::Formula m_total_accesses;
 
-   Stats::Scalar m_max_queue_size;
-   Stats::Scalar m_not_rdy_stalls;
+    Stats::Scalar m_max_queue_size;
+    Stats::Scalar m_not_rdy_stalls;
 
-   Stats::Scalar m_exceed_stream_width;
+    Stats::Scalar m_exceed_stream_width;
 };
 
 #endif // MEM_RUBY_SCRATCHPAD_HH
