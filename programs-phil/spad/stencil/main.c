@@ -34,9 +34,9 @@ int main(int argc, char *argv[]) {
   #endif
   // reuse has very stingy requirements on what sizes are allowed
   #ifdef REUSE
-  int ncols = 12 + (10 * 2); // 12 + factor of 10... wow i.e. 1212
+  int ncols = 10 * ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1)) + (FILTER_DIM - 1); // factor of (DIM * FILTER_DIM) - ( FILTER_DIM + 1 ), + edge case
   #else
-  int ncols = 96 + (FILTER_DIM - 1); // factor of DIM * FILTER_DIM (12) + 2... wow i.e. 1214 // vertical needs to be factor of 24 + 2... i.e. 1224 + 2 = 1226
+  int ncols = 10 * ( VECTOR_LEN * FILTER_DIM ) + (FILTER_DIM - 1); // factor of DIM * FILTER_DIM (12) + 2... wow i.e. 1214 // vertical needs to be factor of 24 + 2... i.e. 1224 + 2 = 1226
   #endif
   
   // parse positional arguments (X Y)
@@ -70,68 +70,69 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < nrows * ncols; i++) {
     a[i] = i + 1;
   }
-  #ifdef REUSE
-  int group_len = 4;
-  int first_group_size = FILTER_DIM * group_len;
-  int normal_group_size = 1 + (FILTER_DIM * (group_len - 1));
-  int without_initial = ncols - first_group_size;
-  int num_sections = 1 + (without_initial / normal_group_size);
-  DTYPE *a_re_ptr;
-  DTYPE *a_re = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_re_ptr); 
-  // 0 1 2 3 | 4 5 6 7  | 8 9 10 11 || 12 13 14 15
-  // 0 3 6 9 | 1 4 7 10 | 2 5 8  11 || 12 15 18 21 
-  // if want to scale requires a different reorder. because first core needs to tie into last core
-  // 0 1 2 | 3 6 9 | 4 7 10 | 5 8 11 || 12 | 13 16 19 | 14 17 20 | 15 18 21 || 22 | 
-  for (int r = 0; r < nrows; r++) { // each row is independent
-    int colIdx = 0;
-    // sharing sections
-    for (int section = 0; section < num_sections; section++) {
-      // always 4 groups per sharing section
-      // the first group in a section gets special behavior
-      // and the first group in the first sharing section gets very special behavior
-      int offset = 0;
-      int rowStart = r * ncols;
-      for (int g = 0; g < group_len; g++) {
-        if (g == 0) {
-          offset = rowStart + colIdx; // base
-          if (section == 0) {
-            for (int i = 0; i < FILTER_DIM; i++) {
-              int idx = rowStart + colIdx;
-              a_re[idx] = a[idx];
-              colIdx++;
-            }
-            offset += FILTER_DIM;
-          }
-          else {
-            int idx = rowStart + colIdx;
-            a_re[idx] = a[idx];
-            colIdx++;
-            offset++;
-          }
-        }
-        else {
-          for (int i = 0; i < (group_len - 1); i++) {
-            int replIdx = offset + (g - 1) + i * FILTER_DIM;
-            a_re[rowStart + colIdx] = a[replIdx];
-            colIdx++;
-          }
-        }
-      }
-    }
-  }
-  // for (int r = 0; r < nrows; r++) {
-  // for (int i = 0; i < ncols; i++) {
-  //   printf("%d ", a[r * ncols + i]);
+  // ridicuolous reorder required to do reuse with spatial
+  // #ifdef REUSE
+  // int group_len = 4;
+  // int first_group_size = FILTER_DIM * group_len;
+  // int normal_group_size = 1 + (FILTER_DIM * (group_len - 1));
+  // int without_initial = ncols - first_group_size;
+  // int num_sections = 1 + (without_initial / normal_group_size);
+  // DTYPE *a_re_ptr;
+  // DTYPE *a_re = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_re_ptr); 
+  // // 0 1 2 3 | 4 5 6 7  | 8 9 10 11 || 12 13 14 15
+  // // 0 3 6 9 | 1 4 7 10 | 2 5 8  11 || 12 15 18 21 
+  // // if want to scale requires a different reorder. because first core needs to tie into last core
+  // // 0 1 2 | 3 6 9 | 4 7 10 | 5 8 11 || 12 | 13 16 19 | 14 17 20 | 15 18 21 || 22 | 
+  // for (int r = 0; r < nrows; r++) { // each row is independent
+  //   int colIdx = 0;
+  //   // sharing sections
+  //   for (int section = 0; section < num_sections; section++) {
+  //     // always 4 groups per sharing section
+  //     // the first group in a section gets special behavior
+  //     // and the first group in the first sharing section gets very special behavior
+  //     int offset = 0;
+  //     int rowStart = r * ncols;
+  //     for (int g = 0; g < group_len; g++) {
+  //       if (g == 0) {
+  //         offset = rowStart + colIdx; // base
+  //         if (section == 0) {
+  //           for (int i = 0; i < FILTER_DIM; i++) {
+  //             int idx = rowStart + colIdx;
+  //             a_re[idx] = a[idx];
+  //             colIdx++;
+  //           }
+  //           offset += FILTER_DIM;
+  //         }
+  //         else {
+  //           int idx = rowStart + colIdx;
+  //           a_re[idx] = a[idx];
+  //           colIdx++;
+  //           offset++;
+  //         }
+  //       }
+  //       else {
+  //         for (int i = 0; i < (group_len - 1); i++) {
+  //           int replIdx = offset + (g - 1) + i * FILTER_DIM;
+  //           a_re[rowStart + colIdx] = a[replIdx];
+  //           colIdx++;
+  //         }
+  //       }
+  //     }
+  //   }
   // }
-  // printf("\n");
-  // }
-  // for (int r = 0; r < nrows; r++) {
-  // for (int i = 0; i < ncols; i++) {
-  //   printf("%d ", a_re[r * ncols + i]);
-  // }
-  // printf("\n");
-  // }
-  #endif
+  // // for (int r = 0; r < nrows; r++) {
+  // // for (int i = 0; i < ncols; i++) {
+  // //   printf("%d ", a[r * ncols + i]);
+  // // }
+  // // printf("\n");
+  // // }
+  // // for (int r = 0; r < nrows; r++) {
+  // // for (int i = 0; i < ncols; i++) {
+  // //   printf("%d ", a_re[r * ncols + i]);
+  // // }
+  // // printf("\n");
+  // // }
+  // #endif
 
   // filter
   // 1 2 3
@@ -156,11 +157,11 @@ int main(int argc, char *argv[]) {
   for (int y = 0; y < cores_y; y++) {
     for (int x = 0; x < cores_x; x++){
       int i = x + y * cores_x; 
-      #ifdef REUSE
-      kern_args[i] = construct_args(a_re, b, c, nrows, ncols, x, y, cores_x, cores_y);
-      #else
+      // #ifdef REUSE
+      // kern_args[i] = construct_args(a_re, b, c, nrows, ncols, x, y, cores_x, cores_y);
+      // #else
       kern_args[i] = construct_args(a, b, c, nrows, ncols, x, y, cores_x, cores_y);
-      #endif
+      // #endif
     }  
   }
 
@@ -200,9 +201,9 @@ int main(int argc, char *argv[]) {
   free(b_ptr);
   free(c_ptr);
 
-  #ifdef REUSE
-  free(a_re_ptr);
-  #endif
+  // #ifdef REUSE
+  // free(a_re_ptr);
+  // #endif
   
   printf("[[SUCCESS]]\n");
   
