@@ -332,6 +332,11 @@ void Scratchpad::processRespToSpad()
       accessDataArray(pkt_p);
 
       DPRINTF(Mesh, "store spec prefetch %#x\n", pkt_p->getAddr());
+      if (isRegionAccess(pkt_p)){
+        uint32_t *local_data_p = (uint32_t*)(m_data_array + getLocalAddr(pkt_p->getAddr()));
+        float data = *(float*)local_data_p;
+        DPRINTF(Mesh, "writing packet in Scratchpad addr %#x -- %f \n", pkt_p->getAddr(), data);
+      }
 
       // set the word as ready for future packets
       setWordRdy(pkt_p->getAddr());
@@ -722,6 +727,12 @@ bool Scratchpad::handleCpuReq(Packet *pkt_p)
       m_local_stores++;
 
     accessDataArray(pkt_p);
+
+    if (isRegionAccess(pkt_p) && pkt_p->isRead()){
+      uint32_t *local_data_p = (uint32_t*)(m_data_array + getLocalAddr(pkt_p->getAddr()));
+      float data = *(float*)local_data_p;
+      DPRINTF(Mesh, "reading packet in Scratchpad addr %#x -- %f \n", pkt_p->getAddr(), data);
+    }
 
     /*if (pkt_p->getSpecSpad()) {
       assert(pkt_p->isRead());

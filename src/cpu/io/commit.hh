@@ -109,7 +109,8 @@ class Commit : public Stage
     /** List of insts processed in the current cycle */
     std::vector<IODynInstPtr> m_committed_insts;
 
-    Stats::Scalar commit_stalls;
+  private:
+    Stats::Scalar m_stall_due_to_vector;
 };
 
 #endif // __CPU_IO_COMMIT_HH__

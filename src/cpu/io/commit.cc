@@ -41,9 +41,10 @@ Commit::name() const
 void
 Commit::regStats()
 {
-    commit_stalls
-      .name(name() + ".commit_stalls")
-      .desc("number of stalls in the commit stage due to insufficient credits");
+  m_stall_due_to_vector
+    .name(name() + ".stall_from_late_vector")
+    .desc("number of stalls before try commit due to late vector")
+  ;
 }
 
 void
@@ -78,14 +79,13 @@ Commit::tick()
 #endif
 }
 
-
 void
 Commit::doCommit()
 {
 
   // TODO need to refactor this into parent?
   if (checkStall()) {
-    commit_stalls++;
+    m_stall_due_to_vector++;
     return;
   }
 

@@ -78,9 +78,9 @@ gem5_cmd = lambda program, options, result, cpus, vec: '{} -d {}/{} {}  --cmd={}
 # compile command that chooses whether to use scratchpad optimizations
 # how many cores/sps are present, and whether to use vector mode
 def compile_cmd(program_dir, cpus, use_sp, use_vec, extra_flags):
-#   cmd = 'make clean -C {}'.format(program_dir)
-#   cmd += ' && '
-  cmd = ""
+  cmd = 'make clean -C {}'.format(program_dir)
+  cmd += ' && '
+  # cmd = ""
   if (not use_sp):
     cmd += 'ENV_NO_SP=1 '
   if (not use_vec):
@@ -196,11 +196,11 @@ def strings_to_metadata(args):
 numCpus = 64
 use_sps = True
 
-size =32  # 65536  # 32768 #8192
-# size = 8402 #131072 #8192 #32768
+# size =32  # 65536  # 32768 #8192
+size = 1024 #8402 #131072 #8192 #32768
 
-# ncols = 1730
-# nrows = 60
+ncols = 1730
+nrows = 60
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
 # seed = random.randint(1,2**20)
@@ -235,8 +235,9 @@ for v in vec_sizes:
 # make_flags_gemm = ["UNBLOCKED_INNER", "BLOCKED", "INTERLEAVED", "UNBLOCKED_OUTER"]
 make_flags_gemm = ["SIMD_PRIVATE"]
 # make_flags_gemm = ["SIMD_PRIVATE", "SIMD_SHARING", "NO_VEC"]
-# program = "vvadd"
-program = "gemm"
+program = "vvadd"
+make_flags = [ 'VEC_16_SIMD', 'VEC_4_SIMD' ]
+# program = "gemm"
 
 
 # TODO need a struct describing the experiment. Not all settings match idenpendently
@@ -252,7 +253,7 @@ def pack_and_run(numCpus, use_vec, use_sps, prog, i, extra_info):
 pool = multiprocessing.Pool(processes=4)
 
 for use_vec in use_vec_arr:
-    for make_flag in make_flags_gemm:
+    for make_flag in make_flags:
         # use_vec = False
         print(make_flag)
         # run a program from the list above with different parameters
@@ -267,7 +268,7 @@ for use_vec in use_vec_arr:
             # pack_and_run(numCpus, use_vec, use_sps, 'synth', i)
             # the new file will have the same name as the old file, but also specify the new dir
             proc = pool.apply_async(
-                pack_and_run, args=(numCpus, use_vec, use_sps, program, i, make_flag)
+                pack_and_run, args=(numCpus, use_vec, use_sps, program, i, strings_to_make_args(make_flag))
             )
             jobs.append(proc)
             pass
