@@ -23,7 +23,7 @@
 
 // #define VEC_16_SIMD 1
 // #define VEC_16_SIMD_VERTICAL 1
-#define VEC_16_REUSE_VERTICAL 1
+// #define VEC_16_REUSE_VERTICAL 1
 
 // vvadd_execute config directives
 #if !defined(NO_VEC)

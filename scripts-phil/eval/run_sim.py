@@ -114,9 +114,12 @@ def vvadd_merge_args(vec_size, prefetch_len, load_type):
     config.append('VERTICAL_LOADS')
   elif (load_type == 'SPATIAL_UNROLL'):
     config.append('SPATIAL_UNROLL')
+  elif (load_type == 'REUSE'):
+    config.append('REUSE')
+    config.append('VERTICAL_LOADS')
 
   # vertical only works with prefetch 16
-  if (load_type == 'VERTICAL'):
+  if (load_type == 'VERTICAL' or load_type == 'REUSE'):
     if (prefetch_len != 16):
       return (False, config)
     else:
@@ -124,11 +127,12 @@ def vvadd_merge_args(vec_size, prefetch_len, load_type):
       return (True, config)
 
   # remove configs where vec size exceeds prefetch size
-  if (vec_size < prefetch_len):
-    return (False, config)
   else:
-    config.append('PF=' + str(prefetch_len))
-    return (True, config)
+    if (vec_size < prefetch_len):
+      return (False, config)
+    else:
+      config.append('PF=' + str(prefetch_len))
+      return (True, config)
 
 # either array or single string
 def strings_to_make_args(args):
@@ -148,10 +152,12 @@ def strings_to_metadata(args):
     for a in args:
       # special interpretations
       arg = a
-      if (a == 'VERTICAL'):
+      if (a == 'VERTICAL_LOADS'):
         arg = 'V'
       elif (a == 'SPATIAL_UNROLL'):
         arg = 'S'
+      elif (a == 'REUSE'):
+        arg = 'R'
       elif (a[0:11] == 'VECTOR_LEN='):
         arg = a[11:len(a)]
       elif (a[0:3] == 'PF='):
@@ -170,7 +176,11 @@ use_sps = True
 
 # size = 8402 #131072 #8192 #32768
 
-ncols = 1730
+# good for spatial verions
+# ncols = 1730
+# good for reuse versions
+# ncols = 1842  # n * 460 + 2
+ncols = 5522
 nrows = 60
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
@@ -189,11 +199,11 @@ use_vec_arr = [True]
 
 make_flags = []
 # vec_sizes = [ 4, 16 ]
-# load_types = [ 'SPATIAL', 'VERTICAL', 'SPATIAL_UNROLL' ]
+# load_types = [ 'SPATIAL', 'VERTICAL', 'SPATIAL_UNROLL', 'REUSE ]
 # prefetch_sizes = [ 1, 2, 4, 8, 16 ]
-vec_sizes = [ 4, 16 ]
-load_types = [ 'SPATIAL', ]
-prefetch_sizes = [ 1, 2, 4, 8, 16 ]
+vec_sizes = [ 16, 4 ]
+load_types = [ 'REUSE', 'SPATIAL' ]
+prefetch_sizes = [ 4, 16 ]
 for v in vec_sizes:
   for l in load_types:
     for p in prefetch_sizes:

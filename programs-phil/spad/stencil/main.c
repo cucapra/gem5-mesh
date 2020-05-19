@@ -35,8 +35,10 @@ int main(int argc, char *argv[]) {
   // reuse has very stingy requirements on what sizes are allowed
   #ifdef REUSE
   int ncols = 3 * ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1)) + (FILTER_DIM - 1); // factor of (DIM * FILTER_DIM) - ( FILTER_DIM + 1 ), + edge case
-  #else
+  #elif defined(VECTOR_LEN)
   int ncols = 10 * ( VECTOR_LEN * FILTER_DIM ) + (FILTER_DIM - 1); // factor of DIM * FILTER_DIM (12) + 2... wow i.e. 1214 // vertical needs to be factor of 24 + 2... i.e. 1224 + 2 = 1226
+  #else
+  int ncols = 122;
   #endif
   
   // parse positional arguments (X Y)
