@@ -12,18 +12,16 @@
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_REUSE_VERTICAL 1
-
-// #define VEC_4_SIMD_BCAST 1
-
-// spatial reuse no longer supported
-// #define VEC_4_REUSE 1
-
-// #define VEC_4_SIMD_SINGLE_PREFETCH 1
-// #define VEC_4_SIMD_LARGE_FRAME 1
-
 // #define VEC_16_SIMD 1
 // #define VEC_16_SIMD_VERTICAL 1
 // #define VEC_16_REUSE_VERTICAL 1
+
+// below macros probably don't work anymore
+// #define VEC_4_SIMD_BCAST 1
+// #define VEC_4_REUSE 1
+// #define VEC_4_SIMD_SINGLE_PREFETCH 1
+// #define VEC_4_SIMD_LARGE_FRAME 1
+
 
 // vvadd_execute config directives
 #if !defined(NO_VEC)

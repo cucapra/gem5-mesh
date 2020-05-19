@@ -61,8 +61,8 @@ inline void completeHardwareFrame(int spadIdx, int *someData) {
 
 #ifdef USE_VEC
 void __attribute__((optimize("-fno-reorder-blocks")))
-stencil(
-    DTYPE *a, DTYPE *b, DTYPE *c, int start_row, int end_row, int ncols,
+stencil_vector(
+    DTYPE *a, DTYPE *b, DTYPE *c, int start_row, int end_row, int eff_cols, int ncols,
     int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y, int mask) {
 
   // TODO fails if put this here... sigh
@@ -130,7 +130,7 @@ stencil(
 
   // how much we're actually going to do (ignore edges)
   // TODO can we use predication instead?
-  int effCols = ncols - (FILTER_DIM - 1);
+  int effCols = eff_cols;
 
   // do initial batch of prefetching. only prefetch part of the first row
   // you need to guarentee that a full region worth of frames are in flight before issuing a block that will consume
@@ -424,13 +424,13 @@ stencil(
 
   return;
 }
-#else
+#endif
+
 void /*__attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) */
-stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, int dim, int row_start, int row_end) {
-  int outputCols = ncols - (FILTER_DIM - 1);
+stencil_manycore(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int col_start, int col_end, int ncols, int ptid, int vtid, int dim, int row_start, int row_end) {
   for (int row = row_start; row < row_end; row++) {
     // #pragma GCC unroll 4
-    for (int col = 0; col < outputCols; col++) {
+    for (int col = col_start; col < col_end; col++) {
       int temp = 0;
       #pragma GCC unroll 3
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
@@ -441,12 +441,11 @@ stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, 
           temp += a[aIdx] * b[bIdx];
         }
       }
-      int cIdx = row * outputCols + col;
+      int cIdx = row * (ncols-(FILTER_DIM-1)) + col;
       c[cIdx] = temp;
     }
   }
 }
-#endif // VECTOR_SIMD
 
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
@@ -554,6 +553,28 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   pthread_barrier_wait(&start_barrier);
   #endif
 
+  // each vector group size is rated to do a certain problem size and multiples of that problem size
+  // for the mod of this we need to do the rest on the flexible manycore version
+  int rated_size = 0;
+  #ifdef REUSE
+  rated_size = ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1) );
+  #elif defined(VERTICAL_LOADS)
+  rated_size = ( VECTOR_LEN * CORE_STEP );
+  #elif defined(VECTOR_LEN)
+  rated_size = ( VECTOR_LEN * FILTER_DIM );
+  #else
+  rated_size = 1;
+  #endif
+
+  // cols without the edge case
+  int eff_len = ncols - (FILTER_DIM - 1);
+  // mapped len is schedule on main config, unmapped will be scheduled on base manycore
+  int unmapped_len = eff_len % rated_size;
+  int mapped_len = eff_len - unmapped_len;
+
+  // if (ptid == 0)
+    // printf("size %d rated size %d mapped %d unmapped %d\n", eff_len, rated_size, mapped_len, unmapped_len);
+
   // only let certain tids continue
   #if defined(USE_VEC)
   if (used == 0) return;
@@ -565,7 +586,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // store the the current spAddr to restore later 
   unsigned long long *spTop = getSpTop(ptid);
   // guess the remaining of the part of the frame that might be needed??
-  spTop -= 8;
+  spTop -= 12;
 
   unsigned long long stackLoc;
   asm volatile (
@@ -587,6 +608,14 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     "sd t0, 48(%[spad])\n\t"
     "ld t0, 56(sp)\n\t"
     "sd t0, 56(%[spad])\n\t"
+    "ld t0, 64(sp)\n\t"
+    "sd t0, 64(%[spad])\n\t"
+    "ld t0, 72(sp)\n\t"
+    "sd t0, 72(%[spad])\n\t"
+    "ld t0, 80(sp)\n\t"
+    "sd t0, 80(%[spad])\n\t"
+    "ld t0, 88(sp)\n\t"
+    "sd t0, 88(%[spad])\n\t"
     // save the stack ptr
     "addi %[dest], sp, 0\n\t" 
     // overwrite stack ptr
@@ -596,9 +625,13 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   );
 
   #ifdef USE_VEC
-  stencil(a, b, c, start, end, ncols, ptid, vtid_x, vtid_y, vdim_x, vdim_y, mask);
+  // do computation that we can map
+  stencil_vector(a, b, c, start, end, mapped_len, ncols, ptid, vtid_x, vtid_y, vdim_x, vdim_y, mask);
+
+  // do remainder of computation starting from offset
+  stencil_manycore(a, b, c, nrows, mapped_len, mapped_len + unmapped_len, ncols, ptid, vtid, vdim, start, end);
   #else
-  stencil(a, b, c, nrows, ncols, ptid, vtid, vdim, start, end);
+  stencil_manycore(a, b, c, nrows, 0, mapped_len, ncols, ptid, vtid, vdim, start, end);
   #endif
 
   // restore stack pointer
