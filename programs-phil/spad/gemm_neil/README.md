@@ -20,13 +20,13 @@ SIMD_SHARING_16
 
 ## Assembly files
 
-To understand the assembly files refer to `../vvadd_simd/` documentation.
+To understand the assembly files refer to `../vvadd_simd/` documentation. The only assembly file in the folder is `*_combined.s` which is currently hand tuned.
 
 ## Runing gemm
 
 All that is okay and I don't really care about what is happening inside the kernel. How do I run GEMM?
 
-Based on the versions discussed above, copy the assembly files of the corresponding version using
+Based on the versions discussed above, copy the assembly file `gemm_combined.s` of the corresponding version using
 ```
 cp asm_<private/sharing>_float<4/16>/* .
 ```
