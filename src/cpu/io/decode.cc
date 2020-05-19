@@ -185,6 +185,10 @@ Decode::sendInstToNextStage(IODynInstPtr inst)
   // actual send inst to next stage
   Stage::sendInstToNextStage(inst);
 
+  // store the clock edge at which the instruction is pushed to the next stage
+  //inst->decode_cycles = m_cpu_p->curCycle();
+  inst->master_info[2] = m_cpu_p->curCycle();
+
 #ifdef DEBUG
   // record for linetrace
   m_stage_status.set(DecodeStatus::Busy);

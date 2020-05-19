@@ -16,13 +16,13 @@ import multiprocessing
 
 # cmd line arguments
 parser = argparse.ArgumentParser(description='Run gem5 simulation and output informative stats files')
-parser.add_argument('--build', default='/home/pbb59/hammerblade/gem5/build/RVSP/gem5.opt', help='Path to gem5 build')
-parser.add_argument('--config', default='/home/pbb59/hammerblade/gem5/configs/phil/brg_hammerblade.py', help='Path to gem5 build')
-parser.add_argument('--results', default='/home/pbb59/hammerblade/gem5/results', help='Path to place to store results')
+parser.add_argument('--build', default='../../build/RVSP/gem5.opt', help='Path to gem5 build')
+parser.add_argument('--config', default='../../configs/phil/brg_hammerblade.py', help='Path to gem5 build')
+parser.add_argument('--results', default='../../results', help='Path to place to store results')
 args = parser.parse_args()
 
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful
-progDir0 = '/home/pbb59/hammerblade/gem5/programs-phil/spad/'
+progDir0 = '../../programs-phil/spad/'
 programs = {
 
   'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd/vvadd', 
@@ -30,7 +30,7 @@ programs = {
     'serialize' : lambda argv: '-size{0}'.format(str(argv[0])),
     'success' : '\[\[SUCCESS\]\]'},
     
-  'gemm'  : { 'name': 'gemm',  'path' : progDir0 + 'gemm/gemm', 
+  'gemm'  : { 'name': 'gemm',  'path' : progDir0 + 'gemm_neil/gemm', 
     'options' : lambda argv: '{0} {0} {0}'.format(str(argv[0])),
     'success' : '\[\[SUCCESS\]\]'},
     
@@ -204,6 +204,8 @@ for v in vec_sizes:
 # add no vec config as well
 make_flags.append('NO_VEC')
 
+# make_flags_gemm = ["SIMD_PRIVATE", "SIMD_SHARING", "NO_VEC"]
+# program = "gemm"
 program = 'stencil'
 
 # TODO need a struct describing the experiment. Not all settings match idenpendently

@@ -108,3 +108,13 @@ ROB::getUnresolvedCondInstCount() const
                     [](const IODynInstPtr& inst) { return inst->isCondResolved(); });
 }
 
+IODynInstPtr
+ROB::getInstwithDestreg(PhysRegIdPtr reg) const
+{
+  for(auto i = m_inst_list.rbegin(); i!= m_inst_list.rend(); i++){ //most recent instruction hence start from the back
+      IODynInstPtr inst = *i;
+      if (inst->renamedDestRegIdx(0) == reg) return inst;
+  } 
+  return NULL;
+}
+

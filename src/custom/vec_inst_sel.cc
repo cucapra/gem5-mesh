@@ -338,7 +338,7 @@ VecInstSel::sendICacheReq(int tid, Addr instAddr) {
   // translate instruction addr atomically (right now!)
   Fault fault = m_cpu_p->itb->translateAtomic(req, m_cpu_p->tcBase(tid), BaseTLB::Execute);
   assert(fault == NoFault);
-
+  
   // Addr lineAddr = instAddr & ~(m_cpu_p->getCacheLineSize() - 1);
   // DPRINTF(Mesh, "request lineAddr %#x addr %#x\n", lineAddr, instAddr);
 
@@ -348,7 +348,7 @@ VecInstSel::sendICacheReq(int tid, Addr instAddr) {
 
 
 
-
+  
   // might be busy do transition from fetch stage, need to keep delaying as long as can't send
   if (!m_cpu_p->getInstPort().sendTimingReq(inst_pkt)) {
     DPRINTF(Mesh, "fail to send req for %#x. save for later\n", instAddr);

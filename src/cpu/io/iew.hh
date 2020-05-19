@@ -168,6 +168,8 @@ class IEW : public Stage
     Stats::Scalar m_commit_buf_stalls;
     Stats::Scalar m_exe_unit_busy_stalls;
     Stats::Vector2d m_stall_rob_head_insts;
+    Stats::Vector2d iew_dep_insts;
+    Stats::Vector2d iew_dep_on;
 };
 
 #endif // CPU_IO_IEW_HH

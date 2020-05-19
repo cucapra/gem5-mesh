@@ -39,6 +39,7 @@
 #include "mem/ruby/scratchpad/MemMessage.hh"
 
 #include "debug/Mesh.hh"
+#include "debug/LoadTrack.hh"
 #include "debug/RubyNetwork.hh"
 
 int Scratchpad::m_num_scratchpads = 0;
@@ -284,6 +285,7 @@ Scratchpad::processRespToSpad() {
         //m_sp_prefetch_buffer.push_back(pkt_p);
         enqueueStallRespToSp(pkt_p);
         
+
         DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending epoch %d core epoch %d addr %#x spadEntry %d\n", 
           m_prefetch_resp_queue.size(), getDesiredRegion(m_prefetch_resp_queue.front()->getAddr()), getCoreEpoch(),
           m_prefetch_resp_queue.front()->getAddr(),
@@ -311,24 +313,29 @@ Scratchpad::processRespToSpad() {
         }
       }
       else {
-        // profile, TODO should classify different than just remote load/store?
-        if (pkt_p->isRead())
-          m_remote_loads++;
-        else if (pkt_p->isWrite())
-          m_remote_stores++;
-  
-        // access data array
-        accessDataArray(pkt_p);
-        
-        DPRINTF(Mesh, "store spec prefetch %#x\n", pkt_p->getAddr());
-        
-        // set the word as ready for future packets
-        setWordRdy(pkt_p->getAddr());
-        delete pkt_p;
-        pkt_p = nullptr;
-      }
-      break;
+      // profile, TODO should classify different than just remote load/store?
+      if (pkt_p->isRead())
+        m_remote_loads++;
+      else if (pkt_p->isWrite())
+        m_remote_stores++;
+
+      // access data array
+      accessDataArray(pkt_p);
+
+      DPRINTF(Mesh, "store spec prefetch %#x\n", pkt_p->getAddr());
+        // if (isRegionAccess(pkt_p)){
+        //   uint32_t *local_data_p = (uint32_t*)(m_data_array + getLocalAddr(pkt_p->getAddr()));
+        //   float data = *(float*)local_data_p;
+        //   DPRINTF(Mesh, "writing packet in Scratchpad addr %#x -- %f \n", pkt_p->getAddr(), data);
+        // }
+
+      // set the word as ready for future packets
+      setWordRdy(pkt_p->getAddr());
+      delete pkt_p;
+      pkt_p = nullptr;
     }
+    break;
+  }
     default: {
       
       break;
@@ -411,6 +418,9 @@ Scratchpad::wakeup()
 
       DPRINTF(Scratchpad, "Handling mem resp pkt %s from a remote "
                           "scratchpad\n", pkt_p->print());
+
+      if (pkt_p->isRead())
+        DPRINTF(LoadTrack, "Handling remote SP load locally %#x\n", pkt_p->getAddr());
 
       if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Recv remote resp pkt %#x\n", pkt_p->getAddr());
 
@@ -567,6 +577,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 {
   assert(pkt_p->isRequest());
 
+  if (pkt_p->isRead())
+    DPRINTF(LoadTrack, "Load request received in local SP %#x\n", pkt_p->getAddr());
   // /**
   //  * From Xcel, access to base_addr field
   //  */
@@ -664,7 +676,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     
     // If this is a speculative load and the data isn't present, then
     // allow the packets equal to ld queue size be buffered here
-    if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
+    // if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
+    if (isRegionAccess(pkt_p) && !isWordRdy(pkt_p->getAddr())){
       //m_packet_buffer.push_back(pkt_p);
       //assert(m_packet_buffer.size() <= m_spec_buf_size);
       // just say not rdy actually
@@ -681,13 +694,25 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // if (m_cpu_p->getEarlyVector()->getConfigured()) 
     //   DPRINTF(Mesh, "Doing a local access for pkt %s coreepoch %d prefetchEpoch %d cnt%d\n", 
     //     pkt_p->print(), getCoreEpoch(), m_cur_prefetch_region, m_region_cntr);
-    
+
+    if (isRegionAccess(pkt_p) && pkt_p->isRead()) m_local_loads_region++;
+    if (isRegionAccess(pkt_p) && pkt_p->isWrite()) m_local_stores_region++;
     // record local access here
-    if (pkt_p->isRead()) m_local_loads++;
+    if (pkt_p->isRead())
+    {
+      m_local_loads++;
+      DPRINTF(LoadTrack, "Processing local load with addr %#x\n", pkt_p->getAddr());
+    }
     else if (pkt_p->isWrite()) m_local_stores++;
     
     accessDataArray(pkt_p);
-    
+
+    // if (isRegionAccess(pkt_p) && pkt_p->isRead()){
+    //   uint32_t *local_data_p = (uint32_t*)(m_data_array + getLocalAddr(pkt_p->getAddr()));
+    //   float data = *(float*)local_data_p;
+    //   DPRINTF(Mesh, "reading packet in Scratchpad addr %#x -- %f \n", pkt_p->getAddr(), data);
+    // }
+
     /*if (pkt_p->getSpecSpad()) {
       assert(pkt_p->isRead());
       uint8_t tmp_buf[pkt_p->getSize()];
@@ -860,7 +885,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     dst_port = { MachineType_Scratchpad, dst_sp_id };
 
     DPRINTF(Scratchpad, "Sending pkt %s to %s\n", pkt_p->print(), dst_port);
-
+    if (pkt_p->isRead())
+      DPRINTF(LoadTrack, "Sending Load request to remote SP %#x\n", pkt_p->getAddr());
     if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Sending remote req pkt %#x to %s\n", pkt_p->getAddr(), dst_port);
 
     // Make and queue the message
@@ -879,7 +905,8 @@ bool
 Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
 {
   assert(pkt_p->isRequest());
-
+  if (pkt_p->isRead())
+    DPRINTF(LoadTrack, "Remote load request received %#x\n", pkt_p->getAddr());
   // Check if we have enough slot in m_remote_resp_buffer to queue a new
   // response message
   if (!m_remote_resp_buffer_p->areNSlotsAvailable(1, clockEdge())) {
@@ -956,17 +983,24 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
    * From a remote CPU/Xcel, access to data
    */
   // else {
-    /*// check if this remote access is to a framed region of the scratchpad
+    // check if this remote access is to a framed region of the scratchpad
     // and then force to abide by frame rules
-    if (isRegionAccess(pkt_p)) {
-      DPRINTF(Mesh, "region access from remote store %s\n", pkt_p->print());
-      enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Patron_Resp);
+    // if (isRegionAccess(pkt_p)) {
+    //   DPRINTF(Mesh, "region access from remote store %s\n", pkt_p->print());
+    //   enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Patron_Resp);
       
-      // need to copy this packet and make up a response
-      pkt_p = new Packet(pkt_p, false, false);
-      pkt_p->makeResponse();
+    //   // need to copy this packet and make up a response
+    //   pkt_p = new Packet(pkt_p, false, false);
+    //   pkt_p->makeResponse();
+    // }
+    // else {
+    if (isRegionAccess(pkt_p) && !isWordRdyForRemote(pkt_p->getAddr()))
+    //TODO: Will fail if remote access to past region and prefetching going on, but then again accessing into past region is faulty
+    {
+      DPRINTF(Mesh, "remote region access into a region not ready (not cool bro) %s\n", pkt_p->print());
+      return false;
     }
-    else {*/
+
       // record remote access here
       if (pkt_p->isRead()) m_remote_loads++;
       else if (pkt_p->isWrite()) m_remote_stores++;
@@ -984,6 +1018,9 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
         std::make_shared<MemMessage>(clockEdge(), src_port, dst_port, pkt_p);
 
     DPRINTF(Scratchpad, "Sending pkt %s to %s\n", pkt_p->print(), dst_port);
+
+    if (pkt_p->isRead())
+      DPRINTF(LoadTrack, "Sending load request from remote SP %#x\n", pkt_p->getAddr());
 
     m_remote_resp_buffer_p->enqueue(msg_p,
                                     clockEdge(),
@@ -1021,6 +1058,8 @@ Scratchpad::sendCPUResponse()
   assert(m_cpu_resp_pkts.front() != nullptr);
 
   DPRINTF(Scratchpad, "Sending %s to CPU\n", m_cpu_resp_pkts.front()->print());
+  if (m_cpu_resp_pkts.front()->isRead())
+    DPRINTF(LoadTrack, "Sending Load request to CPU %#x\n", m_cpu_resp_pkts.front()->getAddr());
 
   if (!m_cpu_port_p->sendTimingResp(m_cpu_resp_pkts.front())) {
     panic("Failed to send a response to CPU. \
@@ -1251,6 +1290,16 @@ Scratchpad::isPrefetchAhead(Addr addr) {
   //   wouldOverlap, aheadCntr, pktEpochMod, coreEpochMod, m_cur_prefetch_region, m_region_cntr);
   // return wouldOverlap || aheadCntr;
 }
+bool Scratchpad::isWordRdyForRemote(Addr addr)
+{
+
+  //the region where the packet is targeted to
+  int pktEpochMod = getDesiredRegion(addr);
+
+  // if the region being accessed remotely is not being written into by vprefetch the word is ready
+  bool ret = (pktEpochMod != m_cur_prefetch_region);
+  return ret;
+}
 
 // TODO deprecated b/c no lwspec
 bool
@@ -1368,12 +1417,18 @@ Scratchpad::regStats()
         .name(name() + ".local_loads")
         .desc("Number of loads completed by the local core")
         ;
-        
+  m_local_loads_region
+      .name(name() + ".local_loads_region")
+      .desc("Number of loads completed by the local core in the region");
+
   m_local_stores
-        .name(name() + ".local_stores")
+      .name(name() + ".local_stores")
         .desc("Number of stores completed by the local core")
         ;
-        
+  m_local_stores_region
+      .name(name() + ".local_stores_region")
+      .desc("Number of stores completed by the local core in the region");
+
   m_remote_loads
         .name(name() + ".remote_loads")
         .desc("Number of loads completed by a remote core")

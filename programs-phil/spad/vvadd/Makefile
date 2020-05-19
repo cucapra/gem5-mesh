@@ -36,7 +36,7 @@ endif
 RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
 
 # script to find the correct vissue length
-VISS=python /home/pbb59/hammerblade/gem5/scripts-phil/vissue-asm.py
+VISS=python ../../../scripts-phil/vissue-asm.py
 
 CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 

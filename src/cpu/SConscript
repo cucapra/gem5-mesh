@@ -62,6 +62,9 @@ DebugFlag('Mwait')
 
 # add custom cpu flags 
 DebugFlag('Mesh')
+DebugFlag('PipelinePrint')
+DebugFlag('gemm_d')
+DebugFlag('LoadTrack')
 
 CompoundFlag('ExecAll', [ 'ExecEnable', 'ExecCPSeq', 'ExecEffAddr',
     'ExecFaulting', 'ExecFetchSeq', 'ExecOpClass', 'ExecRegDelta',

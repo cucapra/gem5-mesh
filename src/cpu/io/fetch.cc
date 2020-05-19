@@ -11,6 +11,9 @@
 #include "cpu/io/cpu.hh"
 #include "debug/Fetch.hh"
 
+#include "debug/PipelinePrint.hh"
+
+
 //-----------------------------------------------------------------------------
 // Fetch::FetchTranslation
 //-----------------------------------------------------------------------------
@@ -452,6 +455,9 @@ Fetch::doFetch(ThreadID tid)
   // Update this thread's pc to the next pc
   m_pcs[tid] = next_pc;
 
+  //update fetch cycle
+  dyn_inst_p->master_info[0] = m_cpu_p->curCycle();
+
   // Send inst to Decode
   sendInstToNextStage(dyn_inst_p);
 }
@@ -642,6 +648,11 @@ Fetch::sendInstToNextStage(IODynInstPtr inst)
 {
   // actually send the instruction
   Stage::sendInstToNextStage(inst);
+
+  //store the clock edge at which the instruction is pushed to decode stage
+  //inst->fetch_cycles = m_cpu_p->curCycle();
+  inst->master_info[1] = m_cpu_p->curCycle();
+  //DPRINTF(PipelinePrint, "Fetch [%s]\n", inst->toString(true));
 
 #ifdef DEBUG
   // record trace
