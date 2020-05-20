@@ -213,8 +213,8 @@ stencil_vector(
           VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
           VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
           #else
-          // VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
-          // VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
+          // printf("mid prelw sp %d r %d c %d k1 %d k2 %d idx %d\n", spadIdx, r, c, k1, k2, aIdx);
+
           for (int p = 0; p < pRatio; p++) {
             VPREFETCH_L(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
             VPREFETCH_R(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
@@ -266,10 +266,12 @@ stencil_vector(
   DTYPE a_, b_, c_;
   int64_t baseIdx, frameStart, spIdx; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
+  int colCntr;
   DTYPE b0, b1, b2, b3, b4, b5, b6, b7, b8;
   DTYPE a0, a1, a2, a3, a4, a5, a6, a7, a8;
-  int *spadAddr; // important don't share this variable with above!
-
+  int *spadAddr;
+  int unmappedColLen;
+  
   // entry block
   // load the full filter into spad
   fable0:
@@ -282,6 +284,8 @@ stencil_vector(
 
     cPtr = c + (start_row * (ncols-(FILTER_DIM-1))) + startOffset;
     spadAddr = (int*)getSpAddr(ptid, 0);
+    colCntr = 0;
+    unmappedColLen = ncols-(FILTER_DIM-1) - eff_cols;
 
     b0 = b[0];
     b1 = b[1];
@@ -373,7 +377,13 @@ stencil_vector(
     PRED_EQ(vtid, vtid);
 
     // 10 results are computed per reuse iteration
-    cPtr+=step;
+    // cPtr+=step;
+    cPtr += step;
+    colCntr+=step;
+    CONVERGENT_IF(colCntr == eff_cols) {
+      colCntr = 0;
+      cPtr += unmappedColLen;
+    }
 
     #elif defined(VERTICAL_LOADS)
     #pragma GCC unroll(14)
@@ -391,7 +401,13 @@ stencil_vector(
       c_ += b8 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 2];
       STORE_NOACK(c_, cPtr + i, 0);
     }
+
     cPtr += step;
+    colCntr+=step;
+    CONVERGENT_IF(colCntr == eff_cols) {
+      colCntr = 0;
+      cPtr += unmappedColLen;
+    }
     #else
     // #pragma GCC unroll 9
     // for (int i = 0; i < FILTER_DIM * FILTER_DIM; i++) {
@@ -411,7 +427,13 @@ stencil_vector(
     c_ += b8 * spadAddr[spIdx + 8];
 
     STORE_NOACK(c_, cPtr, 0);
+    // cPtr += dim;
     cPtr += dim;
+    colCntr+=dim;
+    CONVERGENT_IF(colCntr == eff_cols) {
+      colCntr = 0;
+      cPtr += unmappedColLen;
+    }
     #endif
 
     REMEM(frameSize);
@@ -573,7 +595,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int mapped_len = eff_len - unmapped_len;
 
   // if (ptid == 0)
-    // printf("size %d rated size %d mapped %d unmapped %d\n", eff_len, rated_size, mapped_len, unmapped_len);
+  //   printf("size %d rated size %d mapped %d unmapped %d\n", eff_len, rated_size, mapped_len, unmapped_len);
 
   // only let certain tids continue
   #if defined(USE_VEC)

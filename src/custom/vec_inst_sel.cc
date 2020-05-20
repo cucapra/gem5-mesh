@@ -211,7 +211,7 @@ VecInstSel::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   // allow to continue fetching after recving branch resolution from either decode or writeback
   // don't do anything about commit stalls (i.e. devec)?
   if (initiator == StageIdx::DecodeIdx || initiator == StageIdx::IEWIdx) {
-    if (_stallUntilJumpPC) DPRINTF(Mesh, "resolve pending jump %s\n", squashInfo.next_pc);
+    if (_stallUntilJumpPC) DPRINTF(Mesh, "resolve pending jump %s %s\n", squashInfo.next_pc, squashInfo.trig_inst->toString(true));
     _stallUntilJumpPC = false;
     _uopPC = squashInfo.next_pc;
 

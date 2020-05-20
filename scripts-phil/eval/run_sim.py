@@ -201,7 +201,7 @@ make_flags = []
 # vec_sizes = [ 4, 16 ]
 # load_types = [ 'SPATIAL', 'VERTICAL', 'SPATIAL_UNROLL', 'REUSE ]
 # prefetch_sizes = [ 1, 2, 4, 8, 16 ]
-vec_sizes = [ 16 ]
+vec_sizes = [ 4, 16 ]
 load_types = [ 'VERTICAL' ]
 prefetch_sizes = [ 16 ]
 for v in vec_sizes:

@@ -28,13 +28,13 @@ int main(int argc, char *argv[]) {
   
   // default values
   #ifdef VECTOR_LEN
-  int nrows = ( _N_SPS / ( VECTOR_LEN + 1 ) ) + (FILTER_DIM - 1);
+  int nrows = 2 * ( _N_SPS / ( VECTOR_LEN + 1 ) ) + (FILTER_DIM - 1);
   #else
   int nrows = _N_SPS + ( FILTER_DIM - 1);
   #endif
   // reuse has very stingy requirements on what sizes are allowed
   #ifdef REUSE
-  int ncols = 3 * ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1)) + (FILTER_DIM - 1); // factor of (DIM * FILTER_DIM) - ( FILTER_DIM + 1 ), + edge case
+  int ncols = 3 * ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1)) + (FILTER_DIM - 1) + 23; // factor of (DIM * FILTER_DIM) - ( FILTER_DIM + 1 ), + edge case
   #elif defined(VECTOR_LEN)
   int ncols = 10 * ( VECTOR_LEN * FILTER_DIM ) + (FILTER_DIM - 1) + 23; // factor of DIM * FILTER_DIM (12) + 2... wow i.e. 1214 // vertical needs to be factor of 24 + 2... i.e. 1224 + 2 = 1226
   #else
