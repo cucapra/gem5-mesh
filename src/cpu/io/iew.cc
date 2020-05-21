@@ -131,7 +131,19 @@ IEW::regStats()
     .name(name() + ".issue_mem_barrier")
     .desc("number of stalls due to pending mem barrier in issue")
   ;
+  iew_dep_insts
+      .init(1, Enums::Num_OpClass)
+      .name(name() + ".dep_stall_insts")
+      .desc("Class of instruction blocked in Issue due to dependency")
+      .flags(Stats::total | Stats::pdf | Stats::dist);
+  iew_dep_insts.ysubnames(Enums::OpClassStrings);
 
+  iew_dep_on
+      .init(1, Enums::Num_OpClass)
+      .name(name() + ".dep_on")
+      .desc("Class of instruction due to which  instructions have been blocked in Issue due to dependency")
+      .flags(Stats::total | Stats::pdf | Stats::dist);
+  iew_dep_on.ysubnames(Enums::OpClassStrings);
   m_stall_rob_head_insts
     .init(1, Enums::Num_OpClass)
     .name(name() + ".rob_head_stall_class")
@@ -260,29 +272,29 @@ IEW::doWriteback()
         }
 
         // debug during vec sections
-        if (m_cpu_p->getEarlyVector()->isSlave()) {
-          if (inst->numDestRegs() > 0 && inst->numSrcRegs() > 1) {
-            DPRINTF(Mesh, "writeback %s %lx %lx %lx\n", inst->toString(true), 
-              m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
-              m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
-          }
-          else if (inst->numDestRegs() > 0 && inst->numSrcRegs() > 0) {
-            DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true), 
-              m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
-              m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)));
-          }
-          else if (inst->numDestRegs() > 0)
-            DPRINTF(Mesh, "writeback %s %lx\n", inst->toString(true), 
-              m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)));
-          else if (inst->numSrcRegs() > 1 && inst->renamedSrcRegIdx(0)->isIntPhysReg() && inst->renamedSrcRegIdx(1)->isIntPhysReg())
-            DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true),
-              m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
-        }
+        // if (m_cpu_p->getEarlyVector()->isSlave()) {
+        //   if (inst->numDestRegs() > 0 && inst->numSrcRegs() > 1) {
+        //     DPRINTF(Mesh, "writeback %s %lx %lx %lx\n", inst->toString(true), 
+        //       m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
+        //       m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
+        //   }
+        //   else if (inst->numDestRegs() > 0 && inst->numSrcRegs() > 0) {
+        //     DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true), 
+        //       m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
+        //       m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)));
+        //   }
+        //   else if (inst->numDestRegs() > 0)
+        //     DPRINTF(Mesh, "writeback %s %lx\n", inst->toString(true), 
+        //       m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)));
+        //   else if (inst->numSrcRegs() > 1 && inst->renamedSrcRegIdx(0)->isIntPhysReg() && inst->renamedSrcRegIdx(1)->isIntPhysReg())
+        //     DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true),
+        //       m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
+        // }
 
-        // set values as temp renamed dest reg
-        if (inst->static_inst_p->isBroadcast()) {
-          inst->broadcast_val = m_cpu_p->readIntReg(inst->renamedDestRegIdx(0));
-        }
+        // // set values as temp renamed dest reg
+        // if (inst->static_inst_p->isBroadcast()) {
+        //   inst->broadcast_val = m_cpu_p->readIntReg(inst->renamedDestRegIdx(0));
+        // }
 
         // send instruction to Commit
         sendInstToNextStage(inst);
@@ -424,6 +436,13 @@ IEW::doIssue()
         m_stage_status.set(IEWStatus::IssueInitStall);
 #endif
         m_dep_stalls++;
+        iew_dep_insts[0][inst->static_inst_p->opClass()]++;
+
+        IODynInstPtr inst_dep_on = m_robs[tid]->getInstwithDestreg(inst->renamedSrcRegIdx(i));
+        if (inst_dep_on)
+        {
+          iew_dep_on[0][inst_dep_on->static_inst_p->opClass()]++;
+        }
         return;
       }
     }

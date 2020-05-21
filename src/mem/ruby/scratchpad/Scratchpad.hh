@@ -234,20 +234,23 @@ class Scratchpad : public AbstractController
     
     /**
      * Mem divergence. Check CPU registers
-     */ 
-    int getCoreEpoch();
-    int getNumRegions();
-    int getRegionElements();
-    //void updateEpoch(int epoch);
-    bool controlDiverged();
-    bool memoryDiverged(Addr addr);
-    bool isPrefetchAhead(Addr addr);
-    //bool cpuIsLate(int pktEpoch);
-    //bool cpuIsEarly(int pktEpoch);
-    //bool cpuIsSynced(int pktEpoch);
-    //void updateMasterEpoch(const LLCResponseMsg *llc_msg_p);
-    
-    /**
+     */
+   int getCoreEpoch();
+   int getNumRegions();
+   int getRegionElements();
+   //void updateEpoch(int epoch);
+   bool controlDiverged();
+   bool memoryDiverged(Addr addr);
+   bool isPrefetchAhead(Addr addr);
+   //bool cpuIsLate(int pktEpoch);
+   //bool cpuIsEarly(int pktEpoch);
+   //bool cpuIsSynced(int pktEpoch);
+   //void updateMasterEpoch(const LLCResponseMsg *llc_msg_p);
+
+   //edit: Neil for remote access LW to region
+   bool isWordRdyForRemote(Addr addr);
+
+   /**
      * For bitarray accessign to make sure load not too early to prefetch
      */ 
     bool isWordRdy(Addr addr);
@@ -425,14 +428,16 @@ class Scratchpad : public AbstractController
     /**
      * Stats to keep track of for the scratchpad
      */
-    Stats::Scalar m_local_loads;
-    Stats::Scalar m_local_stores;
-    Stats::Scalar m_remote_loads;
-    Stats::Scalar m_remote_stores;
-    
-    Stats::Formula m_local_accesses;
-    Stats::Formula m_remote_accesses;
-    Stats::Formula m_total_accesses;
+   Stats::Scalar m_local_loads;
+   Stats::Scalar m_local_loads_region;
+   Stats::Scalar m_local_stores;
+   Stats::Scalar m_local_stores_region;
+   Stats::Scalar m_remote_loads;
+   Stats::Scalar m_remote_stores;
+
+   Stats::Formula m_local_accesses;
+   Stats::Formula m_remote_accesses;
+   Stats::Formula m_total_accesses;
 
     Stats::Scalar m_max_queue_size;
     Stats::Scalar m_not_rdy_stalls;

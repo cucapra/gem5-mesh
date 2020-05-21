@@ -542,6 +542,8 @@ public:
     // check whether trace sent by master core is valid
     bool checkTrace(bool local_taken, TheISA::PCState local_targ);
 
+    int fetch_cycles, decode_cycles, issue_cycles, execute_cycles, write_cycles, commit_cycles;
+    std::array<int,7>master_info; // fetch begin, fetch end, decode end, I end, E end, W end, C end
     // if going to broadcast save value computed during execute
     RegVal broadcast_val;
 

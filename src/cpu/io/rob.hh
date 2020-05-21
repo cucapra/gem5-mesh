@@ -55,6 +55,9 @@ class ROB
     
     /** Return the number of unresolved cond ctrl instructions in ROB */
     size_t getUnresolvedCondInstCount() const;
+
+    /** return instruction with destination register passed */
+    IODynInstPtr getInstwithDestreg(PhysRegIdPtr reg) const;
     
 
   private:

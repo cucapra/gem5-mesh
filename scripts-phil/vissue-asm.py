@@ -16,10 +16,15 @@ try:
 except:
     use_term = False
 
-# the assemble won't accept a number as the register value, so have to put in 
+do_fancy_opt = True
+if '_combined.s' in infile:
+    do_fancy_opt = False
+    print("Switching off most optimizations --Neil")
+
+# the assemble won't accept a number as the register value, so have to put in
 # a riscv register corresponding to the number
 # later riscv will interpret the cnt based on this register
-# regs = [  
+# regs = [
 #     "zero", "ra", "sp", "gp",
 #     "tp", "t0", "t1", "t2",
 #     "s0", "s1", "a0", "a1",
@@ -85,14 +90,14 @@ def build_vissue_table():
             table[line] = { 'orig_label': label, 'label': label, 'count': 0 }
     return table
 
-# check if line is a comment 
+# check if line is a comment
 def is_comment(line):
     match = comment_regex.search(line)
     if (match):
         return True
     else:
         return False
-    
+
 # check if the line is a vissue inst
 def check_vissue(line):
     if (is_comment(line)):
@@ -136,7 +141,7 @@ def check_label(line):
 def check_call(line):
     if (is_comment(line)):
         return (False, '')
-    
+
     # check match
     match = call_regex.search(line)
     if (match):
@@ -150,7 +155,7 @@ def check_call(line):
 def check_ret(line):
     if (is_comment(line)):
         return False
-    
+
     # check match
     match = ret_regex.search(line)
     if (match):
@@ -196,7 +201,7 @@ def find_vissue_count(label, term_count = False):
             match = label_regex.search(line)
             if (match):
                 start_record = True
-    return 0  
+    return 0
 
 
 # check if any backedges to the given label
@@ -239,7 +244,7 @@ def has_valid_cond_branch(label):
 #             return True
 #         (is_jump, jlabel) = check_jump(line)
 #         if (is_jump and jlabel == label):
-            
+
 
 # check if this line is a jump
 # ret (is_jump, is_forward, label)
@@ -463,18 +468,20 @@ vissue_table = build_vissue_table()
 #   init code/more init code
 # L2:
 #   loop body
-for k,v in vissue_table.items():
-    adjust_vissue_label(k)
 
-# TODO this step produces a nice objdump, but gem5 not liking it
-# we need to modify code after the labels from the vissue table
-for k,v in vissue_table.items():
-    flatten_vissue(k)
+if do_fancy_opt:
+    for k,v in vissue_table.items():
+        adjust_vissue_label(k)
 
-# remove any branches in the block and associated labels
-# assume conditional branches never go up in our case
-for k,v in vissue_table.items():
-    remove_branches_from_block(k)
+    # TODO this step produces a nice objdump, but gem5 not liking it
+    # we need to modify code after the labels from the vissue table
+    for k, v in vissue_table.items():
+        flatten_vissue(k)
+
+    # remove any branches in the block and associated labels
+    # assume conditional branches never go up in our case
+    for k,v in vissue_table.items():
+        remove_branches_from_block(k)
 
 # add terminators at the end of each block
 if (use_term):
@@ -493,4 +500,3 @@ with open(outfile, 'w+') as fout:
     for line in cached_src_file:
         new_line = try_replace_inst(line)
         fout.write(new_line)
-        

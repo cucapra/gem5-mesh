@@ -88,7 +88,7 @@ Commit::doCommit()
     m_stall_due_to_vector++;
     return;
   }
-  
+
   // Try to mark as many instructions coming from IEW as possible as ready to
   // commit.
   while (!m_insts.empty()) {
@@ -240,6 +240,10 @@ Commit::commitHead(ThreadID tid)
   // HACK don't send if a syscall, for some reason not showing up in next buf in combo (when trap)
   if (!inst->isSyscall())  
     sendInstToNextStage(inst);
+
+  //store the clock edge at which the instruction is pushed to commit stage
+  //inst->commit_cycles = m_cpu_p->curCycle();
+  inst->master_info[6] = m_cpu_p->curCycle();
 }
 
 void

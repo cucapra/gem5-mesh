@@ -9,8 +9,8 @@ from stat_list import stats
 
 # cmd line arguments
 parser = argparse.ArgumentParser(description='Analyze stats file in a given directory')
-parser.add_argument('--sims', default='/home/pbb59/hammerblade/gem5/results', help='Path with results you want to analyze')
-parser.add_argument('--outfile', default='/home/pbb59/hammerblade/gem5/results/extract.csv', help='CSV Path where extracted data should go')
+parser.add_argument('--sims', default='../../results', help='Path with results you want to analyze')
+parser.add_argument('--outfile', default='../../results/extract.csv', help='CSV Path where extracted data should go')
 args = parser.parse_args()
 
 #
