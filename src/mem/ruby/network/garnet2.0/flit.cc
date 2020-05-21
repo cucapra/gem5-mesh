@@ -41,13 +41,13 @@ flit::flit(int id, int  vc, int vnet, RouteInfo route, int size,
     m_msg_ptr = msg_ptr;
     m_enqueue_time = curTime;
     m_dequeue_time = curTime;
-    m_time = curTime;
+    m_time = cyclesToTick(curTime);
     m_id = id;
     m_vnet = vnet;
     m_vc = vc;
     m_route = route;
     m_stage.first = I_;
-    m_stage.second = m_time;
+    m_stage.second = get_time();
 
     if (size == 1) {
         m_type = HEAD_TAIL_;

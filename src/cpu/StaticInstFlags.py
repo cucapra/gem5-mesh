@@ -129,5 +129,6 @@ class StaticInstFlags(Enum):
         , 'IsLeftSide'
         , 'IsPredEq'
         , 'IsPredNeq'
+        , 'IsFrameStart'
 
         ]

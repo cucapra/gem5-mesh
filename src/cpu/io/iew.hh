@@ -42,33 +42,33 @@
  */
 class IEW : public Stage
 {
-public:
-  IEW(IOCPU *_cpu_p, IOCPUParams *params, size_t in_size, size_t out_size);
-  ~IEW();
+  public:
+    IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size);
+    ~IEW();
 
-  /** Init (this is called after all CPU structures are created) */
-  void init() override;
+    /** Init (this is called after all CPU structures are created) */
+    void init() override;
 
-  /** Return name of this stage object */
-  std::string name() const override;
+    /** Return name of this stage object */
+    std::string name() const override;
 
-  /** Register stats */
-  void regStats() override;
+    /** Register stats */
+    void regStats() override;
 
-  /** Main tick function */
-  void tick() override;
+    /** Main tick function */
+    void tick() override;
 
-  /** Wake up this stage */
-  void wakeup() override;
+    /** Wake up this stage */
+    void wakeup() override;
 
-  /** Suspend this stage */
-  void suspend() override;
+    /** Suspend this stage */
+    void suspend() override;
 
-  /** Get pointer to memory unit */
-  MemUnit *getMemUnitPtr();
+    /** Get pointer to memory unit */
+    MemUnit* getMemUnitPtr();
 
-  /** Line trace */
-  void linetrace(std::stringstream &ss) override;
+    /** Line trace */
+    void linetrace(std::stringstream& ss) override;
 
     /** Accessor to predicate */
     bool getPred() const;
@@ -88,97 +88,88 @@ public:
       NumStatus
     };
 
+  private:
+    /** Do issue */
+    void doIssue();
 
-private:
-  /** Do issue */
-  void doIssue();
+    /** Do execute */
+    void doExecute();
 
-  /** Do execute */
-  void doExecute();
+    /** Do writeback */
+    void doWriteback();
 
-  /** Do writeback */
-  void doWriteback();
+    /** Do squash */
+    void doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) override;
 
-  /** Do squash */
-  void doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) override;
+    /** Initiate a squash signal */
+    void initiateSquash(const IODynInstPtr mispred_inst);
 
-  /** Initiate a squash signal */
-  void initiateSquash(const IODynInstPtr mispred_inst);
+    /** Place the given instruction into the buffer to the next stage */
+    void sendInstToNextStage(IODynInstPtr inst) override;
 
-  /** Place the given instruction into the buffer to the next stage */
-  void sendInstToNextStage(IODynInstPtr inst) override;
+  private:
+    /** Number of threads */
+    size_t m_num_threads;
 
-private:
-  /** Number of threads */
-  size_t m_num_threads;
+    /** Issue width */
+    size_t m_issue_width;
 
-  /** Issue width */
-  size_t m_issue_width;
+    /** Writeback width */
+    size_t m_wb_width;
 
-  /** Writeback width */
-  size_t m_wb_width;
+    /** Vector of execution units */
+    std::vector<ExecUnit*> m_exec_units;
 
-  /** Vector of execution units */
-  std::vector<ExecUnit *> m_exec_units;
+    /** List of exec units that are traced */
+    std::vector<ExecUnit*> m_traced_exec_units;
 
-  /** List of exec units that are traced */
-  std::vector<ExecUnit *> m_traced_exec_units;
+    /** Map of Op_Class and index to the execution unit vector */
+    std::unordered_map<OpClass, size_t> m_op_to_unit_map;
 
-  /** Map of Op_Class and index to the execution unit vector */
-  std::unordered_map<OpClass, size_t> m_op_to_unit_map;
+    /** Names of all execution units */
+    std::vector<std::string> m_exec_unit_names;
 
-  /** Names of all execution units */
-  std::vector<std::string> m_exec_unit_names;
+    /** Pointer to the memory unit */
+    MemUnit* m_mem_unit_p;
 
-  /** Pointer to the memory unit */
-  MemUnit *m_mem_unit_p;
-
-  /** Index of the next exec unit to be selected to write back (used in
+    /** Index of the next exec unit to be selected to write back (used in
      * round-robin selection in Writeback stage) */
-  size_t m_next_wb_exec_unit_idx;
-
-  /** Since we can't squash the pipeline and too expensive to atomically update
+    size_t m_next_wb_exec_unit_idx;
+    
+    /** Since we can't squash the pipeline and too expensive to atomically update
      * We need to update the PC of an instruction before it enters the ALUs
      * We'll do this by keeping a register in the EXE stage, read to update inst pc
      * Write it at the end of the int ALU (1 cycle) so ready for the next instruction
      * Important that int ALU is only 1 cycle for this to work
      * */
-  std::vector<TheISA::PCState> m_trace_pcs;
+    std::vector<TheISA::PCState> m_trace_pcs;
 
-  /** ROBs */
-  std::vector<ROB *> m_robs;
+    /** ROBs */
+    std::vector<ROB*> m_robs;
 
-  /** Global scoreboard (for all threads) */
-  Scoreboard *m_scoreboard_p;
-
-private:
-  /** stats */
-  Stats::Scalar iew_stalls_control;
-  Stats::Scalar iew_stalls_revec;
-  Stats::Scalar iew_dep;
-  Stats::Vector2d iew_dep_insts;
-  Stats::Vector2d iew_dep_on;
-  Stats::Scalar iew_membarrier;
-  Stats::Scalar iew_execbusy;
-  Stats::Scalar iew_robfull;
-  Stats::Vector2d m_stall_rob_head_insts;
-
-public:
-  //check if vector mode
-  bool vecmode;
+    /** Global scoreboard (for all threads) */
+    Scoreboard* m_scoreboard_p;
 
     /** Predicate flag. If set and vec mode then do not perform effect of instruction */
     bool m_pred_flag;
 
 #ifdef DEBUG
-  /** Stage's status (for line trace) */
-  std::bitset<IEWStatus::NumStatus> m_stage_status;
+    /** Stage's status (for line trace) */
+    std::bitset<IEWStatus::NumStatus> m_stage_status;
 
-  /** List of instructions processed in the current cycle */
-  std::vector<IODynInstPtr> m_issued_insts;
-  std::vector<IODynInstPtr> m_wb_insts;
+    /** List of instructions processed in the current cycle */
+    std::vector<IODynInstPtr> m_issued_insts;
+    std::vector<IODynInstPtr> m_wb_insts;
 #endif
 
+  private:
+    Stats::Scalar m_dep_stalls;
+    Stats::Scalar m_mem_barrier_stalls;
+    Stats::Scalar m_commit_buf_stalls;
+    Stats::Scalar m_exe_unit_busy_stalls;
+    Stats::Vector2d m_stall_rob_head_insts;
+    Stats::Vector2d iew_dep_insts;
+    Stats::Vector2d iew_dep_on;
 };
 
 #endif // CPU_IO_IEW_HH

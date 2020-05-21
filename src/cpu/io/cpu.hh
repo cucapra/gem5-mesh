@@ -254,6 +254,9 @@ class IOCPU : public BaseCPU
      */ 
     int getMemEpoch();
     void incMemEpoch();
+    void produceMemTokens(int tokens);
+    void consumeMemTokens(int tokens);
+    int getMemTokens() const { return m_tokens; }
 
     /**
      * Spad prefetch region related functions
@@ -425,6 +428,9 @@ class IOCPU : public BaseCPU
 
     /** Count the number of remems we've recved in the past */
     int m_mem_epoch;
+
+    /** Keep track of count of instruction (make more like a token queue) */
+    int m_tokens;
 
     /**
      * Stats variables

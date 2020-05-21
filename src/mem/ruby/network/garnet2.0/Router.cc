@@ -177,6 +177,15 @@ Router::schedule_wakeup(Cycles time)
     scheduleEvent(time);
 }
 
+
+void
+Router::schedule_wakeup(Tick absTick)
+{
+    DPRINTF(RubyNetwork, "%llu schedule router wakeup time\n", absTick);
+    // wake up after num ticks
+    scheduleEventAbsolute(absTick);
+}
+
 std::string
 Router::getPortDirectionName(PortDirection direction)
 {

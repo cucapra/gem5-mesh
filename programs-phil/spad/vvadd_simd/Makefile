@@ -91,10 +91,18 @@ run : $(EXEC)
 	--num-cpus=16 \
 	--vector
 
+
+$(EXEC).neil: $(DEPS_FIL)
+	$(RV_CC) $(C_OBJS_FIL) $(CFLAGS) -o $(EXEC)
+
+run: $(EXEC).neil
+	../../../build/RVSP/gem5.opt -d ../../../results/vvadd_simd-SIZE1024 \
+	../../../configs/phil/brg_hammerblade.py --cmd=vvadd --options=1024 --num-cpus=16 --vector
+
+
 # compile directly from .c to .o with no mods
 #$(EXEC).orig: $(C_OBJS)
 #	$(RV_CC) $^ $(CFLAGS) -o $(EXEC)
-
 
 ## compile first to asm so we can modify vissue insts and then compile to .o
 #$(EXEC): $(ASMO_DEPS)

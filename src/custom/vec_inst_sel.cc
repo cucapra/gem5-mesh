@@ -12,6 +12,7 @@ VecInstSel::VecInstSel(IOCPU *_cpu_p, IOCPUParams *params) :
   _uopCnt(0),
   _maxVecCmds(2), // TODO should have in params!
   _lastICacheResp(nullptr),
+  _pendingICacheReqAddr(0),
   _pendingICacheReq(false),
   _toEnqueue(nullptr),
   _enqueueEvent([this] { enqueueCmd(); }, name()),
@@ -63,8 +64,8 @@ bool
 VecInstSel::getRdy() {
   // we can safely push onto the queue for two of the following cases
   // 1) there is space now
-  // 2) there is not space now, but we are guarenteed to consume a slot this cycle due to vec pipe state
-  return (_vecCmds.size() < _maxVecCmds || willHaveOpening());
+  // 2) there is not space now, but we are guarenteed to consume a slot this cycle due to vec pipe state -- CHEATING!!!
+  return (_vecCmds.size() < _maxVecCmds /* || willHaveOpening()*/);
 }
 
 // actually enqueue at beginnign of the cycle to be usable
@@ -91,7 +92,7 @@ VecInstSel::willHaveOpening() {
 
   // otherwise a slot will open up at b/c we're going to pull the vec cmd off this cycle
   Vector *vec = m_cpu_p->getEarlyVector();
-  return !vec->canPullMesh();
+  return vec->canPullMesh();
 }
 
 // dequeue an instruction (either from icache or mesh, but unknown to caller and frankly does not matter)
@@ -177,7 +178,7 @@ VecInstSel::dequeueInst() {
 // the head
 void
 VecInstSel::processHead() {
-  DPRINTF(Mesh, "process head rem uops %d\n", _uopIssueLen - _uopCnt);
+  // DPRINTF(Mesh, "process head rem uops %d\n", _uopIssueLen - _uopCnt);
   // pop off pc head if finished
   // TODO need uopIssueLen > 0 b/c not popping inst cmd here
   if (!_vecCmds.empty() && !_vecCmds.front()->isInst && !isPCGenActive() && /* TODO is next part needed?*/(_uopIssueLen > 0 || _waitingForTerminator)) {

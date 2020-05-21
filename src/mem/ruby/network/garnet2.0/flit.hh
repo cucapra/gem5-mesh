@@ -53,7 +53,8 @@ class flit
     Cycles get_enqueue_time() { return m_enqueue_time; }
     Cycles get_dequeue_time() { return m_dequeue_time; }
     int get_id() { return m_id; }
-    Cycles get_time() { return m_time; }
+    Cycles get_time() { return tickToCycles(get_time_ticks()); }
+    Tick get_time_ticks() { return m_time; }
     int get_vnet() { return m_vnet; }
     int get_vc() { return m_vc; }
     RouteInfo get_route() { return m_route; }
@@ -63,7 +64,8 @@ class flit
     Cycles get_src_delay() { return src_delay; }
 
     void set_outport(int port) { m_outport = port; }
-    void set_time(Cycles time) { m_time = time; }
+    void set_time(Cycles time) { set_time(cyclesToTick(time)); }
+    void set_time(Tick time) { m_time = time; }
     void set_vc(int vc) { m_vc = vc; }
     void set_route(RouteInfo route) { m_route = route; }
     void set_src_delay(Cycles delay) { src_delay = delay; }
@@ -99,6 +101,11 @@ class flit
 
     bool functionalWrite(Packet *pkt);
     bool functionalRead(Packet* pkt);
+  protected:
+    // TODO always assume 1000 ticks in a cycle
+    Tick ticksPerCycle() { return 1000; }
+    Cycles tickToCycles(Tick tick) { return Cycles(tick / ticksPerCycle()); }
+    Tick cyclesToTick(Cycles cycle) { return cycle * ticksPerCycle(); }
 
   protected:
     int m_id;
@@ -106,7 +113,8 @@ class flit
     int m_vc;
     RouteInfo m_route;
     int m_size;
-    Cycles m_enqueue_time, m_dequeue_time, m_time;
+    Cycles m_enqueue_time, m_dequeue_time; //, m_time;
+    Tick m_time;
     flit_type m_type;
     MsgPtr m_msg_ptr;
     int m_outport;

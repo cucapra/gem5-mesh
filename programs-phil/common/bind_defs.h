@@ -34,15 +34,18 @@
   
 // 0x401 is MISCREG_FET
 #define VECTOR_EPOCH(val) \
-  asm volatile (".insn i 0x77, 0, x0, %[x], 0x401\n\t" :: [x] "r" (val))
+  asm volatile (".insn i 0x77, 0, x0, %[x], 0x401\n\t" :: [x] "r" (val) : "memory")
 
 // revec instruction with unique hash id
 #define REVEC(hash)                                                           \
   asm volatile (".insn u 0x7b, x0, %[id]\n\t" :: [id] "i" (hash))
   
 // remem instruction with unique hash id (mem barrier instead of control barrier)
-#define REMEM(hash)                                                           \
-  asm volatile (".insn u 0x0b, x0, %[id]\n\t":: [id] "i" (hash))
+#define REMEM(count)                                                           \
+  asm volatile (".insn i 0x1b, 0x2, x0, %[src0], 0\n\t":: [src0] "r" (count) : "memory")
+
+#define FRAME_START(count)                                                     \
+  asm volatile (".insn i 0x1b, 0x3, x0, %[src0], 0\n\t":: [src0] "r" (count) : "memory")
 
 #define ISSUE_VINST(label)                                                    \
   asm volatile goto (".insn uj 0x6b, x0, %l[" #label "]\n\t"                  \
@@ -72,12 +75,12 @@
 // allow following instructions to proceed if registers equal
 #define PRED_EQ(reg0, reg1) \
   asm volatile (".insn r 0x33, 0x7, 0x5, x0, %[rs1], %[rs2]\n\t" \
-  :: [rs1] "r" (reg0), [rs2] "r" (reg1))
+  :: [rs1] "r" (reg0), [rs2] "r" (reg1) : "memory")
 
 // allow following instructions to proceed if registers not equal
 #define PRED_NEQ(reg0, reg1) \
   asm volatile (".insn r 0x33, 0x7, 0x6, x0, %[rs1], %[rs2]\n\t" \
-  :: [rs1] "r" (reg0), [rs2] "r" (reg1))
+  :: [rs1] "r" (reg0), [rs2] "r" (reg1) : "memory")
 
 #define TERMINATE_BLOCK() \
   asm volatile(".insn i 0x1b, 0x7, x0, x0, 0\n\t")
@@ -97,17 +100,17 @@
 //   asm volatile (".insn sb 0x23, 0x4, %[spad], %[off](%[mem])\n\t" :: \
 //     [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" ((group_start << 6) | (group_end - group_start)))
 
-#define VPREFETCH_L(spadOffset, memAddr, coreOffset, count)        \
+#define VPREFETCH_L(spadOffset, memAddr, coreOffset, count, config)   \
   asm volatile (".insn sb 0x23, 0x6, %[spad], %[off](%[mem])\n\t" ::  \
     [spad] "r" ((coreOffset << 12) | spadOffset),                     \
     [mem] "r" (memAddr),                                              \
-    [off] "i" (count))
+    [off] "i" ((count << 2) | config))
 
-#define VPREFETCH_R(spadOffset, memAddr, coreOffset, count)       \
+#define VPREFETCH_R(spadOffset, memAddr, coreOffset, count, config)   \
   asm volatile (".insn sb 0x23, 0x7, %[spad], %[off](%[mem])\n\t" ::  \
     [spad] "r" ((coreOffset << 12) | spadOffset),                     \
     [mem] "r" (memAddr),                                              \
-    [off] "i" (count))
+    [off] "i" ((count << 2) | config))
 
 #define LWSPEC(dest, spadAddr, offset)                    \
   asm volatile (                                          \
@@ -454,6 +457,190 @@ static int getSIMDMask(int master_x, int master_y, int origin_x, int origin_y, i
   mask |= (is_master << FET_DAE_SHAMT);
 
   return mask;
+}
+
+// design a rectangular vector group with an attached scalar core
+inline void rect_vector_group(
+    int group_id, int scalar_x, int scalar_y, int vector_start_x, int vector_start_y, int vector_dim_x, int vector_dim_y, int id_x, int id_y,
+    int template_offset,
+    int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, int *used, int *unique_id) {
+  
+  int vector_end_x = vector_start_x + vector_dim_x;
+  int vector_end_y = vector_start_y + vector_dim_y;
+
+  int is_vector_group = id_x >= vector_start_x && id_x < vector_end_x && 
+    id_y >= vector_start_y && id_y < vector_end_y;
+
+  int is_scalar_group = id_x == scalar_x && id_y == scalar_y;
+  if (is_vector_group) {
+    *vtid_x = id_x - vector_start_x;
+    *vtid_y = id_y - vector_start_y;
+  }
+  if (is_scalar_group) {
+    *is_scalar = 1;
+  }
+  if (is_vector_group || is_scalar_group) {
+    // *start = roundUp((chunk_offset + group_num + 0) * n / vGroups, alignment);
+    // *end   = roundUp((chunk_offset + group_num + 1) * n / vGroups, alignment); // make sure aligned to cacheline 
+    *orig_x = vector_start_x;
+    *orig_y = vector_start_y;
+    *master_x = scalar_x;
+    *master_y = scalar_y;
+    *used = 1;
+    *unique_id = template_offset + group_id;
+  }
+}
+
+
+// if don't inline then need to copy stack pointer up to addr 88, which too lazy to do atm
+// create a template for a vlen=4 config that can copy and paste multiple times on a large mesh
+// ret whether core used in template
+inline int vector_group_template_4(
+    // inputs
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y,
+    // outputs
+    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
+    int *unique_id, int *total_groups
+  ) {
+
+  // keep track of which cores will be used in this configuration
+  // will want to terminate any cores not apart of a vector group
+  int used = 0;
+
+  // virtual group dimension
+  int vdim_x = 2;
+  int vdim_y = 2;
+
+  // recover trivial fields
+  int vdim = vdim_x * vdim_y;
+  int ptid = ptid_x + ptid_y * pdim_x;
+  int pdim = pdim_x * pdim_y;
+
+  // this is a design for a 4x4 zone
+  // potentially there are more than one 4x4 zones in the mesh
+  // get ids within the template
+  int template_dim_x = 4;
+  int template_dim_y = 4;
+  int template_dim = template_dim_x * template_dim_y;
+  int template_id_x = ptid_x % template_dim_x;
+  int template_id_y = ptid_y % template_dim_y;
+  int template_id = template_id_x + template_id_y * template_dim_x;
+
+  // which group it belongs to for absolute core coordinates
+  int template_group_x = ptid_x / template_dim_x;
+  int template_group_y = ptid_y / template_dim_y;
+  int template_group_dim_x = pdim_x / template_dim_x;
+  int template_group_dim_y = pdim_y / template_dim_y;
+  int template_group_dim = template_group_dim_x * template_group_dim_y;
+  int template_group = template_group_x + template_group_y * template_group_dim_x;
+
+  // used to determine a unique group id
+  int groupSize = vdim + 1; // +scalar core
+  int groups_per_template = template_dim / groupSize;
+  *total_groups = groups_per_template * template_group_dim;
+
+  int template_offset = template_group  * groups_per_template;
+
+  // group 1 top left (master = 0)
+  rect_vector_group(0, 0, 0, 1, 0,
+    vdim_x, vdim_y, template_id_x, template_id_y, template_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id);
+
+  // group 2 bot left (master == 4)
+  rect_vector_group(1, 0, 1, 0, 2,
+    vdim_x, vdim_y, template_id_x, template_id_y, template_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id);
+
+  // group 3 bottom right (master == 7)
+  rect_vector_group(2, 3, 1, 2, 2,
+    vdim_x, vdim_y, template_id_x, template_id_y, template_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id);
+
+  // need to shift the absolute coordinates based on which group this is for
+  *orig_x = *orig_x + template_group_x * template_dim_x;
+  *orig_y = *orig_y + template_group_y * template_dim_y;
+  *master_x = *master_x + template_group_x * template_dim_x;
+  *master_y = *master_y + template_group_y * template_dim_y;
+
+  // handle unused cores
+  *vtid = *vtid_x + *vtid_y * vdim_x;
+
+  return used;
+  
+}
+
+inline int vector_group_template_16(
+    // inputs
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y,
+    // outputs
+    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
+    int *unique_id, int *total_groups
+  ) {
+
+  // keep track of which cores will be used in this configuration
+  // will want to terminate any cores not apart of a vector group
+  int used = 0;
+
+  // virtual group dimension
+  int vdim_x = 4;
+  int vdim_y = 4;
+
+  // recover trivial fields
+  int vdim = vdim_x * vdim_y;
+  int ptid = ptid_x + ptid_y * pdim_x;
+  int pdim = pdim_x * pdim_y;
+
+  // this is a design for a 8x8 zone
+  // potentially there are more than one 8x8 zones in the mesh
+  // get ids within the template
+  int template_dim_x = 8;
+  int template_dim_y = 8;
+  int template_dim = template_dim_x * template_dim_y;
+  int template_id_x = ptid_x % template_dim_x;
+  int template_id_y = ptid_y % template_dim_y;
+  int template_id = template_id_x + template_id_y * template_dim_x;
+
+  // which group it belongs to for absolute core coordinates
+  int template_group_x = ptid_x / template_dim_x;
+  int template_group_y = ptid_y / template_dim_y;
+  int template_group_dim_x = pdim_x / template_dim_x;
+  int template_group_dim_y = pdim_y / template_dim_y;
+  int template_group_dim = template_group_dim_x * template_group_dim_y;
+  int template_group = template_group_x + template_group_y * template_group_dim_x;
+
+  // used to determine a uniuqe group id
+  int groupSize = vdim + 1; // +scalar core
+  int groups_per_template = template_dim / groupSize;
+  *total_groups = groups_per_template * template_group_dim;
+
+  int template_offset = template_group  * groups_per_template;
+
+  // group 1 top left (master = 0,4)
+  rect_vector_group(0, 0, 4, 0, 0,
+    vdim_x, vdim_y, template_id_x, template_id_y, template_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id);
+
+  // group 2 top right (master = 7, 4)
+  rect_vector_group(1, 7, 4, 4, 0,
+    vdim_x, vdim_y, template_id_x, template_id_y, template_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id);
+
+  // group 3 middle (master 1, 4)
+  rect_vector_group(2, 1, 4, 2, 4,
+    vdim_x, vdim_y, template_id_x, template_id_y, template_offset,
+    vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id); 
+
+  // need to shift the absolute coordinates based on which group this is for
+  *orig_x = *orig_x + template_group_x * template_dim_x;
+  *orig_y = *orig_y + template_group_y * template_dim_y;
+  *master_x = *master_x + template_group_x * template_dim_x;
+  *master_y = *master_y + template_group_y * template_dim_y;
+
+  // handle unused cores (51/64 cores used)
+  *vtid = *vtid_x + *vtid_y * vdim_x;
+
+  return used;
+  
 }
 
 

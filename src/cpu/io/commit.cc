@@ -41,9 +41,10 @@ Commit::name() const
 void
 Commit::regStats()
 {
-    commit_stalls
-      .name(name() + ".commit_stalls")
-      .desc("number of stalls in the commit stage due to insufficient credits");
+  m_stall_due_to_vector
+    .name(name() + ".stall_from_late_vector")
+    .desc("number of stalls before try commit due to late vector")
+  ;
 }
 
 void
@@ -78,14 +79,13 @@ Commit::tick()
 #endif
 }
 
-
 void
 Commit::doCommit()
 {
 
   // TODO need to refactor this into parent?
   if (checkStall()) {
-    commit_stalls++;
+    m_stall_due_to_vector++;
     return;
   }
 
@@ -221,9 +221,13 @@ Commit::commitHead(ThreadID tid)
   // if (inst->static_inst_p->isRevec()) {
   //   m_cpu_p->incRevecEpoch();
   // }
-
   if (inst->static_inst_p->isRemem()) {
+    // extract immediate b/c this is how much to remove
     m_cpu_p->incMemEpoch();
+    if (inst->srcRegIdx(0).index() != 0) {
+      int tokens = m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0));
+      m_cpu_p->consumeMemTokens(tokens);
+    }
   }
 
   // update last committed instruction

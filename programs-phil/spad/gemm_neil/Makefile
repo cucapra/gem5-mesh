@@ -16,7 +16,7 @@ EXEC = gemm
 # defaults if environment variables not set
 
 ifeq ($(ENV_N_SPS),)
-	N_SPS = 16
+	N_SPS = 64
 else
 	N_SPS = $(ENV_N_SPS)
 endif	
@@ -39,6 +39,13 @@ ifneq ($(ENV_EXTRA_MAKE_FLAGS),)
 	EXTRA_FLAGS := $(EXTRA_FLAGS) $(ENV_EXTRA_MAKE_FLAGS)
 endif
 
+ifeq ($(OUT),)
+	OUT := gemm_default
+endif
+ifeq ($(SIZE),)
+	SIZE := 32
+endif
+
 
 
 # installed cross compiler gcc for riscv
@@ -51,6 +58,8 @@ VISS=python ../../../scripts-phil/vissue-asm.py
 
 
 C_OBJS_FIL := $(filter-out $(EXEC)_kernel.o, $(C_OBJS))
+DEPS_FIL := $(filter-out $(EXEC)_kernel.o, $(DEPS))
+
 # C_OBJS_FIL = $(C_OBJS)
 ifneq (,$(wildcard ./$(EXEC)_final.o))
 	C_OBJS_FIL += $(EXEC)_final.o
@@ -76,8 +85,12 @@ combine: $(EXEC)_final.s
 	$(RV_CC) $(CFLAGS) -c -o $(EXEC)_final.o $(notdir $<)
 
 
-$(EXEC).neil: $(DEPS)
+$(EXEC).neil: $(DEPS_FIL)
 	$(RV_CC) $(C_OBJS_FIL) $(CFLAGS) -o $(EXEC)	
+
+run: $(EXEC).neil
+	../../../build/RVSP/gem5.opt -d ../../../results/$(OUT) \
+	../../../configs/phil/brg_hammerblade.py --cmd=$(EXEC) --options="$(SIZE) $(SIZE) $(SIZE)" --num-cpus=$(ENV_N_SPS) --vector
 
 # compile directly from .c to .o with no mods
 $(EXEC).orig: $(DEPS)
