@@ -1,4 +1,5 @@
 import re
+import quasiquotes
 from enum import Enum, auto
 
 # utility to emit C code
@@ -24,6 +25,7 @@ class C_Emitter():
 
     @staticmethod
     def fun(sig, body):
+        print(C_Emitter.to_string(C_Emitter.indent(body)))
         return "{} {{\n{}\n}}".format(sig, C_Emitter.to_string(C_Emitter.indent(body)))
 
     @staticmethod
@@ -32,7 +34,7 @@ class C_Emitter():
 
     @staticmethod
     def indent(code, n=1):
-        return ["\t"*n + line for line in code]
+        return [" "*(2*n) + line for line in code]
 
 
 # utility to emit Vector_SIMCv1 code
@@ -48,15 +50,15 @@ class Vector_SIMCv1_Emitter():
 
     @staticmethod
     def kernel_sig(kernel_name):
-        return "void {}(int {})".format(kernel_name, Vector_SIMCv1_Emitter.ReservedKeywords.MASK)
+        return "void {}(int {})".format(kernel_name, Vector_SIMCv1_Emitter.ReservedKeywords.MASK.value)
 
     @staticmethod
     def VECTOR_EPOCH():
-        return "VECTOR_EPOCH({})".format(Vector_SIMCv1_Emitter.ReservedKeywords.MASK)
+        return "VECTOR_EPOCH({})".format(Vector_SIMCv1_Emitter.ReservedKeywords.MASK.value)
 
     @staticmethod
     def DEVEC():
-        return "DEVEC({})".format(Vector_SIMCv1_Emitter.ReservedKeywords.DEVEC_ARG)
+        return "DEVEC({})".format(Vector_SIMCv1_Emitter.ReservedKeywords.DEVEC_ARG.value)
 
     @staticmethod
     def boilerplate_intro(vector_variables):
@@ -93,7 +95,7 @@ class Vector_SIMCv1_Emitter():
         kernel_sig = C_Emitter.fun_sig(
                 "void",
                 kernel_name,
-                [([], "int", Vector_SIMCv1_Emitter.ReservedKeywords.MASK)])
+                [([], "int", Vector_SIMCv1_Emitter.ReservedKeywords.MASK.value)])
 
         return C_Emitter.fun(kernel_sig,
                 [Vector_SIMCv1_Emitter.boilerplate_intro(vector_variables),
@@ -116,9 +118,9 @@ def pragma_parse(pragma_kind, line):
 
 
 class SplitterState(Enum):
-    START = auto();
-    KERNEL = auto();
-    VEC_BLK = auto();
+    START = auto()
+    KERNEL = auto()
+    VEC_BLK = auto()
 
 def split(vec_simcv2):
     # kernel start pragma info: 

@@ -1,7 +1,9 @@
 #!/usr/bin/env stack
 {- stack --resolver lts-15.2 script 
  --package interpolatedstring-perl6
+ --package shakespeare
  --package neat-interpolation
+ --package interpolate
  --package text
  --package containers
  --package regex-tdfa
@@ -12,9 +14,12 @@
 {-# LANGUAGE QuasiQuotes, ExtendedDefaultRules #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE PatternGuards #-}
-import Text.InterpolatedString.Perl6 (qq)
+-- import Text.InterpolatedString.Perl6 (qq)
 -- import Data.String.Here (i, iTrim, here)
-import NeatInterpolation (text)
+-- import NeatInterpolation (text)
+-- import Text.Shakespeare.Text (st, sbt, text)
+import Data.String.Interpolate (i)
+import Data.String.Interpolate.Util (unindent)
 import qualified Data.Text as T 
 import qualified Data.Text.IO as T_IO
 import qualified Data.Map.Strict as M
@@ -23,20 +28,22 @@ import Text.Regex.TDFA.Text ()
 import Text.Printf (printf)
 import Control.Monad.State.Lazy
 import Control.Monad.Trans.Class
+import Pretty
+import Text.Printf (printf)
 
 data ProgAST = 
   VecSimcV1 {
-    kernel_name :: T.Text,
-    kernel_body :: T.Text,
-    vissue_blocks :: M.Map Int T.Text
+    kernel_name :: String,
+    kernel_body :: String,
+    vissue_blocks :: M.Map Int String
   }
 
--- emptyProg = 
---   VecSimcV1 {
---       kernel_name="", 
---       kernel_body="",
---       vissue_blocks=M.empty }
-
+emptyProg = 
+  VecSimcV1 {
+    kernel_name = "",
+    kernel_body = "",
+    vissue_blocks = M.empty,
+  }
 
 main :: IO ()
 main = splitter "vvadd.c"
@@ -44,71 +51,52 @@ main = splitter "vvadd.c"
 
 tokenize :: FilePath -> IO()
 tokenize filename = do
-  vec_simcv2_src <- T_IO.readFile filename
-  let vec_simcv1_toks = map (T.pack . show . linewise_tokenize) . T.lines $ vec_simcv2_src
-  sequence_ . map T_IO.putStrLn $ vec_simcv1_toks
+  vec_simcv2_src <- readFile filename
+  let vec_simcv1_toks = map (show . linewise_tokenize) . lines $ vec_simcv2_src
+  sequence_ . map putStrLn $ vec_simcv1_toks
 
 splitter :: FilePath -> IO ()
 splitter filename = do
-  vec_simcv2_src <- T_IO.readFile filename
+  vec_simcv2_src <- readFile filename
   let vec_simcv1_src = compile vec_simcv2_src
-  T_IO.putStrLn vec_simcv1_src
+  putStrLn vec_simcv1_src
   where compile = emit_intermingled_vec_simcv1 . linewise_split
 
-emit_intermingled_vec_simcv1 :: ProgAST -> T.Text
-emit_intermingled_vec_simcv1 prog =
-    [text|
-      void $fun_name(int $mask) {
-        /* ----- boilerplate ----- */
-        $beginning_boilerplate
-        /* ----- boilerplate ----- */
+emit_intermingled_vec_simcv1 :: ProgAST -> String
+emit_intermingled_vec_simcv1 prog = 
+    emit_fun "void" kernel_name ([("int", "trillium_codegen_mask")]++default_args) 
+    . code_block $
+      [(codegen_wrapper "Kernel Start Boilerplate" beginning_boilerplate),
+      (codegen_wrapper "Kernel End Boilerplate" end_boilerplate)]
+  where beginning_boilerplate = 
+          intermingle
+            (stmt . fun_call "VECTOR_EPOCH" ["trillium_codegen_vearg"])
+            (text "//nothing")
 
-
-        // vissue blocks found:
-        /*
-        $blocks
-        */
-        /* ----- kernel start -----*/
-        $kernel_body_text        
-        /* ----- kernel end -----*/
-
-
-        /* ----- boilerplate ----- */
-        ${end_boilerplate}
-        /* ----- boilerplate ----- */
-      }|]
-  where fun_name = kernel_name prog
-        kernel_body_text = kernel_body prog
-        blocks = M.foldMapWithKey
-          (\blk_key blk -> 
-            "vissue block #" +++ (T.pack. show) blk_key +++ ":\n" +++ blk) 
-          (vissue_blocks prog)
-        mask = "trillium_codegen_mask"
-        vector_epoch_arg = "trillium_codegen_vearg"
-        beginning_boilerplate = 
-          intermingle 
-            [text|VECTOR_EPOCH(${vector_epoch_arg});|]
-            [text|//nothing|]
         end_boilerplate = 
           intermingle
-            [text|
-                DEVEC(devec_0);
-                asm volatile(fence);
-                asm(scalar return);
-                return;|]
-            [text|
-                asm(vector return);
-                return;|]
+            (stmts [fun_call "DEVEC") ["devec_0"],
+                    asm ["volatile"] "fence",
+                    asm [] "scalar return", 
+                    text "return"])
+
+            (stmts [asm [] "vector return",
+                    text "return"])
+
+        codegen_wrapper :: String -> Doc -> Doc
+        codegen_wrapper blk_name code_blk =
+          text [i| //***** TRILLIUM CODEGEN: #{blk_name} *****|] <+|+>
+          code_blk <+|+>
+          text [i| //********* TRILLIUM CODEGEN *********|] <+|+>
        
 
-intermingle :: T.Text -> T.Text -> T.Text
-intermingle scalar vector =
-  [text|
-    #ifdef SCALAR
-      $scalar 
-    #elif defined VECTOR
-      $vector
-    #endif|]
+intermingle :: String -> String -> Doc
+intermingle scalar vector = lines
+  [text "#ifdef SCALAR",
+   nest 1 . text "#{scalar}",
+   text "#elif defined VECTOR",
+   nest 1 . text "#{vector}",
+   text "#endif"]
     
 
 
@@ -116,101 +104,108 @@ intermingle scalar vector =
 data VecSimcV2Parser = State VecSimcV2ParserState ProgAST
 data VecSimcV2ParserState =
   V2 {fsm_state :: FSMState,
-      parsed_kernel_name :: T.Text,
-      parsed_vissue_blocks :: M.Map Int T.Text,
-      parsed_kernel_body :: T.Text,
-      fresh_bh :: Int,
-      line_no :: Int}
+      line_no :: Int,
+      prog :: ProgAST,
+      curr_vissue_key :: Int}
 
 -- input: Vector-SIMCv2 source text
 -- output: Vector-SIMCv1 ast
-linewise_split :: T.Text -> ProgAST
+linewise_split :: String -> ProgAST
 linewise_split vec_simcv2_src =
   let final_parser_state = execState (parser vec_simcv2_src) init
-  in assemble_program final_parser_state
-  where parser :: T.Text -> State VecSimcV2ParserState VecSimcV2ParserState
-        parser = foldl (>>) get . map linewise_parse . map linewise_tokenize . T.lines
+  in prog final_parser_state
+  where parser :: String -> State VecSimcV2ParserState ()
+        parser = foldl (>>) (pure ()) . map linewise_parse . map linewise_tokenize . lines
         init = V2 { fsm_state = FSMKernelBegin,
-                    parsed_kernel_name = "",
-                    parsed_vissue_blocks = M.empty,
-                    parsed_kernel_body = "",
-                    fresh_bh = 0,
+                    prog = emptyProg,
+                    curr_vissue_key = 0,
                     line_no = 0}
-        assemble_program ps = 
-                VecSimcV1 { kernel_name = parsed_kernel_name ps,
-                            kernel_body = parsed_kernel_body ps,
-                            vissue_blocks = parsed_vissue_blocks ps }
-
 
 
 -- source formatted as list of code lines, each with a line num.
-linewise_parse :: VecSimcV2Line -> State VecSimcV2ParserState VecSimcV2ParserState
+linewise_parse :: VecSimcV2Line -> State VecSimcV2ParserState ()
 linewise_parse line = do
   curr_state <- gets fsm_state
   curr_line_no <- inc_line_no
   case transition curr_state line of
-    FSMError -> return $ error [qq|state transition failure:
-                                attempted transition from state $curr_state
-                                                     on line ${curr_line_no}: 
-                                $line|]
+    (FSMError,_) -> return . error . unindent $ [i|
+                                state transition failure:
+                                attempted transition from state #curr_state
+                                                     on line #{curr_line_no}: 
+                                #line|]
 
-    new_state -> modify (\s -> s {fsm_state = new_state}) 
-  get 
-  where mk_fresh_bh = mk_fresh (fresh_bh) (\n ps -> ps {fresh_bh = n+1} )
-        inc_line_no = mk_fresh (line_no) (\n ps -> ps {line_no= n+1} )
+    (new_state, side_effect) -> do modify (\s -> s {fsm_state = new_state}); side_effect
+  where inc_line_no = mk_fresh line_no (\n ps -> ps {line_no= n+1})
 
 
   
 
+type ParserEffect = State VecSimcV2ParserState ()
 data FSMState = FSMKernelBegin | FSMKernelBody | FSMScalarLoop | FSMVector | FSMKernelEnd | FSMError deriving (Show)
-data VecSimcV2Line = KernelBeginPragma T.Text | KernelEndPragma | VectorBeginPragma | VectorEndPragma
-                     | ScalarLoopPragma | KernelCode T.Text deriving (Show, Eq)
+data VecSimcV2Line = KernelBeginPragma String | KernelEndPragma | VectorBeginPragma | VectorEndPragma
+                     | ScalarLoopPragma | KernelCode String deriving (Show, Eq)
 
-transition :: FSMState -> VecSimcV2Line -> FSMState
-transition FSMKernelBegin (KernelBeginPragma _) = FSMKernelBody
-transition FSMKernelBody (KernelCode _) = FSMKernelBody
+transition :: FSMState -> VecSimcV2Line -> (FSMState, ParserEffect)
+-- copy-paste lines before begin pragma
+transition FSMKernelBegin (KernelCode line) =
+  (FSMKernelBegin, modify $ \s -> s {parsed_kernel_body=parsed_kernel_body s ++ "\n" ++ line}
+  
+transition FSMKernelBegin (KernelBeginPragma name) =
+  (FSMKernelBody, modify $ \s -> s {parsed_kernel_name=name})
+transition FSMKernelBody (KernelCode line) = 
+  (FSMKernelBody, modify $ \s -> s {parsed_kernel_body=parsed_kernel_body s ++ "\n" ++ line} )
 
 -- vissue block parse states
-transition FSMKernelBody VectorBeginPragma = FSMVector
-transition FSMVector VectorEndPragma = FSMKernelBody
+transition FSMKernelBody VectorBeginPragma = 
+  (FSMVector, 
+    do  vissue_key <- mk_fresh_vissue_key
+        modify $ \s -> s {  curr_vissue_key = vissue_key })
+  where mk_fresh_vissue_key = mk_fresh curr_vissue_key (\n ps -> ps {curr_vissue_key= n+1} )
+
+transition FSMVector (KernelCode line) =
+  (FSMVector, modify $ insertIntoVissueBlk line)
+        
+transition FSMVector VectorEndPragma = 
+  (FSMKernelBody, pure ())
+
 
 -- scalar loop parse states
-transition FSMKernelBody ScalarLoopPragma = FSMScalarLoop
-transition FSMScalarLoop (KernelCode _) = FSMKernelBody
+transition FSMKernelBody ScalarLoopPragma = (FSMScalarLoop, pure ())
+transition FSMScalarLoop (KernelCode _) = (FSMKernelBody, pure ())
 
 -- kernel end
-transition FSMKernelBody KernelEndPragma = FSMKernelEnd
+transition FSMKernelBody KernelEndPragma = (FSMKernelEnd, pure ())
 
 -- otherwise
-transition _ _ = FSMError
+transition _ _ = (FSMError, pure ())
 
 
 
 
-linewise_tokenize :: T.Text -> VecSimcV2Line
+linewise_tokenize :: String -> VecSimcV2Line
 linewise_tokenize line
-  | [name] <- regex_parse line [qq|#pragma trillium vec_simd begin ([$alpha]+[alpha_num|_]*)|]
+  | [name] <- regex_parse line [i|#pragma trillium vec_simd begin ([$alpha]+[alpha_num|_]*)|]
     = KernelBeginPragma name
-  | line =~ [qq|#pragma trillium vec_simd end|]
+  | line =~ [i|#pragma trillium vec_simd end|]
     = KernelEndPragma
-  | line =~ [qq|#pragma trillium vector begin|]
+  | line =~ [i|#pragma trillium vector begin|]
     = VectorBeginPragma
-  | line =~ [qq|#pragma trillium vector end|]
+  | line =~ [i|#pragma trillium vector end|]
     = VectorEndPragma
-  | line =~ [qq|#pragma trillium scalar loop|]
+  | line =~ [i|#pragma trillium scalar loop|]
     = ScalarLoopPragma
   | otherwise
     = KernelCode line
   where 
     alpha = "a-z|A-Z"
     num = "0-9"
-    alpha_num = [text|$alpha|$num|]
+    alpha_num = [i|#alpha|#num|]
 
 
 
-regex_parse :: T.Text -> T.Text -> [T.Text]
+regex_parse :: String -> String -> [String]
 regex_parse line regex =  
-  let (_,_,_,matches) = line =~ regex :: (T.Text,T.Text,T.Text,[T.Text])
+  let (_,_,_,matches) = line =~ regex :: (String,String,String,[String])
   in matches
 
 
@@ -226,3 +221,6 @@ mk_fresh field_getter field_setter = do
   modify (field_setter field)
   gets field_getter
 
+insertIntoVissueBlk :: String -> VecSimcV2ParserState -> VecSimcV2ParserState
+insertIntoVissueBlk line ps = 
+  ps {parsed_vissue_blocks = M.insertWith (flip (++)) (curr_vissue_key ps) (line ++ "\n") (parsed_vissue_blocks ps)}
