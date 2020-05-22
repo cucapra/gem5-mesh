@@ -169,7 +169,7 @@ void reduce_manycore(int partialSum, DTYPE *c, int tid, int numPartialSums) {
   // get in the reduction
 
   if (tid == 0) {
-    DTYPE sum = 0;
+    DTYPE sum = partialSum;
     DTYPE *sp = (DTYPE*)getSpAddr(tid, 0);
 
     FRAME_START(numPartialSums);
@@ -183,7 +183,7 @@ void reduce_manycore(int partialSum, DTYPE *c, int tid, int numPartialSums) {
     c[0] = sum;
   }
   else {
-    DTYPE *targAddr = (DTYPE*)getSpAddr(0, numPartialSums);
+    DTYPE *targAddr = (DTYPE*)getSpAddr(0, tid);
     targAddr[0] = partialSum;
   }
 
@@ -361,16 +361,19 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // accumulate partial sums locally
   int partialSum = local_dot_manycore(a, b, start, end);
   
-  // setup syncronizations
-  // TODO can we somehow manage without a barrier here?
+  // the core who does the reduction doesn't need to wait for iteself
+  num_partial_sums--;
+
+  // // setup syncronizations
+  // // TODO can we somehow manage without a barrier here?
   int prefetchMask = (1 << PREFETCH_NUM_REGION_SHAMT) | (num_partial_sums << PREFETCH_REGION_SIZE_SHAMT);
   PREFETCH_EPOCH(prefetchMask);
 
-  // make sure all cores have done this before begin kernel section --> do thread barrier for now
-  // TODO hoping for a cleaner way to do this
+  // // make sure all cores have done this before begin kernel section --> do thread barrier for now
+  // // TODO hoping for a cleaner way to do this
   pthread_barrier_wait(&start_barrier);
 
-  // do reduction across cores (currently just send all to a single core rather than reduction tree)
+  // // do reduction across cores (currently just send all to a single core rather than reduction tree)
   reduce_manycore(partialSum, c, ptid, num_partial_sums);
 
 

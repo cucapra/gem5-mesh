@@ -248,6 +248,16 @@ Scratchpad::processRespToSpad() {
         
       break;
     }
+    case Packet::Remote_Store_Req: {
+      MachineID rspDest;
+      rspDest.num = pkt_p->getPrefetchAddr(); // just use random field to store
+      rspDest.type = MachineType::MachineType_Scratchpad;
+      DPRINTF(Mesh, "handle remote store to region. addr %#x\n", pkt_p->getAddr());
+      if (!handleRemoteReq(pkt_p, rspDest)) {
+        enqueueStallRespToSp(pkt_p);
+      }
+      break;
+    }
     case Packet::RespPktType::Prefetch_Self_Resp:
     case Packet::RespPktType::Prefetch_Patron_Resp: {
       bool memDiv = memoryDiverged(pkt_p->getAddr()); //setPrefetchFresh(pkt_p);
@@ -472,25 +482,7 @@ Scratchpad::wakeup()
         // m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
         m_mem_resp_buffer_p->dequeue(clockEdge());
 
-    } /*else if (m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 0 && 
-              llc_msg_p->m_Type == LLCResponseType_ACK) {
-      // we just need to send back to the core that we received an ack
-      // make a fake resp packet to send back
-      std::shared_ptr<Request> req =
-                std::make_shared<Request>(llc_msg_p->m_LineAddress,    // vaddr
-                                          sizeof(uint32_t),    // size
-                                          0, 0);
-        
-      PacketPtr pending_mem_pkt_p = Packet::createWrite(req);
-      pending_mem_pkt_p->pushSenderState(new MemUnit::SenderState(nullptr));
-      pending_mem_pkt_p->makeResponse();
-
-      // Pop the message from mem_resp_buffer
-      m_mem_resp_buffer_p->dequeue(clockEdge());
-      
-      enqueueRubyRespToSp(pending_mem_pkt_p, Packet::RespPktType::LLC_Data_Resp);
-
-    }*/ else {
+    } else {
 
       // sanity check: make sure this is the response we're waiting for
       assert(m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 1);
@@ -548,10 +540,19 @@ Scratchpad::wakeup()
     // sanity check: make sure this request is for me
     assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
 
-    DPRINTF(Scratchpad, "Handling remote req pkt %s from %s\n",
-                        pkt_p->print(), msg_p->getSenderID());
+    DPRINTF(Scratchpad, "Handling remote req pkt %s from %s isWrite %d isRegionAccess %d\n",
+                        pkt_p->print(), msg_p->getSenderID(), pkt_p->isWrite(), isRegionAccess(pkt_p));
 
-    if (!handleRemoteReq(pkt_p, msg_p->getSenderID())) {
+    // check if this is to a region, in which case treat it as a region access
+    if (isRegionAccess(pkt_p) && pkt_p->isWrite()) { 
+      pkt_p->req->prefetchAddr = msg_p->getSenderID().num; // just store in an unused field
+      assert(msg_p->getSenderID().type == MachineType::MachineType_Scratchpad);  
+      enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Remote_Store_Req);
+
+      // dequeue b/c going to put on internal spad queue
+      m_remote_req_buffer_p->dequeue(clockEdge());
+    }
+    else if (!handleRemoteReq(pkt_p, msg_p->getSenderID())) {
       DPRINTF(Scratchpad, "Not able to handle remote req. \
                           Will retry to handle it later\n");
       scheduleEvent(Cycles(1));
@@ -579,88 +580,6 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 
   if (pkt_p->isRead())
     DPRINTF(LoadTrack, "Load request received in local SP %#x\n", pkt_p->getAddr());
-  // /**
-  //  * From Xcel, access to base_addr field
-  //  */
-  // if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_BASE_ADDR_OFFSET) {
-  //   assert(pkt_p->isRead());
-
-  //   DPRINTF(Scratchpad, "Handling SPM_BASE_ADDR read: pkt %s\n",
-  //                       pkt_p->print());
-
-  //   if (*m_base_addr_p == 0) {
-  //     m_pending_base_addr_req = std::make_pair(MachineID(), pkt_p);
-  //   } else {
-  //     pkt_p->setData((uint8_t*) m_base_addr_p);
-  //     pkt_p->makeResponse();
-  //     // Save the response packet and schedule an event in the next cycle to
-  //     // send it to CPU
-  //     m_cpu_resp_pkts.push_back(pkt_p);
-  //     if (!m_cpu_resp_event.scheduled())
-  //       schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-  //   }
-
-  //   return true;
-  // }
-
-  // /**
-  //  * From Xcel, access to go_flag field
-  //  */
-  // if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_GO_FLAG_OFFSET) {
-  //   assert(pkt_p->isRead());
-
-  //   DPRINTF(Scratchpad, "Handling SPM_GO_FLAG read: pkt %s\n",
-  //                       pkt_p->print());
-
-  //   if (*m_go_flag_p == 0) {
-  //     m_pending_go_flag_req = std::make_pair(m_machineID, pkt_p);
-  //   } else {
-  //     pkt_p->setData((uint8_t *) m_go_flag_p);
-  //     pkt_p->makeResponse();
-  //     *m_go_flag_p = 0;
-  //     // Save the response packet and schedule an event in the next cycle to
-  //     // send it to CPU
-  //     m_cpu_resp_pkts.push_back(pkt_p);
-  //     if (!m_cpu_resp_event.scheduled())
-  //       schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-  //   }
-
-  //   return true;
-  // }
-
-  // /**
-  //  * From Xcel, access to done_flag field
-  //  */
-  // if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_DONE_FLAG_OFFSET) {
-  //   assert(pkt_p->isWrite());
-
-  //   DPRINTF(Scratchpad, "Handling SPM_DONE_FLAG write: pkt %s\n",
-  //                       pkt_p->print());
-
-  //   pkt_p->writeData((uint8_t*) m_done_flag_p);
-
-  //   DPRINTF(Scratchpad, "Done value: %d\n", *m_done_flag_p);
-
-  //   pkt_p->makeResponse();
-  //   // Save the response packet and schedule an event in the next cycle to
-  //   // send it to CPU
-  //   m_cpu_resp_pkts.push_back(pkt_p);
-  //   if (!m_cpu_resp_event.scheduled())
-  //     schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-
-  //   // wake up any remote request reading this flag
-  //   if (m_pending_done_flag_req.second) {
-  //     DPRINTF(Scratchpad, "Waking up a deferred SPM_DONE_FLAG read: pkt %s\n",
-  //                         m_pending_done_flag_req.second);
-
-  //     assert(handleRemoteReq(m_pending_done_flag_req.second,
-  //                            m_pending_done_flag_req.first));
-  //     m_pending_done_flag_req.first = MachineID();
-  //     m_pending_done_flag_req.second = nullptr;
-  //   }
-
-  //   return true;
-  // }
 
   /**
    * From either CPU or Xcel, access to data
@@ -920,65 +839,6 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
 
   bool respond_sender = true;
 
-  // /**
-  //  * From a remote CPU, access to base_addr field
-  //  */
-  // if (getLocalAddr(pkt_p->getAddr()) == SPM_BASE_ADDR_OFFSET) {
-  //   assert(pkt_p->isWrite());
-
-  //   DPRINTF(Scratchpad, "Handling remote SPM_BASE_ADDR write: pkt %s\n",
-  //                       pkt_p->print());
-
-  //   pkt_p->writeData((uint8_t*) m_base_addr_p);
-  //   pkt_p->makeResponse();
-
-  //   // wake up pending request reading base_addr
-  //   if (m_pending_base_addr_req.second) {
-  //     assert(handleCpuReq(m_pending_base_addr_req.second));
-  //     m_pending_base_addr_req.first = MachineID();
-  //     m_pending_base_addr_req.second = nullptr;
-  //   }
-  // }
-  // /**
-  //  * From a remote CPU, access to go_flag field
-  //  */
-  // else if (getLocalAddr(pkt_p->getAddr()) == SPM_GO_FLAG_OFFSET) {
-  //   assert(pkt_p->isWrite());
-
-  //   DPRINTF(Scratchpad, "Handling remote SPM_GO_FLAG write: pkt %s\n",
-  //                       pkt_p->print());
-
-  //   pkt_p->writeData((uint8_t*) m_go_flag_p);
-  //   pkt_p->makeResponse();
-
-  //   // wake up pending request reading go_flag
-  //   if (m_pending_go_flag_req.second) {
-  //     assert(handleCpuReq(m_pending_go_flag_req.second));
-  //     m_pending_go_flag_req.first = MachineID();
-  //     m_pending_go_flag_req.second = nullptr;
-  //   }
-  // }
-  // /**
-  //  * From a remote CPU, access to done_flag field
-  //  */
-  // else if (getLocalAddr(pkt_p->getAddr()) == SPM_DONE_FLAG_OFFSET) {
-  //   assert(pkt_p->isRead());
-
-  //   DPRINTF(Scratchpad, "Handling remote SPM_DONE_FLAG read: pkt %s\n",
-  //                       pkt_p->print());
-
-  //   if (*m_done_flag_p == 0) {
-  //     DPRINTF(Scratchpad, "Deferring SPM_GO_FLAG write request: pkt %s\n",
-  //                         pkt_p->print());
-  //     m_pending_done_flag_req = std::make_pair(remote_sender, pkt_p);
-  //     respond_sender = false;
-  //   } else {
-  //     // read and reset
-  //     pkt_p->setData((uint8_t*) m_done_flag_p);
-  //     pkt_p->makeResponse();
-  //     *m_done_flag_p = 0;
-  //   }
-  // }
   /**
    * From a remote CPU/Xcel, access to data
    */
@@ -994,7 +854,7 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
     //   pkt_p->makeResponse();
     // }
     // else {
-    if (isRegionAccess(pkt_p) && !isWordRdyForRemote(pkt_p->getAddr()))
+    if (isRegionAccess(pkt_p) && !isWordRdyForRemote(pkt_p->getAddr()) && pkt_p->isRead())
     //TODO: Will fail if remote access to past region and prefetching going on, but then again accessing into past region is faulty
     {
       DPRINTF(Mesh, "remote region access into a region not ready (not cool bro) %s\n", pkt_p->print());

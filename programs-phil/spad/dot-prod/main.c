@@ -25,7 +25,7 @@ int main(int argc, char *argv[]) {
   * Put the command line arguments into variables
   *-------------------------------------------------------------------*/
   
-  int len = 16;
+  int len = 64;
 
   if (argc > 1) {
     len = atoi(argv[1]);
