@@ -69,10 +69,10 @@ CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T.
 #
 default: $(EXEC)
 
-$(EXEC)_vector.s: modular_$(EXEC)_kernel.c
+$(EXEC)_vector.s: $(EXEC)_kernel.c
 	$(RV_CC) $(CFLAGS) -D VECTOR_CORE -S $< -o $@
 
-$(EXEC)_scalar.s: modular_$(EXEC)_kernel.c
+$(EXEC)_scalar.s: $(EXEC)_kernel.c
 	$(RV_CC) $(CFLAGS) -D SCALAR_CORE -S $< -o $@ 
 
 $(EXEC)_kernel.s: $(EXEC)_vector.s $(EXEC)_scalar.s

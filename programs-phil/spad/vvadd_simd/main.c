@@ -100,10 +100,7 @@ int main(int argc, char *argv[]) {
   
   /* Print output */ 
   for (int i = 0; i < size; i++) {
-    printf("c[%d] = %d\n", i, c[i]);
-  }
-  for (int i = 0; i < size; i++) {
-    printf("%d\n", c[i]);
+    //printf("c[%d] = %d\n", i, c[i]);
     if (c[i] != 2 * ( i + 1 )) {
       printf("%d %d\n", i, c[i]);
       printf("[[FAIL]]\n");
