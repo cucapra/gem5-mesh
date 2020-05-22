@@ -9,6 +9,9 @@
 
 /*
   Dot product. Shows implementation of a dot product on our architecture
+
+  The general flavor is to do local accumulation within a group/core.
+  To accumulate across groups we want to go back to manycore mode
 */
 
 inline int min(int a, int b) {
@@ -20,17 +23,14 @@ inline int min(int a, int b) {
   }
 }
 
-void mul_manycore(DTYPE *a, DTYPE *b, DTYPE *c, int len, int tid, int dim) {
+int local_dot_manycore(DTYPE *a, DTYPE *b, int start, int end) {
   // accumulate a partial sum locally
-  int start = (tid + 0) * (len / dim);
-  int end   = (tid + 1) * (len / dim);
-  for (int i = 0; i < len; i++) {
-
+  DTYPE partialSum = 0;
+  for (int i = start; i < end; i++) {
+    partialSum += a[i] * b[i];
   }
+  return partialSum;
 }
-
-
-
 
 // // a shared buffer is just written once and then done
 // typedef struct shared_buffer {
@@ -114,23 +114,88 @@ void mul_manycore(DTYPE *a, DTYPE *b, DTYPE *c, int len, int tid, int dim) {
 // }
 
 
+// if did remote load would need flag to denote rdy and then also flag to denote done reading
+
+
+// don't do a parallel reduction tree, instead just have one core do the summation of 64 values
+// instead of having to wait for remote store from each core, can just load from them manually
 // do a reduction, which cores to accumulate in? maybe for now just accumulate in a single core
 // it won't matter for the grid size we're doing most likely (64 threads, might matter if have 1000s like in a GPU)
-void reduce_manycore(DTYPE *a, DTYPE *b, DTYPE *c, int len, int tid, int dim) {
+void reduce_manycore(int partialSum, DTYPE *c, int tid, int numPartialSums) {
   
   // advantage of remote loads is that don't need to have sync buffers
   // disadvantage is that need to figure out which cores have data which is not trivial in vector core case
-
   // would be nice if template had an easy to get all active vector cores
-  
 
-  // don't do a parallel reduction tree, instead just have one core do the summation of 64 values
-  // instead of having to wait for remote store from each core, can just load from them manually
+  // TODO for now just do remote stores
+  // setup remote store buffers equal to number of active cores
+
+  // TODO lightweight memory allocator for scratchpad (opt in per core)?
+  // want to create a dynamically size array and store on scratchpad
+
+  // also can potentially do thing where try to regularize the data by storing to a core reflecitve of your
+  // group id and then its easier to collapse that
+ 
+  // core 0 recvs data and does the actual work
+
+  // this isn't gaurenteed to be synced... need to reset rdy flag. remote loads without any extra sync might be easier
+  // if (tid == 0) {
+  //   shared_buffer_t *bufs = (shared_buffer_t*)malloc(sizeof(shared_buffer_t) * numPartialSums);
+  //   for (int i = 0; i < numPartialSums; i++) {
+  //     init_shared_buffer_consumer(0, i, 1, &(bufs[i]));
+  //   }
+  // }
+  // else {
+  //   shared_buffer_t buf; 
+  //   init_shared_buffer_producer(0, tid, 1, &buf);
+  // }
+
+
+  // can we use frames here again to help facilitate gather? since awkward/not scalable to create a token queue between one to everyone
+  // would need to sync and change frame size after completing first part of kernel. seems kind of nice now to be able to change frame size on the fly
+  // potentially could allow change to happen after start receiving counts. especially if doing token based
+
+  // need to show that if the epoch value was above or below and received packets, still will be fine once change
+  // so below is fine, although unclear what to do about the secondary counts
+  //    cntr0 -> cntr0
+  //    cntr1 -> ?
+  // can avoid if always change by a factor of 2 (or how many counters we have)
+
+  // also currently having an issue with barrier overflow. i guess not doing the sync neil suggests
+
+  // PREFETCH_EPOCH()
+  // pthread_barrier_wait();
+
+  // get in the reduction
+
   if (tid == 0) {
+    DTYPE sum = 0;
+    DTYPE *sp = (DTYPE*)getSpAddr(tid, 0);
 
+    FRAME_START(numPartialSums);
+
+    for (int i = 0; i < numPartialSums; i++) {
+      sum += sp[i];
+    }
+
+    REMEM(numPartialSums);
+
+    c[0] = sum;
   }
+  else {
+    DTYPE *targAddr = (DTYPE*)getSpAddr(0, numPartialSums);
+    targAddr[0] = partialSum;
+  }
+
+
 }
 
+// // have each vector core do a remote store into an easy to access core (i.e. there's now an easy to calculate patten of data)
+// // now can do remote loads easily from the reduction core (cores)
+// void organize_vector_results(int group_id, int data) {
+//   int *spPtr = (int*)getSpAddr(group_id, 0);
+//   spPtr[0] = data;
+// }
 
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
@@ -168,6 +233,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int master_y = 0;
   int unique_id = 0;
   int total_groups = 0;
+  
+  // number of partial sums to expect
+  int num_partial_sums = 0;
 
   // group construction
   #if VECTOR_LEN==4
@@ -184,6 +252,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     end   = ( (unique_id + 1) * effRows ) / total_groups;
   }
 
+  num_partial_sums = total_groups * VECTOR_LEN;
+
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used); 
 
   #elif VECTOR_LEN==16
@@ -199,6 +269,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     end   = ( (unique_id + 1) * effRows ) / total_groups;
   }
 
+  num_partial_sums = total_groups * VECTOR_LEN;
+
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 16, vdim_x, vdim_y, start, end, used); 
 
   #elif !defined(USE_VEC)
@@ -208,10 +280,13 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vtid_x = 0;
   vtid_y = 0;
   vtid   = 0;
-  start  = ( ( ptid + 0 ) * effRows ) / pdim;
-  end    = ( ( ptid + 1 ) * effRows ) / pdim;
+  start  = ( ( ptid + 0 ) * len ) / pdim;
+  end    = ( ( ptid + 1 ) * len ) / pdim;
+
+  num_partial_sums = pdim;
 
   // printf("%d->%d\n", start, end); 
+  
 
   #endif
 
@@ -248,11 +323,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   rated_size = 1;
   #endif
 
-  // cols without the edge case
-  int eff_len = ncols - (FILTER_DIM - 1);
   // mapped len is schedule on main config, unmapped will be scheduled on base manycore
-  int unmapped_len = eff_len % rated_size;
-  int mapped_len = eff_len - unmapped_len;
+  int unmapped_len = len % rated_size;
+  int mapped_len = len - unmapped_len;
 
   // if (ptid == 0)
   //   printf("size %d rated size %d mapped %d unmapped %d\n", eff_len, rated_size, mapped_len, unmapped_len);
@@ -271,50 +344,35 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   spTop -= 12;
 
   unsigned long long stackLoc;
-  asm volatile (
-    // copy part of the stack onto the scratchpad in case there are any loads to scratchpad right before
-    // function call
-    "ld t0, 0(sp)\n\t"
-    "sd t0, 0(%[spad])\n\t"
-    "ld t0, 8(sp)\n\t"
-    "sd t0, 8(%[spad])\n\t"
-    "ld t0, 16(sp)\n\t"
-    "sd t0, 16(%[spad])\n\t"
-    "ld t0, 24(sp)\n\t"
-    "sd t0, 24(%[spad])\n\t"
-    "ld t0, 32(sp)\n\t"
-    "sd t0, 32(%[spad])\n\t"
-    "ld t0, 40(sp)\n\t"
-    "sd t0, 40(%[spad])\n\t"
-    "ld t0, 48(sp)\n\t"
-    "sd t0, 48(%[spad])\n\t"
-    "ld t0, 56(sp)\n\t"
-    "sd t0, 56(%[spad])\n\t"
-    "ld t0, 64(sp)\n\t"
-    "sd t0, 64(%[spad])\n\t"
-    "ld t0, 72(sp)\n\t"
-    "sd t0, 72(%[spad])\n\t"
-    "ld t0, 80(sp)\n\t"
-    "sd t0, 80(%[spad])\n\t"
-    "ld t0, 88(sp)\n\t"
-    "sd t0, 88(%[spad])\n\t"
-    // save the stack ptr
-    "addi %[dest], sp, 0\n\t" 
-    // overwrite stack ptr
-    "addi sp, %[spad], 0\n\t"
-    : [dest] "=r" (stackLoc)
-    : [spad] "r" (spTop)
-  );
+  unsigned long long temp;
+  for(int i=0;i<12;i++){
+    asm volatile("ld t0, %[id](sp)\n\t"
+                "sd t0, %[id](%[spad])\n\t"
+                : "=r"(temp)
+                : [id] "i"(i*8), [spad] "r"(spTop));
+  }
+  asm volatile (// save the stack ptr
+      "addi %[dest], sp, 0\n\t"
+      // overwrite stack ptr
+      "addi sp, %[spad], 0\n\t"
+      : [ dest ] "=r"(stackLoc)
+      : [ spad ] "r"(spTop));
 
-  #ifdef USE_VEC
-  // do computation that we can map
-  stencil_vector(a, b, c, start, end, mapped_len, ncols, ptid, vtid_x, vtid_y, vdim_x, vdim_y, mask);
+  // accumulate partial sums locally
+  int partialSum = local_dot_manycore(a, b, start, end);
+  
+  // setup syncronizations
+  // TODO can we somehow manage without a barrier here?
+  int prefetchMask = (1 << PREFETCH_NUM_REGION_SHAMT) | (num_partial_sums << PREFETCH_REGION_SIZE_SHAMT);
+  PREFETCH_EPOCH(prefetchMask);
 
-  // do remainder of computation starting from offset
-  stencil_manycore(a, b, c, nrows, mapped_len, mapped_len + unmapped_len, ncols, ptid, vtid, vdim, start, end);
-  #else
-  stencil_manycore(a, b, c, nrows, 0, mapped_len, ncols, ptid, vtid, vdim, start, end);
-  #endif
+  // make sure all cores have done this before begin kernel section --> do thread barrier for now
+  // TODO hoping for a cleaner way to do this
+  pthread_barrier_wait(&start_barrier);
+
+  // do reduction across cores (currently just send all to a single core rather than reduction tree)
+  reduce_manycore(partialSum, c, ptid, num_partial_sums);
+
 
   // restore stack pointer
   asm volatile (

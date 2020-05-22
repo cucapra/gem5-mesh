@@ -5,7 +5,7 @@
 #define DTYPE int
 
 // one of these should be defined to dictate config
-// #define NO_VEC 1
+#define NO_VEC 1
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_REUSE_VERTICAL 1
