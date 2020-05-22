@@ -140,10 +140,10 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
       // VPREFETCH(spadAddr + i * 2 + 0, a + start + (i * dim), 0);
       // VPREFETCH(spadAddr + i * 2 + 1, b + start + (i * dim), 0);
 
-      VPREFETCH_L(i * 2 + 0, a + start + (i * dim), 0, 4);
-      VPREFETCH_R(i * 2 + 0, a + start + (i * dim), 0, 4);
-      VPREFETCH_L(i * 2 + 1, b + start + (i * dim), 0, 4);
-      VPREFETCH_R(i * 2 + 1, b + start + (i * dim), 0, 4);
+      VPREFETCH_L(i * 2 + 0, a + start + (i * dim), 0, 4, 0);
+      VPREFETCH_R(i * 2 + 0, a + start + (i * dim), 0, 4, 0);
+      VPREFETCH_L(i * 2 + 1, b + start + (i * dim), 0, 4, 0);
+      VPREFETCH_R(i * 2 + 1, b + start + (i * dim), 0, 4, 0);
     }
 
     // issue header instructions
@@ -169,10 +169,10 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
       // prefetch for future iterations
       // VPREFETCH(spadAddr + localIter + 0, a + start + (i * dim), 0);
       // VPREFETCH(spadAddr + localIter + 1, b + start + (i * dim), 0);
-      VPREFETCH_L(localIter + 0, a + start + (i * dim), 0, 4);
-      VPREFETCH_R(localIter + 0, a + start + (i * dim), 0, 4);
-      VPREFETCH_L(localIter + 1, b + start + (i * dim), 0, 4);
-      VPREFETCH_R(localIter + 1, b + start + (i * dim), 0, 4);
+      VPREFETCH_L(localIter + 0, a + start + (i * dim), 0, 4, 0);
+      VPREFETCH_R(localIter + 0, a + start + (i * dim), 0, 4, 0);
+      VPREFETCH_L(localIter + 1, b + start + (i * dim), 0, 4, 0);
+      VPREFETCH_R(localIter + 1, b + start + (i * dim), 0, 4, 0);
 
       localIter += 2;
       if (localIter == (NUM_REGIONS * 2))
@@ -244,13 +244,17 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
             : [ var ] "=r"(iter));
       #endif
 
-      // load values from scratchpad
-      LWSPEC(a_, spadAddr + iter, 0);
-      LWSPEC(b_, spadAddr + iter + 1, 0);
+    FRAME_START(REGION_SIZE);
+    // load values from scratchpad
+    // LWSPEC(a_, spadAddr + iter, 0);
+    // LWSPEC(b_, spadAddr + iter + 1, 0);
 
+    a_ = *(spadAddr + iter);
+    b_ = *(spadAddr + iter + 1);
       // remem as soon as possible, so don't stall loads for next iterations
       // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
-      REMEM(0);
+    REMEM(REGION_SIZE);
+    //  REMEM(0);
 
       // compute and store
       c_ = a_ + b_;

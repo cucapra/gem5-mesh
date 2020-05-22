@@ -252,9 +252,9 @@ def glue(raw_scalar_code, vector_bbs):
 
 
 if __name__ == "__main__":
-    vector_file = open("../vvadd_vector.s", "r")
-    scalar_file = open("../vvadd_scalar.s", "r")
-    combined_file = open("../vvadd_kernel.s", "w+")
+    vector_file = open("vvadd_vector.s", "r")
+    scalar_file = open("vvadd_scalar.s", "r")
+    combined_file = open("vvadd_kernel.s", "w+")
 
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()

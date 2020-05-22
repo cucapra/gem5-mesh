@@ -21,10 +21,10 @@ inline int min(int a, int b)
 void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int is_master)
 {
 
+#ifdef SCALAR_CORE
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
 
-#ifdef SCALAR_CORE
 
   // do a bunch of prefetching in the beginning to get ahead
   int totalIter = (end - start) / dim;
@@ -42,6 +42,7 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
   // issue header instructions
   ISSUE_VINST(fable0);
 #elif defined VECTOR_CORE
+  asm("vector_init");
   volatile int bh1, bh2; // while loop variables
   DTYPE a_, b_, c_;
   int64_t iter = 0;
@@ -98,6 +99,7 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
 #endif
 
 #elif defined VECTOR_CORE
+  asm("vector_body");
 #ifdef SIMD_BCAST
     // try to get compiler to use register that will recv broadcasted values
     // can make compiler pass
@@ -129,16 +131,11 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
 #endif
   }
 
-// issue the rest
 #ifdef SCALAR_CORE
+// issue the rest
   for (int i = totalIter - beginIter; i < totalIter; i++)
   {
-#elif defined VECTOR_CORE
-  while (bh2)
-  {
-#endif
 
-#ifdef SCALAR_CORE
 #ifdef SIMD_BCAST
     BROADCAST(t0, deviceIter, 0);
 #endif
@@ -152,58 +149,28 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
       deviceIter = 0;
     }
 #endif
-#elif defined VECTOR_CORE
-#ifdef SIMD_BCAST
-    // try to get compiler to use register that will recv broadcasted values
-    // can make compiler pass
-    asm volatile(
-        "add %[var], t0, x0\n\t"
-        : [ var ] "=r"(iter));
-#endif
-
-    FRAME_START(REGION_SIZE);
-    // load values from scratchpad
-    // LWSPEC(a_, spadAddr + iter, 0);
-    // LWSPEC(b_, spadAddr + iter + 1, 0);
-
-    a_ = *(spadAddr + iter);
-    b_ = *(spadAddr + iter + 1);  
-
-    // remem as soon as possible, so don't stall loads for next iterations
-    // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
-    REMEM(REGION_SIZE);
-
-    // compute and store
-    c_ = a_ + b_;
-    STORE_NOACK(c_, cPtr, 0);
-    cPtr += dim;
-
-#ifndef SIMD_BCAST
-    iter = (iter + 2) % (NUM_REGIONS * 2);
-#endif
-#endif
   }
 
-#ifdef SCALAR_CORE
   ISSUE_VINST(fable2);
   // devec with unique tag
   DEVEC(devec_0);
-#endif
-
   // we are doing lazy store acks, so use this to make sure all stores have commited to memory
   asm volatile("fence\n\t");
-
+  asm("scalar_return");
   return;
-
-#ifdef SCALAR_CORE
 fable0:
-  asm("nop");
+  asm("vector_init");
 
 fable1:
-  asm("nop");
+  asm("vector_body");
 
 fable2:
-  asm("nop");
+  asm("vector_return");
+
+#elif defined VECTOR_CORE
+
+asm("vector_return");  
+return;
 
 #endif
 

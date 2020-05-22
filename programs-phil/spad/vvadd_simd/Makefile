@@ -69,14 +69,14 @@ CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T.
 #
 default: $(EXEC)
 
-$(EXEC)_vector.s: $(EXEC)_kernel.c
+$(EXEC)_vector.s: modular_$(EXEC)_kernel.c
 	$(RV_CC) $(CFLAGS) -D VECTOR_CORE -S $< -o $@
 
-$(EXEC)_scalar.s: $(EXEC)_kernel.c
+$(EXEC)_scalar.s: modular_$(EXEC)_kernel.c
 	$(RV_CC) $(CFLAGS) -D SCALAR_CORE -S $< -o $@ 
 
 $(EXEC)_kernel.s: $(EXEC)_vector.s $(EXEC)_scalar.s
-	python3 glue.py -o $@
+	python3 trillium/glue.py -o $@
 	
 $(EXEC)_kernel.o: $(EXEC)_kernel.s
 	$(RV_CC) $(CFLAGS) -c $< -o $(notdir $@)
@@ -92,12 +92,12 @@ run : $(EXEC)
 	--vector
 
 
-$(EXEC).neil: $(DEPS_FIL)
-	$(RV_CC) $(C_OBJS_FIL) $(CFLAGS) -o $(EXEC)
-
-run: $(EXEC).neil
-	../../../build/RVSP/gem5.opt -d ../../../results/vvadd_simd-SIZE1024 \
-	../../../configs/phil/brg_hammerblade.py --cmd=vvadd --options=1024 --num-cpus=16 --vector
+#$(EXEC).neil: $(DEPS_FIL)
+#	$(RV_CC) $(C_OBJS_FIL) $(CFLAGS) -o $(EXEC)
+#
+#run: $(EXEC).neil
+#	../../../build/RVSP/gem5.opt -d ../../../results/vvadd_simd-SIZE1024 \
+#	../../../configs/phil/brg_hammerblade.py --cmd=vvadd --options=1024 --num-cpus=16 --vector
 
 
 # compile directly from .c to .o with no mods
