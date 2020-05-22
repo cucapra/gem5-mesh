@@ -50,6 +50,14 @@ comment_regex = re.compile('[#]')
 call_regex = re.compile('call\t({0})'.format(label_iden))
 ret_regex = re.compile('ret')
 beqz_regex = re.compile('beqz\t[a-z0-9]+,({})'.format(label_iden))
+cond_branch_regexes = [
+    re.compile('beq\t[a-z0-9]+,[a-z0-9]+,({})'.format(label_iden)),
+    re.compile('bne\t[a-z0-9]+,[a-z0-9]+,({})'.format(label_iden)),
+    re.compile('blt\t[a-z0-9]+,[a-z0-9]+,({})'.format(label_iden)),
+    re.compile('bge\t[a-z0-9]+,[a-z0-9]+,({})'.format(label_iden)),
+    re.compile('bltu\t[a-z0-9]+,[a-z0-9]+,({})'.format(label_iden)),
+    re.compile('bgeu\t[a-z0-9]+,[a-z0-9]+,({})'.format(label_iden))
+]
 
 cached_src_file = []
 
@@ -170,11 +178,14 @@ def find_vissue_count(label, term_count = False):
             (is_label, matched_label) = check_label(line)
             (is_jump, jump_label) = check_jump(line)
             (is_call, call_label) = check_call(line)
+            (is_cond_branch, branch_label) = check_cond_branch(line)
             is_ret = check_ret(line)
             # recursion to explore function call count
             if (is_call and not term_count):
                 print('call label: ' + call_label)
                 cnt += 1 + find_vissue_count(call_label)
+            elif (is_label and has_valid_cond_branch(matched_label)):
+                cnt += 1
             elif (is_label or is_jump or is_ret):
                 print("Stopping at label " + line[0:-1] + " w/ cnt " + str(cnt))
                 # cnt ret
@@ -218,6 +229,14 @@ def has_backedge(label):
 
     return False
 
+# there is a valid conditional branch to this label
+def has_valid_cond_branch(label):
+    for line in cached_src_file:
+        (is_branch, line_label) = check_cond_branch(line)
+        if (is_branch and line_label == label):
+            return True
+    return False
+
 # # find if any jumps to the label are backwards
 # def has_back_jumps_to_label(label_line, label)
 #     for line in cached_src_file:
@@ -241,9 +260,9 @@ def check_jump(line):
     else:
         return (False, '')
 
-# check if conditional branch
+# check if conditional branch from predication faking
 # ret (is_cond_branch, branch_label)
-def check_cond_branch(line):
+def check_pred_branch(line):
     if (is_comment(line)):
         return (False, '')
     match = beqz_regex.search(line)
@@ -253,6 +272,17 @@ def check_cond_branch(line):
     else:
         return (False, '')
 
+# check if normal conditional branch that we actually want to use
+def check_cond_branch(line):
+    if (is_comment(line)):
+        return (False, '')
+
+    for r in cond_branch_regexes:
+        match = r.search(line)
+        if (match):
+            jlabel = match.group(1)
+            return (True, jlabel)
+    return (False, '')
 
 
 # check if label is pointed to by a vissue
@@ -306,7 +336,9 @@ def flatten_vissue(vissue_line):
             # handle if this line is for a label
             (is_label, label) = check_label(line)
             if (is_label):
-                if (not is_vissue_label(label) and not has_backedge(label)):
+                if (has_valid_cond_branch(label)):
+                    continue
+                elif (not is_vissue_label(label) and not has_backedge(label)):
                     cached_src_file[i] = removed_line(line)
                     print('found unused label {0}'.format(line))
                     continue
@@ -383,7 +415,7 @@ def remove_branches_from_block(vissue_line):
 
         # remote branches in this block and assocaited labels
         if (found_label):
-            (is_branch, branch_label) = check_cond_branch(line)
+            (is_branch, branch_label) = check_pred_branch(line)
             if (is_branch):
                 # remote this line and then search future lines for the label
                 cached_src_file[i] = removed_line(line)

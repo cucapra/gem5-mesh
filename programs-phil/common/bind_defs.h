@@ -85,6 +85,16 @@
 #define TERMINATE_BLOCK() \
   asm volatile(".insn i 0x1b, 0x7, x0, x0, 0\n\t")
 
+// Programmer must ensure if's go the same way
+// and CANNOT use beqz instructions (due to vissue-asm.py predication block handling)
+#define CONVERGENT_IF(cond) \
+  if (cond)
+
+#define CONVERGENT_ELIF(cond) \
+  else if (cond)
+
+#define CONVERGENT_ELSE \
+  else
 
   // revec instruction with unique hash id
 /*#define REVEC(hash)                                                           \

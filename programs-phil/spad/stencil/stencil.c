@@ -30,7 +30,11 @@
 
 #ifdef VERTICAL_LOADS
 // number of filters done per iteration per core
+#ifdef REUSE
+#define CORE_STEP LOAD_DEPTH
+#else
 #define CORE_STEP (LOAD_DEPTH - (FILTER_DIM - 1))
+#endif
 #endif
 
 inline int min(int a, int b) {
@@ -57,46 +61,55 @@ inline void completeHardwareFrame(int spadIdx, int *someData) {
 
 #ifdef USE_VEC
 void __attribute__((optimize("-fno-reorder-blocks")))
-stencil(
-    DTYPE *a, DTYPE *b, DTYPE *c, int start_row, int end_row, int ncols,
-    int ptid, int vtid, int dim, int mask) {
+stencil_vector(
+    DTYPE *a, DTYPE *b, DTYPE *c, int start_row, int end_row, int eff_cols, int ncols,
+    int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y, int mask) {
 
   // TODO fails if put this here... sigh
   // // how much we're actually going to do (ignore edges)
   // // TODO can we use predication instead?
   // int effCols = ncols - (FILTER_DIM - 1);
 
+  int dim = vdim_x * vdim_y;
+  int vtid = vtid_x + vtid_y * vdim_x;
+
   #ifdef REUSE
-  int step = dim*FILTER_DIM;
+  int step = dim*FILTER_DIM - (FILTER_DIM - 1);
   #elif defined(VERTICAL_LOADS)
   int step = CORE_STEP*dim;
   #else
   int step = dim;
   #endif
 
+  // TODO better way to do this for arbitrary groups
   #ifdef REUSE
   // calculate prev and next spAddr for reuse
   int *prevSpadAddr = NULL;
   int *nextSpadAddr = NULL;
-  if (vtid == 1 || vtid == 3) prevSpadAddr = (int*)getSpAddr(ptid - 1, 0);
-  else if (vtid == 2) prevSpadAddr = (int*)getSpAddr(ptid - 3, 0); // GRID_DIM = 4 - 1 = 3
-  if (vtid == 0 || vtid == 2) nextSpadAddr = (int*)getSpAddr(ptid + 1, 0);
-  if (vtid == 1) nextSpadAddr = (int*)getSpAddr(ptid + 3, 0);
+  if (vtid != 0) {
+    if (vtid_x == 0) prevSpadAddr = (int*)getSpAddr(ptid - (GRID_XDIM - (vdim_x - 1)), 0);
+    else prevSpadAddr = (int*)getSpAddr(ptid - 1, 0);
+  }
+  if (vtid != dim - 1) {
+    if (vtid_x == vdim_x - 1) nextSpadAddr = (int*)getSpAddr(ptid + (GRID_XDIM - (vdim_x - 1)), 0);
+    else nextSpadAddr = (int*)getSpAddr(ptid + 1, 0);
+  }
+  // if (vtid == 1 || vtid == 3) prevSpadAddr = (int*)getSpAddr(ptid - 1, 0);
+  // else if (vtid == 2) prevSpadAddr = (int*)getSpAddr(ptid - (GRID_XDIM - 1), 0); // GRID_DIM = 4 - 1 = 3
+  // if (vtid == 0 || vtid == 2) nextSpadAddr = (int*)getSpAddr(ptid + 1, 0);
+  // if (vtid == 1) nextSpadAddr = (int*)getSpAddr(ptid + (GRID_XDIM - 1), 0);
+  #endif
 
-  // start offset for cptr
-  int startOffset = 0;
-  if (vtid == 0) startOffset = -1;
-  else if (vtid == 1) startOffset = 2;
-  else if (vtid == 2) startOffset = 5;
-  else if (vtid == 3) startOffset = 8;
+  #ifdef REUSE
+  int startOffset = vtid * FILTER_DIM - 1;
   #else
   int startOffset = vtid * (step/dim);
   #endif
 
-  #ifdef VERTICAL_LOADS
-  int frameSize = REGION_SIZE;
+  #ifdef LARGE_FRAME
+  int frameSize = REGION_SIZE / FRAMES_PER_REGION;
   #else
-  int frameSize = FILTER_DIM * FILTER_DIM;
+  int frameSize = REGION_SIZE;
   #endif
 
   volatile int ohjeez = 1;
@@ -117,7 +130,7 @@ stencil(
 
   // how much we're actually going to do (ignore edges)
   // TODO can we use predication instead?
-  int effCols = ncols - (FILTER_DIM - 1);
+  int effCols = eff_cols;
 
   // do initial batch of prefetching. only prefetch part of the first row
   // you need to guarentee that a full region worth of frames are in flight before issuing a block that will consume
@@ -129,7 +142,6 @@ stencil(
   #endif
 
   int beginCol = min(prefetchFrames * step, effCols);
-  #ifndef REUSE
   for (int r = start_row; r < start_row + 1; r++) {
     #ifdef VERTICAL_LOADS
     // exhibit temporal reuse within a frame in a cacheline (16) can do 16-2=14 3x1 filters
@@ -164,60 +176,7 @@ stencil(
     }
     #endif
   }
-  #else
-  for (int r = start_row; r < start_row + 1; r++) {
-    int c = 0;
-    while (c < beginCol) {
-    // for (int c = 0; c < beginCol; c+=dim*FILTER_DIM) {
-      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
 
-        // do the three loads for the first core, which is somewhat complicated
-        // because needs individually picked loads
-        int core0Idx = (r + k1) * ncols + c;
-        if (c == 0) {
-          // printf("fetch base sp %d addr %d\n", spadIdx, core0Idx);
-          VPREFETCH_L(spadIdx + 0, a + core0Idx + 0, 0, 1, 0);
-          VPREFETCH_L(spadIdx + 1, a + core0Idx + 1, 0, 1, 0);
-          VPREFETCH_L(spadIdx + 2, a + core0Idx + 2, 0, 1, 0);
-
-          for (int k2 = 0; k2 < FILTER_DIM; k2++) {
-            int aIdx = (r + k1) * ncols + (c + FILTER_DIM + (k2 * (dim - 1)));
-            // printf("c==0: r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
-
-            VPREFETCH_L(spadIdx, a + aIdx, 1, 3, 0);
-            VPREFETCH_R(spadIdx, a + aIdx, 1, 3, 0);
-            spadIdx++;
-          }
-        }
-        else {
-          VPREFETCH_L(spadIdx, a + core0Idx - 1 - (dim - 1), 0, 1, 0);
-          VPREFETCH_L(spadIdx + 1, a + core0Idx - 1, 0, 1, 0);
-          VPREFETCH_L(spadIdx + 2, a + core0Idx, 0, 1, 0);
-
-          for (int k2 = 0; k2 < FILTER_DIM; k2++) {
-            int aIdx = (r + k1) * ncols + (c + 1 + (k2 * (dim - 1)));
-            // printf("c!=0: r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
-
-            VPREFETCH_L(spadIdx, a + aIdx, 1, 3, 0);
-            VPREFETCH_R(spadIdx, a + aIdx, 1, 3, 0);
-            spadIdx++;
-          }
-        }
-
-         
-      }
-      // TODO sometimes its not this
-      if (c == 0) {
-        c+=FILTER_DIM*dim;
-      }
-      else {
-        c+=FILTER_DIM*(dim-1) + 1;
-      }
-    }
-  }
-  #endif
-
-  #ifndef REUSE
   for (int r = start_row; r < end_row; r++) {
     int startCol = 0;
     // we've prefetch part of the first row to get ahead
@@ -225,10 +184,11 @@ stencil(
     #ifdef VERTICAL_LOADS
     for (int c = startCol; c < effCols; c+=step) {
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        int aIdx = (r + k1) * ncols + c;
         for (int core = 0; core < dim; core++) {
-          VPREFETCH_L(spadIdx, a + aIdx + core * CORE_STEP, core, LOAD_DEPTH, 1);
-          VPREFETCH_R(spadIdx, a + aIdx + core * CORE_STEP, core, LOAD_DEPTH, 1);
+          int aIdx = (r + k1) * ncols + c + core * CORE_STEP;
+          // printf("mid issue r %d c %d k1 %d core %d, depth %d, aIdx %d\n", r, c, k1, core, LOAD_DEPTH, aIdx);
+          VPREFETCH_L(spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
+          VPREFETCH_R(spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
         }
         spadIdx+=LOAD_DEPTH;
       }
@@ -253,8 +213,8 @@ stencil(
           VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
           VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
           #else
-          // VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
-          // VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
+          // printf("mid prelw sp %d r %d c %d k1 %d k2 %d idx %d\n", spadIdx, r, c, k1, k2, aIdx);
+
           for (int p = 0; p < pRatio; p++) {
             VPREFETCH_L(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
             VPREFETCH_R(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
@@ -275,65 +235,6 @@ stencil(
     }
     #endif
   }
-  #elif defined(REUSE)
-  for (int r = start_row; r < end_row; r++) {
-    int startCol = 0;
-    // we've prefetch part of the first row to get ahead
-    if (r == start_row) startCol = beginCol;
-    int c = startCol;
-    while (c < effCols) {
-    // for (int c = 0; c < beginCol; c+=dim*FILTER_DIM) {
-      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-
-        // do the three loads for the first core, which is somewhat complicated
-        // because needs individually picked loads
-        int core0Idx = (r + k1) * ncols + c;
-        if (c == 0) {
-          VPREFETCH_L(spadIdx + 0, a + core0Idx + 0, 0, 1, 0);
-          VPREFETCH_L(spadIdx + 1, a + core0Idx + 1, 0, 1, 0);
-          VPREFETCH_L(spadIdx + 2, a + core0Idx + 2, 0, 1, 0);
-
-          for (int k2 = 0; k2 < FILTER_DIM; k2++) {
-            int aIdx = (r + k1) * ncols + (c + FILTER_DIM + (k2 * (dim - 1)));
-            // printf("c==0: r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
-
-            VPREFETCH_L(spadIdx, a + aIdx, 1, 3, 0);
-            VPREFETCH_R(spadIdx, a + aIdx, 1, 3, 0);
-            spadIdx++;
-          }
-        }
-        else {
-          VPREFETCH_L(spadIdx, a + core0Idx - 1 - (dim - 1), 0, 1, 0);
-          VPREFETCH_L(spadIdx + 1, a + core0Idx - 1, 0, 1, 0);
-          VPREFETCH_L(spadIdx + 2, a + core0Idx, 0, 1, 0);
-
-          for (int k2 = 0; k2 < FILTER_DIM; k2++) {
-            int aIdx = (r + k1) * ncols + (c + 1 + (k2 * (dim - 1)));
-            // printf("c!=0: r %d c %d k1 %d k2 %d idx %d\n", r, c, k1, k2, aIdx);
-
-            VPREFETCH_L(spadIdx, a + aIdx, 1, 3, 0);
-            VPREFETCH_R(spadIdx, a + aIdx, 1, 3, 0);
-            spadIdx++;
-          }
-        }
-         
-      }
-      // TODO sometimes its not this
-      if (c == 0) {
-        c+=FILTER_DIM*dim;
-      }
-      else {
-        c+=FILTER_DIM*(dim-1) + 1;
-      }
-
-      if (spadIdx == POST_REGION_WORD) {
-        spadIdx = 0;
-      }
-
-      ISSUE_VINST(fable1);
-    }
-  }
-  #endif
 
   #ifdef LARGE_FRAME
   completeHardwareFrame(spadIdx, a);
@@ -345,6 +246,7 @@ stencil(
     int colStart = effCols;
     if (r == end_row - 1) colStart = effCols - beginCol;
     for (int c = colStart; c < effCols; c+=step) {
+      // printf("issue\n");
       ISSUE_VINST(fable1);
     }
   }
@@ -364,10 +266,12 @@ stencil(
   DTYPE a_, b_, c_;
   int64_t baseIdx, frameStart, spIdx; // avoids sext.w instruction when doing broadcast // TODO maybe should be doing rv32
   DTYPE *cPtr;
+  int colCntr;
   DTYPE b0, b1, b2, b3, b4, b5, b6, b7, b8;
   DTYPE a0, a1, a2, a3, a4, a5, a6, a7, a8;
-  int *spadAddr; // important don't share this variable with above!
-
+  int *spadAddr;
+  int unmappedColLen;
+  
   // entry block
   // load the full filter into spad
   fable0:
@@ -380,6 +284,8 @@ stencil(
 
     cPtr = c + (start_row * (ncols-(FILTER_DIM-1))) + startOffset;
     spadAddr = (int*)getSpAddr(ptid, 0);
+    colCntr = 0;
+    unmappedColLen = ncols-(FILTER_DIM-1) - eff_cols;
 
     b0 = b[0];
     b1 = b[1];
@@ -454,7 +360,7 @@ stencil(
     PRED_EQ(vtid, vtid);
 
     // fetch one column from the right to perform rightmost computation
-    PRED_NEQ(vtid, 3); // last core in group can't do this
+    PRED_NEQ(vtid, dim - 1); // last core in group can't do this
     if (ohjeez) { 
     c_ = 0;
     c_ += b0 * spData1;
@@ -471,7 +377,13 @@ stencil(
     PRED_EQ(vtid, vtid);
 
     // 10 results are computed per reuse iteration
-    cPtr+=FILTER_DIM*dim - 2;
+    // cPtr+=step;
+    cPtr += step;
+    colCntr+=step;
+    CONVERGENT_IF(colCntr == eff_cols) {
+      colCntr = 0;
+      cPtr += unmappedColLen;
+    }
 
     #elif defined(VERTICAL_LOADS)
     #pragma GCC unroll(14)
@@ -489,7 +401,13 @@ stencil(
       c_ += b8 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 2];
       STORE_NOACK(c_, cPtr + i, 0);
     }
+
     cPtr += step;
+    colCntr+=step;
+    CONVERGENT_IF(colCntr == eff_cols) {
+      colCntr = 0;
+      cPtr += unmappedColLen;
+    }
     #else
     // #pragma GCC unroll 9
     // for (int i = 0; i < FILTER_DIM * FILTER_DIM; i++) {
@@ -509,7 +427,13 @@ stencil(
     c_ += b8 * spadAddr[spIdx + 8];
 
     STORE_NOACK(c_, cPtr, 0);
+    // cPtr += dim;
     cPtr += dim;
+    colCntr+=dim;
+    CONVERGENT_IF(colCntr == eff_cols) {
+      colCntr = 0;
+      cPtr += unmappedColLen;
+    }
     #endif
 
     REMEM(frameSize);
@@ -519,70 +443,16 @@ stencil(
     // need this jump to create loop carry dependencies
     // an assembly pass will remove this instruction
     asm volatile goto("j %l[fable1]\n\t"::::fable1);
-  // #else
-  // fable1:
-  //   // fetch one column from the left to perform leftmost computation
-  //   c_ = 0;
-  //   spIdx = spIdx % POST_REGION_WORD;
-  //   FRAME_START(frameSize);
-  //   c_ += b0 * nextSpadAddr[spIdx + 6];
-  //   c_ += b1 * nextSpadAddr[spIdx + 7];
-  //   c_ += b2 * nextSpadAddr[spIdx + 8];
-  //   c_ += b3 * spadAddr[spIdx + 0];
-  //   c_ += b4 * spadAddr[spIdx + 1];
-  //   c_ += b5 * spadAddr[spIdx + 2];
-  //   c_ += b6 * spadAddr[spIdx + 3];
-  //   c_ += b7 * spadAddr[spIdx + 4];
-  //   c_ += b8 * spadAddr[spIdx + 5];
-  //   STORE_NOACK(c_, cPtr, 0);
-  //   cPtr++;
-  // fable2:
-  //   // center computation with local values
-  //   c_ = 0;
-  //   spIdx = spIdx % POST_REGION_WORD;
-  //   FRAME_START(frameSize);
-  //   c_ += b0 * spadAddr[spIdx + 0];
-  //   c_ += b1 * spadAddr[spIdx + 1];
-  //   c_ += b2 * spadAddr[spIdx + 2];
-  //   c_ += b3 * spadAddr[spIdx + 3];
-  //   c_ += b4 * spadAddr[spIdx + 4];
-  //   c_ += b5 * spadAddr[spIdx + 5];
-  //   c_ += b6 * spadAddr[spIdx + 6];
-  //   c_ += b7 * spadAddr[spIdx + 7];
-  //   c_ += b8 * spadAddr[spIdx + 8];
-  //   STORE_NOACK(c_, cPtr, 0);
-  //   cPtr++;
-
-  // fable3:
-  //   // fetch one column from the right to perform rightmost computation
-  //   c_ = 0;
-  //   spIdx = spIdx % POST_REGION_WORD;
-  //   FRAME_START(frameSize);
-  //   c_ += b0 * spadAddr[spIdx + 3];
-  //   c_ += b1 * spadAddr[spIdx + 4];
-  //   c_ += b2 * spadAddr[spIdx + 5];
-  //   c_ += b3 * spadAddr[spIdx + 6];
-  //   c_ += b4 * spadAddr[spIdx + 7];
-  //   c_ += b5 * spadAddr[spIdx + 8];
-  //   c_ += b6 * prevSpadAddr[spIdx + 0];
-  //   c_ += b7 * prevSpadAddr[spIdx + 1];
-  //   c_ += b8 * prevSpadAddr[spIdx + 2];
-  //   STORE_NOACK(c_, cPtr, 0);
-  //   cPtr+=dim*3;
-  //   REMEM(frameSize);
-  //   spIdx += frameSize;
-  //   asm volatile goto("j %l[fable1]\n\t"::::fable1);
-  // #endif
 
   return;
 }
-#else
+#endif
+
 void /*__attribute__((optimize("-freorder-blocks-algorithm=simple"), optimize("-fno-inline"))) */
-stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, int dim, int row_start, int row_end) {
-  int outputCols = ncols - (FILTER_DIM - 1);
+stencil_manycore(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int col_start, int col_end, int ncols, int ptid, int vtid, int dim, int row_start, int row_end) {
   for (int row = row_start; row < row_end; row++) {
     // #pragma GCC unroll 4
-    for (int col = 0; col < outputCols; col++) {
+    for (int col = col_start; col < col_end; col++) {
       int temp = 0;
       #pragma GCC unroll 3
       for (int k1 = 0; k1 < FILTER_DIM; k1++) {
@@ -593,12 +463,11 @@ stencil(DTYPE *a, DTYPE *b, DTYPE *c, int nrows, int ncols, int ptid, int vtid, 
           temp += a[aIdx] * b[bIdx];
         }
       }
-      int cIdx = row * outputCols + col;
+      int cIdx = row * (ncols-(FILTER_DIM-1)) + col;
       c[cIdx] = temp;
     }
   }
 }
-#endif // VECTOR_SIMD
 
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
@@ -651,8 +520,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // TODO should use alignment
   if (used) {
-    start = (unique_id + 0) * effRows / total_groups;
-    end   = (unique_id + 1) * effRows / total_groups;
+    start = ( (unique_id + 0) * effRows ) / total_groups;
+    end   = ( (unique_id + 1) * effRows ) / total_groups;
   }
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used); 
@@ -666,8 +535,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
 
   if (used) {
-    start = (unique_id + 0) * effRows / total_groups;
-    end   = (unique_id + 1) * effRows / total_groups;
+    start = ( (unique_id + 0) * effRows ) / total_groups;
+    end   = ( (unique_id + 1) * effRows ) / total_groups;
   }
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 16, vdim_x, vdim_y, start, end, used); 
@@ -706,6 +575,28 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   pthread_barrier_wait(&start_barrier);
   #endif
 
+  // each vector group size is rated to do a certain problem size and multiples of that problem size
+  // for the mod of this we need to do the rest on the flexible manycore version
+  int rated_size = 0;
+  #ifdef REUSE
+  rated_size = ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1) );
+  #elif defined(VERTICAL_LOADS)
+  rated_size = ( VECTOR_LEN * CORE_STEP );
+  #elif defined(VECTOR_LEN)
+  rated_size = ( VECTOR_LEN * FILTER_DIM );
+  #else
+  rated_size = 1;
+  #endif
+
+  // cols without the edge case
+  int eff_len = ncols - (FILTER_DIM - 1);
+  // mapped len is schedule on main config, unmapped will be scheduled on base manycore
+  int unmapped_len = eff_len % rated_size;
+  int mapped_len = eff_len - unmapped_len;
+
+  // if (ptid == 0)
+  //   printf("size %d rated size %d mapped %d unmapped %d\n", eff_len, rated_size, mapped_len, unmapped_len);
+
   // only let certain tids continue
   #if defined(USE_VEC)
   if (used == 0) return;
@@ -717,7 +608,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // store the the current spAddr to restore later 
   unsigned long long *spTop = getSpTop(ptid);
   // guess the remaining of the part of the frame that might be needed??
-  spTop -= 6;
+  spTop -= 12;
 
   unsigned long long stackLoc;
   asm volatile (
@@ -735,6 +626,18 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     "sd t0, 32(%[spad])\n\t"
     "ld t0, 40(sp)\n\t"
     "sd t0, 40(%[spad])\n\t"
+    "ld t0, 48(sp)\n\t"
+    "sd t0, 48(%[spad])\n\t"
+    "ld t0, 56(sp)\n\t"
+    "sd t0, 56(%[spad])\n\t"
+    "ld t0, 64(sp)\n\t"
+    "sd t0, 64(%[spad])\n\t"
+    "ld t0, 72(sp)\n\t"
+    "sd t0, 72(%[spad])\n\t"
+    "ld t0, 80(sp)\n\t"
+    "sd t0, 80(%[spad])\n\t"
+    "ld t0, 88(sp)\n\t"
+    "sd t0, 88(%[spad])\n\t"
     // save the stack ptr
     "addi %[dest], sp, 0\n\t" 
     // overwrite stack ptr
@@ -744,9 +647,13 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   );
 
   #ifdef USE_VEC
-  stencil(a, b, c, start, end, ncols, ptid, vtid, vdim, mask);
+  // do computation that we can map
+  stencil_vector(a, b, c, start, end, mapped_len, ncols, ptid, vtid_x, vtid_y, vdim_x, vdim_y, mask);
+
+  // do remainder of computation starting from offset
+  stencil_manycore(a, b, c, nrows, mapped_len, mapped_len + unmapped_len, ncols, ptid, vtid, vdim, start, end);
   #else
-  stencil(a, b, c, nrows, ncols, ptid, vtid, vdim, start, end);
+  stencil_manycore(a, b, c, nrows, 0, mapped_len, ncols, ptid, vtid, vdim, start, end);
   #endif
 
   // restore stack pointer
