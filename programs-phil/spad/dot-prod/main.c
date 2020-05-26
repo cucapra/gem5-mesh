@@ -81,6 +81,7 @@ int main(int argc, char *argv[]) {
   // sum{1_n}(k^2) = n * ( n + 1 ) * ( 2n + 1 ) / 6
   int n = len;
   if (c[0] != (n * (n + 1) * (2*n + 1)) / 6) {
+    printf("%d != %d\n", c[0], (n * (n + 1) * (2*n + 1)) / 6);
     printf("[[FAIL]]\n");
     return 1;
   }

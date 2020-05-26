@@ -32,41 +32,56 @@ int local_dot_manycore(DTYPE *a, DTYPE *b, int start, int end) {
   return partialSum;
 }
 
-// // a shared buffer is just written once and then done
-// typedef struct shared_buffer {
-//   void *basePtr;
-//   int size;
-// } shared_buffer_t;
 
-// // want to have token queue helpers to facilitate memory transfer for manycore code
-// void init_shared_buffer_consumer(int consumerCore, int offset, int numWords, shared_buffer_t *buf) {
-//   buf->basePtr = getSpAddr(consumerCore, offset);
-//   buf->size = numWords;
-//   int *doneFlagPtr = (int*)buf->basePtr + buf->size;
-//   *doneFlagPtr = 0; // set done flag to 0
-// }
+int  __attribute__((optimize("-fno-reorder-blocks")))
+ local_dot_vector(DTYPE *a, DTYPE *b, int vtid, int start, int end, int mask) {
 
-// void init_shared_buffer_producer(int consumerCore, int offset, int numWords, shared_buffer_t *buf) {
-//   buf->basePtr = getSpAddr(consumerCore, offset);
-//   buf->size = numWords;
-// }
+  volatile int sum = 0;
 
-// // consumer tries to read token queue, only return ptr when data is ready
-// void *consume_shared_buffer(shared_buffer_t *buf) {
-//   int *doneFlagPtr = (int*)buf->basePtr + buf->size;
-//   while (*doneFlagPtr != 1) {}
+  // prevents code from being reordered :|
+  volatile int ohjeez = 1;
+  if (ohjeez) {
 
-//   return buf->basePtr;
-// }
+  // goto vector mode
+  VECTOR_EPOCH(mask);
+  
+  // issue header block
+  ISSUE_VINST(fable0);
 
-// // producer pushes to consumer once ready
-// void produce_shared_buffer(shared_buffer_t *buf, void *mem, int numWords) {
-//   for (int i = 0; i < numWords; i++) {
-//     ((int*)(buf->basePtr))[i] = ((int*)(mem))[i];
-//   }
-//   int *doneFlagPtr = (int*)buf->basePtr + buf->size;
-//   *doneFlagPtr = 1;
-// }
+  // issue loop body block
+  for (int i = start; i < end; i+=VECTOR_LEN) {
+    ISSUE_VINST(fable1);
+  }
+
+  // devec with unique tag
+  DEVEC(devec_0);
+
+  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
+  asm volatile("fence\n\t");
+  
+  return sum;
+  }
+
+  // vector engine code
+
+  // declarations
+  DTYPE a_, b_, iter;
+  DTYPE *aPtr, *bPtr;
+
+  // header
+  fable0:
+    iter = 0;
+    aPtr = a + start + vtid;
+    bPtr = b + start + vtid;
+
+  // body
+  fable1:
+    a_ = aPtr[iter];
+    b_ = bPtr[iter];
+    sum += a_ * b_;
+    iter+=VECTOR_LEN;
+    asm volatile goto("j %l[fable1]\n\t"::::fable1);
+}
 
 // to support a circular queue instead, would need to have a head and tail pointer for both producer and consumer along with data
 // producer updates where head pointer is and consumer updates wehere tail pointer is (would need to inform both producer and consumer of each pointer change)
@@ -276,54 +291,123 @@ void produce_tokens(token_queue_t *tq, int numTokens, int coreId) {
   *get_tail_ptr(tq, coreId) = newTailPtr;
   *get_other_tail_ptr(tq, coreId) = newTailPtr;
 
-  // printf("tid %d produce tokens %d new tail ptr %d == %d addr %p %p\n", 
-  //   coreId, numTokens, *get_tail_ptr(tq, coreId), *get_other_tail_ptr(tq, coreId), 
-  //   get_tail_ptr(tq, coreId), get_other_tail_ptr(tq, coreId));
+  printf("tid %d produce tokens %d new tail ptr %d == %d addr %p %p\n", 
+    coreId, numTokens, *get_tail_ptr(tq, coreId), *get_other_tail_ptr(tq, coreId), 
+    get_tail_ptr(tq, coreId), get_other_tail_ptr(tq, coreId));
 }
 
 // parallel reduction in a dataflow like manner using token queues
-void reduce_manycore(int partialSum, DTYPE *c, int tid, int dim, token_queue_t *cons0, token_queue_t *cons1, token_queue_t *prod) {
+void reduce_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim, token_queue_t *cons0, token_queue_t *cons1, token_queue_t *prod) {
   
+  // printf("tid %d vtid %d start\n", ptid, activeTid);
+
   int sum = partialSum;
 
-  if (tid == 0) {
-    int t = wait_tokens_consumer(cons1, 1, tid);
-    int *data = (int*)get_token(cons1, t, tid);
+  if (activeTid == 0) {
+    // depending on size might have sligtly different end behavior
+    // #ifdef NO_VEC
+    // printf("tid %d vtid %d wait\n", ptid, activeTid);
+    int t = wait_tokens_consumer(cons1, 1, ptid);
+    int *data = (int*)get_token(cons1, t, ptid);
     sum += data[0];
+    // #else
+    // printf("tid %d vtid %d wait\n", ptid, activeTid);
+    // int t0 = wait_tokens_consumer(cons0, 1, ptid);
+    // int t1 = wait_tokens_consumer(cons1, 1, ptid);
+    // printf("tid %d vtid %d consume\n", ptid, activeTid);
+    // int *data0 = (int*)get_token(cons0, t0, ptid);
+    // int *data1 = (int*)get_token(cons1, t1, ptid);
+    // sum += data0[0] + data1[0];
+    // consume_tokens(cons0, 1, ptid);
+    // consume_tokens(cons1, 1, ptid);
+    // #endif
     *c = sum;
-    consume_tokens(cons1, 1, tid);
+    consume_tokens(cons1, 1, ptid);
   }
   else {
     // lower half consumes
-    if (tid < dim / 2) {
-      int t0 = wait_tokens_consumer(cons0, 1, tid);
-      int t1 = wait_tokens_consumer(cons1, 1, tid);
-      int *data0 = (int*)get_token(cons0, t0, tid);
-      int *data1 = (int*)get_token(cons1, t1, tid);
-      // printf("tid %d get tokens %d %d\n", tid, data0[0], data1[0]);
+    if (activeTid < dim / 2) {
+      int t0 = wait_tokens_consumer(cons0, 1, ptid);
+      int t1 = wait_tokens_consumer(cons1, 1, ptid);
+      int *data0 = (int*)get_token(cons0, t0, ptid);
+      int *data1 = (int*)get_token(cons1, t1, ptid);
+      // printf("tid %d vtid %d get tokens %d %d\n", ptid, activeTid, data0[0], data1[0]);
       sum += data0[0] + data1[0];
-      consume_tokens(cons0, 1, tid);
-      consume_tokens(cons1, 1, tid);
+      consume_tokens(cons0, 1, ptid);
+      consume_tokens(cons1, 1, ptid);
     }
 
     // everyone produces, except for tid0 who does the writeback
-    int tokenOffset = wait_tokens_producer(prod, 1, tid);
-    set_token(prod, sum, tokenOffset, tid);
-    produce_tokens(prod, 1, tid);
-    // printf("tid %d produce tokens %d\n", tid, sum);
+    int tokenOffset = wait_tokens_producer(prod, 1, ptid);
+    set_token(prod, sum, tokenOffset, ptid);
+    produce_tokens(prod, 1, ptid);
+    // printf("tid %d vtid %d produce tokens %d\n", ptid, activeTid, sum);
   }
   
 
-  // printf("tid %d finish\n", tid);
+  // printf("tid %d vtid %d finish\n", ptid, activeTid);
 
 }
 
 // based on id (in manycore its the ptid, in vector its the group id + vtid)
 // figure out where to send your data to be reduced by another core
+#ifdef NO_VEC
 int get_reduction_dest(int src_id) {
   // pattern is to half your id and send to that id
   return src_id / 2;
 }
+#else
+// TODO need to define this for every group size
+void group_id_to_origin(int group_id, int *x, int *y) {
+  if (group_id == 0) {
+    *x = 1;
+    *y = 0;
+  }
+  else if (group_id == 1) {
+    *x = 0;
+    *y = 2;
+  }
+  else if (group_id == 2) {
+    *x = 2;
+    *y = 2;
+  }
+  else {
+    printf("fail bro");
+  }
+}
+
+int get_ptid_from_group(int group_id, int vid_x, int vid_y, int phys_dim_x) {
+  int x,y;
+  group_id_to_origin(group_id, &x, &y);
+  x += vid_x;
+  y += vid_y;
+  return y * phys_dim_x + x;
+}
+
+// a little more complicated to get when there's vector groups
+int get_reduction_dest(int group_id, int vid_x, int vid_y, int virt_dim_x, int phys_dim_x, int *active_tid) {
+  // get a flat id from group and vid
+  int vid = vid_y * virt_dim_x + vid_x;
+  int src = group_id * VECTOR_LEN + vid;
+  // divide by two as in manycore case
+  int dest = src / 2;
+  // get the ptid corresponding to this group
+  int dest_group_id = dest / VECTOR_LEN;
+  int dest_vid = dest % VECTOR_LEN;
+  int dest_vid_x = dest_vid % virt_dim_x;
+  int dest_vid_y = dest_vid / virt_dim_x;
+  int ptid = get_ptid_from_group(dest_group_id, dest_vid_x, dest_vid_y, phys_dim_x);
+  
+  *active_tid = src;
+
+
+
+  // if (!tempda) printf("tid %d group %d vid %d %d,%d src %d -- dest %d destgroups %d destvid %d %d,%d ptid %d\n", 
+    // temptid, group_id, vid, vid_x, vid_y, src, dest, dest_group_id, dest_vid, dest_vid_x, dest_vid_y, ptid);
+
+  return ptid;
+}
+#endif
 
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
@@ -376,8 +460,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // TODO should use alignment
   if (used) {
-    start = ( (unique_id + 0) * effRows ) / total_groups;
-    end   = ( (unique_id + 1) * effRows ) / total_groups;
+    start = ( (unique_id + 0) * len ) / total_groups;
+    end   = ( (unique_id + 1) * len ) / total_groups;
   }
 
   // num_partial_sums = total_groups * VECTOR_LEN;
@@ -393,8 +477,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
 
   if (used) {
-    start = ( (unique_id + 0) * effRows ) / total_groups;
-    end   = ( (unique_id + 1) * effRows ) / total_groups;
+    start = ( (unique_id + 0) * len ) / total_groups;
+    end   = ( (unique_id + 1) * len ) / total_groups;
   }
 
   // num_partial_sums = total_groups * VECTOR_LEN;
@@ -429,15 +513,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
-  #ifdef NUM_REGIONS
-  int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
-  PREFETCH_EPOCH(prefetchMask);
-
-  // make sure all cores have done this before begin kernel section --> do thread barrier for now
-  // TODO hoping for a cleaner way to do this
-  pthread_barrier_wait(&start_barrier);
-  #endif
-
   // setup token queues
   // TODO lightweight scratchpad memory allocator
   int spmOffset = 100;
@@ -448,12 +523,20 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   token_queue_t consumer0;
   token_queue_t consumer1;
   token_queue_t producer;
+
+  #ifdef NO_VEC
+  int activeTid = ptid;
   int pairTid = get_reduction_dest(ptid); 
+  #else
+  int activeTid;
+  int pairTid = get_reduction_dest(unique_id, vtid_x, vtid_y, vdim_x, pdim_x, &activeTid);
+  #endif
+
   init_token_queue_consumer(spmOffset + tqWords * 0, bufSize, ptid, &consumer0);
   init_token_queue_consumer(spmOffset + tqWords * 1, bufSize, ptid, &consumer1);
 
   int pairOffset;
-  if (ptid % 2 == 0) {
+  if (activeTid % 2 == 0) {
     pairOffset = spmOffset + tqWords * 0;
   }
   else {
@@ -462,23 +545,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   init_token_queue_producer(spmOffset + tqWords * 2, pairOffset, bufSize, ptid, pairTid, &producer);
 
   pthread_barrier_wait(&start_barrier);
-
-  // each vector group size is rated to do a certain problem size and multiples of that problem size
-  // for the mod of this we need to do the rest on the flexible manycore version
-  int rated_size = 0;
-  #ifdef REUSE
-  rated_size = ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1) );
-  #elif defined(VERTICAL_LOADS)
-  rated_size = ( VECTOR_LEN * CORE_STEP );
-  #elif defined(VECTOR_LEN)
-  rated_size = ( VECTOR_LEN * FILTER_DIM );
-  #else
-  rated_size = 1;
-  #endif
-
-  // mapped len is schedule on main config, unmapped will be scheduled on base manycore
-  int unmapped_len = len % rated_size;
-  int mapped_len = len - unmapped_len;
 
   // if (ptid == 0)
   //   printf("size %d rated size %d mapped %d unmapped %d\n", eff_len, rated_size, mapped_len, unmapped_len);
@@ -512,10 +578,19 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       : [ spad ] "r"(spTop));
 
   // accumulate partial sums locally
+  #ifdef NO_VEC
   int partialSum = local_dot_manycore(a, b, start, end);
-  
+  #else
+  int partialSum = local_dot_vector(a, b, vtid, start, end, mask);
+  #endif
 
-  // printf("tid %d psum %d red_tid %d\n", ptid, partialSum, pairTid);
+  #ifdef NO_VEC
+  int active_dim = pdim;
+  #else
+  int active_dim = total_groups * VECTOR_LEN;
+  #endif
+
+  printf("tid %d psum %d red_tid %d activeId %d activeDim %d\n", ptid, partialSum, pairTid, activeTid, active_dim);
 
   // the core who does the reduction doesn't need to wait for iteself
   // num_partial_sums--;
@@ -529,8 +604,11 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // // TODO hoping for a cleaner way to do this
   // pthread_barrier_wait(&start_barrier);
 
+  #ifdef VECTOR_LEN
+  if (!is_da) // scalar cores don't have data to accumulate so should not partcipate
+  #endif
   // // do reduction across cores (currently just send all to a single core rather than reduction tree)
-  reduce_manycore(partialSum, c, ptid, pdim, &consumer0, &consumer1, &producer);
+  reduce_manycore(partialSum, c, ptid, activeTid, active_dim, &consumer0, &consumer1, &producer);
 
 
   // restore stack pointer
