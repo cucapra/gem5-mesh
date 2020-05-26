@@ -191,6 +191,7 @@ MeshHelper::csrToInSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &di
   }
   else {
     assert(0);
+    return false;
   }
 }
 
@@ -205,6 +206,7 @@ MeshHelper::csrToOutDests(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &
   }
   else {
     assert(0);
+    return false;
   }
 }
 

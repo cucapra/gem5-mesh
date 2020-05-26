@@ -74,9 +74,12 @@ Decode::doDecode()
   // of credits to the next stage
   while (!m_insts.empty() && m_num_credits > 0) {
     IODynInstPtr inst = m_insts.front();
+
+    #ifndef NDEBUG
     ThreadID tid = inst->thread_id;
     DPRINTF(Decode, "[tid:%d] Decoding inst [sn:%lli] with PC %s\n",
                     tid, inst->seq_num, inst->pc);
+    #endif
 
     // send out this inst
     sendInstToNextStage(inst);
