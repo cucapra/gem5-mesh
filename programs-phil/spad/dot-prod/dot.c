@@ -291,9 +291,9 @@ void produce_tokens(token_queue_t *tq, int numTokens, int coreId) {
   *get_tail_ptr(tq, coreId) = newTailPtr;
   *get_other_tail_ptr(tq, coreId) = newTailPtr;
 
-  printf("tid %d produce tokens %d new tail ptr %d == %d addr %p %p\n", 
-    coreId, numTokens, *get_tail_ptr(tq, coreId), *get_other_tail_ptr(tq, coreId), 
-    get_tail_ptr(tq, coreId), get_other_tail_ptr(tq, coreId));
+  // printf("tid %d produce tokens %d new tail ptr %d == %d addr %p %p\n", 
+  //   coreId, numTokens, *get_tail_ptr(tq, coreId), *get_other_tail_ptr(tq, coreId), 
+  //   get_tail_ptr(tq, coreId), get_other_tail_ptr(tq, coreId));
 }
 
 // parallel reduction in a dataflow like manner using token queues
@@ -590,7 +590,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int active_dim = total_groups * VECTOR_LEN;
   #endif
 
-  printf("tid %d psum %d red_tid %d activeId %d activeDim %d\n", ptid, partialSum, pairTid, activeTid, active_dim);
+  // printf("tid %d psum %d red_tid %d activeId %d activeDim %d\n", ptid, partialSum, pairTid, activeTid, active_dim);
 
   // the core who does the reduction doesn't need to wait for iteself
   // num_partial_sums--;
