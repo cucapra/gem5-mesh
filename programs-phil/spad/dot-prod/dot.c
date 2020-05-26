@@ -73,6 +73,7 @@ int local_dot_manycore(DTYPE *a, DTYPE *b, int start, int end) {
 
 typedef struct token_queue {
   int basePtr;
+  // int pairPtr;
   // word offsets in the producer and consumers scratchpad
   // int headPtrOffset;
   // int tailPtrOffset;
@@ -100,16 +101,20 @@ inline volatile int get_tail(token_queue_t *tq, int coreId) {
   return *get_tail_ptr(tq, coreId);
 }
 
-inline int* get_pair_tid_ptr(token_queue_t *tq, int coreId) {
-  return (int*)getSpAddr(coreId, tq->basePtr + 2);
-}
+// inline int* get_pair_tid_ptr(token_queue_t *tq, int coreId) {
+//   return (int*)getSpAddr(coreId, tq->basePtr + 2);
+// }
 
 inline int* get_pair_base_ptr(token_queue_t *tq, int coreId) {
-  return (int*)getSpAddr(coreId, tq->basePtr + 3);
+  return (int*)*(int*)getSpAddr(coreId, tq->basePtr + 2);
+}
+
+inline void set_pair_base_ptr(token_queue_t *tq, int coreId, int address) {
+  *(int*)getSpAddr(coreId, tq->basePtr + 2) = address;
 }
 
 inline int* get_data_ptr(token_queue_t *tq, int coreId) {
-  return (int*)getSpAddr(coreId, tq->basePtr + 4);
+  return (int*)getSpAddr(coreId, tq->basePtr + 3);
 }
 
 inline int* get_other_head_ptr(token_queue_t *tq, int coreId) {
@@ -120,16 +125,16 @@ inline int* get_other_tail_ptr(token_queue_t *tq, int coreId) {
   return get_pair_base_ptr(tq, coreId) + 1;
 }
 
-inline int* get_other_pair_tid_ptr(token_queue_t *tq, int coreId) {
-  return get_pair_base_ptr(tq, coreId) + 2;
-}
+// inline int* get_other_pair_tid_ptr(token_queue_t *tq, int coreId) {
+//   return get_pair_base_ptr(tq, coreId) + 2;
+// }
 
 inline int* get_other_pair_base_ptr(token_queue_t *tq, int coreId) {
-  return get_pair_base_ptr(tq, coreId) + 3; 
+  return get_pair_base_ptr(tq, coreId) + 2; 
 }
 
 inline int* get_other_data_ptr(token_queue_t *tq, int coreId) {
-  return get_pair_base_ptr(tq, coreId) + 4;
+  return get_pair_base_ptr(tq, coreId) + 3;
 }
 
 // want to declare token queue on the stack, so don't malloc
@@ -147,12 +152,16 @@ void init_token_queue_producer(int spadOffset, int consumerOffset, int size, int
   tq->basePtr = spadOffset;
   tq->size = size;
 
-  *get_pair_base_ptr(tq, thisCoreIdx) = consumerOffset;
-  *get_other_pair_base_ptr(tq, otherCoreIdx) = spadOffset;
+  // *get_pair_base_ptr(tq, thisCoreIdx) = 0x10000000 | (otherCoreIdx << 12) | (consumerOffset * sizeof(uint32_t));
+  // *get_other_pair_base_ptr(tq, thisCoreIdx) = 0x10000000 | (thisCoreIdx << 12) | (spadOffset * sizeof(uint32_t));
+  set_pair_base_ptr(tq, thisCoreIdx, (int)(int*)getSpAddr(otherCoreIdx, consumerOffset));
+  *get_other_pair_base_ptr(tq, thisCoreIdx) = (int)(int*)getSpAddr(thisCoreIdx, spadOffset);
+
+  // printf("tid %d offset %p %p %#x %#x\n", thisCoreIdx, get_pair_base_ptr(tq, thisCoreIdx), get_other_pair_base_ptr(tq, thisCoreIdx), *get_pair_base_ptr(tq, thisCoreIdx), *get_other_pair_base_ptr(tq, thisCoreIdx));
 
   // tq->otherCoreIdx = otherCoreIdx;
-  *get_pair_tid_ptr(tq, thisCoreIdx) = otherCoreIdx;
-  *get_other_pair_tid_ptr(tq, otherCoreIdx) = thisCoreIdx;
+  // *get_pair_tid_ptr(tq, thisCoreIdx) = otherCoreIdx;
+  // *get_other_pair_tid_ptr(tq, otherCoreIdx) = thisCoreIdx;
 
   // inform other core that this will be producing for it
 
@@ -178,7 +187,7 @@ int wait_tokens_consumer(token_queue_t *tq, int numTokens, int coreId) {
     else { // ==
       numTokensAvail = 0;
     }
-    printf("tid %d head %d tail %d tokensAvail %d tailAddr %p\n", coreId, head, tail, numTokensAvail, get_tail_ptr(tq, coreId));
+    // printf("tid %d head %d tail %d tokensAvail %d tailAddr %p\n", coreId, head, tail, numTokensAvail, get_tail_ptr(tq, coreId));
 
   } while(numTokensAvail < numTokens);
 
@@ -236,10 +245,10 @@ inline void *get_token(token_queue_t *tq, int tokenIdx, int coreId) {
 
 // producer sets token
 inline void set_token(token_queue_t *tq, int data, int tokenIdx, int coreId) {
-  int tail = *get_other_tail_ptr(tq, *get_pair_tid_ptr(tq, coreId));
+  int tail = *get_other_tail_ptr(tq, coreId);
   int bufSize = tq->size;
   int dataOffset = get_circular_offset(tq, tail, tokenIdx, bufSize);
-  get_other_data_ptr(tq, *get_pair_tid_ptr(tq, coreId))[dataOffset] = data;
+  get_other_data_ptr(tq, coreId)[dataOffset] = data;
 }
 
 // consumer consumes tokens by modifying tail pointer in both itself and producer core
@@ -248,10 +257,12 @@ void consume_tokens(token_queue_t *tq, int numTokens, int coreId) {
   int bufSize = tq->size;
   int offset = get_circular_offset(tq, tail, numTokens, bufSize);
 
+  // printf("tid %d consume tokens %d addr %p %p\n", coreId, numTokens, get_head_ptr(tq, coreId), get_other_head_ptr(tq, coreId));
+
   // update the pointer
   int newHeadPtr = offset;
   *get_head_ptr(tq, coreId) = newHeadPtr;
-  *get_other_head_ptr(tq, *get_pair_tid_ptr(tq, coreId)) = newHeadPtr; // maybe lazy ack?
+  *get_other_head_ptr(tq, coreId) = newHeadPtr; // maybe lazy ack?
 }
 
 // produce tokens by modifying head pointer both iteself and consumer core
@@ -263,194 +274,55 @@ void produce_tokens(token_queue_t *tq, int numTokens, int coreId) {
   // update the pointer
   int newTailPtr = offset;
   *get_tail_ptr(tq, coreId) = newTailPtr;
-  *get_other_tail_ptr(tq, *get_pair_tid_ptr(tq, coreId)) = newTailPtr;
+  *get_other_tail_ptr(tq, coreId) = newTailPtr;
 
-  printf("tid %d produce tokens %d for tid %d new tail ptr %d == %d addr %p\n", 
-    coreId, numTokens, *get_pair_tid_ptr(tq, coreId), *get_tail_ptr(tq, coreId), *get_other_tail_ptr(tq, *get_pair_tid_ptr(tq, coreId)), 
-    get_other_tail_ptr(tq, *get_pair_tid_ptr(tq, coreId)));
+  // printf("tid %d produce tokens %d new tail ptr %d == %d addr %p %p\n", 
+  //   coreId, numTokens, *get_tail_ptr(tq, coreId), *get_other_tail_ptr(tq, coreId), 
+  //   get_tail_ptr(tq, coreId), get_other_tail_ptr(tq, coreId));
 }
 
-// maybe add a "set producer option" to the token queue so can come from anywhere
-
-
-// if did remote load would need flag to denote rdy and then also flag to denote done reading
-
-
-// don't do a parallel reduction tree, instead just have one core do the summation of 64 values
-// instead of having to wait for remote store from each core, can just load from them manually
-// do a reduction, which cores to accumulate in? maybe for now just accumulate in a single core
-// it won't matter for the grid size we're doing most likely (64 threads, might matter if have 1000s like in a GPU)
+// parallel reduction in a dataflow like manner using token queues
 void reduce_manycore(int partialSum, DTYPE *c, int tid, int dim, token_queue_t *cons0, token_queue_t *cons1, token_queue_t *prod) {
   
-  // advantage of remote loads is that don't need to have sync buffers
-  // disadvantage is that need to figure out which cores have data which is not trivial in vector core case
-  // would be nice if template had an easy to get all active vector cores
-
-  // TODO for now just do remote stores
-  // setup remote store buffers equal to number of active cores
-
-  // TODO lightweight memory allocator for scratchpad (opt in per core)?
-  // want to create a dynamically size array and store on scratchpad
-
-  // also can potentially do thing where try to regularize the data by storing to a core reflecitve of your
-  // group id and then its easier to collapse that
- 
-  // core 0 recvs data and does the actual work
-
-  // this isn't gaurenteed to be synced... need to reset rdy flag. remote loads without any extra sync might be easier
-  // if (tid == 0) {
-  //   shared_buffer_t *bufs = (shared_buffer_t*)malloc(sizeof(shared_buffer_t) * numPartialSums);
-  //   for (int i = 0; i < numPartialSums; i++) {
-  //     init_shared_buffer_consumer(0, i, 1, &(bufs[i]));
-  //   }
-  // }
-  // else {
-  //   shared_buffer_t buf; 
-  //   init_shared_buffer_producer(0, tid, 1, &buf);
-  // }
-
-
-  // can we use frames here again to help facilitate gather? since awkward/not scalable to create a token queue between one to everyone
-  // would need to sync and change frame size after completing first part of kernel. seems kind of nice now to be able to change frame size on the fly
-  // potentially could allow change to happen after start receiving counts. especially if doing token based
-
-  // need to show that if the epoch value was above or below and received packets, still will be fine once change
-  // so below is fine, although unclear what to do about the secondary counts
-  //    cntr0 -> cntr0
-  //    cntr1 -> ?
-  // can avoid if always change by a factor of 2 (or how many counters we have)
-
-  // also currently having an issue with barrier overflow. i guess not doing the sync neil suggests
-
-  // PREFETCH_EPOCH()
-  // pthread_barrier_wait();
-
-  // get in the reduction
-
-  // if (tid == 0) {
-  //   DTYPE sum = partialSum;
-  //   DTYPE *sp = (DTYPE*)getSpAddr(tid, 0);
-
-  //   FRAME_START(numPartialSums);
-
-  //   for (int i = 0; i < numPartialSums; i++) {
-  //     sum += sp[i];
-  //   }
-
-  //   REMEM(numPartialSums);
-
-  //   c[0] = sum;
-  // }
-  // else {
-  //   DTYPE *targAddr = (DTYPE*)getSpAddr(0, tid);
-  //   targAddr[0] = partialSum;
-  // }
-
   int sum = partialSum;
 
-  // the normal gpu way requires there to be different senders each time
-  // // do a horizontal reduction
-  // for (int bound = dim_x / 2; bound > 0; bound /= 2) {
-  //   int producerBound = bound * 2;
-  //   // going to recv from sender
-  //   if (tid_x < bound) {
-
-  //   }
-  //   // going to recv from producer
-  //   else if (tid_x < producerBound) {
-
-  //   }
-  // }
-  // // do the vertical reduction
-
-  // // do horizontal reduction
-  // int bound = dim_x;
-  // while (bound > 0) {
-  //   int nextBound = bound / 2;
-  //   int nextnextBound = nextBound / 2;
-
-  //   // consumer section
-  //   if (tid_x >= nextnextBound && tid_x < nextBound) {
-  //     int t0 = wait_tokens_consumer(cons0, 1, tid);
-  //     int t1 = wait_tokens_consumer(cons1, 1, tid);
-  //     int *data0 = (int*)get_token(cons0, t0, tid);
-  //     int *data1 = (int*)get_token(cons1, t1, tid);
-  //     sum += data0[0] + data1[0];
-  //     consume_tokens(cons0, 1, tid);
-  //     consume_tokens(cons1, 1, tid);
-  //   }
-
-  //   // producer section
-  //   if (tid_x >= nextBound && tid_x < bound) {
-  //     int tokenOffset = wait_tokens_producer(prod, 1, tid);
-  //     set_token(prod, sum, tokenOffset, tid);
-  //     produce_tokens(prod, 1, tid);
-  //   }
-
-  //   bound = nextBound;
-  // }
-
-  // // do vertical reduction
-  // bound = dim_y;
-  // while (bound > 0) {
-
-  // }
-
-  // lower half consumes
-  if (tid < dim / 2) {
-    int t0 = wait_tokens_consumer(cons0, 1, tid);
-    int t1 = wait_tokens_consumer(cons1, 1, tid);
-    int *data0 = (int*)get_token(cons0, t0, tid);
-    int *data1 = (int*)get_token(cons1, t1, tid);
-    printf("tid %d get tokens %d %d\n", tid, data0[0], data1[1]);
-    sum += data0[0] + data1[0];
-    consume_tokens(cons0, 1, tid);
+  if (tid == 0) {
+    int t = wait_tokens_consumer(cons1, 1, tid);
+    int *data = (int*)get_token(cons1, t, tid);
+    sum += data[0];
+    *c = sum;
     consume_tokens(cons1, 1, tid);
   }
-
-  // everyone produces, except for tid0 who does the writeback
-  if (tid == 0) {
-    *c = sum;
-  }
   else {
+    // lower half consumes
+    if (tid < dim / 2) {
+      int t0 = wait_tokens_consumer(cons0, 1, tid);
+      int t1 = wait_tokens_consumer(cons1, 1, tid);
+      int *data0 = (int*)get_token(cons0, t0, tid);
+      int *data1 = (int*)get_token(cons1, t1, tid);
+      // printf("tid %d get tokens %d %d\n", tid, data0[0], data1[0]);
+      sum += data0[0] + data1[0];
+      consume_tokens(cons0, 1, tid);
+      consume_tokens(cons1, 1, tid);
+    }
+
+    // everyone produces, except for tid0 who does the writeback
     int tokenOffset = wait_tokens_producer(prod, 1, tid);
     set_token(prod, sum, tokenOffset, tid);
     produce_tokens(prod, 1, tid);
-    printf("tid %d produce tokens %d\n", tid, sum);
+    // printf("tid %d produce tokens %d\n", tid, sum);
   }
   
 
-  printf("tid %d finish\n", tid);
+  // printf("tid %d finish\n", tid);
 
 }
-
-// // have each vector core do a remote store into an easy to access core (i.e. there's now an easy to calculate patten of data)
-// // now can do remote loads easily from the reduction core (cores)
-// void organize_vector_results(int group_id, int data) {
-//   int *spPtr = (int*)getSpAddr(group_id, 0);
-//   spPtr[0] = data;
-// }
 
 // based on id (in manycore its the ptid, in vector its the group id + vtid)
 // figure out where to send your data to be reduced by another core
 int get_reduction_dest(int src_id) {
   // pattern is to half your id and send to that id
-
-  // int dest_x, dest_y;
-
-  // if (src_x != 0) {
-  //   dest_x = src_x / 2;
-  //   dest_y = src_y;
-  // }
-  // else {
-  //   dest_x = src_x;
-  //   dest_y = src_y / 2;
-  // }
-
-  // return dest_y * out_dim_x + dest_x;
-
   return src_id / 2;
-
 }
 
 
@@ -643,7 +515,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int partialSum = local_dot_manycore(a, b, start, end);
   
 
-  printf("tid %d psum %d red_tid %d\n", ptid, partialSum, pairTid);
+  // printf("tid %d psum %d red_tid %d\n", ptid, partialSum, pairTid);
 
   // the core who does the reduction doesn't need to wait for iteself
   // num_partial_sums--;
