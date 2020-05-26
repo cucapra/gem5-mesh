@@ -32,7 +32,7 @@ int local_dot_manycore(DTYPE *a, DTYPE *b, int start, int end) {
   return partialSum;
 }
 
-
+#ifdef USE_VEC
 int  __attribute__((optimize("-fno-reorder-blocks")))
  local_dot_vector(DTYPE *a, DTYPE *b, int vtid, int start, int end, int mask) {
 
@@ -82,6 +82,7 @@ int  __attribute__((optimize("-fno-reorder-blocks")))
     iter+=VECTOR_LEN;
     asm volatile goto("j %l[fable1]\n\t"::::fable1);
 }
+#endif
 
 // to support a circular queue instead, would need to have a head and tail pointer for both producer and consumer along with data
 // producer updates where head pointer is and consumer updates wehere tail pointer is (would need to inform both producer and consumer of each pointer change)
@@ -468,22 +469,22 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used); 
 
-  #elif VECTOR_LEN==16
+  // #elif VECTOR_LEN==16
 
-  vdim_x = 4;
-  vdim_y = 4;
+  // vdim_x = 4;
+  // vdim_y = 4;
 
-  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y, 
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
+  // int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y, 
+  //   &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
 
-  if (used) {
-    start = ( (unique_id + 0) * len ) / total_groups;
-    end   = ( (unique_id + 1) * len ) / total_groups;
-  }
+  // if (used) {
+  //   start = ( (unique_id + 0) * len ) / total_groups;
+  //   end   = ( (unique_id + 1) * len ) / total_groups;
+  // }
 
-  // num_partial_sums = total_groups * VECTOR_LEN;
+  // // num_partial_sums = total_groups * VECTOR_LEN;
 
-  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 16, vdim_x, vdim_y, start, end, used); 
+  // // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 16, vdim_x, vdim_y, start, end, used); 
 
   #elif !defined(USE_VEC)
 

@@ -25,7 +25,11 @@ int main(int argc, char *argv[]) {
   * Put the command line arguments into variables
   *-------------------------------------------------------------------*/
   
+  #ifdef USE_VEC
+  int len = 60;
+  #else
   int len = 64;
+  #endif
 
   if (argc > 1) {
     len = atoi(argv[1]);
