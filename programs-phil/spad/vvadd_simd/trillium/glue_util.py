@@ -1,3 +1,5 @@
+from enum import Enum, auto
+
 # utilities for parsing instructions
 def is_return_inst(inst):
     inst_components = inst.split()
@@ -21,6 +23,32 @@ def is_label(inst):
 def is_footer_start(inst):
     return ".size " in inst
 
+#TODO: implement begin/end
+class TrilliumAsmDelim(Enum):
+    UNTIL_NEXT = auto()
+    RETURN = auto()
+
+def parse_delim(inst):
+    inst_comp = inst.split()
+    if sublist("trillium vissue_delim until_next".split(), inst_comp):
+        return TrilliumAsmDelim.UNTIL_NEXT, inst_comp[-1]
+    elif sublist("trillium vissue_delim return".split(), inst_comp):
+        return TrilliumAsmDelim.RETURN, inst_comp[-1]
+    else:
+        return None
+
+def parse_gluepoint(inst):
+    inst_comp = inst.split()
+    if sublist("trillium glue_point".split(), inst_comp):
+        return inst_comp[-1]
+    else:
+        return None
+
+# thanks to https://stackoverflow.com/questions/35964155/checking-if-list-is-a-sublist
+def sublist(lst1, lst2):
+   ls1 = [element for element in lst1 if element in lst2]
+   ls2 = [element for element in lst2 if element in lst1]
+   return ls1 == ls2
 
 
 # utilities for preprocessing scalar/vector assembly files
