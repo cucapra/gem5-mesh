@@ -56,16 +56,11 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
 
         elif state == VectorParseState.RETURN:
             if is_return_inst(l):
-                state = VectorParseState.RETURN_BLOCK
+                print("parsed return block {}".format(curr_vissue_key))
+                break #return block should be the last one
             else:
                 blocks[curr_vissue_key].append(l)
 
-        elif state == VectorParseState.RETURN_BLOCK:
-            if(is_return_inst(l)):
-                print("parsed return block {}".format(curr_vissue_key))
-                break
-            else:
-                ret_block.append(l)
 
     # insert terminator in each block
     terminator = ".insn i 0x1b, 0x7, x0, x0, 0"
@@ -144,7 +139,8 @@ def glue(raw_scalar_code, vector_bbs):
 
 
         elif state == ScalarParseState.AFTER_DEVEC:
-            if scalar_return in l:
+            delim = parse_delim(l)
+            if delim != None and delim[0] == TrilliumAsmDelim.RETURN:
                 state = ScalarParseState.RETURN_STACK_MANIP
             else:
                 after_DEVEC.append(l)
