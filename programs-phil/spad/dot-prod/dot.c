@@ -197,13 +197,13 @@ int wait_tokens_consumer(token_queue_t *tq, int numTokens, int coreId) {
     if (tail > head) {
       numTokensAvail = tail - head;
     }
-    else if (head < tail) {
+    else if (head > tail) {
       numTokensAvail = tq->size - (head - tail);
     }
     else { // ==
       numTokensAvail = 0;
     }
-    // printf("tid %d head %d tail %d tokensAvail %d tailAddr %p\n", coreId, head, tail, numTokensAvail, get_tail_ptr(tq, coreId));
+    // printf("tid %d head %d tail %d tokensAvail %d\n", coreId, head, tail, numTokensAvail);
 
   } while(numTokensAvail < numTokens);
 
@@ -214,16 +214,16 @@ int wait_tokens_consumer(token_queue_t *tq, int numTokens, int coreId) {
 // return base offset of first place to write to
 int wait_tokens_producer(token_queue_t *tq, int numTokens, int coreId) {
   int openSpots;
-  int head;
-  int tail;
+  volatile int head;
+  volatile int tail;
   do {
     int numTokensAvail;
-    head = *get_head_ptr(tq, coreId);
-    tail = *get_tail_ptr(tq, coreId);
+    head = get_head(tq, coreId);
+    tail = get_tail(tq, coreId);
     if (tail > head) {
       numTokensAvail = tail - head;
     }
-    else if (head < tail) {
+    else if (head > tail) {
       numTokensAvail = tq->size - (head - tail);
     }
     else { // ==
@@ -232,6 +232,12 @@ int wait_tokens_producer(token_queue_t *tq, int numTokens, int coreId) {
 
     openSpots = tq->size - numTokensAvail;
 
+    // we don't allow overlap so actually maximum size is bufSize - 1
+    // TODO this seems unoptimized, but don't lose much so w/e
+    openSpots--;
+
+    // printf("tid %d head %d tail %d open spots %d\n", coreId, head, tail, openSpots);
+
   // } while(head + numTokens >= tail);
   } while (openSpots < numTokens);
 
@@ -239,39 +245,41 @@ int wait_tokens_producer(token_queue_t *tq, int numTokens, int coreId) {
 }
 
 // resolve circular offset in token queue
-inline int get_circular_offset(token_queue_t *tq, int baseOffset, int tokenOffset, int bufSize) {
+inline int get_circular_offset(token_queue_t *tq, int offset, int bufSize) {
   int dataOffset = 0;
-  int overShoot = baseOffset + tokenOffset - bufSize;
-  if (overShoot > 0) {
+  int overShoot = offset - bufSize;
+  if (overShoot >= 0) {
     dataOffset = overShoot;
   }
   else {
-    dataOffset = baseOffset + tokenOffset;
+    dataOffset = offset;
   }
   return dataOffset;
 }
 
 // consumer gets token
 inline void *get_token(token_queue_t *tq, int tokenIdx, int coreId) {
-  int head = *get_head_ptr(tq, coreId);
+  // int head = *get_head_ptr(tq, coreId);
   int bufSize = tq->size;
-  int dataOffset = get_circular_offset(tq, head, tokenIdx, bufSize);
+  int dataOffset = get_circular_offset(tq, tokenIdx, bufSize);
+  // printf("tid %d get token %p\n", coreId, get_data_ptr(tq, coreId) + dataOffset);
   return (void*)(get_data_ptr(tq, coreId) + dataOffset);
 }
 
 // producer sets token
 inline void set_token(token_queue_t *tq, int data, int tokenIdx, int coreId) {
-  int tail = *get_other_tail_ptr(tq, coreId);
+  // int tail = *get_other_tail_ptr(tq, coreId);
   int bufSize = tq->size;
-  int dataOffset = get_circular_offset(tq, tail, tokenIdx, bufSize);
+  int dataOffset = get_circular_offset(tq, tokenIdx, bufSize);
+  // printf("tid %d set token %p\n", coreId, &(get_other_data_ptr(tq, coreId)[dataOffset]));
   get_other_data_ptr(tq, coreId)[dataOffset] = data;
 }
 
 // consumer consumes tokens by modifying tail pointer in both itself and producer core
 void consume_tokens(token_queue_t *tq, int numTokens, int coreId) {
-  int tail = *get_tail_ptr(tq, coreId);
+  int head = *get_head_ptr(tq, coreId);
   int bufSize = tq->size;
-  int offset = get_circular_offset(tq, tail, numTokens, bufSize);
+  int offset = get_circular_offset(tq, head + numTokens, bufSize);
 
   // printf("tid %d consume tokens %d addr %p %p\n", coreId, numTokens, get_head_ptr(tq, coreId), get_other_head_ptr(tq, coreId));
 
@@ -279,21 +287,25 @@ void consume_tokens(token_queue_t *tq, int numTokens, int coreId) {
   int newHeadPtr = offset;
   *get_head_ptr(tq, coreId) = newHeadPtr;
   *get_other_head_ptr(tq, coreId) = newHeadPtr; // maybe lazy ack?
+
+  // printf("tid %d consume tokens %d new head ptr %d == %d addr %p %p\n", 
+  //   coreId, numTokens, *get_head_ptr(tq, coreId), *get_other_head_ptr(tq, coreId), 
+  //   get_head_ptr(tq, coreId), get_other_head_ptr(tq, coreId));  
 }
 
 // produce tokens by modifying head pointer both iteself and consumer core
 void produce_tokens(token_queue_t *tq, int numTokens, int coreId) {
-  int head = *get_head_ptr(tq, coreId);
+  int tail = *get_tail_ptr(tq, coreId);
   int bufSize = tq->size;
-  int offset = get_circular_offset(tq, head, numTokens, bufSize);
+  int offset = get_circular_offset(tq, tail + numTokens, bufSize);
 
   // update the pointer
   int newTailPtr = offset;
   *get_tail_ptr(tq, coreId) = newTailPtr;
   *get_other_tail_ptr(tq, coreId) = newTailPtr;
 
-  // printf("tid %d produce tokens %d new tail ptr %d == %d addr %p %p\n", 
-  //   coreId, numTokens, *get_tail_ptr(tq, coreId), *get_other_tail_ptr(tq, coreId), 
+  // printf("tid %d produce tokens %d head %d new tail ptr %d == %d addr %p %p\n", 
+  //   coreId, numTokens, *get_head_ptr(tq, coreId), *get_tail_ptr(tq, coreId), *get_other_tail_ptr(tq, coreId), 
   //   get_tail_ptr(tq, coreId), get_other_tail_ptr(tq, coreId));
 }
 
@@ -322,7 +334,7 @@ void reduce_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim,
     // consume_tokens(cons0, 1, ptid);
     // consume_tokens(cons1, 1, ptid);
     // #endif
-    *c = sum;
+    *c += sum;
     consume_tokens(cons1, 1, ptid);
   }
   else {
@@ -410,6 +422,41 @@ int get_reduction_dest(int group_id, int vid_x, int vid_y, int virt_dim_x, int p
 }
 #endif
 
+inline void dot_product(DTYPE *a, DTYPE *b, DTYPE *c, 
+  int start, int end, int ptid, int activeTid, int activeDim,
+  token_queue_t *consumer0, token_queue_t *consumer1, token_queue_t *producer,
+  int is_da, int mask
+  ) {
+   // accumulate partial sums locally
+  #ifndef USE_VEC
+  int partialSum = local_dot_manycore(a, b, start, end);
+  #else
+  int partialSum = local_dot_vector(a, b, vtid, start, end, mask);
+  #endif
+
+  // printf("tid %d val %d\n", ptid, partialSum);
+
+  // printf("tid %d psum %d red_tid %d activeId %d activeDim %d\n", ptid, partialSum, pairTid, activeTid, active_dim);
+
+  // the core who does the reduction doesn't need to wait for iteself
+  // num_partial_sums--;
+
+  // // setup syncronizations
+  // // TODO can we somehow manage without a barrier here?
+  // int prefetchMask = (1 << PREFETCH_NUM_REGION_SHAMT) | (num_partial_sums << PREFETCH_REGION_SIZE_SHAMT);
+  // PREFETCH_EPOCH(prefetchMask);
+
+  // // make sure all cores have done this before begin kernel section --> do thread barrier for now
+  // // TODO hoping for a cleaner way to do this
+  // pthread_barrier_wait(&start_barrier);
+
+  #ifdef VECTOR_LEN
+  if (!is_da) // scalar cores don't have data to accumulate so should not partcipate
+  #endif
+  // // do reduction across cores (currently just send all to a single core rather than reduction tree)
+  reduce_manycore(partialSum, c, ptid, activeTid, activeDim, consumer0, consumer1, producer);
+}
+
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *b, DTYPE *c, int len,
@@ -465,27 +512,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     end   = ( (unique_id + 1) * len ) / total_groups;
   }
 
-  // num_partial_sums = total_groups * VECTOR_LEN;
-
-  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used); 
-
-  // #elif VECTOR_LEN==16
-
-  // vdim_x = 4;
-  // vdim_y = 4;
-
-  // int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y, 
-  //   &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
-
-  // if (used) {
-  //   start = ( (unique_id + 0) * len ) / total_groups;
-  //   end   = ( (unique_id + 1) * len ) / total_groups;
-  // }
-
-  // // num_partial_sums = total_groups * VECTOR_LEN;
-
-  // // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 16, vdim_x, vdim_y, start, end, used); 
-
   #elif !defined(USE_VEC)
 
   vdim_x = 1;
@@ -496,11 +522,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   start  = ( ( ptid + 0 ) * len ) / pdim;
   end    = ( ( ptid + 1 ) * len ) / pdim;
 
-  // num_partial_sums = pdim;
-
-  // printf("%d->%d\n", start, end); 
-  
-
   #endif
 
   // linearize some fields
@@ -510,14 +531,14 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef USE_VEC
   // volatile so dont reorder this function call
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+  #else
+  int mask = 0;
   #endif
-
-  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
   // setup token queues
   // TODO lightweight scratchpad memory allocator
   int spmOffset = 100;
-  int bufSize = 10;
+  int bufSize = 4;
   int tqWords = bufSize + 4 + 2 + 2; // +2 extra just to be safe
 
   // each spm gets two consumer queues and one producer queue for a reduction
@@ -525,12 +546,14 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   token_queue_t consumer1;
   token_queue_t producer;
 
-  #ifdef NO_VEC
+  #ifndef USE_VEC
   int activeTid = ptid;
   int pairTid = get_reduction_dest(ptid); 
+  int active_dim = pdim;
   #else
   int activeTid;
   int pairTid = get_reduction_dest(unique_id, vtid_x, vtid_y, vdim_x, pdim_x, &activeTid);
+  int active_dim = total_groups * VECTOR_LEN;
   #endif
 
   init_token_queue_consumer(spmOffset + tqWords * 0, bufSize, ptid, &consumer0);
@@ -578,39 +601,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       : [ dest ] "=r"(stackLoc)
       : [ spad ] "r"(spTop));
 
-  // accumulate partial sums locally
-  #ifdef NO_VEC
-  int partialSum = local_dot_manycore(a, b, start, end);
-  #else
-  int partialSum = local_dot_vector(a, b, vtid, start, end, mask);
-  #endif
-
-  #ifdef NO_VEC
-  int active_dim = pdim;
-  #else
-  int active_dim = total_groups * VECTOR_LEN;
-  #endif
-
-  // printf("tid %d psum %d red_tid %d activeId %d activeDim %d\n", ptid, partialSum, pairTid, activeTid, active_dim);
-
-  // the core who does the reduction doesn't need to wait for iteself
-  // num_partial_sums--;
-
-  // // setup syncronizations
-  // // TODO can we somehow manage without a barrier here?
-  // int prefetchMask = (1 << PREFETCH_NUM_REGION_SHAMT) | (num_partial_sums << PREFETCH_REGION_SIZE_SHAMT);
-  // PREFETCH_EPOCH(prefetchMask);
-
-  // // make sure all cores have done this before begin kernel section --> do thread barrier for now
-  // // TODO hoping for a cleaner way to do this
-  // pthread_barrier_wait(&start_barrier);
-
-  #ifdef VECTOR_LEN
-  if (!is_da) // scalar cores don't have data to accumulate so should not partcipate
-  #endif
-  // // do reduction across cores (currently just send all to a single core rather than reduction tree)
-  reduce_manycore(partialSum, c, ptid, activeTid, active_dim, &consumer0, &consumer1, &producer);
-
+  for (int i = 0; i < 6; i++) {
+    dot_product(a, b, c, start, end, ptid, activeTid, active_dim, &consumer0, &consumer1, &producer, is_da, mask);
+  }
 
   // restore stack pointer
   asm volatile (

@@ -84,8 +84,10 @@ int main(int argc, char *argv[]) {
   // doing the sum of n squares, which has closed form solution
   // sum{1_n}(k^2) = n * ( n + 1 ) * ( 2n + 1 ) / 6
   int n = len;
-  if (c[0] != (n * (n + 1) * (2*n + 1)) / 6) {
-    printf("%d != %d\n", c[0], (n * (n + 1) * (2*n + 1)) / 6);
+  int calc = c[0]; 
+  int exp = ((n * (n + 1) * (2*n + 1)) / 6) * 6; // (done some comp 6 times)
+  if (calc != exp) {
+    printf("%d != %d\n", calc, exp);
     printf("[[FAIL]]\n");
     return 1;
   }
