@@ -724,27 +724,31 @@ Vector::resetActive() {
   _numOutPortsActive = 0;
   
   // TODO need to prevent this reset if this is not the driver?
-  if (!getConfigured() || canWriteMesh()) {
+  // if (!getConfigured() || canWriteMesh()) {
     
     for (int i = 0; i < getMeshMasterPorts().size(); i++) {
       getMeshMasterPorts()[i].setActive(NONE);
     
       // set the stage driving the ports (effectively setting mux select)
-      if (!getConfigured()) getMeshMasterPorts()[i].setDriver(nullptr);
-      else getMeshMasterPorts()[i].setDriver(this);
+      if (canWriteMesh()) {
+        if (!getConfigured()) getMeshMasterPorts()[i].setDriver(nullptr);
+        else getMeshMasterPorts()[i].setDriver(this);
+      }
     }
-  }
+  // }
   
-  if (!getConfigured() || canReadMesh()) {
+  // if (!getConfigured() || canReadMesh()) {
 
     for (int i = 0; i < getMeshSlavePorts().size(); i++) {
       getMeshSlavePorts()[i].setActive(NONE);
      
       // set the stage driving the ports (effectively setting mux select)
-      if (!getConfigured()) getMeshSlavePorts()[i].setDriver(nullptr);
-      else getMeshSlavePorts()[i].setDriver(this);
+      if (canReadMesh()) {
+        if (!getConfigured()) getMeshSlavePorts()[i].setDriver(nullptr);
+        else getMeshSlavePorts()[i].setDriver(this);
+      }
     }
-  }
+  // }
   
 }
 

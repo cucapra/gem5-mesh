@@ -174,10 +174,11 @@ int get_reduction_dest(int group_id, int vid_x, int vid_y, int virt_dim_x, int p
 }
 #endif
 
+// for some reason fails if inlined
 // dot product. two parts
 // 1) do local multiplication and accumulation (in vector/manycore)
 // 2) do reduction always using manycore version
-inline void dot_product(DTYPE *a, DTYPE *b, DTYPE *c, 
+void __attribute__((optimize("-fno-inline"))) dot_product(DTYPE *a, DTYPE *b, DTYPE *c, 
   int start, int end, int ptid, int vtid, int activeTid, int activeDim,
   token_queue_t *consumer0, token_queue_t *consumer1, token_queue_t *producer,
   int is_da, int mask
@@ -313,6 +314,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (used == 0) return;
   #endif
 
+  // printf("tid %d active %d pair %d activeDim %d\n", ptid, activeTid, pairTid, active_dim);
+
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
   // do before the function call so the arg stack frame is on the spad
@@ -338,7 +341,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       : [ spad ] "r"(spTop));
 
   // do a bunch of dot products without syncronizing in between
-  for (int i = 0; i < 6; i++) {
+  for (int i = 0; i < 1; i++) {
     dot_product(a, b, c, start, end, ptid, vtid, activeTid, active_dim, &consumer0, &consumer1, &producer, is_da, mask);
   }
 
