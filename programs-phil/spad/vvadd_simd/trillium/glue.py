@@ -37,8 +37,8 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
     state = VectorParseState.START
     for (line_no, l) in vector_code:
         if state == VectorParseState.START:
-            if l == kernel_name + ":":
-                print("found start label at line {}".format(kernel_name, line_no))
+            if l == kernel_fun_name + ":":
+                print("found start label at line {}".format(kernel_fun_name, line_no))
                 state = VectorParseState.UNTIL_NEXT
 
         elif state == VectorParseState.UNTIL_NEXT:
@@ -83,7 +83,7 @@ class ScalarParseState(Enum):
     # SIFT_BB = auto()
     # NON_VECTOR_BB = auto()
 
-def glue(raw_scalar_code, vector_bbs):
+def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
     scalar_return = "scalar_return"
 
     scalar_code = scalar_preprocess(raw_scalar_code)
@@ -112,7 +112,7 @@ def glue(raw_scalar_code, vector_bbs):
 
 
         if state == ScalarParseState.HEADER:
-          if l.strip() == kernel_name + ":":
+          if l.strip() == kernel_fun_name + ":":
             header.append(l)
             state = ScalarParseState.BEFORE_VECTOR_EPOCH
           else:
@@ -263,13 +263,16 @@ if __name__ == "__main__":
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()
 
-    vector_blocks = read_vector_bbs("vvadd_execute_simd", vector_code)
+    #TODO: parse this from file or filename
+    kernel_fun_name = "vvadd_execute_simd"
+
+    vector_blocks = read_vector_bbs(kernel_fun_name, vector_code)
     for block_name in vector_blocks.keys():
         block = vector_blocks[block_name]
         print("printing {} CFG of length {}".format(block_name, len(block)))
         print(pretty(block))
 
-    combined_code = glue(scalar_code, vector_blocks)
+    combined_code = glue(kernel_fun_name, scalar_code, vector_blocks)
     combined_file.write(pretty(combined_code))
 
     print("Finished.")
