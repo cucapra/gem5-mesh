@@ -832,8 +832,7 @@ class Packet : public Printable
         LLC_Data_Resp,
         Remote_Resp,
         Prefetch_Patron_Resp,
-        Prefetch_Self_Resp,
-        Remote_Store_Req
+        Prefetch_Self_Resp
     } RespPktType;
 
     RespPktType spRespType;

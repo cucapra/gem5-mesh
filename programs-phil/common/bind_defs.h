@@ -653,6 +653,71 @@ inline int vector_group_template_16(
   
 }
 
+// // information required to define a rectangular group
+// typedef struct group_info_t {
+//   int scalar_x;
+//   int scalar_y;
+//   int vector_start_x;
+//   int vector_start_y;
+// } group_info_t;
+
+// #define MAX_TEMPLATE_GROUPS 8
+
+// typedef struct template_info_t {
+//   int num_groups_in_template;
+//   group_info_t groups[MAX_TEMPLATE_GROUPS];
+// } template_info_t;
+
+// // group constructor
+// group_info_t init_group_info(int scalar_x, int scalar_y, int vector_start_x, int vector_start_y) {
+//   group_info_t ginfo;
+//   ginfo.scalar_x = scalar_x;
+//   ginfo.scalar_y = scalar_y;
+//   ginfo.vector_start_x = vector_start_x;
+//   ginfo.vector_start_y = vector_start_y;
+//   return ginfo;
+// }
+
+// // specify the template here
+
+// // create a template for a 4x4 mesh area with 2x2 vector groups
+// // NOTE c copies struct by values so don't have to return pointer
+// template_info_t init_template_4x4_2x2() {
+//   template_info_t tinfo;
+//   tinfo.num_groups_in_template = 3;
+//   tinfo.groups[0] = init_group_info(0, 0, 1, 0);
+//   tinfo.groups[1] = init_group_info(0, 1, 0, 2);
+//   tinfo.groups[2] = init_group_info(3, 1, 2, 2);
+//   return tinfo;
+// }
+
+// // based on the given template and group id return information about the groupo
+// group_info_t get_group_info(int group_id, template_info_t *template) {
+//   int idx = group_id % template->num_groups_in_template;
+//   return template->groups[idx];
+// }
+
+
+// // TODO need to define this for every group size
+// void group_id_to_origin(int group_id, int *x, int *y) {
+//   #ifdef VECTOR_LEN
+//   #if VECTOR_LEN==4
+//   template_info_t tinfo = init_template_4x4_2x2(); // TODO use this for figuring out tid
+//   #endif
+//   group_info_t ginfo = get_group_info(group_id, &tinfo);
+//   *x = ginfo.vector_start_x;
+//   *y = ginfo.vector_start_y;
+//   #endif
+// }
+
+// int get_ptid_from_group(int group_id, int vid_x, int vid_y, int phys_dim_x) {
+//   int x,y;
+//   group_id_to_origin(group_id, &x, &y);
+//   x += vid_x;
+//   y += vid_y;
+//   return y * phys_dim_x + x;
+// }
+
 
 #endif
   
