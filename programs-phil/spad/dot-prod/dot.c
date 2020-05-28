@@ -57,6 +57,8 @@ int  __attribute__((optimize("-fno-reorder-blocks")))
   // devec with unique tag
   DEVEC(devec_0);
 
+  asm volatile("nop\n\t");
+
   // we are doing lazy store acks, so use this to make sure all stores have commited to memory
   asm volatile("fence\n\t");
   
@@ -92,7 +94,7 @@ void reduce_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim,
 
   // one core is responsible for writing back the final value at the end
   if (activeTid == 0) {
-    // printf("tid %d atid %d special wait for %p", ptid, activeTid, dim, get_pair_base_ptr(cons1, ptid));
+    // printf("tid %d atid %d dim %d special wait for %p\n", ptid, activeTid, dim, get_pair_base_ptr(cons1, ptid));
     int t = wait_tokens_consumer(cons1, 1, ptid);
     int *data = (int*)get_token(cons1, t, ptid);
     sum += data[0];
@@ -103,7 +105,7 @@ void reduce_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim,
   else {
     // only lower half consumes data
     if (activeTid < dim / 2) {
-      // printf("tid %d atid %d dim %d wait for %p %p", ptid, activeTid, dim, get_pair_base_ptr(cons0, ptid), get_pair_base_ptr(cons1, ptid));
+      // printf("tid %d atid %d dim %d wait for %p %p\n", ptid, activeTid, dim, get_pair_base_ptr(cons0, ptid), get_pair_base_ptr(cons1, ptid));
       int t0 = wait_tokens_consumer(cons0, 1, ptid);
       int t1 = wait_tokens_consumer(cons1, 1, ptid);
       int *data0 = (int*)get_token(cons0, t0, ptid);
@@ -114,7 +116,7 @@ void reduce_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim,
     }
 
     // everyone produces, except for tid0 who does the writeback
-    // printf("tid %d atid %d produce for %p %p", ptid, activeTid, dim, get_pair_base_ptr(prod, ptid));
+    // printf("tid %d atid %d dim %d produce for %p\n", ptid, activeTid, dim, get_pair_base_ptr(prod, ptid));
     int tokenOffset = wait_tokens_producer(prod, 1, ptid);
     set_token(prod, sum, tokenOffset, ptid);
     produce_tokens(prod, 1, ptid);
@@ -197,7 +199,6 @@ void __attribute__((optimize("-fno-inline"))) dot_product(DTYPE *a, DTYPE *b, DT
   //   get_pair_base_ptr(consumer0, ptid), get_tail_ptr(consumer0, ptid), get_tail_ptr(consumer0, ptid), get_data_ptr(consumer0, ptid),
   //   get_pair_base_ptr(consumer1, ptid), get_tail_ptr(consumer1, ptid), get_tail_ptr(consumer1, ptid), get_data_ptr(consumer1, ptid),
   //   get_pair_base_ptr(producer, ptid), get_other_head_ptr(producer, ptid), get_other_tail_ptr(producer, ptid), get_other_data_ptr(producer, ptid));
-  // return;
 
   #ifdef VECTOR_LEN
   if (!is_da) // scalar cores don't have data to accumulate so should not partcipate
@@ -242,6 +243,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int master_y = 0;
   int unique_id = 0;
   int total_groups = 0;
+  int used = 0;
 
   // group construction
   #if VECTOR_LEN==4
@@ -249,7 +251,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim_x = 2;
   vdim_y = 2;
 
-  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, 
+  used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, 
     &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
 
   // TODO should use alignment
@@ -267,6 +269,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vtid   = 0;
   start  = ( ( ptid + 0 ) * len ) / pdim;
   end    = ( ( ptid + 1 ) * len ) / pdim;
+  used   = 1;
 
   #endif
 
@@ -305,25 +308,27 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   init_token_queue_consumer(spmOffset + tqWords * 0, bufSize, ptid, &consumer0);
   init_token_queue_consumer(spmOffset + tqWords * 1, bufSize, ptid, &consumer1);
 
-  // figure out which token queue you're going to be sending to
-  int pairOffset;
-  if (activeTid % 2 == 0) {
-    pairOffset = spmOffset + tqWords * 0;
+  // important to skip this if the core won't be used b/c might overwrite the link ptr
+  if (used && !is_da) {
+    // figure out which token queue you're going to be sending to
+    int pairOffset;
+    if (activeTid % 2 == 0) {
+      pairOffset = spmOffset + tqWords * 0;
+    }
+    else {
+      pairOffset = spmOffset + tqWords * 1;
+    }
+    init_token_queue_producer(spmOffset + tqWords * 2, pairOffset, bufSize, ptid, pairTid, &producer);
   }
-  else {
-    pairOffset = spmOffset + tqWords * 1;
-  }
-  init_token_queue_producer(spmOffset + tqWords * 2, pairOffset, bufSize, ptid, pairTid, &producer);
 
   // single barrier before kernel start
   pthread_barrier_wait(&start_barrier);
 
   // only let certain tids continue
-  #if defined(USE_VEC)
   if (used == 0) return;
-  #endif
 
-  // printf("tid %d active %d pair %d activeDim %d\n", ptid, activeTid, pairTid, active_dim);
+  // printf("tid %d active %d pair %d activeDim %d pair addr c0 %p c1 %p p %p\n", ptid, activeTid, pairTid, active_dim, 
+  //   get_pair_base_ptr(&consumer0, ptid), get_pair_base_ptr(&consumer1, ptid), get_pair_base_ptr(&producer, ptid));
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
@@ -350,7 +355,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
 
   // do a bunch of dot products without syncronizing in between
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < 6; i++) {
     dot_product(a, b, c, start, end, ptid, vtid, activeTid, active_dim, &consumer0, &consumer1, &producer, is_da, mask);
   }
 
