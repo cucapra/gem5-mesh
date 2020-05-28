@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   #ifdef USE_VEC
-  int len = 60;
+  int len = 96;
   #else
   int len = 64;
   #endif

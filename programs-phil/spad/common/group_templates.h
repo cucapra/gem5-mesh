@@ -44,6 +44,17 @@ group_info_t get_group_info(int group_id, template_info_t *tinfo) {
   return tinfo->groups[idx];
 }
 
+// get the offset of this due to being a stamp of template beyond the first
+void get_template_offset(int group_id, template_info_t *tinfo, int *offset_x, int *offset_y) {
+  int template_offset = group_id / tinfo->num_groups_in_template;
+  int template_dim_x = tinfo->template_dim_x;
+  int template_dim_y = tinfo->template_dim_y;
+  int template_offset_x = template_offset % template_dim_x;
+  int template_offset_y = template_offset / template_dim_x;
+  *offset_x = template_offset_x * template_dim_x;
+  *offset_y = template_offset_y * template_dim_y;
+}
+
 // information about the configuration for a core in group
 // this information is enough to create a core mask (and a little extra metadata)
 typedef struct core_config_info_t {
@@ -121,7 +132,7 @@ template_info_t init_template_8x8_4x4() {
 // design a rectangular vector group with an attached scalar core
 inline void rect_vector_group(
     int group_id, int scalar_x, int scalar_y, int vector_start_x, int vector_start_y, int vector_dim_x, int vector_dim_y, int id_x, int id_y,
-    int template_offset, core_config_info_t *info) {
+    core_config_info_t *info) {
   
   int vector_end_x = vector_start_x + vector_dim_x;
   int vector_end_y = vector_start_y + vector_dim_y;
@@ -146,7 +157,7 @@ inline void rect_vector_group(
     info->master_x = scalar_x;
     info->master_y = scalar_y;
     info->used = 1;
-    info->unique_id = template_offset + group_id;
+    info->unique_id = group_id;
     info->vdim_x = vector_dim_x;
     info->vdim_y = vector_dim_y;
   }
@@ -188,15 +199,17 @@ inline core_config_info_t vector_group_template(
   int groups_per_template = tinfo->num_groups_in_template;
   cinfo.total_groups = groups_per_template * template_group_dim;
 
-  int template_offset = template_group  * groups_per_template;
+  int template_offset = template_group * groups_per_template;
 
   // figure out the configurations for core within the groups
-  for (int i = 0; i < cinfo.total_groups; i++) {
+  for (int i = 0; i < groups_per_template; i++) {
     group_info_t ginfo = get_group_info(i, tinfo);
     rect_vector_group(i, ginfo.scalar_x, ginfo.scalar_y, ginfo.vector_start_x, ginfo.vector_start_y,
-      ginfo.vector_dim_x, ginfo.vector_dim_y, template_id_x, template_id_y, template_offset,
+      ginfo.vector_dim_x, ginfo.vector_dim_y, template_id_x, template_id_y,
       &cinfo);
   }
+
+  cinfo.unique_id += template_offset;
 
   // need to shift the absolute coordinates based on which group this is for
   cinfo.orig_x   = cinfo.orig_x + template_group_x * template_dim_x;
@@ -270,8 +283,10 @@ inline int vector_group_template_16(
 // TODO need to define this for every group size
 void group_id_to_origin(template_info_t *tinfo, int group_id, int *x, int *y) {
   group_info_t ginfo = get_group_info(group_id, tinfo);
-  *x = ginfo.vector_start_x;
-  *y = ginfo.vector_start_y;
+  int offset_x, offset_y; // offset due to being in a template
+  get_template_offset(group_id, tinfo, &offset_x, &offset_y);
+  *x = ginfo.vector_start_x + offset_x;
+  *y = ginfo.vector_start_y + offset_y;
 }
 
 int get_ptid_from_group(template_info_t *tinfo, int group_id, int vid_x, int vid_y, int phys_dim_x) {
