@@ -7,6 +7,7 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 #include "token_queue.h"
+#include "group_templates.h"
 
 /*
   Dot product. Shows implementation of a dot product on our architecture
@@ -132,33 +133,6 @@ int get_reduction_dest(int src_id) {
   return src_id / 2;
 }
 #else
-// TODO need to define this for every group size
-void group_id_to_origin(int group_id, int *x, int *y) {
-  if (group_id == 0) {
-    *x = 1;
-    *y = 0;
-  }
-  else if (group_id == 1) {
-    *x = 0;
-    *y = 2;
-  }
-  else if (group_id == 2) {
-    *x = 2;
-    *y = 2;
-  }
-  else {
-    printf("fail bro");
-  }
-}
-
-int get_ptid_from_group(int group_id, int vid_x, int vid_y, int phys_dim_x) {
-  int x,y;
-  group_id_to_origin(group_id, &x, &y);
-  x += vid_x;
-  y += vid_y;
-  return y * phys_dim_x + x;
-}
-
 // a little more complicated to get when there's vector groups
 int get_reduction_dest(int group_id, int vid_x, int vid_y, int virt_dim_x, int phys_dim_x, int *active_tid) {
   // get a flat id from group and vid
@@ -259,6 +233,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     start = ( (unique_id + 0) * len ) / total_groups;
     end   = ( (unique_id + 1) * len ) / total_groups;
   }
+
+  // printf("ptid %d(%d,%d) da %d vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, is_da, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used);
 
   #elif !defined(USE_VEC)
 
