@@ -3,6 +3,7 @@
 
 // include spec from gem5
 #include "../../src/custom/bind_spec.hh"
+#include "group_templates.h"
 
 // #if !defined(__x86_64__) && !defined(__i386__)
 
