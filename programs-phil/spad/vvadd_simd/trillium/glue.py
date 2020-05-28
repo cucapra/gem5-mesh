@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from glue_util import *
 import itertools, argparse
 from enum import Enum, auto
@@ -31,8 +32,13 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
     # # return stack manipulation cfg
     # ret_block = []
 
+    # trillium_init is an implicit block containing stack setup code
+    # it must be attached to another block, since it's not explicitly
+    # handled at the language level.
+    # we'll attach it the first block, i.e., the first user-specified block
+    # OrderedDict lets us remember which block was read first
     curr_vissue_key = "trillium_init"
-    blocks = {curr_vissue_key : []}
+    blocks = OrderedDict([(curr_vissue_key, [])])
 
     state = VectorParseState.START
     for (line_no, l) in vector_code:
@@ -48,6 +54,7 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
                 delim, new_vissue_key = delim_parse
                 curr_vissue_key = new_vissue_key
                 blocks[new_vissue_key] = []
+
                 if delim == TrilliumAsmDelim.UNTIL_NEXT:
                     state = VectorParseState.UNTIL_NEXT
                 elif delim == TrilliumAsmDelim.RETURN:
@@ -63,6 +70,12 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
             else:
                 blocks[curr_vissue_key].append(l)
 
+
+    # prepend trillium_init block to the first block
+    trillium_init_block = blocks["trillium_init"]
+    first_vissue_key = list(blocks.keys())[1] #0 corresponds to "trillium_init"
+    first_vissue_block = blocks[first_vissue_key]
+    blocks[first_vissue_key] = trillium_init_block + first_vissue_block
 
     # insert terminator in each block
     terminator = ".insn i 0x1b, 0x7, x0, x0, 0"
