@@ -92,6 +92,7 @@ void reduce_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim,
 
   // one core is responsible for writing back the final value at the end
   if (activeTid == 0) {
+    // printf("tid %d atid %d special wait for %p", ptid, activeTid, dim, get_pair_base_ptr(cons1, ptid));
     int t = wait_tokens_consumer(cons1, 1, ptid);
     int *data = (int*)get_token(cons1, t, ptid);
     sum += data[0];
@@ -102,6 +103,7 @@ void reduce_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim,
   else {
     // only lower half consumes data
     if (activeTid < dim / 2) {
+      // printf("tid %d atid %d dim %d wait for %p %p", ptid, activeTid, dim, get_pair_base_ptr(cons0, ptid), get_pair_base_ptr(cons1, ptid));
       int t0 = wait_tokens_consumer(cons0, 1, ptid);
       int t1 = wait_tokens_consumer(cons1, 1, ptid);
       int *data0 = (int*)get_token(cons0, t0, ptid);
@@ -112,6 +114,7 @@ void reduce_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim,
     }
 
     // everyone produces, except for tid0 who does the writeback
+    // printf("tid %d atid %d produce for %p %p", ptid, activeTid, dim, get_pair_base_ptr(prod, ptid));
     int tokenOffset = wait_tokens_producer(prod, 1, ptid);
     set_token(prod, sum, tokenOffset, ptid);
     produce_tokens(prod, 1, ptid);
@@ -189,6 +192,12 @@ void __attribute__((optimize("-fno-inline"))) dot_product(DTYPE *a, DTYPE *b, DT
   #else
   int partialSum = local_dot_vector(a, b, vtid, start, end, mask);
   #endif
+
+  // printf("tid %d sum %d activeTid %d activeDim %d isDa %d pair ptr %p %p %p %p -- %p %p %p %p -- %p %p %p %p \n", ptid, partialSum, activeTid, activeDim, is_da, 
+  //   get_pair_base_ptr(consumer0, ptid), get_tail_ptr(consumer0, ptid), get_tail_ptr(consumer0, ptid), get_data_ptr(consumer0, ptid),
+  //   get_pair_base_ptr(consumer1, ptid), get_tail_ptr(consumer1, ptid), get_tail_ptr(consumer1, ptid), get_data_ptr(consumer1, ptid),
+  //   get_pair_base_ptr(producer, ptid), get_other_head_ptr(producer, ptid), get_other_tail_ptr(producer, ptid), get_other_data_ptr(producer, ptid));
+  // return;
 
   #ifdef VECTOR_LEN
   if (!is_da) // scalar cores don't have data to accumulate so should not partcipate
@@ -321,13 +330,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // do before the function call so the arg stack frame is on the spad
   // store the the current spAddr to restore later 
   unsigned long long *spTop = getSpTop(ptid);
-  // guess the remaining of the part of the frame that might be needed??
-  #define SP_ENTRIES 15
-  spTop -= SP_ENTRIES;
+  spTop -= 30;
 
   unsigned long long stackLoc;
   unsigned long long temp;
-  for(int i=0;i<SP_ENTRIES;i++){
+  #pragma GCC unroll(30)
+  for(int i=0;i<30;i++){
     asm volatile("ld t0, %[id](sp)\n\t"
                 "sd t0, %[id](%[spad])\n\t"
                 : "=r"(temp)
@@ -340,8 +348,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       : [ dest ] "=r"(stackLoc)
       : [ spad ] "r"(spTop));
 
+
   // do a bunch of dot products without syncronizing in between
-  for (int i = 0; i < 1; i++) {
+  for (int i = 0; i < 3; i++) {
     dot_product(a, b, c, start, end, ptid, vtid, activeTid, active_dim, &consumer0, &consumer1, &producer, is_da, mask);
   }
 
