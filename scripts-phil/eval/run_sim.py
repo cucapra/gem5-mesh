@@ -201,9 +201,9 @@ make_flags = []
 # vec_sizes = [ 4, 16 ]
 # load_types = [ 'SPATIAL', 'VERTICAL', 'SPATIAL_UNROLL', 'REUSE ]
 # prefetch_sizes = [ 1, 2, 4, 8, 16 ]
-vec_sizes = [ 16 ]
+vec_sizes = [ 4, 16 ]
 load_types = [ 'SPATIAL' ]
-prefetch_sizes = [ 16 ]
+prefetch_sizes = [ 4, 16 ]
 for v in vec_sizes:
   for l in load_types:
     for p in prefetch_sizes:
@@ -212,7 +212,7 @@ for v in vec_sizes:
         make_flags.append(config)
 
 # add no vec config as well
-make_flags.append('NO_VEC')
+# make_flags.append('NO_VEC')
 
 # make_flags_gemm = ["SIMD_PRIVATE", "SIMD_SHARING", "NO_VEC"]
 # program = "gemm"

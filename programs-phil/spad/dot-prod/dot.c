@@ -134,7 +134,7 @@ int get_reduction_dest(int src_id) {
 }
 #else
 // a little more complicated to get when there's vector groups
-int get_reduction_dest(int group_id, int vid_x, int vid_y, int virt_dim_x, int phys_dim_x, int *active_tid) {
+int get_reduction_dest(template_info_t *tinfo, int group_id, int vid_x, int vid_y, int virt_dim_x, int phys_dim_x, int *active_tid) {
   // get a flat id from group and vid
   int vid = vid_y * virt_dim_x + vid_x;
   int src = group_id * VECTOR_LEN + vid;
@@ -145,7 +145,7 @@ int get_reduction_dest(int group_id, int vid_x, int vid_y, int virt_dim_x, int p
   int dest_vid = dest % VECTOR_LEN;
   int dest_vid_x = dest_vid % virt_dim_x;
   int dest_vid_y = dest_vid / virt_dim_x;
-  int ptid = get_ptid_from_group(dest_group_id, dest_vid_x, dest_vid_y, phys_dim_x);
+  int ptid = get_ptid_from_group(tinfo, dest_group_id, dest_vid_x, dest_vid_y, phys_dim_x);
   
   *active_tid = src;
 
@@ -220,13 +220,28 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int used = 0;
 
   // group construction
-  #if VECTOR_LEN==4
-  // virtual group dimension
-  vdim_x = 2;
-  vdim_y = 2;
+  #ifdef VECTOR_LEN
 
-  used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, 
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
+  #if VECTOR_LEN==4
+  template_info_t tinfo = init_template_4x4_2x2();
+  #elif VECTOR_LEN==16
+  template_info_t tinfo = init_template_8x8_4x4();
+  #endif
+  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
+
+  vtid = cinfo.vtid;
+  vtid_x = cinfo.vtid_x;
+  vtid_y = cinfo.vtid_y;
+  vdim_x = cinfo.vdim_x;
+  vdim_y = cinfo.vdim_y;
+  orig_x = cinfo.orig_x;
+  orig_y = cinfo.orig_y;
+  is_da  = cinfo.is_scalar;
+  master_x = cinfo.master_x;
+  master_y = cinfo.master_y;
+  unique_id = cinfo.unique_id;
+  total_groups = cinfo.total_groups;
+  used = cinfo.used;
 
   // TODO should use alignment
   if (used) {
@@ -277,7 +292,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int active_dim = pdim;
   #else
   int activeTid;
-  int pairTid = get_reduction_dest(unique_id, vtid_x, vtid_y, vdim_x, pdim_x, &activeTid);
+  int pairTid = get_reduction_dest(&tinfo, unique_id, vtid_x, vtid_y, vdim_x, pdim_x, &activeTid);
   int active_dim = total_groups * VECTOR_LEN;
   #endif
 

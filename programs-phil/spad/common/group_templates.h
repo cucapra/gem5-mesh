@@ -44,6 +44,45 @@ group_info_t get_group_info(int group_id, template_info_t *tinfo) {
   return tinfo->groups[idx];
 }
 
+// information about the configuration for a core in group
+// this information is enough to create a core mask (and a little extra metadata)
+typedef struct core_config_info_t {
+  // whether this core is used or not
+  int used;
+  // virtual tid and dimensions within the gorup
+  int vtid;
+  int vtid_x;
+  int vtid_y;
+  int vdim_x;
+  int vdim_y;
+  // whether this is a scalar core
+  int is_scalar;
+  // pointers to scalar core and first vector core
+  int orig_x;
+  int orig_y;
+  int master_x;
+  int master_y;
+  // info about which group this is relative to all vector groups
+  int unique_id;
+  int total_groups;
+} core_config_info_t;
+
+void reset_core_config_info(core_config_info_t *cinfo) {
+  cinfo->used = 0;
+  cinfo->vtid = 0;
+  cinfo->vtid_x = 0;
+  cinfo->vtid_y = 0;
+  cinfo->vdim_x = 0;
+  cinfo->vdim_y = 0;
+  cinfo->is_scalar = 0;
+  cinfo->orig_x = 0;
+  cinfo->orig_y = 0;
+  cinfo->master_x = 0;
+  cinfo->master_y = 0;
+  cinfo->unique_id = 0;
+  cinfo->total_groups = 0;
+}
+
 
 // ---------------------------------------------------------------------------------------------------
 // specify the template here
@@ -82,8 +121,7 @@ template_info_t init_template_8x8_4x4() {
 // design a rectangular vector group with an attached scalar core
 inline void rect_vector_group(
     int group_id, int scalar_x, int scalar_y, int vector_start_x, int vector_start_y, int vector_dim_x, int vector_dim_y, int id_x, int id_y,
-    int template_offset,
-    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y, int *used, int *unique_id) {
+    int template_offset, core_config_info_t *info) {
   
   int vector_end_x = vector_start_x + vector_dim_x;
   int vector_end_y = vector_start_y + vector_dim_y;
@@ -93,36 +131,38 @@ inline void rect_vector_group(
 
   int is_scalar_group = id_x == scalar_x && id_y == scalar_y;
   if (is_vector_group) {
-    *vtid_x = id_x - vector_start_x;
-    *vtid_y = id_y - vector_start_y;
-    *vtid   = *vtid_x + *vtid_y * vector_dim_x;
+    info->vtid_x = id_x - vector_start_x;
+    info->vtid_y = id_y - vector_start_y;
+    info->vtid   = info->vtid_x + info->vtid_y * vector_dim_x;
   }
   if (is_scalar_group) {
-    *is_scalar = 1;
+    info->is_scalar = 1;
   }
   if (is_vector_group || is_scalar_group) {
     // *start = roundUp((chunk_offset + group_num + 0) * n / vGroups, alignment);
     // *end   = roundUp((chunk_offset + group_num + 1) * n / vGroups, alignment); // make sure aligned to cacheline 
-    *orig_x = vector_start_x;
-    *orig_y = vector_start_y;
-    *master_x = scalar_x;
-    *master_y = scalar_y;
-    *used = 1;
-    *unique_id = template_offset + group_id;
+    info->orig_x = vector_start_x;
+    info->orig_y = vector_start_y;
+    info->master_x = scalar_x;
+    info->master_y = scalar_y;
+    info->used = 1;
+    info->unique_id = template_offset + group_id;
+    info->vdim_x = vector_dim_x;
+    info->vdim_y = vector_dim_y;
   }
 }
 
-inline int vector_group_template(
+inline core_config_info_t vector_group_template(
     // inputs
-    int ptid_x, int ptid_y, int pdim_x, int pdim_y, template_info_t *tinfo,
-    // outputs
-    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
-    int *unique_id, int *total_groups
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y, template_info_t *tinfo
   ) {
+
+  core_config_info_t cinfo;
+  reset_core_config_info(&cinfo);
 
   // keep track of which cores will be used in this configuration
   // will want to terminate any cores not apart of a vector group
-  int used = 0;
+  cinfo.used = 0;
 
   // recover trivial fields
   int ptid = ptid_x + ptid_y * pdim_x;
@@ -146,25 +186,25 @@ inline int vector_group_template(
 
   // used to determine a unique group id
   int groups_per_template = tinfo->num_groups_in_template;
-  *total_groups = groups_per_template * template_group_dim;
+  cinfo.total_groups = groups_per_template * template_group_dim;
 
   int template_offset = template_group  * groups_per_template;
 
   // figure out the configurations for core within the groups
-  for (int i = 0; i < *total_groups; i++) {
+  for (int i = 0; i < cinfo.total_groups; i++) {
     group_info_t ginfo = get_group_info(i, tinfo);
     rect_vector_group(i, ginfo.scalar_x, ginfo.scalar_y, ginfo.vector_start_x, ginfo.vector_start_y,
       ginfo.vector_dim_x, ginfo.vector_dim_y, template_id_x, template_id_y, template_offset,
-      vtid, vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, &used, unique_id);
+      &cinfo);
   }
 
   // need to shift the absolute coordinates based on which group this is for
-  *orig_x = *orig_x + template_group_x * template_dim_x;
-  *orig_y = *orig_y + template_group_y * template_dim_y;
-  *master_x = *master_x + template_group_x * template_dim_x;
-  *master_y = *master_y + template_group_y * template_dim_y;
+  cinfo.orig_x   = cinfo.orig_x + template_group_x * template_dim_x;
+  cinfo.orig_y   = cinfo.orig_y + template_group_y * template_dim_y;
+  cinfo.master_x = cinfo.master_x + template_group_x * template_dim_x;
+  cinfo.master_y = cinfo.master_y + template_group_y * template_dim_y;
 
-  return used;
+  return cinfo;
   
 }
 
@@ -179,10 +219,22 @@ inline int vector_group_template_4(
     int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
     int *unique_id, int *total_groups
   ) {
-
+  printf("DEPRECATED use of vector_group_template_4() use vector_group_template()\n");
   template_info_t tinfo = init_template_4x4_2x2();
-  return vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo, 
-            vtid, vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, unique_id, total_groups);
+  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
+
+  *vtid = cinfo.vtid;
+  *vtid_x = cinfo.vtid_x;
+  *vtid_y = cinfo.vtid_y;
+  *is_scalar = cinfo.is_scalar;
+  *orig_x = cinfo.orig_x;
+  *orig_y = cinfo.orig_y;
+  *master_x = cinfo.master_x;
+  *master_y = cinfo.master_y;
+  *unique_id = cinfo.unique_id;
+  *total_groups = cinfo.total_groups;
+
+  return cinfo.used;
   
 }
 
@@ -193,11 +245,22 @@ inline int vector_group_template_16(
     int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
     int *unique_id, int *total_groups
   ) {
-
+  printf("DEPRECATED use of vector_group_template_16() use vector_group_template()\n");
   template_info_t tinfo = init_template_8x8_4x4();
-  return vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo, 
-            vtid, vtid_x, vtid_y, is_scalar, orig_x, orig_y, master_x, master_y, unique_id, total_groups);
+  core_config_info_t cinfo =  vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
   
+  *vtid = cinfo.vtid;
+  *vtid_x = cinfo.vtid_x;
+  *vtid_y = cinfo.vtid_y;
+  *is_scalar = cinfo.is_scalar;
+  *orig_x = cinfo.orig_x;
+  *orig_y = cinfo.orig_y;
+  *master_x = cinfo.master_x;
+  *master_y = cinfo.master_y;
+  *unique_id = cinfo.unique_id;
+  *total_groups = cinfo.total_groups;
+
+  return cinfo.used;
 }
 
 // ---------------------------------------------------------------------------------------------------
@@ -205,20 +268,15 @@ inline int vector_group_template_16(
 // ---------------------------------------------------------------------------------------------------
 
 // TODO need to define this for every group size
-void group_id_to_origin(int group_id, int *x, int *y) {
-  #ifdef VECTOR_LEN
-  #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2(); // TODO use this for figuring out tid
-  #endif
-  group_info_t ginfo = get_group_info(group_id, &tinfo);
+void group_id_to_origin(template_info_t *tinfo, int group_id, int *x, int *y) {
+  group_info_t ginfo = get_group_info(group_id, tinfo);
   *x = ginfo.vector_start_x;
   *y = ginfo.vector_start_y;
-  #endif
 }
 
-int get_ptid_from_group(int group_id, int vid_x, int vid_y, int phys_dim_x) {
+int get_ptid_from_group(template_info_t *tinfo, int group_id, int vid_x, int vid_y, int phys_dim_x) {
   int x,y;
-  group_id_to_origin(group_id, &x, &y);
+  group_id_to_origin(tinfo, group_id, &x, &y);
   x += vid_x;
   y += vid_y;
   return y * phys_dim_x + x;
