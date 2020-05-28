@@ -32,7 +32,7 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
     # ret_block = []
 
     curr_vissue_key = "trillium_init"
-    blocks = {curr_vissue_key : "trillium_init"}
+    blocks = {curr_vissue_key : []}
 
     state = VectorParseState.START
     for (line_no, l) in vector_code:
@@ -44,13 +44,15 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
         elif state == VectorParseState.UNTIL_NEXT:
             delim_parse = parse_delim(l)
             if delim_parse != None:
-                print("parsed 'until_next'-delimited block {}".format(curr_vissue_key))
-                delim, vissue_key = delim_parse
-                curr_vissue_key = vissue_key
+                print("parsed 'until_next'-delimited block: {}".format(curr_vissue_key))
+                delim, new_vissue_key = delim_parse
+                curr_vissue_key = new_vissue_key
+                blocks[new_vissue_key] = []
                 if delim == TrilliumAsmDelim.UNTIL_NEXT:
                     state = VectorParseState.UNTIL_NEXT
                 elif delim == TrilliumAsmDelim.RETURN:
                     state = VectorParseState.RETURN
+                else: raise Exception("unrecognized delim found: check parse_delim function")
             else:
                 blocks[curr_vissue_key].append(l)
 

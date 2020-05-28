@@ -1,3 +1,4 @@
+import re
 from enum import Enum, auto
 
 # utilities for parsing instructions
@@ -29,27 +30,23 @@ class TrilliumAsmDelim(Enum):
     RETURN = auto()
 
 def parse_delim(inst):
-    inst_comp = inst.split()
-    if sublist("trillium vissue_delim until_next".split(), inst_comp):
-        return TrilliumAsmDelim.UNTIL_NEXT, inst_comp[-1]
-    elif sublist("trillium vissue_delim return".split(), inst_comp):
-        return TrilliumAsmDelim.RETURN, inst_comp[-1]
+    delim_prefix = "trillium vissue_delim"
+    until_next_delim_match = re.compile(delim_prefix + " until_next (\w+)").match(inst)
+    return_delim_match = re.compile(delim_prefix + " return (\w+)").match(inst)
+    if until_next_delim_match:
+        return TrilliumAsmDelim.UNTIL_NEXT, until_next_delim_match.group(1)
+    elif return_delim_match:
+        return TrilliumAsmDelim.RETURN, return_delim_match.group(1)
     else:
         return None
 
 def parse_gluepoint(inst):
-    inst_comp = inst.split()
-    if sublist("trillium glue_point".split(), inst_comp):
-        return inst_comp[-1]
+    gluepoint_prefix = "trillium glue_point"
+    gluepoint_match = re.compile(gluepoint_prefix + " (\w+)").match(inst)
+    if gluepoint_match:
+        return gluepoint_match.group(1)
     else:
         return None
-
-# thanks to https://stackoverflow.com/questions/35964155/checking-if-list-is-a-sublist
-def sublist(lst1, lst2):
-   ls1 = [element for element in lst1 if element in lst2]
-   ls2 = [element for element in lst2 if element in lst1]
-   return ls1 == ls2
-
 
 # utilities for preprocessing scalar/vector assembly files
 def vector_preprocess(code):
