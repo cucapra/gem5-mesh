@@ -271,9 +271,20 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
 
 if __name__ == "__main__":
-    vector_file = open("vvadd_vector.s", "r")
-    scalar_file = open("vvadd_scalar.s", "r")
-    combined_file = open("vvadd_kernel.s", "w+")
+    import sys
+    arg_string = " ".join(sys.argv[1:])
+    usage_regex = "(\w+.s)\s+(\w+.s)\s+-o\s+(\w+.s)"
+    match = re.compile(usage_regex).match(arg_string)
+    if not match:
+      print("Gluer Usage: vector.s scalar.s -o combined.s")
+      print("expected match with regex: {}".format(usage_regex))
+      print("but found: {}".format(arg_string))
+      exit(1)
+
+    vector_filename, scalar_filename, combined_filename = match.groups()
+    vector_file = open(vector_filename, "r")
+    scalar_file = open(scalar_filename, "r")
+    combined_file = open(combined_filename, "w")
 
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()

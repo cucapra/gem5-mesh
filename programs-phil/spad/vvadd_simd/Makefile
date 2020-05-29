@@ -32,17 +32,17 @@ CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T.
 
 default: $(EXEC)
 
-$(EXEC)_kernel.vecsimc.asm: $(EXEC)_kernel.vecsimc.pragma
-	stack trillium/Splitter.hs
+#$(EXEC)_kernel.c: $(EXEC)_kernel.tr
+#	stack trillium/Splitter.hs
 
-$(EXEC)_vector.s: $(EXEC)_kernel.vecsimc.asm
+$(EXEC)_vector.s: $(EXEC)_kernel.c
 	$(RV_CC) $(CFLAGS) -D VECTOR_CORE -S $< -o $@
 
-$(EXEC)_scalar.s: $(EXEC)_kernel.vecsimc.asm
+$(EXEC)_scalar.s: $(EXEC)_kernel.c
 	$(RV_CC) $(CFLAGS) -D SCALAR_CORE -S $< -o $@ 
 
 $(EXEC)_kernel.s: $(EXEC)_vector.s $(EXEC)_scalar.s
-	python3 trillium/glue.py -o $@
+	python3 trillium/glue.py $^ -o $@
 	
 $(EXEC)_kernel.o: $(EXEC)_kernel.s
 	$(RV_CC) $(CFLAGS) -c $< -o $(notdir $@)
