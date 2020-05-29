@@ -454,6 +454,8 @@ MemUnit::doSquash(IODynInstPtr squash_inst)
                  [](const IODynInstPtr& inst) { return inst->isSquashed(); });
   m_st_queue.erase(st_it, m_st_queue.end());
 
+
+  #ifndef NDEBUG
   DPRINTF(LSQ, "Load queue after squashing ...\n");
   for (auto& inst : m_ld_queue)
     DPRINTF(LSQ, "\t%s\n", inst->toString());
@@ -461,6 +463,7 @@ MemUnit::doSquash(IODynInstPtr squash_inst)
   DPRINTF(LSQ, "Store queue after squashing ...\n");
   for (auto& inst : m_st_queue)
     DPRINTF(LSQ, "\t%s\n", inst->toString());
+  #endif
 
 #ifdef DEBUG
   m_status.set(Status::Squashed);

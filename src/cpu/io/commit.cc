@@ -93,11 +93,14 @@ Commit::doCommit()
   // commit.
   while (!m_insts.empty()) {
     IODynInstPtr inst = m_insts.front();
+
+    #ifndef NDEBUG
     ThreadID tid = inst->thread_id;
 
     // assert inst exists in ROB
     assert(m_robs[tid]->hasInst(inst));
     assert(!inst->isCommitted() && !inst->canCommit());
+    #endif
 
     // If this inst does not have any fault, mark it as "CanCommit".
     // Otherwise, mark it as "NeedToTrapFault"
