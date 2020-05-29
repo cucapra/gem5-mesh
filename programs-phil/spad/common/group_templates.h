@@ -232,7 +232,7 @@ inline int vector_group_template_4(
     int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
     int *unique_id, int *total_groups
   ) {
-  printf("DEPRECATED use of vector_group_template_4() use vector_group_template()\n");
+  // printf("DEPRECATED use of vector_group_template_4() use vector_group_template()\n");
   template_info_t tinfo = init_template_4x4_2x2();
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
@@ -258,7 +258,7 @@ inline int vector_group_template_16(
     int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
     int *unique_id, int *total_groups
   ) {
-  printf("DEPRECATED use of vector_group_template_16() use vector_group_template()\n");
+  // printf("DEPRECATED use of vector_group_template_16() use vector_group_template()\n");
   template_info_t tinfo = init_template_8x8_4x4();
   core_config_info_t cinfo =  vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
   
