@@ -247,7 +247,7 @@ void
 VecInstSel::recvIcacheResp(PacketPtr pkt) {
     DPRINTF(Mesh, "recv icache pkt %#x expecting %#x\n", pkt->getAddr(), _pendingICacheReqAddr);
   // make sure this was to us and not a stale fetch icache packet
-  if (pkt->getAddr() != _pendingICacheReqAddr) {
+  if (pkt->getAddr() != _pendingICacheReqAddr || !_pendingICacheReq) {
     // potentially we were waiting for this to finish, check if so and issue req for pending
     if (_pendingFailedReq) {
       _pendingFailedReq = false;
