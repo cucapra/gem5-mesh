@@ -86,10 +86,11 @@ int main(int argc, char *argv[])
 
   size_t sizeA = nx*ny;
 
-  DTYPE *a_ptr, *b_ptr, *c_ptr;
+  DTYPE *a_ptr, *x_ptr, *y_ptr, *ax_ptr;
   DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeA, (void**)&a_ptr);
-  DTYPE *_x = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), ny, (void**)&a_ptr);
-  DTYPE *_y = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), ny, (void**)&a_ptr);
+  DTYPE *_x = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), ny, (void**)&x_ptr);
+  DTYPE *_y = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), ny, (void**)&y_ptr);
+  DTYPE *ax = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nx, (void**)&ax_ptr);
 
   // DTYPE *a = (DTYPE *)malloc(sizeof(DTYPE) * n);
 
@@ -101,6 +102,8 @@ int main(int argc, char *argv[])
 
   for (int i = 0; i < ny; i++)
     _y[i] = 0;
+  for (int i = 0; i < nx; i++)
+    ax[i] = 0;
 
   /*--------------------------------------------------------------------
   * Pack argument for kernel
@@ -114,7 +117,7 @@ int main(int argc, char *argv[])
     for (int x = 0; x < cores_x; x++)
     {
       int i = x + y * cores_x;
-      kern_args[i] = construct_args(a, _x, _y, nx, ny , x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(a, _x, _y, ax, nx, ny , x, y, cores_x, cores_y);
     }
   }
 

@@ -5,19 +5,49 @@
 #include "atax.h"
 #include "spad.h"
 #include "../../common/bind_defs.h"
+#include "token_queue.h"
+#include "group_templates.h"
 
 #include "atax_kernel.h"
 
 
 
 void __attribute__((optimize("-fno-inline")))
-atax_manycore()
+atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
+      int nx_start, int nx_end, int tid)
+{
+    for (int i = 0; i < ny; i++)
+      _y_partial[i] = 0;
+    for (int i = nx_start; i < nx_end; i++) {
+      DTYPE temp=0;
+      for(int j=0; j<ny; j++){
+        temp += a[i*ny+j] * _x[j];
+      }
+      STORE_NOACK(temp, ax + i, 0);
+      for(int j=0; j<ny; j++){
+        _y_partial[j] += a[i*ny+j] * temp;
+      }
+    }
+}
+
+void __attribute__((optimize("-fno-inline"))) atax_(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, int nx, int ny,
+      int nx_start, int nx_end, int tid)
 {
 
+    DTYPE* _y_partial = malloc(ny*sizeof(DTYPE));
+    #if defined _VEC
+      template_vec(mask);
+    #else
+      template_manycore(a,_x,_y_partial,ax,nx,ny,start,end,ptid);
+    #endif
+
+    //reduction
+    
 }
 
 
-void kernel(DTYPE *a, DTYPE *_x, DTYPE *_y, int nx, int ny,
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
+    DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, int nx, int ny,
     int tid_x, int tid_y, int dim_x, int dim_y)
 {
 
@@ -54,39 +84,59 @@ void kernel(DTYPE *a, DTYPE *_x, DTYPE *_y, int nx, int ny,
   int master_y = 0;
   int unique_id = 0;
   int total_groups = 0;
+  int used = 0;
 
+  #ifdef VEC_LEN
+  #if VEC_LEN==4
+  template_info_t tinfo = init_template_4x4_2x2();
+  #elif VEC_LEN==16
+  template_info_t tinfo = init_template_8x8_4x4();
+  #endif
+  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
-  #ifdef VEC_LEN_4
-  // vec len 4 currently
- // virtual group dimension
-  vdim_x = 2;
-  vdim_y = 2;
-  vdim = vdim_x * vdim_y;
+  vtid = cinfo.vtid;
+  vtid_x = cinfo.vtid_x;
+  vtid_y = cinfo.vtid_y;
+  vdim_x = cinfo.vdim_x;
+  vdim_y = cinfo.vdim_y;
+  orig_x = cinfo.orig_x;
+  orig_y = cinfo.orig_y;
+  is_da  = cinfo.is_scalar;
+  master_x = cinfo.master_x;
+  master_y = cinfo.master_y;
+  unique_id = cinfo.unique_id;
+  total_groups = cinfo.total_groups;
+  used = cinfo.used;
 
-  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y,
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
+  if(used){
+    start = ( (unique_id + 0) * nx ) / total_groups;
+    end   = ( (unique_id + 1) * nx ) / total_groups;
+  }
 
-  //divide work here
-  
-  #elif defined VEC_LEN_16
-  vdim_x = 4;
-  vdim_y = 4;
-  vdim = vdim_x * vdim_y;
-
-  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y,
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
-
-  //divide work here
   #else
   vdim_x = 1;
   vdim_y = 1;
-  vdim   = vdim_x * vdim_y;
   vtid_x = 0;
   vtid_y = 0;
   vtid   = 0;
-  orig_x = 0;
-  orig_y = 0; //only have 1 group for now
+  start  = ( ( ptid + 0 ) * nx ) / pdim;
+  end    = ( ( ptid + 1 ) * nx ) / pdim;
+  used = 1;
   #endif
+
+
+
+  // linearize some fields
+  vdim = vdim_x * vdim_y;
+  int orig = orig_x + orig_y * dim_x;
+
+  // get behavior of each core
+  #ifdef _VEC
+  int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+  #else
+  int mask = 0;
+  #endif
+
 
 // region based mask for scratchpad
 #ifdef _VEC
@@ -94,12 +144,8 @@ void kernel(DTYPE *a, DTYPE *_x, DTYPE *_y, int nx, int ny,
   PREFETCH_EPOCH(prefetchMask);
 #endif
 
-//ensure vector config of cores
-#ifdef _VEC
-  int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
-#else
-  int mask = 0;
-#endif
+  // only let certain tids continue
+  if (used == 0) return;
 
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
@@ -128,12 +174,8 @@ void kernel(DTYPE *a, DTYPE *_x, DTYPE *_y, int nx, int ny,
       : [ spad ] "r"(spTop));
 
 
-#if defined _VEC
-  template_vec(mask);
+  atax_(mask,a,_x,_y,ax,nx,ny,start,end,ptid);
 
-#else
-  template_manycore();
-#endif
 
   // restore stack pointer
   asm volatile(
@@ -141,7 +183,7 @@ void kernel(DTYPE *a, DTYPE *_x, DTYPE *_y, int nx, int ny,
 }
 
 // helper functions
-Kern_Args *construct_args(DTYPE *a, DTYPE *_x, DTYPE *_y, int nx, int ny,
+Kern_Args *construct_args(DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, int nx, int ny,
                           int tid_x, int tid_y, int dim_x, int dim_y)
 {
 
@@ -170,7 +212,7 @@ void *pthread_kernel(void *args)
   // call the spmd kernel
   Kern_Args *a = (Kern_Args *)args;
 
-  kernel(a->a, a->_x, a->_y, a->nx, a->ny,
+  kernel(a->a, a->_x, a->_y, a->ax, a->nx, a->ny,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
 
