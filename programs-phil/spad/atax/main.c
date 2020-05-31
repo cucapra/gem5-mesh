@@ -9,10 +9,10 @@
 
 void fill_array(DTYPE *m, int n)
 {
-  int rand_temp = rand()%100;
+  int rand_temp = rand()%10;
   for (int i = 0; i < n; i++)
   {
-    m[i] = rand_temp + i;
+    m[i] = (rand_temp + i)%10;
   }
 }
 
@@ -36,6 +36,7 @@ int check_atax (DTYPE* a, DTYPE* _x, DTYPE* _y, int nx, int ny){
   DTYPE* y_temp = (DTYPE*)malloc(ny*sizeof(DTYPE));
   DTYPE* tmp = (DTYPE*)malloc(nx*sizeof(DTYPE));
 
+  
   for (int i = 0; i < ny; i++)
     y_temp[i] = 0;
   for (int i = 0; i < nx; i++){
@@ -46,6 +47,8 @@ int check_atax (DTYPE* a, DTYPE* _x, DTYPE* _y, int nx, int ny){
       y_temp[j] = y_temp[j] + a[i*ny+j] * tmp[i];
   }
 
+  // for (int i = 0; i < ny; i++)
+  //   printf("Kernel val:%d Actual val:%d\n",y_temp[i],_y[i]);
   for (int i = 0; i < ny; i++){
     if (y_temp[i]!=_y[i]){
       printf("[[FAIL]] for At(Ax)\n");
@@ -159,9 +162,9 @@ int main(int argc, char *argv[])
   
   printf("[[SUCCESS]] for At(Ax)\n");
 
-  free(a);
-  free(_x);
-  free(_y);
-  free(ax);
+  free(a_ptr);
+  free(x_ptr);
+  free(y_ptr);
+  free(ax_ptr);
   return 0;
 }

@@ -16,10 +16,11 @@ void __attribute__((optimize("-fno-inline")))
 atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
       int nx_start, int nx_end, int tid)
 {
+    DTYPE temp;
     for (int i = 0; i < ny; i++)
       _y_partial[i] = 0;
     for (int i = nx_start; i < nx_end; i++) {
-      DTYPE temp=0;
+      temp=0;
       for(int j=0; j<ny; j++){
         temp += a[i*ny+j] * _x[j];
       }
@@ -30,11 +31,78 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
     }
 }
 
+//---------ASSUMES INT?? ------------//
+// parallel reduction in a dataflow like manner using token queues
+void reduce_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim, token_queue_t *cons0, token_queue_t *cons1, token_queue_t *prod) {
+
+  int sum = partialSum;
+
+  // one core is responsible for writing back the final value at the end
+  if (activeTid == 0) {
+    // printf("tid %d atid %d dim %d special wait for %p\n", ptid, activeTid, dim, get_pair_base_ptr(cons1, ptid));
+    int t = wait_tokens_consumer(cons1, 1, ptid);
+    int *data = (int*)get_token(cons1, t, ptid);
+    sum += data[0];
+    *c += sum;
+    consume_tokens(cons1, 1, ptid);
+  }
+  // in general cores recv two values in input token queues and writes a value to the next core
+  else {
+    // only lower half consumes data
+    if (activeTid < dim / 2) {
+      // printf("tid %d atid %d dim %d wait for %p %p\n", ptid, activeTid, dim, get_pair_base_ptr(cons0, ptid), get_pair_base_ptr(cons1, ptid));
+      int t0 = wait_tokens_consumer(cons0, 1, ptid);
+      int t1 = wait_tokens_consumer(cons1, 1, ptid);
+      int *data0 = (int*)get_token(cons0, t0, ptid);
+      int *data1 = (int*)get_token(cons1, t1, ptid);
+      sum += data0[0] + data1[0];
+      consume_tokens(cons0, 1, ptid);
+      consume_tokens(cons1, 1, ptid);
+    }
+
+    // everyone produces, except for tid0 who does the writeback
+    // printf("tid %d atid %d dim %d produce for %p\n", ptid, activeTid, dim, get_pair_base_ptr(prod, ptid));
+    int tokenOffset = wait_tokens_producer(prod, 1, ptid);
+    set_token(prod, sum, tokenOffset, ptid);
+    produce_tokens(prod, 1, ptid);
+  }
+
+}
+
+// based on id (in manycore its the ptid, in vector its the group id + vtid)
+// figure out where to send your data to be reduced by another core
+#ifndef _VEC
+int get_reduction_dest(int src_id) {
+  // pattern is to half your id and send to that id
+  return src_id / 2;
+}
+#else
+// a little more complicated to get when there's vector groups
+int get_reduction_dest(template_info_t *tinfo, int group_id, int vid_x, int vid_y, int virt_dim_x, int phys_dim_x, int *active_tid) {
+  // get a flat id from group and vid
+  int vid = vid_y * virt_dim_x + vid_x;
+  int src = group_id * VECTOR_LEN + vid;
+  // divide by two as in manycore case
+  int dest = src / 2;
+  // get the ptid corresponding to this group
+  int dest_group_id = dest / VECTOR_LEN;
+  int dest_vid = dest % VECTOR_LEN;
+  int dest_vid_x = dest_vid % virt_dim_x;
+  int dest_vid_y = dest_vid / virt_dim_x;
+  int ptid = get_ptid_from_group(tinfo, dest_group_id, dest_vid_x, dest_vid_y, phys_dim_x);
+  
+  *active_tid = src;
+
+  return ptid;
+}
+#endif
+
+
 void __attribute__((optimize("-fno-inline"))) atax_master(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, DTYPE *_y_partial,
-      int nx, int ny, int nx_start, int nx_end, int ptid, int vtid)
+      int nx, int ny, int nx_start, int nx_end, int ptid, int vtid, int activeTid, int activeDim,
+  token_queue_t *consumer0, token_queue_t *consumer1, token_queue_t *producer,int is_da)
 {
 
-    // DTYPE* _y_partial = malloc(ny*sizeof(DTYPE));
     #if defined _VEC
       atax_vec(mask,a,_x,_y_partial,ax,nx,ny,nx_start,nx_end,vtid);
     #else
@@ -42,11 +110,16 @@ void __attribute__((optimize("-fno-inline"))) atax_master(int mask, DTYPE *a, DT
     #endif
 
     #ifdef _VEC
-    if (!is_da) // scalar cores don't have data to accumulate so should not partcipate
+    if (is_da) return; // scalar cores don't have data to accumulate so should not partcipate
     #endif
-    //reduction
+    
+    //TODO: reduce vectors instead of scalars in a loop
+    for(int i=0; i<ny; i++)
+      reduce_manycore(*(_y_partial+i), _y+i, ptid, activeTid, activeDim, consumer0, consumer1, producer);
     
 }
+
+
 
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
@@ -147,6 +220,44 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   PREFETCH_EPOCH(prefetchMask);
 #endif
 
+
+  // setup token queues
+  // TODO lightweight scratchpad memory allocator?
+  int spmOffset = 100;
+  int bufSize = 4;
+  int tqWords = bufSize + 4 + 2 + 2; // +2 extra just to be safe
+
+  // each spm gets two consumer queues and one producer queue for a reduction
+  token_queue_t consumer0;
+  token_queue_t consumer1;
+  token_queue_t producer;
+
+  #ifndef _VEC
+  int activeTid = ptid;
+  int pairTid = get_reduction_dest(ptid); 
+  int active_dim = pdim;
+  #else
+  int activeTid;
+  int pairTid = get_reduction_dest(&tinfo, unique_id, vtid_x, vtid_y, vdim_x, pdim_x, &activeTid);
+  int active_dim = total_groups * VECTOR_LEN;
+  #endif
+
+  init_token_queue_consumer(spmOffset + tqWords * 0, bufSize, ptid, &consumer0);
+  init_token_queue_consumer(spmOffset + tqWords * 1, bufSize, ptid, &consumer1);
+
+  // important to skip this if the core won't be used b/c might overwrite the link ptr
+  if (used && !is_da) {
+    // figure out which token queue you're going to be sending to
+    int pairOffset;
+    if (activeTid % 2 == 0) {
+      pairOffset = spmOffset + tqWords * 0;
+    }
+    else {
+      pairOffset = spmOffset + tqWords * 1;
+    }
+    init_token_queue_producer(spmOffset + tqWords * 2, pairOffset, bufSize, ptid, pairTid, &producer);
+  }
+
   // only let certain tids continue
   if (used == 0) return;
 
@@ -177,7 +288,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       : [ spad ] "r"(spTop));
 
 
-  atax_master(mask,a,_x,_y,ax,_y_partial,nx,ny,start,end,ptid,vtid);
+  atax_master(mask,a,_x,_y,ax,_y_partial,nx,ny,start,end,ptid,vtid, activeTid, active_dim, &consumer0, &consumer1, &producer, is_da);
 
 
   // restore stack pointer
