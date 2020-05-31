@@ -48,7 +48,7 @@ programs = {
 
 # create a template for the gem5 command line
 gem5_cmd = lambda program, options, result, cpus, vec: \
-  '{} -d {}/{} {} --cmd={} --options=\"{}\" --num-cpus={} {}'.format(
+  '{} --remote-gdb-port=0 -d {}/{} {} --cmd={} --options=\"{}\" --num-cpus={} {}'.format(
       args.build, args.results, result, args.config, program, options, str(cpus), '--vector' if vec else '')
   
 # compile command that chooses whether to use scratchpad optimizations
@@ -201,9 +201,9 @@ make_flags = []
 # vec_sizes = [ 4, 16 ]
 # load_types = [ 'SPATIAL', 'VERTICAL', 'SPATIAL_UNROLL', 'REUSE ]
 # prefetch_sizes = [ 1, 2, 4, 8, 16 ]
-vec_sizes = [ 4, 16 ]
-load_types = [ 'VERTICAL', 'SPATIAL', 'REUSE' ]
-prefetch_sizes = [ 4, 16 ]
+vec_sizes = [ 4 ]
+load_types = [ 'SPATIAL' ]
+prefetch_sizes = [ 4 ]
 for v in vec_sizes:
   for l in load_types:
     for p in prefetch_sizes:
@@ -212,7 +212,7 @@ for v in vec_sizes:
         make_flags.append(config)
 
 # add no vec config as well
-make_flags.append('NO_VEC')
+# make_flags.append('NO_VEC')
 
 # make_flags_gemm = ["SIMD_PRIVATE", "SIMD_SHARING", "NO_VEC"]
 # program = "gemm"
