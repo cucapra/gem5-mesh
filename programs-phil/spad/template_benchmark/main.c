@@ -48,6 +48,9 @@ int main(int argc, char *argv[])
   // DTYPE *a = (DTYPE *)malloc(sizeof(DTYPE) * n);
 
   // initilaize arrays
+  for(int i=0; i<n; i++){
+    a[i] = i+1;
+  }
 
   /*--------------------------------------------------------------------
   * Pack argument for kernel
@@ -61,7 +64,7 @@ int main(int argc, char *argv[])
     for (int x = 0; x < cores_x; x++)
     {
       int i = x + y * cores_x;
-      kern_args[i] = construct_args(a, n, cores_x, cores_y);
+      kern_args[i] = construct_args(a, n, x, y, cores_x, cores_y);
     }
   }
 

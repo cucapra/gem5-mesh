@@ -19,24 +19,6 @@ ifeq ($(ENV_N_SPS),)
 	N_SPS = 64
 else
 	N_SPS = $(ENV_N_SPS)
-endif	
-
-EXTRA_FLAGS:= 
-
-ifeq ($(ENV_NO_SP),)
-	EXTRA_FLAGS := $(EXTRA_FLAGS) 
-else
-	EXTRA_FLAGS := $(EXTRA_FLAGS)
-endif
-
-ifeq ($(ENV_NO_VEC),)
-	EXTRA_FLAGS := $(EXTRA_FLAGS)
-else
-	EXTRA_FLAGS := $(EXTRA_FLAGS)
-endif
-
-ifneq ($(ENV_EXTRA_MAKE_FLAGS),)
-	EXTRA_FLAGS := $(EXTRA_FLAGS) $(ENV_EXTRA_MAKE_FLAGS)
 endif
 
 ifeq ($(OUT),)
@@ -66,7 +48,7 @@ ifneq (,$(wildcard ./$(EXEC)_final.o))
 	DEPS += $(EXEC)_final.o
 endif
 
-CFLAGS=-DSCALAR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
+CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 vector: CFLAGS=-DVECTOR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 scalar: CFLAGS=-DSCALAR_CORE -D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 
