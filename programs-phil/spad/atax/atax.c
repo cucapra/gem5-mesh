@@ -41,6 +41,9 @@ void __attribute__((optimize("-fno-inline"))) atax_master(int mask, DTYPE *a, DT
       atax_manycore(a,_x,_y_partial,ax,nx,ny,nx_start,nx_end,ptid);
     #endif
 
+    #ifdef _VEC
+    if (!is_da) // scalar cores don't have data to accumulate so should not partcipate
+    #endif
     //reduction
     
 }
