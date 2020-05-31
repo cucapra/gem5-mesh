@@ -5,6 +5,8 @@
 #include "template.h"
 #include "spad.h"
 #include "../../common/bind_defs.h"
+#include "token_queue.h"
+#include "group_templates.h"
 
 #include "template_kernel.h"
 
@@ -54,52 +56,66 @@ void kernel(DTYPE *a, int n,
   int master_y = 0;
   int unique_id = 0;
   int total_groups = 0;
+  int used=0;
 
 
-  #ifdef VEC_LEN_4
-  // vec len 4 currently
- // virtual group dimension
-  vdim_x = 2;
-  vdim_y = 2;
-  vdim = vdim_x * vdim_y;
+  #ifdef _VEC
+  #if VEC_LEN==4
+  template_info_t tinfo = init_template_4x4_2x2();
+  #elif VEC_LEN==16
+  template_info_t tinfo = init_template_8x8_4x4();
+  #endif
+  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
-  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y,
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
+  vtid = cinfo.vtid;
+  vtid_x = cinfo.vtid_x;
+  vtid_y = cinfo.vtid_y;
+  vdim_x = cinfo.vdim_x;
+  vdim_y = cinfo.vdim_y;
+  orig_x = cinfo.orig_x;
+  orig_y = cinfo.orig_y;
+  is_da  = cinfo.is_scalar;
+  master_x = cinfo.master_x;
+  master_y = cinfo.master_y;
+  unique_id = cinfo.unique_id;
+  total_groups = cinfo.total_groups;
+  used = cinfo.used;
 
-  //divide work here
   
-  #elif defined VEC_LEN_16
-  vdim_x = 4;
-  vdim_y = 4;
-  vdim = vdim_x * vdim_y;
+  if(used){
+    //do work division here
+  }
 
-  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y,
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
-
-  //divide work here
   #else
   vdim_x = 1;
   vdim_y = 1;
-  vdim   = vdim_x * vdim_y;
   vtid_x = 0;
   vtid_y = 0;
   vtid   = 0;
-  orig_x = 0;
-  orig_y = 0; //only have 1 group for now
+  //do work division here
+  used = 1;
   #endif
 
-// region based mask for scratchpad
+
+// linearize some fields
+  vdim = vdim_x * vdim_y;
+  int orig = orig_x + orig_y * dim_x;
+
+  // get behavior of each core
+  #ifdef _VEC
+  int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+  #else
+  int mask = 0;
+  #endif
+
+  // region based mask for scratchpad
 #ifdef _VEC
   int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
   PREFETCH_EPOCH(prefetchMask);
 #endif
 
-//ensure vector config of cores
-#ifdef _VEC
-  int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
-#else
-  int mask = 0;
-#endif
+// only let certain tids continue
+  if (used == 0) return;
 
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
