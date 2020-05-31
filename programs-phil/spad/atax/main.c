@@ -135,6 +135,9 @@ int main(int argc, char *argv[])
     {
       int i = x + y * cores_x;
       kern_args[i] = construct_args(a, _x, _y, ax, nx, ny , x, y, cores_x, cores_y);
+      for (int ii = 0; ii < ny; ii++){
+        kern_args[i]->_y_partial[ii]=0;
+      }
     }
   }
 

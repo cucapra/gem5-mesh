@@ -17,8 +17,8 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
       int nx_start, int nx_end, int tid)
 {
     DTYPE temp;
-    for (int i = 0; i < ny; i++)
-      _y_partial[i] = 0;
+    // for (int i = 0; i < ny; i++)
+    //   _y_partial[i] = 0;
     for (int i = nx_start; i < nx_end; i++) {
       temp=0;
       for(int j=0; j<ny; j++){
