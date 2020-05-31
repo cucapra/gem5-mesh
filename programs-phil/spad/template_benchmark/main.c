@@ -86,7 +86,7 @@ int main(int argc, char *argv[])
   // }
 
 
-  free(a);
+  free(a_ptr);
   printf("[[SUCCESS]]\n");
   return 0;
 }

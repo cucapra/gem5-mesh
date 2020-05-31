@@ -1,7 +1,7 @@
 #ifndef __TEMP_H__
 #define __TEMP_H__
 
-typedef float DTYPE;
+typedef int DTYPE;
 
 // pthread argument for the kernel
 typedef struct Kern_Args
