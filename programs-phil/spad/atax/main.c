@@ -7,18 +7,28 @@
 #include "pthread_launch.h"
 #include "atax.h"
 
-void fill_matrix(DTYPE *m, int row, int col)
+void fill_array(DTYPE *m, int n)
 {
-  
-  for (int i = 0; i < row; i++)
+  int rand_temp = rand()%100;
+  for (int i = 0; i < n; i++)
   {
-    for (int j = 0; j < col; j++)
-    {
-      m[i * col + j] = rand() % 10;
-      // printf("%d ", (int)m[i * col + j]);
-    }
-    // printf("\n");
+    m[i] = rand_temp + i;
   }
+}
+
+int check_ax (DTYPE* a, DTYPE* _x, DTYPE* ax, int nx, int ny){
+
+  DTYPE* tmp = (DTYPE*)malloc(nx*sizeof(DTYPE));
+  for (int i = 0; i < nx; i++){
+    tmp[i] = 0;
+    for (int j = 0; j < ny; j++)
+      tmp[i] = tmp[i] + a[i*ny+j] * _x[j];
+    if(tmp[i]!=ax[i]){
+      printf("[[FAIL]] for matrix vector product Ax\n");
+      return 1;
+    }
+  }
+  return 0;
 }
 
 int check_atax (DTYPE* a, DTYPE* _x, DTYPE* _y, int nx, int ny){
@@ -38,7 +48,7 @@ int check_atax (DTYPE* a, DTYPE* _x, DTYPE* _y, int nx, int ny){
 
   for (int i = 0; i < ny; i++){
     if (y_temp[i]!=_y[i]){
-      printf("[[FAIL]]\n");
+      printf("[[FAIL]] for At(Ax)\n");
       return 1;
     }
   }
@@ -86,7 +96,7 @@ int main(int argc, char *argv[])
 
   size_t sizeA = nx*ny;
 
-  DTYPE *a_ptr, *x_ptr, *y_ptr, *ax_ptr;
+  DTYPE *a_ptr, *x_ptr, *y_ptr, *ax_ptr, *_y_partial;
   DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeA, (void**)&a_ptr);
   DTYPE *_x = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), ny, (void**)&x_ptr);
   DTYPE *_y = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), ny, (void**)&y_ptr);
@@ -97,11 +107,15 @@ int main(int argc, char *argv[])
   // initilaize arrays
 
   srand(0);
-  fill_matrix(a, nx, ny);
-  fill_matrix(_x, ny, 1);
+  // printf("matrix a\n");
+  fill_array(a, nx*ny);
+  // printf("matrix _x\n");
+  fill_array(_x, ny);
 
+  // printf("matrix _y\n");
   for (int i = 0; i < ny; i++)
     _y[i] = 0;
+  // printf("matrix ax\n");
   for (int i = 0; i < nx; i++)
     ax[i] = 0;
 
@@ -133,11 +147,21 @@ int main(int argc, char *argv[])
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
 
-  int fail = check_atax(a, _x, _y, nx, ny);
+  int fail = check_ax(a,_x,ax,nx,ny);
   if (fail)
     return 1;
+  
+  printf("[[SUCCESS]] for Ax\n");
+  
+  fail = check_atax(a, _x, _y, nx, ny);
+  if (fail)
+    return 1;
+  
+  printf("[[SUCCESS]] for At(Ax)\n");
 
   free(a);
-  printf("[[SUCCESS]]\n");
+  free(_x);
+  free(_y);
+  free(ax);
   return 0;
 }

@@ -9,6 +9,7 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
-void atax_vec(int mask);
+void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
+      int nx_start, int nx_end, int vtid);
 
 #endif

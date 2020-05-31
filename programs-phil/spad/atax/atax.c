@@ -30,15 +30,15 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
     }
 }
 
-void __attribute__((optimize("-fno-inline"))) atax_(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, int nx, int ny,
-      int nx_start, int nx_end, int tid)
+void __attribute__((optimize("-fno-inline"))) atax_master(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, DTYPE *_y_partial,
+      int nx, int ny, int nx_start, int nx_end, int ptid, int vtid)
 {
 
-    DTYPE* _y_partial = malloc(ny*sizeof(DTYPE));
+    // DTYPE* _y_partial = malloc(ny*sizeof(DTYPE));
     #if defined _VEC
-      template_vec(mask);
+      atax_vec(mask,a,_x,_y_partial,ax,nx,ny,nx_start,nx_end,vtid);
     #else
-      template_manycore(a,_x,_y_partial,ax,nx,ny,start,end,ptid);
+      atax_manycore(a,_x,_y_partial,ax,nx,ny,nx_start,nx_end,ptid);
     #endif
 
     //reduction
@@ -47,7 +47,7 @@ void __attribute__((optimize("-fno-inline"))) atax_(int mask, DTYPE *a, DTYPE *_
 
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
-    DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, int nx, int ny,
+    DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, DTYPE *_y_partial, int nx, int ny,
     int tid_x, int tid_y, int dim_x, int dim_y)
 {
 
@@ -86,7 +86,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int total_groups = 0;
   int used = 0;
 
-  #ifdef VEC_LEN
+  #ifdef _VEC
   #if VEC_LEN==4
   template_info_t tinfo = init_template_4x4_2x2();
   #elif VEC_LEN==16
@@ -174,7 +174,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       : [ spad ] "r"(spTop));
 
 
-  atax_(mask,a,_x,_y,ax,nx,ny,start,end,ptid);
+  atax_master(mask,a,_x,_y,ax,_y_partial,nx,ny,start,end,ptid,vtid);
 
 
   // restore stack pointer
@@ -192,6 +192,8 @@ Kern_Args *construct_args(DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, int nx, int
   args->a = a;
   args->_x = _x;
   args->_y = _y;
+  args->ax = ax;
+  args->_y_partial = malloc(ny*sizeof(DTYPE));
   args->nx = nx;
   args->ny = ny;
   args->tid_x = tid_x;
@@ -212,7 +214,7 @@ void *pthread_kernel(void *args)
   // call the spmd kernel
   Kern_Args *a = (Kern_Args *)args;
 
-  kernel(a->a, a->_x, a->_y, a->ax, a->nx, a->ny,
+  kernel(a->a, a->_x, a->_y, a->ax, a->_y_partial, a->nx, a->ny,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
 
