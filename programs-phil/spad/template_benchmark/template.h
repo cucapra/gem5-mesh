@@ -1,6 +1,13 @@
 #ifndef __TEMP_H__
 #define __TEMP_H__
 
+#define VEC_LEN 4 //vec group size
+
+
+#define REGION_SIZE 8 //configure using LCM of required frame/region sizes
+#define NUM_REGIONS (512 / REGION_SIZE) // (0,512) in this case is the hardware region area 
+
+
 typedef int DTYPE;
 
 // pthread argument for the kernel

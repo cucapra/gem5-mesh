@@ -10,7 +10,25 @@
 
 #include "template_kernel.h"
 
+// use this to chunk data among vector groups
+// https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
+int roundUp(int numToRound, int multiple) {
+  if (multiple == 0) {
+    return numToRound;
+  }
 
+  int remainder = abs(numToRound) % multiple;
+  if (remainder == 0) {
+    return numToRound;
+  }
+
+  if (numToRound < 0) {
+    return -(abs(numToRound) - remainder);
+  }
+  else {
+    return numToRound + multiple - remainder;
+  }
+}
 
 void __attribute__((optimize("-fno-inline")))
 template_manycore()
@@ -84,6 +102,9 @@ void kernel(DTYPE *a, int n,
   
   if(used){
     //do work division here
+    int alignment = VEC_LEN; //each group should have elements of multiple of this number
+    start = roundUp((unique_id + 0) * n / total_groups, alignment); 
+    end = roundUp((unique_id + 1) * n / total_groups, alignment); 
   }
 
   #else
@@ -93,6 +114,8 @@ void kernel(DTYPE *a, int n,
   vtid_y = 0;
   vtid   = 0;
   //do work division here
+  start  = ( ( ptid + 0 ) * n ) / pdim;
+  end    = ( ( ptid + 1 ) * n ) / pdim;
   used = 1;
   #endif
 
@@ -107,6 +130,50 @@ void kernel(DTYPE *a, int n,
   #else
   int mask = 0;
   #endif
+
+
+  // setup token queues
+  // TODO lightweight scratchpad memory allocator?
+  #ifndef _VEC
+  int spmOffset = 100; //Sp offset for tokens
+  #else
+  int spmOffset = REGION_SIZE*NUM_REGIONS; //keep it in non region area
+  #endif
+  int bufSize = 4;
+  int tqWords = bufSize + 4 + 2 + 2; // +2 extra just to be safe
+
+  // each spm gets two consumer queues and one producer queue for a reduction
+  token_queue_t consumer0;
+  token_queue_t consumer1;
+  token_queue_t producer;
+
+  #ifndef _VEC
+  int activeTid = ptid;
+  int pairTid = get_reduction_dest(ptid); 
+  int active_dim = pdim;
+  #else
+  int activeTid;
+  int pairTid = get_reduction_dest(&tinfo, unique_id, vtid_x, vtid_y, vdim_x, pdim_x, &activeTid);
+  int active_dim = total_groups * VEC_LEN;
+  #endif
+
+  init_token_queue_consumer(spmOffset + tqWords * 0, bufSize, ptid, &consumer0);
+  init_token_queue_consumer(spmOffset + tqWords * 1, bufSize, ptid, &consumer1);
+
+  // important to skip this if the core won't be used b/c might overwrite the link ptr
+  if (used && !is_da) {
+    // figure out which token queue you're going to be sending to
+    int pairOffset;
+    if (activeTid % 2 == 0) {
+      pairOffset = spmOffset + tqWords * 0;
+    }
+    else {
+      pairOffset = spmOffset + tqWords * 1;
+    }
+    init_token_queue_producer(spmOffset + tqWords * 2, pairOffset, bufSize, ptid, pairTid, &producer);
+  }
+
+
 
   // region based mask for scratchpad
 #ifdef _VEC
