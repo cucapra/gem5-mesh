@@ -110,6 +110,7 @@ void __attribute__((optimize("-fno-inline"))) atax_master(int mask, DTYPE *a, DT
     #endif
 
     #ifdef _VEC
+    return;
     if (is_da) return; // scalar cores don't have data to accumulate so should not partcipate
     #endif
     
@@ -214,11 +215,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
 
-// region based mask for scratchpad
-#ifdef _VEC
-  int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
-  PREFETCH_EPOCH(prefetchMask);
-#endif
 
 
   // setup token queues
@@ -257,6 +253,16 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     }
     init_token_queue_producer(spmOffset + tqWords * 2, pairOffset, bufSize, ptid, pairTid, &producer);
   }
+
+// do after tokens to avoid stalling due to region not ready
+// region based mask for scratchpad
+#ifdef _VEC
+  int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
+  PREFETCH_EPOCH(prefetchMask);
+#endif
+
+    // single barrier before kernel start
+  pthread_barrier_wait(&start_barrier);
 
   // only let certain tids continue
   if (used == 0) return;
