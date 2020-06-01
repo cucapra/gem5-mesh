@@ -22,7 +22,7 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
   int sp_a_offset, sp_x_offset;
 
   DTYPE temp;
-  for (int i = nx_start; i < nx_end; i++) {
+  for (int i = nx_start; i < nx_end; i+=dim) {
     temp=0;
     ISSUE_VINST(hoist1);
     for(int j=0; j<ny; j+=PREFETCH_LEN){
@@ -30,7 +30,7 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
       sp_x_offset = sp_a_offset + REGION_SIZE/2;
 
       for (int d = 0; d < dim; d++){
-        VPREFETCH_L(sp_a_offset, a + _idx_(i,j,ny), d, PREFETCH_LEN,1); //load A, hopefully cache alligned so no vprefetch_R
+        VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,ny), d, PREFETCH_LEN,1); //load A, hopefully cache alligned so no vprefetch_R
         VPREFETCH_L(sp_x_offset, _x + j, d, PREFETCH_LEN,1); //load x
       }
 
@@ -41,7 +41,7 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
     for(int j=0; j<ny; j+=REGION_SIZE){
 
       sp_a_offset = spadRegion * REGION_SIZE;
-      for (int d = 0; d < dim; d++) VPREFETCH_L(sp_a_offset, a + _idx_(i,j,ny), d, REGION_SIZE ,1);
+      for (int d = 0; d < dim; d++) VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,ny), d, REGION_SIZE ,1);
       
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       ISSUE_VINST(transpose_dp);
@@ -61,7 +61,7 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
   int spadRegion =0;
   DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
 
-  int row_thread=nx_start;
+  int row_thread=nx_start+vtid;
   int col_thread=0;
   DTYPE temp;
   while(bh1){
@@ -99,7 +99,7 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
       col_thread+=REGION_SIZE;
     }
 
-    row_thread++;
+    row_thread+=dim;
   }
   #endif
 

@@ -11,6 +11,25 @@
 #include "atax_kernel.h"
 
 
+// https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
+int roundUp(int numToRound, int multiple) {
+  if (multiple == 0) {
+    return numToRound;
+  }
+
+  int remainder = abs(numToRound) % multiple;
+  if (remainder == 0) {
+    return numToRound;
+  }
+
+  if (numToRound < 0) {
+    return -(abs(numToRound) - remainder);
+  }
+  else {
+    return numToRound + multiple - remainder;
+  }
+}
+
 
 void __attribute__((optimize("-fno-inline")))
 atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
@@ -110,13 +129,15 @@ void __attribute__((optimize("-fno-inline"))) atax_master(int mask, DTYPE *a, DT
     #endif
 
     #ifdef _VEC
-    return;
     if (is_da) return; // scalar cores don't have data to accumulate so should not partcipate
     #endif
     
     //TODO: reduce vectors instead of scalars in a loop
-    for(int i=0; i<ny; i++)
-      reduce_manycore(*(_y_partial+i), _y+i, ptid, activeTid, activeDim, consumer0, consumer1, producer);
+    for(int i=0; i<ny; i++){
+        int partial_sum=_y_partial[i];
+        reduce_manycore(partial_sum, _y+i, ptid, activeTid, activeDim, consumer0, consumer1, producer);
+    }
+      
     
 }
 
@@ -186,8 +207,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   used = cinfo.used;
 
   if(used){
-    start = ( (unique_id + 0) * nx ) / total_groups;
-    end   = ( (unique_id + 1) * nx ) / total_groups;
+    int alignment = VEC_LEN;
+    start = roundUp((unique_id + 0) * nx / total_groups, alignment); 
+    end = roundUp((unique_id + 1) * nx / total_groups, alignment); 
   }
 
   #else
@@ -219,7 +241,11 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // setup token queues
   // TODO lightweight scratchpad memory allocator?
+  #ifndef _VEC
   int spmOffset = 100;
+  #else
+  int spmOffset = REGION_SIZE*NUM_REGIONS;
+  #endif
   int bufSize = 4;
   int tqWords = bufSize + 4 + 2 + 2; // +2 extra just to be safe
 
