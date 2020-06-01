@@ -1,67 +1,84 @@
+from collections import OrderedDict
 from glue_util import *
 import itertools, argparse
 from enum import Enum, auto
 
+# 3 kinds of delimiters demarcate the boundaries of vissue blocks in vector code
+# `until_next`: boundary immediately extends until the next delimiter is found (of any type)
+#               the compiler will explode if no other `until_next` delimiter is found
+#   Example: asm("trillium vissue_delim until_next vector_init");
+#             ... vissue boundary of "vector_init" block ...
+#             asm("trillium vissue_delim until_next vector_body");
+# TODO: implement `begin`/`end` delimiters
+# `begin`, `end`: explicitly marks the beginning (`begin`) and end (`end`) of the boundaries of a vissue block
+# `return`: this delimiter MUST ALWAYS be placed before the `return` statements of both scalar and vector code.
+#           they mark the boundary of a special vissue block whose boundary extends until the next "jump to return address"-ish instruction (e.g., `ret`, `jl ra`, etc)
+
 class VectorParseState(Enum):
-    SIFTING = auto()
-    INIT = auto()
-    BODY = auto()
-    RETURN_BLOCK = auto()
-    EXTRA_BBS = auto()
+    START = auto()
+    # INIT = auto()
+    UNTIL_NEXT = auto()
+    RETURN = auto()
 
-kernel_name = "vvadd_execute_simd"
-def read_vector_bbs(raw_vector_code):
-    vector_init = "vector_init"
-    vector_body = "vector_body"
-    vector_return = "vector_return"
-
+# NOTE: kernel_fun_name MUST equal the name of the trillium-asm Vector-SIMD function
+def read_vector_bbs(kernel_fun_name, raw_vector_code):
     vector_code = vector_preprocess(raw_vector_code)
 
     # dissects vector assembly into the following:
-    # init cfg
-    init = []
-    # body cfg
-    body = []
-    # return stack manipulation cfg
-    ret_block = []
+    # # init cfg
+    # init = []
+    # # body cfg
+    # body = []
+    # # return stack manipulation cfg
+    # ret_block = []
 
-    state = VectorParseState.SIFTING
+    # trillium_init is an implicit block containing stack setup code
+    # it must be attached to another block, since it's not explicitly
+    # handled at the language level.
+    # we'll attach it the first block, i.e., the first user-specified block
+    # OrderedDict lets us remember which block was read first
+    curr_vissue_key = "trillium_init"
+    blocks = OrderedDict([(curr_vissue_key, [])])
+
+    state = VectorParseState.START
     for (line_no, l) in vector_code:
-        if state == VectorParseState.SIFTING:
-            if l == kernel_name + ":":
-                print("found vector_init (delimited by {}:) at line {}".format(kernel_name, line_no))
-                state = VectorParseState.INIT
+        if state == VectorParseState.START:
+            if l == kernel_fun_name + ":":
+                print("found start label at line {}".format(kernel_fun_name, line_no))
+                state = VectorParseState.UNTIL_NEXT
 
-        elif state == VectorParseState.INIT:
-            if l == vector_init:
-                continue
-            elif l == vector_body:
-                print("found vector_body")
-                state = VectorParseState.BODY
+        elif state == VectorParseState.UNTIL_NEXT:
+            delim_parse = parse_delim(l)
+            if delim_parse != None:
+                print("parsed 'until_next'-delimited block: {}".format(curr_vissue_key))
+                delim, new_vissue_key = delim_parse
+                curr_vissue_key = new_vissue_key
+                blocks[new_vissue_key] = []
+
+                if delim == TrilliumAsmDelim.UNTIL_NEXT:
+                    state = VectorParseState.UNTIL_NEXT
+                elif delim == TrilliumAsmDelim.RETURN:
+                    state = VectorParseState.RETURN
+                else: raise Exception("unrecognized delim found: check parse_delim function")
             else:
-                init.append(l)
+                blocks[curr_vissue_key].append(l)
 
-        elif state == VectorParseState.BODY:
-            if l == vector_return:
-                print("found vector_return")
-                state = VectorParseState.RETURN_BLOCK
+        elif state == VectorParseState.RETURN:
+            if is_return_inst(l):
+                print("parsed return block {}".format(curr_vissue_key))
+                break #return block should be the last one
             else:
-                body.append(l)
+                blocks[curr_vissue_key].append(l)
 
-        elif state == VectorParseState.RETURN_BLOCK:
-            if(is_return_inst(l)):
-                print("found return jump")
-                state = VectorParseState.SIFTING
-            else:
-                ret_block.append(l)
 
-    blocks = {  vector_init:init,
-                vector_body:body,
-                vector_return:ret_block}
+    # prepend trillium_init block to the first block
+    trillium_init_block = blocks["trillium_init"]
+    first_vissue_key = list(blocks.keys())[1] #0 corresponds to "trillium_init"
+    first_vissue_block = blocks[first_vissue_key]
+    blocks[first_vissue_key] = trillium_init_block + first_vissue_block
 
     # insert terminator in each block
     terminator = ".insn i 0x1b, 0x7, x0, x0, 0"
-
     for b in blocks.values():
         b.append(terminator)
 
@@ -81,7 +98,7 @@ class ScalarParseState(Enum):
     # SIFT_BB = auto()
     # NON_VECTOR_BB = auto()
 
-def glue(raw_scalar_code, vector_bbs):
+def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
     scalar_return = "scalar_return"
 
     scalar_code = scalar_preprocess(raw_scalar_code)
@@ -110,7 +127,7 @@ def glue(raw_scalar_code, vector_bbs):
 
 
         if state == ScalarParseState.HEADER:
-          if l.strip() == kernel_name + ":":
+          if l.strip() == kernel_fun_name + ":":
             header.append(l)
             state = ScalarParseState.BEFORE_VECTOR_EPOCH
           else:
@@ -137,7 +154,8 @@ def glue(raw_scalar_code, vector_bbs):
 
 
         elif state == ScalarParseState.AFTER_DEVEC:
-            if scalar_return in l:
+            delim = parse_delim(l)
+            if delim != None and delim[0] == TrilliumAsmDelim.RETURN:
                 state = ScalarParseState.RETURN_STACK_MANIP
             else:
                 after_DEVEC.append(l)
@@ -182,11 +200,12 @@ def glue(raw_scalar_code, vector_bbs):
 
 
         elif state == ScalarParseState.REPLACE_BB_PLACEHOLDERS:
-            is_bb_key = l in vector_bbs.keys()
+            vissue_key = parse_gluepoint(l)
+            is_bb_key = vissue_key != None
 
-            # vector block detected: perform gluing
+            # vector gluepoint detected: perform gluing
             if is_bb_key and label != None:
-                bb.extend(vector_bbs[l])
+                bb.extend(vector_bbs[vissue_key])
                 print("gluing {} into label {}".format(l, label))
                 start = "#Start {}".format(l)
                 bbs.append(label)
@@ -252,20 +271,34 @@ def glue(raw_scalar_code, vector_bbs):
 
 
 if __name__ == "__main__":
-    vector_file = open("vvadd_vector.s", "r")
-    scalar_file = open("vvadd_scalar.s", "r")
-    combined_file = open("vvadd_kernel.s", "w+")
+    import sys
+    arg_string = " ".join(sys.argv[1:])
+    usage_regex = "(\w+.s)\s+(\w+.s)\s+-o\s+(\w+.s)"
+    match = re.compile(usage_regex).match(arg_string)
+    if not match:
+      print("Gluer Usage: vector.s scalar.s -o combined.s")
+      print("expected match with regex: {}".format(usage_regex))
+      print("but found: {}".format(arg_string))
+      exit(1)
+
+    vector_filename, scalar_filename, combined_filename = match.groups()
+    vector_file = open(vector_filename, "r")
+    scalar_file = open(scalar_filename, "r")
+    combined_file = open(combined_filename, "w")
 
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()
 
-    vector_blocks = read_vector_bbs(vector_code)
+    #TODO: parse this from file or filename
+    kernel_fun_name = "vvadd_execute_simd"
+
+    vector_blocks = read_vector_bbs(kernel_fun_name, vector_code)
     for block_name in vector_blocks.keys():
         block = vector_blocks[block_name]
         print("printing {} CFG of length {}".format(block_name, len(block)))
         print(pretty(block))
 
-    combined_code = glue(scalar_code, vector_blocks)
+    combined_code = glue(kernel_fun_name, scalar_code, vector_blocks)
     combined_file.write(pretty(combined_code))
 
     print("Finished.")

@@ -42,7 +42,7 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
   // issue header instructions
   ISSUE_VINST(fable0);
 #elif defined VECTOR_CORE
-  asm("vector_init");
+  asm("trillium vissue_delim until_next vector_init");
   volatile int bh1, bh2; // while loop variables
   DTYPE a_, b_, c_;
   int64_t iter = 0;
@@ -99,7 +99,7 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
 #endif
 
 #elif defined VECTOR_CORE
-  asm("vector_body");
+  asm("trillium vissue_delim until_next vector_body");
 #ifdef SIMD_BCAST
     // try to get compiler to use register that will recv broadcasted values
     // can make compiler pass
@@ -156,20 +156,20 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
   DEVEC(devec_0);
   // we are doing lazy store acks, so use this to make sure all stores have commited to memory
   asm volatile("fence\n\t");
-  asm("scalar_return");
+  asm("trillium vissue_delim return scalar_return");
   return;
 fable0:
-  asm("vector_init");
+  asm("trillium glue_point vector_init");
 
 fable1:
-  asm("vector_body");
+  asm("trillium glue_point vector_body");
 
 fable2:
-  asm("vector_return");
+  asm("trillium glue_point vector_return");
 
 #elif defined VECTOR_CORE
 
-asm("vector_return");  
+asm("trillium vissue_delim return vector_return");
 return;
 
 #endif
