@@ -81,12 +81,12 @@ int get_reduction_dest(int src_id) {
 int get_reduction_dest(template_info_t *tinfo, int group_id, int vid_x, int vid_y, int virt_dim_x, int phys_dim_x, int *active_tid) {
   // get a flat id from group and vid
   int vid = vid_y * virt_dim_x + vid_x;
-  int src = group_id * VECTOR_LEN + vid;
+  int src = group_id * VEC_LEN + vid;
   // divide by two as in manycore case
   int dest = src / 2;
   // get the ptid corresponding to this group
-  int dest_group_id = dest / VECTOR_LEN;
-  int dest_vid = dest % VECTOR_LEN;
+  int dest_group_id = dest / VEC_LEN;
+  int dest_vid = dest % VEC_LEN;
   int dest_vid_x = dest_vid % virt_dim_x;
   int dest_vid_y = dest_vid / virt_dim_x;
   int ptid = get_ptid_from_group(tinfo, dest_group_id, dest_vid_x, dest_vid_y, phys_dim_x);
@@ -99,12 +99,12 @@ int get_reduction_dest(template_info_t *tinfo, int group_id, int vid_x, int vid_
 
 
 void __attribute__((optimize("-fno-inline"))) atax_master(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, DTYPE *_y_partial,
-      int nx, int ny, int nx_start, int nx_end, int ptid, int vtid, int activeTid, int activeDim,
+      int nx, int ny, int nx_start, int nx_end, int ptid, int vtid, int vdim, int activeTid, int activeDim,
   token_queue_t *consumer0, token_queue_t *consumer1, token_queue_t *producer,int is_da)
 {
 
     #if defined _VEC
-      atax_vec(mask,a,_x,_y_partial,ax,nx,ny,nx_start,nx_end,vtid);
+      atax_vec(mask,a,_x,_y_partial,ax,nx,ny,nx_start,nx_end,ptid,vtid,vdim);
     #else
       atax_manycore(a,_x,_y_partial,ax,nx,ny,nx_start,nx_end,ptid);
     #endif
@@ -239,7 +239,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #else
   int activeTid;
   int pairTid = get_reduction_dest(&tinfo, unique_id, vtid_x, vtid_y, vdim_x, pdim_x, &activeTid);
-  int active_dim = total_groups * VECTOR_LEN;
+  int active_dim = total_groups * VEC_LEN;
   #endif
 
   init_token_queue_consumer(spmOffset + tqWords * 0, bufSize, ptid, &consumer0);
@@ -288,7 +288,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       : [ spad ] "r"(spTop));
 
 
-  atax_master(mask,a,_x,_y,ax,_y_partial,nx,ny,start,end,ptid,vtid, activeTid, active_dim, &consumer0, &consumer1, &producer, is_da);
+  atax_master(mask,a,_x,_y,ax,_y_partial,nx,ny,start,end,ptid,vtid, vdim, activeTid, active_dim, &consumer0, &consumer1, &producer, is_da);
 
 
   // restore stack pointer
