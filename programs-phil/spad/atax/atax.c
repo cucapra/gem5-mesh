@@ -52,7 +52,7 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
 
 //---------ASSUMES INT?? ------------//
 // parallel reduction in a dataflow like manner using token queues
-void reduce_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim, token_queue_t *cons0, token_queue_t *cons1, token_queue_t *prod) {
+void reduce_scalar_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim, token_queue_t *cons0, token_queue_t *cons1, token_queue_t *prod) {
 
   int sum = partialSum;
 
@@ -84,6 +84,51 @@ void reduce_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim,
     int tokenOffset = wait_tokens_producer(prod, 1, ptid);
     set_token(prod, sum, tokenOffset, ptid);
     produce_tokens(prod, 1, ptid);
+  }
+
+}
+
+void reduce_vector_manycore(DTYPE* partialVec, DTYPE *c, int ptid, int activeTid, int dim, token_queue_t *cons0, 
+    token_queue_t *cons1, token_queue_t *prod, int numElements) {
+
+  // one core is responsible for writing back the final value at the end
+  if (activeTid == 0) {
+    // printf("tid %d atid %d dim %d special wait for %p\n", ptid, activeTid, dim, get_pair_base_ptr(cons1, ptid));
+    for(int i=0; i<numElements; i+=4){
+      int t = wait_tokens_consumer(cons1, 4, ptid);
+      for(int j=0; j<4; j++){
+        int *data = (int*)get_token(cons1, t+j, ptid);
+        partialVec[i+j] += data[0];
+        c[i+j] += partialVec[i+j];
+      }
+      consume_tokens(cons1, 4, ptid);
+    }
+  }
+  // in general cores recv two values in input token queues and writes a value to the next core
+  else {
+    // only lower half consumes data
+    if (activeTid < dim / 2) {
+      // printf("tid %d atid %d dim %d wait for %p %p\n", ptid, activeTid, dim, get_pair_base_ptr(cons0, ptid), get_pair_base_ptr(cons1, ptid));
+      for(int i=0; i<numElements; i+=4){
+        int t0 = wait_tokens_consumer(cons0, 4, ptid);
+        int t1 = wait_tokens_consumer(cons1, 4, ptid);
+        for(int j=0; j<4; j++){
+          int *data0 = (int*)get_token(cons0, t0+j, ptid); //use offset here to get data in circ buffer
+          int *data1 = (int*)get_token(cons1, t1+j, ptid);
+          partialVec[i+j] += data0[0] + data1[0]; //data[0] and not to be used as data[i] due to circ buffer on Spad
+        }
+        consume_tokens(cons0, 4, ptid);
+        consume_tokens(cons1, 4, ptid);
+      }
+    }
+
+    // everyone produces, except for tid0 who does the writeback
+    // printf("tid %d atid %d dim %d produce for %p\n", ptid, activeTid, dim, get_pair_base_ptr(prod, ptid));
+    for(int i=0; i<numElements; i+=4){ //go in steps of tokens < buffer size
+      int tokenOffset = wait_tokens_producer(prod, 4, ptid); // 4< buffer size, hence safe
+      for(int j=0; j<4; j++) set_token(prod, partialVec[i+j], tokenOffset+j, ptid);
+      produce_tokens(prod, 4, ptid);
+    }
   }
 
 }
@@ -133,10 +178,11 @@ void __attribute__((optimize("-fno-inline"))) atax_master(int mask, DTYPE *a, DT
     #endif
     
     //TODO: reduce vectors instead of scalars in a loop
-    for(int i=0; i<ny; i++){
-        int partial_sum=_y_partial[i];
-        reduce_manycore(partial_sum, _y+i, ptid, activeTid, activeDim, consumer0, consumer1, producer);
-    }
+    // for(int i=0; i<ny; i++){
+    //     int partial_sum=_y_partial[i];
+    //     reduce_scalar_manycore(partial_sum, _y+i, ptid, activeTid, activeDim, consumer0, consumer1, producer);
+    // }
+    reduce_vector_manycore(_y_partial, _y, ptid, activeTid, activeDim, consumer0, consumer1, producer,ny);
       
     
 }
@@ -246,7 +292,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #else
   int spmOffset = REGION_SIZE*NUM_REGIONS;
   #endif
-  int bufSize = 4;
+  int bufSize = 10;
   int tqWords = bufSize + 4 + 2 + 2; // +2 extra just to be safe
 
   // each spm gets two consumer queues and one producer queue for a reduction
