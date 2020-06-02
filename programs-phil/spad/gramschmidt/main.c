@@ -6,6 +6,51 @@
 #include "pthread_launch.h"
 #include "gramschmidt.h"
 
+// checker from polybench. single core implementation
+#include <math.h>
+
+void gramschmidt(DTYPE* A, DTYPE* R, DTYPE* Q, int N, int M)
+{
+	int i,j,k;
+	DTYPE nrm;
+	for (k = 0; k < N; k++) // dont need to process the last one
+	{
+		nrm = 0.0f;
+		for (i = 0; i < M; i++)
+		{
+      // printf("%f %f %f idx %d\n", nrm, A[i*N + k], A[i*N + k] * A[i*N + k], i*N+k);
+			nrm += A[i*N + k] * A[i*N + k];
+		}
+		
+		R[k*N + k] = sqrtf(nrm);
+    // printf("mag sqrt(%f) = %f idx %d\n", nrm, R[k*N + k], k*N+k);
+
+		for (i = 0; i < M; i++)
+		{
+			Q[i*N + k] = A[i*N + k] / R[k*N + k];
+      // printf("q %f idx %d\n", Q[i*N + k], i*N + k);
+		}
+		
+		for (j = k + 1; j < N; j++)
+		{
+			R[k*N + j] = 0;
+			for (i = 0; i < M; i++)
+			{
+				R[k*N + j] += Q[i*N + k] * A[i*N + j];
+			}
+      // printf("dot %f idx %d\n", R[k*N + j], k*N + j);
+
+			for (i = 0; i < M; i++)
+			{
+        // printf("a before %f\n", A[i*N+j]);
+				A[i*N + j] -= Q[i*N + k] * R[k*N + j];
+        // printf("%f -= %f * %f idx %d %d\n", A[i*N + j], Q[i*N + k], R[k*N + j], i*N + j, k*N + j);
+			}
+		}
+	}
+}
+
+
 int main(int argc, char *argv[]) {
   
   /*--------------------------------------------------------------------
@@ -25,8 +70,9 @@ int main(int argc, char *argv[]) {
   * Put the command line arguments into variables
   *-------------------------------------------------------------------*/
   
-  int num_vectors = 8;
-  int vector_len = 8;
+  // TODO default polybench doesn't work when these differ
+  int num_vectors = 4;
+  int vector_len = num_vectors;
 
   if (argc > 1) {
     num_vectors = atoi(argv[1]);
@@ -35,7 +81,7 @@ int main(int argc, char *argv[]) {
     vector_len = atoi(argv[2]);
   }
   
-  printf("Gram-Schmidt Orthornormalization on %d vectors of length %d. Num cores is %d\n", 
+  printf("Gram-Schmidt Orthonormalization on %d vectors of length %d. Num cores is %d\n", 
     num_vectors, vector_len, num_cores);
 
   /*--------------------------------------------------------------------
@@ -56,7 +102,8 @@ int main(int argc, char *argv[]) {
   // initial vectors
   for (int i = 0; i < vector_len; i++) {
     for (int j = 0; j < num_vectors; j++) {
-      a[i * num_vectors + j] = ((DTYPE) ( i + 1 ) * ( j + 1 )) / (DTYPE)( vector_len + 1 );
+      a[i * num_vectors + j] = ((DTYPE) (( i + 1 ) * ( j + 1 ))) / (DTYPE)( vector_len + 1 );
+      printf("%f\n", a[i * num_vectors + j]);
     }
   }
   
@@ -85,15 +132,31 @@ int main(int argc, char *argv[]) {
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
   
-  // could just do calc sequentially one cpu if want to trust that
-  // int n = len;
-  // int calc = c[0]; 
-  // int exp = ((n * (n + 1) * (2*n + 1)) / 6) * 6; // (done some comp 6 times)
-  // if (calc != exp) {
-  //   printf("%d != %d\n", calc, exp);
-  //   printf("[[FAIL]]\n");
-  //   return 1;
-  // }
+  // compare with results from a sequential version
+  // TODO maybe worth writing to file and comparing natively?
+  DTYPE *A_exp = (DTYPE*)malloc(sizeof(DTYPE)*flat_len);
+  DTYPE *R_exp = (DTYPE*)malloc(sizeof(DTYPE)*flat_len);
+  DTYPE *Q_exp = (DTYPE*)malloc(sizeof(DTYPE)*flat_len);
+  for (int i = 0; i < vector_len; i++) {
+    for (int j = 0; j < num_vectors; j++) {
+      A_exp[i * num_vectors + j] = ((DTYPE) (( i + 1 ) * ( j + 1 ))) / (DTYPE)( vector_len + 1 );
+    }
+  }
+  gramschmidt(A_exp, R_exp, Q_exp, num_vectors, vector_len);
+  for (int i = 0; i < flat_len; i++) {
+    if (a[i] != A_exp[i]) {
+      printf("%f != %f\n", a[i], A_exp[i]);
+      printf("[[FAIL]]\n");
+      // return 1;
+    }
+    else {
+      printf("%f\n", a[i]);
+    }
+  }
+
+  free(A_exp);
+  free(R_exp);
+  free(Q_exp);
   
   free(a_ptr);
   free(r_ptr);

@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <math.h>
 
 #include "pthread_launch.h"
 #include "gramschmidt.h"
@@ -41,7 +42,8 @@ void u_magnitude_sequential(DTYPE *a, DTYPE *r, int numVectors, int vectorLen, i
   for (int i = 0; i < vectorLen; i++) {
     sqrMagnitude += a[i * numVectors + k] * a[i * numVectors + k];
   }
-  r[k * numVectors + k] = sqrt(sqrMagnitude);
+  r[k * numVectors + k] = sqrtf(sqrMagnitude);
+  // printf("mag %f idx %d\n", r[k * numVectors + k], k*numVectors+k);
 }
 
 // normalize the orthogonal vector u
@@ -49,46 +51,44 @@ void u_magnitude_sequential(DTYPE *a, DTYPE *r, int numVectors, int vectorLen, i
 void u_normalize_manycore(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
   int start = ((tid + 0) * vectorLen) / dim;
   int end   = ((tid + 1) * vectorLen) / dim;
+
+  // printf("tid %d start %d end %d\n", tid, start, end);
+
   for (int i = start; i < end; i++) {
     q[i * numVectors + k] = a[i * numVectors + k] / r[k * numVectors * k];
+    // printf("tid %d q %f idx %d\n", tid, q[i * numVectors + k], i * numVectors + k);
   }
 }
 
 // do the dotproduct with every subsequent vector and subtract from it
 // parallelize across each subsequent vector
 void u_dot_subtract_manycore(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
-  // int j = hipBlockIdx_x * hipBlockDim_x + hipThreadIdx_x;
+  // number of vectors we need to project on
+  int numProjs = numVectors - ( k + 1 );
+  int start = ( k + 1 ) + ( ( ( tid + 0 ) * numProjs ) / dim );
+  int end   = ( k + 1 ) + ( ( ( tid + 1 ) * numProjs ) / dim );
 
-	// if ((j > k) && (j < N))
-	// {
-	// 	r[k*N + j] = 0.0;
-
-	// 	int i;
-	// 	for (i = 0; i < M; i++)
-	// 	{
-	// 		r[k*N + j] += q[i*N + k] * a[i*N + j];
-	// 	}
-		
-	// 	for (i = 0; i < M; i++)
-	// 	{
-	// 		a[i*N + j] -= q[i*N + k] * r[k*N + j];
-	// 	}
-	// }
+  // printf("tid %d start %d end %d\n", tid, start, end);
 
   // for each subsequent vector we need to off its component of the k'th vector
-  for (int j = k; j < numVectors; j++) {
+  for (int j = start; j < end; j++) {
 
-    r[k * numVectors + j] = 0;
+    r[k * numVectors + j] = 0.0f;
 
     // do the dot product with j'th vector that needs the component of the k'th vector taken off
     for (int i = 0; i < vectorLen; i++) {
       r[k * numVectors + j] += q[i * numVectors + k] * a[i * numVectors + j];
     }
+    // printf("tid %d dot %f idx %d\n", tid, r[k * numVectors + j], k * numVectors + j);
 
     // take off the projection of the j'th vector onto orthornal k
     // (we've just finished the computation of the projection after the dot product)
     for (int i = 0; i < vectorLen; i++) {
+      // printf("tid %d a before %f\n", tid, a[i * numVectors + j]);
       a[i * numVectors + j] -= q[i * numVectors + k] * r[k * numVectors + j];
+      // printf("tid %d %f -= %f * %f idx %d %d\n", 
+        // tid, a[i * numVectors + j], q[i * numVectors + k], r[k * numVectors + j], 
+        // i * numVectors + j, k * numVectors + j);
     }
   }
 
@@ -219,33 +219,40 @@ int get_reduction_dest(template_info_t *tinfo, int group_id, int vid_x, int vid_
 // dot product. two parts
 // 1) do local multiplication and accumulation (in vector/manycore)
 // 2) do reduction always using manycore version
-void __attribute__((optimize("-fno-inline"))) dot_product(DTYPE *a, DTYPE *b, DTYPE *c, 
-  int start, int end, int ptid, int vtid, int activeTid, int activeDim,
+void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, DTYPE *q, 
+  int ptid, int vtid, int dim, int numVectors, int vectorLen,
+  int activeTid, int activeDim,
   token_queue_t *consumer0, token_queue_t *consumer1, token_queue_t *producer,
   int is_da, int mask
   ) {
-   // accumulate partial sums locally
-  #ifndef USE_VEC
-  int partialSum = local_dot_manycore(a, b, start, end);
-  #else
-  int partialSum = local_dot_vector(a, b, vtid, start, end, mask);
-  #endif
 
-  // printf("tid %d sum %d activeTid %d activeDim %d isDa %d pair ptr %p %p %p %p -- %p %p %p %p -- %p %p %p %p \n", ptid, partialSum, activeTid, activeDim, is_da, 
-  //   get_pair_base_ptr(consumer0, ptid), get_tail_ptr(consumer0, ptid), get_tail_ptr(consumer0, ptid), get_data_ptr(consumer0, ptid),
-  //   get_pair_base_ptr(consumer1, ptid), get_tail_ptr(consumer1, ptid), get_tail_ptr(consumer1, ptid), get_data_ptr(consumer1, ptid),
-  //   get_pair_base_ptr(producer, ptid), get_other_head_ptr(producer, ptid), get_other_tail_ptr(producer, ptid), get_other_data_ptr(producer, ptid));
+    // loop over each non-othorgonal vector a successively orthonormalize
+    // dont need to do orthonormalization part on the last step b/c no future vectors to remove component from
+    // TODO technically don't have to do last iteration b/c no real works done but polybench does this so keep
+    for (int k = 0; k < numVectors; k++) {
+      // compute magnitude of the vector
+      if (ptid == 0)
+        u_magnitude_sequential(a, r, numVectors, vectorLen, k);
 
-  #ifdef VECTOR_LEN
-  if (!is_da) // scalar cores don't have data to accumulate so should not partcipate
-  #endif
-  // do reduction across cores
-  reduce_manycore(partialSum, c, ptid, activeTid, activeDim, consumer0, consumer1, producer);
+      pthread_barrier_wait(&start_barrier);
+
+      // normalize the vector
+      u_normalize_manycore(a, r, q, numVectors, vectorLen, k, ptid, dim);
+
+      pthread_barrier_wait(&start_barrier);
+
+      // apply projection of this vector onto each vector that hasn't been orthonormalized
+      u_dot_subtract_manycore(a, r, q, numVectors, vectorLen, k, ptid, dim);
+
+      pthread_barrier_wait(&start_barrier);
+
+    }
+
 }
 
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
-    DTYPE *a, DTYPE *b, DTYPE *c, int len,
+    DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen,
     int tid_x, int tid_y, int dim_x, int dim_y) {
   
   // start recording all stats (all cores)
@@ -270,8 +277,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int vdim_x = 0;
   int vdim_y = 0;
   int vdim   = 0;
-  int start  = 0;
-  int end    = 0;
   int orig_x = 0;
   int orig_y = 0;
   int is_da  = 0;
@@ -320,8 +325,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vtid_x = 0;
   vtid_y = 0;
   vtid   = 0;
-  start  = ( ( ptid + 0 ) * len ) / pdim;
-  end    = ( ( ptid + 1 ) * len ) / pdim;
   used   = 1;
 
   #endif
@@ -407,10 +410,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       : [ spad ] "r"(spTop));
 
 
-  // do a bunch of dot products without syncronizing in between
-  for (int i = 0; i < 6; i++) {
-    dot_product(a, b, c, start, end, ptid, vtid, activeTid, active_dim, &consumer0, &consumer1, &producer, is_da, mask);
-  }
+  // gramschmidt
+  gram_schmidt(a, r, q, ptid, vtid, dim, numVectors, vectorLen, 
+    activeTid, active_dim, &consumer0, &consumer1, &producer, is_da, mask);
 
   // restore stack pointer
   asm volatile (
@@ -421,15 +423,16 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
 
 // helper functions
-Kern_Args *construct_args(DTYPE *a, DTYPE *b, DTYPE *c, int len,
+Kern_Args *construct_args(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen,
   int tid_x, int tid_y, int dim_x, int dim_y) {
 
   Kern_Args *args = (Kern_Args*)malloc(sizeof(Kern_Args));
   
   args->a = a;
-  args->b = b;
-  args->c = c;
-  args->len = len;
+  args->r = r;
+  args->q = q;
+  args->numVectors = numVectors;
+  args->vectorLen  = vectorLen;
   args->tid_x = tid_x;
   args->tid_y = tid_y;
   args->dim_x = dim_x;
@@ -447,7 +450,7 @@ void *pthread_kernel(void *args) {
   // call the spmd kernel
   Kern_Args *a = (Kern_Args*)args;
   
-  kernel(a->a, a->b, a->c, a->len,
+  kernel(a->a, a->r, a->q, a->numVectors, a->vectorLen,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
   pthread_barrier_wait(&start_barrier);
