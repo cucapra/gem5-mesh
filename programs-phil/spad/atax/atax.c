@@ -12,6 +12,9 @@
 
 #define TOKEN_LEN 8
 
+// #define SERIAL_OUTPUT_REDUCE
+#define PARALLEL_OUTPUT_REDUCE
+
 // https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
 int roundUp(int numToRound, int multiple) {
   if (multiple == 0) {
@@ -37,6 +40,8 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
       int nx_start, int nx_end, int tid)
 {
     DTYPE temp;
+    DTYPE *partial_prod = _y_partial + tid*ny;
+
     // for (int i = 0; i < ny; i++)
     //   _y_partial[i] = 0;
     for (int i = nx_start; i < nx_end; i++) {
@@ -46,7 +51,8 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
       }
       STORE_NOACK(temp, ax + i, 0);
       for(int j=0; j<ny; j++){
-        _y_partial[j] += a[i*ny+j] * temp;
+        partial_prod[j] += a[i*ny+j] * temp;
+        // _y_partial[j] += a[i*ny+j] * temp;
       }
     }
 }
@@ -142,6 +148,25 @@ void reduce_vector_manycore(DTYPE* partialVec, DTYPE *c, int ptid, int activeTid
 
 }
 
+void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int numCore){
+
+  #ifndef _VEC
+  //cores are used
+  int start = (ptid + 0) * n / numCore; 
+  int end = (ptid + 1) * n / numCore;
+
+  DTYPE temp;
+  for(int i=start; i<end; i++){
+    temp=0;
+    for(int j=0; j<numCore; j++){
+      temp+=partial[j*n+i];
+    }
+    out[i]+=temp;
+  }
+  #endif
+
+}
+
 // based on id (in manycore its the ptid, in vector its the group id + vtid)
 // figure out where to send your data to be reduced by another core
 #ifndef _VEC
@@ -172,7 +197,7 @@ int get_reduction_dest(template_info_t *tinfo, int group_id, int vid_x, int vid_
 
 
 void __attribute__((optimize("-fno-inline"))) atax_master(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, DTYPE *_y_partial,
-      int nx, int ny, int nx_start, int nx_end, int ptid, int vtid, int vdim, int activeTid, int activeDim,
+      int nx, int ny, int nx_start, int nx_end, int ptid, int pdim, int vtid, int vdim, int activeTid, int activeDim,
   token_queue_t *consumer0, token_queue_t *consumer1, token_queue_t *producer,int is_da)
 {
 
@@ -184,6 +209,8 @@ void __attribute__((optimize("-fno-inline"))) atax_master(int mask, DTYPE *a, DT
 
     if(ptid==0) stats_on();
 
+    DTYPE *partialVec = _y_partial + ptid*ny;
+
     #ifdef _VEC
     if (is_da) return; // scalar cores don't have data to accumulate so should not partcipate
     #endif
@@ -193,9 +220,12 @@ void __attribute__((optimize("-fno-inline"))) atax_master(int mask, DTYPE *a, DT
     //     int partial_sum=_y_partial[i];
     //     reduce_scalar_manycore(partial_sum, _y+i, ptid, activeTid, activeDim, consumer0, consumer1, producer);
     // }
-    reduce_vector_manycore(_y_partial, _y, ptid, activeTid, activeDim, consumer0, consumer1, producer,ny);
-      
-    
+    #ifdef SERIAL_OUTPUT_REDUCE
+    reduce_vector_manycore(partialVec, _y, ptid, activeTid, activeDim, consumer0, consumer1, producer,ny);
+    #elif defined PARALLEL_OUTPUT_REDUCE
+    pthread_barrier_wait(&start_barrier);
+    reduce_parallel(_y_partial, _y, ny, ptid, pdim);
+    #endif
 }
 
 
@@ -207,10 +237,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 {
 
   // start recording all stats (all cores)
-  if (tid_x == 0 && tid_y == 0)
-  {
-    stats_on();
-  }
+  // if (tid_x == 0 && tid_y == 0)
+  // {
+  //   stats_on();
+  // }
 
 
   // linearize tid and dim
@@ -377,7 +407,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       : [ spad ] "r"(spTop));
 
 
-  atax_master(mask,a,_x,_y,ax,_y_partial,nx,ny,start,end,ptid,vtid, vdim, activeTid, active_dim, &consumer0, &consumer1, &producer, is_da);
+  atax_master(mask,a,_x,_y,ax,_y_partial,nx,ny,start,end,ptid,pdim,vtid, vdim, activeTid, active_dim, &consumer0, &consumer1, &producer, is_da);
 
 
   // restore stack pointer
@@ -386,8 +416,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 }
 
 // helper functions
-Kern_Args *construct_args(DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, int nx, int ny,
-                          int tid_x, int tid_y, int dim_x, int dim_y)
+Kern_Args *construct_args(DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, DTYPE *_y_partial, 
+                          int nx, int ny, int tid_x, int tid_y, int dim_x, int dim_y)
 {
 
   Kern_Args *args = (Kern_Args *)malloc(sizeof(Kern_Args));
@@ -396,7 +426,8 @@ Kern_Args *construct_args(DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, int nx, int
   args->_x = _x;
   args->_y = _y;
   args->ax = ax;
-  args->_y_partial = malloc(ny*sizeof(DTYPE));
+  // args->_y_partial = malloc(ny*sizeof(DTYPE));
+  args->_y_partial = _y_partial;
   args->nx = nx;
   args->ny = ny;
   args->tid_x = tid_x;

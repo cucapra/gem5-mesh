@@ -1,7 +1,7 @@
 #ifndef __TEMP_H__
 #define __TEMP_H__
 
-#define _VEC
+// #define _VEC
 #define VEC_LEN 4
 
 #define PREFETCH_LEN 4
@@ -21,7 +21,7 @@ typedef struct Kern_Args
 
 // helper to pack vvadd args
 Kern_Args *construct_args(
-    DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, int nx, int ny,
+    DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, DTYPE* _y_partial, int nx, int ny,
     int tid_x, int tid_y, int dim_x, int dim_y);
 
 // pthread call
