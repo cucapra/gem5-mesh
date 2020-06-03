@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // TODO default polybench doesn't work when these differ
-  int num_vectors = 4;
+  int num_vectors = 64;
   int vector_len = num_vectors;
 
   if (argc > 1) {
@@ -104,7 +104,7 @@ int main(int argc, char *argv[]) {
     for (int j = 0; j < num_vectors; j++) {
       // a[i * num_vectors + j] = ((DTYPE) (( i + 1 ) * ( j + 1 ))) / (DTYPE)( vector_len + 1 );
       a[i * num_vectors + j] = ((DTYPE)(( i + 1 ) / (j + 1)) + (DTYPE)((j + 1) * (j + 1))) / (DTYPE)( vector_len + 1 );
-      printf("%f\n", a[i * num_vectors + j]);
+      // printf("%f\n", a[i * num_vectors + j]);
     }
   }
   
@@ -132,8 +132,10 @@ int main(int argc, char *argv[]) {
   /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
+
+  printf("Checking results\n");
   
-//  srand(103103);
+  //  srand(103103);
 
   // compare with results from a sequential version
   // TODO maybe worth writing to file and comparing natively?
@@ -152,11 +154,11 @@ int main(int argc, char *argv[]) {
     if (a[i] != A_exp[i]) {
       printf("%f != %f\n", a[i], A_exp[i]);
       printf("[[FAIL]]\n");
-      // return 1;
+      return 1;
     }
-    else {
-      printf("%f\n", a[i]);
-    }
+    // else {
+    //   printf("%f\n", a[i]);
+    // }
   }
 
   free(A_exp);

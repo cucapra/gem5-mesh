@@ -15,7 +15,7 @@ EXEC = gramschmidt
 # defaults if environment variables not set
 
 ifeq ($(ENV_N_SPS),)
-	N_SPS = 4
+	N_SPS = 64
 else
 	N_SPS = $(ENV_N_SPS)
 endif	
