@@ -102,7 +102,8 @@ int main(int argc, char *argv[]) {
   // initial vectors
   for (int i = 0; i < vector_len; i++) {
     for (int j = 0; j < num_vectors; j++) {
-      a[i * num_vectors + j] = ((DTYPE) (( i + 1 ) * ( j + 1 ))) / (DTYPE)( vector_len + 1 );
+      // a[i * num_vectors + j] = ((DTYPE) (( i + 1 ) * ( j + 1 ))) / (DTYPE)( vector_len + 1 );
+      a[i * num_vectors + j] = ((DTYPE)(( i + 1 ) / (j + 1)) + (DTYPE)((j + 1) * (j + 1))) / (DTYPE)( vector_len + 1 );
       printf("%f\n", a[i * num_vectors + j]);
     }
   }
@@ -125,13 +126,15 @@ int main(int argc, char *argv[]) {
   * Run the kernel
   *-------------------------------------------------------------------*/
   
-  printf("Begin kernel on %d cores\n", num_cores);
-  launch_kernel(pthread_kernel, (void**)kern_args, cores_x, cores_y);
+  // printf("Begin kernel on %d cores\n", num_cores);
+  // launch_kernel(pthread_kernel, (void**)kern_args, cores_x, cores_y);
   
   /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
   
+//  srand(103103);
+
   // compare with results from a sequential version
   // TODO maybe worth writing to file and comparing natively?
   DTYPE *A_exp = (DTYPE*)malloc(sizeof(DTYPE)*flat_len);
@@ -139,7 +142,9 @@ int main(int argc, char *argv[]) {
   DTYPE *Q_exp = (DTYPE*)malloc(sizeof(DTYPE)*flat_len);
   for (int i = 0; i < vector_len; i++) {
     for (int j = 0; j < num_vectors; j++) {
-      A_exp[i * num_vectors + j] = ((DTYPE) (( i + 1 ) * ( j + 1 ))) / (DTYPE)( vector_len + 1 );
+      // A_exp[i * num_vectors + j] = ((DTYPE) (( i + 1 ) * ( j + 1 ))) / (DTYPE)( vector_len + 1 );
+      // A_exp[i * num_vectors + j] = (float)rand() / (float)RAND_MAX; // works but probably slow to generate
+      A_exp[i * num_vectors + j] = ((DTYPE)(( i + 1 ) / (j + 1)) + (DTYPE)((j + 1) * (j + 1))) / (DTYPE)( vector_len + 1 );
     }
   }
   gramschmidt(A_exp, R_exp, Q_exp, num_vectors, vector_len);
