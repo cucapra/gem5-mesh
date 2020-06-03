@@ -9,7 +9,6 @@ from enum import Enum, auto
 #   Example: asm("trillium vissue_delim until_next vector_init");
 #             ... vissue boundary of "vector_init" block ...
 #             asm("trillium vissue_delim until_next vector_body");
-# TODO: implement `begin`/`end` delimiters
 # `begin`, `end`: explicitly marks the beginning (`begin`) and end (`end`) of the boundaries of a vissue block
 # `return`: this delimiter MUST ALWAYS be placed before the `return` statements of both scalar and vector code.
 #           they mark the boundary of a special vissue block whose boundary extends until the next "jump to return address"-ish instruction (e.g., `ret`, `jl ra`, etc)
@@ -18,7 +17,9 @@ class VectorParseState(Enum):
     START = auto()
     # INIT = auto()
     UNTIL_NEXT = auto()
+    BEGIN_END = auto()
     RETURN = auto()
+    JUNK = auto()
 
 # NOTE: kernel_fun_name MUST equal the name of the trillium-asm Vector-SIMD function
 def read_vector_bbs(kernel_fun_name, raw_vector_code):
@@ -32,7 +33,7 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
     # # return stack manipulation cfg
     # ret_block = []
 
-    # trillium_init is an implicit block containing stack setup code
+    # `trillium_init` is an implicit block containing stack setup code
     # it must be attached to another block, since it's not explicitly
     # handled at the language level.
     # we'll attach it the first block, i.e., the first user-specified block
@@ -40,13 +41,23 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
     curr_vissue_key = "trillium_init"
     blocks = OrderedDict([(curr_vissue_key, [])])
 
+    # After parsing a `begin/end` block, we discard code until finding another delimiter.
+    # For debugging purposes, we collect the code into "junk" blocks
+    junk_prefix = "trillium_junk"
+    junk_postfix = 0
+
     state = VectorParseState.START
     for (line_no, l) in vector_code:
+        # this is the first state. Here, we look for the start label (using the function name),
+        # and parse any assembly generated before the first delimiter as an `until_next` block,
+        # called `trillium_init`.
         if state == VectorParseState.START:
             if l == kernel_fun_name + ":":
-                print("found start label at line {}".format(kernel_fun_name, line_no))
+                print("found start label {} at line {}".format(kernel_fun_name, line_no))
                 state = VectorParseState.UNTIL_NEXT
 
+        # in this state, we've already seen an `until_next` delimiter,
+        # so we're looking for any other delimiter.
         elif state == VectorParseState.UNTIL_NEXT:
             delim_parse = parse_delim(l)
             if delim_parse != None:
@@ -57,12 +68,60 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
 
                 if delim == TrilliumAsmDelim.UNTIL_NEXT:
                     state = VectorParseState.UNTIL_NEXT
+                elif delim == TrilliumAsmDelim.BEGIN:
+                    state = VectorParseState.BEGIN_END
                 elif delim == TrilliumAsmDelim.RETURN:
                     state = VectorParseState.RETURN
                 else: raise Exception("unrecognized delim found: check parse_delim function")
             else:
                 blocks[curr_vissue_key].append(l)
 
+        # in this state, we've just seen the `begin` delimiter,
+        # so we're looking for a matching `end`
+        elif state == VectorParseState.BEGIN_END:
+            delim_parse = parse_delim(l)
+            if delim_parse == TrilliumAsmDelim.END:
+                print("parsed `begin/end`-delimited block: {}".format(curr_vissue_key))
+
+                # setup collection of "junk code" after `end` delim and before next delim,
+                # for debugging purposes
+                junk_vissue_key = junk_prefix + str(junk_postfix)
+                blocks[junk_vissue_key] = []
+                state = VectorParseState.JUNK
+            elif delim_parse != None:
+                raise Exception("expected `end` delimiter to match `begin` in line {}".format(line_no))
+            else:
+                blocks[curr_vissue_key].append(l)
+
+        # in this state, we've just finished a begin/end block,
+        # so we look for any delimiter, discarding code in the meantime.
+        # (we actually collect this "junk code" instead for debugging purposes)
+        elif state == VectorParseState.JUNK:
+            delim_parse = parse_delim(l)
+
+            if delim_parse != None:
+                print("parsed junk block")
+                junk_postfix += 1
+
+                delim, new_vissue_key = delim_parse
+                curr_vissue_key = new_vissue_key
+                blocks[new_vissue_key] = []
+
+                if delim == TrilliumAsmDelim.BEGIN:
+                    state = VectorParseState.BEGIN_END
+                elif delim == TrilliumAsmDelim.UNTIL_NEXT:
+                    state = VectorParseState.UNTIL_NEXT
+                elif delim == TrilliumAsmDelim.RETURN:
+                    state = VectorParseState.RETURN
+
+            else:
+                junk_vissue_key = junk_prefix + str(junk_postfix)
+                blocks[junk_vissue_key].append(l)
+
+
+
+        # in this state, we've just seen a `return` delimiter,
+        # so we're looking for a "return-like" assembly.
         elif state == VectorParseState.RETURN:
             if is_return_inst(l):
                 print("parsed return block {}".format(curr_vissue_key))
@@ -273,24 +332,22 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 if __name__ == "__main__":
     import sys
     arg_string = " ".join(sys.argv[1:])
-    usage_regex = "(\w+.s)\s+(\w+.s)\s+-o\s+(\w+.s)"
+    usage_regex = "(\w+)\s+(\w+.s)\s+(\w+.s)\s+-o\s+(\w+.s)"
     match = re.compile(usage_regex).match(arg_string)
     if not match:
-      print("Gluer Usage: vector.s scalar.s -o combined.s")
+      print("Gluer Usage: kernel_fun_name vector.s scalar.s -o combined.s")
       print("expected match with regex: {}".format(usage_regex))
       print("but found: {}".format(arg_string))
       exit(1)
 
-    vector_filename, scalar_filename, combined_filename = match.groups()
+    #TODO: rather than receive as CL arg, parse kernel_fun_name from a sensible location instead
+    kernel_fun_name, vector_filename, scalar_filename, combined_filename = match.groups()
     vector_file = open(vector_filename, "r")
     scalar_file = open(scalar_filename, "r")
     combined_file = open(combined_filename, "w")
 
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()
-
-    #TODO: parse this from file or filename
-    kernel_fun_name = "vvadd_execute_simd"
 
     vector_blocks = read_vector_bbs(kernel_fun_name, vector_code)
     for block_name in vector_blocks.keys():

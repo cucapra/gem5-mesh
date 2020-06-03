@@ -1,6 +1,7 @@
 #This Makefile fragment generates rules for building a Trilliasm kernel.
 #To use, you must specify the name of the Trilliasm kernel file:
 #TRILLIASM_KERNEL= name of the trilliasm kernel used in benchmark (e.g.: vvadd_kernel.c)
+#TRILLIASM_FUN_NAME= name of function in the file containing trilliasm kernel (hack currently needed by gluer)
 
 #In addition, `trilliasm.mk` needs the following bindings, for which defaults exist:
 #TRILLIUM_DIR= relative path to trillium directory (default: ../../../trillium)
@@ -21,7 +22,7 @@
 TRILLIUM_DIR?=../../../trillium
 COMMON_PATH?=../common
 RV_CC?=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
-CFLAGS?=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I$(COMMON_PATH) -T$(COMMON_PATH)/spm.ld -lpthread -lm
+CFLAGS?=-D_N_SPS=16 -O3 --std=gnu11 -static -I$(COMMON_PATH) -T$(COMMON_PATH)/spm.ld -lpthread -lm
 
 
 KERNEL_NAME:= $(basename $(TRILLIASM_KERNEL))
@@ -33,7 +34,7 @@ $(KERNEL_NAME)_scalar.s: $(KERNEL_NAME).c
 	$(RV_CC) $(CFLAGS) -D SCALAR_CORE -S $< -o $@ 
 
 $(KERNEL_NAME).s: $(KERNEL_NAME)_vector.s $(KERNEL_NAME)_scalar.s
-	python3 $(TRILLIUM_DIR)/glue.py $^ -o $(KERNEL_NAME).s
+	python3 $(TRILLIUM_DIR)/glue.py $(TRILLIASM_FUN_NAME) $^ -o $(KERNEL_NAME).s
 
 $(KERNEL_NAME).o: $(KERNEL_NAME).s
 	$(RV_CC) $(CFLAGS) -c $^ -o $@
