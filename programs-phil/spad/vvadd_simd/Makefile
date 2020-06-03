@@ -1,4 +1,5 @@
 #plug in trilliasm make recipes
+TRILLIASM_FUN_NAME= vvadd_execute_simd
 TRILLIASM_KERNEL = vvadd_kernel.c
 TRILLIUM_DIR=../../../trillium
 RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc

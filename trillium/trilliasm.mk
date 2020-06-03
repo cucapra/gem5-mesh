@@ -3,6 +3,7 @@
 #TRILLIASM_KERNEL= name of the trilliasm kernel used in benchmark (e.g.: vvadd_kernel.c)
 
 #In addition, `trilliasm.mk` needs the following bindings, for which defaults exist:
+#TRILLIASM_FUN_NAME= name of function containing trilliasm kernel (hack currently needed by gluer)
 #TRILLIUM_DIR= relative path to trillium directory (default: ../../../trillium)
 #COMMON_PATH= relative path to `common` folder with benchmark dependencies
 #RV_CC= path to RV compiler (default: /data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc)
@@ -33,7 +34,7 @@ $(KERNEL_NAME)_scalar.s: $(KERNEL_NAME).c
 	$(RV_CC) $(CFLAGS) -D SCALAR_CORE -S $< -o $@ 
 
 $(KERNEL_NAME).s: $(KERNEL_NAME)_vector.s $(KERNEL_NAME)_scalar.s
-	python3 $(TRILLIUM_DIR)/glue.py $^ -o $(KERNEL_NAME).s
+	python3 $(TRILLIUM_DIR)/glue.py $(TRILLIASM_FUN_NAME) $^ -o $(KERNEL_NAME).s
 
 $(KERNEL_NAME).o: $(KERNEL_NAME).s
 	$(RV_CC) $(CFLAGS) -c $^ -o $@

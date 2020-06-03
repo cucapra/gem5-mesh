@@ -43,7 +43,6 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
   ISSUE_VINST(fable0);
 #elif defined VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
-  volatile int bh1, bh2; // while loop variables
   DTYPE a_, b_, c_;
   int64_t iter = 0;
   DTYPE *cPtr = c + start + vtid;
@@ -62,6 +61,7 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
   for (int i = beginIter; i < totalIter; i++)
   {
 #elif defined VECTOR_CORE
+  volatile int bh1;
   while (bh1)
   {
 #endif
