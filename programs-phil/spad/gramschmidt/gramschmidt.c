@@ -43,7 +43,7 @@ void u_magnitude_sequential(DTYPE *a, DTYPE *r, int numVectors, int vectorLen, i
     sqrMagnitude += a[i * numVectors + k] * a[i * numVectors + k];
   }
   r[k * numVectors + k] = sqrtf(sqrMagnitude);
-  // printf("mag %f idx %d\n", r[k * numVectors + k], k*numVectors+k);
+  // printf("k %d mag %f idx %d\n", k, r[k * numVectors + k], k*numVectors+k);
 }
 
 // normalize the orthogonal vector u
@@ -55,8 +55,8 @@ void u_normalize_manycore(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vect
   // printf("tid %d start %d end %d\n", tid, start, end);
 
   for (int i = start; i < end; i++) {
-    q[i * numVectors + k] = a[i * numVectors + k] / r[k * numVectors * k];
-    // printf("tid %d q %f idx %d\n", tid, q[i * numVectors + k], i * numVectors + k);
+    q[i * numVectors + k] = a[i * numVectors + k] / r[k * numVectors + k];
+    // printf("tid %d k %d nv %d q %f idx %d r %f idx %d\n", tid, k, numVectors, q[i * numVectors + k], i * numVectors + k, r[k * numVectors * k], k * numVectors * k);
   }
 }
 
@@ -87,8 +87,8 @@ void u_dot_subtract_manycore(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int v
       // printf("tid %d a before %f\n", tid, a[i * numVectors + j]);
       a[i * numVectors + j] -= q[i * numVectors + k] * r[k * numVectors + j];
       // printf("tid %d %f -= %f * %f idx %d %d\n", 
-        // tid, a[i * numVectors + j], q[i * numVectors + k], r[k * numVectors + j], 
-        // i * numVectors + j, k * numVectors + j);
+      //   tid, a[i * numVectors + j], q[i * numVectors + k], r[k * numVectors + j], 
+      //   i * numVectors + j, k * numVectors + j);
     }
   }
 

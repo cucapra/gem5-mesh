@@ -126,8 +126,8 @@ int main(int argc, char *argv[]) {
   * Run the kernel
   *-------------------------------------------------------------------*/
   
-  // printf("Begin kernel on %d cores\n", num_cores);
-  // launch_kernel(pthread_kernel, (void**)kern_args, cores_x, cores_y);
+  printf("Begin kernel on %d cores\n", num_cores);
+  launch_kernel(pthread_kernel, (void**)kern_args, cores_x, cores_y);
   
   /*--------------------------------------------------------------------
   * Check result and cleanup data
