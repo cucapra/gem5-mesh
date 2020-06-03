@@ -1,6 +1,6 @@
 #plug in trilliasm make recipes
 TRILLIASM_FUN_NAME= vvadd_execute_simd
-TRILLIASM_KERNEL = vvadd_kernel.c
+TRILLIASM_KERNEL = vvadd_kernel_be.c
 TRILLIUM_DIR=../../../trillium
 RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
 CFLAGS=-D_N_SPS=16 -DVEC_4_SIMD -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm

@@ -80,20 +80,16 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
         # so we're looking for a matching `end`
         elif state == VectorParseState.BEGIN_END:
             delim_parse = parse_delim(l)
-            if delim_parse != None:
+            if delim_parse == TrilliumAsmDelim.END:
                 print("parsed `begin/end`-delimited block: {}".format(curr_vissue_key))
-                delim, new_vissue_key = delim_parse
-                curr_vissue_key = new_vissue_key
-                blocks[new_vissue_key] = []
 
-                if delim == TrilliumAsmDelim.END:
-                    # setup collection of "junk code" after `end` delim and before next delim,
-                    # for debugging purposes
-                    junk_vissue_key = junk_prefix + str(junk_postfix)
-                    blocks[junk_vissue_key] = []
-                    state == VectorParseState.JUNK
-                else:
-                    raise Exception("expected `end` delimiter to match `begin` in line {}".format(line_no))
+                # setup collection of "junk code" after `end` delim and before next delim,
+                # for debugging purposes
+                junk_vissue_key = junk_prefix + str(junk_postfix)
+                blocks[junk_vissue_key] = []
+                state = VectorParseState.JUNK
+            elif delim_parse != None:
+                raise Exception("expected `end` delimiter to match `begin` in line {}".format(line_no))
             else:
                 blocks[curr_vissue_key].append(l)
 
@@ -112,11 +108,11 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
                 blocks[new_vissue_key] = []
 
                 if delim == TrilliumAsmDelim.BEGIN:
-                    state == VectorParseState.BEGIN_END
+                    state = VectorParseState.BEGIN_END
                 elif delim == TrilliumAsmDelim.UNTIL_NEXT:
-                    state == VectorParseState.UNTIL_NEXT
+                    state = VectorParseState.UNTIL_NEXT
                 elif delim == TrilliumAsmDelim.RETURN:
-                    state == VectorParseState.RETURN
+                    state = VectorParseState.RETURN
 
             else:
                 junk_vissue_key = junk_prefix + str(junk_postfix)
