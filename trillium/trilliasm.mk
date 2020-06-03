@@ -1,9 +1,9 @@
 #This Makefile fragment generates rules for building a Trilliasm kernel.
 #To use, you must specify the name of the Trilliasm kernel file:
 #TRILLIASM_KERNEL= name of the trilliasm kernel used in benchmark (e.g.: vvadd_kernel.c)
+#TRILLIASM_FUN_NAME= name of function in the file containing trilliasm kernel (hack currently needed by gluer)
 
 #In addition, `trilliasm.mk` needs the following bindings, for which defaults exist:
-#TRILLIASM_FUN_NAME= name of function containing trilliasm kernel (hack currently needed by gluer)
 #TRILLIUM_DIR= relative path to trillium directory (default: ../../../trillium)
 #COMMON_PATH= relative path to `common` folder with benchmark dependencies
 #RV_CC= path to RV compiler (default: /data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc)
@@ -22,7 +22,7 @@
 TRILLIUM_DIR?=../../../trillium
 COMMON_PATH?=../common
 RV_CC?=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
-CFLAGS?=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I$(COMMON_PATH) -T$(COMMON_PATH)/spm.ld -lpthread -lm
+CFLAGS?=-D_N_SPS=16 -O3 --std=gnu11 -static -I$(COMMON_PATH) -T$(COMMON_PATH)/spm.ld -lpthread -lm
 
 
 KERNEL_NAME:= $(basename $(TRILLIASM_KERNEL))
