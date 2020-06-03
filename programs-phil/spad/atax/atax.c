@@ -148,22 +148,46 @@ void reduce_vector_manycore(DTYPE* partialVec, DTYPE *c, int ptid, int activeTid
 
 }
 
-void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int numCore){
+void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int pdim, int unique_id, int total_groups, int vtid,
+                      int vdim_x, int vdim_y, int phys_dim_x, template_info_t *tinfo){
 
   #ifndef _VEC
   //cores are used
-  int start = (ptid + 0) * n / numCore; 
-  int end = (ptid + 1) * n / numCore;
+  int start = (ptid + 0) * n / pdim; 
+  int end = (ptid + 1) * n / pdim;
 
   DTYPE temp;
   for(int i=start; i<end; i++){
     temp=0;
-    for(int j=0; j<numCore; j++){
+    for(int j=0; j<pdim; j++){
       temp+=partial[j*n+i];
     }
     out[i]+=temp;
   }
+
+  #else
+  int start = (unique_id + 0) * n / total_groups;
+  int end = (unique_id + 1) * n / total_groups;
+  start+=vtid;
+
+  DTYPE temp;
+  for(int i=start; i<end; i+=VEC_LEN){
+    temp=0;
+    for(int j=0; j<pdim; j++){
+      temp+=partial[j*n+i];
+    }
+    // for(int j=0; j<total_groups; j++){
+    //   for(int x=0; x<vdim_x; x++){
+    //     for(int y=0; y<vdim_y; y++){
+    //       int p = get_ptid_from_group(tinfo, j, x, y, phys_dim_x);
+    //       temp+=partial[p*n+i];
+    //     }
+    //   }
+    // }
+    out[i]+=temp;
+  }
   #endif
+  return;
 
 }
 
@@ -194,39 +218,6 @@ int get_reduction_dest(template_info_t *tinfo, int group_id, int vid_x, int vid_
   return ptid;
 }
 #endif
-
-
-void __attribute__((optimize("-fno-inline"))) atax_master(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, DTYPE *_y_partial,
-      int nx, int ny, int nx_start, int nx_end, int ptid, int pdim, int vtid, int vdim, int activeTid, int activeDim,
-  token_queue_t *consumer0, token_queue_t *consumer1, token_queue_t *producer,int is_da)
-{
-
-    #if defined _VEC
-      atax_vec(mask,a,_x,_y_partial,ax,nx,ny,nx_start,nx_end,ptid,vtid,vdim);
-    #else
-      atax_manycore(a,_x,_y_partial,ax,nx,ny,nx_start,nx_end,ptid);
-    #endif
-
-    if(ptid==0) stats_on();
-
-    DTYPE *partialVec = _y_partial + ptid*ny;
-
-    #ifdef _VEC
-    if (is_da) return; // scalar cores don't have data to accumulate so should not partcipate
-    #endif
-    
-    //TODO: reduce vectors instead of scalars in a loop
-    // for(int i=0; i<ny; i++){
-    //     int partial_sum=_y_partial[i];
-    //     reduce_scalar_manycore(partial_sum, _y+i, ptid, activeTid, activeDim, consumer0, consumer1, producer);
-    // }
-    #ifdef SERIAL_OUTPUT_REDUCE
-    reduce_vector_manycore(partialVec, _y, ptid, activeTid, activeDim, consumer0, consumer1, producer,ny);
-    #elif defined PARALLEL_OUTPUT_REDUCE
-    pthread_barrier_wait(&start_barrier);
-    reduce_parallel(_y_partial, _y, ny, ptid, pdim);
-    #endif
-}
 
 
 
@@ -311,7 +302,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
 
-
   // linearize some fields
   vdim = vdim_x * vdim_y;
   int orig = orig_x + orig_y * dim_x;
@@ -378,8 +368,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   pthread_barrier_wait(&start_barrier);
 
   // only let certain tids continue
-  if (used == 0) return;
+  // if (used == 0) return; moved this part later
 
+  
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
@@ -407,12 +398,54 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       : [ spad ] "r"(spTop));
 
 
-  atax_master(mask,a,_x,_y,ax,_y_partial,nx,ny,start,end,ptid,pdim,vtid, vdim, activeTid, active_dim, &consumer0, &consumer1, &producer, is_da);
+  if(used!=0){
+    #if defined _VEC
+      atax_vec(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,vtid,vdim);
+    #else
+      atax_manycore(a,_x,_y_partial,ax,nx,ny,nx_start,nx_end,ptid);
+    #endif
+
+  }
+
+  // asm volatile(
+  //     "addi sp, %[stackTop], 0\n\t" ::[stackTop] "r"(stackLoc));
+
+  if(ptid==0) stats_on();
+
+  //requires barrier since each core needs values from all other cores
+  #ifdef PARALLEL_OUTPUT_REDUCE
+  pthread_barrier_wait(&start_barrier);
+  #endif
+
+  if (used == 0) goto stack_end; //return;
+  #ifdef _VEC
+  if (is_da) goto stack_end; //return; // scalar cores don't have data to accumulate so should not partcipate
+  #endif
+  
+  
+  #ifdef SERIAL_OUTPUT_REDUCE
+  DTYPE *partialVec = _y_partial + ptid*ny;
+  #if TOKEN_LEN == 1
+  for(int i=0; i<ny; i++){
+      int partial_sum=partialVec[i];
+      reduce_scalar_manycore(partial_sum, _y+i, ptid, activeTid, activeDim, consumer0, consumer1, producer);
+  }
+  #else
+  reduce_vector_manycore(partialVec, _y, ptid, activeTid, active_dim, &consumer0, &consumer1, &producer,ny);
+  #endif
+  #elif defined PARALLEL_OUTPUT_REDUCE
+  reduce_parallel(_y_partial, _y, ny, ptid, pdim, unique_id, total_groups, vtid,
+                      vdim_x, vdim_y, pdim_x, &tinfo);
+  #endif
 
 
+  stack_end:
   // restore stack pointer
   asm volatile(
       "addi sp, %[stackTop], 0\n\t" ::[stackTop] "r"(stackLoc));
+
+  
+  
 }
 
 // helper functions

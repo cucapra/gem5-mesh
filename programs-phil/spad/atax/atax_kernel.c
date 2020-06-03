@@ -64,6 +64,7 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
   int row_thread=nx_start+vtid;
   int col_thread=0;
   DTYPE temp;
+  DTYPE* partialVec = _y_partial + ptid*ny;
   while(bh1){
     hoist1:
     temp=0;
@@ -92,7 +93,7 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
       for(int jj=0; jj<REGION_SIZE; jj++){
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
 
-        _y_partial[col_thread+jj] += (*a_on_sp) * temp;
+        partialVec[col_thread+jj] += (*a_on_sp) * temp;
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);

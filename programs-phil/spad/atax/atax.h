@@ -1,7 +1,7 @@
 #ifndef __TEMP_H__
 #define __TEMP_H__
 
-// #define _VEC
+#define _VEC
 #define VEC_LEN 4
 
 #define PREFETCH_LEN 4

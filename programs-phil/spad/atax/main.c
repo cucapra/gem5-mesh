@@ -172,5 +172,6 @@ int main(int argc, char *argv[])
   free(x_ptr);
   free(y_ptr);
   free(ax_ptr);
+  free(y_partial_ptr);
   return 0;
 }
