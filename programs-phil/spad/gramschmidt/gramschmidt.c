@@ -35,40 +35,41 @@
   4) Parallel over num prev vecs: Decumulate in a for inplace orthonormalizatoin. This is a reduction
 */
 
+/*-----------------------------------------------------------------------------------
+ * Manycore. Using PolyBench GPU parallelization strategy. No scratchpad use
+ *---------------------------------------------------------------------------------*/
+
 // compute magnitude of normalized vector to project on
-// polybench does this sequentially
-void u_magnitude_sequential(DTYPE *a, DTYPE *r, int numVectors, int vectorLen, int k) {
-  DTYPE sqrMagnitude = 0;
-  for (int i = 0; i < vectorLen; i++) {
-    sqrMagnitude += a[i * numVectors + k] * a[i * numVectors + k];
+// polybench does this sequentially because its a reduction
+// might consider doing this in parallel if large enough?
+void u_magnitude_manycore_baseline(DTYPE *a, DTYPE *r, int numVectors, int vectorLen, int k, int tid, int dim) {
+  if (tid == 0) {
+    DTYPE sqrMagnitude = 0;
+    for (int i = 0; i < vectorLen; i++) {
+      sqrMagnitude += a[i * numVectors + k] * a[i * numVectors + k];
+    }
+    r[k * numVectors + k] = sqrtf(sqrMagnitude);
   }
-  r[k * numVectors + k] = sqrtf(sqrMagnitude);
-  // printf("k %d mag %f idx %d\n", k, r[k * numVectors + k], k*numVectors+k);
 }
 
 // normalize the orthogonal vector u
 // parallelize over the length of the vector
-void u_normalize_manycore(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
+void u_normalize_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
   int start = ((tid + 0) * vectorLen) / dim;
   int end   = ((tid + 1) * vectorLen) / dim;
 
-  // printf("tid %d start %d end %d\n", tid, start, end);
-
   for (int i = start; i < end; i++) {
     q[i * numVectors + k] = a[i * numVectors + k] / r[k * numVectors + k];
-    // printf("tid %d k %d nv %d q %f idx %d r %f idx %d\n", tid, k, numVectors, q[i * numVectors + k], i * numVectors + k, r[k * numVectors * k], k * numVectors * k);
   }
 }
 
 // do the dotproduct with every subsequent vector and subtract from it
 // parallelize across each subsequent vector
-void u_dot_subtract_manycore(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
+void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
   // number of vectors we need to project on
   int numProjs = numVectors - ( k + 1 );
   int start = ( k + 1 ) + ( ( ( tid + 0 ) * numProjs ) / dim );
   int end   = ( k + 1 ) + ( ( ( tid + 1 ) * numProjs ) / dim );
-
-  // printf("tid %d start %d end %d\n", tid, start, end);
 
   // for each subsequent vector we need to off its component of the k'th vector
   for (int j = start; j < end; j++) {
@@ -79,141 +80,115 @@ void u_dot_subtract_manycore(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int v
     for (int i = 0; i < vectorLen; i++) {
       r[k * numVectors + j] += q[i * numVectors + k] * a[i * numVectors + j];
     }
-    // printf("tid %d dot %f idx %d\n", tid, r[k * numVectors + j], k * numVectors + j);
 
     // take off the projection of the j'th vector onto orthornal k
     // (we've just finished the computation of the projection after the dot product)
     for (int i = 0; i < vectorLen; i++) {
-      // printf("tid %d a before %f\n", tid, a[i * numVectors + j]);
       a[i * numVectors + j] -= q[i * numVectors + k] * r[k * numVectors + j];
-      // printf("tid %d %f -= %f * %f idx %d %d\n", 
-      //   tid, a[i * numVectors + j], q[i * numVectors + k], r[k * numVectors + j], 
-      //   i * numVectors + j, k * numVectors + j);
     }
   }
-
 }
 
+/*-----------------------------------------------------------------------------------
+ * Manycore. Optimized for manycore with scratchpad use
+ *---------------------------------------------------------------------------------*/
 
+// first start where all vectors fit onto scratchpad. 
+// then adopt a "blocking" strategy over vector dimension and number of vectors
+//     the blocking strategy will only work for last kernel though?
 
-// #ifdef USE_VEC
-// int  __attribute__((optimize("-fno-reorder-blocks")))
-//  local_dot_vector(DTYPE *a, DTYPE *b, int vtid, int start, int end, int mask) {
+#define SPM_CACHE_OFFSET 0
 
-//   volatile int sum = 0;
+void u_magnitude_manycore_opt(DTYPE *a, DTYPE *r, int numVectors, int vectorLen, int k, int tid, int dim) {
+  DTYPE *spm = (DTYPE*)getSpAddr(tid, SPM_CACHE_OFFSET);
 
-//   // prevents code from being reordered :|
-//   volatile int ohjeez = 1;
-//   if (ohjeez) {
+  if (tid == k % dim) {
+    DTYPE sqrMagnitude = 0;
+    for (int i = 0; i < vectorLen; i++) {
+      sqrMagnitude += spm[i] * spm[i]; // TODO assuming can fit all vector
+    }
+    r[k * numVectors + k] = sqrtf(sqrMagnitude);
 
-//   // goto vector mode
-//   VECTOR_EPOCH(mask);
-  
-//   // issue header block
-//   ISSUE_VINST(fable0);
-
-//   // issue loop body block
-//   for (int i = start; i < end; i+=VECTOR_LEN) {
-//     ISSUE_VINST(fable1);
-//   }
-
-//   // devec with unique tag
-//   DEVEC(devec_0);
-
-//   asm volatile("nop\n\t");
-
-//   // we are doing lazy store acks, so use this to make sure all stores have commited to memory
-//   asm volatile("fence\n\t");
-  
-//   return sum;
-//   }
-
-//   // vector engine code
-
-//   // declarations
-//   DTYPE a_, b_, iter;
-//   DTYPE *aPtr, *bPtr;
-
-//   // header
-//   fable0:
-//     iter = 0;
-//     aPtr = a + start + vtid;
-//     bPtr = b + start + vtid;
-
-//   // body
-//   fable1:
-//     a_ = aPtr[iter];
-//     b_ = bPtr[iter];
-//     sum += a_ * b_;
-//     iter+=VECTOR_LEN;
-//     asm volatile goto("j %l[fable1]\n\t"::::fable1);
-// }
-// #endif
-
-// parallel reduction in a dataflow like manner using token queues
-void reduce_manycore(int partialSum, DTYPE *c, int ptid, int activeTid, int dim, token_queue_t *cons0, token_queue_t *cons1, token_queue_t *prod) {
-
-  int sum = partialSum;
-
-  // one core is responsible for writing back the final value at the end
-  if (activeTid == 0) {
-    // printf("tid %d atid %d dim %d special wait for %p\n", ptid, activeTid, dim, get_pair_base_ptr(cons1, ptid));
-    int t = wait_tokens_consumer(cons1, 1, ptid);
-    int *data = (int*)get_token(cons1, t, ptid);
-    sum += data[0];
-    *c += sum;
-    consume_tokens(cons1, 1, ptid);
+    // also store orthonormal value back to memory so others can use it
+    for (int i = 0; i < vectorLen; i++) {
+      a[i * numVectors + k] = spm[i];
+    }
   }
-  // in general cores recv two values in input token queues and writes a value to the next core
-  else {
-    // only lower half consumes data
-    if (activeTid < dim / 2) {
-      // printf("tid %d atid %d dim %d wait for %p %p\n", ptid, activeTid, dim, get_pair_base_ptr(cons0, ptid), get_pair_base_ptr(cons1, ptid));
-      int t0 = wait_tokens_consumer(cons0, 1, ptid);
-      int t1 = wait_tokens_consumer(cons1, 1, ptid);
-      int *data0 = (int*)get_token(cons0, t0, ptid);
-      int *data1 = (int*)get_token(cons1, t1, ptid);
-      sum += data0[0] + data1[0];
-      consume_tokens(cons0, 1, ptid);
-      consume_tokens(cons1, 1, ptid);
+}
+
+// normalize the orthogonal vector u
+// parallelize over the length of the vector
+// TODO could be the bottleneck b/c not getting from SPAD
+void u_normalize_manycore_opt(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
+  int start = ((tid + 0) * vectorLen) / dim;
+  int end   = ((tid + 1) * vectorLen) / dim;
+
+  for (int i = start; i < end; i++) {
+    q[i * numVectors + k] = a[i * numVectors + k] / r[k * numVectors + k];
+  }
+}
+
+// loads data (num vec x vec dim) into scratchpad memory starting from offset to a certain size
+void cache_vectors_manycore_opt(DTYPE *a, int tid, int dim, int num_vectors, int vector_dim, int num_vec_chunk_size, int vec_dim_chunk_size, int iter) {
+  // TODO
+  if (tid > 15) return;
+
+
+  DTYPE *spm = (DTYPE*)getSpAddr(tid, SPM_CACHE_OFFSET);
+
+  // adjust based on tid
+  iter = iter * dim + tid;
+
+  int vector_dim_chunks = vector_dim / vec_dim_chunk_size;
+  int num_vector_chunks = num_vectors / num_vec_chunk_size;
+
+  // figure out which chunk we are on
+  int vec_dim_iter = iter % vector_dim_chunks;
+  int vec_num_iter = iter / vector_dim_chunks;
+  int starting_vec = vec_num_iter * num_vec_chunk_size;
+  int starting_dim = vec_dim_iter * vec_dim_chunk_size;
+
+  // store data to scratchpad, hopefully will use at least twice
+  int flat_idx = 0;
+  for (int j = 0; j < vec_dim_chunk_size; j++) {
+    for (int i = 0; i < num_vec_chunk_size; i++) {
+      int a_idx = (starting_dim + j) * num_vectors + (starting_vec + i);
+      spm[flat_idx] = a[a_idx];
+      flat_idx++;
+    }
+  }
+}
+
+// do the dotproduct with every subsequent vector and subtract from it
+// parallelize across each subsequent vector
+void u_dot_subtract_manycore_opt(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
+  // number of vectors we need to project on
+  int numProjs = numVectors - ( k + 1 );
+  int start = ( k + 1 ) + ( ( ( tid + 0 ) * numProjs ) / dim );
+  int end   = ( k + 1 ) + ( ( ( tid + 1 ) * numProjs ) / dim );
+
+  DTYPE *spm = (DTYPE*)getSpAddr(tid, SPM_CACHE_OFFSET);
+
+  // for each subsequent vector we need to off its component of the k'th vector
+  for (int j = start; j < end; j++) {
+
+    r[k * numVectors + j] = 0.0f;
+
+    // do the dot product with j'th vector that needs the component of the k'th vector taken off
+    for (int i = 0; i < vectorLen; i++) {
+      r[k * numVectors + j] += q[i * numVectors + k] * spm[i]; // TODO assuming can fit all vector
     }
 
-    // everyone produces, except for tid0 who does the writeback
-    // printf("tid %d atid %d dim %d produce for %p\n", ptid, activeTid, dim, get_pair_base_ptr(prod, ptid));
-    int tokenOffset = wait_tokens_producer(prod, 1, ptid);
-    set_token(prod, sum, tokenOffset, ptid);
-    produce_tokens(prod, 1, ptid);
+    // take off the projection of the j'th vector onto orthornal k
+    // (we've just finished the computation of the projection after the dot product)
+    for (int i = 0; i < vectorLen; i++) {
+      spm[i] -= q[i * numVectors + k] * r[k * numVectors + j]; // TODO assuming can fit all vector
+    }
   }
-
 }
 
-// based on id (in manycore its the ptid, in vector its the group id + vtid)
-// figure out where to send your data to be reduced by another core
-#ifndef USE_VEC
-int get_reduction_dest(int src_id) {
-  // pattern is to half your id and send to that id
-  return src_id / 2;
-}
-#else
-// a little more complicated to get when there's vector groups
-int get_reduction_dest(template_info_t *tinfo, int group_id, int vid_x, int vid_y, int virt_dim_x, int phys_dim_x, int *active_tid) {
-  // get a flat id from group and vid
-  int vid = vid_y * virt_dim_x + vid_x;
-  int src = group_id * VECTOR_LEN + vid;
-  // divide by two as in manycore case
-  int dest = src / 2;
-  // get the ptid corresponding to this group
-  int dest_group_id = dest / VECTOR_LEN;
-  int dest_vid = dest % VECTOR_LEN;
-  int dest_vid_x = dest_vid % virt_dim_x;
-  int dest_vid_y = dest_vid / virt_dim_x;
-  int ptid = get_ptid_from_group(tinfo, dest_group_id, dest_vid_x, dest_vid_y, phys_dim_x);
-  
-  *active_tid = src;
-
-  return ptid;
-}
-#endif
+// #define MANYCORE_BASE 1
+#define MANYCORE_OPT 1
 
 // for some reason fails if inlined
 // dot product. two parts
@@ -226,27 +201,50 @@ void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, D
   int is_da, int mask
   ) {
 
+    #ifdef MANYCORE_BASE
     // loop over each non-othorgonal vector a successively orthonormalize
     // dont need to do orthonormalization part on the last step b/c no future vectors to remove component from
     // TODO technically don't have to do last iteration b/c no real works done but polybench does this so keep
     for (int k = 0; k < numVectors; k++) {
       // compute magnitude of the vector
-      if (ptid == 0)
-        u_magnitude_sequential(a, r, numVectors, vectorLen, k);
+      u_magnitude_manycore_baseline(a, r, numVectors, vectorLen, k, ptid, dim);
 
       pthread_barrier_wait(&start_barrier);
 
       // normalize the vector
-      u_normalize_manycore(a, r, q, numVectors, vectorLen, k, ptid, dim);
+      u_normalize_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
 
       pthread_barrier_wait(&start_barrier);
 
       // apply projection of this vector onto each vector that hasn't been orthonormalized
-      u_dot_subtract_manycore(a, r, q, numVectors, vectorLen, k, ptid, dim);
+      u_dot_subtract_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
+
+      pthread_barrier_wait(&start_barrier);
+    }
+    #endif
+
+    #ifdef MANYCORE_OPT
+    // load vectors into scratchpad
+    cache_vectors_manycore_opt(a, ptid, dim, numVectors, vectorLen, 1, vectorLen, 0);
+
+    for (int k = 0; k < numVectors; k++) {
+      // compute magnitude of the vector
+      u_magnitude_manycore_opt(a, r, numVectors, vectorLen, k, ptid, dim);
 
       pthread_barrier_wait(&start_barrier);
 
+      // normalize the vector
+      u_normalize_manycore_opt(a, r, q, numVectors, vectorLen, k, ptid, dim);
+
+      pthread_barrier_wait(&start_barrier);
+
+      // apply projection of this vector onto each vector that hasn't been orthonormalized
+      u_dot_subtract_manycore_opt(a, r, q, numVectors, vectorLen, k, ptid, dim);
+
+      // can remove this barrier b/c the data will be in the right core
+      // pthread_barrier_wait(&start_barrier);
     }
+    #endif
 
 }
 
@@ -351,31 +349,34 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   token_queue_t consumer1;
   token_queue_t producer;
 
-  #ifndef USE_VEC
+  // #ifndef USE_VEC
+  // int activeTid = ptid;
+  // int pairTid = get_reduction_dest(ptid); 
+  // int active_dim = pdim;
+  // #else
+  // int activeTid;
+  // int pairTid = get_reduction_dest(&tinfo, unique_id, vtid_x, vtid_y, vdim_x, pdim_x, &activeTid);
+  // int active_dim = total_groups * VECTOR_LEN;
+  // #endif
+
   int activeTid = ptid;
-  int pairTid = get_reduction_dest(ptid); 
   int active_dim = pdim;
-  #else
-  int activeTid;
-  int pairTid = get_reduction_dest(&tinfo, unique_id, vtid_x, vtid_y, vdim_x, pdim_x, &activeTid);
-  int active_dim = total_groups * VECTOR_LEN;
-  #endif
 
-  init_token_queue_consumer(spmOffset + tqWords * 0, bufSize, ptid, &consumer0);
-  init_token_queue_consumer(spmOffset + tqWords * 1, bufSize, ptid, &consumer1);
+  // init_token_queue_consumer(spmOffset + tqWords * 0, bufSize, ptid, &consumer0);
+  // init_token_queue_consumer(spmOffset + tqWords * 1, bufSize, ptid, &consumer1);
 
-  // important to skip this if the core won't be used b/c might overwrite the link ptr
-  if (used && !is_da) {
-    // figure out which token queue you're going to be sending to
-    int pairOffset;
-    if (activeTid % 2 == 0) {
-      pairOffset = spmOffset + tqWords * 0;
-    }
-    else {
-      pairOffset = spmOffset + tqWords * 1;
-    }
-    init_token_queue_producer(spmOffset + tqWords * 2, pairOffset, bufSize, ptid, pairTid, &producer);
-  }
+  // // important to skip this if the core won't be used b/c might overwrite the link ptr
+  // if (used && !is_da) {
+  //   // figure out which token queue you're going to be sending to
+  //   int pairOffset;
+  //   if (activeTid % 2 == 0) {
+  //     pairOffset = spmOffset + tqWords * 0;
+  //   }
+  //   else {
+  //     pairOffset = spmOffset + tqWords * 1;
+  //   }
+  //   init_token_queue_producer(spmOffset + tqWords * 2, pairOffset, bufSize, ptid, pairTid, &producer);
+  // }
 
   // single barrier before kernel start
   pthread_barrier_wait(&start_barrier);

@@ -71,14 +71,20 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // TODO default polybench doesn't work when these differ
-  int num_vectors = 64;
+  int num_vectors = 16;
   int vector_len = num_vectors;
+
+  // whether to skip verification or not
+  int skip_check = 0;
 
   if (argc > 1) {
     num_vectors = atoi(argv[1]);
   }
   if (argc > 2) {
     vector_len = atoi(argv[2]);
+  }
+  if (argc > 3) {
+    skip_check = atoi(argv[3]);
   }
   
   printf("Gram-Schmidt Orthonormalization on %d vectors of length %d. Num cores is %d\n", 
@@ -133,6 +139,14 @@ int main(int argc, char *argv[]) {
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
 
+  if (skip_check) {
+    printf("Skipping verification\n");
+    free(a_ptr);
+    free(r_ptr);
+    free(q_ptr);
+    return 0;
+  }
+
   printf("Checking results\n");
   
   //  srand(103103);
@@ -150,15 +164,18 @@ int main(int argc, char *argv[]) {
     }
   }
   gramschmidt(A_exp, R_exp, Q_exp, num_vectors, vector_len);
-  for (int i = 0; i < flat_len; i++) {
-    if (a[i] != A_exp[i]) {
-      printf("%f != %f\n", a[i], A_exp[i]);
-      printf("[[FAIL]]\n");
-      return 1;
+  for (int j = 0; j < vector_len; j++) {
+    for (int i = 0; i < num_vectors; i++) {
+      int idx = j * num_vectors + i;
+      if (a[idx] != A_exp[idx]) {
+        printf("vec %d element %d | %f != %f\n", i, j, a[idx], A_exp[idx]);
+        printf("[[FAIL]]\n");
+        return 1;
+      }
+      // else {
+      //   printf("%f\n", a[idx]);
+      // }
     }
-    // else {
-    //   printf("%f\n", a[i]);
-    // }
   }
 
   free(A_exp);
