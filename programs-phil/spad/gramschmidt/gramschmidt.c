@@ -113,12 +113,36 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
  *---------------------------------------------------------------------------------*/
 
 #ifdef USE_VEC
+// helper for mapping to vector groups.
+// doesn't handle odd numbers would need to split off into manycore kernel to handle that
+int roundUp(int numToRound, int multiple) {
+  if (multiple == 0) {
+    return numToRound;
+  }
+
+  int remainder = abs(numToRound) % multiple;
+  if (remainder == 0) {
+    return numToRound;
+  }
+
+  if (numToRound < 0) {
+    return -(abs(numToRound) - remainder);
+  }
+  else {
+    return numToRound + multiple - remainder;
+  }
+}
+
 void  __attribute__((optimize("-fno-reorder-blocks")))
  u_normalize_vector_opt(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int ptid, int groupId, int numGroups, int vtid, int mask) {
 
   // chunk over vector gorups
   int start = ((groupId + 0) * vectorLen) / numGroups;
   int end   = ((groupId + 1) * vectorLen) / numGroups;
+
+  // make it a factor of vector group mapping size
+  start = roundUp(start, VECTOR_LEN);
+  end   = roundUp(end  , VECTOR_LEN);
 
   // prevents code from being reordered :|
   volatile int ohjeez = 1;
@@ -167,6 +191,105 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
     i+=VECTOR_LEN;
     asm volatile goto("j %l[fable1]\n\t"::::fable1);
 }
+
+void  __attribute__((optimize("-fno-reorder-blocks"), optimize("-fno-inline")))
+ u_dot_subtract_vector_opt(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int ptid, int groupId, int numGroups, int vtid, int mask) {
+
+  // chunk over vector groups
+  int numProjs = numVectors - ( k + 1 );
+  int start = ( ( groupId + 0 ) * numProjs ) / numGroups;
+  int end   = ( ( groupId + 1 ) * numProjs ) / numGroups;
+
+  // make it a factor of vector group mapping size
+  start = roundUp(start, VECTOR_LEN);
+  end   = roundUp(end  , VECTOR_LEN);
+
+  // ignore all vectors before the current orthonormal one
+  start += k + 1;
+  end   += k + 1;
+
+  // prevents code from being reordered :|
+  volatile int ohjeez = 1;
+  if (ohjeez) {
+
+  // goto vector mode
+  VECTOR_EPOCH(mask);
+  
+  // issue header block
+  ISSUE_VINST(fable2);
+
+  // issue loop body block
+  for (int j = start; j < end; j+=VECTOR_LEN) {
+
+    // reset dot prod accum and init dot interator i
+    ISSUE_VINST(fable3);
+
+    // dot product
+    for (int i = 0; i < vectorLen; i++) {
+      ISSUE_VINST(fable4);
+    }
+
+    // init subtract iterator i
+    ISSUE_VINST(fable5);
+
+    // substract
+    for (int i = 0; i < vectorLen; i++) {
+      ISSUE_VINST(fable6);
+    }
+
+    // increment j
+    ISSUE_VINST(fable7);
+
+  }
+
+  // devec with unique tag
+  DEVEC(devec_1);
+
+  asm volatile("nop\n\t");
+
+  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
+  asm volatile("fence\n\t");
+  return;
+  }
+
+  // vector engine code
+
+  // declarations
+  int i, j; // iterators
+  // DTYPE *qPtr, *aPtr;
+  DTYPE r_cache;
+
+  // outer loop header
+  fable2:
+    j = start + vtid;
+
+  // init dot product header
+  fable3:
+    r_cache = 0.0f;
+    i = 0;
+
+  // dot product loop
+  fable4:
+    r_cache += q[i * numVectors + k] * a[i * numVectors + j];
+    asm volatile goto("j %l[fable4]\n\t"::::fable4);
+
+  // init substract loop
+  fable5:
+    i = 0;
+
+  // subtract loop
+  fable6:
+    a[i * numVectors + j] -= q[i * numVectors + k] * r_cache;
+    asm volatile goto("j %l[fable6]\n\t"::::fable6);
+
+  // end outer loop
+  fable7:
+    j += VECTOR_LEN;
+    asm volatile goto("j %l[fable7]\n\t"::::fable7);
+}
+
+
+
 #endif
 
 // for some reason fails if inlined
@@ -217,6 +340,8 @@ void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, D
       pthread_barrier_wait(&start_barrier);
 
       // apply projection of this vector onto each vector that hasn't been orthonormalized
+      // if (used)
+        // u_dot_subtract_vector_opt(a, r, q, numVectors, vectorLen, k, ptid, groupId, numGroups, vtid, mask);
       u_dot_subtract_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
 
       pthread_barrier_wait(&start_barrier);
