@@ -65,8 +65,13 @@ void u_normalize_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors,
   DTYPE r_cache = r[k * numVectors + k];
 
   for (int i = start; i < end; i++) {
-    q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
+    // q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
+
+    // NOTE this adds a fmv instruction. no way around this unless want to modify the compiler to treat instruction as floating point
+    STORE_NOACK(a[i * numVectors + k] / r_cache, &q[i * numVectors + k], 0);
   }
+
+  asm volatile("fence\n\t");
 }
 
 // do the dotproduct with every subsequent vector and subtract from it
@@ -94,13 +99,17 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
     // (we've just finished the computation of the projection after the dot product)
     for (int i = 0; i < vectorLen; i++) {
       // a[i * numVectors + j] -= q[i * numVectors + k] * r[k * numVectors + j];
-      a[i * numVectors + j] -= q[i * numVectors + k] * r_cache;
+      // a[i * numVectors + j] -= q[i * numVectors + k] * r_cache;
+      DTYPE val = a[i * numVectors + j] - q[i * numVectors + k] * r_cache;
+      STORE_NOACK(val, &a[i * numVectors + j], 0);
     }
   }
+
+  asm volatile("fence\n\t");
 }
 
 /*-----------------------------------------------------------------------------------
- * Vector versions of the kernels
+ * Vector versions of the kernels. Same memory access pattern as baseline but do prefetching
  *---------------------------------------------------------------------------------*/
 
 // for some reason fails if inlined
