@@ -1,3 +1,6 @@
+import re
+from enum import Enum, auto
+
 # utilities for parsing instructions
 def is_return_inst(inst):
     inst_components = inst.split()
@@ -21,7 +24,36 @@ def is_label(inst):
 def is_footer_start(inst):
     return ".size " in inst
 
+class TrilliumAsmDelim(Enum):
+    UNTIL_NEXT = auto()
+    BEGIN = auto()
+    END = auto()
+    RETURN = auto()
 
+def parse_delim(inst):
+    delim_prefix = "trillium\s+vissue_delim"
+    until_next_delim_match = re.compile(delim_prefix + "\s+until_next\s+(\w+)").match(inst)
+    begin_delim_match = re.compile(delim_prefix + "\s+begin\s+(\w+)").match(inst)
+    end_delim_match = re.compile(delim_prefix + "\s+end").match(inst)
+    return_delim_match = re.compile(delim_prefix + "\s+return\s+(\w+)").match(inst)
+    if until_next_delim_match:
+        return TrilliumAsmDelim.UNTIL_NEXT, until_next_delim_match.group(1)
+    elif begin_delim_match:
+        return TrilliumAsmDelim.BEGIN, begin_delim_match.group(1)
+    elif end_delim_match:
+        return TrilliumAsmDelim.END#, end_delim_match.group(1)
+    elif return_delim_match:
+        return TrilliumAsmDelim.RETURN, return_delim_match.group(1)
+    else:
+        return None
+
+def parse_gluepoint(inst):
+    gluepoint_prefix = "trillium glue_point"
+    gluepoint_match = re.compile(gluepoint_prefix + " (\w+)").match(inst)
+    if gluepoint_match:
+        return gluepoint_match.group(1)
+    else:
+        return None
 
 # utilities for preprocessing scalar/vector assembly files
 def vector_preprocess(code):
