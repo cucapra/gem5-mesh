@@ -163,9 +163,15 @@ void cache_vectors_manycore_opt(DTYPE *a, int tid, int dim, int num_vectors, int
 // parallelize across each subsequent vector
 void u_dot_subtract_manycore_opt(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
   // number of vectors we need to project on
-  int numProjs = numVectors - ( k + 1 );
-  int start = ( k + 1 ) + ( ( ( tid + 0 ) * numProjs ) / dim );
-  int end   = ( k + 1 ) + ( ( ( tid + 1 ) * numProjs ) / dim );
+  // int numProjs = numVectors - ( k + 1 );
+  // int start = ( k + 1 ) + ( ( ( tid + 0 ) * numProjs ) / dim );
+  // int end   = ( k + 1 ) + ( ( ( tid + 1 ) * numProjs ) / dim );
+
+  // TODO should pass in the current block
+  // this is the starting vec we are allowed to do
+  int start = ((tid + 0) * numVectors) / dim;
+  int end   = ((tid + 1) * numVectors) / dim;
+  if (k > start) return;
 
   DTYPE *spm = (DTYPE*)getSpAddr(tid, SPM_CACHE_OFFSET);
 
