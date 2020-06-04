@@ -112,17 +112,73 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
  * Vector versions of the kernels. Same memory access pattern as baseline but do prefetching
  *---------------------------------------------------------------------------------*/
 
+#ifdef USE_VEC
+void  __attribute__((optimize("-fno-reorder-blocks")))
+ u_normalize_vector_opt(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int ptid, int groupId, int numGroups, int vtid, int mask) {
+
+  // chunk over vector gorups
+  int start = ((groupId + 0) * vectorLen) / numGroups;
+  int end   = ((groupId + 1) * vectorLen) / numGroups;
+
+  // prevents code from being reordered :|
+  volatile int ohjeez = 1;
+  if (ohjeez) {
+
+  // goto vector mode
+  VECTOR_EPOCH(mask);
+  
+  // issue header block
+  ISSUE_VINST(fable0);
+
+  // issue loop body block
+  for (int i = start; i < end; i+=VECTOR_LEN) {
+    ISSUE_VINST(fable1);
+  }
+
+  // devec with unique tag
+  DEVEC(devec_0);
+
+  asm volatile("nop\n\t");
+
+  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
+  asm volatile("fence\n\t");
+  return;
+  }
+
+  // vector engine code
+
+  // declarations
+  int i;
+  DTYPE *qPtr, *aPtr;
+  DTYPE r_cache;
+
+  // header
+  fable0:
+    i = start + vtid;
+    // aPtr = a + (start + vtid) * numVectors + k;
+    // qPtr = q + (start + vtid) * numVectors + k;
+    // make sure r is cached
+    r_cache = r[k * numVectors + k];
+
+  // body
+  fable1:
+    q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
+    // TODO consider ST_NOACK
+    i+=VECTOR_LEN;
+    asm volatile goto("j %l[fable1]\n\t"::::fable1);
+}
+#endif
+
 // for some reason fails if inlined
 // dot product. two parts
 // 1) do local multiplication and accumulation (in vector/manycore)
 // 2) do reduction always using manycore version
 void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, DTYPE *q, 
-  int ptid, int vtid, int dim, int numVectors, int vectorLen,
-  int activeTid, int activeDim,
-  token_queue_t *consumer0, token_queue_t *consumer1, token_queue_t *producer,
-  int is_da, int mask
+    int ptid, int vtid, int dim, int numVectors, int vectorLen, int groupId, int numGroups,
+    int mask, int used
   ) {
 
+    #ifndef USE_VEC
     // loop over each non-othorgonal vector a successively orthonormalize
     // dont need to do orthonormalization part on the last step b/c no future vectors to remove component from
     // TODO technically don't have to do last iteration b/c no real works done but polybench does this so keep
@@ -142,6 +198,32 @@ void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, D
 
       pthread_barrier_wait(&start_barrier);
     }
+    #else
+    // loop over each non-othorgonal vector a successively orthonormalize
+    // dont need to do orthonormalization part on the last step b/c no future vectors to remove component from
+    // TODO technically don't have to do last iteration b/c no real works done but polybench does this so keep
+    for (int k = 0; k < numVectors; k++) {
+      // compute magnitude of the vector
+      u_magnitude_manycore_baseline(a, r, numVectors, vectorLen, k, ptid, dim);
+
+      pthread_barrier_wait(&start_barrier);
+
+      // normalize the vector
+      if (used)
+        u_normalize_vector_opt(a, r, q, numVectors, vectorLen, k, ptid, groupId, numGroups, vtid, mask);
+      // u_normalize_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
+
+
+      pthread_barrier_wait(&start_barrier);
+
+      // apply projection of this vector onto each vector that hasn't been orthonormalized
+      u_dot_subtract_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
+
+      pthread_barrier_wait(&start_barrier);
+    }
+
+    #endif
+
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
@@ -202,12 +284,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   unique_id = cinfo.unique_id;
   total_groups = cinfo.total_groups;
   used = cinfo.used;
-
-  // TODO should use alignment
-  if (used) {
-    start = ( (unique_id + 0) * len ) / total_groups;
-    end   = ( (unique_id + 1) * len ) / total_groups;
-  }
 
   // printf("ptid %d(%d,%d) da %d vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, is_da, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used);
 
@@ -276,9 +352,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // single barrier before kernel start
   pthread_barrier_wait(&start_barrier);
 
-  // only let certain tids continue
-  if (used == 0) return;
-
   // printf("tid %d active %d pair %d activeDim %d pair addr c0 %p c1 %p p %p\n", ptid, activeTid, pairTid, active_dim, 
   //   get_pair_base_ptr(&consumer0, ptid), get_pair_base_ptr(&consumer1, ptid), get_pair_base_ptr(&producer, ptid));
 
@@ -307,8 +380,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
 
   // gramschmidt
-  gram_schmidt(a, r, q, ptid, vtid, dim, numVectors, vectorLen, 
-    activeTid, active_dim, &consumer0, &consumer1, &producer, is_da, mask);
+  gram_schmidt(a, r, q, ptid, vtid, dim, numVectors, vectorLen, unique_id, total_groups, mask, used);
 
   // restore stack pointer
   asm volatile (
