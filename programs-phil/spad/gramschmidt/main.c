@@ -71,7 +71,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // TODO default polybench doesn't work when these differ
-  int num_vectors = 16;
+  int num_vectors = 64;
   int vector_len = num_vectors;
 
   // whether to skip verification or not
