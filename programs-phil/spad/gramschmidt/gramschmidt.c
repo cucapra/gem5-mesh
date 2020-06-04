@@ -97,104 +97,115 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
 // then adopt a "blocking" strategy over vector dimension and number of vectors
 //     the blocking strategy will only work for last kernel though?
 
-#define SPM_CACHE_OFFSET 0
+// the blocking strategy doesn't really work if can't fit an entire vector on 
+// a scratchpad. b/c need to do the entire dot product for anything meaningful to happen
 
-void u_magnitude_manycore_opt(DTYPE *a, DTYPE *r, int numVectors, int vectorLen, int k, int tid, int dim) {
-  DTYPE *spm = (DTYPE*)getSpAddr(tid, SPM_CACHE_OFFSET);
+// #define SPM_CACHE_OFFSET 0
 
-  if (tid == k % dim) {
-    DTYPE sqrMagnitude = 0;
-    for (int i = 0; i < vectorLen; i++) {
-      sqrMagnitude += spm[i] * spm[i]; // TODO assuming can fit all vector
-    }
-    r[k * numVectors + k] = sqrtf(sqrMagnitude);
+// void u_magnitude_manycore_opt(DTYPE *a, DTYPE *r, int numVectors, int vectorLen, int k, int tid, int dim) {
+//   DTYPE *spm = (DTYPE*)getSpAddr(tid, SPM_CACHE_OFFSET);
 
-    // also store orthonormal value back to memory so others can use it
-    for (int i = 0; i < vectorLen; i++) {
-      a[i * numVectors + k] = spm[i];
-    }
-  }
-}
+//   if (tid == k % dim) {
+//     DTYPE sqrMagnitude = 0;
+//     for (int i = 0; i < vectorLen; i++) {
+//       sqrMagnitude += spm[i] * spm[i]; // TODO assuming can fit all vector
+//     }
+//     r[k * numVectors + k] = sqrtf(sqrMagnitude);
 
-// normalize the orthogonal vector u
-// parallelize over the length of the vector
-// TODO could be the bottleneck b/c not getting from SPAD
-void u_normalize_manycore_opt(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
-  int start = ((tid + 0) * vectorLen) / dim;
-  int end   = ((tid + 1) * vectorLen) / dim;
+//     // also store orthonormal value back to memory so others can use it
+//     for (int i = 0; i < vectorLen; i++) {
+//       a[i * numVectors + k] = spm[i];
+//     }
+//   }
+// }
 
-  for (int i = start; i < end; i++) {
-    q[i * numVectors + k] = a[i * numVectors + k] / r[k * numVectors + k];
-  }
-}
+// // normalize the orthogonal vector u
+// // parallelize over the length of the vector
+// // TODO could be the bottleneck b/c not getting from SPAD
+// void u_normalize_manycore_opt(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
+//   int start = ((tid + 0) * vectorLen) / dim;
+//   int end   = ((tid + 1) * vectorLen) / dim;
 
-// loads data (num vec x vec dim) into scratchpad memory starting from offset to a certain size
-void cache_vectors_manycore_opt(DTYPE *a, int tid, int dim, int num_vectors, int vector_dim, int num_vec_chunk_size, int vec_dim_chunk_size, int iter) {
-  // TODO
-  if (tid > 15) return;
+//   for (int i = start; i < end; i++) {
+//     q[i * numVectors + k] = a[i * numVectors + k] / r[k * numVectors + k];
+//   }
+// }
 
+// // determine blocking dimension in the scratchpad
+// int determine_block_manycore_opt(int iter, int tid, int dim, int num_vectors, int vector_dim, int num_vec_chunk_size, int vec_dim_chunk_size, 
+//     int *starting_vec, int *starting_dim) {
 
-  DTYPE *spm = (DTYPE*)getSpAddr(tid, SPM_CACHE_OFFSET);
+//   // adjust based on tid
+//   iter = iter * dim + tid;
 
-  // adjust based on tid
-  iter = iter * dim + tid;
+//   int vector_dim_chunks = vector_dim / vec_dim_chunk_size;
+//   int num_vector_chunks = num_vectors / num_vec_chunk_size;
 
-  int vector_dim_chunks = vector_dim / vec_dim_chunk_size;
-  int num_vector_chunks = num_vectors / num_vec_chunk_size;
+//   // figure out which chunk we are on
+//   int vec_dim_iter = iter % vector_dim_chunks;
+//   int vec_num_iter = iter / vector_dim_chunks;
+//   *starting_vec = vec_num_iter * num_vec_chunk_size;
+//   *starting_dim = vec_dim_iter * vec_dim_chunk_size;
 
-  // figure out which chunk we are on
-  int vec_dim_iter = iter % vector_dim_chunks;
-  int vec_num_iter = iter / vector_dim_chunks;
-  int starting_vec = vec_num_iter * num_vec_chunk_size;
-  int starting_dim = vec_dim_iter * vec_dim_chunk_size;
+//   // whether this is a valid block
+//   if (*starting_vec >= num_vectors || *starting_dim >= vector_dim) return 0;
+//   else return 1;
 
-  // store data to scratchpad, hopefully will use at least twice
-  int flat_idx = 0;
-  for (int j = 0; j < vec_dim_chunk_size; j++) {
-    for (int i = 0; i < num_vec_chunk_size; i++) {
-      int a_idx = (starting_dim + j) * num_vectors + (starting_vec + i);
-      spm[flat_idx] = a[a_idx];
-      flat_idx++;
-    }
-  }
-}
+// }
 
-// do the dotproduct with every subsequent vector and subtract from it
-// parallelize across each subsequent vector
-void u_dot_subtract_manycore_opt(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
-  // number of vectors we need to project on
-  // int numProjs = numVectors - ( k + 1 );
-  // int start = ( k + 1 ) + ( ( ( tid + 0 ) * numProjs ) / dim );
-  // int end   = ( k + 1 ) + ( ( ( tid + 1 ) * numProjs ) / dim );
+// // loads data (num vec x vec dim) into scratchpad memory starting from offset to a certain size
+// void cache_vectors_manycore_opt(DTYPE *a, int tid, int num_vectors, int starting_vec, int starting_dim, 
+//     int num_vec_chunk_size, int vec_dim_chunk_size) {
 
-  // TODO should pass in the current block
-  // this is the starting vec we are allowed to do
-  int start = ((tid + 0) * numVectors) / dim;
-  int end   = ((tid + 1) * numVectors) / dim;
-  if (k > start) return;
+//   DTYPE *spm = (DTYPE*)getSpAddr(tid, SPM_CACHE_OFFSET);
 
-  DTYPE *spm = (DTYPE*)getSpAddr(tid, SPM_CACHE_OFFSET);
+//   // store data to scratchpad, hopefully will use at least twice
+//   int flat_idx = 0;
+//   for (int j = 0; j < vec_dim_chunk_size; j++) {
+//     for (int i = 0; i < num_vec_chunk_size; i++) {
+//       int a_idx = (starting_dim + j) * num_vectors + (starting_vec + i);
+//       spm[flat_idx] = a[a_idx];
+//       flat_idx++;
+//     }
+//   }
+// }
 
-  // for each subsequent vector we need to off its component of the k'th vector
-  for (int j = start; j < end; j++) {
+// // do the dotproduct with every subsequent vector and subtract from it
+// // parallelize across each subsequent vector
+// void u_dot_subtract_manycore_opt(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors, int vectorLen, int k, int tid, int dim) {
+//   // number of vectors we need to project on
+//   // int numProjs = numVectors - ( k + 1 );
+//   // int start = ( k + 1 ) + ( ( ( tid + 0 ) * numProjs ) / dim );
+//   // int end   = ( k + 1 ) + ( ( ( tid + 1 ) * numProjs ) / dim );
 
-    r[k * numVectors + j] = 0.0f;
+//   // TODO should pass in the current block
+//   // this is the starting vec we are allowed to do
+//   int start = ((tid + 0) * numVectors) / dim;
+//   int end   = ((tid + 1) * numVectors) / dim;
+//   if (k > start) return;
 
-    // do the dot product with j'th vector that needs the component of the k'th vector taken off
-    for (int i = 0; i < vectorLen; i++) {
-      r[k * numVectors + j] += q[i * numVectors + k] * spm[i]; // TODO assuming can fit all vector
-    }
+//   DTYPE *spm = (DTYPE*)getSpAddr(tid, SPM_CACHE_OFFSET);
 
-    // take off the projection of the j'th vector onto orthornal k
-    // (we've just finished the computation of the projection after the dot product)
-    for (int i = 0; i < vectorLen; i++) {
-      spm[i] -= q[i * numVectors + k] * r[k * numVectors + j]; // TODO assuming can fit all vector
-    }
-  }
-}
+//   // for each subsequent vector we need to off its component of the k'th vector
+//   for (int j = start; j < end; j++) {
 
-// #define MANYCORE_BASE 1
-#define MANYCORE_OPT 1
+//     r[k * numVectors + j] = 0.0f;
+
+//     // do the dot product with j'th vector that needs the component of the k'th vector taken off
+//     for (int i = 0; i < vectorLen; i++) {
+//       r[k * numVectors + j] += q[i * numVectors + k] * spm[i]; // TODO assuming can fit all vector
+//     }
+
+//     // take off the projection of the j'th vector onto orthornal k
+//     // (we've just finished the computation of the projection after the dot product)
+//     for (int i = 0; i < vectorLen; i++) {
+//       spm[i] -= q[i * numVectors + k] * r[k * numVectors + j]; // TODO assuming can fit all vector
+//     }
+//   }
+// }
+
+#define MANYCORE_BASE 1
+// #define MANYCORE_OPT 1
 
 // for some reason fails if inlined
 // dot product. two parts
@@ -229,29 +240,38 @@ void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, D
     }
     #endif
 
-    #ifdef MANYCORE_OPT
-    // load vectors into scratchpad
-    cache_vectors_manycore_opt(a, ptid, dim, numVectors, vectorLen, 1, vectorLen, 0);
+    // #ifdef MANYCORE_OPT
 
-    for (int k = 0; k < numVectors; k++) {
-      // compute magnitude of the vector
-      u_magnitude_manycore_opt(a, r, numVectors, vectorLen, k, ptid, dim);
+    // // determine the block to work on for this iteration
+    // int numVecChunkSize = 1;
+    // int vecDimChunkSize = vectorLen;
+    // int startingVector, startingElement;
+    // int okBlock = determine_block_manycore_opt(
+    //     0, ptid, dim, numVectors, vectorLen, numVecChunkSize, vecDimChunkSize, 
+    //     &startingVector, &startingElement);
 
-      pthread_barrier_wait(&start_barrier);
+    // // load vectors into scratchpad
+    // if (okBlock)
+    //   cache_vectors_manycore_opt(a, ptid, numVectors, startingVector, startingElement, numVecChunkSize, vecDimChunkSize);
 
-      // normalize the vector
-      u_normalize_manycore_opt(a, r, q, numVectors, vectorLen, k, ptid, dim);
+    // for (int k = 0; k < numVectors; k++) {
+    //   // compute magnitude of the vector
+    //   u_magnitude_manycore_opt(a, r, numVectors, vectorLen, k, ptid, dim);
 
-      pthread_barrier_wait(&start_barrier);
+    //   pthread_barrier_wait(&start_barrier);
 
-      // apply projection of this vector onto each vector that hasn't been orthonormalized
-      u_dot_subtract_manycore_opt(a, r, q, numVectors, vectorLen, k, ptid, dim);
+    //   // normalize the vector
+    //   u_normalize_manycore_opt(a, r, q, numVectors, vectorLen, k, ptid, dim);
 
-      // can remove this barrier b/c the data will be in the right core
-      // pthread_barrier_wait(&start_barrier);
-    }
-    #endif
+    //   pthread_barrier_wait(&start_barrier);
 
+    //   // apply projection of this vector onto each vector that hasn't been orthonormalized
+    //   u_dot_subtract_manycore_opt(a, r, q, numVectors, vectorLen, k, ptid, dim);
+
+    //   // can remove this barrier b/c the data will be in the right core
+    //   // pthread_barrier_wait(&start_barrier);
+    // }
+    // #endif
 }
 
 
