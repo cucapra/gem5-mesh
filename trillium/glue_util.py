@@ -24,11 +24,30 @@ def is_label(inst):
 def is_footer_start(inst):
     return ".size " in inst
 
+class RV_Inst(Enum):
+    JUMP = auto()
+
+def parse_jump_inst(inst):
+    jump_inst_match = re.compile("j\s+(\S+)")
+    if jump_inst_match:
+        return JUMP, jump_inst_match.group(1)
+    else:
+        return None
+
+def parse_label(inst):
+    label_match = re.compile(".(\S+):")
+    return label_match.group(1) if label_match else None
+
+def parse_footer(inst):
+    footer_match = re.compile(".size")
+    return footer_match.group(1) if footer_match else None
+
 class TrilliumAsmDelim(Enum):
     UNTIL_NEXT = auto()
     BEGIN = auto()
     END = auto()
     RETURN = auto()
+
 
 def parse_delim(inst):
     delim_prefix = "trillium\s+vissue_delim"

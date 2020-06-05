@@ -158,32 +158,65 @@ class ScalarParseState(Enum):
     # NON_VECTOR_BB = auto()
 
 def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
-    scalar_return = "scalar_return"
 
     scalar_code = scalar_preprocess(raw_scalar_code)
 
     # dissects scalar assembly into the following non-overlapping components:
-    # interval notation: open, closed, half-open intervals
+    # interval notation: open, closed, or half-open intervals
+
     # [start of file, kernel launch label]
     header = []
+
     # (kernel launch label, first VECTOR_EPOCH call)
     before_VECTOR_EPOCH = []
+
     # [first VECTOR_EPOCH call, first DEVEC call)
-    after_VECTOR_EPOCH = []
-    # [first DEVEC call, end of file]
-    after_DEVEC = []
-    # [scalar_ret label, "return, jump-like instruction"]
-    scalar_ret = []
-    # ("return, jump-like instruction", labels pointing to vector blocks]
-    bbs = []
-    # (return statement after labels pointing to vector blocks, rest of file]
+    after_VECTOR_EPOCH_before_DEVEC = []
+
+    # [first DEVEC call, scalar return delimiter]
+    after_DEVEC_before_RET_DELIM = []
+
+    # Now things gets conditionally non-contiguous.
+    # scalar return cleanup assembly consists of the following potential assembly locations:
+    # - all code immediately following the scalar `return` delimiter and before a jump instruction
+    #   is scalar cleanup code (We assume no branching is emitted in that interval)
+    # - if a jump to a label is found (instead of to the return address), the block under that label,
+    #   excluding the return address jump, is scalar cleanup code 
+    scalar_cleanup = []
+
+    # All cores ultimately return to the scalar return address.
+    # This can be found at the end of scalar cleanup code, described in the two cases above
+    scalar_ret_inst = None
+
+    # labels pointing to vector blocks
+    labeled_vector_bbs = OrderedDict()
+    labels = [] #stack of labels
+
+    # labels pointing to scalar auxiliary blocks (not including scalar block that returns to jump address, if any)
+    # (Note: OrderedDict helps us keep track of the last inserted label)
+    aux_bbs = []
+
+    # non-instruction lines after all labels/blocks
     footer = []
 
-    label = None
-    bb = []
+    def glue_pieces():
+        def dict_to_code(d):
+            return itertools.from_iterable([[kv[0],kv[1]] for kv in d.iteritems()])
+
+        return (
+            header +
+            [after_VECTOR_EPOCH_before_DEVEC[0]] +
+            before_VECTOR_EPOCH +
+            after_VECTOR_EPOCH_before_DEVEC[1:] +
+            scalar_cleanup +
+            after_DEVEC_before_RET_DELIM +
+            dict_to_code(aux_bbs) +
+            dict_to_code(labeled_vector_bbs) +
+            footer)
+
+
     state = ScalarParseState.HEADER
     for (line_no, l) in scalar_code:
-
 
         if state == ScalarParseState.HEADER:
           if l.strip() == kernel_fun_name + ":":
@@ -196,7 +229,7 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
         elif state == ScalarParseState.BEFORE_VECTOR_EPOCH:
             if is_VECTOR_EPOCH_inst(l):
-                after_VECTOR_EPOCH.append(l);
+                after_VECTOR_EPOCH_before_DEVEC.append(l);
                 state = ScalarParseState.AFTER_VECTOR_EPOCH
             else:
                 before_VECTOR_EPOCH.append(l)
@@ -205,127 +238,179 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
         elif state == ScalarParseState.AFTER_VECTOR_EPOCH:
             if is_DEVEC(l):
-                after_DEVEC.append(l)
+                after_DEVEC_before_RET_DELIM.append(l)
                 state = ScalarParseState.AFTER_DEVEC
             else:
-                after_VECTOR_EPOCH.append(l)
+                after_VECTOR_EPOCH_before_DEVEC.append(l)
 
 
 
         elif state == ScalarParseState.AFTER_DEVEC:
             delim = parse_delim(l)
             if delim != None and delim[0] == TrilliumAsmDelim.RETURN:
-                state = ScalarParseState.RETURN_STACK_MANIP
+                state = ScalarParseState.AFTER_RETURN_DELIM
             else:
-                after_DEVEC.append(l)
+                after_DEVEC_before_RET_DELIM.append(l)
 
 
 
-        # assumption: label happens right after return jump instr
-        elif state == ScalarParseState.RETURN_STACK_MANIP:
+        elif state == ScalarParseState.AFTER_RETURN_DELIM:
+            parsed_inst = parse_jump_inst(l)
+            parsed_label = parse_label(l)
+
             if is_return_inst(l):
-                after_DEVEC.append(l)
-                state = ScalarParseState.GET_BBS
-            else:
-                scalar_ret.append(l)
+                scalar_ret_inst = l
+                scalar_ret_label = None
+                state = ScalarParseState.GLUE
 
+            elif parsed_inst != None and parsed_inst[0] == RV_Inst.JUMP:
+                scalar_ret_label = parsed_inst[1]
+                state = ScalarParseState.GLUE
 
-
-        elif state == ScalarParseState.GET_BBS:
-            if l == "ret":
-                continue
-
-            elif ".size " in l:
-                print("found footer after vector block")
-                bbs.extend(bb)
-                footer.append(l)
-                bb = []
-                state = FOOTER
-
-            elif is_label(l) and label == None:
-                label = l
-                state = ScalarParseState.REPLACE_BB_PLACEHOLDERS
-
-            elif is_label(l) and label != None:
-                print("Warning: passing empty label at line {}".format(line_no))
-                bb.append(l)
-                label = None
-                state = ScalarParseState.REPLACE_BB_PLACEHOLDERS
+            elif parsed_label != None:
+                scalar_ret_label = None
+                labels = [parsed_label]
+                state = ScalarParseState.GLUE
 
             else:
-                raise(Exception("expected label at line: {}".format(line_no)))
+                scalar_cleanup.append(l)
 
 
+        # ASSUMPTION: after return or "indirect return", label follows immediately
+        elif state == ScalarParseState.GLUE:
+            #input for this state: scalar_ret_label
+            #if not None, we search for scalar cleanup and return at that label
+            assert('scalar_ret_label' in locals())
 
-
-        elif state == ScalarParseState.REPLACE_BB_PLACEHOLDERS:
+            parsed_label = parse_label(l)
             vissue_key = parse_gluepoint(l)
-            is_bb_key = vissue_key != None
+            footer_parse = parse_footer(l)
 
-            # vector gluepoint detected: perform gluing
-            if is_bb_key and label != None:
-                bb.extend(vector_bbs[vissue_key])
-                print("gluing {} into label {}".format(l, label))
-                start = "#Start {}".format(l)
-                bbs.append(label)
-                bbs.append(start)
-                bbs.extend(bb)
-                bbs.append("#End {}".format(l))
+            if parsed_label != None:
+                if parsed_label == scalar_ret_label:
+                    state = ScalarParseState.INDIRECT_SCALAR_RET_FOUND
+                else:
+                    labels.append(parsed_label)
 
-                bb = []
-                label = None
-                state = ScalarParseState.GET_BBS
+            elif vissue_key != None:
+                latest_label = labels.pop()
+                labeled_vector_bbs[latest_label] = vector_bbs[vissue_key]
 
-            # non-vector block detected: pass basic block through
-            # empty labels may precede this bb
-            elif not is_bb_key and label != None:
-                print("detected start of non-vector block at label: {}".format(label))
-                bb.append(l)
-                state = ScalarParseState.GET_NONVEC_BBS
+            elif footer_parse != None:
+                footer.append(l)
+                state = ScalarParseState.FOOTER
 
-            elif is_bb_key and label == None:
-                raise(Exception("found placeholder name for vector block outside of its own label at line {}".format(line_no)))
-
+            else:
+                if len(labels) > 0:
+                    print("warning, appending empty auxiliary blocks: {}".format(str(labels)))
+                    print("Is it ok that your scalar assembly code contains empty labels?")
+                    for _ in labels:
+                        aux_bbs[labels.pop()] = []
+                latest_aux_bb = list(aux_bbs.keys())[-1]
+                latest_aux_bb.append(l)
 
 
+        elif state == ScalarParseState.INDIRECT_SCALAR_RET_FOUND:
+            parsed_label = parse_label(l)
 
-        elif state == ScalarParseState.GET_NONVEC_BBS:
-            # collect non-vector instruction
-            if not is_label(l) and label != None:
-                bb.append(l)
+            if is_return_inst(l):
+                scalar_ret_inst = l
+                state = ScalarParseState.GLUE
 
-            # emit non-vector block
-            elif is_label(l) and label != None:
-                print("detected end of non-vector block for label: {}".format(label))
-                bbs.append(label)
-                bbs.extend(bb)
-                bb = []
-                state = ScalarParseState.REPLACE_BB_PLACEHOLDERS
-                label = l
+            elif parsed_label != None:
+                raise Exception(
+                        "I was hoping the indirect scalar return block would end in a jump to return address :(\n" ++
+                        "Should I generalize my search for this jump across multiple blocks?")
+                # scalar_ret_label = None
+                # labels = [parsed_label]
+                # state = ScalarParseState.GLUE
 
-            elif not is_label(l) and label == None:
-                raise(Exception("lost label for non-vector bb at line {}".format(line_no)))
-
-
-
+            else:
+                scalar_cleanup.append(l)
 
         elif state == ScalarParseState.FOOTER:
             footer.append(l)
 
-    # get last basic block, if any
-    bbs.append(label)
-    bbs.extend(bb)
+        # elif state == ScalarParseState.GET_BBS:
+        #     if l == "ret":
+        #         continue
+        #
+        #     elif ".size " in l:
+        #         print("found footer after vector block")
+        #         vector_bbs.extend(bb)
+        #         footer.append(l)
+        #         bb = []
+        #         state = FOOTER
+        #
+        #     elif is_label(l) and label == None:
+        #         label = l
+        #         state = ScalarParseState.REPLACE_BB_PLACEHOLDERS
+        #
+        #     elif is_label(l) and label != None:
+        #         print("Warning: passing empty label at line {}".format(line_no))
+        #         bb.append(l)
+        #         label = None
+        #         state = ScalarParseState.REPLACE_BB_PLACEHOLDERS
+        #
+        #     else:
+        #         raise(Exception("expected label at line: {}".format(line_no)))
+        #
+        #
+        #
+        #
+        # elif state == ScalarParseState.REPLACE_BB_PLACEHOLDERS:
+        #     vissue_key = parse_gluepoint(l)
+        #     is_bb_key = vissue_key != None
+        #
+        #     # vector gluepoint detected: perform gluing
+        #     if is_bb_key and label != None:
+        #         bb.extend(vector_bbs[vissue_key])
+        #         print("gluing {} into label {}".format(l, label))
+        #         start = "#Start {}".format(l)
+        #         vector_bbs.append(label)
+        #         vector_bbs.append(start)
+        #         vector_bbs.extend(bb)
+        #         vector_bbs.append("#End {}".format(l))
+        #
+        #         bb = []
+        #         label = None
+        #         state = ScalarParseState.GET_BBS
+        #
+        #     # non-vector block detected: pass basic block through
+        #     # empty labels may precede this bb
+        #     elif not is_bb_key and label != None:
+        #         print("detected start of non-vector block at label: {}".format(label))
+        #         bb.append(l)
+        #         state = ScalarParseState.GET_NONVEC_BBS
+        #
+        #     elif is_bb_key and label == None:
+        #         raise(Exception("found placeholder name for vector block outside of its own label at line {}".format(line_no)))
 
-    # rearrange components as follows
-    return (
-        header +
-        [after_VECTOR_EPOCH[0]] +
-        before_VECTOR_EPOCH +
-        after_VECTOR_EPOCH[1:] +
-        scalar_ret +
-        after_DEVEC +
-        bbs +
-        footer)
+
+
+
+        # elif state == ScalarParseState.GET_NONVEC_BBS:
+        #     # collect non-vector instruction
+        #     if not is_label(l) and label != None:
+        #         bb.append(l)
+        #
+        #     # emit non-vector block
+        #     elif is_label(l) and label != None:
+        #         print("detected end of non-vector block for label: {}".format(label))
+        #         vector_bbs.append(label)
+        #         vector_bbs.extend(bb)
+        #         bb = []
+        #         state = ScalarParseState.REPLACE_BB_PLACEHOLDERS
+        #         label = l
+        #
+        #     elif not is_label(l) and label == None:
+        #         raise(Exception("lost label for non-vector bb at line {}".format(line_no)))
+
+    # get last basic block, if any
+    # vector_bbs.append(label)
+    # vector_bbs.extend(bb)
+
+    return glue_pieces()
 
 
 
@@ -335,7 +420,7 @@ if __name__ == "__main__":
     usage_regex = "(\w+)\s+(\w+.s)\s+(\w+.s)\s+-o\s+(\w+.s)"
     match = re.compile(usage_regex).match(arg_string)
     if not match:
-      print("Gluer Usage: kernel_fun_name vector.s scalar.s -o combined.s")
+      print("Gluer Usage: [kernel_fun_name] [input vector.s filename] [input scalar.s filename] -o [output combined.s filename]")
       print("expected match with regex: {}".format(usage_regex))
       print("but found: {}".format(arg_string))
       exit(1)
