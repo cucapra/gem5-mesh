@@ -337,94 +337,12 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
                 raise Exception(
                         "I was hoping the indirect scalar return block would end in a jump to return address :(\n" ++
                         "Should I generalize my search for this jump across multiple blocks?")
-                # scalar_ret_label = None
-                # labels = [parsed_label]
-                # state = ScalarParseState.GLUE
 
             else:
                 scalar_cleanup.append(l)
 
         elif state == ScalarParseState.FOOTER:
             footer.append(l)
-
-        # elif state == ScalarParseState.GET_BBS:
-        #     if l == "ret":
-        #         continue
-        #
-        #     elif ".size " in l:
-        #         print("found footer after vector block")
-        #         vector_bbs.extend(bb)
-        #         footer.append(l)
-        #         bb = []
-        #         state = FOOTER
-        #
-        #     elif is_label(l) and label == None:
-        #         label = l
-        #         state = ScalarParseState.REPLACE_BB_PLACEHOLDERS
-        #
-        #     elif is_label(l) and label != None:
-        #         print("Warning: passing empty label at line {}".format(line_no))
-        #         bb.append(l)
-        #         label = None
-        #         state = ScalarParseState.REPLACE_BB_PLACEHOLDERS
-        #
-        #     else:
-        #         raise(Exception("expected label at line: {}".format(line_no)))
-        #
-        #
-        #
-        #
-        # elif state == ScalarParseState.REPLACE_BB_PLACEHOLDERS:
-        #     vissue_key = parse_gluepoint(l)
-        #     is_bb_key = vissue_key != None
-        #
-        #     # vector gluepoint detected: perform gluing
-        #     if is_bb_key and label != None:
-        #         bb.extend(vector_bbs[vissue_key])
-        #         print("gluing {} into label {}".format(l, label))
-        #         start = "#Start {}".format(l)
-        #         vector_bbs.append(label)
-        #         vector_bbs.append(start)
-        #         vector_bbs.extend(bb)
-        #         vector_bbs.append("#End {}".format(l))
-        #
-        #         bb = []
-        #         label = None
-        #         state = ScalarParseState.GET_BBS
-        #
-        #     # non-vector block detected: pass basic block through
-        #     # empty labels may precede this bb
-        #     elif not is_bb_key and label != None:
-        #         print("detected start of non-vector block at label: {}".format(label))
-        #         bb.append(l)
-        #         state = ScalarParseState.GET_NONVEC_BBS
-        #
-        #     elif is_bb_key and label == None:
-        #         raise(Exception("found placeholder name for vector block outside of its own label at line {}".format(line_no)))
-
-
-
-
-        # elif state == ScalarParseState.GET_NONVEC_BBS:
-        #     # collect non-vector instruction
-        #     if not is_label(l) and label != None:
-        #         bb.append(l)
-        #
-        #     # emit non-vector block
-        #     elif is_label(l) and label != None:
-        #         print("detected end of non-vector block for label: {}".format(label))
-        #         vector_bbs.append(label)
-        #         vector_bbs.extend(bb)
-        #         bb = []
-        #         state = ScalarParseState.REPLACE_BB_PLACEHOLDERS
-        #         label = l
-        #
-        #     elif not is_label(l) and label == None:
-        #         raise(Exception("lost label for non-vector bb at line {}".format(line_no)))
-
-    # get last basic block, if any
-    # vector_bbs.append(label)
-    # vector_bbs.extend(bb)
 
     return glue_pieces()
 
