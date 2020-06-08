@@ -74,7 +74,6 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
   vector_stack:
     asm("trillium glue_point vector_stack");
 
-
   #elif defined VECTOR_CORE
   // init:;
   asm("trillium vissue_delim until_next init");
