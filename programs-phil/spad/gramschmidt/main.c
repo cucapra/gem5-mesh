@@ -71,11 +71,11 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // TODO default polybench doesn't work when these differ
-  int num_vectors = 64;
+  int num_vectors = 256;
   int vector_len = num_vectors;
 
   // whether to skip verification or not
-  int skip_check = 0;
+  int skip_check = 1;
 
   if (argc > 1) {
     num_vectors = atoi(argv[1]);
