@@ -149,10 +149,13 @@ class ScalarParseState(Enum):
     BEFORE_VECTOR_EPOCH = auto()
     AFTER_VECTOR_EPOCH = auto()
     AFTER_DEVEC = auto()
-    RETURN_STACK_MANIP = auto()
-    GET_BBS = auto()
-    REPLACE_BB_PLACEHOLDERS = auto()
-    GET_NONVEC_BBS = auto()
+    AFTER_RETURN_DELIM = auto()
+    GLUE = auto()
+    INDIRECT_SCALAR_RET_FOUND = auto()
+    #RETURN_STACK_MANIP = auto()
+    #GET_BBS = auto()
+    #REPLACE_BB_PLACEHOLDERS = auto()
+    #GET_NONVEC_BBS = auto()
     FOOTER = auto()
     # SIFT_BB = auto()
     # NON_VECTOR_BB = auto()
@@ -194,25 +197,37 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
     # labels pointing to scalar auxiliary blocks (not including scalar block that returns to jump address, if any)
     # (Note: OrderedDict helps us keep track of the last inserted label)
-    aux_bbs = []
+    aux_bbs = OrderedDict([("trillium_anon_aux_bb",[])])
 
     # non-instruction lines after all labels/blocks
     footer = []
 
     def glue_pieces():
         def dict_to_code(d):
-            return itertools.from_iterable([[kv[0],kv[1]] for kv in d.iteritems()])
+            bbs = []
+            for label, bb in d.items():
+                bbs.append(".{}:".format(label))
+                bbs.extend(bb)
+            return bbs
 
         return (
             header +
             [after_VECTOR_EPOCH_before_DEVEC[0]] +
             before_VECTOR_EPOCH +
             after_VECTOR_EPOCH_before_DEVEC[1:] +
+            ["# trillium: scalar stack cleanup begin"] +
             scalar_cleanup +
+            ["# trillium: scalar stack cleanup end"] +
             after_DEVEC_before_RET_DELIM +
+            ["# trillium: auxiliary blocks begin"] +
             dict_to_code(aux_bbs) +
+            ["# trillium: auxiliary blocks end"] +
+            ["# trillium: vector vissue blocks begin"] +
             dict_to_code(labeled_vector_bbs) +
-            footer)
+            ["# trillium: vector vissue blocks end"] +
+            ["# trillium: footer begin"] +
+            footer +
+            ["# trillium: footer end"])
 
 
     state = ScalarParseState.HEADER
@@ -306,7 +321,7 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
                     print("Is it ok that your scalar assembly code contains empty labels?")
                     for _ in labels:
                         aux_bbs[labels.pop()] = []
-                latest_aux_bb = list(aux_bbs.keys())[-1]
+                latest_aux_bb = list(aux_bbs.values())[-1]
                 latest_aux_bb.append(l)
 
 

@@ -26,21 +26,22 @@ def is_footer_start(inst):
 
 class RV_Inst(Enum):
     JUMP = auto()
+    FOOTER_START = auto()
 
 def parse_jump_inst(inst):
-    jump_inst_match = re.compile("j\s+(\S+)")
+    jump_inst_match = re.compile("j\s+(\S+)").match(inst)
     if jump_inst_match:
-        return JUMP, jump_inst_match.group(1)
+        return RV_Inst.JUMP, jump_inst_match.group(1)
     else:
         return None
 
 def parse_label(inst):
-    label_match = re.compile(".(\S+):")
+    label_match = re.compile(".(\S+):").match(inst)
     return label_match.group(1) if label_match else None
 
 def parse_footer(inst):
-    footer_match = re.compile(".size")
-    return footer_match.group(1) if footer_match else None
+    footer_match = re.compile(".size").match(inst)
+    return RV_Inst.FOOTER_START if footer_match else None
 
 class TrilliumAsmDelim(Enum):
     UNTIL_NEXT = auto()
