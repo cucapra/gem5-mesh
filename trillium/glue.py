@@ -316,9 +316,10 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
                 state = ScalarParseState.FOOTER
 
             else:
-                if len(labels) > 0:
-                    print("warning, appending empty auxiliary blocks: {}".format(str(labels)))
+                if len(labels) > 1:
+                    print("warning, appending empty auxiliary blocks: {}".format(str(labels[1:])))
                     print("Is it ok that your scalar assembly code contains empty labels?")
+                if len(labels) > 0:
                     for _ in labels:
                         aux_bbs[labels.pop()] = []
                 latest_aux_bb = list(aux_bbs.values())[-1]
