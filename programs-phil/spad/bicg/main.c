@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
   int NY = NX;
 
   // whether to skip verification or not
-  int skip_check = 1;
+  int skip_check = 0;
 
   if (argc > 1) {
     NX = atoi(argv[1]);
@@ -99,7 +99,7 @@ int main(int argc, char *argv[]) {
   DTYPE *r = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), NX,    (void**)&r_ptr);
   DTYPE *s = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), NY,    (void**)&s_ptr);
   DTYPE *p = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), NY,    (void**)&p_ptr);
-  DTYPE *q = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), NX,    (void**)q_ptr);
+  DTYPE *q = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), NX,    (void**)&q_ptr);
 
   // initial data
   init_data(a, p, r, NX, NY);
