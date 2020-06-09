@@ -97,6 +97,14 @@
 #define CONVERGENT_ELSE \
   else
 
+// config defs for prefetch. horizontal or vertical prefetching
+#define HORIZONTAL 0
+#define VERTICAL   1
+
+#define SET_PREFETCH_MASK(num_frames, frame_size) \
+  int prefetchMask = (num_frames << PREFETCH_NUM_REGION_SHAMT) | (frame_size << PREFETCH_REGION_SIZE_SHAMT); \
+  PREFETCH_EPOCH(prefetchMask);
+
   // revec instruction with unique hash id
 /*#define REVEC(hash)                                                           \
   asm volatile ("" ::: "memory");                                             \

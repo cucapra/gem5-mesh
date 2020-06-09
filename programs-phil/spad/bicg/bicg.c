@@ -151,6 +151,28 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
     asm volatile goto("j %l[fable1]\n\t"::::fable1);
 }
 
+// prefetch a and p
+inline void prefetch_q_frame(DTYPE *a, DTYPE *p, int i, int j, int *sp, int NY) {
+  // don't think need prefetch R here?
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    int icore = i + core;
+    VPREFETCH_L(*sp, &a[icore * NY + j], core, Q_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_R(*sp, &a[icore * NY + j], core, Q_PREFETCH_LEN, VERTICAL);
+  }
+
+  *sp = *sp + Q_PREFETCH_LEN;
+
+  // TODO potentially some reuse here b/c fetch the same thing for everyone
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_L(*sp, &p[j], core, Q_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_R(*sp, &p[j], core, Q_PREFETCH_LEN, VERTICAL);
+  }
+
+  *sp = *sp + Q_PREFETCH_LEN;
+
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+}
+
 void  __attribute__((optimize("-fno-reorder-blocks")))
  compute_q_vector_opt(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int ptid, int groupId, int numGroups, int vtid, int mask) {
 
@@ -172,11 +194,39 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
   // issue header block
   ISSUE_VINST(fable0);
 
-  // issue loop body block
-  for (int i = start; i < end; i+=VECTOR_LEN) {
-    for (int j = 0; j < NY; j++) {
+  // TODO seems like can use c functors to implement this pattern
+  // just need to give functions for prefetch and vissue?
+
+  int sp = 0;
+
+  // this kernel needs to do vertical loads due to access pattern of A
+  // currently doing a one wide load. want to increase size, but then also have
+  // to unroll vector code
+
+  // TODO merge INIT_FRAMES*Q_PREFEATCH_LEN
+
+  // do initial prefetching for a small amount of first row
+  for (int j = 0; j < INIT_FRAMES*Q_PREFETCH_LEN; j+=Q_PREFETCH_LEN) {
+    prefetch_q_frame(a, p, start, j, &sp, NY);
+  }
+
+  // do modified first row that has already been prefetch
+  for (int j = INIT_FRAMES*Q_PREFETCH_LEN; j < NY; j+=Q_PREFETCH_LEN) {
+    prefetch_q_frame(a, p, start, j, &sp, NY);
+    ISSUE_VINST(fable1);
+  }
+
+  // steady state
+  for (int i = start + VECTOR_LEN; i < end; i+=VECTOR_LEN) {
+    for (int j = 0; j < NY; j+=Q_PREFETCH_LEN) {
+      prefetch_q_frame(a, p, i, j, &sp, NY);
       ISSUE_VINST(fable1);
     }
+  }
+
+  // draining. do the last vissue corresponding to the initial round of prefetch
+  for (int j = NY - INIT_FRAMES*Q_PREFETCH_LEN; j < NY; j+=Q_PREFETCH_LEN) {
+    ISSUE_VINST(fable1);
   }
 
   // devec with unique tag
@@ -193,6 +243,8 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
 
   // declarations
   int i, j;
+  int sp;
+  DTYPE *sp_ptr;
   DTYPE q_local;
 
   // header
@@ -200,10 +252,14 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
     i = start + vtid;
     j = 0;
     q_local = 0.0f;
+    sp = 0;
+    sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
   // body
   fable1:
-    q_local += a[i * NY + j] * p[j];
+    FRAME_START(FRAME_SIZE);
+    // q_local += a[i * NY + j] * p[j];
+    q_local += sp_ptr[sp + 0] * sp_ptr[sp + 1];
     j++;
     // do loop check here, to take load off scalar core?
     // does reduce vector core utilization
@@ -213,6 +269,9 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
       j = 0;
       q_local = 0.0f;
     }
+    sp += 2;
+    if (sp == POST_FRAME_WORD) sp = 0;
+    REMEM(FRAME_SIZE);
     asm volatile goto("j %l[fable1]\n\t"::::fable1);
 }
 
@@ -234,7 +293,6 @@ void __attribute__((optimize("-fno-inline"))) bicg(
 
     compute_s_vector_opt(a, r, s, NX, NY, ptid, groupId, numGroups, vtid, mask);
     compute_q_vector_opt(a, p, q, NX, NY, ptid, groupId, numGroups, vtid, mask);
-
     #endif
 
 }
@@ -318,6 +376,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // get behavior of each core
   #ifdef USE_VEC
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+  SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE);
   #else
   int mask = 0;
   #endif
