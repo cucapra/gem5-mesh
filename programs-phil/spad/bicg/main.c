@@ -75,7 +75,7 @@ int main(int argc, char *argv[]) {
   int NY = NX;
 
   // whether to skip verification or not
-  int skip_check = 0;
+  int skip_check = 1;
 
   if (argc > 1) {
     NX = atoi(argv[1]);

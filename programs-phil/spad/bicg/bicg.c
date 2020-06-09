@@ -25,11 +25,17 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
   int end   = ((tid + 1) * NY) / dim;
 
   for (int j = start; j < end; j++) {
-    s[j] = 0.0f;
+    // s[j] = 0.0f;
+    DTYPE s_local = 0.0f;
     for (int i = 0; i < NX; i++) {
-      s[j] += a[i * NY + j] * r[i];
+      // s[j] += a[i * NY + j] * r[i];
+      s_local += a[i * NY + j] * r[i];
     }
+    s[j] = s_local;
+    // STORE_NOACK(s_local, &s[j], 0);
   }
+
+  // asm volatile("fence\n\t");
 }
 
 // compute q by paralleization outerloop around reduction (reduction done within a single core)
@@ -41,11 +47,17 @@ void compute_q_manycore_baseline(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, i
   int end   = ((tid + 1) * NX) / dim;
 
   for (int i = start; i < end; i++) {
-    q[i] = 0.0f;
+    // q[i] = 0.0f;
+    DTYPE q_local = 0.0f;
     for (int j = 0; j < NY; j++) {
-      q[i] += a[i * NY + j] * p[j];
+      // q[i] += a[i * NY + j] * p[j];
+      q_local += a[i * NY + j] * p[j];
     }
+    q[i] = q_local;
+    // STORE_NOACK(q_local, &q[i], 0);
   }
+
+  // asm volatile("fence\n\t");
 }
 
 /*-----------------------------------------------------------------------------------
@@ -53,7 +65,159 @@ void compute_q_manycore_baseline(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, i
  *---------------------------------------------------------------------------------*/
 
 #ifdef USE_VEC
+// helper for mapping to vector groups.
+// doesn't handle odd numbers would need to split off into manycore kernel to handle that
+int roundUp(int numToRound, int multiple) {
+  if (multiple == 0) {
+    return numToRound;
+  }
+
+  int remainder = abs(numToRound) % multiple;
+  if (remainder == 0) {
+    return numToRound;
+  }
+
+  if (numToRound < 0) {
+    return -(abs(numToRound) - remainder);
+  }
+  else {
+    return numToRound + multiple - remainder;
+  }
+}
+
+void  __attribute__((optimize("-fno-reorder-blocks")))
+ compute_s_vector_opt(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int ptid, int groupId, int numGroups, int vtid, int mask) {
+
+  // chunk over vector gorups
+  int start = ((groupId + 0) * NY) / numGroups;
+  int end   = ((groupId + 1) * NY) / numGroups;
+
+  // make it a factor of vector group mapping size
+  start = roundUp(start, VECTOR_LEN);
+  end   = roundUp(end  , VECTOR_LEN);
+
+  // prevents code from being reordered :|
+  volatile int ohjeez = 1;
+  if (ohjeez) {
+
+  // goto vector mode
+  VECTOR_EPOCH(mask);
+  
+  // issue header block
+  ISSUE_VINST(fable0);
+
+  // issue loop body block
+  for (int j = start; j < end; j+=VECTOR_LEN) {
+    for (int i = 0; i < NX; i++) {
+      ISSUE_VINST(fable1);
+    }
+  }
+
+  // devec with unique tag
+  DEVEC(devec_0);
+
+  // TODO skips this after devec??
+  asm volatile("nop\n\t");
+
+  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
+  asm volatile("fence\n\t");
+  return;
+  }
+
+  // vector engine code
+
+  // declarations
+  int i, j;
+  DTYPE s_local;
+
+  // header
+  fable0:
+    i = 0;
+    j = start + vtid;
+    s_local = 0.0f;
+
+  // body
+  fable1:
+    s_local += a[i * NY + j] * r[i];
+    i++;
+    // do loop check here, to take load off scalar core?
+    // does reduce vector core utilization
+    if (i == NX) {
+      STORE_NOACK(s_local, &s[j], 0);
+      i = 0;
+      j+=VECTOR_LEN;
+      s_local = 0.0f;
+    }
+    asm volatile goto("j %l[fable1]\n\t"::::fable1);
+}
+
+void  __attribute__((optimize("-fno-reorder-blocks")))
+ compute_q_vector_opt(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int ptid, int groupId, int numGroups, int vtid, int mask) {
+
+  // chunk over vector gorups
+  int start = ((groupId + 0) * NX) / numGroups;
+  int end   = ((groupId + 1) * NX) / numGroups;
+
+  // make it a factor of vector group mapping size
+  start = roundUp(start, VECTOR_LEN);
+  end   = roundUp(end  , VECTOR_LEN);
+
+  // prevents code from being reordered :|
+  volatile int ohjeez = 1;
+  if (ohjeez) {
+
+  // goto vector mode
+  VECTOR_EPOCH(mask);
+  
+  // issue header block
+  ISSUE_VINST(fable0);
+
+  // issue loop body block
+  for (int i = start; i < end; i+=VECTOR_LEN) {
+    for (int j = 0; j < NY; j++) {
+      ISSUE_VINST(fable1);
+    }
+  }
+
+  // devec with unique tag
+  DEVEC(devec_0);
+
+  asm volatile("nop\n\t");
+
+  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
+  asm volatile("fence\n\t");
+  return;
+  }
+
+  // vector engine code
+
+  // declarations
+  int i, j;
+  DTYPE q_local;
+
+  // header
+  fable0:
+    i = start + vtid;
+    j = 0;
+    q_local = 0.0f;
+
+  // body
+  fable1:
+    q_local += a[i * NY + j] * p[j];
+    j++;
+    // do loop check here, to take load off scalar core?
+    // does reduce vector core utilization
+    if (j == NY) {
+      STORE_NOACK(q_local, &q[i], 0);
+      i += VECTOR_LEN;
+      j = 0;
+      q_local = 0.0f;
+    }
+    asm volatile goto("j %l[fable1]\n\t"::::fable1);
+}
+
 #endif
+
 
 void __attribute__((optimize("-fno-inline"))) bicg(
     DTYPE *a, DTYPE *r, DTYPE *p, DTYPE *s, DTYPE *q, 
@@ -66,6 +230,11 @@ void __attribute__((optimize("-fno-inline"))) bicg(
     // don't need a barrier in between b/c s and q can be compute independently
     compute_q_manycore_baseline(a, p, q, NX, NY, ptid, dim);
     #else
+    if (!used) return;
+
+    compute_s_vector_opt(a, r, s, NX, NY, ptid, groupId, numGroups, vtid, mask);
+    compute_q_vector_opt(a, p, q, NX, NY, ptid, groupId, numGroups, vtid, mask);
+
     #endif
 
 }
