@@ -12,9 +12,9 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
       int nx_start, int nx_end, int ptid, int vtid, int dim)
 {
 
-  
-  #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
+
+  #ifdef SCALAR_CORE
   ISSUE_VINST(init); // issue vector block early so that vector cores don't stay idol
   
   //prefetch variables
@@ -49,34 +49,13 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
     ISSUE_VINST(loop_end);
   }
 
-  ISSUE_VINST(vector_stack);
+  ISSUE_VINST(stack_end);
   // devec with unique tag
   DEVEC(devec_0);
 
-  asm volatile("fence\n\t");
-
-  asm("trillium vissue_delim return scalar_return"); 
-  return;
-
-  
-  init:
-    asm("trillium glue_point init");
-  hoist1:
-    asm("trillium glue_point hoist1");
-  dotprod:
-    asm("trillium glue_point dotprod");
-  store_dp:
-    asm("trillium glue_point store_dp");
-  transpose_dp:
-    asm("trillium glue_point transpose_dp");
-  loop_end:
-    asm("trillium glue_point loop_end");
-  vector_stack:
-    asm("trillium glue_point vector_stack");
 
   #elif defined VECTOR_CORE
-  // init:;
-  asm("trillium vissue_delim until_next init");
+  init:;
   volatile int bh1,bh2,bh3;
   
   int spadRegion =0;
@@ -87,13 +66,11 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
   DTYPE temp;
   DTYPE* partialVec = _y_partial + ptid*ny;
   while(bh1){
-    // hoist1:
-    asm("trillium vissue_delim until_next hoist1");
+    hoist1:
     temp=0;
     while(bh2){
 
-      // dotprod:
-      asm("trillium vissue_delim until_next dotprod");
+      dotprod:
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(4)
       for(int jj=0; jj<PREFETCH_LEN; jj++){
@@ -105,14 +82,12 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
     }
-    // store_dp:
-    asm("trillium vissue_delim until_next store_dp");
+    store_dp:
     STORE_NOACK(temp, ax + row_thread, 0);
     col_thread=0;
     while(bh3){
       
-      // transpose_dp:
-      asm("trillium vissue_delim until_next transpose_dp");
+      transpose_dp:
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(8)
       for(int jj=0; jj<REGION_SIZE; jj++){
@@ -125,18 +100,30 @@ void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int n
       col_thread+=REGION_SIZE;
     }
 
-    asm("trillium vissue_delim until_next loop_end");
     row_thread+=dim;
   }
-
-  // mark vector stack cleanup assembly
-  asm("trillium vissue_delim return vector_stack");
-  return;
   #endif
 
+  asm volatile("fence\n\t");
 
+  return;
 
+  #ifdef SCALAR_CORE
+  init:
+    asm("nop");
+  hoist1:
+    asm("nop");
+  dotprod:
+    asm("nop");
+  store_dp:
+    asm("nop");
+  transpose_dp:
+    asm("nop");
+  loop_end:
+    asm("nop");
+  stack_end:
+    asm("nop");
 
-  
-  
+  return;
+  #endif
 }

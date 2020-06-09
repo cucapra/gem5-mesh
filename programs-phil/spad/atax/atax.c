@@ -228,10 +228,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 {
 
   // start recording all stats (all cores)
-  // if (tid_x == 0 && tid_y == 0)
-  // {
-  //   stats_on();
-  // }
+  if (tid_x == 0 && tid_y == 0)
+  {
+    stats_on();
+  }
 
 
   // linearize tid and dim
@@ -261,12 +261,13 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int unique_id = 0;
   int total_groups = 0;
   int used = 0;
+  template_info_t tinfo;
 
   #ifdef _VEC
   #if VEC_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
+  tinfo = init_template_4x4_2x2();
   #elif VEC_LEN==16
-  template_info_t tinfo = init_template_8x8_4x4();
+  tinfo = init_template_8x8_4x4();
   #endif
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
@@ -402,7 +403,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     #if defined _VEC
       atax_vec(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,vtid,vdim);
     #else
-      atax_manycore(a,_x,_y_partial,ax,nx,ny,nx_start,nx_end,ptid);
+      atax_manycore(a,_x,_y_partial,ax,nx,ny,start,end,ptid);
     #endif
 
   }
@@ -410,7 +411,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // asm volatile(
   //     "addi sp, %[stackTop], 0\n\t" ::[stackTop] "r"(stackLoc));
 
-  if(ptid==0) stats_on();
+  // if(ptid==0) stats_on();
 
   //requires barrier since each core needs values from all other cores
   #ifdef PARALLEL_OUTPUT_REDUCE
@@ -484,6 +485,8 @@ void *pthread_kernel(void *args)
   kernel(a->a, a->_x, a->_y, a->ax, a->_y_partial, a->nx, a->ny,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
+
+  pthread_barrier_wait(&start_barrier);
 
   if (a->tid_x == 1 && a->tid_y == 0)
   {

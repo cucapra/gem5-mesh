@@ -19,7 +19,7 @@ If you need scalar and vector codes:
 ENV_N_SPS=16 make scalar
 ENV_N_SPS=16 make vector
 ```
-Copy the asm file in the directory and compile using:
+Copy the asm file in the directory renaming it to `atax_combined.s` and compile using:
 ```
 ENV_N_SPS=16 make pass
 ENV_N_SPS=16 make combine
