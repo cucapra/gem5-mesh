@@ -101,9 +101,11 @@
 #define HORIZONTAL 0
 #define VERTICAL   1
 
-#define SET_PREFETCH_MASK(num_frames, frame_size) \
+// set mask and do barrier because need to wait for all cores to be on same page about frame size
+#define SET_PREFETCH_MASK(num_frames, frame_size, barrier_ptr) \
   int prefetchMask = (num_frames << PREFETCH_NUM_REGION_SHAMT) | (frame_size << PREFETCH_REGION_SIZE_SHAMT); \
-  PREFETCH_EPOCH(prefetchMask);
+  PREFETCH_EPOCH(prefetchMask); \
+  pthread_barrier_wait(barrier_ptr)
 
   // revec instruction with unique hash id
 /*#define REVEC(hash)                                                           \

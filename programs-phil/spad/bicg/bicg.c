@@ -85,6 +85,25 @@ int roundUp(int numToRound, int multiple) {
   }
 }
 
+// prefetch a and r
+inline void prefetch_s_frame(DTYPE *a, DTYPE *r, int i, int j, int *sp, int NY) {
+  // don't think need prefetch_R here?
+  VPREFETCH_L(*sp, &a[i * NY + j], 0, S_PREFETCH_LEN, HORIZONTAL);
+  // VPREFETCH_R(*sp, &a[i * NY + j], 0, S_PREFETCH_LEN, HORIZONTAL);
+  // printf("horiz pf i %d j %d idx %d sp %d val %f %f %f %f\n", i, j, i * NY + j, *sp, a[i* NY + j], a[i*NY+j+1], a[i*NY+j+2], a[i*NY+j+3]);
+  *sp = *sp + 1;
+
+  // TODO potentially some reuse here b/c fetch the same thing for everyone
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_L(*sp, &r[i], core, Q_PREFETCH_LEN, VERTICAL);
+    // VPREFETCH_R(*sp, &r[i], core, Q_PREFETCH_LEN, VERTICAL);
+  }
+
+  *sp = *sp + Q_PREFETCH_LEN;
+
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+}
+
 void  __attribute__((optimize("-fno-reorder-blocks")))
  compute_s_vector_opt(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int ptid, int groupId, int numGroups, int vtid, int mask) {
 
@@ -100,25 +119,64 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
   volatile int ohjeez = 1;
   if (ohjeez) {
 
+  if (ptid == 0) {
   // goto vector mode
-  VECTOR_EPOCH(mask);
+  // VECTOR_EPOCH(mask);
+  VECTOR_EPOCH((1 << FET_XORIGIN_SHAMT) | (0 << FET_YORIGIN_SHAMT) | (2 << FET_XLEN_SHAMT) | (2 << FET_YLEN_SHAMT) | (1 << FET_DAE_SHAMT));
   
   // issue header block
-  ISSUE_VINST(fable0);
+  // ISSUE_VINST(fable0);
 
-  // issue loop body block
-  for (int j = start; j < end; j+=VECTOR_LEN) {
-    for (int i = 0; i < NX; i++) {
-      ISSUE_VINST(fable1);
+  int sp = 0;
+  
+  // do initial prefetching for a small amount of first row
+  for (int i = 0; i < INIT_FRAMES*Q_PREFETCH_LEN; i+=Q_PREFETCH_LEN) {
+    prefetch_s_frame(a, r, i, start, &sp, NY);
+  }
+
+  // do modified first row that has already been prefetch
+  for (int i = INIT_FRAMES*Q_PREFETCH_LEN; i < NX; i+=Q_PREFETCH_LEN) {
+    prefetch_s_frame(a, r, i, start, &sp, NY);
+    // ISSUE_VINST(fable1);
+  }
+
+  // steady state
+  for (int j = start + VECTOR_LEN; j < end; j+=VECTOR_LEN) {
+    for (int i = 0; i < NX; i+=Q_PREFETCH_LEN) {
+      prefetch_s_frame(a, r, i, j, &sp, NY);
+      // ISSUE_VINST(fable1);
     }
   }
 
+  // draining. do the last vissue corresponding to the initial round of prefetch
+  for (int i = NX - INIT_FRAMES*Q_PREFETCH_LEN; i < NX; i+=Q_PREFETCH_LEN) {
+    // ISSUE_VINST(fable1);
+  }
+
   // devec with unique tag
-  DEVEC(devec_0);
+  // DEVEC(devec_0);
+  }
+  else {
+    int sp = 0;
+    DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+    for (int j = start + vtid; j < end; j+=VECTOR_LEN) {
+      DTYPE s_local = 0.0f;
+      for (int i = 0; i < NX; i++) {
+        FRAME_START(FRAME_SIZE);
+        // s_local += a[i * NY + j] * r[i];
+        // printf("vtid %d sp %d a %f ?= %f r %f ?= %f\n", vtid, sp, a[i*NY+j], sp_ptr[sp + 0], r[i], sp_ptr[sp + 1]);
+        s_local += sp_ptr[sp + 0] * sp_ptr[sp + 1];
+        sp+=2;
+        if (sp == POST_FRAME_WORD) sp = 0;
+        REMEM(FRAME_SIZE);
+      }
+      s[j] = s_local;
+    }
+  }
 
   // TODO skips this after devec??
   asm volatile("nop\n\t");
-
+  VECTOR_EPOCH(0);
   // we are doing lazy store acks, so use this to make sure all stores have commited to memory
   asm volatile("fence\n\t");
   return;
@@ -128,6 +186,8 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
 
   // declarations
   int i, j;
+  int sp;
+  DTYPE *sp_ptr;
   DTYPE s_local;
 
   // header
@@ -135,10 +195,14 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
     i = 0;
     j = start + vtid;
     s_local = 0.0f;
+    sp = 0;
+    sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
   // body
   fable1:
-    s_local += a[i * NY + j] * r[i];
+    FRAME_START(FRAME_SIZE);
+    // s_local += a[i * NY + j] * r[i];
+    s_local += sp_ptr[sp + 0] * sp_ptr[sp + 1];
     i++;
     // do loop check here, to take load off scalar core?
     // does reduce vector core utilization
@@ -148,6 +212,9 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
       j+=VECTOR_LEN;
       s_local = 0.0f;
     }
+    sp+=2;
+    if (sp == POST_FRAME_WORD) sp = 0;
+    REMEM(FRAME_SIZE);
     asm volatile goto("j %l[fable1]\n\t"::::fable1);
 }
 
@@ -289,10 +356,16 @@ void __attribute__((optimize("-fno-inline"))) bicg(
     // don't need a barrier in between b/c s and q can be compute independently
     compute_q_manycore_baseline(a, p, q, NX, NY, ptid, dim);
     #else
-    if (!used) return;
+    if (groupId != 0) return;
 
-    compute_s_vector_opt(a, r, s, NX, NY, ptid, groupId, numGroups, vtid, mask);
-    compute_q_vector_opt(a, p, q, NX, NY, ptid, groupId, numGroups, vtid, mask);
+    if (used)
+      compute_s_vector_opt(a, r, s, NX, NY, ptid, groupId, numGroups, vtid, mask);
+
+    // reset frames. technically don't have to do this is pass the last sp ptr between these two
+    // SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
+
+    // if (used)
+    //   compute_q_vector_opt(a, p, q, NX, NY, ptid, groupId, numGroups, vtid, mask);
     #endif
 
 }
@@ -376,13 +449,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // get behavior of each core
   #ifdef USE_VEC
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
-  SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE);
+  SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
   #else
   int mask = 0;
   #endif
-
-  // single barrier before kernel start
-  pthread_barrier_wait(&start_barrier);
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
