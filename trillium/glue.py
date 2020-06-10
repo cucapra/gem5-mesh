@@ -132,6 +132,9 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
 
     # prepend trillium_init block to the first block
     trillium_init_block = blocks["trillium_init"]
+    trillium_init_block.insert(0, "#prepended trillium_init block here (See docs for more info)")
+    trillium_init_block.insert(1, "#trillium_init begin")
+    trillium_init_block.append("#trillium_init end")
     first_vissue_key = list(blocks.keys())[1] #0 corresponds to "trillium_init"
     first_vissue_block = blocks[first_vissue_key]
     blocks[first_vissue_key] = trillium_init_block + first_vissue_block
@@ -191,8 +194,8 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
     # This can be found at the end of scalar cleanup code, described in the two cases above
     scalar_ret_inst = None
 
-    # labels pointing to vector blocks
-    labeled_vector_bbs = OrderedDict()
+    # label-vissue pairs
+    label_vissueKey_pairs = {}
     labels = [] #stack of labels
 
     # labels pointing to scalar auxiliary blocks (not including scalar block that returns to jump address, if any)
@@ -203,12 +206,16 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
     footer = []
 
     def glue_pieces():
-        def dict_to_code(d):
-            bbs = []
-            for label, bb in d.items():
-                bbs.append(".{}:".format(label))
-                bbs.extend(bb)
-            return bbs
+        aux_bbs_as_list = []
+        for label, bb in aux_bbs.items():
+            aux_bbs_as_list.append(".{}:".format(label))
+            aux_bbs_as_list.extend(bb)
+
+        labeled_vector_bbs = []
+        for label, vissue_key in label_vissueKey_pairs.items():
+            commented_label = ".{}:  # {} vissue block".format(label, vissue_key)
+            labeled_vector_bbs.append(commented_label) 
+            labeled_vector_bbs.extend(vector_bbs[vissue_key])
 
         return (
             header +
@@ -219,11 +226,12 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
             scalar_cleanup +
             ["# trillium: scalar stack cleanup end"] +
             after_DEVEC_before_RET_DELIM +
+            [scalar_ret_inst if scalar_ret_inst else "ret" + "# relocated return instruction"] +
             ["# trillium: auxiliary blocks begin"] +
-            dict_to_code(aux_bbs) +
+            aux_bbs_as_list +
             ["# trillium: auxiliary blocks end"] +
             ["# trillium: vector vissue blocks begin"] +
-            dict_to_code(labeled_vector_bbs) +
+            labeled_vector_bbs +
             ["# trillium: vector vissue blocks end"] +
             ["# trillium: footer begin"] +
             footer +
@@ -274,27 +282,29 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
             parsed_label = parse_label(l)
 
             if is_return_inst(l):
+                print("found return instr after return delimiter")
                 scalar_ret_inst = l
                 scalar_ret_label = None
                 state = ScalarParseState.GLUE
 
             elif parsed_inst != None and parsed_inst[0] == RV_Inst.JUMP:
+                print("found jump instr after return delimiter")
                 scalar_ret_label = parsed_inst[1]
                 state = ScalarParseState.GLUE
 
             elif parsed_label != None:
+                print("found label after return delimiter")
                 scalar_ret_label = None
-                labels = [parsed_label]
+                labels.append(parsed_label)
                 state = ScalarParseState.GLUE
 
             else:
                 scalar_cleanup.append(l)
 
 
-        # ASSUMPTION: after return or "indirect return", label follows immediately
+        #input for this state: scalar_ret_label
+        #if not None, we search for scalar cleanup and return at that label
         elif state == ScalarParseState.GLUE:
-            #input for this state: scalar_ret_label
-            #if not None, we search for scalar cleanup and return at that label
             assert('scalar_ret_label' in locals())
 
             parsed_label = parse_label(l)
@@ -303,13 +313,14 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
             if parsed_label != None:
                 if parsed_label == scalar_ret_label:
+                    print("found scalar return jump label")
                     state = ScalarParseState.INDIRECT_SCALAR_RET_FOUND
                 else:
                     labels.append(parsed_label)
 
             elif vissue_key != None:
                 latest_label = labels.pop()
-                labeled_vector_bbs[latest_label] = vector_bbs[vissue_key]
+                label_vissueKey_pairs[latest_label] = vissue_key
 
             elif footer_parse != None:
                 footer.append(l)

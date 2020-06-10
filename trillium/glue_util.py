@@ -19,7 +19,8 @@ def is_VECTOR_EPOCH_inst(inst):
     return ".insn i 0x77" in inst
 
 def is_label(inst):
-    return "." == inst[0] and ":" == inst[-1]
+    return re.compile("\.\S+:").match(inst) != None
+    #return "." == inst[0] and ":" == inst[-1]
 
 def is_footer_start(inst):
     return ".size " in inst
@@ -29,14 +30,14 @@ class RV_Inst(Enum):
     FOOTER_START = auto()
 
 def parse_jump_inst(inst):
-    jump_inst_match = re.compile("j\s+(\S+)").match(inst)
+    jump_inst_match = re.compile("j\s+\.(\S+)").match(inst)
     if jump_inst_match:
         return RV_Inst.JUMP, jump_inst_match.group(1)
     else:
         return None
 
 def parse_label(inst):
-    label_match = re.compile(".(\S+):").match(inst)
+    label_match = re.compile("\.(\S+):").match(inst)
     return label_match.group(1) if label_match else None
 
 def parse_footer(inst):
