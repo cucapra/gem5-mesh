@@ -119,13 +119,13 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
   volatile int ohjeez = 1;
   if (ohjeez) {
 
-  if (ptid == 0) {
+  // if (ptid == 0) {
   // goto vector mode
-  // VECTOR_EPOCH(mask);
-  VECTOR_EPOCH((1 << FET_XORIGIN_SHAMT) | (0 << FET_YORIGIN_SHAMT) | (2 << FET_XLEN_SHAMT) | (2 << FET_YLEN_SHAMT) | (1 << FET_DAE_SHAMT));
+  VECTOR_EPOCH(mask);
+  // VECTOR_EPOCH((1 << FET_XORIGIN_SHAMT) | (0 << FET_YORIGIN_SHAMT) | (2 << FET_XLEN_SHAMT) | (2 << FET_YLEN_SHAMT) | (1 << FET_DAE_SHAMT));
   
   // issue header block
-  // ISSUE_VINST(fable0);
+  ISSUE_VINST(fable0);
 
   int sp = 0;
   
@@ -137,46 +137,48 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
   // do modified first row that has already been prefetch
   for (int i = INIT_FRAMES*Q_PREFETCH_LEN; i < NX; i+=Q_PREFETCH_LEN) {
     prefetch_s_frame(a, r, i, start, &sp, NY);
-    // ISSUE_VINST(fable1);
+    ISSUE_VINST(fable1);
   }
 
   // steady state
   for (int j = start + VECTOR_LEN; j < end; j+=VECTOR_LEN) {
     for (int i = 0; i < NX; i+=Q_PREFETCH_LEN) {
       prefetch_s_frame(a, r, i, j, &sp, NY);
-      // ISSUE_VINST(fable1);
+      ISSUE_VINST(fable1);
     }
   }
 
   // draining. do the last vissue corresponding to the initial round of prefetch
   for (int i = NX - INIT_FRAMES*Q_PREFETCH_LEN; i < NX; i+=Q_PREFETCH_LEN) {
-    // ISSUE_VINST(fable1);
+    ISSUE_VINST(fable1);
   }
 
   // devec with unique tag
-  // DEVEC(devec_0);
-  }
-  else {
-    int sp = 0;
-    DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-    for (int j = start + vtid; j < end; j+=VECTOR_LEN) {
-      DTYPE s_local = 0.0f;
-      for (int i = 0; i < NX; i++) {
-        FRAME_START(FRAME_SIZE);
-        // s_local += a[i * NY + j] * r[i];
-        // printf("vtid %d sp %d a %f ?= %f r %f ?= %f\n", vtid, sp, a[i*NY+j], sp_ptr[sp + 0], r[i], sp_ptr[sp + 1]);
-        s_local += sp_ptr[sp + 0] * sp_ptr[sp + 1];
-        sp+=2;
-        if (sp == POST_FRAME_WORD) sp = 0;
-        REMEM(FRAME_SIZE);
-      }
-      s[j] = s_local;
-    }
-  }
+  DEVEC(devec_0);
+
+  // }
+  // else {
+  //   int sp = 0;
+  //   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  //   for (int j = start + vtid; j < end; j+=VECTOR_LEN) {
+  //     DTYPE s_local = 0.0f;
+  //     for (int i = 0; i < NX; i++) {
+  //       FRAME_START(FRAME_SIZE);
+  //       // s_local += a[i * NY + j] * r[i];
+  //       // printf("vtid %d sp %d a %f ?= %f r %f ?= %f\n", vtid, sp, a[i*NY+j], sp_ptr[sp + 0], r[i], sp_ptr[sp + 1]);
+  //       s_local += sp_ptr[sp + 0] * sp_ptr[sp + 1];
+  //       sp+=2;
+  //       if (sp == POST_FRAME_WORD) sp = 0;
+  //       REMEM(FRAME_SIZE);
+  //     }
+  //     s[j] = s_local;
+  //   }
+  // }
+  // VECTOR_EPOCH(0);
 
   // TODO skips this after devec??
   asm volatile("nop\n\t");
-  VECTOR_EPOCH(0);
+
   // we are doing lazy store acks, so use this to make sure all stores have commited to memory
   asm volatile("fence\n\t");
   return;
@@ -356,7 +358,7 @@ void __attribute__((optimize("-fno-inline"))) bicg(
     // don't need a barrier in between b/c s and q can be compute independently
     compute_q_manycore_baseline(a, p, q, NX, NY, ptid, dim);
     #else
-    if (groupId != 0) return;
+    // if (groupId != 0) return;
 
     if (used)
       compute_s_vector_opt(a, r, s, NX, NY, ptid, groupId, numGroups, vtid, mask);
