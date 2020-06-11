@@ -221,10 +221,11 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
             header +
             [after_VECTOR_EPOCH_before_DEVEC[0]] +
             before_VECTOR_EPOCH +
-            after_VECTOR_EPOCH_before_DEVEC[1:] +
+            after_VECTOR_EPOCH_before_DEVEC[1:-1] +
             ["# trillium: scalar stack cleanup begin"] +
             scalar_cleanup +
             ["# trillium: scalar stack cleanup end"] +
+            [after_VECTOR_EPOCH_before_DEVEC[-1]] +
             after_DEVEC_before_RET_DELIM +
             [scalar_ret_inst if scalar_ret_inst else "ret" + "# relocated return instruction"] +
             ["# trillium: auxiliary blocks begin"] +
@@ -252,7 +253,7 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
         elif state == ScalarParseState.BEFORE_VECTOR_EPOCH:
             if is_VECTOR_EPOCH_inst(l):
-                after_VECTOR_EPOCH_before_DEVEC.append(l);
+                after_VECTOR_EPOCH_before_DEVEC.append(l)
                 state = ScalarParseState.AFTER_VECTOR_EPOCH
             else:
                 before_VECTOR_EPOCH.append(l)
