@@ -77,6 +77,18 @@ template_info_t init_template_8x8_4x4() {
   return tinfo;
 }
 
+// template used for debugging
+// a single 4x4 group across the whole mesh
+template_info_t init_template_debug() {
+  template_info_t tinfo;
+  tinfo.num_groups_in_template = 1;
+  tinfo.template_dim_x = sqrtf(_N_SPS);
+  tinfo.template_dim_y = sqrtf(_N_SPS);
+  tinfo.groups[0] = init_group_info(0, 0, 1, 0, 2, 2);
+  if (_N_SPS < tinfo.template_dim_x * tinfo.template_dim_y) printf("[[WARNING]] trying to instantiate template bigger than mesh\n");
+  return tinfo;
+}
+
 
 // ---------------------------------------------------------------------------------------------------
 // helper to figure out where cores in other vector groups are
