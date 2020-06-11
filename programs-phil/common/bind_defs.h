@@ -474,6 +474,8 @@ static int getSIMDMask(int master_x, int master_y, int origin_x, int origin_y, i
 }
 
 // mask used for debugging prefetching. no instruction forwarding just works for prefetching
+// NOTE DANGEROUS because no syncronization between scalar and vector cores.
+// Avoid overfilling the scratchpad because may overwrite incorretly
 static int getDebugMask(int master_x, int master_y, int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y, int is_master) {
   return (origin_x << FET_XORIGIN_SHAMT) | (origin_y << FET_YORIGIN_SHAMT) | (dim_x << FET_XLEN_SHAMT) | (dim_y << FET_YLEN_SHAMT) | (is_master << FET_DAE_SHAMT);
 }
