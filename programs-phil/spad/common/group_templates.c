@@ -1,4 +1,5 @@
 #include "group_templates.h"
+#include <math.h>
 
 // group constructor
 group_info_t init_group_info(int scalar_x, int scalar_y, int vector_start_x, int vector_start_y, int vector_dim_x, int vector_dim_y) {
