@@ -105,7 +105,7 @@ inline void prefetch_s_frame(DTYPE *a, DTYPE *r, int i, int j, int *sp, int NY) 
 }
 
 void  __attribute__((optimize("-fno-reorder-blocks")))
- compute_s_vector_opt(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int ptid, int groupId, int numGroups, int vtid, int mask) {
+ compute_s_vector_opt(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int ptid, int groupId, int numGroups, int vtid, int mask, int *sp_init) {
 
   // chunk over vector gorups
   int start = ((groupId + 0) * NY) / numGroups;
@@ -114,6 +114,8 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
   // make it a factor of vector group mapping size
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
+
+  int sp = *sp_init;
 
   // prevents code from being reordered :|
   volatile int ohjeez = 1;
@@ -126,8 +128,6 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
   
   // issue header block
   ISSUE_VINST(fable0);
-
-  int sp = 0;
   
   // do initial prefetching for a small amount of first row
   for (int i = 0; i < INIT_FRAMES*Q_PREFETCH_LEN; i+=Q_PREFETCH_LEN) {
@@ -176,8 +176,7 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
   // }
   // VECTOR_EPOCH(0);
 
-  // TODO skips this after devec??
-  asm volatile("nop\n\t");
+  *sp_init = sp;
 
   // we are doing lazy store acks, so use this to make sure all stores have commited to memory
   asm volatile("fence\n\t");
@@ -188,7 +187,6 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
 
   // declarations
   int i, j;
-  int sp;
   DTYPE *sp_ptr;
   DTYPE s_local;
 
@@ -197,7 +195,6 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
     i = 0;
     j = start + vtid;
     s_local = 0.0f;
-    sp = 0;
     sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
   // body
@@ -243,7 +240,7 @@ inline void prefetch_q_frame(DTYPE *a, DTYPE *p, int i, int j, int *sp, int NY) 
 }
 
 void  __attribute__((optimize("-fno-reorder-blocks")))
- compute_q_vector_opt(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int ptid, int groupId, int numGroups, int vtid, int mask) {
+ compute_q_vector_opt(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int ptid, int groupId, int numGroups, int vtid, int mask, int *sp_init) {
 
   // chunk over vector gorups
   int start = ((groupId + 0) * NX) / numGroups;
@@ -252,6 +249,8 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
   // make it a factor of vector group mapping size
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
+
+  int sp = *sp_init;
 
   // prevents code from being reordered :|
   volatile int ohjeez = 1;
@@ -265,8 +264,6 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
 
   // TODO seems like can use c functors to implement this pattern
   // just need to give functions for prefetch and vissue?
-
-  int sp = 0;
 
   // this kernel needs to do vertical loads due to access pattern of A
   // currently doing a one wide load. want to increase size, but then also have
@@ -301,7 +298,7 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
   // devec with unique tag
   DEVEC(devec_0);
 
-  asm volatile("nop\n\t");
+  *sp_init = sp;
 
   // we are doing lazy store acks, so use this to make sure all stores have commited to memory
   asm volatile("fence\n\t");
@@ -312,7 +309,6 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
 
   // declarations
   int i, j;
-  int sp;
   DTYPE *sp_ptr;
   DTYPE q_local;
 
@@ -321,7 +317,6 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
     i = start + vtid;
     j = 0;
     q_local = 0.0f;
-    sp = 0;
     sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
   // body
@@ -360,14 +355,16 @@ void __attribute__((optimize("-fno-inline"))) bicg(
     #else
     // if (groupId != 0) return;
 
+    int sp = 0;
+
     if (used)
-      compute_s_vector_opt(a, r, s, NX, NY, ptid, groupId, numGroups, vtid, mask);
+      compute_s_vector_opt(a, r, s, NX, NY, ptid, groupId, numGroups, vtid, mask, &sp);
 
     // reset frames. technically don't have to do this is pass the last sp ptr between these two
-    SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
+    // SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
 
     if (used)
-      compute_q_vector_opt(a, p, q, NX, NY, ptid, groupId, numGroups, vtid, mask);
+      compute_q_vector_opt(a, p, q, NX, NY, ptid, groupId, numGroups, vtid, mask, &sp);
     #endif
 
 }
