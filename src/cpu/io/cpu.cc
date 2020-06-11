@@ -998,6 +998,9 @@ IOCPU::setMiscReg(int misc_reg, RegVal val, ThreadID tid)
     getLateVector()->setupConfig(misc_reg, val);
 
   // set scracthpad prefetch mask
+  if (misc_reg == RiscvISA::MISCREG_PREFETCH) {
+    DPRINTF(Mesh, "found miscreg prefecth\n");
+  }
   static_cast<CpuPort&>(getDataPort().getSlavePort()).getAttachedSpad()->setupConfig(misc_reg, val);
   
   m_isa_list[tid]->setMiscReg(misc_reg, val, tcBase(tid));

@@ -364,10 +364,10 @@ void __attribute__((optimize("-fno-inline"))) bicg(
       compute_s_vector_opt(a, r, s, NX, NY, ptid, groupId, numGroups, vtid, mask);
 
     // reset frames. technically don't have to do this is pass the last sp ptr between these two
-    // SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
+    SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
 
-    // if (used)
-    //   compute_q_vector_opt(a, p, q, NX, NY, ptid, groupId, numGroups, vtid, mask);
+    if (used)
+      compute_q_vector_opt(a, p, q, NX, NY, ptid, groupId, numGroups, vtid, mask);
     #endif
 
 }
@@ -451,6 +451,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // get behavior of each core
   #ifdef USE_VEC
   int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+  // if (ptid == 0)
+  //   printf("initial pf mask\n");
   SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
   #else
   int mask = 0;
