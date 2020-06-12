@@ -71,6 +71,8 @@ template_info_t init_template_4x4_2x2();
 
 template_info_t init_template_8x8_4x4();
 
+template_info_t init_template_debug();
+
 // ---------------------------------------------------------------------------------------------------
 // figuring out config based on group layout
 // ---------------------------------------------------------------------------------------------------
