@@ -19,15 +19,50 @@
 
 // compute each mean across each vector (single dimension)
 void mean_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
+  int start = ((tid + 0) * M) / dim;
+  int end   = ((tid + 1) * M) / dim;
+
+  for (int j = start + 1; j < end + 1; j++) {
+    DTYPE mean_j = 0.0f;
+    for (int i = 1; i < (N+1); i++) {
+      mean_j += data[i * (M+1) + j];
+    }
+    mean_j /= (DTYPE)FLOAT_N;
+    mean[j] = mean_j;
+  }
 }
 
 // subract mean from data to "center"
-void center_manycore_baseline(DTYPE *data, DTYPE *symmat, DTYPE *mean, int N, int M, int tid, int dim) {
+void center_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
+  // unlike gpu version only parallelize outer loop? find if N dimension big enough which prob is
+  // or should we use same method as gpu to be fair?
+
+  // I think just paralleize outer here? and maybe optimize gpu later?
+  int start = ((tid + 0) * N) / dim;
+  int end   = ((tid + 1) * N) / dim;
+
+  for (int i = start + 1; i < end + 1; i++) {
+    for (int j = 1; j < (M+1); j++) {
+      data[i * (M+1) + j] -= mean[j];	
+    }
+  }
 }
 
 // compute the covariance matrix
 void covar_manycore_baseline(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) {
+  int start = ((tid + 0) * M) / dim;
+  int end   = ((tid + 1) * M) / dim;
 
+  for (int j1 = start + 1; j1 < (end+1); j1++) {
+    for (int j2 = j1; j2 < (M+1); j2++) {
+      DTYPE symmat_idx = 0.0f;
+      for (int i = 1; i < (N+1); i++) {
+        symmat_idx += data[i *(M+1) + j1] * data[i *(M+1) + j2];
+      }
+      symmat[j2 * (M+1) + j1] = symmat_idx;
+      symmat[j1 * (M+1) + j2] = symmat_idx;
+    }
+  }
 }
 
 /*-----------------------------------------------------------------------------------
@@ -47,7 +82,7 @@ void __attribute__((optimize("-fno-inline"))) covar(
     #ifndef USE_VEC
     mean_manycore_baseline(mean, data, N, M, ptid, dim);
     pthread_barrier_wait(&start_barrier);
-    center_manycore_baseline(data, symmat, mean, N, M, ptid, dim);
+    center_manycore_baseline(mean, data, N, M, ptid, dim);
     pthread_barrier_wait(&start_barrier);
     covar_manycore_baseline(symmat, data, N, M, ptid, dim);
     #else

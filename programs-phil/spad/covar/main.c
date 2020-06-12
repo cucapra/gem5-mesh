@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
   * Put the command line arguments into variables
   *-------------------------------------------------------------------*/
   
-  int N = 256;
+  int N = 128;
   int M = N;
 
   // whether to skip verification or not
@@ -161,6 +161,9 @@ int main(int argc, char *argv[]) {
         printf("[[FAIL]]\n");
         return 1;      
       }
+      // else {
+      //   printf("i %d j %d idx %d | %f == %f\n", i, j, idx, symmat[idx], symmat_exp[idx]);
+      // }
     }
   }
 
