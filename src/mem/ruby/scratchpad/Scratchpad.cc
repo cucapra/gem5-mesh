@@ -37,6 +37,7 @@
 #include "mem/protocol/LLCResponseMsg.hh"
 #include "mem/ruby/network/Network.hh"
 #include "mem/ruby/scratchpad/MemMessage.hh"
+#include "arch/registers.hh"
 
 #include "debug/Mesh.hh"
 #include "debug/LoadTrack.hh"
@@ -139,10 +140,11 @@ Scratchpad::Scratchpad(const Params* p)
   // for(int i = 0; i < m_size / sizeof(uint32_t); i++) {
   //   m_fresh_array.push_back(0);
   // }
-  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
-    m_region_cntrs.push_back(0);
-  }
-  m_cur_prefetch_region = 0;
+  // for (int i = 0; i < NUM_REGION_CNTRS; i++) {
+  //   m_region_cntrs.push_back(0);
+  // }
+  // m_cur_prefetch_region = 0;
+  resetAllRegionCntrs();
 }
 
 Scratchpad::~Scratchpad()
@@ -1383,6 +1385,25 @@ Scratchpad::resetRdyArray() {
   m_region_cntrs[NUM_REGION_CNTRS - 1] = 0;
 
   m_cpu_p->produceMemTokens(getRegionElements());
+}
+
+void
+Scratchpad::setupConfig(int csrId, RegVal csrVal) {
+  if (csrId != RiscvISA::MISCREG_PREFETCH) return;
+
+  resetAllRegionCntrs();
+
+  // can also probably store region size and number here rather than going to cpu
+}
+
+void
+Scratchpad::resetAllRegionCntrs() {
+  DPRINTF(Mesh, "reset frame cntrs\n");
+  m_region_cntrs.clear();
+  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
+    m_region_cntrs.push_back(0);
+  }
+  m_cur_prefetch_region = 0;
 }
 
 void

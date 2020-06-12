@@ -66,7 +66,7 @@
   )
 
 #define PREFETCH_EPOCH(val) \
-  asm volatile ("csrw 0x402, %[x]\n\t" :: [x] "r" (val))
+  asm volatile ("csrw 0x402, %[x]\n\t" :: [x] "r" (val) : "memory")
   
 #define BROADCAST(dest_reg, val, imm) \
   asm volatile (".insn i 0x1b, 0x6, " #dest_reg ", %[src_reg], %[imm_val]\n\t" \
@@ -96,6 +96,17 @@
 
 #define CONVERGENT_ELSE \
   else
+
+// config defs for prefetch. horizontal or vertical prefetching
+#define HORIZONTAL 0
+#define VERTICAL   1
+
+// set mask and do barrier because need to wait for all cores to be on same page about frame size
+// CSR writes in gem5 require the data to have changed for some reason, so need to switch to 0 before updating
+#define SET_PREFETCH_MASK(num_frames, frame_size, barrier_ptr) \
+  PREFETCH_EPOCH(0); \
+  PREFETCH_EPOCH((num_frames << PREFETCH_NUM_REGION_SHAMT) | (frame_size << PREFETCH_REGION_SIZE_SHAMT)); \
+  pthread_barrier_wait(barrier_ptr)
 
   // revec instruction with unique hash id
 /*#define REVEC(hash)                                                           \
@@ -156,6 +167,7 @@ static inline void stats_off()
 #endif
 }
 
+// TODO deprecated
 static int getVecMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
   int mask = ALL_NORM;
   
@@ -200,6 +212,7 @@ static int getVecMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_
   #endif
 }
 
+// TODO deprecated
 // mask that guarentees a linear chain with no fanout
 // implements a snake pattern
 // -> -> -> v
@@ -268,6 +281,7 @@ static int getSerializedMask(int origin_x, int origin_y, int tid_x, int tid_y, i
   #endif
 }
 
+// TODO deprecated
 static int getDAEMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
   int mask = (1 << FET_DAE_SHAMT) | 
             (origin_x << FET_XORIGIN_SHAMT) | 
@@ -468,6 +482,13 @@ static int getSIMDMask(int master_x, int master_y, int origin_x, int origin_y, i
   mask |= (is_master << FET_DAE_SHAMT);
 
   return mask;
+}
+
+// mask used for debugging prefetching. no instruction forwarding just works for prefetching
+// NOTE DANGEROUS because no syncronization between scalar and vector cores.
+// Avoid overfilling the scratchpad because may overwrite incorretly
+static int getDebugMask(int master_x, int master_y, int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y, int is_master) {
+  return (origin_x << FET_XORIGIN_SHAMT) | (origin_y << FET_YORIGIN_SHAMT) | (dim_x << FET_XLEN_SHAMT) | (dim_y << FET_YLEN_SHAMT) | (is_master << FET_DAE_SHAMT);
 }
 
 #endif
