@@ -66,7 +66,7 @@
   )
 
 #define PREFETCH_EPOCH(val) \
-  asm volatile ("csrw 0x402, %[x]\n\t" :: [x] "r" (val))
+  asm volatile ("csrw 0x402, %[x]\n\t" :: [x] "r" (val) : "memory")
   
 #define BROADCAST(dest_reg, val, imm) \
   asm volatile (".insn i 0x1b, 0x6, " #dest_reg ", %[src_reg], %[imm_val]\n\t" \
@@ -96,6 +96,17 @@
 
 #define CONVERGENT_ELSE \
   else
+
+// config defs for prefetch. horizontal or vertical prefetching
+#define HORIZONTAL 0
+#define VERTICAL   1
+
+// set mask and do barrier because need to wait for all cores to be on same page about frame size
+// CSR writes in gem5 require the data to have changed for some reason, so need to switch to 0 before updating
+#define SET_PREFETCH_MASK(num_frames, frame_size, barrier_ptr) \
+  PREFETCH_EPOCH(0); \
+  PREFETCH_EPOCH((num_frames << PREFETCH_NUM_REGION_SHAMT) | (frame_size << PREFETCH_REGION_SIZE_SHAMT)); \
+  pthread_barrier_wait(barrier_ptr)
 
   // revec instruction with unique hash id
 /*#define REVEC(hash)                                                           \
