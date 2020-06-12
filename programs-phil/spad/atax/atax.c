@@ -266,8 +266,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef _VEC
   #if VEC_LEN==4
   tinfo = init_template_4x4_2x2();
+  int ptid_group_[4];
   #elif VEC_LEN==16
   tinfo = init_template_8x8_4x4();
+  int ptid_group_[16];
   #endif
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
@@ -289,6 +291,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     int alignment = VEC_LEN;
     start = roundUp((unique_id + 0) * nx / total_groups, alignment); 
     end = roundUp((unique_id + 1) * nx / total_groups, alignment); 
+
+    if(is_da==1){
+      for(int i=0; i<vdim_y;i++){
+        for(int j=0; j<vdim_x; j++){
+          ptid_group_[i*vdim_x+j] = get_ptid_from_group(&tinfo, unique_id,j,i,dim_x);
+          // if (ptid==0) printf("Ptid: %d\n", ptid_group_[i*vdim_x+j]);
+        }
+      }
+    }
   }
 
   #else
@@ -380,12 +391,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   unsigned long long *spTop = getSpTop(ptid);
   // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
-  spTop -= 30;
+  spTop -= 40;
 
   unsigned long long stackLoc;
   unsigned long long temp;
-  #pragma GCC unroll(30)
-  for(int i=0;i<30;i++){
+  #pragma GCC unroll(40)
+  for(int i=0;i<40;i++){
     asm volatile("ld t0, %[id](sp)\n\t"
                 "sd t0, %[id](%[spad])\n\t"
                 : "=r"(temp)
@@ -401,7 +412,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   if(used!=0){
     #if defined _VEC
-      atax_vec(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,vtid,vdim);
+      atax_vec(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,vtid,vdim,ptid_group_);
     #else
       atax_manycore(a,_x,_y_partial,ax,nx,ny,start,end,ptid);
     #endif
@@ -486,7 +497,7 @@ void *pthread_kernel(void *args)
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
 
-  pthread_barrier_wait(&start_barrier);
+  // pthread_barrier_wait(&start_barrier);
 
   if (a->tid_x == 1 && a->tid_y == 0)
   {

@@ -46,7 +46,7 @@ ifeq ($(SIZE),)
 	SIZE := 32
 endif
 
-
+DEBUG_FLAGS ?=
 
 # installed cross compiler gcc for riscv
 RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
@@ -90,7 +90,7 @@ $(EXEC).neil: $(DEPS_FIL)
 	$(RV_CC) $(C_OBJS_FIL) $(CFLAGS) -o $(EXEC)	
 
 run: $(EXEC).neil
-	../../../build/RVSP/gem5.opt -d ../../../results/$(OUT) \
+	../../../build/RVSP/gem5.opt $(DEBUG_FLAGS) -d ../../../results/$(OUT) \
 	../../../configs/phil/brg_hammerblade.py --cmd=$(EXEC) --options="$(SIZE) $(SIZE)" --num-cpus=$(ENV_N_SPS) --vector
 
 # compile directly from .c to .o with no mods

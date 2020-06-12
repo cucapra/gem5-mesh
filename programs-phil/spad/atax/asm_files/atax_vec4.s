@@ -103,7 +103,7 @@ atax_vec:
 	slliw	a4,a5,12
 	or	a4,a0,a4
 #APP
-# 44 "atax_kernel.c" 1
+# 47 "atax_kernel.c" 1
 	.insn sb 0x23, 0x6, a4, 33(a3)
 	
 # 0 "" 2
@@ -115,7 +115,7 @@ atax_vec:
 	addi	t0,t0,1
 	andi	t0,t0,63
 #APP
-# 47 "atax_kernel.c" 1
+# 52 "atax_kernel.c" 1
 	.insn uj 0x6b, x0, .L14
 	
 # 0 "" 2
@@ -125,7 +125,7 @@ atax_vec:
 	bgt	a6,t5,.L15
 .L11:
 #APP
-# 49 "atax_kernel.c" 1
+# 54 "atax_kernel.c" 1
 	.insn uj 0x6b, x0, .L16
 	
 # 0 "" 2
@@ -140,20 +140,19 @@ ld	s0,40(sp)
 	ld	s3,16(sp)
 	ld	s4,8(sp)
 	addi	sp,sp,48
-
 #APP
-# 52 "atax_kernel.c" 1
+# 57 "atax_kernel.c" 1
 	.insn uj 0x6b, x0, .L18
 	
 # 0 "" 2
 #NO_APP
 .L19:
 #APP
-# 54 "atax_kernel.c" 1
+# 59 "atax_kernel.c" 1
 	.insn uj 0x2b, x0, .L19
 	
 # 0 "" 2
-# 107 "atax_kernel.c" 1
+# 117 "atax_kernel.c" 1
 	fence
 	
 # 0 "" 2
@@ -180,7 +179,7 @@ addi	sp,sp,-64
 	mulw	a5,s0,s4
 	sext.w	a2,a2
 	addw	s1,s1,a3
-	
+
 	lw	t4,88(sp)
 	slli	s1,s1,2
 	slli	a5,a5,2
@@ -192,11 +191,11 @@ addi	sp,sp,-64
 .L4:
 lw	a3,8(sp)
 	sext.w	a3,a3
-	
+
 	li	a3,0
 .L8:
 #APP
-# 74 "atax_kernel.c" 1
+# 79 "atax_kernel.c" 1
 	.insn i 0x1b, 0x3, x0, t1, 0
 	
 # 0 "" 2
@@ -230,31 +229,27 @@ lw	a3,8(sp)
 	addw	a3,a3,a5
 	addw	a3,a4,a3
 #APP
-# 83 "atax_kernel.c" 1
+# 88 "atax_kernel.c" 1
 	.insn i 0x1b, 0x2, x0, t1, 0
 	
 # 0 "" 2
 #NO_APP
 	lw	a5,8(sp)
 	sext.w	a5,a5
-
 .L10:
-
 #APP
-# 86 "atax_kernel.c" 1
+# 91 "atax_kernel.c" 1
 	.insn sb 0x23, 0x5, a3, 0(t3)
 	
 # 0 "" 2
 #NO_APP
 	lw	a5,12(sp)
 	sext.w	a5,a5
-	
 	mv	a5,t5
 
 .L14:
-
 #APP
-# 91 "atax_kernel.c" 1
+# 96 "atax_kernel.c" 1
 	.insn i 0x1b, 0x3, x0, t1, 0
 	
 # 0 "" 2
@@ -308,7 +303,7 @@ lw	a3,8(sp)
 	addw	a4,a1,a4
 	sw	a4,28(a5)
 #APP
-# 99 "atax_kernel.c" 1
+# 109 "atax_kernel.c" 1
 	.insn i 0x1b, 0x2, x0, t1, 0
 	
 # 0 "" 2
@@ -317,15 +312,12 @@ lw	a3,8(sp)
 	addi	a5,a5,32
 	sext.w	a4,a4
 
-
 .L16:
 lw	a5,4(sp)
 	add	t3,t3,t4
 	sext.w	a5,a5
 
-
 .L18:
-
 ld	ra,56(sp)
 	ld	s0,48(sp)
 	ld	s1,40(sp)
@@ -333,7 +325,6 @@ ld	ra,56(sp)
 	ld	s3,24(sp)
 	ld	s4,16(sp)
 	addi	sp,sp,64
-	
 .L1:
 	
 	jr	ra
