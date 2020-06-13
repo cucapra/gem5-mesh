@@ -23,3 +23,5 @@ somefunc:
 .L13:
 	trillium glue_point vector_return
     SCALAR_7
+	.size whatever
+    SCALAR_8

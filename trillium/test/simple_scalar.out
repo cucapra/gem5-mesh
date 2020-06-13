@@ -40,7 +40,11 @@
 	.insn i 0x1b, 0x7, x0, x0, 0
 .SCALAR13:  # vector_return vissue block
 	VECTOR_6
+	.size whatever
+	VECTOR_7
 	.insn i 0x1b, 0x7, x0, x0, 0
 	# trillium: vector vissue blocks end
 	# trillium: footer begin
+	.size whatever
+	SCALAR_8
 	# trillium: footer end

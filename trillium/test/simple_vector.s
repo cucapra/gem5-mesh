@@ -19,3 +19,5 @@ somefunc:
 .L2:
 	trillium vissue_delim return vector_return
     VECTOR_6
+	.size whatever
+    VECTOR_7
