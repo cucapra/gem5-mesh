@@ -1,50 +1,36 @@
 	; ARGS: somefunc simple_vector.s
-	SCALAR_0
+	SCALAR_HEADER
 	somefunc:
 	.insn i 0x77, 0, x0, a0, 0x401
-	SCALAR_1
-.SCALAR2:
+	SCALAR_FUNC_TOP
+.SCALAR1:
 	# trillium: scalar stack cleanup begin
 	# trillium: scalar stack cleanup end
-	SCALAR_2
+	SCALAR_BEFORE_DEVEC
 	.insn uj 0x2b, x0, .SCALAR14
-	SCALAR_2A
+	SCALAR_AFTER_DEVEC
 	ret
 	# trillium: auxiliary blocks begin
 .trillium_anon_aux_bb:
-	SCALAR_3
-	SCALAR_4
-	SCALAR_5
-	SCALAR_6
-	SCALAR_7
+	SCALAR_AFTER_RETURN
+	SCALAR_AFTER_GLUE_POINT
+	SCALAR_AFTER_ANOTHER_GLUE_POINT
 	# trillium: auxiliary blocks end
 	# trillium: vector vissue blocks begin
-.SCALAR4:  # vector_init vissue block
+.SCALAR2:  # block_one vissue block
 	#prepended trillium_init block here (See docs for more info)
 	#trillium_init begin
-	VECTOR_1
+	VECTOR_BEFORE_BLOCK
 	#trillium_init end
-	VECTOR_2
+	VECTOR_BLOCK_ONE
 	.insn i 0x1b, 0x7, x0, x0, 0
-.SCALAR8:  # vector_body vissue block
-	VECTOR_4A
-	.insn i 0x1b, 0x3, x0, a3, 0
-	VECTOR_4B
-	.insn i 0x1b, 0x2, x0, a3, 0
-	VECTOR_4C
-	.insn sb 0x23, 0x5, a4, 0(s0)
-	VECTOR_4D
-	.insn i 0x1b, 0x7, x0, x0, 0
-.SCALAR5:  # trillium_junk0 vissue block
-	VECTOR_3
-	.insn i 0x1b, 0x7, x0, x0, 0
-.SCALAR13:  # vector_return vissue block
-	VECTOR_6
+.SCALAR13:  # block_two vissue block
+	VECTOR_BLOCK_TWO
 	.size whatever
-	VECTOR_7
+	VECTOR_FOOTER
 	.insn i 0x1b, 0x7, x0, x0, 0
 	# trillium: vector vissue blocks end
 	# trillium: footer begin
 	.size whatever
-	SCALAR_8
+	SCALAR_FOOTER
 	# trillium: footer end

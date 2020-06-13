@@ -1,23 +1,11 @@
-	VECTOR_0
+	VECTOR_HEADER
 somefunc:
-	VECTOR_1
-	trillium vissue_delim begin vector_init
-    VECTOR_2
+	VECTOR_BEFORE_BLOCK
+	trillium vissue_delim begin block_one
+    VECTOR_BLOCK_ONE
 	trillium vissue_delim end
-    VECTOR_3
-.L3:
-	trillium vissue_delim begin vector_body
-    VECTOR_4A
-	.insn i 0x1b, 0x3, x0, a3, 0
-    VECTOR_4B
-	.insn i 0x1b, 0x2, x0, a3, 0
-    VECTOR_4C
-	.insn sb 0x23, 0x5, a4, 0(s0)
-    VECTOR_4D
-	trillium vissue_delim end
-    VECTOR_5
-.L2:
-	trillium vissue_delim return vector_return
-    VECTOR_6
+    VECTOR_AFTER_BLOCK
+	trillium vissue_delim return block_two
+    VECTOR_BLOCK_TWO
 	.size whatever
-    VECTOR_7
+    VECTOR_FOOTER
