@@ -14,12 +14,15 @@ OUT=atax-vec0-128 SIZE=128 ENV_N_SPS=16 make run
 
 ## Vector
 
-If you need scalar and vector codes:
+### Manual version (DEPRECATED)
+Copy over the files from the folder `manual_compile_files`.
+
+If you need scalar and vector asm files:
 ```
 ENV_N_SPS=16 make scalar
 ENV_N_SPS=16 make vector
 ```
-Copy the asm file in the directory renaming it to `atax_combined.s` and compile using:
+Rename the asm file to `atax_combined.s` and compile using:
 ```
 ENV_N_SPS=16 make pass
 ENV_N_SPS=16 make combine
@@ -29,3 +32,13 @@ To run simulation on gem5 with a square matrix of size `128` and same number of 
 ```
 OUT=atax-vec0-128 SIZE=128 ENV_N_SPS=16 make run
 ```
+
+### Trilliasm
+
+Recommended usage:
+```
+make clean
+make atax
+make run
+```
+Pass in the flags for `make run` or change the Makefile for defaults.
