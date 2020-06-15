@@ -40,16 +40,18 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
   }
 
   // issue header instructions
-  ISSUE_VINST(fable0);
+  ISSUE_VINST(vector_init_label);
 #elif defined VECTOR_CORE
-  asm("trillium vissue_delim until_next vector_init");
+  asm("trillium vissue_delim begin vector_init");
   DTYPE a_, b_, c_;
   int64_t iter = 0;
   DTYPE *cPtr = c + start + vtid;
   int *spadAddr = (int *)getSpAddr(ptid, 0);
+  asm("trillium vissue_delim end");
 #endif
 
 #ifdef SCALAR_CORE
+  ISSUE_VINST(trillium_junk0_label);
   int localIter = beginIter * 2;
 
 #ifdef SIMD_BCAST
@@ -73,8 +75,7 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
     BROADCAST(t0, deviceIter, 0);
 #endif
 
-    // issue fable1
-    ISSUE_VINST(fable1);
+    ISSUE_VINST(vector_body_label);
 
     // prefetch for future iterations
     // VPREFETCH(spadAddr + localIter + 0, a + start + (i * dim), 0);
@@ -97,9 +98,10 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
       deviceIter = 0;
     }
 #endif
+    //ISSUE_VINST(trillium_junk1_label);
 
 #elif defined VECTOR_CORE
-  asm("trillium vissue_delim until_next vector_body");
+  asm("trillium vissue_delim begin vector_body");
 #ifdef SIMD_BCAST
     // try to get compiler to use register that will recv broadcasted values
     // can make compiler pass
@@ -128,6 +130,7 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
 #ifndef SIMD_BCAST
     iter = (iter + 2) % (NUM_REGIONS * 2);
 #endif
+  asm("trillium vissue_delim end");
 #endif
   }
 
@@ -140,7 +143,7 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
     BROADCAST(t0, deviceIter, 0);
 #endif
 
-    ISSUE_VINST(fable1);
+    ISSUE_VINST(vector_body_label);
 
 #ifdef SIMD_BCAST
     deviceIter += 2;
@@ -151,20 +154,26 @@ void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int e
 #endif
   }
 
-  ISSUE_VINST(fable2);
+  ISSUE_VINST(vector_return_label);
   // devec with unique tag
   DEVEC(devec_0);
   // we are doing lazy store acks, so use this to make sure all stores have commited to memory
   asm volatile("fence\n\t");
   asm("trillium vissue_delim return scalar_return");
   return;
-fable0:
+vector_init_label:
   asm("trillium glue_point vector_init");
 
-fable1:
+vector_body_label:
   asm("trillium glue_point vector_body");
 
-fable2:
+trillium_junk0_label:
+  asm("trillium glue_point trillium_junk0");
+
+//trillium_junk1_label:
+//  asm("trillium glue_point trillium_junk1");
+
+vector_return_label:
   asm("trillium glue_point vector_return");
 
 #elif defined VECTOR_CORE
