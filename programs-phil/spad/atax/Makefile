@@ -17,8 +17,9 @@ C_SRCS_NOKERN := main.c $(EXEC).c $(wildcard ../common/*.c)
 C_OBJS_NOKERN := $(C_SRCS_NOKERN:.c=.o)
 
 $(EXEC): $(TRILLIASM_KERNEL:.c=.o) $(C_OBJS_NOKERN)
-		$(RV_CC) $^ $(CFLAGS) -o $@
+		$(RV_CC) $(notdir $^) $(CFLAGS) -o $@
 
+#--debug-flags=Mesh
 run: $(EXEC)
 		../../../build/RVSP/gem5.opt -d ../../../results/$(OUT) \
 		../../../configs/phil/brg_hammerblade.py \
@@ -29,7 +30,7 @@ run: $(EXEC)
 
 # Static Pattern: only applies to files listed in C_OBJS_NOKERN
 $(C_OBJS_NOKERN): %.o : %.c
-		$(RV_CC) $(CFLAGS) -c $^ -o $@
+		$(RV_CC) $(CFLAGS) -c $^ -o $(notdir $@)
 
 clean:
 		rm -rf *.o *.s $(EXEC) m5out

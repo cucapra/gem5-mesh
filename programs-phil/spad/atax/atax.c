@@ -228,10 +228,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 {
 
   // start recording all stats (all cores)
-  // if (tid_x == 0 && tid_y == 0)
-  // {
-  //   stats_on();
-  // }
+  if (tid_x == 0 && tid_y == 0)
+  {
+    stats_on();
+  }
 
 
   // linearize tid and dim
@@ -261,12 +261,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int unique_id = 0;
   int total_groups = 0;
   int used = 0;
+  template_info_t tinfo;
 
   #ifdef _VEC
   #if VEC_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
+  tinfo = init_template_4x4_2x2();
+  int ptid_group[4];
   #elif VEC_LEN==16
-  template_info_t tinfo = init_template_8x8_4x4();
+  tinfo = init_template_8x8_4x4();
+  int ptid_group[16];
   #endif
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
@@ -288,6 +291,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     int alignment = VEC_LEN;
     start = roundUp((unique_id + 0) * nx / total_groups, alignment); 
     end = roundUp((unique_id + 1) * nx / total_groups, alignment); 
+
+    if(is_da==1){
+    for(int i=0; i<vdim_y;i++){
+      for(int j=0; j<vdim_x; j++){
+        ptid_group[i*vdim_x+j] = get_ptid_from_group(&tinfo, unique_id,j,i,dim_x);
+        // if (ptid==0) printf("Ptid: %d\n", ptid_group_[i*vdim_x+j]);
+      }
+    }
+  }
   }
 
   #else
@@ -370,21 +382,19 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // only let certain tids continue
   // if (used == 0) return; moved this part later
 
-  
-
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
   // do before the function call so the arg stack frame is on the spad
   // store the the current spAddr to restore later
 
   unsigned long long *spTop = getSpTop(ptid);
-  // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
-  spTop -= 30;
+  // // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
+  spTop -= 60;
 
   unsigned long long stackLoc;
   unsigned long long temp;
-  #pragma GCC unroll(30)
-  for(int i=0;i<30;i++){
+  #pragma GCC unroll(60)
+  for(int i=0;i<60;i++){
     asm volatile("ld t0, %[id](sp)\n\t"
                 "sd t0, %[id](%[spad])\n\t"
                 : "=r"(temp)
@@ -398,11 +408,14 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       : [ spad ] "r"(spTop));
 
 
+  
+
+
   if(used!=0){
     #if defined _VEC
-      atax_vec(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,vtid,vdim);
+      atax_vec(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,vtid,vdim,ptid_group);
     #else
-      atax_manycore(a,_x,_y_partial,ax,nx,ny,nx_start,nx_end,ptid);
+      atax_manycore(a,_x,_y_partial,ax,nx,ny,start,end,ptid);
     #endif
 
   }
@@ -410,7 +423,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // asm volatile(
   //     "addi sp, %[stackTop], 0\n\t" ::[stackTop] "r"(stackLoc));
 
-  if(ptid==0) stats_on();
+  // if(ptid==0) stats_on();
 
   //requires barrier since each core needs values from all other cores
   #ifdef PARALLEL_OUTPUT_REDUCE
@@ -443,6 +456,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // restore stack pointer
   asm volatile(
       "addi sp, %[stackTop], 0\n\t" ::[stackTop] "r"(stackLoc));
+  return;
 
   
   
@@ -459,7 +473,6 @@ Kern_Args *construct_args(DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, DTYPE *_y_p
   args->_x = _x;
   args->_y = _y;
   args->ax = ax;
-  // args->_y_partial = malloc(ny*sizeof(DTYPE));
   args->_y_partial = _y_partial;
   args->nx = nx;
   args->ny = ny;
@@ -484,6 +497,8 @@ void *pthread_kernel(void *args)
   kernel(a->a, a->_x, a->_y, a->ax, a->_y_partial, a->nx, a->ny,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
+
+  // pthread_barrier_wait(&start_barrier);
 
   if (a->tid_x == 1 && a->tid_y == 0)
   {
