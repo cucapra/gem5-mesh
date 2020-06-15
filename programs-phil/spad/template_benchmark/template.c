@@ -36,6 +36,87 @@ template_manycore()
 
 }
 
+void reduce_vector_manycore(DTYPE* partialVec, DTYPE *c, int ptid, int activeTid, int dim, token_queue_t *cons0, 
+    token_queue_t *cons1, token_queue_t *prod, int numElements) {
+
+  // one core is responsible for writing back the final value at the end
+  if (activeTid == 0) {
+    // printf("tid %d atid %d dim %d special wait for %p\n", ptid, activeTid, dim, get_pair_base_ptr(cons1, ptid));
+    for(int i=0; i<numElements; i+=TOKEN_LEN){
+      int t = wait_tokens_consumer(cons1, TOKEN_LEN, ptid);
+      for(int j=0; j<TOKEN_LEN; j++){
+        int *data = (int*)get_token(cons1, t+j, ptid);
+        partialVec[i+j] += data[0];
+        c[i+j] += partialVec[i+j];
+      }
+      consume_tokens(cons1, TOKEN_LEN, ptid);
+    }
+  }
+  // in general cores recv two values in input token queues and writes a value to the next core
+  else {
+    // only lower half consumes data
+    if (activeTid < dim / 2) {
+      // printf("tid %d atid %d dim %d wait for %p %p\n", ptid, activeTid, dim, get_pair_base_ptr(cons0, ptid), get_pair_base_ptr(cons1, ptid));
+      for(int i=0; i<numElements; i+=TOKEN_LEN){
+        int t0 = wait_tokens_consumer(cons0, TOKEN_LEN, ptid);
+        int t1 = wait_tokens_consumer(cons1, TOKEN_LEN, ptid);
+        for(int j=0; j<TOKEN_LEN; j++){
+          asm volatile("nop");
+          int *data0 = (int*)get_token(cons0, t0+j, ptid); //use offset here to get data in circ buffer
+          int *data1 = (int*)get_token(cons1, t1+j, ptid);
+          partialVec[i+j] += data0[0] + data1[0]; //data[0] and not to be used as data[i] due to circ buffer on Spad
+        }
+        consume_tokens(cons0, TOKEN_LEN, ptid);
+        consume_tokens(cons1, TOKEN_LEN, ptid);
+
+        // everyone produces, except for tid0 who does the writeback
+        int tokenOffset = wait_tokens_producer(prod, TOKEN_LEN, ptid); // TOKEN_LEN< buffer size, hence safe
+        for(int j=0; j<TOKEN_LEN; j++) set_token(prod, partialVec[i+j], tokenOffset+j, ptid);
+        produce_tokens(prod, TOKEN_LEN, ptid);
+      }
+    }
+    else{
+
+      // everyone produces, except for tid0 who does the writeback
+      // printf("tid %d atid %d dim %d produce for %p\n", ptid, activeTid, dim, get_pair_base_ptr(prod, ptid));
+      for(int i=0; i<numElements; i+=TOKEN_LEN){ //go in steps of tokens < buffer size
+        int tokenOffset = wait_tokens_producer(prod, TOKEN_LEN, ptid); // TOKEN_LEN< buffer size, hence safe
+        for(int j=0; j<TOKEN_LEN; j++) set_token(prod, partialVec[i+j], tokenOffset+j, ptid);
+        produce_tokens(prod, TOKEN_LEN, ptid);
+      }
+    }
+  }
+
+}
+
+// based on id (in manycore its the ptid, in vector its the group id + vtid)
+// figure out where to send your data to be reduced by another core
+#ifndef _VEC
+int get_reduction_dest(int src_id) {
+  // pattern is to half your id and send to that id
+  return src_id / 2;
+}
+#else
+// a little more complicated to get when there's vector groups
+int get_reduction_dest(template_info_t *tinfo, int group_id, int vid_x, int vid_y, int virt_dim_x, int phys_dim_x, int *active_tid) {
+  // get a flat id from group and vid
+  int vid = vid_y * virt_dim_x + vid_x;
+  int src = group_id * VEC_LEN + vid;
+  // divide by two as in manycore case
+  int dest = src / 2;
+  // get the ptid corresponding to this group
+  int dest_group_id = dest / VEC_LEN;
+  int dest_vid = dest % VEC_LEN;
+  int dest_vid_x = dest_vid % virt_dim_x;
+  int dest_vid_y = dest_vid / virt_dim_x;
+  int ptid = get_ptid_from_group(tinfo, dest_group_id, dest_vid_x, dest_vid_y, phys_dim_x);
+  
+  *active_tid = src;
+
+  return ptid;
+}
+#endif
+
 
 void kernel(DTYPE *a, int n,
     int tid_x, int tid_y, int dim_x, int dim_y)
