@@ -266,26 +266,97 @@ inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, in
   *sp = *sp + COVAR_J1_PREFETCH_LEN;
 
   VPREFETCH_L(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_R(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
   *sp = *sp + 1;
 
   if (*sp == POST_FRAME_WORD) *sp = 0;
 }
 
 // compute the covariance matrix
-void covar_vector_opt(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) {
-  int start = ((tid + 0) * M) / dim;
-  int end   = ((tid + 1) * M) / dim;
+void covar_vector_opt(DTYPE *symmat, DTYPE *data, int N, int M, 
+    int ptid, int groupId, int numGroups, int vtid, int mask) {
+  int start = ((groupId + 0) * M) / numGroups;
+  int end   = ((groupId + 1) * M) / numGroups;
 
-  for (int j1 = start + 1; j1 < (end+1); j1++) {
-    for (int j2 = j1; j2 < (M+1); j2++) {
+  // make it a factor of vector group mapping size
+  start = 1 + roundUp(start, VECTOR_LEN);
+  end   = 1 + roundUp(end  , VECTOR_LEN);
+
+  int sp  = 0;
+
+  VECTOR_EPOCH(mask);
+
+  if (ptid == 0) {
+  
+  // ISSUE_VINST()
+
+  // // initial round
+  // for (int i = 1; i < 1 + INIT_COVAR_OFFSET; i++) {
+  //   prefetch_covar_frame(data, i, start, start, &sp, M);
+  // }
+
+  // // first row
+  // for (int i = 1 + INIT_COVAR_OFFSET; i < (N+1); i++) {
+  //   prefetch_covar_frame(data, i, start, start, &sp, M);
+  //   // ISSUE_VINST()
+  // }
+
+  // // steady state
+  // for (int j1 = start; j1 < end; j1++) {
+  //   int startJ2 = j1;
+  //   if (j1 == start) startJ2 += VECTOR_LEN;
+  //   for (int j2 = startJ2; j2 < (M+1); j2+=VECTOR_LEN) {
+  //     for (int i = 1; i < (N+1); i++) {
+  //       prefetch_covar_frame(data, i, j1, j2, &sp, M);
+  //       // ISSUE_VINST()
+  //     }
+  //   }
+  // }
+
+  for (int j1 = start; j1< end; j1++) {
+    for (int j2 = j1; j2 < (M+1); j2+=VECTOR_LEN) {
+      for (int i = 1; i < (N+1); i++) {
+        prefetch_covar_frame(data, i, j1, j2, &sp, M);
+      }
+    }
+  }
+
+  // cooldown
+  for (int i = N - INIT_MEAN_OFFSET; i < (N+1); i++) {
+    // ISSUE_VINST()
+  }
+
+  }
+  else {
+  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  for (int j1 = start; j1 < end; j1++) {
+    for (int j2 = j1 + vtid; j2 < (M+1); j2+=VECTOR_LEN) { // TODO needs predication on this loop
       DTYPE symmat_idx = 0.0f;
       for (int i = 1; i < (N+1); i++) {
-        symmat_idx += data[i *(M+1) + j1] * data[i *(M+1) + j2];
+        FRAME_START(COVAR_FRAME_SIZE);
+        // printf("j1 %d j2 %d i %d vtid %d %f ?= %f | %f ?= %f\n", j1, j2, i, vtid, sp_ptr[sp+0], data[i *(M+1) + j1], sp_ptr[sp+1], data[i *(M+1) + j2]);
+        symmat_idx += sp_ptr[sp + 0] * sp_ptr[sp + 1]; // not prefetching the right stuff here
+        REMEM(COVAR_FRAME_SIZE);
+        sp+=2;
+        if (sp == POST_FRAME_WORD) sp = 0;
       }
       symmat[j2 * (M+1) + j1] = symmat_idx;
       symmat[j1 * (M+1) + j2] = symmat_idx;
     }
   }
+
+  }
+
+  // for (int j1 = start + 1; j1 < (end+1); j1++) {
+  //   for (int j2 = j1; j2 < (M+1); j2++) {
+  //     DTYPE symmat_idx = 0.0f;
+  //     for (int i = 1; i < (N+1); i++) {
+  //       symmat_idx += data[i *(M+1) + j1] * data[i *(M+1) + j2];
+  //     }
+  //     symmat[j2 * (M+1) + j1] = symmat_idx;
+  //     symmat[j1 * (M+1) + j2] = symmat_idx;
+  //   }
+  // }
 }
 #endif
 
@@ -309,8 +380,9 @@ void __attribute__((optimize("-fno-inline"))) covar(
     SET_PREFETCH_MASK(NUM_CENTER_FRAMES, CENTER_FRAME_SIZE, &start_barrier);
     if (used)
       center_vector_opt(mean, data, N, M, ptid, groupId, numGroups, vtid, mask);
-    pthread_barrier_wait(&start_barrier);
-    covar_manycore_baseline(symmat, data, N, M, ptid, dim); 
+    SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
+    if (used)
+      covar_vector_opt(symmat, data, N, M, ptid, groupId, numGroups, vtid, mask);
     #endif
 
 }
