@@ -70,6 +70,100 @@ void covar_manycore_baseline(DTYPE *symmat, DTYPE *data, int N, int M, int tid, 
  *---------------------------------------------------------------------------------*/
 
 #ifdef USE_VEC
+
+int roundUp(int numToRound, int multiple) {
+  if (multiple == 0) {
+    return numToRound;
+  }
+
+  int remainder = abs(numToRound) % multiple;
+  if (remainder == 0) {
+    return numToRound;
+  }
+
+  if (numToRound < 0) {
+    return -(abs(numToRound) - remainder);
+  }
+  else {
+    return numToRound + multiple - remainder;
+  }
+}
+
+inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
+  VPREFETCH_L(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
+  *sp = *sp + 1;
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+}
+
+// compute each mean across each vector (single dimension)
+void mean_vector_opt(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
+  int start = ((tid + 0) * M) / dim;
+  int end   = ((tid + 1) * M) / dim;
+
+  for (int j = start + 1; j < end + 1; j++) {
+    DTYPE mean_j = 0.0f;
+    for (int i = 1; i < (N+1); i++) {
+      mean_j += data[i * (M+1) + j];
+    }
+    mean_j /= (DTYPE)FLOAT_N;
+    mean[j] = mean_j;
+  }
+}
+
+inline void prefetch_center_frame(DTYPE *mean, int j, int *sp) {
+  // TODO should do more than 1 here
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_L(*sp, &mean[j], 0, CENTER_PREFETCH_LEN, VERTICAL);
+  }
+  *sp = *sp + CENTER_PREFETCH_LEN;
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+}
+
+// subract mean from data to "center"
+void center_vector_opt(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
+  // unlike gpu version only parallelize outer loop? find if N dimension big enough which prob is
+  // or should we use same method as gpu to be fair?
+
+  // I think just paralleize outer here? and maybe optimize gpu later?
+  int start = ((tid + 0) * N) / dim;
+  int end   = ((tid + 1) * N) / dim;
+
+  for (int i = start + 1; i < end + 1; i++) {
+    for (int j = 1; j < (M+1); j++) {
+      data[i * (M+1) + j] -= mean[j];	
+    }
+  }
+}
+
+inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, int M) {
+  // everyone in groups gets the same j1. could share and/or do vertical
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_L(*sp, &data[i * (M+1) + j1], core, COVAR_J1_PREFETCH_LEN, VERTICAL);
+  }
+  *sp = *sp + COVAR_J1_PREFETCH_LEN;
+
+  VPREFETCH_L(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
+  *sp = *sp + 1;
+
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+}
+
+// compute the covariance matrix
+void covar_vector_opt(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) {
+  int start = ((tid + 0) * M) / dim;
+  int end   = ((tid + 1) * M) / dim;
+
+  for (int j1 = start + 1; j1 < (end+1); j1++) {
+    for (int j2 = j1; j2 < (M+1); j2++) {
+      DTYPE symmat_idx = 0.0f;
+      for (int i = 1; i < (N+1); i++) {
+        symmat_idx += data[i *(M+1) + j1] * data[i *(M+1) + j2];
+      }
+      symmat[j2 * (M+1) + j1] = symmat_idx;
+      symmat[j1 * (M+1) + j2] = symmat_idx;
+    }
+  }
+}
 #endif
 
 

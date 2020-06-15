@@ -5,8 +5,8 @@
 #define DTYPE float
 
 // one of these should be defined to dictate config
-#define NO_VEC 1
-// #define VEC_4_SIMD 1
+// #define NO_VEC 1
+#define VEC_4_SIMD 1
 // #define VEC_16_SIMD 1
 
 // vvadd_execute config directives
@@ -34,8 +34,10 @@
 #define INIT_FRAMES 4
 #define INIT_SPM_OFFSET (INIT_FRAMES * FRAME_SIZE)
 // lenght of a prefetch
-#define Q_PREFETCH_LEN 1
-#define S_PREFETCH_LEN VECTOR_LEN
+#define MEAN_PREFETCH_LEN VECTOR_LEN
+#define CENTER_PREFETCH_LEN 1
+#define COVAR_J1_PREFETCH_LEN 1
+#define COVAR_J2_PREFETCH_LEN VECTOR_LEN
 #endif
 
 // covariance specific value
