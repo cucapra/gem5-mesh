@@ -173,33 +173,89 @@ void mean_vector_opt(DTYPE *mean, DTYPE *data, int N, int M,
 inline void prefetch_center_frame(DTYPE *data, DTYPE *mean, int i, int j, int *sp, int M) {
   // fetch data
   for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &data[i * (M+1) + j], 0, CENTER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_L(*sp, &data[(i + core) * (M+1) + j], core, CENTER_PREFETCH_LEN, VERTICAL);
   }
 
   *sp = *sp + CENTER_PREFETCH_LEN;
 
   // TODO should do more than 1 here
   for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &mean[j], 0, CENTER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_L(*sp, &mean[j], core, CENTER_PREFETCH_LEN, VERTICAL);
   }
   *sp = *sp + CENTER_PREFETCH_LEN;
   if (*sp == POST_FRAME_WORD) *sp = 0;
 }
 
 // subract mean from data to "center"
-void center_vector_opt(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
-  // unlike gpu version only parallelize outer loop? find if N dimension big enough which prob is
-  // or should we use same method as gpu to be fair?
+void center_vector_opt(DTYPE *mean, DTYPE *data, int N, int M,
+    int ptid, int groupId, int numGroups, int vtid, int mask) {
+  int start = ((groupId + 0) * N) / numGroups;
+  int end   = ((groupId + 1) * N) / numGroups;
 
-  // I think just paralleize outer here? and maybe optimize gpu later?
-  int start = ((tid + 0) * N) / dim;
-  int end   = ((tid + 1) * N) / dim;
+  // make it a factor of vector group mapping size
+  start = 1 + roundUp(start, VECTOR_LEN);
+  end   = 1 + roundUp(end  , VECTOR_LEN);
 
-  for (int i = start + 1; i < end + 1; i++) {
+  int sp  = 0;
+
+
+  VECTOR_EPOCH(mask);
+
+  if (ptid == 0) {
+  
+  // ISSUE_VINST()
+
+  // initial round
+  for (int j = 1; j < 1 + INIT_CENTER_OFFSET; j++) {
+    prefetch_center_frame(data, mean, start, j, &sp, M);
+  }
+
+  // first row
+  for (int j = 1 + INIT_CENTER_OFFSET; j < (M+1); j++) {
+    prefetch_center_frame(data, mean, start, j, &sp, M);
+    // ISSUE_VINST()
+  }
+
+  // steady state
+  for (int i = start + VECTOR_LEN; i < end; i+=VECTOR_LEN) {
     for (int j = 1; j < (M+1); j++) {
-      data[i * (M+1) + j] -= mean[j];	
+      prefetch_center_frame(data, mean, i, j, &sp, M);
+      // ISSUE_VINST()   
     }
   }
+
+  // cooldown
+  for (int j = M - INIT_CENTER_OFFSET; j < (M+1); j++) {
+    // ISSUE_VINST()
+  }
+
+  }
+  else {
+  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  for (int i = start + vtid; i < end; i+=VECTOR_LEN) {
+    for (int j = 1; j < (M+1); j++) {
+      FRAME_START(CENTER_FRAME_SIZE);
+      data[i * (M+1) + j] = sp_ptr[sp + 0] - sp_ptr[sp + 1];
+      REMEM(CENTER_FRAME_SIZE);
+      sp+=2;
+      if (sp == POST_FRAME_WORD) sp = 0;
+    }
+  }
+
+  }
+
+  // // unlike gpu version only parallelize outer loop? find if N dimension big enough which prob is
+  // // or should we use same method as gpu to be fair?
+
+  // // I think just paralleize outer here? and maybe optimize gpu later?
+  // int start = ((tid + 0) * N) / dim;
+  // int end   = ((tid + 1) * N) / dim;
+
+  // for (int i = start + 1; i < end + 1; i++) {
+  //   for (int j = 1; j < (M+1); j++) {
+  //     data[i * (M+1) + j] -= mean[j];	
+  //   }
+  // }
 }
 
 inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, int M) {
@@ -251,7 +307,8 @@ void __attribute__((optimize("-fno-inline"))) covar(
     if (used)
       mean_vector_opt(mean, data, N, M, ptid, groupId, numGroups, vtid, mask);
     SET_PREFETCH_MASK(NUM_CENTER_FRAMES, CENTER_FRAME_SIZE, &start_barrier);
-    center_manycore_baseline(mean, data, N, M, ptid, dim);
+    if (used)
+      center_vector_opt(mean, data, N, M, ptid, groupId, numGroups, vtid, mask);
     pthread_barrier_wait(&start_barrier);
     covar_manycore_baseline(symmat, data, N, M, ptid, dim); 
     #endif
