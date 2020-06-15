@@ -91,26 +91,93 @@ int roundUp(int numToRound, int multiple) {
 
 inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
   VPREFETCH_L(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_R(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
+
   *sp = *sp + 1;
   if (*sp == POST_FRAME_WORD) *sp = 0;
 }
 
 // compute each mean across each vector (single dimension)
-void mean_vector_opt(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
-  int start = ((tid + 0) * M) / dim;
-  int end   = ((tid + 1) * M) / dim;
+void mean_vector_opt(DTYPE *mean, DTYPE *data, int N, int M, 
+    int ptid, int groupId, int numGroups, int vtid, int mask) {
+  int start = ((groupId + 0) * M) / numGroups;
+  int end   = ((groupId + 1) * M) / numGroups;
 
-  for (int j = start + 1; j < end + 1; j++) {
+  // make it a factor of vector group mapping size
+  start = 1 + roundUp(start, VECTOR_LEN);
+  end   = 1 + roundUp(end  , VECTOR_LEN);
+
+  int sp  = 0;
+
+
+  VECTOR_EPOCH(mask);
+
+  // printf("ptid %d range %d->%d enter\n", ptid, start, end);
+
+  if (ptid == 0) {
+  
+  // ISSUE_VINST()
+
+  // initial round
+  for (int i = 1; i < 1 + INIT_MEAN_OFFSET; i++) {
+    prefetch_mean_frame(data, i, start, &sp, M);
+  }
+
+  // first row
+  for (int i = 1 + INIT_MEAN_OFFSET; i < (N+1); i++) {
+    prefetch_mean_frame(data, i, start, &sp, M);
+    // ISSUE_VINST()
+  }
+
+  // steady state
+  for (int j = start + VECTOR_LEN; j < end; j+=VECTOR_LEN) {
+    for (int i = 1; i < (N+1); i++) {
+      prefetch_mean_frame(data, i, j, &sp, M);
+      // ISSUE_VINST()
+    }
+  }
+
+  // cooldown
+  for (int i = N - INIT_MEAN_OFFSET; i < (N+1); i++) {
+    // ISSUE_VINST()
+  }
+
+  }
+  else {
+  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  for (int j = start + vtid; j < end; j+=VECTOR_LEN) {
     DTYPE mean_j = 0.0f;
     for (int i = 1; i < (N+1); i++) {
-      mean_j += data[i * (M+1) + j];
+      FRAME_START(MEAN_FRAME_SIZE);
+      mean_j += sp_ptr[sp];
+      REMEM(MEAN_FRAME_SIZE);
+      sp++;
+      if (sp == POST_FRAME_WORD) sp = 0;
     }
     mean_j /= (DTYPE)FLOAT_N;
     mean[j] = mean_j;
   }
+
+  }
+
+  // for (int j = start + 1; j < end + 1; j++) {
+  //   DTYPE mean_j = 0.0f;
+  //   for (int i = 1; i < (N+1); i++) {
+  //     mean_j += data[i * (M+1) + j];
+  //   }
+  //   mean_j /= (DTYPE)FLOAT_N;
+  //   mean[j] = mean_j;
+  // }
 }
 
-inline void prefetch_center_frame(DTYPE *mean, int j, int *sp) {
+inline void prefetch_center_frame(DTYPE *data, DTYPE *mean, int i, int j, int *sp, int M) {
+  // fetch data
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_L(*sp, &data[i * (M+1) + j], 0, CENTER_PREFETCH_LEN, VERTICAL);
+  }
+
+  *sp = *sp + CENTER_PREFETCH_LEN;
+
   // TODO should do more than 1 here
   for (int core = 0; core < VECTOR_LEN; core++) {
     VPREFETCH_L(*sp, &mean[j], 0, CENTER_PREFETCH_LEN, VERTICAL);
@@ -180,7 +247,13 @@ void __attribute__((optimize("-fno-inline"))) covar(
     pthread_barrier_wait(&start_barrier);
     covar_manycore_baseline(symmat, data, N, M, ptid, dim);
     #else
-
+    SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);
+    if (used)
+      mean_vector_opt(mean, data, N, M, ptid, groupId, numGroups, vtid, mask);
+    SET_PREFETCH_MASK(NUM_CENTER_FRAMES, CENTER_FRAME_SIZE, &start_barrier);
+    center_manycore_baseline(mean, data, N, M, ptid, dim);
+    pthread_barrier_wait(&start_barrier);
+    covar_manycore_baseline(symmat, data, N, M, ptid, dim); 
     #endif
 
 }
@@ -224,7 +297,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef VECTOR_LEN
 
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
+  // template_info_t tinfo = init_template_4x4_2x2();
+  template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif
@@ -244,7 +318,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   total_groups = cinfo.total_groups;
   used = cinfo.used;
 
-  // printf("ptid %d(%d,%d) da %d vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, is_da, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used);
+  // printf("ptid %d(%d,%d) da %d vtid %d(%d,%d) dim %d(%d,%d) orig (%d,%d) used? %d\n", ptid, ptid_x, ptid_y, is_da, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, orig_x, orig_y, used);
 
   #elif !defined(USE_VEC)
 
@@ -263,8 +337,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // get behavior of each core
   #ifdef USE_VEC
-  int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
-  SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
+  // int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+  int mask = getDebugMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
   #else
   int mask = 0;
   #endif

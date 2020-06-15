@@ -24,20 +24,30 @@
 
 // prefetch sizing
 #ifdef USE_VEC
-// number of 32bits words per frame
-#define FRAME_SIZE 2
-// number of frames
-#define NUM_FRAMES 16
-// scratchpad offset after prefetch frames
-#define POST_FRAME_WORD (FRAME_SIZE * NUM_FRAMES)
+// dedicate a quarter of scratchpad to frames
+#define POST_FRAME_WORD 256
+
 // number of frames to get ahead
 #define INIT_FRAMES 4
-#define INIT_SPM_OFFSET (INIT_FRAMES * FRAME_SIZE)
-// lenght of a prefetch
+
+// prefetch config for mean kernel
+#define MEAN_FRAME_SIZE 1
+#define NUM_MEAN_FRAMES (POST_FRAME_WORD / MEAN_FRAME_SIZE)
 #define MEAN_PREFETCH_LEN VECTOR_LEN
+#define INIT_MEAN_OFFSET (INIT_FRAMES * 1)
+
+// prefetch config for center kernel
+#define CENTER_FRAME_SIZE 2
+#define NUM_CENTER_FRAMES (POST_FRAME_WORD / CENTER_FRAME_SIZE)
 #define CENTER_PREFETCH_LEN 1
+#define INIT_CENTER_OFFSET (INIT_FRAMES * 1)
+
+// prefetch config for covar kernel
+#define COVAR_FRAME_SIZE 2
+#define NUM_COVAR_FRAMES (POST_FRAME_WORD / COVAR_FRAME_SIZE)
 #define COVAR_J1_PREFETCH_LEN 1
 #define COVAR_J2_PREFETCH_LEN VECTOR_LEN
+#define INIT_COVAR_OFFSET (INIT_FRAMES * 1)
 #endif
 
 // covariance specific value

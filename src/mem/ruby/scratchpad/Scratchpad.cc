@@ -1398,7 +1398,7 @@ Scratchpad::setupConfig(int csrId, RegVal csrVal) {
 
 void
 Scratchpad::resetAllRegionCntrs() {
-  DPRINTF(Mesh, "reset frame cntrs\n");
+  // DPRINTF(Mesh, "reset frame cntrs\n");
   m_region_cntrs.clear();
   for (int i = 0; i < NUM_REGION_CNTRS; i++) {
     m_region_cntrs.push_back(0);

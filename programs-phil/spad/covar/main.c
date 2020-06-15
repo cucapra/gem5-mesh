@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
   * Put the command line arguments into variables
   *-------------------------------------------------------------------*/
   
-  int N = 128;
+  int N = 12;
   int M = N;
 
   // whether to skip verification or not
