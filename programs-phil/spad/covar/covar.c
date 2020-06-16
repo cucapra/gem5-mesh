@@ -330,7 +330,9 @@ void covar_vector_opt(DTYPE *symmat, DTYPE *data, int N, int M,
   else {
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
   for (int j1 = start; j1 < end; j1++) {
-    for (int j2 = j1 + vtid; j2 < (M+1); j2+=VECTOR_LEN) { // TODO needs predication on this loop
+    // for (int j2 = j1 + vtid; j2 < (M+1); j2+=VECTOR_LEN) { // TODO needs predication on this loop
+    for (int j2 = j1; j2 < (M+1); j2+=VECTOR_LEN) {
+      int j2_idx = j2 + vtid;
       DTYPE symmat_idx = 0.0f;
       for (int i = 1; i < (N+1); i++) {
         FRAME_START(COVAR_FRAME_SIZE);
@@ -340,8 +342,11 @@ void covar_vector_opt(DTYPE *symmat, DTYPE *data, int N, int M,
         sp+=2;
         if (sp == POST_FRAME_WORD) sp = 0;
       }
-      symmat[j2 * (M+1) + j1] = symmat_idx;
-      symmat[j1 * (M+1) + j2] = symmat_idx;
+
+      if (j2_idx < (M+1)) {
+        symmat[j2_idx * (M+1) + j1] = symmat_idx;
+        symmat[j1 * (M+1) + j2_idx] = symmat_idx;
+      }
     }
   }
 
