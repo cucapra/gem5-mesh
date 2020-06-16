@@ -290,33 +290,25 @@ void covar_vector_opt(DTYPE *symmat, DTYPE *data, int N, int M,
   
   // ISSUE_VINST()
 
-  // // initial round
-  // for (int i = 1; i < 1 + INIT_COVAR_OFFSET; i++) {
-  //   prefetch_covar_frame(data, i, start, start, &sp, M);
-  // }
+  // initial round
+  for (int i = 1; i < 1 + INIT_COVAR_OFFSET; i++) {
+    prefetch_covar_frame(data, i, start, start, &sp, M);
+  }
 
-  // // first row
-  // for (int i = 1 + INIT_COVAR_OFFSET; i < (N+1); i++) {
-  //   prefetch_covar_frame(data, i, start, start, &sp, M);
-  //   // ISSUE_VINST()
-  // }
+  // first row
+  for (int i = 1 + INIT_COVAR_OFFSET; i < (N+1); i++) {
+    prefetch_covar_frame(data, i, start, start, &sp, M);
+    // ISSUE_VINST()
+  }
 
-  // // steady state
-  // for (int j1 = start; j1 < end; j1++) {
-  //   int startJ2 = j1;
-  //   if (j1 == start) startJ2 += VECTOR_LEN;
-  //   for (int j2 = startJ2; j2 < (M+1); j2+=VECTOR_LEN) {
-  //     for (int i = 1; i < (N+1); i++) {
-  //       prefetch_covar_frame(data, i, j1, j2, &sp, M);
-  //       // ISSUE_VINST()
-  //     }
-  //   }
-  // }
-
-  for (int j1 = start; j1< end; j1++) {
-    for (int j2 = j1; j2 < (M+1); j2+=VECTOR_LEN) {
+  // steady state
+  for (int j1 = start; j1 < end; j1++) {
+    int startJ2 = j1;
+    if (j1 == start) startJ2 += VECTOR_LEN;
+    for (int j2 = startJ2; j2 < (M+1); j2+=VECTOR_LEN) {
       for (int i = 1; i < (N+1); i++) {
         prefetch_covar_frame(data, i, j1, j2, &sp, M);
+        // ISSUE_VINST()
       }
     }
   }
