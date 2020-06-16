@@ -98,7 +98,8 @@ inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
 }
 
 // compute each mean across each vector (single dimension)
-void mean_vector_opt(DTYPE *mean, DTYPE *data, int N, int M, 
+void  __attribute__((optimize("-fno-reorder-blocks")))
+  mean_vector_opt(DTYPE *mean, DTYPE *data, int N, int M, 
     int ptid, int groupId, int numGroups, int vtid, int mask) {
   int start = ((groupId + 0) * M) / numGroups;
   int end   = ((groupId + 1) * M) / numGroups;
@@ -107,16 +108,19 @@ void mean_vector_opt(DTYPE *mean, DTYPE *data, int N, int M,
   start = 1 + roundUp(start, VECTOR_LEN);
   end   = 1 + roundUp(end  , VECTOR_LEN);
 
-  int sp  = 0;
-
+  // prevents code from being reordered :|
+  volatile int ohjeez = 1;
+  if (ohjeez) {
 
   VECTOR_EPOCH(mask);
 
+  int sp  = 0;
+
   // printf("ptid %d range %d->%d enter\n", ptid, start, end);
 
-  if (ptid == 0) {
-  
-  // ISSUE_VINST()
+  // if (ptid == 0) {
+
+  ISSUE_VINST(fable0);
 
   // initial round
   for (int i = 1; i < 1 + INIT_MEAN_OFFSET; i++) {
@@ -126,47 +130,82 @@ void mean_vector_opt(DTYPE *mean, DTYPE *data, int N, int M,
   // first row
   for (int i = 1 + INIT_MEAN_OFFSET; i < (N+1); i++) {
     prefetch_mean_frame(data, i, start, &sp, M);
-    // ISSUE_VINST()
+    ISSUE_VINST(fable1);
   }
 
   // steady state
   for (int j = start + VECTOR_LEN; j < end; j+=VECTOR_LEN) {
     for (int i = 1; i < (N+1); i++) {
       prefetch_mean_frame(data, i, j, &sp, M);
-      // ISSUE_VINST()
+      ISSUE_VINST(fable1);
     }
   }
 
   // cooldown
-  for (int i = N - INIT_MEAN_OFFSET; i < (N+1); i++) {
-    // ISSUE_VINST()
+  for (int i = (N+1) - INIT_MEAN_OFFSET; i < (N+1); i++) {
+    ISSUE_VINST(fable1);
   }
 
+  // devec with unique tag
+  DEVEC(devec_0);
+
+  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
+  asm volatile("fence\n\t");
+  return;
+
   }
-  else {
-  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-  for (int j = start + vtid; j < end; j+=VECTOR_LEN) {
-    DTYPE mean_j = 0.0f;
-    for (int i = 1; i < (N+1); i++) {
-      FRAME_START(MEAN_FRAME_SIZE);
-      mean_j += sp_ptr[sp];
-      REMEM(MEAN_FRAME_SIZE);
-      sp++;
-      if (sp == POST_FRAME_WORD) sp = 0;
+
+  // vector engine code
+
+  // declarations
+  int i, j;
+  int sp;
+  DTYPE *sp_ptr;
+  DTYPE mean_j;
+
+  // header
+  fable0:
+    i = 1;
+    j = start + vtid;
+    mean_j = 0.0f;
+    sp = 0;
+    sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
+  // body
+  fable1:
+    FRAME_START(MEAN_FRAME_SIZE);
+    mean_j += sp_ptr[sp];
+    i++;
+    // do loop check here, to take load off scalar core?
+    // does reduce vector core utilization
+    if (i == (N+1)) {
+      mean_j /= (DTYPE)FLOAT_N;
+      STORE_NOACK(mean_j, &mean[j], 0);
+      i = 1;
+      j+=VECTOR_LEN;
+      mean_j = 0.0f;
     }
-    mean_j /= (DTYPE)FLOAT_N;
-    mean[j] = mean_j;
-  }
+    sp+=1;
+    if (sp == POST_FRAME_WORD) sp = 0;
+    REMEM(MEAN_FRAME_SIZE);
+    asm volatile goto("j %l[fable1]\n\t"::::fable1);
 
-  }
-
-  // for (int j = start + 1; j < end + 1; j++) {
+  // }
+  // else {
+  // DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  // for (int j = start + vtid; j < end; j+=VECTOR_LEN) {
   //   DTYPE mean_j = 0.0f;
   //   for (int i = 1; i < (N+1); i++) {
-  //     mean_j += data[i * (M+1) + j];
+  //     FRAME_START(MEAN_FRAME_SIZE);
+  //     mean_j += sp_ptr[sp];
+  //     REMEM(MEAN_FRAME_SIZE);
+  //     sp++;
+  //     if (sp == POST_FRAME_WORD) sp = 0;
   //   }
   //   mean_j /= (DTYPE)FLOAT_N;
   //   mean[j] = mean_j;
+  // }
+
   // }
 }
 
@@ -187,7 +226,8 @@ inline void prefetch_center_frame(DTYPE *data, DTYPE *mean, int i, int j, int *s
 }
 
 // subract mean from data to "center"
-void center_vector_opt(DTYPE *mean, DTYPE *data, int N, int M,
+void __attribute__((optimize("-fno-reorder-blocks")))
+  center_vector_opt(DTYPE *mean, DTYPE *data, int N, int M,
     int ptid, int groupId, int numGroups, int vtid, int mask) {
   int start = ((groupId + 0) * N) / numGroups;
   int end   = ((groupId + 1) * N) / numGroups;
@@ -273,7 +313,8 @@ inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, in
 }
 
 // compute the covariance matrix
-void covar_vector_opt(DTYPE *symmat, DTYPE *data, int N, int M, 
+void __attribute__((optimize("-fno-reorder-blocks")))
+  covar_vector_opt(DTYPE *symmat, DTYPE *data, int N, int M, 
     int ptid, int groupId, int numGroups, int vtid, int mask) {
   int start = ((groupId + 0) * M) / numGroups;
   int end   = ((groupId + 1) * M) / numGroups;
@@ -375,11 +416,13 @@ void __attribute__((optimize("-fno-inline"))) covar(
     if (used)
       mean_vector_opt(mean, data, N, M, ptid, groupId, numGroups, vtid, mask);
     SET_PREFETCH_MASK(NUM_CENTER_FRAMES, CENTER_FRAME_SIZE, &start_barrier);
-    if (used)
-      center_vector_opt(mean, data, N, M, ptid, groupId, numGroups, vtid, mask);
+    center_manycore_baseline(mean, data, N, M, ptid, dim);
+    // if (used)
+    //   center_vector_opt(mean, data, N, M, ptid, groupId, numGroups, vtid, mask);
     SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
-    if (used)
-      covar_vector_opt(symmat, data, N, M, ptid, groupId, numGroups, vtid, mask);
+    covar_manycore_baseline(symmat, data, N, M, ptid, dim);
+    // if (used)
+    //   covar_vector_opt(symmat, data, N, M, ptid, groupId, numGroups, vtid, mask);
     #endif
 
 }
@@ -463,8 +506,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // get behavior of each core
   #ifdef USE_VEC
-  // int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
-  int mask = getDebugMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+  int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
   #else
   int mask = 0;
   #endif
