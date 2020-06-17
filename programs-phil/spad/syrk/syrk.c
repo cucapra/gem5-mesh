@@ -26,11 +26,14 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
   
   for (int i = start; i < end; i++) {
     for (int j = 0; j < M; j++) {
-      c[i * N + j] *= beta;
+      DTYPE c_ij = c[i * N + j] * beta;
+      // c[i * N + j] *= beta;
 
       for (int k = 0; k < M; k++) {
-        c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
+        // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
+        c_ij += alpha * a[i * M + k] * a[j * M + k];
       }
+      c[i * N + j] = c_ij;
     }
   }
 }
@@ -65,10 +68,10 @@ int roundUp(int numToRound, int multiple) {
 // maybe don't have to prefetch this
 inline void prefetch_outer_frame(DTYPE *c, int i, int j, int *sp, int N) {
   for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp + 0, &c[i * N + j], core, OUTER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_L(*sp + 0, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
 
     // pad out
-    VPREFETCH_L(*sp + 1, &c[i * N + j], core, OUTER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_L(*sp + 1, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
   }
 
   *sp = *sp + 2*OUTER_PREFETCH_LEN;
@@ -78,9 +81,11 @@ inline void prefetch_outer_frame(DTYPE *c, int i, int j, int *sp, int N) {
 // prefetch a
 inline void prefetch_inner_frame(DTYPE *a, int i, int j, int k, int *sp, int M) {
   for (int core = 0; core < VECTOR_LEN; core++) {
+    // TODO redundant
     VPREFETCH_L(*sp + 0, &a[i * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
 
-    VPREFETCH_L(*sp + 1, &a[j * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
+    // TODO this can be horizontal?
+    VPREFETCH_L(*sp + 1, &a[(j + core) * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
   }
 
   *sp = *sp + 2*INNER_PREFETCH_LEN;
@@ -160,17 +165,28 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
   // DEVEC(devec_0);
   }
   else {
-  for (int i = start + vtid; i < end; i+=VECTOR_LEN) {
-    for (int j = 0; j < M; j++) {
+  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  for (int i = start; i < end; i++) {
+    for (int j = vtid; j < M; j+=VECTOR_LEN) {
       FRAME_START(OUTER_FRAME_SIZE);
-      c[i * N + j] *= beta;
+      // c[i * N + j] *= beta;
+      // printf("c %f ?= %f\n", sp_ptr[sp], c[i*N+j]);
+      DTYPE c_ij = sp_ptr[sp + 0] * beta;
       REMEM(OUTER_FRAME_SIZE);
+      sp+=2;
+      if (sp == POST_FRAME_WORD) sp = 0;
 
       for (int k = 0; k < M; k++) {
         FRAME_START(INNER_FRAME_SIZE);
-        c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
+        // printf("a %f ?= %f %f ?= %f\n", sp_ptr[sp + 0], a[i * M + k], sp_ptr[sp + 1], a[j * M +k]);
+        // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
+        c_ij += alpha * sp_ptr[sp + 0] * sp_ptr[sp + 1];
         REMEM(INNER_FRAME_SIZE);
+        sp+=2;
+        if (sp == POST_FRAME_WORD) sp = 0;
       }
+      // TODO store_noack
+      c[i * N + j] = c_ij;
     }
   }
   }
