@@ -160,7 +160,7 @@ int main(int argc, char *argv[])
   if (fail)
     return 1;
   
-  printf("[[SUCCESS]] for Ax\n");
+  printf("[[mini SUCCESS]] for Ax\n");
   
   fail = check_atax(a, _x, _y, nx, ny);
   if (fail)
