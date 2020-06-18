@@ -1,11 +1,18 @@
-	VECTOR_HEADER
+VECTOR_HEADER
 somefunc:
-	VECTOR_BEFORE_BLOCK
+	TRILLIUM_INIT_BLOCK
+  .L1:
 	trillium vissue_delim begin block_one
-    VECTOR_BLOCK_ONE
+  .L2:
+  VECTOR_BLOCK_ONE
+  .L3:
 	trillium vissue_delim end
-    VECTOR_AFTER_BLOCK
+  .L4:
+  VECTOR_AFTER_BLOCK_ONE
+  .L5:
 	trillium vissue_delim return block_two
-    VECTOR_BLOCK_TWO
-	.size whatever
-    VECTOR_FOOTER
+  .L6:
+  VECTOR_BLOCK_TWO
+  ret
+.size whatever
+VECTOR_FOOTER

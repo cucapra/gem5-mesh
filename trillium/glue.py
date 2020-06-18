@@ -129,15 +129,20 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
             else:
                 blocks[curr_vissue_key].append(l)
 
+    assert (state == VectorParseState.RETURN), "TRILLIUM ERROR: ended in intermediate parse state {}".format(state.name)
 
     # prepend trillium_init block to the first block
     trillium_init_block = blocks["trillium_init"]
     trillium_init_block.insert(0, "#prepended trillium_init block here (See docs for more info)")
     trillium_init_block.insert(1, "#trillium_init begin")
     trillium_init_block.append("#trillium_init end")
-    first_vissue_key = list(blocks.keys())[1] #0 corresponds to "trillium_init"
-    first_vissue_block = blocks[first_vissue_key]
-    blocks[first_vissue_key] = trillium_init_block + first_vissue_block
+    vissue_keys = list(blocks.keys())
+    if len(vissue_keys) >= 2:
+        first_vissue_key = list(blocks.keys())[1] #0 corresponds to "trillium_init"
+        first_vissue_block = blocks[first_vissue_key]
+        blocks[first_vissue_key] = trillium_init_block + first_vissue_block
+    else:
+        print("TRILLIUM WARNING: couldn't append trillium_init to another block, since no other blocks were found.")
 
     # insert terminator in each block
     terminator = ".insn i 0x1b, 0x7, x0, x0, 0"
@@ -214,14 +219,14 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
         labeled_vector_bbs = []
         for label, vissue_key in label_vissueKey_pairs.items():
             commented_label = ".{}:  # {} vissue block".format(label, vissue_key)
-            labeled_vector_bbs.append(commented_label) 
+            labeled_vector_bbs.append(commented_label)
             labeled_vector_bbs.extend(vector_bbs[vissue_key])
 
         return (
             header +
             [after_VECTOR_EPOCH_before_DEVEC[0]] +
             before_VECTOR_EPOCH +
-            after_VECTOR_EPOCH_before_DEVEC[1:-1] +
+            after_VECTOR_EPOCH_before_DEVEC[1:-1] + #there's always a label before DEVEC
             ["# trillium: scalar stack cleanup begin"] +
             scalar_cleanup +
             ["# trillium: scalar stack cleanup end"] +
@@ -362,31 +367,29 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
 if __name__ == "__main__":
     import sys
-    arg_string = " ".join(sys.argv[1:])
-    usage_regex = "(\w+)\s+(\w+.s)\s+(\w+.s)\s+-o\s+(\w+.s)"
-    match = re.compile(usage_regex).match(arg_string)
-    if not match:
-      print("Gluer Usage: [kernel_fun_name] [input vector.s filename] [input scalar.s filename] -o [output combined.s filename]")
-      print("expected match with regex: {}".format(usage_regex))
-      print("but found: {}".format(arg_string))
-      exit(1)
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("kernel_fun_name", help="name of Trilliasm function in input")
+    parser.add_argument("vector", help="name of vector assembly")
+    parser.add_argument("scalar", help="name of scalar assembly")
+    parser.add_argument("-o", "--output", help="name of output combined assembly")
+    args = parser.parse_args()
 
     #TODO: rather than receive as CL arg, parse kernel_fun_name from a sensible location instead
-    kernel_fun_name, vector_filename, scalar_filename, combined_filename = match.groups()
-    vector_file = open(vector_filename, "r")
-    scalar_file = open(scalar_filename, "r")
-    combined_file = open(combined_filename, "w")
+    vector_file = open(args.vector, "r")
+    scalar_file = open(args.scalar, "r")
+    combined_file = open(args.output if args.output else "out.s", "w")
 
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()
 
-    vector_blocks = read_vector_bbs(kernel_fun_name, vector_code)
+    vector_blocks = read_vector_bbs(args.kernel_fun_name, vector_code)
     for block_name in vector_blocks.keys():
         block = vector_blocks[block_name]
         print("printing {} CFG of length {}".format(block_name, len(block)))
         print(pretty(block))
 
-    combined_code = glue(kernel_fun_name, scalar_code, vector_blocks)
+    combined_code = glue(args.kernel_fun_name, scalar_code, vector_blocks)
     combined_file.write(pretty(combined_code))
 
     print("Finished.")
