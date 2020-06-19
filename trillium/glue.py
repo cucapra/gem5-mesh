@@ -1,7 +1,10 @@
 from collections import OrderedDict
 from glue_util import *
-import itertools, argparse
+import argparse
+import logging
 from enum import Enum, auto
+
+log = logging.getLogger('trillium')
 
 # 3 kinds of delimiters demarcate the boundaries of vissue blocks in vector code
 # `until_next`: boundary immediately extends until the next delimiter is found (of any type)
@@ -13,6 +16,7 @@ from enum import Enum, auto
 # `return`: this delimiter MUST ALWAYS be placed before the `return` statements of both scalar and vector code.
 #           they mark the boundary of a special vissue block whose boundary extends until the next "jump to return address"-ish instruction (e.g., `ret`, `jl ra`, etc)
 
+
 class VectorParseState(Enum):
     START = auto()
     # INIT = auto()
@@ -20,6 +24,7 @@ class VectorParseState(Enum):
     BEGIN_END = auto()
     RETURN = auto()
     JUNK = auto()
+
 
 # NOTE: kernel_fun_name MUST equal the name of the trillium-asm Vector-SIMD function
 def read_vector_bbs(kernel_fun_name, raw_vector_code):
@@ -53,7 +58,7 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
         # called `trillium_init`.
         if state == VectorParseState.START:
             if l == kernel_fun_name + ":":
-                print("found start label {} at line {}".format(kernel_fun_name, line_no))
+                log.info("found start label {} at line {}".format(kernel_fun_name, line_no))
                 state = VectorParseState.UNTIL_NEXT
 
         # in this state, we've already seen an `until_next` delimiter,
@@ -61,7 +66,7 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
         elif state == VectorParseState.UNTIL_NEXT:
             delim_parse = parse_delim(l)
             if delim_parse != None:
-                print("parsed 'until_next'-delimited block: {}".format(curr_vissue_key))
+                log.info("parsed 'until_next'-delimited block: {}".format(curr_vissue_key))
                 delim, new_vissue_key = delim_parse
                 curr_vissue_key = new_vissue_key
                 blocks[new_vissue_key] = []
@@ -81,7 +86,7 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
         elif state == VectorParseState.BEGIN_END:
             delim_parse = parse_delim(l)
             if delim_parse == TrilliumAsmDelim.END:
-                print("parsed `begin/end`-delimited block: {}".format(curr_vissue_key))
+                log.info("parsed `begin/end`-delimited block: {}".format(curr_vissue_key))
 
                 # setup collection of "junk code" after `end` delim and before next delim,
                 # for debugging purposes
@@ -100,7 +105,7 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
             delim_parse = parse_delim(l)
 
             if delim_parse != None:
-                print("parsed junk block")
+                log.info("parsed junk block")
                 junk_postfix += 1
 
                 delim, new_vissue_key = delim_parse
@@ -124,7 +129,7 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
         # so we're looking for a "return-like" assembly.
         elif state == VectorParseState.RETURN:
             if is_return_inst(l):
-                print("parsed return block {}".format(curr_vissue_key))
+                log.info("parsed return block {}".format(curr_vissue_key))
                 break #return block should be the last one
             else:
                 blocks[curr_vissue_key].append(l)
@@ -142,7 +147,7 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
         first_vissue_block = blocks[first_vissue_key]
         blocks[first_vissue_key] = trillium_init_block + first_vissue_block
     else:
-        print("TRILLIUM WARNING: couldn't append trillium_init to another block, since no other blocks were found.")
+        log.warn("couldn't append trillium_init to another block, since no other blocks were found.")
 
     # insert terminator in each block
     terminator = ".insn i 0x1b, 0x7, x0, x0, 0"
@@ -288,18 +293,18 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
             parsed_label = parse_label(l)
 
             if is_return_inst(l):
-                print("found return instr after return delimiter")
+                log.info("found return instr after return delimiter")
                 scalar_ret_inst = l
                 scalar_ret_label = None
                 state = ScalarParseState.GLUE
 
             elif parsed_inst != None and parsed_inst[0] == RV_Inst.JUMP:
-                print("found jump instr after return delimiter")
+                log.info("found jump instr after return delimiter")
                 scalar_ret_label = parsed_inst[1]
                 state = ScalarParseState.GLUE
 
             elif parsed_label != None:
-                print("found label after return delimiter")
+                log.info("found label after return delimiter")
                 scalar_ret_label = None
                 labels.append(parsed_label)
                 state = ScalarParseState.GLUE
@@ -319,7 +324,7 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
             if parsed_label != None:
                 if parsed_label == scalar_ret_label:
-                    print("found scalar return jump label")
+                    log.info("found scalar return jump label")
                     state = ScalarParseState.INDIRECT_SCALAR_RET_FOUND
                 else:
                     labels.append(parsed_label)
@@ -334,8 +339,10 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
             else:
                 if len(labels) > 1:
-                    print("warning, appending empty auxiliary blocks: {}".format(str(labels[1:])))
-                    print("Is it ok that your scalar assembly code contains empty labels?")
+                    log.warn(
+                        "appending empty auxiliary blocks: {}\n".format(labels[1:]) +
+                        "Is it ok that your scalar assembly code contains empty labels?"
+                    )
                 if len(labels) > 0:
                     for _ in labels:
                         aux_bbs[labels.pop()] = []
@@ -386,10 +393,10 @@ if __name__ == "__main__":
     vector_blocks = read_vector_bbs(args.kernel_fun_name, vector_code)
     for block_name in vector_blocks.keys():
         block = vector_blocks[block_name]
-        print("printing {} CFG of length {}".format(block_name, len(block)))
-        print(pretty(block))
+        log.info("printing {} CFG of length {}".format(block_name, len(block)))
+        log.info(pretty(block))
 
     combined_code = glue(args.kernel_fun_name, scalar_code, vector_blocks)
     combined_file.write(pretty(combined_code))
 
-    print("Finished.")
+    log.info("Finished.")
