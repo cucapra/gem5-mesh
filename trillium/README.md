@@ -7,4 +7,6 @@ To use this, first install the dependencies:
 
 Then, to glue an assembly file:
 
-    python3 glue.py <func> <vector>.s <scalar>.s -o <out>.s
+    python3 glue.py [-o <out>.s] <func> <vector>.s <scalar>.s
+
+If no output file is specified with `-o`, the result is printed to standard output.

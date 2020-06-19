@@ -411,7 +411,10 @@ if __name__ == "__main__":
     #TODO: rather than receive as CL arg, parse kernel_fun_name from a sensible location instead
     vector_file = open(args.vector, "r")
     scalar_file = open(args.scalar, "r")
-    combined_file = open(args.output if args.output else "out.s", "w")
+    if args.output:
+        combined_file = open(args.output, "w")
+    else:
+        combined_file = sys.stdout
 
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()
@@ -430,6 +433,6 @@ if __name__ == "__main__":
         log.critical(exc)
         sys.exit(1)
 
+    # Print out the combined assembly.
+    log.info("Done gluing; ready to print.")
     combined_file.write(pretty(combined_code))
-
-    log.info("Finished.")
