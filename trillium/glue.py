@@ -98,7 +98,8 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
                     state = VectorParseState.BEGIN_END
                 elif delim == TrilliumAsmDelim.RETURN:
                     state = VectorParseState.RETURN
-                else: raise Exception("unrecognized delim found: check parse_delim function")
+                else:
+                    raise ParseError("unrecognized delim found: check parse_delim function")
             else:
                 blocks[curr_vissue_key].append(l)
 
@@ -115,7 +116,9 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
                 blocks[junk_vissue_key] = []
                 state = VectorParseState.JUNK
             elif delim_parse != None:
-                raise Exception("expected `end` delimiter to match `begin` in line {}".format(line_no))
+                raise ParseError(
+                    "expected `end` delimiter to match `begin` in line {}".format(line_no)
+                )
             else:
                 blocks[curr_vissue_key].append(l)
 
@@ -384,8 +387,8 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
                 state = ScalarParseState.GLUE
 
             elif parsed_label != None:
-                raise Exception(
-                        "I was hoping the indirect scalar return block would end in a jump to return address :(\n" ++
+                raise ParseError(
+                        "I was hoping the indirect scalar return block would end in a jump to return address :(\n" +
                         "Should I generalize my search for this jump across multiple blocks?")
 
             else:
