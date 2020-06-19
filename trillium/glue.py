@@ -21,6 +21,12 @@ log = colorlog.getLogger('trillium')
 log.setLevel(logging.INFO)
 log.addHandler(_handler)
 
+
+class ParseError(Exception):
+    """The input assembly programs were in an unexpected form.
+    """
+
+
 # 3 kinds of delimiters demarcate the boundaries of vissue blocks in vector code
 # `until_next`: boundary immediately extends until the next delimiter is found (of any type)
 #               the compiler will explode if no other `until_next` delimiter is found
@@ -149,7 +155,12 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
             else:
                 blocks[curr_vissue_key].append(l)
 
-    assert (state == VectorParseState.RETURN), "TRILLIUM ERROR: ended in intermediate parse state {}".format(state.name)
+    # After the state machine finishes, we should end up in the RETURN
+    # state at the end.
+    if state != VectorParseState.RETURN:
+        raise ParseError(
+            "ended in intermediate parse state {}".format(state.name)
+        )
 
     # prepend trillium_init block to the first block
     trillium_init_block = blocks["trillium_init"]
@@ -405,13 +416,20 @@ if __name__ == "__main__":
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()
 
-    vector_blocks = read_vector_bbs(args.kernel_fun_name, vector_code)
-    for block_name in vector_blocks.keys():
-        block = vector_blocks[block_name]
-        log.info("printing {} CFG of length {}".format(block_name, len(block)))
-        log.info(pretty(block))
+    try:
+        # Parse the vector assembly and extract the vector blocks.
+        vector_blocks = read_vector_bbs(args.kernel_fun_name, vector_code)
+        for block_name in vector_blocks.keys():
+            block = vector_blocks[block_name]
+            log.info("printing {} CFG of length {}".format(block_name, len(block)))
+            log.info(pretty(block))
 
-    combined_code = glue(args.kernel_fun_name, scalar_code, vector_blocks)
+        # Splice the vector blocks into the scalar assembly.
+        combined_code = glue(args.kernel_fun_name, scalar_code, vector_blocks)
+    except ParseError as exc:
+        log.critical(exc)
+        sys.exit(1)
+
     combined_file.write(pretty(combined_code))
 
     log.info("Finished.")
