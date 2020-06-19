@@ -169,7 +169,7 @@ class ScalarParseState(Enum):
     # NON_VECTOR_BB = auto()
 
 def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
-
+    print("GLUING VECTOR CODE TO SCALAR...")
     scalar_code = scalar_preprocess(raw_scalar_code)
 
     # dissects scalar assembly into the following non-overlapping components:
@@ -294,12 +294,12 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
                 state = ScalarParseState.GLUE
 
             elif parsed_inst != None and parsed_inst[0] == RV_Inst.JUMP:
-                print("found jump instr after return delimiter")
+                print("found jump instr after return delimiter: {}".format(l))
                 scalar_ret_label = parsed_inst[1]
                 state = ScalarParseState.GLUE
 
             elif parsed_label != None:
-                print("found label after return delimiter")
+                print("found label after return delimiter, but before return instr")
                 scalar_ret_label = None
                 labels.append(parsed_label)
                 state = ScalarParseState.GLUE
@@ -318,10 +318,12 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
             footer_parse = parse_footer(l)
 
             if parsed_label != None:
+                print("checking if {} is the indirect return label {}...".format(parsed_label, scalar_ret_label))
                 if parsed_label == scalar_ret_label:
-                    print("found scalar return jump label")
+                    print("Yep! Found scalar return jump label")
                     state = ScalarParseState.INDIRECT_SCALAR_RET_FOUND
                 else:
+                    print("Nope!")
                     labels.append(parsed_label)
 
             elif vissue_key != None:
@@ -345,6 +347,7 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
         elif state == ScalarParseState.INDIRECT_SCALAR_RET_FOUND:
             parsed_label = parse_label(l)
+            print("indirect return jump found")
 
             if is_return_inst(l):
                 scalar_ret_inst = l
@@ -352,10 +355,11 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
             elif parsed_label != None:
                 raise Exception(
-                        "I was hoping the indirect scalar return block would end in a jump to return address :(\n" ++
+                        "I was hoping the indirect scalar return block would end in a jump to return address :(\n" +
                         "Should I generalize my search for this jump across multiple blocks?")
 
             else:
+                print("adding line to scalar cleanup: {}".format(l))
                 scalar_cleanup.append(l)
 
         elif state == ScalarParseState.FOOTER:

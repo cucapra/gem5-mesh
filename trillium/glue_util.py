@@ -89,8 +89,8 @@ def scalar_preprocess(code):
     with_line_nos = list(enumerate(code))
     pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
     pass2 = apply_filter(lambda instr: instr != "", pass1)
-    pass3 = apply_transformation(lambda instr: change_label_prefix("L", "SCALAR", instr), pass2)
-    return pass3
+    #pass3 = apply_transformation(lambda instr: change_label_prefix("L", "SCALAR", instr), pass2)
+    return pass2
 
 def change_label_prefix(old_prefix, new_prefix, instr):
     return ("."+new_prefix+instr[2:]
