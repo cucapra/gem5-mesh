@@ -2,9 +2,24 @@ from collections import OrderedDict
 from glue_util import *
 import argparse
 import logging
+import colorlog
 from enum import Enum, auto
 
-log = logging.getLogger('trillium')
+# Set up logging with ***colors***.
+_handler = colorlog.StreamHandler()
+_handler.setFormatter(colorlog.ColoredFormatter(
+    '%(log_color)s%(message)s',
+    log_colors={
+        'DEBUG':    'reset',
+        'INFO':     'reset',
+        'WARNING':  'yellow',
+        'ERROR':    'red',
+        'CRITICAL': 'red',
+    },
+))
+log = colorlog.getLogger('trillium')
+log.setLevel(logging.INFO)
+log.addHandler(_handler)
 
 # 3 kinds of delimiters demarcate the boundaries of vissue blocks in vector code
 # `until_next`: boundary immediately extends until the next delimiter is found (of any type)
