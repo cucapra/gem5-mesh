@@ -1,2 +1,1 @@
-command = "python3 ../glue.py {args} {filename} -o out.s"
-output.out = "out.s"
+command = "python3 ../glue.py {args} {filename}"
