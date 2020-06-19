@@ -10,8 +10,8 @@ _handler = colorlog.StreamHandler()
 _handler.setFormatter(colorlog.ColoredFormatter(
     '%(log_color)s%(message)s',
     log_colors={
-        'DEBUG':    'reset',
-        'INFO':     'reset',
+        'DEBUG':    'thin_white',
+        'INFO':     'thin_white',
         'WARNING':  'yellow',
         'ERROR':    'red',
         'CRITICAL': 'red',
