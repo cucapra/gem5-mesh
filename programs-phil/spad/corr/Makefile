@@ -1,12 +1,12 @@
 #plug in trilliasm make recipes
-TRILLIASM_FUN_NAME= corr_vec
+TRILLIASM_FUN_NAME= corr_vec_1
 TRILLIASM_KERNEL = corr_kernel.c
 TRILLIUM_DIR=../../../trillium
 RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc	
 
 EXEC=corr
 N_SPS?=16
-SIZE?=128
+SIZE?=64
 OUT?=$(EXEC)-vec0-$(SIZE)
 CFLAGS=-D_N_SPS=$(N_SPS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 include $(TRILLIUM_DIR)/trilliasm.mk

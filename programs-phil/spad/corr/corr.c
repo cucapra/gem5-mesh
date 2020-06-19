@@ -244,8 +244,8 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
   if(used){
     //do work division here
     int alignment = VEC_LEN; //each group should have elements of multiple of this number
-    start = roundUp((unique_id + 0) * n / total_groups, alignment); 
-    end = roundUp((unique_id + 1) * n / total_groups, alignment); 
+    start = roundUp((unique_id + 0) * m / total_groups, alignment); 
+    end = roundUp((unique_id + 1) * m / total_groups, alignment); 
   }
 
   #else
@@ -352,8 +352,8 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
       : [ spad ] "r"(spTop));
 
   if(used!=0){
-    #if defined USE_VECTOR_SIMD
-      corr_vec(mask);
+    #if defined _VEC
+      corr_vec_1(mask, data, symmat, mean, stddev, m, n, start, end, vtid, vdim, ptid);
     #else
       corr_manycore_1(data, symmat, mean, stddev, m, n, start, end, ptid);
     #endif
@@ -369,8 +369,8 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
   int stride = pdim;
   #endif
 
-  #if defined USE_VECTOR_SIMD
-      corr_vec(mask);
+  #if defined _VEC
+      // corr_vec_2(mask);
   #else
     corr_manycore_2(data, symmat, mean, stddev, m, n, start, stride, ptid);
   #endif
