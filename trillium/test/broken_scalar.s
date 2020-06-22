@@ -6,7 +6,6 @@ somefunc:
 	BEFORE_VECTOR_EPOCH
 	.insn i 0x77, 0, x0, a0, 0x401
 .L1:
-	SCALAR_BEFORE_DEVEC
 	.insn uj 0x2b, x0, .L14
 .L2:
 	SCALAR_AFTER_DEVEC

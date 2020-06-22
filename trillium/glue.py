@@ -301,6 +301,8 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
         elif state == ScalarParseState.AFTER_VECTOR_EPOCH:
             if is_DEVEC(l):
+                if parse_label(after_VECTOR_EPOCH_before_DEVEC[-1]) == None:
+                    raise ParseError("Expected label immediately before DEVEC")
                 after_DEVEC_before_RET_DELIM.append(l)
                 state = ScalarParseState.AFTER_DEVEC
             else:
