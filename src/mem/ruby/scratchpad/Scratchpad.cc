@@ -89,9 +89,6 @@ CpuPort::recvFunctional(Packet* pkt)
 // Scratchpad
 //-----------------------------------------------------------------------------
 
-
-#define NUM_REGION_CNTRS 2
-
 Scratchpad::Scratchpad(const Params* p)
     : AbstractController(p),
       m_ruby_system_p(p->ruby_system),
@@ -119,6 +116,7 @@ Scratchpad::Scratchpad(const Params* p)
       m_grid_dim_y(p->grid_dim_y),
       m_cpu_p(p->cpu),
       m_max_pending_sp_prefetches(p->prefetchBufSize),
+      m_num_frame_cntrs(p->numFrameCntrs),
       m_process_resp_event([this]{ processRespToSpad(); }, "Process a resp to spad", false),
       m_proc_ruby_last(false)
 {
@@ -474,15 +472,16 @@ Scratchpad::wakeup()
         // m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
         m_mem_resp_buffer_p->dequeue(clockEdge());
 
-    } /*else if (m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 0 && 
+    } else if (m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 0 && 
               llc_msg_p->m_Type == LLCResponseType_ACK) {
+      DPRINTF(Mesh, "process store noack, ack\n");
       // we just need to send back to the core that we received an ack
       // make a fake resp packet to send back
       std::shared_ptr<Request> req =
                 std::make_shared<Request>(llc_msg_p->m_LineAddress,    // vaddr
                                           sizeof(uint32_t),    // size
                                           0, 0);
-        
+      req->isStoreNoAck = true;
       PacketPtr pending_mem_pkt_p = Packet::createWrite(req);
       pending_mem_pkt_p->pushSenderState(new MemUnit::SenderState(nullptr));
       pending_mem_pkt_p->makeResponse();
@@ -492,10 +491,11 @@ Scratchpad::wakeup()
       
       enqueueRubyRespToSp(pending_mem_pkt_p, Packet::RespPktType::LLC_Data_Resp);
 
-    }*/ else {
+    } else {
 
       // sanity check: make sure this is the response we're waiting for
       assert(m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 1);
+
       Packet* pending_mem_pkt_p = m_pending_pkt_map[llc_msg_p->m_SeqNum];
 
       DPRINTF(RubyNetwork, "spad pull msg %p @addr %#x\n", llc_msg_p, pending_mem_pkt_p->getAddr());
@@ -581,88 +581,6 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 
   if (pkt_p->isRead())
     DPRINTF(LoadTrack, "Load request received in local SP %#x\n", pkt_p->getAddr());
-  // /**
-  //  * From Xcel, access to base_addr field
-  //  */
-  // if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_BASE_ADDR_OFFSET) {
-  //   assert(pkt_p->isRead());
-
-  //   DPRINTF(Scratchpad, "Handling SPM_BASE_ADDR read: pkt %s\n",
-  //                       pkt_p->print());
-
-  //   if (*m_base_addr_p == 0) {
-  //     m_pending_base_addr_req = std::make_pair(MachineID(), pkt_p);
-  //   } else {
-  //     pkt_p->setData((uint8_t*) m_base_addr_p);
-  //     pkt_p->makeResponse();
-  //     // Save the response packet and schedule an event in the next cycle to
-  //     // send it to CPU
-  //     m_cpu_resp_pkts.push_back(pkt_p);
-  //     if (!m_cpu_resp_event.scheduled())
-  //       schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-  //   }
-
-  //   return true;
-  // }
-
-  // /**
-  //  * From Xcel, access to go_flag field
-  //  */
-  // if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_GO_FLAG_OFFSET) {
-  //   assert(pkt_p->isRead());
-
-  //   DPRINTF(Scratchpad, "Handling SPM_GO_FLAG read: pkt %s\n",
-  //                       pkt_p->print());
-
-  //   if (*m_go_flag_p == 0) {
-  //     m_pending_go_flag_req = std::make_pair(m_machineID, pkt_p);
-  //   } else {
-  //     pkt_p->setData((uint8_t *) m_go_flag_p);
-  //     pkt_p->makeResponse();
-  //     *m_go_flag_p = 0;
-  //     // Save the response packet and schedule an event in the next cycle to
-  //     // send it to CPU
-  //     m_cpu_resp_pkts.push_back(pkt_p);
-  //     if (!m_cpu_resp_event.scheduled())
-  //       schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-  //   }
-
-  //   return true;
-  // }
-
-  // /**
-  //  * From Xcel, access to done_flag field
-  //  */
-  // if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_DONE_FLAG_OFFSET) {
-  //   assert(pkt_p->isWrite());
-
-  //   DPRINTF(Scratchpad, "Handling SPM_DONE_FLAG write: pkt %s\n",
-  //                       pkt_p->print());
-
-  //   pkt_p->writeData((uint8_t*) m_done_flag_p);
-
-  //   DPRINTF(Scratchpad, "Done value: %d\n", *m_done_flag_p);
-
-  //   pkt_p->makeResponse();
-  //   // Save the response packet and schedule an event in the next cycle to
-  //   // send it to CPU
-  //   m_cpu_resp_pkts.push_back(pkt_p);
-  //   if (!m_cpu_resp_event.scheduled())
-  //     schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-
-  //   // wake up any remote request reading this flag
-  //   if (m_pending_done_flag_req.second) {
-  //     DPRINTF(Scratchpad, "Waking up a deferred SPM_DONE_FLAG read: pkt %s\n",
-  //                         m_pending_done_flag_req.second);
-
-  //     assert(handleRemoteReq(m_pending_done_flag_req.second,
-  //                            m_pending_done_flag_req.first));
-  //     m_pending_done_flag_req.first = MachineID();
-  //     m_pending_done_flag_req.second = nullptr;
-  //   }
-
-  //   return true;
-  // }
 
   /**
    * From either CPU or Xcel, access to data
@@ -749,7 +667,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // TODO currently checking normal pkt map, should we make our own so that can be
     // unlimited pending? doesn't seem like the spad has to track anything for a pending load?
     bool isPrefetch = pkt_p->isSpadPrefetch();
-    bool noLLCAck = isPrefetch;
+    bool noAckStore = pkt_p->isStoreNoAck();
+    bool noLLCAck = isPrefetch || noAckStore;
     bool pendingPktSpad = (m_pending_pkt_map.size() < m_max_num_pending_pkts) || noLLCAck;
     if (isPrefetch && pendingPktSpad) {
       // setWordNotRdy(pkt_p->getPrefetchAddr());
@@ -1251,7 +1170,7 @@ Scratchpad::isPrefetchAhead(Addr addr) {
 
   // packet is ahead of any prefetch region, so can't process yet
   bool aheadCntr = true;
-  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
+  for (int i = 0; i < m_num_frame_cntrs; i++) {
     if (pktEpochMod == getCurRegion(i)) {
       aheadCntr = false;
     }
@@ -1379,10 +1298,10 @@ Scratchpad::resetRdyArray() {
 
   // start counting for that next region
   // do swap chain
-  for (int i = 0; i < NUM_REGION_CNTRS - 1; i++) {
+  for (int i = 0; i < m_num_frame_cntrs - 1; i++) {
     m_region_cntrs[i] = m_region_cntrs[i + 1];
   }
-  m_region_cntrs[NUM_REGION_CNTRS - 1] = 0;
+  m_region_cntrs[m_num_frame_cntrs - 1] = 0;
 
   m_cpu_p->produceMemTokens(getRegionElements());
 }
@@ -1398,9 +1317,9 @@ Scratchpad::setupConfig(int csrId, RegVal csrVal) {
 
 void
 Scratchpad::resetAllRegionCntrs() {
-  DPRINTF(Mesh, "reset frame cntrs\n");
+  // DPRINTF(Mesh, "reset frame cntrs\n");
   m_region_cntrs.clear();
-  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
+  for (int i = 0; i < m_num_frame_cntrs; i++) {
     m_region_cntrs.push_back(0);
   }
   m_cur_prefetch_region = 0;
@@ -1410,7 +1329,7 @@ void
 Scratchpad::incRegionCntr(Addr addr) {
   // figure out which region this belongs to
   int region = getDesiredRegion(addr);
-  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
+  for (int i = 0; i < m_num_frame_cntrs; i++) {
     if (region == getCurRegion(i)) {
       m_region_cntrs[i]++;
       return;

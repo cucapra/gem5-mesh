@@ -232,6 +232,13 @@ Vector::regStats() {
       .name(name() + ".pipe_input_stalls")
       .desc("number of stalls due to no input from fetch")
     ;
+
+    m_cycles_in_vec
+      .name(name() + ".vec_cycles")
+      .desc("number of cycles in vector mode")
+    ;
+
+    _vecUops.regStats(name());
 }
 
 void
@@ -254,6 +261,12 @@ Vector::profile() {
   // stall due to back pressure
   else if (isOutMeshStalled() && !isInMeshStalled() && canWriteMesh()) {
     m_backpressure_stalls++;
+  }
+
+  // only register vec uop when configured
+  if (getConfigured()) {
+    m_cycles_in_vec++;
+    _vecUops.profile();
   }
 }
 

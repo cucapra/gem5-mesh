@@ -46,6 +46,55 @@ inline int min(int a, int b) {
   }
 }
 
+#ifdef VERTICAL_LOADS
+inline void prefetch_vert_frame(DTYPE *a, int r, int c, int ncols, int dim, int *spadIdx) {
+  for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+    for (int core = 0; core < dim; core++) {
+      int aIdx = (r + k1) * ncols + c + core * CORE_STEP;
+      // printf("mid issue r %d c %d k1 %d core %d, depth %d, aIdx %d\n", r, c, k1, core, LOAD_DEPTH, aIdx);
+      VPREFETCH_L(*spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
+      VPREFETCH_R(*spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
+    }
+    (*spadIdx)+=LOAD_DEPTH;
+  }
+
+  if (*spadIdx == POST_REGION_WORD) *spadIdx = 0;
+}
+#else
+inline void prefetch_horiz_frame(DTYPE *a, int r, int c, int ncols, int pRatio, int *spadIdx) {
+  // prefetch all 9 values required for computation
+  // #pragma GCC unroll 3
+  for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+    // #pragma GCC unroll 3
+    for (int k2 = 0; k2 < FILTER_DIM; k2++) {
+      int aIdx = (r + k1) * ncols + (c + k2);
+      
+      #ifdef SINGLE_PREFETCH
+      VPREFETCH_L(spadIdx, a + aIdx + 0, 0, 1);
+      VPREFETCH_L(spadIdx, a + aIdx + 1, 1, 1);
+      VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
+      VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
+      #else
+      // printf("mid prelw sp %d r %d c %d k1 %d k2 %d idx %d\n", spadIdx, r, c, k1, k2, aIdx);
+
+      for (int p = 0; p < pRatio; p++) {
+        VPREFETCH_L(*spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
+        VPREFETCH_R(*spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
+      }
+      #endif
+
+      (*spadIdx)++;
+      
+    }
+  }
+
+  // spad is circular buffer so do cheap mod here
+  if (*spadIdx == POST_REGION_WORD) {
+    *spadIdx = 0;
+  }
+}
+#endif
+
 #ifdef LARGE_FRAME
 // having this function not inlined messing up hacky host/vec seperation
 // maybe not prefetch all the way, so fill in rest or hardware frame
@@ -138,102 +187,36 @@ stencil_vector(
   int prefetchFrames = FRAMES_PER_REGION;
   #else
   // arbitrary in this case
-  int prefetchFrames = 4;
+  int prefetchFrames = 48;
   #endif
 
   int beginCol = min(prefetchFrames * step, effCols);
   for (int r = start_row; r < start_row + 1; r++) {
+    for (int c = 0; c < beginCol; c+=step) {
     #ifdef VERTICAL_LOADS
     // exhibit temporal reuse within a frame in a cacheline (16) can do 16-2=14 3x1 filters
     // TODO spatial should also do reuse maybe between frames (by putting in temporal storage). 
     // But maybe can't do memory layout restrictions
-    for (int c = 0; c < beginCol; c+=step) {
-      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int core = 0; core < dim; core++) {
-          int aIdx = (r + k1) * ncols + c + core * CORE_STEP;
-          // printf("issue r %d c %d k1 %d core %d, depth %d, aIdx %d\n", r, c, k1, core, LOAD_DEPTH, aIdx);
-          VPREFETCH_L(spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
-          VPREFETCH_R(spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
-        }
-        spadIdx+=LOAD_DEPTH;
-      }
-    }
+      prefetch_vert_frame(a, r, c, ncols, dim, &spadIdx);
     #else
-    for (int c = 0; c < beginCol; c+=step) {
-      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
-          int aIdx = (r + k1) * ncols + (c + k2);
-          // printf("prelw sp %d r %d c %d k1 %d k2 %d idx %d\n", spadIdx, r, c, k1, k2, aIdx);
-          // VPREFETCH_L(spadIdx, a + aIdx, 0, 4, 0);
-          // VPREFETCH_R(spadIdx, a + aIdx, 0, 4, 0);
-          for (int p = 0; p < pRatio; p++) { // NOTE unrolled b/c can statically determine pRatio is const
-            VPREFETCH_L(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
-            VPREFETCH_R(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
-          }
-          spadIdx++;
-        }
-      }
-    }
+      prefetch_horiz_frame(a, r, c, ncols, pRatio, &spadIdx);
     #endif
+    }
   }
 
   for (int r = start_row; r < end_row; r++) {
     int startCol = 0;
     // we've prefetch part of the first row to get ahead
     if (r == start_row) startCol = beginCol;
+    for (int c = startCol; c < effCols; c+=step) {
     #ifdef VERTICAL_LOADS
-    for (int c = startCol; c < effCols; c+=step) {
-      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        for (int core = 0; core < dim; core++) {
-          int aIdx = (r + k1) * ncols + c + core * CORE_STEP;
-          // printf("mid issue r %d c %d k1 %d core %d, depth %d, aIdx %d\n", r, c, k1, core, LOAD_DEPTH, aIdx);
-          VPREFETCH_L(spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
-          VPREFETCH_R(spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
-        }
-        spadIdx+=LOAD_DEPTH;
-      }
-
-      if (spadIdx == POST_REGION_WORD) spadIdx = 0;
-
-      ISSUE_VINST(fable1);
-
-    }
+      prefetch_vert_frame(a, r, c, ncols, dim, &spadIdx);
     #else
-    for (int c = startCol; c < effCols; c+=step) {
       // prefetch all 9 values required for computation
-      #pragma GCC unroll 3
-      for (int k1 = 0; k1 < FILTER_DIM; k1++) {
-        #pragma GCC unroll 3
-        for (int k2 = 0; k2 < FILTER_DIM; k2++) {
-          int aIdx = (r + k1) * ncols + (c + k2);
-          
-          #ifdef SINGLE_PREFETCH
-          VPREFETCH_L(spadIdx, a + aIdx + 0, 0, 1);
-          VPREFETCH_L(spadIdx, a + aIdx + 1, 1, 1);
-          VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
-          VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
-          #else
-          // printf("mid prelw sp %d r %d c %d k1 %d k2 %d idx %d\n", spadIdx, r, c, k1, k2, aIdx);
-
-          for (int p = 0; p < pRatio; p++) {
-            VPREFETCH_L(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
-            VPREFETCH_R(spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
-          }
-          #endif
-
-          spadIdx++;
-          
-        }
-      }
-
-      // spad is circular buffer so do cheap mod here
-      if (spadIdx == POST_REGION_WORD) {
-        spadIdx = 0;
-      }
-
+      prefetch_horiz_frame(a, r, c, ncols, pRatio, &spadIdx);
+    #endif
       ISSUE_VINST(fable1);
     }
-    #endif
   }
 
   #ifdef LARGE_FRAME
@@ -376,6 +359,8 @@ stencil_vector(
     }
     PRED_EQ(vtid, vtid);
 
+    REMEM(frameSize);
+
     // 10 results are computed per reuse iteration
     // cPtr+=step;
     cPtr += step;
@@ -401,6 +386,7 @@ stencil_vector(
       c_ += b8 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 2];
       STORE_NOACK(c_, cPtr + i, 0);
     }
+    REMEM(frameSize);
 
     cPtr += step;
     colCntr+=step;
@@ -426,6 +412,8 @@ stencil_vector(
     c_ += b7 * spadAddr[spIdx + 7];
     c_ += b8 * spadAddr[spIdx + 8];
 
+    REMEM(frameSize);
+
     STORE_NOACK(c_, cPtr, 0);
     // cPtr += dim;
     cPtr += dim;
@@ -435,8 +423,6 @@ stencil_vector(
       cPtr += unmappedColLen;
     }
     #endif
-
-    REMEM(frameSize);
 
     spIdx += frameSize;
     
@@ -567,12 +553,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
   #ifdef NUM_REGIONS
-  int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
-  PREFETCH_EPOCH(prefetchMask);
-
-  // make sure all cores have done this before begin kernel section --> do thread barrier for now
-  // TODO hoping for a cleaner way to do this
-  pthread_barrier_wait(&start_barrier);
+  SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   #endif
 
   // each vector group size is rated to do a certain problem size and multiples of that problem size
@@ -607,44 +588,24 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // do before the function call so the arg stack frame is on the spad
   // store the the current spAddr to restore later 
   unsigned long long *spTop = getSpTop(ptid);
-  // guess the remaining of the part of the frame that might be needed??
-  spTop -= 12;
+  spTop -= 30;
 
   unsigned long long stackLoc;
-  asm volatile (
-    // copy part of the stack onto the scratchpad in case there are any loads to scratchpad right before
-    // function call
-    "ld t0, 0(sp)\n\t"
-    "sd t0, 0(%[spad])\n\t"
-    "ld t0, 8(sp)\n\t"
-    "sd t0, 8(%[spad])\n\t"
-    "ld t0, 16(sp)\n\t"
-    "sd t0, 16(%[spad])\n\t"
-    "ld t0, 24(sp)\n\t"
-    "sd t0, 24(%[spad])\n\t"
-    "ld t0, 32(sp)\n\t"
-    "sd t0, 32(%[spad])\n\t"
-    "ld t0, 40(sp)\n\t"
-    "sd t0, 40(%[spad])\n\t"
-    "ld t0, 48(sp)\n\t"
-    "sd t0, 48(%[spad])\n\t"
-    "ld t0, 56(sp)\n\t"
-    "sd t0, 56(%[spad])\n\t"
-    "ld t0, 64(sp)\n\t"
-    "sd t0, 64(%[spad])\n\t"
-    "ld t0, 72(sp)\n\t"
-    "sd t0, 72(%[spad])\n\t"
-    "ld t0, 80(sp)\n\t"
-    "sd t0, 80(%[spad])\n\t"
-    "ld t0, 88(sp)\n\t"
-    "sd t0, 88(%[spad])\n\t"
-    // save the stack ptr
-    "addi %[dest], sp, 0\n\t" 
-    // overwrite stack ptr
-    "addi sp, %[spad], 0\n\t"
-    : [dest] "=r" (stackLoc)
-    : [spad] "r" (spTop)
-  );
+  unsigned long long temp;
+  #pragma GCC unroll(30)
+  for(int i=0;i<30;i++){
+    asm volatile("ld t0, %[id](sp)\n\t"
+                "sd t0, %[id](%[spad])\n\t"
+                : "=r"(temp)
+                : [id] "i"(i*8), [spad] "r"(spTop));
+  }
+  asm volatile (// save the stack ptr
+      "addi %[dest], sp, 0\n\t"
+      // overwrite stack ptr
+      "addi sp, %[spad], 0\n\t"
+      : [ dest ] "=r"(stackLoc)
+      : [ spad ] "r"(spTop));
+
 
   #ifdef USE_VEC
   // do computation that we can map

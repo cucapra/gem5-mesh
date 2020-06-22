@@ -18,7 +18,7 @@ args = parser.parse_args()
 
 dirPaths = []
 
-prog = 'bicg'
+prog = 'stencil'
 
 # created by top/eval/run_sim.py
 nameConv = r'^' + prog + r'(.*)$'

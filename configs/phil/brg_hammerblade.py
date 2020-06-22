@@ -380,7 +380,8 @@ CPUClass = MinorCPU(
 '''
 
 CPUClass = IOCPU (
-  includeVector = options.vector
+  includeVector = options.vector,
+  meshBufferSize = 10
   ,
   numROBEntries = 8
 
@@ -446,8 +447,11 @@ for i in xrange(n_scratchpads):
                   num_l2s           = n_l2s,
                   grid_dim_x        = n_cols,
                   grid_dim_y        = n_cols,
+                  # might be too big but can solve by having spad not remember
+                  # store noacks like it does for prefetch
                   maxNumPendingReqs = options.stream_width,
                   prefetchBufSize   = 10000, # make ridic number
+                  numFrameCntrs     = 48,
                   cpu               = system.cpu[i])
 
   sp.memReqBuffer             = MessageBuffer(ordered = True)

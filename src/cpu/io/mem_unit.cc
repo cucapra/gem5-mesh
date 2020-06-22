@@ -473,6 +473,13 @@ MemUnit::doSquash(IODynInstPtr squash_inst)
 void
 MemUnit::processCacheCompletion(PacketPtr pkt)
 {
+  // lazy ack so have already completed the store
+  if (pkt->isStoreNoAck()) {
+    m_store_diff_reg--;
+    delete pkt;
+    return;
+  }
+
   // extract SenderState
   MemUnit::SenderState* ss =
                       safe_cast<MemUnit::SenderState*>(pkt->popSenderState());
@@ -632,6 +639,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     
 
     m_s1_inst->mem_req_p->isSpadPrefetch = spadPrefetch;
+    m_s1_inst->mem_req_p->isStoreNoAck = m_s1_inst->static_inst_p->isAckFree() && !spadPrefetch;
 
     // adjust where the addr is in the case of a prelw
     if (spadPrefetch) {

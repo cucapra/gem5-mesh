@@ -67,6 +67,12 @@ class VecInstSel : public Named {
     // squash due to a branch, update the local PC and allow to continue fetching
     void doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator);
 
+    // register stats for this
+    void regStats(std::string parentName);
+
+    // actually do profiling for the cycle, called from vector stage
+    void profile();
+
   protected:
     // PC gen for uop decomposition
     // I think this would be in the normal fetch PC GEN in real RTL
@@ -141,7 +147,14 @@ class VecInstSel : public Named {
     // in a real system don't think would ever fail here though??
     bool _pendingFailedReq;
     Addr _failedReqVirtAddr;
-    
+
+    Stats::Vector2d MeshQueueSize;
+    Stats::Scalar   NoFetchedInst;
+    Stats::Scalar   TryFetchAgain;
+    Stats::Scalar   StallsOnControl;
+    Stats::Scalar   AlreadyInstruction;
+    Stats::Scalar   DequeueReqs;
+    Tick lastReqNoInst;
   
 };
 

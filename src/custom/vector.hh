@@ -309,6 +309,7 @@ protected:
     Stats::Scalar m_backpressure_stalls;
     Stats::Scalar m_no_mesh_stalls;
     Stats::Scalar m_no_pipe_stalls;
+    Stats::Scalar m_cycles_in_vec;
   
 };
 

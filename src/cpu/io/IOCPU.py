@@ -87,3 +87,4 @@ class IOCPU(BaseCPU):
 
   includeVector         = Param.Bool(False, "Whether to include vector stage after fetch")
 
+  meshBufferSize = Param.Unsigned(2, "Size of mesh queue in vector stage")

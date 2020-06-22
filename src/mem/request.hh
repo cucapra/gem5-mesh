@@ -402,7 +402,7 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0)
+          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false)
     {}
 
     Request(Addr paddr, unsigned size, Flags flags, MasterID mid,
@@ -413,7 +413,7 @@ class Request
           _reqInstSeqNum(seq_num), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0)
+          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false)
     {
         setPhys(paddr, size, flags, mid, curTick());
         setContext(cid);
@@ -432,7 +432,7 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0)
+          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false)
     {
         setPhys(paddr, size, flags, mid, curTick());
     }
@@ -444,7 +444,7 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0)
+          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false)
     {
         setPhys(paddr, size, flags, mid, time);
     }
@@ -457,7 +457,7 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0)
+          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false)
     {
         setPhys(paddr, size, flags, mid, time);
         privateFlags.set(VALID_PC);
@@ -471,7 +471,7 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false), 
-          coreOffset(0), respCnt(0), prefetchConfig(0)
+          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false)
     {
         setVirt(asid, vaddr, size, flags, mid, pc);
         setContext(cid);
@@ -499,7 +499,7 @@ class Request
           accessDelta(other.accessDelta), depth(other.depth), xDim(other.xDim), yDim(other.yDim), 
           xOrigin(other.xOrigin), yOrigin(other.yOrigin),
           prefetchAddr(other.prefetchAddr), spadSpec(other.spadSpec), isSpadPrefetch(other.isSpadPrefetch), 
-          coreOffset(other.coreOffset), respCnt(other.respCnt), prefetchConfig(other.prefetchConfig)
+          coreOffset(other.coreOffset), respCnt(other.respCnt), prefetchConfig(other.prefetchConfig), isStoreNoAck(other.isStoreNoAck)
     {
         if (other.atomicOpFunctor)
             atomicOpFunctor = (other.atomicOpFunctor)->clone();
@@ -678,7 +678,13 @@ class Request
     /**
      * Info about what type of vector load to perform
      */
-    int prefetchConfig; 
+    int prefetchConfig;
+
+    /**
+     * Store that requires no specific ack to core
+     * However, we do still need an ack just to know how many have been recveived
+     */
+    bool isStoreNoAck;
 
     /**
      *  Accessor for size.

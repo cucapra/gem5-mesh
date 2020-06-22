@@ -384,6 +384,11 @@ class Scratchpad : public AbstractController
      * The number of outstanding sp.loads allowed
      */ 
     const int m_max_pending_sp_prefetches;
+
+    /**
+     * The number of frame cntrs we can have
+     */ 
+    const int m_num_frame_cntrs;
     
     /**
      * Bit array for each word tracking whether a prefetch has arrived
