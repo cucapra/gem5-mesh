@@ -203,7 +203,7 @@ class ScalarParseState(Enum):
     # NON_VECTOR_BB = auto()
 
 def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
-
+    log.info("GLUING VECTOR CODE TO SCALAR...")
     scalar_code = scalar_preprocess(raw_scalar_code)
 
     # dissects scalar assembly into the following non-overlapping components:
@@ -328,12 +328,12 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
                 state = ScalarParseState.GLUE
 
             elif parsed_inst != None and parsed_inst[0] == RV_Inst.JUMP:
-                log.info("found jump instr after return delimiter")
+                log.info("found jump instr after return delimiter: {}".format(l))
                 scalar_ret_label = parsed_inst[1]
                 state = ScalarParseState.GLUE
 
             elif parsed_label != None:
-                log.info("found label after return delimiter")
+                log.info("found label after return delimiter, and before return instr")
                 scalar_ret_label = None
                 labels.append(parsed_label)
                 state = ScalarParseState.GLUE
@@ -352,6 +352,7 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
             footer_parse = parse_footer(l)
 
             if parsed_label != None:
+                log.info("checking if {} is the indirect return label {}...".format(parsed_label, scalar_ret_label))
                 if parsed_label == scalar_ret_label:
                     log.info("found scalar return jump label")
                     state = ScalarParseState.INDIRECT_SCALAR_RET_FOUND
@@ -381,6 +382,7 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
 
         elif state == ScalarParseState.INDIRECT_SCALAR_RET_FOUND:
             parsed_label = parse_label(l)
+            log.info("indirect return jump found")
 
             if is_return_inst(l):
                 scalar_ret_inst = l
@@ -392,6 +394,7 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
                         "Should I generalize my search for this jump across multiple blocks?")
 
             else:
+                log.info("adding line to scalar cleanup: {}".format(l))
                 scalar_cleanup.append(l)
 
         elif state == ScalarParseState.FOOTER:
