@@ -632,7 +632,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 #endif
 
 #ifdef USE_VECTOR_SIMD
-  vvadd_execute_simd(mask, a, b, c, start, end, ptid, vtid, vdim, is_da);
+  tril_vvadd(mask, a, b, c, start, end, ptid, vtid, vdim, is_da);
 #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   // deconfigure
