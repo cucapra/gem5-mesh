@@ -18,7 +18,7 @@ inline int min(int a, int b)
   }
 }
 
-void vvadd_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int is_master)
+void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int is_master)
 {
 
 #ifdef SCALAR_CORE
