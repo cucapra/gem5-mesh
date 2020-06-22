@@ -5,6 +5,7 @@ import logging
 import colorlog
 from enum import Enum, auto
 
+
 # Set up logging with ***colors***.
 _handler = colorlog.StreamHandler()
 _handler.setFormatter(colorlog.ColoredFormatter(
@@ -47,8 +48,7 @@ class VectorParseState(Enum):
     JUNK = auto()
 
 
-# NOTE: kernel_fun_name MUST equal the name of the trillium-asm Vector-SIMD function
-def read_vector_bbs(kernel_fun_name, raw_vector_code):
+def read_vector_bbs(raw_vector_code):
     vector_code = vector_preprocess(raw_vector_code)
 
     # dissects vector assembly into the following:
@@ -78,8 +78,8 @@ def read_vector_bbs(kernel_fun_name, raw_vector_code):
         # and parse any assembly generated before the first delimiter as an `until_next` block,
         # called `trillium_init`.
         if state == VectorParseState.START:
-            if l == kernel_fun_name + ":":
-                log.info("found start label {} at line {}".format(kernel_fun_name, line_no))
+            if is_kernel_func_label(l):
+                log.info("found start label {} at line {}".format(l, line_no))
                 state = VectorParseState.UNTIL_NEXT
 
         # in this state, we've already seen an `until_next` delimiter,
@@ -202,7 +202,7 @@ class ScalarParseState(Enum):
     # SIFT_BB = auto()
     # NON_VECTOR_BB = auto()
 
-def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
+def glue(raw_scalar_code, vector_bbs):
     log.info("GLUING VECTOR CODE TO SCALAR...")
     scalar_code = scalar_preprocess(raw_scalar_code)
 
@@ -282,7 +282,8 @@ def glue(kernel_fun_name, raw_scalar_code, vector_bbs):
     for (line_no, l) in scalar_code:
 
         if state == ScalarParseState.HEADER:
-          if l.strip() == kernel_fun_name + ":":
+          # Is this a Trillium function (indicated by the naming convention)?
+          if is_kernel_func_label(l):
             header.append(l)
             state = ScalarParseState.BEFORE_VECTOR_EPOCH
           else:
@@ -410,13 +411,11 @@ if __name__ == "__main__":
     import sys
     import argparse
     parser = argparse.ArgumentParser()
-    parser.add_argument("kernel_fun_name", help="name of Trilliasm function in input")
     parser.add_argument("vector", help="name of vector assembly")
     parser.add_argument("scalar", help="name of scalar assembly")
     parser.add_argument("-o", "--output", help="name of output combined assembly")
     args = parser.parse_args()
 
-    #TODO: rather than receive as CL arg, parse kernel_fun_name from a sensible location instead
     vector_file = open(args.vector, "r")
     scalar_file = open(args.scalar, "r")
     if args.output:
@@ -429,14 +428,14 @@ if __name__ == "__main__":
 
     try:
         # Parse the vector assembly and extract the vector blocks.
-        vector_blocks = read_vector_bbs(args.kernel_fun_name, vector_code)
+        vector_blocks = read_vector_bbs(vector_code)
         for block_name in vector_blocks.keys():
             block = vector_blocks[block_name]
             log.info("printing {} CFG of length {}".format(block_name, len(block)))
             log.info(pretty(block))
 
         # Splice the vector blocks into the scalar assembly.
-        combined_code = glue(args.kernel_fun_name, scalar_code, vector_blocks)
+        combined_code = glue(scalar_code, vector_blocks)
     except ParseError as exc:
         log.critical(exc)
         sys.exit(1)

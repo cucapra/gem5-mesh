@@ -1,6 +1,10 @@
 import re
 from enum import Enum, auto
 
+
+FUNC_PREFIX = 'tril_'
+
+
 # utilities for parsing instructions
 def is_return_inst(inst):
     inst_components = inst.split()
@@ -120,3 +124,6 @@ def pretty(code):
         if not is_label(l)
         else l for l in code])
 
+
+def is_kernel_func_label(l):
+    return re.match(r'^{}\w+:$'.format(FUNC_PREFIX), l.strip())
