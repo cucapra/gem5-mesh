@@ -1,6 +1,6 @@
-; ARGS: somefunc indirect_jump_vector.s
+; ARGS: indirect_jump_vector.s
 SCALAR_HEADER
-somefunc:
+tril_somefunc:
 	BEFORE_VECTOR_EPOCH
 	.insn i 0x77, 0, x0, a0, 0x401
 .L1:

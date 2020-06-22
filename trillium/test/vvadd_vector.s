@@ -2,9 +2,9 @@
 	.option nopic
 	.text
 	.align	2
-	.globl	vvadd_execute_simd
-	.type	vvadd_execute_simd, @function
-vvadd_execute_simd:
+	.globl	tril_vvadd
+	.type	tril_vvadd, @function
+tril_vvadd:
 	addi	sp,sp,-32
 	sd	ra,24(sp)
 	sd	s0,16(sp)
@@ -79,7 +79,7 @@ vvadd_execute_simd:
 	ld	s0,16(sp)
 	addi	sp,sp,32
 	jr	ra
-	.size	vvadd_execute_simd, .-vvadd_execute_simd
+	.size	tril_vvadd, .-tril_vvadd
 	.comm	start_barrier,32,8
 	.ident	"GCC: (GNU) 8.3.0"
 	.section	.note.GNU-stack,"",@progbits

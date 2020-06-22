@@ -1,12 +1,12 @@
-; ARGS: vvadd_execute_simd vvadd_vector.s
+; ARGS: vvadd_vector.s
 
 	.file	"vvadd_kernel_be.c"
 	.option nopic
 	.text
 	.align	2
-	.globl	vvadd_execute_simd
-	.type	vvadd_execute_simd, @function
-vvadd_execute_simd:
+	.globl	tril_vvadd
+	.type	tril_vvadd, @function
+tril_vvadd:
 	lw	a3,0(sp)
 #APP
 # 26 "vvadd_kernel_be.c" 1
@@ -617,7 +617,7 @@ vvadd_execute_simd:
 .L18:
 	li	a6,15
 	j	.L3
-	.size	vvadd_execute_simd, .-vvadd_execute_simd
+	.size	tril_vvadd, .-tril_vvadd
 	.comm	start_barrier,32,8
 	.ident	"GCC: (GNU) 8.3.0"
 	.section	.note.GNU-stack,"",@progbits
