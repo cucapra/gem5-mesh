@@ -1,5 +1,5 @@
 VECTOR_HEADER
-somefunc:
+tril_somefunc:
 	TRILLIUM_INIT_BLOCK
   .L1:
 	trillium vissue_delim begin block_one
