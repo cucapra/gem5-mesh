@@ -202,7 +202,12 @@ class ScalarParseState(Enum):
     # SIFT_BB = auto()
     # NON_VECTOR_BB = auto()
 
-def glue(raw_scalar_code, vector_bbs):
+
+def glue(raw_scalar_code, all_vector_bbs):
+    """Paste vector blocks from `all_vector_bbs`, which is a dict of dicts
+    mapping functions to blocks to code, into `raw_scalar_code`, which is an
+    assembly string.
+    """
     log.info("GLUING VECTOR CODE TO SCALAR...")
     scalar_code = scalar_preprocess(raw_scalar_code)
 
@@ -233,8 +238,9 @@ def glue(raw_scalar_code, vector_bbs):
     # This can be found at the end of scalar cleanup code, described in the two cases above
     scalar_ret_inst = None
 
-    # label-vissue pairs
-    label_vissueKey_pairs = {}
+    # `glue_points` maps labels to function name/vissue key pairs. vissue keys
+    # can be used to index into `all_vector_bbs` to get vector block code.
+    glue_points = {}
     labels = [] #stack of labels
 
     # labels pointing to scalar auxiliary blocks (not including scalar block that returns to jump address, if any)
@@ -244,6 +250,10 @@ def glue(raw_scalar_code, vector_bbs):
     # non-instruction lines after all labels/blocks
     footer = []
 
+    # The name of the current kernel function we're parsing (or None if we're
+    # not in any kernel function).
+    cur_kernel_func = None
+
     def glue_pieces():
         aux_bbs_as_list = []
         for label, bb in aux_bbs.items():
@@ -251,10 +261,20 @@ def glue(raw_scalar_code, vector_bbs):
             aux_bbs_as_list.extend(bb)
 
         labeled_vector_bbs = []
-        for label, vissue_key in label_vissueKey_pairs.items():
+        for label, (func_name, vissue_key) in glue_points.items():
             commented_label = ".{}:  # {} vissue block".format(label, vissue_key)
             labeled_vector_bbs.append(commented_label)
-            labeled_vector_bbs.extend(vector_bbs[vissue_key])
+
+            # Delete this eventually.
+            log.warning(
+                'TRANSITIONAL: I would be gluing vissue block %s from '
+                'function %s, but instead I will use the single, global '
+                'function for now.',
+                vissue_key, func_name,
+            )
+            func_name = 'tril_something'
+
+            labeled_vector_bbs.extend(all_vector_bbs[func_name][vissue_key])
 
         return (
             header +
@@ -283,9 +303,11 @@ def glue(raw_scalar_code, vector_bbs):
 
         if state == ScalarParseState.HEADER:
           # Is this a Trillium function (indicated by the naming convention)?
-          if is_kernel_func_label(l):
+          func_name = is_kernel_func_label(l)
+          if func_name:
             header.append(l)
             state = ScalarParseState.BEFORE_VECTOR_EPOCH
+            cur_kernel_func = func_name
           else:
             header.append(l)
 
@@ -363,8 +385,9 @@ def glue(raw_scalar_code, vector_bbs):
                     labels.append(parsed_label)
 
             elif vissue_key != None:
+                # Save the glue point for later code insertion.
                 latest_label = labels.pop()
-                label_vissueKey_pairs[latest_label] = vissue_key
+                glue_points[latest_label] = cur_kernel_func, vissue_key
 
             elif footer_parse != None:
                 footer.append(l)
@@ -434,8 +457,13 @@ if __name__ == "__main__":
             log.info("printing {} CFG of length {}".format(block_name, len(block)))
             log.info(pretty(block))
 
+        # TRANSITIONAL! Construct a two-level hierarchy that consists of only
+        # a single function for now. (Soon, `read_vector_bbs` itself will
+        # generate this data structure.)
+        all_vector_blocks = {'tril_something': vector_blocks}
+
         # Splice the vector blocks into the scalar assembly.
-        combined_code = glue(scalar_code, vector_blocks)
+        combined_code = glue(scalar_code, all_vector_blocks)
     except ParseError as exc:
         log.critical(exc)
         sys.exit(1)
