@@ -5,7 +5,6 @@ tril_somefunc1:
 	F1_BEFORE_VECTOR_EPOCH
 	.insn i 0x77, 0, x0, a0, 0x401
 .L1:
-	F1_SCALAR_BEFORE_DEVEC
 	.insn uj 0x2b, x0, .L14
 .L2:
 	F1_SCALAR_AFTER_DEVEC
@@ -28,7 +27,6 @@ tril_somefunc2:
 	F2_BEFORE_VECTOR_EPOCH
 	.insn i 0x77, 0, x0, a0, 0x401
 .M1:
-	F2_SCALAR_BEFORE_DEVEC
 	.insn uj 0x2b, x0, .M14
 .M2:
 	F2_SCALAR_AFTER_DEVEC

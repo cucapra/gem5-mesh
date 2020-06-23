@@ -1,0 +1,17 @@
+<       ; ARGS: multi_scalar.s
+---
+>       ; ARGS: multi_vector.s
+36d35
+<       F1_SCALAR_FOOTER
+38c37,38
+< tril_somefunc2:
+---
+>       F1_SCALAR_FOOTER
+>       tril_somefunc2:
+71d70
+<       F2_SCALAR_FOOTER
+72a72
+>       F2_SCALAR_FOOTER
+\ No newline at end of file
+not ok 1 - trillium/test/multi_scalar.s
+

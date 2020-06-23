@@ -270,15 +270,6 @@ def glue(raw_scalar_code, all_vector_bbs):
             commented_label = ".{}:  # {} vissue block".format(label, vissue_key)
             labeled_vector_bbs.append(commented_label)
 
-            # Delete this eventually.
-            log.warning(
-                'TRANSITIONAL: I would be gluing vissue block %s from '
-                'function %s, but instead I will use the single, global '
-                'function for now.',
-                vissue_key, func_name,
-            )
-            func_name = 'tril_something'
-
             labeled_vector_bbs.extend(all_vector_bbs[func_name][vissue_key])
 
         return (
@@ -479,21 +470,16 @@ if __name__ == "__main__":
     try:
         # Parse the vector assembly and extract the vector blocks.
         vector_blocks = read_vector_bbs(vector_code)
-        # log.info("Extracted the following Trilliasm Kernel vector blocks:")
-        # for func_name in vector_blocks.keys():
-        #     log.info("For function {}:".format(func_name))
-        #     for block_name in vector_blocks[func_name].keys():
-        #         block = vector_blocks[block_name]
-        #         log.info("Block {} length {}".format(block_name, len(block)))
-        #         log.info(pretty(block))
-
-        # TRANSITIONAL! Construct a two-level hierarchy that consists of only
-        # a single function for now. (Soon, `read_vector_bbs` itself will
-        # generate this data structure.)
-        all_vector_blocks = {'tril_something': vector_blocks}
+        log.info("Extracted the following Trilliasm Kernel vector blocks:")
+        for func_name in vector_blocks.keys():
+            log.info("For function {}:".format(func_name))
+            for vissue_key in vector_blocks[func_name].keys():
+                block = vector_blocks[func_name][vissue_key]
+                log.info("Block {} length {}".format(vissue_key, len(block)))
+                log.info(pretty(block))
 
         # Splice the vector blocks into the scalar assembly.
-        combined_code = glue(scalar_code, all_vector_blocks)
+        combined_code = glue(scalar_code, vector_blocks)
     except ParseError as exc:
         log.critical(exc)
         sys.exit(1)
