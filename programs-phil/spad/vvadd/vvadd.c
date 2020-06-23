@@ -9,12 +9,12 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-// #define VEC_4_SIMD 1
+#define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
 
 // in current system cacheline size is 16 so doesn't make sense to go beyond this for now
-#define VEC_16_SIMD 1
+// #define VEC_16_SIMD 1
 // #define VEC_16_SIMD_VERTICAL 1
 // #define VEC_16_SIMD_SPATIAL_UNROLLED 1
 
@@ -375,33 +375,32 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int master_y = 0;
   int unique_id = 0;
   int total_groups = 0;
+  int used = 0;
 
   // group construction
+  #ifdef VECTOR_LEN
+
   #if VECTOR_LEN==4
-    // virtual group dimension
-  vdim_x = 2;
-  vdim_y = 2;
-  vdim = vdim_x * vdim_y;
-
-  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y,
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
-
-  if (used) {
-    int alignment = 16 * vdim;
-    start = roundUp((unique_id + 0) * n / total_groups, alignment);
-    end   = roundUp((unique_id + 1) * n / total_groups, alignment);
-  }
-
-  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
-
+  template_info_t tinfo = init_template_4x4_2x2();
   #elif VECTOR_LEN==16
+  template_info_t tinfo = init_template_8x8_4x4();
+  #endif
+  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
-  vdim_x = 4;
-  vdim_y = 4;
-  vdim = vdim_x * vdim_y;
-
-  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y,
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
+  vtid = cinfo.vtid;
+  vtid_x = cinfo.vtid_x;
+  vtid_y = cinfo.vtid_y;
+  vdim_x = cinfo.vdim_x;
+  vdim_y = cinfo.vdim_y;
+  orig_x = cinfo.orig_x;
+  orig_y = cinfo.orig_y;
+  is_da  = cinfo.is_scalar;
+  master_x = cinfo.master_x;
+  master_y = cinfo.master_y;
+  unique_id = cinfo.unique_id;
+  total_groups = cinfo.total_groups;
+  used = cinfo.used;
+  vdim = VECTOR_LEN;
 
   if (used) {
     int alignment = 16 * vdim;
@@ -413,13 +412,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   vdim_x = 1;
   vdim_y = 1;
-  vdim   = vdim_x * vdim_y;
+  vdim = vdim_x * vdim_y;
   vtid_x = 0;
   vtid_y = 0;
   vtid   = 0;
   start  = ( ( ptid + 0 ) * n ) / pdim;
   end    = ( ( ptid + 1 ) * n ) / pdim;
-
 
   #endif
 
@@ -434,12 +432,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
   #ifdef NUM_REGIONS
-  int prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
-  PREFETCH_EPOCH(prefetchMask);
-
-  // make sure all cores have done this before begin kernel section --> do thread barrier for now
-  // TODO hoping for a cleaner way to do this
-  pthread_barrier_wait(&start_barrier);
+  SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   #endif
 
   // only let certain tids continue
@@ -461,28 +454,23 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // do before the function call so the arg stack frame is on the spad
   // store the the current spAddr to restore later 
   unsigned long long *spTop = getSpTop(ptid);
-  // guess the remaining of the part of the frame that might be needed??
-  spTop -= 4;
+  spTop -= 30;
 
   unsigned long long stackLoc;
-  asm volatile (
-    // copy part of the stack onto the scratchpad in case there are any loads to scratchpad right before
-    // function call
-    "ld t0, 0(sp)\n\t"
-    "sd t0, 0(%[spad])\n\t"
-    "ld t0, 8(sp)\n\t"
-    "sd t0, 8(%[spad])\n\t"
-    "ld t0, 16(sp)\n\t"
-    "sd t0, 16(%[spad])\n\t"
-    "ld t0, 24(sp)\n\t"
-    "sd t0, 24(%[spad])\n\t"
-    // save the stack ptr
-    "addi %[dest], sp, 0\n\t" 
-    // overwrite stack ptr
-    "addi sp, %[spad], 0\n\t"
-    : [dest] "=r" (stackLoc)
-    : [spad] "r" (spTop)
-  );
+  unsigned long long temp;
+  #pragma GCC unroll(30)
+  for(int i=0;i<30;i++){
+    asm volatile("ld t0, %[id](sp)\n\t"
+                "sd t0, %[id](%[spad])\n\t"
+                : "=r"(temp)
+                : [id] "i"(i*8), [spad] "r"(spTop));
+  }
+  asm volatile (// save the stack ptr
+      "addi %[dest], sp, 0\n\t"
+      // overwrite stack ptr
+      "addi sp, %[spad], 0\n\t"
+      : [ dest ] "=r"(stackLoc)
+      : [ spad ] "r"(spTop));
 
   // configure
   #ifdef USE_VEC

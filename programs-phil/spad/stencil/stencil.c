@@ -187,7 +187,7 @@ stencil_vector(
   int prefetchFrames = FRAMES_PER_REGION;
   #else
   // arbitrary in this case
-  int prefetchFrames = 32;
+  int prefetchFrames = 10;
   #endif
 
   int beginCol = min(prefetchFrames * step, effCols);
