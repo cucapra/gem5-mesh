@@ -32,6 +32,7 @@
 
 #include <deque>
 #include <unordered_map>
+#include <queue>
 
 #include "mem/packet.hh"
 #include "mem/port.hh"
@@ -39,7 +40,7 @@
 #include "mem/ruby/system/RubySystem.hh"
 #include "params/Scratchpad.hh"
 
-#include "cpu/io/cpu.hh"
+class IOCPU;
 
 //-----------------------------------------------------------------------------
 // CpuPort

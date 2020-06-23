@@ -33,6 +33,8 @@
 #include "cpu/io/pipeline.hh"
 #include "custom/vector.hh"
 
+class Scratchpad;
+
 class IOCPU : public BaseCPU
 {
   public:
@@ -263,6 +265,8 @@ class IOCPU : public BaseCPU
      */
     int getSpadNumRegions();
     int getSpadRegionSize();
+
+    Scratchpad *getLocalScratchpad();
 
     /**
      * Stats-related functions

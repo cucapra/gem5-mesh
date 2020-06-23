@@ -187,7 +187,7 @@ stencil_vector(
   int prefetchFrames = FRAMES_PER_REGION;
   #else
   // arbitrary in this case
-  int prefetchFrames = 48;
+  int prefetchFrames = 32;
   #endif
 
   int beginCol = min(prefetchFrames * step, effCols);
@@ -494,31 +494,31 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int master_y = 0;
   int unique_id = 0;
   int total_groups = 0;
+  int used = 0;
 
   // group construction
+  #ifdef VECTOR_LEN
+
   #if VECTOR_LEN==4
-  // virtual group dimension
-  vdim_x = 2;
-  vdim_y = 2;
-
-  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, 
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
-
-  // TODO should use alignment
-  if (used) {
-    start = ( (unique_id + 0) * effRows ) / total_groups;
-    end   = ( (unique_id + 1) * effRows ) / total_groups;
-  }
-
-  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used); 
-
+  template_info_t tinfo = init_template_4x4_2x2();
   #elif VECTOR_LEN==16
+  template_info_t tinfo = init_template_8x8_4x4();
+  #endif
+  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
-  vdim_x = 4;
-  vdim_y = 4;
-
-  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y, 
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
+  vtid = cinfo.vtid;
+  vtid_x = cinfo.vtid_x;
+  vtid_y = cinfo.vtid_y;
+  vdim_x = cinfo.vdim_x;
+  vdim_y = cinfo.vdim_y;
+  orig_x = cinfo.orig_x;
+  orig_y = cinfo.orig_y;
+  is_da  = cinfo.is_scalar;
+  master_x = cinfo.master_x;
+  master_y = cinfo.master_y;
+  unique_id = cinfo.unique_id;
+  total_groups = cinfo.total_groups;
+  used = cinfo.used;
 
   if (used) {
     start = ( (unique_id + 0) * effRows ) / total_groups;

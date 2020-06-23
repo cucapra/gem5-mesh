@@ -998,7 +998,7 @@ IOCPU::setMiscReg(int misc_reg, RegVal val, ThreadID tid)
     getLateVector()->setupConfig(misc_reg, val);
 
   // set scracthpad prefetch mask
-  static_cast<CpuPort&>(getDataPort().getSlavePort()).getAttachedSpad()->setupConfig(misc_reg, val);
+  getLocalScratchpad()->setupConfig(misc_reg, val);
   
   m_isa_list[tid]->setMiscReg(misc_reg, val, tcBase(tid));
 }
@@ -1078,6 +1078,11 @@ IOCPU::getSpadRegionSize() {
   int tid = 0;
   RegVal csrVal = readMiscRegNoEffect(RiscvISA::MISCREG_PREFETCH, tid);
   return MeshHelper::prefetchRegionSize(csrVal);
+}
+
+Scratchpad*
+IOCPU::getLocalScratchpad() {
+  return static_cast<CpuPort&>(getDataPort().getSlavePort()).getAttachedSpad();
 }
 
 void

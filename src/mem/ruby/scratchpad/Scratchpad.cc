@@ -38,6 +38,7 @@
 #include "mem/ruby/network/Network.hh"
 #include "mem/ruby/scratchpad/MemMessage.hh"
 #include "arch/registers.hh"
+#include "cpu/io/cpu.hh"
 
 #include "debug/Mesh.hh"
 #include "debug/LoadTrack.hh"
@@ -1179,6 +1180,7 @@ Scratchpad::isPrefetchAhead(Addr addr) {
   // packet would bring prefetch region to overlap with core access region and would cause undetectable overwrite
   // don't allow to be processed yet
   // int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
+  // TODO issue if don't consume the whole mem token frame
   bool wouldOverlap = m_cpu_p->getMemTokens() + getRegionElements() >= getAllRegionSize();
 
   DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d tokens %d prefetchRegion %d region cntr %d\n", 
