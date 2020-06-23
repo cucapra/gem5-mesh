@@ -330,7 +330,7 @@
 	# trillium: vector vissue blocks end
 	# trillium: footer begin
 	.size	tril_vvadd, .-tril_vvadd
+	# trillium: footer end
 	.comm	start_barrier,32,8
 	.ident	"GCC: (GNU) 8.3.0"
 	.section	.note.GNU-stack,"",@progbits
-	# trillium: footer end
