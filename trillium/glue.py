@@ -198,7 +198,6 @@ class ScalarParseState(Enum):
     #GET_BBS = auto()
     #REPLACE_BB_PLACEHOLDERS = auto()
     #GET_NONVEC_BBS = auto()
-    FOOTER = auto()
     # SIFT_BB = auto()
     # NON_VECTOR_BB = auto()
 
@@ -254,6 +253,9 @@ def glue(raw_scalar_code, all_vector_bbs):
     # not in any kernel function).
     cur_kernel_func = None
 
+    # The overall output from the gluer.
+    out_lines = []
+
     def glue_pieces():
         aux_bbs_as_list = []
         for label, bb in aux_bbs.items():
@@ -295,7 +297,8 @@ def glue(raw_scalar_code, all_vector_bbs):
             ["# trillium: vector vissue blocks end"] +
             ["# trillium: footer begin"] +
             footer +
-            ["# trillium: footer end"])
+            ["# trillium: footer end"]
+        )
 
 
     state = ScalarParseState.HEADER
@@ -391,7 +394,26 @@ def glue(raw_scalar_code, all_vector_bbs):
 
             elif footer_parse != None:
                 footer.append(l)
-                state = ScalarParseState.FOOTER
+
+                # The kernel function has ended!! Let's emit everything we have
+                # and take it to the top, starting to look for another kernel.
+                log.info('finished gluing kernel {}'.format(cur_kernel_func))
+                out_lines += glue_pieces()
+
+                # Reset the state. Don't love this copypasta; should clean it up.
+                header = []
+                before_VECTOR_EPOCH = []
+                after_VECTOR_EPOCH_before_DEVEC = []
+                after_DEVEC_before_RET_DELIM = []
+                scalar_cleanup = []
+                scalar_ret_inst = None
+                glue_points = {}
+                labels = []
+                aux_bbs = OrderedDict([("trillium_anon_aux_bb", [])])
+                footer = []
+
+                cur_kernel_func = None
+                state = ScalarParseState.HEADER
 
             else:
                 if len(labels) > 1:
@@ -423,10 +445,12 @@ def glue(raw_scalar_code, all_vector_bbs):
                 log.info("adding line to scalar cleanup: {}".format(l))
                 scalar_cleanup.append(l)
 
-        elif state == ScalarParseState.FOOTER:
-            footer.append(l)
+    # At the end, we will have accumulated the final chunk of code, below the
+    # last kernel, as the "header" of the next (nonexistent) kernel. Add these
+    # lines unchanged to the output.
+    out_lines += header
 
-    return glue_pieces()
+    return out_lines
 
 
 
