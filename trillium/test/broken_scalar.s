@@ -1,8 +1,8 @@
-; ARGS: somefunc broken_vector.s
+; ARGS: broken_vector.s
 ; RETURN: 1
 
 SCALAR_HEADER
-somefunc:
+tril_somefunc:
 	BEFORE_VECTOR_EPOCH
 	.insn i 0x77, 0, x0, a0, 0x401
 .L1:

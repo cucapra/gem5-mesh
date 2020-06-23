@@ -1,5 +1,4 @@
 #plug in trilliasm make recipes
-TRILLIASM_FUN_NAME= vvadd_execute_simd
 TRILLIASM_KERNEL = vvadd_kernel_be.c
 TRILLIUM_DIR=../../../trillium
 include $(TRILLIUM_DIR)/trilliasm.mk

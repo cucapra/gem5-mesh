@@ -1,11 +1,11 @@
-	; ARGS: vvadd_execute_simd vvadd_vector.s
+	; ARGS: vvadd_vector.s
 	.file	"vvadd_kernel_be.c"
 	.option nopic
 	.text
 	.align	2
-	.globl	vvadd_execute_simd
-	.type	vvadd_execute_simd, @function
-	vvadd_execute_simd:
+	.globl	tril_vvadd
+	.type	tril_vvadd, @function
+	tril_vvadd:
 	.insn i 0x77, 0, x0, a0, 0x401
 	lw	a3,0(sp)
 	subw	a5,a5,a4
@@ -329,7 +329,7 @@
 	.insn i 0x1b, 0x7, x0, x0, 0
 	# trillium: vector vissue blocks end
 	# trillium: footer begin
-	.size	vvadd_execute_simd, .-vvadd_execute_simd
+	.size	tril_vvadd, .-tril_vvadd
 	.comm	start_barrier,32,8
 	.ident	"GCC: (GNU) 8.3.0"
 	.section	.note.GNU-stack,"",@progbits
