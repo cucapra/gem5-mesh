@@ -124,6 +124,13 @@ def pretty(code):
         if not is_label(l)
         else l for l in code])
 
-
 def is_kernel_func_label(l):
-    return re.match(r'^{}\w+:$'.format(FUNC_PREFIX), l.strip())
+    """Check whether a line of assembly is the label for a kernel function, as
+    indicated by the naming convention. Return the function name if so and
+    `None` otherwise.
+    """
+    m = re.match(r'^({}\w+):$'.format(FUNC_PREFIX), l.strip())
+    if m:
+        return m.group(1)
+    else:
+        return None
