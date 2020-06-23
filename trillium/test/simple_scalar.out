@@ -33,5 +33,5 @@
 	# trillium: vector vissue blocks end
 	# trillium: footer begin
 	.size whatever
-	SCALAR_FOOTER
 	# trillium: footer end
+	SCALAR_FOOTER
