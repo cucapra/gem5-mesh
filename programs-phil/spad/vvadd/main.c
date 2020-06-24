@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < size; i++) {
     // printf("%d\n", c[i]);
     if (c[i] != 2 * ( i + 1 )) {
-      // printf("%d %d\n", i, c[i]);
+      printf("%d %d\n", i, c[i]);
       printf("[[FAIL]]\n");
       return 1;
     }
