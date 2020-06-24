@@ -69,18 +69,14 @@ inline void prefetch_horiz_frame(DTYPE *a, int r, int c, int ncols, int pRatio, 
     for (int k2 = 0; k2 < FILTER_DIM; k2++) {
       int aIdx = (r + k1) * ncols + (c + k2);
       
-      #ifdef SINGLE_PREFETCH
-      VPREFETCH_L(spadIdx, a + aIdx + 0, 0, 1);
-      VPREFETCH_L(spadIdx, a + aIdx + 1, 1, 1);
-      VPREFETCH_L(spadIdx, a + aIdx + 2, 2, 1);
-      VPREFETCH_L(spadIdx, a + aIdx + 3, 3, 1);
-      #else
-      // printf("mid prelw sp %d r %d c %d k1 %d k2 %d idx %d\n", spadIdx, r, c, k1, k2, aIdx);
-
+      #if PREFETCH_LEN != VECTOR_LEN
       for (int p = 0; p < pRatio; p++) {
         VPREFETCH_L(*spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
         VPREFETCH_R(*spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
       }
+      #else
+      VPREFETCH_L(*spadIdx, a + aIdx, 0, PREFETCH_LEN, 0);
+      VPREFETCH_R(*spadIdx, a + aIdx, 0, PREFETCH_LEN, 0);
       #endif
 
       (*spadIdx)++;
@@ -95,18 +91,18 @@ inline void prefetch_horiz_frame(DTYPE *a, int r, int c, int ncols, int pRatio, 
 }
 #endif
 
-#ifdef LARGE_FRAME
-// having this function not inlined messing up hacky host/vec seperation
-// maybe not prefetch all the way, so fill in rest or hardware frame
-// this kinda sux
-inline void completeHardwareFrame(int spadIdx, int *someData) {
-  int remainingEntries = REGION_SIZE - (spadIdx % REGION_SIZE);
-  for (int i = 0; i < remainingEntries; i++) {
-    VPREFETCH_L(spadIdx, someData, 0, 4, 0);
-    spadIdx++;
-  }
-}
-#endif
+// #ifdef LARGE_FRAME
+// // having this function not inlined messing up hacky host/vec seperation
+// // maybe not prefetch all the way, so fill in rest or hardware frame
+// // this kinda sux
+// inline void completeHardwareFrame(int spadIdx, int *someData) {
+//   int remainingEntries = REGION_SIZE - (spadIdx % REGION_SIZE);
+//   for (int i = 0; i < remainingEntries; i++) {
+//     VPREFETCH_L(spadIdx, someData, 0, 4, 0);
+//     spadIdx++;
+//   }
+// }
+// #endif
 
 #ifdef USE_VEC
 void __attribute__((optimize("-fno-reorder-blocks")))
@@ -501,6 +497,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   #if VECTOR_LEN==4
   template_info_t tinfo = init_template_4x4_2x2();
+  // template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif

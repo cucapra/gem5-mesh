@@ -1095,9 +1095,9 @@ Scratchpad::getL2BankFromAddr(Addr addr) const
 
 int
 Scratchpad::getCoreEpoch() {
-  // int coreEpoch = m_cpu_p->getRevecEpoch();
-  int coreEpoch = m_cpu_p->getMemEpoch();
-  return coreEpoch;
+  // int coreEpoch = m_cpu_p->getMemEpoch();
+  // return coreEpoch;
+  return m_cur_consumer_region;
 }
 
 int
@@ -1172,19 +1172,20 @@ Scratchpad::isPrefetchAhead(Addr addr) {
   // packet is ahead of any prefetch region, so can't process yet
   bool aheadCntr = true;
   for (int i = 0; i < m_num_frame_cntrs; i++) {
-    if (pktEpochMod == getCurRegion(i)) {
+    if (pktEpochMod == getCurPrefetchRegion(i)) {
       aheadCntr = false;
     }
   }
 
   // packet would bring prefetch region to overlap with core access region and would cause undetectable overwrite
   // don't allow to be processed yet
-  // int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
-  // TODO issue if don't consume the whole mem token frame
-  bool wouldOverlap = m_cpu_p->getMemTokens() + getRegionElements() >= getAllRegionSize();
+  // // int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
+  // // TODO issue if don't consume the whole mem token frame
+  // bool wouldOverlap = m_cpu_p->getMemTokens() + getRegionElements() >= getAllRegionSize();
+  bool wouldOverlap = (getCurPrefetchRegion(1) == getCurConsumerRegion(0));
 
-  DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d tokens %d prefetchRegion %d region cntr %d\n", 
-    wouldOverlap, aheadCntr, pktEpochMod, m_cpu_p->getMemTokens(), m_cur_prefetch_region, m_region_cntrs[0]);
+  DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d consumerRegion %d prefetchRegion %d region cntr %d\n", 
+    wouldOverlap, aheadCntr, pktEpochMod, m_cur_consumer_region, m_cur_prefetch_region, m_region_cntrs[0]);
   return wouldOverlap || aheadCntr;
 
 
@@ -1240,7 +1241,10 @@ Scratchpad::isWordRdy(Addr addr) {
   // just make sure have enough tokens
   // TODO should check in mem unit
   // DPRINTF(Mesh, "check if enough tokens to read cur %d need %d\n", m_cpu_p->getMemTokens(), getRegionElements());
-  return (m_cpu_p->getMemTokens() >= getRegionElements());
+  // return (m_cpu_p->getMemTokens() >= getRegionElements());
+
+  // ????
+  return (getDesiredRegion(addr) == m_cur_consumer_region);
 }
 
 void
@@ -1270,7 +1274,7 @@ Scratchpad::setWordRdy(Addr addr) {
 
   // m_last_word_recv = (getLocalAddr(addr) / sizeof(uint32_t)) - SPM_DATA_WORD_OFFSET;
   // m_cpu_p->produceMemTokens(1);
-  DPRINTF(Mesh, "recv addr %lx first region cntr %d tokens %d\n", addr, m_region_cntrs[0], m_cpu_p->getMemTokens());
+  DPRINTF(Mesh, "recv addr %lx first region cntr %d\n", addr, m_region_cntrs[0]);
 
   // DPRINTF(Mesh, "increment region wiht addr %#x cnt now %d\n", addr, m_region_cntr);
 }
@@ -1296,7 +1300,7 @@ Scratchpad::resetRdyArray() {
   // }
 
   // we can now prefetch in the next region
-  m_cur_prefetch_region = getCurRegion(1); //(m_cur_prefetch_region + 1) % getNumRegions();
+  m_cur_prefetch_region = getCurPrefetchRegion(1); //(m_cur_prefetch_region + 1) % getNumRegions();
 
   // start counting for that next region
   // do swap chain
@@ -1305,11 +1309,34 @@ Scratchpad::resetRdyArray() {
   }
   m_region_cntrs[m_num_frame_cntrs - 1] = 0;
 
-  m_cpu_p->produceMemTokens(getRegionElements());
+  // m_cpu_p->produceMemTokens(getRegionElements());
+}
+
+bool
+Scratchpad::isNextConsumerFrameRdy() {
+  return (m_cur_consumer_region != m_cur_prefetch_region);
+}
+
+void
+Scratchpad::incConsumerFrame() {
+  m_cur_consumer_region = getCurConsumerRegion(1);
 }
 
 void
 Scratchpad::setupConfig(int csrId, RegVal csrVal) {
+  // finalize stats when devec, TODO doesn't work for multiple kernels
+  if (csrId == RiscvISA::MISCREG_FETCH) {
+    if (csrVal == 0) {
+      for (int i = 0; i < m_num_frame_cntrs; i++) {
+        m_occupancy_offset[i] = m_occupancy_offset[i].value() / num_occupancy_samples / getRegionElements();
+      }
+    }
+    else {
+      num_occupancy_samples = 0;
+    }
+  }
+
+
   if (csrId != RiscvISA::MISCREG_PREFETCH) return;
 
   resetAllRegionCntrs();
@@ -1325,6 +1352,7 @@ Scratchpad::resetAllRegionCntrs() {
     m_region_cntrs.push_back(0);
   }
   m_cur_prefetch_region = 0;
+  m_cur_consumer_region = 0;
 }
 
 void
@@ -1332,7 +1360,7 @@ Scratchpad::incRegionCntr(Addr addr) {
   // figure out which region this belongs to
   int region = getDesiredRegion(addr);
   for (int i = 0; i < m_num_frame_cntrs; i++) {
-    if (region == getCurRegion(i)) {
+    if (region == getCurPrefetchRegion(i)) {
       m_region_cntrs[i]++;
       return;
     }
@@ -1341,13 +1369,46 @@ Scratchpad::incRegionCntr(Addr addr) {
 }
 
 int
-Scratchpad::getCurRegion(int offset) {
+Scratchpad::getCurPrefetchRegion(int offset) {
   return (m_cur_prefetch_region + offset) % getNumRegions();
+}
+
+int
+Scratchpad::getCurConsumerRegion(int offset) {
+  return (m_cur_consumer_region + offset) % getNumRegions();
 }
 
 int
 Scratchpad::getAllRegionSize() {
   return getNumRegions() * getRegionElements();
+}
+
+int
+Scratchpad::getNumClosedFrames() {
+  int diff = m_cur_prefetch_region - m_cur_consumer_region;
+  int closedFrames;
+  if (diff >= 0) {
+    closedFrames = diff;
+  }
+  else {
+    closedFrames = getNumRegions() - (-1 * diff);
+  }
+  return closedFrames;
+}
+
+void
+Scratchpad::profileFrameCntrs() {
+  for (int i = 1; i < m_num_frame_cntrs; i++) {
+    // count from cpu frame, if region counter comes later then count as full
+    int getClosedFrames = getNumClosedFrames();
+    if (i < getClosedFrames) {
+      m_occupancy_offset[i] += getRegionElements();
+    }
+    else {
+      m_occupancy_offset[i] += m_region_cntrs[i - getClosedFrames];
+    }
+  }
+  num_occupancy_samples++;
 }
 
 void
@@ -1414,6 +1475,13 @@ Scratchpad::regStats()
   m_local_accesses = m_local_loads + m_local_stores;
   m_remote_accesses = m_remote_loads + m_remote_stores;
   m_total_accesses = m_local_accesses + m_remote_accesses;
+
+  m_occupancy_offset
+    .init(m_num_frame_cntrs)
+    .name(name() + ".occupancy")
+    .desc("average occupancy of counters on remem relative to consumer frame. cur frame(0) invalid")
+    // .flags(Stats::total | Stats::pdf | Stats::dist)
+    ;
   
 }
 

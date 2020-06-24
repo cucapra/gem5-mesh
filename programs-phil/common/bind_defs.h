@@ -41,9 +41,15 @@
 #define REVEC(hash)                                                           \
   asm volatile (".insn u 0x7b, x0, %[id]\n\t" :: [id] "i" (hash))
   
+#define FRAME_END()                                                             \
+  asm volatile (".insn i 0x1b, 0x2, x0, x0, 0\n\t"::: "memory")
+
 // remem instruction with unique hash id (mem barrier instead of control barrier)
-#define REMEM(count)                                                           \
-  asm volatile (".insn i 0x1b, 0x2, x0, %[src0], 0\n\t":: [src0] "r" (count) : "memory")
+#define REMEM(count)                                                              \
+  FRAME_END()
+
+// #define REMEM(count)                                                           \
+//   asm volatile (".insn i 0x1b, 0x2, x0, %[src0], 0\n\t":: [src0] "r" (count) : "memory")
 
 #define FRAME_START(count)                                                     \
   asm volatile (".insn i 0x1b, 0x3, x0, %[src0], 0\n\t":: [src0] "r" (count) : "memory")

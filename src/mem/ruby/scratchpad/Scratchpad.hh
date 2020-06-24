@@ -207,6 +207,15 @@ class Scratchpad : public AbstractController
     // inform of a csr write and update if correct one
     void setupConfig(int csrId, RegVal csrVal);
 
+    // log the profiling about frame cntrs on current cycle
+    void profileFrameCntrs();
+
+    // increment the consumer frame
+    void incConsumerFrame();
+
+    // check if the next consumer frame is ready
+    bool isNextConsumerFrameRdy();
+
   private:
     /**
      * Return NodeID of scratchpad owning the given address
@@ -287,10 +296,13 @@ class Scratchpad : public AbstractController
     // increment region counter, if multiple use address to determine which one
     void incRegionCntr(Addr addr);
     // get the current region (offset = 0) or a future region (offset > 1)
-    int getCurRegion(int offset);
+    int getCurPrefetchRegion(int offset);
+    int getCurConsumerRegion(int offset);
 
     // reset the counters. meant to happen when set prefetch mask 
     void resetAllRegionCntrs();
+
+    int getNumClosedFrames();
 
   private:
     /**
@@ -436,6 +448,12 @@ class Scratchpad : public AbstractController
      * i.e. which region the counter is associated with (<10 bits)
      */ 
     int m_cur_prefetch_region;
+
+    /**
+     * Keep track of which region we are currently reading from the cpu
+     */ 
+    int m_cur_consumer_region;
+
     
     /**
      * Stats to keep track of for the scratchpad
@@ -455,6 +473,13 @@ class Scratchpad : public AbstractController
     Stats::Scalar m_not_rdy_stalls;
 
     Stats::Scalar m_exceed_stream_width;
+
+    // record occupancy of counters relative to current one
+    // Stats::Vector2d m_occupancy_offset;
+
+    Stats::Vector m_occupancy_offset;
+
+    int num_occupancy_samples;
 };
 
 #endif // MEM_RUBY_SCRATCHPAD_HH
