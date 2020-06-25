@@ -91,11 +91,8 @@ def scalar_preprocess(code):
     with_line_nos = list(enumerate(code))
     pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
     pass2 = apply_filter(lambda instr: instr != "", pass1)
-    # This pass renames the labels in the scalar file so they don't conflict with labels that come from the vector code. 
-    # It's currently broken because we don't update the corresponding references. 
-    # But this will become a problem in the future when we try to use labels from the vector code, at which point we will need to rename one or the other.
-    #pass3 = apply_transformation(lambda instr: change_label_prefix("L", "SCALAR", instr), pass2)
-    return pass2
+    pass3 = rename_labels("L", "SCALAR", pass2)
+    return pass3
 
 def rename_labels(curr_prefix, new_prefix, code):
     label_regex = regex.compile(r"(.*)\.({})(\d+)".format(curr_prefix))
