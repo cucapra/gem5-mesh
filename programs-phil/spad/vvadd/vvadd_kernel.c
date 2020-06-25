@@ -55,36 +55,36 @@ inline void vvadd_body(DTYPE *spadAddr, DTYPE **cPtr, int *sp, int dim) {
     // load values from scratchpad
     #pragma GCC unroll(16)
     for (int i = 0; i < LOAD_LEN; i++) {
-      a_ = spadAddr[iter + i + 0];
-      b_ = spadAddr[iter + i + LOAD_LEN];
+      DTYPE a = spadAddr[*sp + i + 0];
+      DTYPE b = spadAddr[*sp + i + LOAD_LEN];
 
       // compute and store
-      c_ = a_ + b_;
-      STORE_NOACK(c_, cPtr + i, 0);
+      DTYPE c = a + b;
+      STORE_NOACK(c, *cPtr + i, 0);
     }
 
     REMEM(REGION_SIZE);
 
-    cPtr += LOAD_LEN * dim;
-    iter = (iter + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
+    (*cPtr) += LOAD_LEN * dim;
+    *sp = (*sp + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
     #elif defined(SPATIAL_UNROLL)
     FRAME_START(REGION_SIZE);
 
     // load values from scratchpad
     #pragma GCC unroll(16)
     for (int i = 0; i < LOAD_LEN; i++) {
-      a_ = spadAddr[iter + i * 2 + 0];
-      b_ = spadAddr[iter + i * 2 + 1];
+      DTYPE a = spadAddr[*sp + i * 2 + 0];
+      DTYPE b = spadAddr[*sp + i * 2 + 1];
 
       // compute and store
-      c_ = a_ + b_;
-      STORE_NOACK(c_, cPtr + i * dim, 0);
+      DTYPE c = a + b;
+      STORE_NOACK(c, *cPtr + i * dim, 0);
     }
 
     REMEM(REGION_SIZE);
 
-    cPtr += LOAD_LEN * dim;
-    iter = (iter + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
+    (*cPtr) += LOAD_LEN * dim;
+    *sp = (*sp + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
     #else
 
     FRAME_START(REGION_SIZE);
@@ -135,7 +135,6 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
   ISSUE_VINST(vector_init_label);
 #elif defined VECTOR_CORE
   asm("trillium vissue_delim begin vector_init");
-  DTYPE a_, b_, c_;
   DTYPE *cPtr = c + start + vtid;
   int *spadAddr = (int *)getSpAddr(ptid, 0);
   asm("trillium vissue_delim end");
