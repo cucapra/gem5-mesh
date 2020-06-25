@@ -22,8 +22,9 @@ def is_DEVEC(inst):
 def is_VECTOR_EPOCH_inst(inst):
     return ".insn i 0x77" in inst
 
-def is_label(inst):
-    return re.compile("\.\S+:").match(inst) != None
+def parse_label(inst):
+    m = re.match("\.(\w+):", inst)
+    return m.group(1) if m else None
     #return "." == inst[0] and ":" == inst[-1]
 
 def is_footer_start(inst):
@@ -39,10 +40,6 @@ def parse_jump_inst(inst):
         return RV_Inst.JUMP, jump_inst_match.group(1)
     else:
         return None
-
-def parse_label(inst):
-    label_match = re.compile("\.(\S+):").match(inst)
-    return label_match.group(1) if label_match else None
 
 def parse_footer(inst):
     footer_match = re.compile(".size").match(inst)
@@ -85,8 +82,8 @@ def vector_preprocess(code):
     with_line_nos = list(enumerate(code))
     pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
     pass2 = apply_filter(lambda instr: instr != "", pass1)
-    pass3 = apply_filter(lambda instr: not (is_label(instr) or
-                                           (is_jump(instr) and not is_return_inst(instr))), pass2)
+    pass3 = apply_filter(lambda instr: not (is_jump(instr) and not is_return_inst(instr)), pass2)
+    #pass4 = rename_labels(pass3)
     return pass3
 
 def scalar_preprocess(code):
@@ -99,9 +96,13 @@ def scalar_preprocess(code):
     #pass3 = apply_transformation(lambda instr: change_label_prefix("L", "SCALAR", instr), pass2)
     return pass2
 
+def rename_labels(code):
+    return code
+    #labels = [l[:-1] for l in code if parse_label(l)]
+
 def change_label_prefix(old_prefix, new_prefix, instr):
     return ("."+new_prefix+instr[2:]
-                if is_label(instr)
+                if parse_label(instr)
                 else instr.replace("."+old_prefix,"."+new_prefix))
 
 def strip_whitespace_and_comments(instr):
@@ -121,7 +122,7 @@ def apply_filter(f, code_with_line_no):
 # pretty print list of assembly instructions
 def pretty(code):
     return "\n".join(["\t"+l
-        if not is_label(l)
+        if not parse_label(l)
         else l for l in code])
 
 def is_kernel_func_label(l):

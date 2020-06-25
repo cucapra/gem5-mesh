@@ -48,7 +48,7 @@ class VectorParseState(Enum):
     JUNK = auto()
 
 
-def read_vector_bbs(raw_vector_code):
+def extract_vector_blocks(raw_vector_code):
     vector_code = vector_preprocess(raw_vector_code)
 
     blocks = {}
@@ -88,6 +88,7 @@ def read_vector_bbs(raw_vector_code):
         elif state == VectorParseState.UNTIL_NEXT:
             delim_parse = parse_delim(l)
             if delim_parse != None:
+                log.info("DEBUG: {}".format(l))
                 log.info("parsed 'until_next'-delimited block: {}".format(curr_vissue_key))
                 delim, new_vissue_key = delim_parse
                 curr_vissue_key = new_vissue_key
@@ -469,7 +470,7 @@ if __name__ == "__main__":
 
     try:
         # Parse the vector assembly and extract the vector blocks.
-        vector_blocks = read_vector_bbs(vector_code)
+        vector_blocks = extract_vector_blocks(vector_code)
         log.info("Extracted the following Trilliasm Kernel vector blocks:")
         for func_name in vector_blocks.keys():
             log.info("For function {}:".format(func_name))
