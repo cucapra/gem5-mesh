@@ -3,9 +3,6 @@
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
-#define REGION_SIZE 2
-#define NUM_REGIONS 256
-
 inline int min(int a, int b)
 {
   if (a > b)
@@ -18,22 +15,120 @@ inline int min(int a, int b)
   }
 }
 
+inline void prefetch_frame(DTYPE *a, DTYPE *b, int i, int *sp, int dim, int start) {
+  // should be a constant from static analysis of dim
+  int pRatio = VECTOR_LEN / PREFETCH_LEN;
+  
+  #ifdef VERTICAL_LOADS
+  for (int core = 0; core < dim; core++) {
+    VPREFETCH_L(*sp + 0       , a + start + i * dim + LOAD_LEN * core, core, LOAD_LEN, 1);
+    VPREFETCH_L(*sp + LOAD_LEN, b + start + i * dim + LOAD_LEN * core, core, LOAD_LEN, 1);
+  }
+  #elif defined(SPATIAL_UNROLL)
+  for (int j = 0; j < LOAD_LEN; j++) {
+    for (int p = 0; p < pRatio; p++) {
+      VPREFETCH_L(*sp + j * 2 + 0, a + start + ((i + j) * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+      VPREFETCH_L(*sp + j * 2 + 1, b + start + ((i + j) * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+    }
+  }
+  #else
+  #if PREFETCH_LEN != VECTOR_LEN
+  for (int p = 0; p < pRatio; p++) {
+    VPREFETCH_L(*sp + 0, a + start + (i * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+    VPREFETCH_L(*sp + 1, b + start + (i * dim + p * PREFETCH_LEN), p * PREFETCH_LEN, PREFETCH_LEN, 0);
+  }
+  #else
+  VPREFETCH_L(*sp + 0, a + start + (i * dim), 0, PREFETCH_LEN, 0);
+  VPREFETCH_L(*sp + 1, b + start + (i * dim), 0, PREFETCH_LEN, 0);
+  #endif
+  #endif
+
+  (*sp)+=REGION_SIZE;
+  if (*sp == (NUM_REGIONS * REGION_SIZE)) *sp = 0;
+}
+
+inline void vvadd_body(DTYPE *spadAddr, DTYPE **cPtr, int *sp, int dim) {
+      // unrolled version when doing vertical loads
+    #ifdef VERTICAL_LOADS
+    FRAME_START(REGION_SIZE);
+
+    // load values from scratchpad
+    #pragma GCC unroll(16)
+    for (int i = 0; i < LOAD_LEN; i++) {
+      a_ = spadAddr[iter + i + 0];
+      b_ = spadAddr[iter + i + LOAD_LEN];
+
+      // compute and store
+      c_ = a_ + b_;
+      STORE_NOACK(c_, cPtr + i, 0);
+    }
+
+    REMEM(REGION_SIZE);
+
+    cPtr += LOAD_LEN * dim;
+    iter = (iter + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
+    #elif defined(SPATIAL_UNROLL)
+    FRAME_START(REGION_SIZE);
+
+    // load values from scratchpad
+    #pragma GCC unroll(16)
+    for (int i = 0; i < LOAD_LEN; i++) {
+      a_ = spadAddr[iter + i * 2 + 0];
+      b_ = spadAddr[iter + i * 2 + 1];
+
+      // compute and store
+      c_ = a_ + b_;
+      STORE_NOACK(c_, cPtr + i * dim, 0);
+    }
+
+    REMEM(REGION_SIZE);
+
+    cPtr += LOAD_LEN * dim;
+    iter = (iter + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
+    #else
+
+    FRAME_START(REGION_SIZE);
+
+    // load values from scratchpad
+    DTYPE a = spadAddr[*sp + 0];
+    DTYPE b = spadAddr[*sp + 1];
+
+    // remem as soon as possible, so don't stall loads for next iterations
+    // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
+    REMEM(REGION_SIZE);
+
+    // compute and store
+    DTYPE c = a + b;
+    STORE_NOACK(c, *cPtr, 0);
+    (*cPtr) += dim;
+    *sp = (*sp + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
+
+    #endif
+}
+
 void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int is_master)
 {
+
+  #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
+  int numInitFetch = LOAD_LEN;
+  int step = LOAD_LEN;
+  #else
+  int numInitFetch = 16;
+  int step = 1;
+  #endif
+  
+  int sp = 0;
 
 #ifdef SCALAR_CORE
   // enter vector epoch within function, b/c vector-simd can't have control flow
   VECTOR_EPOCH(mask);
 
-
   // do a bunch of prefetching in the beginning to get ahead
   int totalIter = (end - start) / dim;
-  int numInitFetch = 16;
   int beginIter = min(numInitFetch, totalIter);
-  for (int i = 0; i < beginIter; i++)
+  for (int i = 0; i < beginIter; i+=step)
   {
-    VPREFETCH_L(i * 2 + 0, a + start + (i * dim), 0, 4, 0);
-    VPREFETCH_L(i * 2 + 1, b + start + (i * dim), 0, 4, 0);
+    prefetch_frame(a, b, i, &sp, dim, start);
   }
 
   // issue header instructions
@@ -41,23 +136,18 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
 #elif defined VECTOR_CORE
   asm("trillium vissue_delim begin vector_init");
   DTYPE a_, b_, c_;
-  int64_t iter = 0;
   DTYPE *cPtr = c + start + vtid;
   int *spadAddr = (int *)getSpAddr(ptid, 0);
   asm("trillium vissue_delim end");
 #endif
 
+// TODO can we remove?
 #ifdef SCALAR_CORE
   ISSUE_VINST(trillium_junk0_label);
-  int localIter = beginIter * 2;
-
-#ifdef SIMD_BCAST
-  int deviceIter = 0;
-#endif
 #endif
 
 #ifdef SCALAR_CORE
-  for (int i = beginIter; i < totalIter; i++)
+  for (int i = beginIter; i < totalIter; i+=step)
   {
 #elif defined VECTOR_CORE
   volatile int bh1;
@@ -66,61 +156,14 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
 #endif
 
 #ifdef SCALAR_CORE
-#ifdef SIMD_BCAST
-    // broadcast values needed to execute
-    // in this case the spad loc
-    BROADCAST(t0, deviceIter, 0);
-#endif
-
     // prefetch for future iterations
-    VPREFETCH_L(localIter + 0, a + start + (i * dim), 0, 4, 0);
-    VPREFETCH_L(localIter + 1, b + start + (i * dim), 0, 4, 0);
+    prefetch_frame(a, b, i, &sp, dim, start);
 
     ISSUE_VINST(vector_body_label);
 
-    localIter += 2;
-    if (localIter == (NUM_REGIONS * 2))
-    {
-      localIter = 0;
-    }
-
-#ifdef SIMD_BCAST
-    deviceIter += 2;
-    if (deviceIter == (NUM_REGIONS * 2))
-    {
-      deviceIter = 0;
-    }
-#endif
-    //ISSUE_VINST(trillium_junk1_label);
-
 #elif defined VECTOR_CORE
   asm("trillium vissue_delim begin vector_body");
-#ifdef SIMD_BCAST
-    // try to get compiler to use register that will recv broadcasted values
-    // can make compiler pass
-    asm volatile(
-        "add %[var], t0, x0\n\t"
-        : [ var ] "=r"(iter));
-#endif
-
-    FRAME_START(REGION_SIZE);
-    
-    // load values from scratchpad
-    a_ = *(spadAddr + iter);
-    b_ = *(spadAddr + iter + 1);
-
-    // remem as soon as possible, so don't stall loads for next iterations
-    // currently need to stall for remem b/c need to issue LWSPEC with a stable remem cnt
-    REMEM(REGION_SIZE);
-
-    // compute and store
-    c_ = a_ + b_;
-    STORE_NOACK(c_, cPtr, 0);
-    cPtr += dim;
-
-#ifndef SIMD_BCAST
-    iter = (iter + 2) % (NUM_REGIONS * 2);
-#endif
+    vvadd_body(spadAddr, &cPtr, &sp, dim);
   asm("trillium vissue_delim end");
 #endif
   }
@@ -129,20 +172,7 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
 // issue the rest
   for (int i = totalIter - beginIter; i < totalIter; i++)
   {
-
-#ifdef SIMD_BCAST
-    BROADCAST(t0, deviceIter, 0);
-#endif
-
     ISSUE_VINST(vector_body_label);
-
-#ifdef SIMD_BCAST
-    deviceIter += 2;
-    if (deviceIter == (NUM_REGIONS * 2))
-    {
-      deviceIter = 0;
-    }
-#endif
   }
 
   ISSUE_VINST(vector_return_label);
