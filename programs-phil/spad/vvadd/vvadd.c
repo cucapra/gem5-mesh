@@ -440,7 +440,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // configure
   #ifdef USE_VEC
-  tril_vvadd(mask, a, b, c, start, end, ptid, vtid, dim, is_da);
+  tril_vvadd(mask, a, b, c, start, end, ptid, vtid, vdim, is_da);
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   #endif

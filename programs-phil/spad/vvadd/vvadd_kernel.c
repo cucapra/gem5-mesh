@@ -32,14 +32,8 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
   int beginIter = min(numInitFetch, totalIter);
   for (int i = 0; i < beginIter; i++)
   {
-
     VPREFETCH_L(i * 2 + 0, a + start + (i * dim), 0, 4, 0);
-    VPREFETCH_R(i * 2 + 0, a + start + (i * dim), 0, 4, 0);
     VPREFETCH_L(i * 2 + 1, b + start + (i * dim), 0, 4, 0);
-    VPREFETCH_R(i * 2 + 1, b + start + (i * dim), 0, 4, 0);
-    
-    // VPREFETCH_L(i * 2 + 0, a + start + (i * dim), 0, 4, 0);
-    // VPREFETCH_L(i * 2 + 1, b + start + (i * dim), 0, 4, 0);
   }
 
   // issue header instructions
@@ -79,15 +73,8 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
 #endif
 
     // prefetch for future iterations
-    // VPREFETCH(spadAddr + localIter + 0, a + start + (i * dim), 0);
-    // VPREFETCH(spadAddr + localIter + 1, b + start + (i * dim), 0);
     VPREFETCH_L(localIter + 0, a + start + (i * dim), 0, 4, 0);
-    VPREFETCH_R(localIter + 0, a + start + (i * dim), 0, 4, 0);
     VPREFETCH_L(localIter + 1, b + start + (i * dim), 0, 4, 0);
-    VPREFETCH_R(localIter + 1, b + start + (i * dim), 0, 4, 0);
-
-    // VPREFETCH_L(localIter + 0, a + start + (i * dim), 0, 4, 0);
-    // VPREFETCH_L(localIter + 1, b + start + (i * dim), 0, 4, 0);
 
     ISSUE_VINST(vector_body_label);
 
@@ -117,10 +104,8 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
 #endif
 
     FRAME_START(REGION_SIZE);
+    
     // load values from scratchpad
-    // LWSPEC(a_, spadAddr + iter, 0);
-    // LWSPEC(b_, spadAddr + iter + 1, 0);
-
     a_ = *(spadAddr + iter);
     b_ = *(spadAddr + iter + 1);
 
