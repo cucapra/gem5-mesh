@@ -25,6 +25,7 @@ CFLAGS?=-D_N_SPS=16 -O3 --std=gnu11 -static -I$(COMMON_PATH) -T$(COMMON_PATH)/sp
 
 
 KERNEL_NAME:= $(basename $(TRILLIASM_KERNEL))
+TRILLIASM_OBJS=$(TRILLIASM_KERNEL:.c=.o)
 
 $(KERNEL_NAME)_vector.s: $(KERNEL_NAME).c
 	$(RV_CC) $(CFLAGS) -D VECTOR_CORE -S $< -o $@
