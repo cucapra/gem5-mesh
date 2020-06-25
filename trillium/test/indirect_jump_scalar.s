@@ -9,7 +9,7 @@ tril_somefunc:
 	SCALAR_AFTER_DEVEC
 	trillium vissue_delim return scalar_return
   SCALAR_STACK_CLEANUP_1
-  j .IndirectRetLabel
+  j .L10
   SCALAR_AFTER_RETURN
 .L3:
 	trillium glue_point block_one
@@ -17,7 +17,7 @@ tril_somefunc:
   AN_AUXILIARY_BLOCK
 .L5:
 	trillium glue_point block_two
-.IndirectRetLabel:
+.L10:
   SCALAR_STACK_CLEANUP_2
   ret
 .L6:
