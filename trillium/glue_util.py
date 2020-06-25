@@ -1,4 +1,4 @@
-import re
+import regex
 from enum import Enum, auto
 
 
@@ -23,7 +23,7 @@ def is_VECTOR_EPOCH_inst(inst):
     return ".insn i 0x77" in inst
 
 def parse_label(inst):
-    m = re.match("\.(\w+):", inst)
+    m = regex.match("\.(\w+):", inst)
     return m.group(1) if m else None
     #return "." == inst[0] and ":" == inst[-1]
 
@@ -35,14 +35,14 @@ class RV_Inst(Enum):
     FOOTER_START = auto()
 
 def parse_jump_inst(inst):
-    jump_inst_match = re.compile("j\s+\.(\S+)").match(inst)
+    jump_inst_match = regex.compile("j\s+\.(\S+)").match(inst)
     if jump_inst_match:
         return RV_Inst.JUMP, jump_inst_match.group(1)
     else:
         return None
 
 def parse_footer(inst):
-    footer_match = re.compile(".size").match(inst)
+    footer_match = regex.compile(".size").match(inst)
     return RV_Inst.FOOTER_START if footer_match else None
 
 class TrilliumAsmDelim(Enum):
@@ -54,10 +54,10 @@ class TrilliumAsmDelim(Enum):
 
 def parse_delim(inst):
     delim_prefix = "trillium\s+vissue_delim"
-    until_next_delim_match = re.compile(delim_prefix + "\s+until_next\s+(\w+)").match(inst)
-    begin_delim_match = re.compile(delim_prefix + "\s+begin\s+(\w+)").match(inst)
-    end_delim_match = re.compile(delim_prefix + "\s+end").match(inst)
-    return_delim_match = re.compile(delim_prefix + "\s+return\s+(\w+)").match(inst)
+    until_next_delim_match = regex.compile(delim_prefix + "\s+until_next\s+(\w+)").match(inst)
+    begin_delim_match = regex.compile(delim_prefix + "\s+begin\s+(\w+)").match(inst)
+    end_delim_match = regex.compile(delim_prefix + "\s+end").match(inst)
+    return_delim_match = regex.compile(delim_prefix + "\s+return\s+(\w+)").match(inst)
     if until_next_delim_match:
         return TrilliumAsmDelim.UNTIL_NEXT, until_next_delim_match.group(1)
     elif begin_delim_match:
@@ -71,7 +71,7 @@ def parse_delim(inst):
 
 def parse_gluepoint(inst):
     gluepoint_prefix = "trillium glue_point"
-    gluepoint_match = re.compile(gluepoint_prefix + " (\w+)").match(inst)
+    gluepoint_match = regex.compile(gluepoint_prefix + " (\w+)").match(inst)
     if gluepoint_match:
         return gluepoint_match.group(1)
     else:
@@ -83,7 +83,7 @@ def vector_preprocess(code):
     pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
     pass2 = apply_filter(lambda instr: instr != "", pass1)
     pass3 = apply_filter(lambda instr: not (is_jump(instr) and not is_return_inst(instr)), pass2)
-    #pass4 = rename_labels(pass3)
+    # pass4 = rename_labels(pass3)
     return pass3
 
 def scalar_preprocess(code):
@@ -96,9 +96,21 @@ def scalar_preprocess(code):
     #pass3 = apply_transformation(lambda instr: change_label_prefix("L", "SCALAR", instr), pass2)
     return pass2
 
-def rename_labels(code):
-    return code
-    #labels = [l[:-1] for l in code if parse_label(l)]
+# def rename_labels(code):
+#     labels = (parse_label(l[1]) for l in code if parse_label(l[1]))
+#     renamed_code = []
+#     label_regex = regex.compile(r"\.(\w+)(\d+):")
+#     for line_no, instr in code:
+#         label = parse_label(instr)
+#         if label:
+#             m = label_regex.match(instr)
+#             prefix, postfix = m.groups(1), m.groups(2)
+#
+#         else:
+#             renamed_code.append(line_no, instr)
+#
+#     print(labels)
+#     return code
 
 def change_label_prefix(old_prefix, new_prefix, instr):
     return ("."+new_prefix+instr[2:]
@@ -130,7 +142,7 @@ def is_kernel_func_label(l):
     indicated by the naming convention. Return the function name if so and
     `None` otherwise.
     """
-    m = re.match(r'^({}\w+):$'.format(FUNC_PREFIX), l.strip())
+    m = regex.match(r'^({}\w+):$'.format(FUNC_PREFIX), l.strip())
     if m:
         return m.group(1)
     else:
