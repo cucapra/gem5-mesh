@@ -413,7 +413,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   if(used!=0){
     #if defined _VEC
-      atax_vec(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,vtid,vdim,ptid_group);
+      tril_atax(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,vtid,vdim,ptid_group);
     #else
       atax_manycore(a,_x,_y_partial,ax,nx,ny,start,end,ptid);
     #endif

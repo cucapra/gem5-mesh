@@ -1,5 +1,4 @@
 #plug in trilliasm make recipes
-TRILLIASM_FUN_NAME= atax_vec
 TRILLIASM_KERNEL = atax_kernel.c
 TRILLIUM_DIR=../../../trillium
 RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc	
@@ -17,7 +16,7 @@ C_SRCS_NOKERN := main.c $(EXEC).c $(wildcard ../common/*.c)
 C_OBJS_NOKERN := $(C_SRCS_NOKERN:.c=.o)
 
 $(EXEC): $(TRILLIASM_KERNEL:.c=.o) $(C_OBJS_NOKERN)
-		$(RV_CC) $(notdir $^) $(CFLAGS) -o $@
+		$(RV_CC) $^ $(CFLAGS) -o $@
 
 #--debug-flags=Mesh
 run: $(EXEC)
