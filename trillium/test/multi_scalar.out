@@ -1,4 +1,4 @@
-	; ARGS: multi_scalar.s
+	; ARGS: multi_vector.s
 	SCALAR_HEADER
 	tril_somefunc1:
 	.insn i 0x77, 0, x0, a0, 0x401
@@ -33,9 +33,9 @@
 	# trillium: vector vissue blocks end
 	# trillium: footer begin
 	.size whatever
-	F1_SCALAR_FOOTER
 	# trillium: footer end
-tril_somefunc2:
+	F1_SCALAR_FOOTER
+	tril_somefunc2:
 	.insn i 0x77, 0, x0, a0, 0x401
 	F2_BEFORE_VECTOR_EPOCH
 	# trillium: scalar stack cleanup begin
@@ -68,5 +68,5 @@ tril_somefunc2:
 	# trillium: vector vissue blocks end
 	# trillium: footer begin
 	.size whatever
-	F2_SCALAR_FOOTER
 	# trillium: footer end
+	F2_SCALAR_FOOTER
