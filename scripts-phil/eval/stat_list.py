@@ -89,5 +89,37 @@ stats = OrderedDict([
     'regex' : re.compile('system.scratchpads[0-9]+.max_queue_size\s*' + intRegexStr), 
     'ignore-zero' : False,
   }),
+  #
+  ('frame-occupancy1' ,  { 
+    'name' : '1', 
+    'regex' : re.compile('system.scratchpads[0-9]+.occupancy::1\s+' + floatRegexStr), 
+    'ignore-zero' : True,
+  }),
+  ('frame-occupancy2' ,  { 
+    'name' : '2', 
+    'regex' : re.compile('system.scratchpads[0-9]+.occupancy::2\s+' + floatRegexStr), 
+    'ignore-zero' : True,
+  }),
+  ('frame-occupancy3' ,  { 
+    'name' : '3', 
+    'regex' : re.compile('system.scratchpads[0-9]+.occupancy::3\s+' + floatRegexStr), 
+    'ignore-zero' : True,
+  }),
+  ('frame-occupancy4' ,  { 
+    'name' : '4', 
+    'regex' : re.compile('system.scratchpads[0-9]+.occupancy::4\s+' + floatRegexStr), 
+    'ignore-zero' : True,
+  }),
+  ('frame-occupancy5' ,  { 
+    'name' : '5', 
+    'regex' : re.compile('system.scratchpads[0-9]+.occupancy::5\s+' + floatRegexStr), 
+    'ignore-zero' : True,
+  }),
+  ('frame-occupancy6' ,  { 
+    'name' : '6', 
+    'regex' : re.compile('system.scratchpads[0-9]+.occupancy::6\s+' + floatRegexStr), 
+    'ignore-zero' : True,
+  }),
+  #
 
 ])

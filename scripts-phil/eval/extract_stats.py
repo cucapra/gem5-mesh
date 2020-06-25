@@ -77,13 +77,19 @@ def parse_file(fileName):
 
           # setting in stat to ignore in avg when value is 0
           # generally this means this condition is not possible (like in vector config)
-          ignore_zero = v['ignore-zero']
-          if (not (ignore_zero and (int(val) == 0))):
-            try:
-              v['avg'] += int(val)
-            except:
-              v['avg'] += float(val)
-            v['count'] += 1
+          if ('ignore-zero' in v):
+            ignore_zero = v['ignore-zero']
+          else:
+            ignore_zero = False
+          
+          try:
+            arith_val = int(val)
+          except:
+            arith_val = float(val)
+          
+          if (not (ignore_zero and (arith_val == 0))):
+              v['avg'] += arith_val
+              v['count'] += 1
           
           # no reason to search for other values
           #break
