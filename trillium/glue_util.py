@@ -83,8 +83,8 @@ def vector_preprocess(code):
     pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
     pass2 = apply_filter(lambda instr: instr != "", pass1)
     pass3 = apply_filter(lambda instr: not (is_jump(instr) and not is_return_inst(instr)), pass2)
-    # pass4 = rename_labels(pass3)
-    return pass3
+    pass4 = rename_labels("L", "VEC", pass3)
+    return pass4
 
 def scalar_preprocess(code):
     with_line_nos = list(enumerate(code))
@@ -96,21 +96,18 @@ def scalar_preprocess(code):
     #pass3 = apply_transformation(lambda instr: change_label_prefix("L", "SCALAR", instr), pass2)
     return pass2
 
-# def rename_labels(code):
-#     labels = (parse_label(l[1]) for l in code if parse_label(l[1]))
-#     renamed_code = []
-#     label_regex = regex.compile(r"\.(\w+)(\d+):")
-#     for line_no, instr in code:
-#         label = parse_label(instr)
-#         if label:
-#             m = label_regex.match(instr)
-#             prefix, postfix = m.groups(1), m.groups(2)
-#
-#         else:
-#             renamed_code.append(line_no, instr)
-#
-#     print(labels)
-#     return code
+def rename_labels(curr_prefix, new_prefix, code):
+    label_regex = regex.compile(r"(.*)\.({})(\d+)".format(curr_prefix))
+    sub_regex = "{1}." + new_prefix + "{3}"
+    # log.info("applying regex for relabeling: {}".format(r"(.*)\.({})(\d+)".format(curr_prefix)))
+    renamed_code = []
+    for line_no, instr in code:
+        relabeled_instr = label_regex.subf(sub_regex, instr)
+        renamed_code.append((line_no, relabeled_instr))
+        # if relabeled_instr != instr:
+            # log.info("relabeling at line {}: transformed {} to {}".format(str(line_no), instr, relabeled_instr))
+
+    return renamed_code
 
 def change_label_prefix(old_prefix, new_prefix, instr):
     return ("."+new_prefix+instr[2:]
