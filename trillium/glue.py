@@ -375,7 +375,6 @@ def glue(raw_scalar_code, all_vector_bbs):
             footer_parse = parse_footer(l)
 
             if parsed_label != None:
-                log.info("checking if {} is the indirect return label {}...".format(parsed_label, scalar_ret_label))
                 if parsed_label == scalar_ret_label:
                     log.info("found scalar return jump label")
                     state = ScalarParseState.INDIRECT_SCALAR_RET_FOUND
