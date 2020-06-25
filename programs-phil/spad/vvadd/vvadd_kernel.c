@@ -134,15 +134,9 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
   // issue header instructions
   ISSUE_VINST(vector_init_label);
 #elif defined VECTOR_CORE
-  asm("trillium vissue_delim begin vector_init");
+  asm("trillium vissue_delim until_next vector_init");
   DTYPE *cPtr = c + start + vtid;
   int *spadAddr = (int *)getSpAddr(ptid, 0);
-  asm("trillium vissue_delim end");
-#endif
-
-// TODO can we remove?
-#ifdef SCALAR_CORE
-  ISSUE_VINST(trillium_junk0_label);
 #endif
 
 #ifdef SCALAR_CORE
@@ -161,9 +155,8 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
     ISSUE_VINST(vector_body_label);
 
 #elif defined VECTOR_CORE
-  asm("trillium vissue_delim begin vector_body");
+  asm("trillium vissue_delim until_next vector_body");
     vvadd_body(spadAddr, &cPtr, &sp, dim);
-  asm("trillium vissue_delim end");
 #endif
   }
 
@@ -186,12 +179,6 @@ vector_init_label:
 
 vector_body_label:
   asm("trillium glue_point vector_body");
-
-trillium_junk0_label:
-  asm("trillium glue_point trillium_junk0");
-
-//trillium_junk1_label:
-//  asm("trillium glue_point trillium_junk1");
 
 vector_return_label:
   asm("trillium glue_point vector_return");
