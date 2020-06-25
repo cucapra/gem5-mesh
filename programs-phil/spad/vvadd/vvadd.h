@@ -7,11 +7,11 @@
 // one of these should be defined to dictate config
 // #define NO_VEC 1
 // #define VEC_4_SIMD 1
-// #define VEC_4_SIMD_VERTICAL 1
+#define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
 
 // in current system cacheline size is 16 so doesn't make sense to go beyond this for now
-#define VEC_16_SIMD 1
+// #define VEC_16_SIMD 1
 // #define VEC_16_SIMD_VERTICAL 1
 // #define VEC_16_SIMD_SPATIAL_UNROLLED 1
 

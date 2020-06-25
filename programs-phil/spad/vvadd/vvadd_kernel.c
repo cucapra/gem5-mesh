@@ -135,7 +135,11 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
   ISSUE_VINST(vector_init_label);
 #elif defined VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
+  #ifdef VERTICAL_LOADS
+  DTYPE *cPtr = c + start + vtid * LOAD_LEN;
+  #else
   DTYPE *cPtr = c + start + vtid;
+  #endif
   int *spadAddr = (int *)getSpAddr(ptid, 0);
 #endif
 
@@ -162,7 +166,7 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
 
 #ifdef SCALAR_CORE
 // issue the rest
-  for (int i = totalIter - beginIter; i < totalIter; i++)
+  for (int i = totalIter - beginIter; i < totalIter; i+=step)
   {
     ISSUE_VINST(vector_body_label);
   }
