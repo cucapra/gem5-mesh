@@ -1,4 +1,5 @@
 import regex
+from glue_log import *
 from enum import Enum, auto
 
 
@@ -99,13 +100,13 @@ def scalar_preprocess(code):
 def rename_labels(curr_prefix, new_prefix, code):
     label_regex = regex.compile(r"(.*)\.({})(\d+)".format(curr_prefix))
     sub_regex = "{1}." + new_prefix + "{3}"
-    # log.info("applying regex for relabeling: {}".format(r"(.*)\.({})(\d+)".format(curr_prefix)))
+    log.info("applying regex for relabeling: {}".format(r"(.*)\.({})(\d+)".format(curr_prefix)))
     renamed_code = []
     for line_no, instr in code:
         relabeled_instr = label_regex.subf(sub_regex, instr)
         renamed_code.append((line_no, relabeled_instr))
-        # if relabeled_instr != instr:
-            # log.info("relabeling at line {}: transformed {} to {}".format(str(line_no), instr, relabeled_instr))
+        if relabeled_instr != instr:
+            log.info("relabeling at line {}: transformed {} to {}".format(str(line_no), instr, relabeled_instr))
 
     return renamed_code
 
