@@ -11,6 +11,7 @@ from stat_list import stats
 parser = argparse.ArgumentParser(description='Analyze stats file in a given directory')
 parser.add_argument('--sims', default='../../results', help='Path with results you want to analyze')
 parser.add_argument('--outfile', default='../../results/extract.csv', help='CSV Path where extracted data should go')
+parser.add_argument('--prefix', default='vvadd', help='prefix of directory name to parse, could be program for example')
 args = parser.parse_args()
 
 #
@@ -18,7 +19,7 @@ args = parser.parse_args()
 
 dirPaths = []
 
-prog = 'stencil'
+prog = args.prefix
 
 # created by top/eval/run_sim.py
 nameConv = r'^' + prog + r'(.*)$'
