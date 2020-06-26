@@ -381,7 +381,7 @@ CPUClass = MinorCPU(
 
 CPUClass = IOCPU (
   includeVector = options.vector,
-  meshBufferSize = 10
+  meshBufferSize = 2
   ,
   numROBEntries = 8
 

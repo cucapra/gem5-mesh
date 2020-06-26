@@ -6,8 +6,8 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-// #define VEC_4_SIMD 1
-#define VEC_4_SIMD_VERTICAL 1
+#define VEC_4_SIMD 1
+// #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
 
 // in current system cacheline size is 16 so doesn't make sense to go beyond this for now
@@ -40,14 +40,15 @@
 #endif
 
 // prefetch sizings
+#define POST_REGION_WORD 512
 #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
 // load 16 words (whole cacheline at a time)
 #define LOAD_LEN 16
-#define REGION_SIZE LOAD_LEN * 2
-#define NUM_REGIONS 16
+#define REGION_SIZE (LOAD_LEN * 2)
+#define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
 #elif defined(USE_VEC)
 #define REGION_SIZE 2
-#define NUM_REGIONS 256
+#define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
 #endif
 
 // define prefetch len externally

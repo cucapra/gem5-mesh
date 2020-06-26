@@ -398,6 +398,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
             
             // There's an available slot
             TBE tbe := TBEs[LineAddress];
+
+            // if (otherVecLoadInProgress(LineAddress)) {
+            //   trigger(Event:VEC_STALL_WAIT, LineAddress, cache_entry, tbe);
+            // }
           
             // check if vector or not (TODO should prob check RequestType rather than vlen)
             // TODO on vector, taking multiple 'transitions' to send

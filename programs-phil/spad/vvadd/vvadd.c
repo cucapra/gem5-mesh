@@ -147,8 +147,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VEC)
-  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return; 
-  // if (ptid == 3) return;
   if (used == 0) return;
   #endif
 
