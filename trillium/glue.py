@@ -21,6 +21,7 @@ class VectorParseState(Enum):
     # INIT = auto()
     UNTIL_NEXT = auto()
     BEGIN_END = auto()
+    IF_BEGIN_END = auto()
     RETURN = auto()
     JUNK = auto()
 
@@ -65,7 +66,6 @@ def extract_vector_blocks(raw_vector_code):
         elif state == VectorParseState.UNTIL_NEXT:
             delim_parse = parse_delim(l)
             if delim_parse != None:
-                log.info("DEBUG: {}".format(l))
                 log.info("parsed 'until_next'-delimited block: {}".format(curr_vissue_key))
                 delim, new_vissue_key = delim_parse
                 curr_vissue_key = new_vissue_key
@@ -75,6 +75,8 @@ def extract_vector_blocks(raw_vector_code):
                     state = VectorParseState.UNTIL_NEXT
                 elif delim == TrilliumAsmDelim.BEGIN:
                     state = VectorParseState.BEGIN_END
+                elif delim == TrilliumAsmDelim.IF_BEGIN:
+                    state = VectorParseState.IF_BEGIN_END
                 elif delim == TrilliumAsmDelim.RETURN:
                     state = VectorParseState.RETURN
                 else:
@@ -97,6 +99,25 @@ def extract_vector_blocks(raw_vector_code):
             elif delim_parse != None:
                 raise ParseError(
                     "expected `end` delimiter to match `begin` in line {}".format(line_no)
+                )
+            elif not is_jump(l):
+                blocks[curr_func][curr_vissue_key].append(l)
+
+        # in this state, we've just seen the `if-begin` delimiter,
+        # so we're looking for a matching `if-end`
+        elif state == VectorParseState.IF_BEGIN_END:
+            delim_parse = parse_delim(l)
+            if delim_parse == TrilliumAsmDelim.IF_END:
+                log.info("parsed `if-begin/end`-delimited block: {}".format(curr_vissue_key))
+
+                # setup collection of "junk code" after `end` delim and before next delim,
+                # for debugging purposes
+                junk_vissue_key = junk_prefix + str(junk_postfix)
+                blocks[curr_func][junk_vissue_key] = []
+                state = VectorParseState.JUNK
+            elif delim_parse != None:
+                raise ParseError(
+                    "expected `if-end` delimiter to match `if-begin` in line {}".format(line_no)
                 )
             else:
                 blocks[curr_func][curr_vissue_key].append(l)
@@ -127,7 +148,6 @@ def extract_vector_blocks(raw_vector_code):
                 blocks[curr_func][junk_vissue_key].append(l)
 
 
-
         # in this state, we've just seen a `return` delimiter,
         # so we're looking for a "return-like" assembly.
         # Once we find it, we've completed a Trillism kernel parse
@@ -154,6 +174,8 @@ def extract_vector_blocks(raw_vector_code):
                     b.append(terminator)
                 state = VectorParseState.START #get the next kernel, if any
             else:
+                #TODO: this assumes the only branch/jump instruction has return address as target.
+                #      Should this error out otherwise?
                 blocks[curr_func][curr_vissue_key].append(l)
 
     # After the state machine finishes, we should end up in the RETURN

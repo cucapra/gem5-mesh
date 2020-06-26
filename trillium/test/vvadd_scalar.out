@@ -317,6 +317,7 @@
 .SCALAR5:  # trillium_junk0 vissue block
 	lw	a5,12(sp)
 	sext.w	a5,a5
+	beqz	a5,.VEC2
 	lw	a1,32(sp)
 	li	a5,0
 	li	a3,2

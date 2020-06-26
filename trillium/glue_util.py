@@ -49,7 +49,9 @@ def parse_footer(inst):
 class TrilliumAsmDelim(Enum):
     UNTIL_NEXT = auto()
     BEGIN = auto()
+    IF_BEGIN = auto()
     END = auto()
+    IF_END = auto()
     RETURN = auto()
 
 
@@ -58,6 +60,8 @@ def parse_delim(inst):
     until_next_delim_match = regex.compile(delim_prefix + "\s+until_next\s+(\w+)").match(inst)
     begin_delim_match = regex.compile(delim_prefix + "\s+begin\s+(\w+)").match(inst)
     end_delim_match = regex.compile(delim_prefix + "\s+end").match(inst)
+    if_begin_delim_match = regex.compile(delim_prefix + "\s+if_begin\s+(\w+)").match(inst)
+    if_end_delim_match = regex.compile(delim_prefix + "\s+if_end").match(inst)
     return_delim_match = regex.compile(delim_prefix + "\s+return\s+(\w+)").match(inst)
     if until_next_delim_match:
         return TrilliumAsmDelim.UNTIL_NEXT, until_next_delim_match.group(1)
@@ -65,6 +69,10 @@ def parse_delim(inst):
         return TrilliumAsmDelim.BEGIN, begin_delim_match.group(1)
     elif end_delim_match:
         return TrilliumAsmDelim.END#, end_delim_match.group(1)
+    elif if_begin_delim_match:
+        return TrilliumAsmDelim.IF_BEGIN, if_begin_delim_match.group(1)
+    elif if_end_delim_match:
+        return TrilliumAsmDelim.IF_END#, if_end_delim_match.group(1)
     elif return_delim_match:
         return TrilliumAsmDelim.RETURN, return_delim_match.group(1)
     else:
@@ -83,9 +91,9 @@ def vector_preprocess(code):
     with_line_nos = list(enumerate(code))
     pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
     pass2 = apply_filter(lambda instr: instr != "", pass1)
-    pass3 = apply_filter(lambda instr: not (is_jump(instr) and not is_return_inst(instr)), pass2)
-    pass4 = rename_labels("L", "VEC", pass3)
-    return pass4
+    #pass3 = apply_filter(lambda instr: not (is_jump(instr) and not is_return_inst(instr)), pass2)
+    pass3 = rename_labels("L", "VEC", pass2)
+    return pass3
 
 def scalar_preprocess(code):
     with_line_nos = list(enumerate(code))
