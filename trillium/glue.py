@@ -119,7 +119,7 @@ def extract_vector_blocks(raw_vector_code):
                 raise ParseError(
                     "expected `if-end` delimiter to match `if-begin` in line {}".format(line_no)
                 )
-            elif not is_jump(l):
+            else:
                 blocks[curr_func][curr_vissue_key].append(l)
 
         # in this state, we've just finished a begin/end block,
