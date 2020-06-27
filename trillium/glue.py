@@ -81,7 +81,7 @@ def extract_vector_blocks(raw_vector_code):
                     state = VectorParseState.RETURN
                 else:
                     raise ParseError("unrecognized delim found: check parse_delim function")
-            else:
+            elif not is_jump(l):
                 blocks[curr_func][curr_vissue_key].append(l)
 
         # in this state, we've just seen the `begin` delimiter,
@@ -119,7 +119,7 @@ def extract_vector_blocks(raw_vector_code):
                 raise ParseError(
                     "expected `if-end` delimiter to match `if-begin` in line {}".format(line_no)
                 )
-            else:
+            elif not is_jump(l):
                 blocks[curr_func][curr_vissue_key].append(l)
 
         # in this state, we've just finished a begin/end block,
