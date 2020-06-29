@@ -3,7 +3,7 @@
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
-void template_vec(int mask)
+void tril_template_vec(int mask)
 {
   //this template uses separate scalar and vector code blocks but they can be interspersed as well as shown here
   //https://github.com/cucapra/gem5-mesh/wiki/Trilliasm-Language-Overview:-Vector-SIMD-in-C

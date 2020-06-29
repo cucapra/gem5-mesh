@@ -10,6 +10,6 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
-void vvadd_execute_simd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int is_master);
+void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int is_master);
 
 #endif

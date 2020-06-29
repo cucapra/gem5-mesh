@@ -8,7 +8,7 @@ static inline int _idx_(int y, int x, int width)
   return (y * width) + x;
 }
 
-void atax_vec(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
+void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
       int nx_start, int nx_end, int ptid, int vtid, int dim, int* ptid_group)
 {
 

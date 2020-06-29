@@ -1,6 +1,10 @@
 import re
 from enum import Enum, auto
 
+
+FUNC_PREFIX = 'tril_'
+
+
 # utilities for parsing instructions
 def is_return_inst(inst):
     inst_components = inst.split()
@@ -89,8 +93,11 @@ def scalar_preprocess(code):
     with_line_nos = list(enumerate(code))
     pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
     pass2 = apply_filter(lambda instr: instr != "", pass1)
-    pass3 = apply_transformation(lambda instr: change_label_prefix("L", "SCALAR", instr), pass2)
-    return pass3
+    # This pass renames the labels in the scalar file so they don't conflict with labels that come from the vector code. 
+    # It's currently broken because we don't update the corresponding references. 
+    # But this will become a problem in the future when we try to use labels from the vector code, at which point we will need to rename one or the other.
+    #pass3 = apply_transformation(lambda instr: change_label_prefix("L", "SCALAR", instr), pass2)
+    return pass2
 
 def change_label_prefix(old_prefix, new_prefix, instr):
     return ("."+new_prefix+instr[2:]
@@ -117,3 +124,13 @@ def pretty(code):
         if not is_label(l)
         else l for l in code])
 
+def is_kernel_func_label(l):
+    """Check whether a line of assembly is the label for a kernel function, as
+    indicated by the naming convention. Return the function name if so and
+    `None` otherwise.
+    """
+    m = re.match(r'^({}\w+):$'.format(FUNC_PREFIX), l.strip())
+    if m:
+        return m.group(1)
+    else:
+        return None
