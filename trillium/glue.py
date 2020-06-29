@@ -382,6 +382,10 @@ def glue(raw_scalar_code, all_vector_bbs):
 
             elif vissue_key != None:
                 # Save the glue point for later code insertion.
+                if not labels:
+                    raise ParseError(
+                        'glue point {} is missing a label'.format(vissue_key),
+                    )
                 latest_label = labels.pop()
                 glue_points[latest_label] = cur_kernel_func, vissue_key
 
