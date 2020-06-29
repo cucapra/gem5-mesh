@@ -21,12 +21,16 @@ RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
 
 CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 
-C_SRCS_NOKERN := $(filter-out $(TRILLIASM_KERNEL), $(wildcard *.c)) $(wildcard ../common/*.c)
+C_SRCS_NOKERN := $(filter-out $(TRILLIASM_KERNEL), $(wildcard *.c))
 C_DEPS_NOKERN := $(C_SRCS_NOKERN:.c=.o)
-C_OBJS_NOKERN := $(notdir $(C_SRCS_NOKERN:.c=.o))
 
-$(BENCHNAME) : $(TRILLIASM_OBJS) $(C_DEPS_NOKERN)
-	$(RV_CC) $(TRILLIASM_OBJS) $(C_OBJS_NOKERN) $(CFLAGS) -o $@
+# Build common libraries, but build them "locally" (in this directory) so
+# they get updated according to this benchmark's configuration.
+COMMON_SRCS := $(wildcard $(COMMON_DIR)/*.c)
+COMMON_OBJS := $(notdir $(COMMON_SRCS:.c=.o))
+
+$(BENCHNAME) : $(TRILLIASM_OBJS) $(C_DEPS_NOKERN) $(COMMON_OBJS)
+	$(RV_CC) $(TRILLIASM_OBJS) $(C_DEPS_NOKERN) $(COMMON_OBJS) $(CFLAGS) -o $@
 
 run: $(BENCHNAME)
 	$(BASE_DIR)/build/RVSP/gem5.opt \
@@ -37,8 +41,11 @@ run: $(BENCHNAME)
 	--num-cpus=$(N_SPS) \
 	--vector
 
-$(C_DEPS_NOKERN): %.o : %.c
-	$(RV_CC) $(CFLAGS) -c $^ -o $(notdir $@)
+$(C_DEPS_NOKERN): %.o: %.c
+	$(RV_CC) $(CFLAGS) -c $^ -o $@
+
+$(COMMON_OBJS): %.o: $(COMMON_DIR)/%.c
+	$(RV_CC) $(CFLAGS) -c $^ -o $@
 
 clean:
 	rm -rf *.o *.s $(BENCHNAME) m5out
