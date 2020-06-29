@@ -1,31 +1,8 @@
 from collections import OrderedDict
 from glue_util import *
+from glue_log import *
 import argparse
-import logging
-import colorlog
 from enum import Enum, auto
-
-
-# Set up logging with ***colors***.
-_handler = colorlog.StreamHandler()
-_handler.setFormatter(colorlog.ColoredFormatter(
-    '%(log_color)s%(message)s',
-    log_colors={
-        'DEBUG':    'thin_white',
-        'INFO':     'thin_white',
-        'WARNING':  'yellow',
-        'ERROR':    'red',
-        'CRITICAL': 'red',
-    },
-))
-log = colorlog.getLogger('trillium')
-log.setLevel(logging.INFO)
-log.addHandler(_handler)
-
-
-class ParseError(Exception):
-    """The input assembly programs were in an unexpected form.
-    """
 
 
 # 3 kinds of delimiters demarcate the boundaries of vissue blocks in vector code
@@ -44,11 +21,12 @@ class VectorParseState(Enum):
     # INIT = auto()
     UNTIL_NEXT = auto()
     BEGIN_END = auto()
+    IF_BEGIN_END = auto()
     RETURN = auto()
     JUNK = auto()
 
 
-def read_vector_bbs(raw_vector_code):
+def extract_vector_blocks(raw_vector_code):
     vector_code = vector_preprocess(raw_vector_code)
 
     blocks = {}
@@ -97,11 +75,13 @@ def read_vector_bbs(raw_vector_code):
                     state = VectorParseState.UNTIL_NEXT
                 elif delim == TrilliumAsmDelim.BEGIN:
                     state = VectorParseState.BEGIN_END
+                elif delim == TrilliumAsmDelim.IF_BEGIN:
+                    state = VectorParseState.IF_BEGIN_END
                 elif delim == TrilliumAsmDelim.RETURN:
                     state = VectorParseState.RETURN
                 else:
                     raise ParseError("unrecognized delim found: check parse_delim function")
-            else:
+            elif not is_jump(l):
                 blocks[curr_func][curr_vissue_key].append(l)
 
         # in this state, we've just seen the `begin` delimiter,
@@ -119,6 +99,25 @@ def read_vector_bbs(raw_vector_code):
             elif delim_parse != None:
                 raise ParseError(
                     "expected `end` delimiter to match `begin` in line {}".format(line_no)
+                )
+            elif not is_jump(l):
+                blocks[curr_func][curr_vissue_key].append(l)
+
+        # in this state, we've just seen the `if-begin` delimiter,
+        # so we're looking for a matching `if-end`
+        elif state == VectorParseState.IF_BEGIN_END:
+            delim_parse = parse_delim(l)
+            if delim_parse == TrilliumAsmDelim.IF_END:
+                log.info("parsed `if-begin/end`-delimited block: {}".format(curr_vissue_key))
+
+                # setup collection of "junk code" after `end` delim and before next delim,
+                # for debugging purposes
+                junk_vissue_key = junk_prefix + str(junk_postfix)
+                blocks[curr_func][junk_vissue_key] = []
+                state = VectorParseState.JUNK
+            elif delim_parse != None:
+                raise ParseError(
+                    "expected `if-end` delimiter to match `if-begin` in line {}".format(line_no)
                 )
             else:
                 blocks[curr_func][curr_vissue_key].append(l)
@@ -149,7 +148,6 @@ def read_vector_bbs(raw_vector_code):
                 blocks[curr_func][junk_vissue_key].append(l)
 
 
-
         # in this state, we've just seen a `return` delimiter,
         # so we're looking for a "return-like" assembly.
         # Once we find it, we've completed a Trillism kernel parse
@@ -176,6 +174,8 @@ def read_vector_bbs(raw_vector_code):
                     b.append(terminator)
                 state = VectorParseState.START #get the next kernel, if any
             else:
+                #TODO: this assumes the only branch/jump instruction has return address as target.
+                #      Should this error out otherwise?
                 blocks[curr_func][curr_vissue_key].append(l)
 
     # After the state machine finishes, we should end up in the RETURN
@@ -374,7 +374,6 @@ def glue(raw_scalar_code, all_vector_bbs):
             footer_parse = parse_footer(l)
 
             if parsed_label != None:
-                log.info("checking if {} is the indirect return label {}...".format(parsed_label, scalar_ret_label))
                 if parsed_label == scalar_ret_label:
                     log.info("found scalar return jump label")
                     state = ScalarParseState.INDIRECT_SCALAR_RET_FOUND
@@ -469,7 +468,7 @@ if __name__ == "__main__":
 
     try:
         # Parse the vector assembly and extract the vector blocks.
-        vector_blocks = read_vector_bbs(vector_code)
+        vector_blocks = extract_vector_blocks(vector_code)
         log.info("Extracted the following Trilliasm Kernel vector blocks:")
         for func_name in vector_blocks.keys():
             log.info("For function {}:".format(func_name))

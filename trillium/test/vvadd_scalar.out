@@ -12,10 +12,10 @@
 	divw	a7,a5,a3
 	li	a5,15
 	mv	a0,a7
-	bgt	a7,a5,.L16
+	bgt	a7,a5,.SCALAR16
 	mv	a6,a7
-	blez	a7,.L3
-.L2:
+	blez	a7,.SCALAR3
+.SCALAR2:
 	slli	a5,a4,2
 	add	t3,a1,a5
 	li	t1,0
@@ -26,7 +26,7 @@
 	.insn sb 0x23, 0x6, t1, 16(a5)
 	.insn sb 0x23, 0x7, t1, 16(a5)
 	li	a5,1
-	beq	a6,a5,.L3
+	beq	a6,a5,.SCALAR3
 	add	a5,a3,a4
 	slli	a5,a5,2
 	add	t3,a1,a5
@@ -38,7 +38,7 @@
 	.insn sb 0x23, 0x6, t1, 16(a5)
 	.insn sb 0x23, 0x7, t1, 16(a5)
 	li	a5,2
-	beq	a6,a5,.L3
+	beq	a6,a5,.SCALAR3
 	slliw	t1,a3,1
 	mv	a5,t1
 	add	t1,t1,a4
@@ -52,7 +52,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,3
-	beq	a6,t1,.L3
+	beq	a6,t1,.SCALAR3
 	addw	t1,a5,a3
 	mv	a5,t1
 	add	t1,t1,a4
@@ -66,7 +66,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,4
-	beq	a6,t1,.L3
+	beq	a6,t1,.SCALAR3
 	addw	t1,a5,a3
 	mv	a5,t1
 	add	t1,t1,a4
@@ -80,7 +80,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,5
-	beq	a6,t1,.L3
+	beq	a6,t1,.SCALAR3
 	addw	t1,a3,a5
 	mv	a5,t1
 	add	t1,t1,a4
@@ -94,7 +94,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,6
-	beq	a6,t1,.L3
+	beq	a6,t1,.SCALAR3
 	addw	t1,a3,a5
 	mv	a5,t1
 	add	t1,t1,a4
@@ -108,7 +108,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,7
-	beq	a6,t1,.L3
+	beq	a6,t1,.SCALAR3
 	addw	t1,a3,a5
 	mv	a5,t1
 	add	t1,t1,a4
@@ -122,7 +122,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,8
-	beq	a6,t1,.L3
+	beq	a6,t1,.SCALAR3
 	addw	t1,a3,a5
 	mv	a5,t1
 	add	t1,t1,a4
@@ -136,7 +136,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,9
-	beq	a6,t1,.L3
+	beq	a6,t1,.SCALAR3
 	addw	t1,a3,a5
 	mv	a5,t1
 	add	t1,t1,a4
@@ -150,7 +150,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,10
-	beq	a6,t1,.L3
+	beq	a6,t1,.SCALAR3
 	addw	t1,a3,a5
 	mv	a5,t1
 	add	t1,t1,a4
@@ -164,7 +164,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,11
-	beq	a6,t1,.L3
+	beq	a6,t1,.SCALAR3
 	addw	t1,a3,a5
 	mv	a5,t1
 	add	t1,t1,a4
@@ -178,7 +178,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,12
-	beq	a6,t1,.L3
+	beq	a6,t1,.SCALAR3
 	addw	t1,a3,a5
 	mv	a5,t1
 	add	t1,t1,a4
@@ -192,7 +192,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,13
-	beq	a6,t1,.L3
+	beq	a6,t1,.SCALAR3
 	addw	t1,a3,a5
 	mv	a5,t1
 	add	t1,t1,a4
@@ -206,7 +206,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,14
-	beq	a6,t1,.L3
+	beq	a6,t1,.SCALAR3
 	addw	t1,a3,a5
 	mv	a5,t1
 	add	t1,t1,a4
@@ -220,7 +220,7 @@
 	.insn sb 0x23, 0x6, t3, 16(t1)
 	.insn sb 0x23, 0x7, t3, 16(t1)
 	li	t1,16
-	bne	a6,t1,.L18
+	bne	a6,t1,.SCALAR18
 	addw	a5,a5,a3
 	add	a5,a5,a4
 	slli	a5,a5,2
@@ -232,19 +232,19 @@
 	add	a5,a2,a5
 	.insn sb 0x23, 0x6, t1, 16(a5)
 	.insn sb 0x23, 0x7, t1, 16(a5)
-.L3:
-	.insn uj 0x6b, x0, .L4
-	.insn uj 0x6b, x0, .L5
+.SCALAR3:
+	.insn uj 0x6b, x0, .SCALAR4
+	.insn uj 0x6b, x0, .SCALAR5
 	slliw	a5,a6,1
-	bge	a6,a7,.L6
+	bge	a6,a7,.SCALAR6
 	mulw	t1,a6,a3
 	mv	t3,a6
 	slli	a3,a3,2
 	li	t5,512
 	add	a4,t1,a4
 	slli	a4,a4,2
-.L7:
-	.insn uj 0x6b, x0, .L8
+.SCALAR7:
+	.insn uj 0x6b, x0, .SCALAR8
 	add	t1,a1,a4
 	.insn sb 0x23, 0x6, a5, 16(t1)
 	.insn sb 0x23, 0x7, a5, 16(t1)
@@ -255,39 +255,39 @@
 	addiw	a5,a5,2
 	addiw	t3,t3,1
 	add	a4,a4,a3
-	beq	a5,t5,.L23
-	bne	a7,t3,.L7
-.L6:
+	beq	a5,t5,.SCALAR23
+	bne	a7,t3,.SCALAR7
+.SCALAR6:
 	subw	a0,a0,a6
-	ble	a7,a0,.L11
-.L12:
-	.insn uj 0x6b, x0, .L8
+	ble	a7,a0,.SCALAR11
+.SCALAR12:
+	.insn uj 0x6b, x0, .SCALAR8
 	addiw	a0,a0,1
-	bne	a7,a0,.L12
-.L11:
-	.insn uj 0x6b, x0, .L13
+	bne	a7,a0,.SCALAR12
+.SCALAR11:
+	.insn uj 0x6b, x0, .SCALAR13
 	# trillium: scalar stack cleanup begin
 	# trillium: scalar stack cleanup end
-.L14:
-	.insn uj 0x2b, x0, .L14
+.SCALAR14:
+	.insn uj 0x2b, x0, .SCALAR14
 	fence
 	ret
 	# trillium: auxiliary blocks begin
 .trillium_anon_aux_bb:
 	ret
-.L16:
+.SCALAR16:
 	li	a6,16
-	j	.L2
-.L23:
-	beq	a7,t3,.L6
+	j	.SCALAR2
+.SCALAR23:
+	beq	a7,t3,.SCALAR6
 	li	a5,0
-	j	.L7
-.L18:
+	j	.SCALAR7
+.SCALAR18:
 	li	a6,15
-	j	.L3
+	j	.SCALAR3
 	# trillium: auxiliary blocks end
 	# trillium: vector vissue blocks begin
-.L4:  # vector_init vissue block
+.SCALAR4:  # vector_init vissue block
 	#prepended trillium_init block here (See docs for more info)
 	#trillium_init begin
 	addi	sp,sp,-32
@@ -301,7 +301,7 @@
 	add	s0,a3,s0
 	call	getSpAddr
 	.insn i 0x1b, 0x7, x0, x0, 0
-.L8:  # vector_body vissue block
+.SCALAR8:  # vector_body vissue block
 	.insn i 0x1b, 0x3, x0, a3, 0
 	slli	a4,a5,2
 	add	a4,a0,a4
@@ -314,15 +314,17 @@
 	add	s0,s0,a1
 	andi	a5,a5,511
 	.insn i 0x1b, 0x7, x0, x0, 0
-.L5:  # trillium_junk0 vissue block
+.SCALAR5:  # trillium_junk0 vissue block
 	lw	a5,12(sp)
 	sext.w	a5,a5
+	beqz	a5,.VEC2
 	lw	a1,32(sp)
 	li	a5,0
 	li	a3,2
 	slli	a1,a1,2
+.VEC3:
 	.insn i 0x1b, 0x7, x0, x0, 0
-.L13:  # vector_return vissue block
+.SCALAR13:  # vector_return vissue block
 	ld	ra,24(sp)
 	ld	s0,16(sp)
 	addi	sp,sp,32

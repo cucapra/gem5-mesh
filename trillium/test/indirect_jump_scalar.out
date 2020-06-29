@@ -7,28 +7,32 @@
 	SCALAR_STACK_CLEANUP_1
 	SCALAR_STACK_CLEANUP_2
 	# trillium: scalar stack cleanup end
-.L1:
-	.insn uj 0x2b, x0, .L14
-.L2:
+.SCALAR1:
+	.insn uj 0x2b, x0, .SCALAR14
+.SCALAR2:
 	SCALAR_AFTER_DEVEC
 	ret
 	# trillium: auxiliary blocks begin
 .trillium_anon_aux_bb:
 	SCALAR_AFTER_RETURN
-.L4:
+.SCALAR4:
 	AN_AUXILIARY_BLOCK
-.L6:
+.SCALAR6:
 	ANOTHER_AUXILIARY_BLOCK
 	# trillium: auxiliary blocks end
 	# trillium: vector vissue blocks begin
-.L3:  # block_one vissue block
+.SCALAR3:  # block_one vissue block
 	#prepended trillium_init block here (See docs for more info)
 	#trillium_init begin
 	TRILLIUM_INIT_BLOCK
+.VEC1:
 	#trillium_init end
+.VEC2:
 	VECTOR_BLOCK_ONE
+.VEC3:
 	.insn i 0x1b, 0x7, x0, x0, 0
-.L5:  # block_two vissue block
+.SCALAR5:  # block_two vissue block
+.VEC6:
 	VECTOR_BLOCK_TWO
 	.insn i 0x1b, 0x7, x0, x0, 0
 	# trillium: vector vissue blocks end

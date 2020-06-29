@@ -1,0 +1,1 @@
+command = "make -C {filename} -s clean && make -C {filename} -s run | grep 'SUCCESS'"
