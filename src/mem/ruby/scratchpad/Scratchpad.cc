@@ -670,8 +670,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     bool isPrefetch = pkt_p->isSpadPrefetch();
     bool noAckStore = pkt_p->isStoreNoAck();
     bool noLLCAck = isPrefetch || noAckStore;
-    bool pendingPktSpad = (m_pending_pkt_map.size() < m_max_num_pending_pkts) || noLLCAck;
-    if (isPrefetch && pendingPktSpad) {
+    // bool pendingPktSpad = (m_pending_pkt_map.size() < m_max_num_pending_pkts) || noLLCAck;
+    if (isPrefetch /*&& pendingPktSpad*/) {
       // setWordNotRdy(pkt_p->getPrefetchAddr());
       
       // DPRINTF(Mesh, "reset word %#x\n", pkt_p->getPrefetchAddr());
@@ -683,6 +683,14 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       m_cpu_resp_pkts.push_back(resp_pkt_p);
       if (!m_cpu_resp_event.scheduled())
         schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+
+
+      // log that we sent
+      m_cpu_p->getSystemPtr()->initPrefetch(pkt_p->getPrefetchAddr(),
+        pkt_p->getXOrigin(), pkt_p->getYOrigin(),
+        pkt_p->getXDim(), pkt_p->getYDim(), m_grid_dim_x,
+        pkt_p->getCoreOffset(), pkt_p->getRespCnt(), (bool)pkt_p->getPrefetchConfig());
+
     }
     // // immedietly send an ACK back for a write if no syncronization is needed
     // // TODO mark writes as need sync or no need sync
@@ -1259,6 +1267,9 @@ Scratchpad::setWordRdy(Addr addr) {
   // assert(!memDiv);
 
   // tag = 1;
+
+  m_cpu_p->getSystemPtr()->cmplPrefetch(addr);
+
 
   // increment the counter for number of expected loads
   // need to find the right regon cntr

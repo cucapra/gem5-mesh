@@ -185,6 +185,7 @@ int main(int argc, char *argv[]) {
   
   if (skip_check) {
     printf("Skipping verification\n");
+    printf("[[SUCCESS]]\n");
     free(a_ptr);
     free(b_ptr);
     free(c_ptr);

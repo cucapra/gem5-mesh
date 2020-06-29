@@ -121,5 +121,10 @@ stats = OrderedDict([
     'ignore-zero' : True,
   }),
   #
+  ('prefetch-latency' ,  { 
+    'name' : 'prefetch-latency', 
+    'regex' : re.compile('system.prefetch_latencies::([0-9\-]+)\s+' + intRegexStr), 
+    'hist' : True,
+  }),
 
 ])

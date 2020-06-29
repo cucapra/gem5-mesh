@@ -51,6 +51,7 @@ inline void prefetch_vert_frame(DTYPE *a, int r, int c, int ncols, int dim, int 
   for (int k1 = 0; k1 < FILTER_DIM; k1++) {
     for (int core = 0; core < dim; core++) {
       int aIdx = (r + k1) * ncols + c + core * CORE_STEP;
+      // int aIdx = core * 16; // at least for size 4, only use 4/8 caches so less bw
       // printf("mid issue r %d c %d k1 %d core %d, depth %d, aIdx %d\n", r, c, k1, core, LOAD_DEPTH, aIdx);
       VPREFETCH_L(*spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
       VPREFETCH_R(*spadIdx, a + aIdx, core, LOAD_DEPTH, 1);

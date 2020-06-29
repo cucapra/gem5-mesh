@@ -399,6 +399,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
             // There's an available slot
             TBE tbe := TBEs[LineAddress];
 
+            // can we have a stat for number of times blocked
+            // and also number of times vec request was interrupted by another?
+            // this make marginally better, so maybe does have to do with interupptions?
             // if (otherVecLoadInProgress(LineAddress)) {
             //   trigger(Event:VEC_STALL_WAIT, LineAddress, cache_entry, tbe);
             // }
