@@ -19,10 +19,9 @@ CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T.
 
 C_SRCS_NOKERN := $(filter-out $(TRILLIASM_KERNEL), $(wildcard *.c)) $(wildcard ../common/*.c)
 C_DEPS_NOKERN := $(C_SRCS_NOKERN:.c=.o)
-C_OBJS_NOKERN := $(notdir $(C_SRCS_NOKERN:.c=.o))
 
 $(BENCHNAME) : $(TRILLIASM_OBJS) $(C_DEPS_NOKERN)
-	$(RV_CC) $(TRILLIASM_OBJS) $(C_OBJS_NOKERN) $(CFLAGS) -o $@
+	$(RV_CC) $(TRILLIASM_OBJS) $(C_DEPS_NOKERN) $(CFLAGS) -o $@
 
 run : $(BENCHNAME)
 	~/gem5-mesh/build/RVSP/gem5.opt \
