@@ -10,6 +10,8 @@
 
 #include "if_test_kernel.h"
 
+#define USE_VEC
+
 // use this to chunk data among vector groups
 // https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
 int roundUp(int numToRound, int multiple) {
@@ -28,12 +30,6 @@ int roundUp(int numToRound, int multiple) {
   else {
     return numToRound + multiple - remainder;
   }
-}
-
-void __attribute__((optimize("-fno-inline")))
-template_manycore()
-{
-
 }
 
 void reduce_vector_manycore(DTYPE* partialVec, DTYPE *c, int ptid, int activeTid, int dim, token_queue_t *cons0, 
@@ -292,11 +288,10 @@ void kernel(DTYPE *a, int n,
       : [ spad ] "r"(spTop));
 
 
-#if defined USE_VECTOR_SIMD
-  template_vec(mask);
-
+#if defined USE_VEC
+  tril_if_delim_test(mask);
 #else
-  template_manycore();
+  #error manycore unsupported
 #endif
 
   // restore stack pointer
