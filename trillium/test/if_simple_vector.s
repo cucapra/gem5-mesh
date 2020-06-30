@@ -5,11 +5,12 @@ tril_somefunc:
 	trillium vissue_delim if_begin if_block
   .L2:
   VECTOR_IF_BLOCK
-  j .L4
+  bnez r0 .L4
+  TRUE_BRANCH
+  .L4:
+  FALSE_BRANCH
   .L3:
 	trillium vissue_delim end
-  .L4:
-  VECTOR_JUNK0
   .L5:
 	trillium vissue_delim return vector_return
   .L6:

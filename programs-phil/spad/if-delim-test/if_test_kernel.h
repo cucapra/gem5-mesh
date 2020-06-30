@@ -5,10 +5,10 @@
 #include <stdio.h>
 
 #include "pthread_launch.h"
-#include "template.h"
+#include "if_test.h"
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
-void template_vec(int mask);
+void tril_if_delim_test(int mask, DTYPE *outbuf);
 
 #endif

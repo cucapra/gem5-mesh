@@ -5,7 +5,7 @@
 
 #include "spad.h"
 #include "pthread_launch.h"
-#include "template.h"
+#include "if_test.h"
 
 
 int main(int argc, char *argv[])
@@ -80,11 +80,19 @@ int main(int argc, char *argv[])
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
 
-  // if (incorrect){
-  //   printf("[[FAIL]]\n");
-  //   return 1;
-  // }
+  int incorrect = 0;
+  for (int i = 0; i < 100; ++i) {
+    int expected = i == 6 ? 42 : i + 1;
+    if (a[i] != expected) {
+      printf("a[%i] == %i; expected %i\n", i, a[i], expected);
+      incorrect = 1;
+    }
+  }
 
+  if (incorrect){
+    printf("[[FAIL]]\n");
+    return 1;
+  }
 
   free(a_ptr);
   printf("[[SUCCESS]]\n");

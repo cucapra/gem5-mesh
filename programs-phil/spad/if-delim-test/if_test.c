@@ -2,13 +2,15 @@
 #include <stdio.h>
 
 #include "pthread_launch.h"
-#include "template.h"
+#include "if_test.h"
 #include "spad.h"
 #include "../../common/bind_defs.h"
 #include "token_queue.h"
 #include "group_templates.h"
 
-#include "template_kernel.h"
+#include "if_test_kernel.h"
+
+#define USE_VEC
 
 // use this to chunk data among vector groups
 // https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
@@ -28,12 +30,6 @@ int roundUp(int numToRound, int multiple) {
   else {
     return numToRound + multiple - remainder;
   }
-}
-
-void __attribute__((optimize("-fno-inline")))
-template_manycore()
-{
-
 }
 
 void reduce_vector_manycore(DTYPE* partialVec, DTYPE *c, int ptid, int activeTid, int dim, token_queue_t *cons0, 
@@ -121,7 +117,6 @@ int get_reduction_dest(template_info_t *tinfo, int group_id, int vid_x, int vid_
 void kernel(DTYPE *a, int n,
     int tid_x, int tid_y, int dim_x, int dim_y)
 {
-
   // start recording all stats (all cores)
   if (tid_x == 0 && tid_y == 0)
   {
@@ -292,11 +287,10 @@ void kernel(DTYPE *a, int n,
       : [ spad ] "r"(spTop));
 
 
-#if defined USE_VECTOR_SIMD
-  template_vec(mask);
-
+#if defined USE_VEC
+  tril_if_delim_test(mask, a);
 #else
-  template_manycore();
+  #error manycore unsupported
 #endif
 
   // restore stack pointer
