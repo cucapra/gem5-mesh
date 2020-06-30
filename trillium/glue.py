@@ -66,7 +66,7 @@ def extract_vector_blocks(raw_vector_code):
         elif state == VectorParseState.UNTIL_NEXT:
             delim_parse = parse_delim(l)
 
-            if delim_parse == TrilliumAsmDelim.END:
+            if delim_parse and delim_parse[0] == TrilliumAsmDelim.END:
                 raise ParseError(
                     'until_next block {} terminated with end'.format(
                         curr_vissue_key
@@ -97,8 +97,9 @@ def extract_vector_blocks(raw_vector_code):
         elif state in (VectorParseState.BEGIN_END,
                        VectorParseState.IF_BEGIN_END):
             delim_parse = parse_delim(l)
-            if delim_parse == TrilliumAsmDelim.END:
+            if delim_parse and delim_parse[0] == TrilliumAsmDelim.END:
                 log.info("parsed `begin/end`-delimited block: {}".format(curr_vissue_key))
+                _, qualifier = delim_parse
 
                 # setup collection of "junk code" after `end` delim and before next delim,
                 # for debugging purposes
