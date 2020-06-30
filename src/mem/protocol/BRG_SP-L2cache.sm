@@ -26,23 +26,15 @@ machine(MachineType:L2Cache, "SP LLC cache")
   //---------------------------------------------------------------------------
   
   // counters in the mem controller
-  //int _xCnt := 0;
-  //int _yCnt := 0;
+  // cpu-side and mem-side are allowed to send one vec resp per-cycle
+  int _vecCntCpuSide, default=0;
+  int _vecCntMemSide, default=0;
 
-  // int _vecCnt := 0;
-  int _vecCnt, default=0;
-      
-  // prevent both inports from starting vector op while other is in progress
-  // TODO this prob should also prevent multiple vector ops from happening in the same
-  // cycle. Currenlty allowing (just like for cache lines) where send all in 1 cycle
-  // and have the network serialize it.
-  // bool _vecFromMem := false;
-  // bool _vecFromLLC := false;
-  bool _vecFromMem, default=0;
-  bool _vecFromLLC, default=0;
+  Tick _lastVecRespTimeCpuSide, default=0;
+  Tick _lastVecRespTimeMemSide, default=0;
 
-  Tick _lastVecRespTime, default=0;
-  Addr _lastServicedVecAddr, default=0;
+  Addr _lastServicedVecAddrCpuSide, default=0;
+  Addr _lastServicedVecAddrMemSide, default=0;
 
   // only uses contructor when its a TBETable...
     //TBETable lloool, template="<L2Cache_TBE>", constructor="0";
@@ -81,7 +73,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
     ATOMIC, desc = "An ATOMIC request arrives";
     Repl,   desc = "Replacement";
     STALL,  desc = "Just stall for the cycle";
-    VEC_STALL_WAIT, desc = "Stall wait the message due to vector";
+    VEC_STALL_WAIT, desc = "Stall wait the message due to vector cpu port";
+    VEC_STALL_WAIT_MEM, desc = "Stall wait the message due to vector mem port";
     // from memory
     Memory_Data,  desc = "Fetched data from memory arrives";
     VData0,       desc = "Fetched data from memory arrives and do vec op"; // kinda hacky
@@ -239,9 +232,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return cacheMemory.isTagPresent(addr);
   }
   
-  int getLinearIdx(int xDim, int yDim) {
-    return _vecCnt;
-  }
+  // int getLinearIdx(int xDim, int yDim) {
+  //   return _vecCnt;
+  // }
 
   int mod(int a, int b) {
     return a - (a / b) * b;
@@ -251,18 +244,78 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return (config == 1);
   }
 
+
+  // get the count we want to use depending on which port in progress
+  int getPortVecCnt(bool isCpuSide) {
+    int vecCnt := _vecCntCpuSide;
+    if (!isCpuSide) {
+      vecCnt := _vecCntMemSide;
+    }
+    return vecCnt;
+  }
+
+  void setPortVecCnt(int val, bool isCpuSide) {
+    if (isCpuSide) {
+      _vecCntCpuSide := val;
+    }
+    else {
+      _vecCntMemSide := val;
+    }
+  }
+
+  Tick getPortLastVecRespTime(bool isCpuSide) {
+    if (isCpuSide) {
+      return _lastVecRespTimeCpuSide;
+    }
+    else {
+      return _lastVecRespTimeMemSide;
+    }
+  }
+
+  void setPortLastVecRespTime(Tick val, bool isCpuSide) {
+    if (isCpuSide) {
+      _lastVecRespTimeCpuSide := val;
+    }
+    else {
+      _lastVecRespTimeMemSide := val;
+    }
+  }
+
+  Addr getPortLastServVecAddr(bool isCpuSide) {
+    if (isCpuSide) {
+      return _lastServicedVecAddrCpuSide;
+    }
+    else {
+      return _lastServicedVecAddrMemSide;
+    }
+  }
+
+  void setPortLastServVecAddr(Addr val, bool isCpuSide) {
+    if (isCpuSide) {
+      _lastServicedVecAddrCpuSide := val;
+    }
+    else {
+      _lastServicedVecAddrMemSide := val;
+    }
+  }
+
+
   // can linearize with respect to x or y and get diff sends
   // currently doing by x first
-  int getCoreIdx(int coreIdx, int coreOffset, int vecDimX, int vecDimY, int config) {
+  int getCoreIdx(int coreIdx, int coreOffset, int vecDimX, int vecDimY, int config,
+      bool isCpuSide) {
     // get the starting core idx, always 0 in our encoding (no offset for DA core)
     int startingCoreIdx := coreIdx;
+
+    // get the count we want to use depending on which port in progress
+    int vecCnt := getPortVecCnt(isCpuSide);
 
     // add flat offset to vec cnt
     // int vecFlat := _vecCnt + coreOffset;
     int vecFlat := coreOffset;
     // only go to next vector cores if spatial load
     if (!isVerticalLoad(config)) {
-      vecFlat := vecFlat + _vecCnt;
+      vecFlat := vecFlat + vecCnt;
     }
 
     // get the x y of the current vec count
@@ -277,49 +330,51 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return respIdx;
   }
 
-  int getWordIdx(Addr lineAddress, Addr wordAddress, int config) {
+  int getWordIdx(Addr lineAddress, Addr wordAddress, int config, bool isCpuSide) {
       int wordAddr := addressToInt(wordAddress); // cast to int so can subtract
       int lineAddr := addressToInt(lineAddress);
       
+      // get the count we want to use depending on which port in progress
+      int vecCnt := getPortVecCnt(isCpuSide);
+
       // get offset IN WORDS, need to divide by word size
-      int wordOffset := ((wordAddr - lineAddr) / 4) + _vecCnt;
+      int wordOffset := ((wordAddr - lineAddr) / 4) + vecCnt;
       return wordOffset;
   }
 
-  Addr getSpadIdx(Addr baseSpadAddr, int coreOffset, int config) {
+  Addr getSpadIdx(Addr baseSpadAddr, int coreOffset, int config, bool isCpuSide) {
     int spadIdx := addressToInt(baseSpadAddr) + (coreOffset << 12);
+
+    // get the count we want to use depending on which port in progress
+    int vecCnt := getPortVecCnt(isCpuSide);
+
     // move up count
     if (isVerticalLoad(config)) {
-      spadIdx := spadIdx + (_vecCnt * 4);
+      int uint32_t_size := 4;
+      spadIdx := spadIdx + (vecCnt * uint32_t_size);
     }
     return intToAddress(spadIdx);
   }
 
-  bool isFirstLoadOfVec() {
-    // return (_xCnt == 0) && (_yCnt == 0);
-    return _vecCnt == 0;
+  bool isFirstLoadOfVec(bool isCpuSide) {
+    int vecCnt := getPortVecCnt(isCpuSide);
+    return vecCnt == 0;
   }
 
-  bool isLastLoadOfVec(int count) {
-    // return ((_vecCnt + coreOffset) == (xDim * yDim - 1));
-    return (_vecCnt == (count - 1));
+  bool isLastLoadOfVec(int count, bool isCpuSide) {
+    int vecCnt := getPortVecCnt(isCpuSide);
+    return (vecCnt == (count - 1));
   }
 
-  void increaseVecCount(int xDim) {
-    // _xCnt := _xCnt + 1;
-    // if (_xCnt == xDim) {
-    //   _xCnt := 0;
-    //   _yCnt := _yCnt + 1;
-    // }
-    _vecCnt := _vecCnt + 1;
-    DPRINTF(Mesh, "increase vec cnt to %d\n", _vecCnt);
+  void increaseVecCount(bool isCpuSide) {
+    int vecCnt := getPortVecCnt(isCpuSide) + 1;
+    setPortVecCnt(vecCnt, isCpuSide);
+    DPRINTF(Frame, "increase vec cnt to %d\n", getPortVecCnt(isCpuSide));
   }
 
-  void resetVecCntr() {
-    //_xCnt := 0;
-    //_yCnt := 0;
-    _vecCnt := 0;
-    DPRINTF(Mesh, "reset vec cnt\n");
+  void resetVecCntr(bool isCpuSide) {
+    setPortVecCnt(0, isCpuSide);
+    DPRINTF(Frame, "reset vec cnt\n");
   }
   
   bool isVector(int count) {
@@ -327,31 +382,37 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return count > 1;
   }
 
+  bool isVecActive(bool isCpuSide) {
+    return getPortVecCnt(isCpuSide) > 0;
+  }
+
   // see if can do a vec load on this transition
   // otherwise need to stall. TODO don't like this that much because consumes a transition to stall?
   bool canIssueVecLoad(bool isCpuSide) {
-    // if vec load being done by another port, can't do here
-    if (isCpuSide) {
-      if (_vecFromMem) {
-        return false;
-      }
-    }
-    else {
-      if (_vecFromLLC) {
-        return false;
-      }
-    }
+    // // if vec load being done by another port, can't do here
+    // if (isCpuSide) {
+    //   if (_vecFromMem) {
+    //     return false;
+    //   }
+    // }
+    // else {
+    //   if (_vecFromLLC) {
+    //     return false;
+    //   }
+    // }
 
     // check if we've already issue a vec resp this cycle, and if so prevent future
-    if (_lastVecRespTime == clockEdge()) {
+    if (getPortLastVecRespTime(isCpuSide) == clockEdge()) {
       return false;
     }
 
     return true;
   }
 
-  bool otherVecLoadInProgress(Addr attemptedAddr) {
-    return ((_vecFromLLC && (attemptedAddr != _lastServicedVecAddr)) || _vecFromMem);
+  bool otherVecLoadInProgress(Addr attemptedAddr, bool isCpuSide) {
+    return (attemptedAddr != getPortLastServVecAddr(isCpuSide)) &&
+        (isVecActive(isCpuSide));
+    // return ((_vecFromLLC && (attemptedAddr != _lastServicedVecAddr)) || _vecFromMem);
   }
 
   //---------------------------------------------------------------------------
@@ -376,7 +437,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
         Entry cache_entry := getCacheEntry(LineAddress);
         
         if (isVector(in_msg.RespCnt)) {
-          DPRINTF(Mesh, "wakeup req addr %#x line %#x curCnt %d to cnt %d\n", in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+          DPRINTF(Mesh, "wakeup req addr %#x line %#x curCnt %d to cnt %d\n", 
+              in_msg.WordAddress, LineAddress, getPortVecCnt(true), in_msg.RespCnt);
         }
 
         DPRINTF(RubySlicc, "%s arrived\n", in_msg);
@@ -386,7 +448,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
               cacheMemory.cacheAvail(LineAddress) == false) {
 
             if (isVector(in_msg.RespCnt)) {
-              DPRINTF(Mesh, "invalid line req addr %#x line %#x curCnt %d to cnt %d\n", in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+              DPRINTF(Mesh, "invalid line req addr %#x line %#x curCnt %d to cnt %d\n", 
+                in_msg.WordAddress, LineAddress, getPortVecCnt(true), in_msg.RespCnt);
             }
 
             // No available cache line for this address -> trigger cache
@@ -416,10 +479,13 @@ machine(MachineType:L2Cache, "SP LLC cache")
             // See transitions_per_cycle in Controller.py
             if (in_msg.Type == LLCRequestType:SPLOAD) {
               // if (isVector(in_msg.RespCnt)) {
-                DPRINTF(Frame, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", canIssueVecLoad(true), getState(tbe, cache_entry, LineAddress), in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+                DPRINTF(Frame, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", 
+                    canIssueVecLoad(true), getState(tbe, cache_entry, LineAddress), 
+                    in_msg.WordAddress, LineAddress, getPortVecCnt(true), in_msg.RespCnt);
                 // if currently issuing a vector load and a new one comes, then need to stallAndWait until the first one finishes
-                if (otherVecLoadInProgress(LineAddress)) {
-                  DPRINTF(Frame, "stall and wait other vec load in progess addr %#x line %#x curCnt %d to cnt %d\n", in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+                if (otherVecLoadInProgress(LineAddress, true)) {
+                  DPRINTF(Frame, "stall and wait other vec load in progess addr %#x line %#x curCnt %d to cnt %d\n", 
+                    in_msg.WordAddress, LineAddress, getPortVecCnt(true), in_msg.RespCnt);
                   trigger(Event:VEC_STALL_WAIT, LineAddress, cache_entry, tbe);
                 }
                 
@@ -427,17 +493,18 @@ machine(MachineType:L2Cache, "SP LLC cache")
                   if (!isVector(in_msg.RespCnt)) {
                     trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
                   }
-                  else if (isFirstLoadOfVec()) {
+                  else if (isFirstLoadOfVec(true)) {
                     trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
                   }
-                  else if (!isLastLoadOfVec(in_msg.RespCnt)) {
+                  else if (!isLastLoadOfVec(in_msg.RespCnt, true)) {
                     trigger(Event:VREAD1, LineAddress, cache_entry, tbe);
                   }
                   else {
                     trigger(Event:VREAD2, LineAddress, cache_entry, tbe);
                   }
                 } else {
-                  DPRINTF(Frame, "stall req addr %#x line %#x curCnt %d to cnt %d\n", in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+                  DPRINTF(Frame, "stall req addr %#x line %#x curCnt %d to cnt %d\n", 
+                    in_msg.WordAddress, LineAddress, getPortVecCnt(true), in_msg.RespCnt);
                   // DPRINTF(Mesh, "[[WARNING]] stalling req pkt %#x\n", in_msg.WordAddress);
                   // stall bro
                   trigger(Event:STALL, LineAddress, cache_entry, tbe);
@@ -461,7 +528,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
           }
         } else {
           if (isVector(in_msg.RespCnt)) {
-            DPRINTF(Mesh, "no tbes req addr %#x line %#x curCnt %d to cnt %d\n", in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+            DPRINTF(Mesh, "no tbes req addr %#x line %#x curCnt %d to cnt %d\n", 
+              in_msg.WordAddress, LineAddress, getPortVecCnt(true), in_msg.RespCnt);
           }
           TBE tbe := TBEs[LineAddress];
           trigger(Event:STALL, LineAddress, cache_entry, tbe);
@@ -480,17 +548,26 @@ machine(MachineType:L2Cache, "SP LLC cache")
         Entry cache_entry := getCacheEntry(in_msg.addr);
 
         if (tbe.InType == LLCRequestType:SPLOAD) {
+
+          if (otherVecLoadInProgress(in_msg.addr, false)) {
+            DPRINTF(Frame, "stall and wait other vec load in progess addr %#x line %#x curCnt %d to cnt %d\n", 
+                tbe.WordAddress, in_msg.addr, getPortVecCnt(false), tbe.RespCnt);
+            trigger(Event:VEC_STALL_WAIT_MEM, in_msg.addr, cache_entry, tbe);
+          }
+
           // if (isVector(tbe.RespCnt)) {
             if (canIssueVecLoad(false)) {
               assert(is_valid(cache_entry));
-              DPRINTF(Frame, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", canIssueVecLoad(false), getState(tbe, cache_entry, in_msg.addr), tbe.WordAddress, in_msg.addr, _vecCnt, tbe.RespCnt);
+              DPRINTF(Frame, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", 
+                  canIssueVecLoad(false), getState(tbe, cache_entry, in_msg.addr), 
+                  tbe.WordAddress, in_msg.addr, getPortVecCnt(false), tbe.RespCnt);
               if (!isVector(tbe.RespCnt)) {
                 trigger(Event:SP_Mem_Data, in_msg.addr, cache_entry, tbe);
               }
-              else if (isFirstLoadOfVec()) {
+              else if (isFirstLoadOfVec(false)) {
                 trigger(Event:VData0, in_msg.addr, cache_entry, tbe);
               }
-              else if (!isLastLoadOfVec(tbe.RespCnt)) {
+              else if (!isLastLoadOfVec(tbe.RespCnt, false)) {
                 trigger(Event:VData1, in_msg.addr, cache_entry, tbe);
               }
               else {
@@ -498,7 +575,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
               }
             }
             else {
-               DPRINTF(Frame, "stall req addr %#x line %#x curCnt %d to cnt %d\n", tbe.WordAddress, in_msg.addr, _vecCnt, tbe.RespCnt);
+               DPRINTF(Frame, "stall req addr %#x line %#x curCnt %d to cnt %d\n", 
+                  tbe.WordAddress, in_msg.addr, getPortVecCnt(false), tbe.RespCnt);
               // stall bro
               trigger(Event:STALL, in_msg.addr, cache_entry, tbe);
             }
@@ -605,19 +683,19 @@ machine(MachineType:L2Cache, "SP LLC cache")
       NodeID baseId := machineIDToNodeID(in_msg.Requestor);
       // int spadIdx := IDToInt(baseId) + linOffset;
       int coreIdx := IDToInt(baseId);
-      int spadIdx := getCoreIdx(coreIdx, in_msg.CoreOffset, in_msg.XDim, in_msg.YDim, in_msg.PrefetchConfig);
+      int spadIdx := getCoreIdx(coreIdx, in_msg.CoreOffset, in_msg.XDim, in_msg.YDim, in_msg.PrefetchConfig, true);
       int coreOffset := spadIdx - coreIdx;
       MachineID spad := createMachineID(MachineType:Scratchpad, intToID(spadIdx));
       
       // in case the base address is not aligned to the cache block
       // figure out the block idx for the word this reponse should send
-      int wordOffset := getWordIdx(in_msg.LineAddress, in_msg.WordAddress, in_msg.PrefetchConfig);
+      int wordOffset := getWordIdx(in_msg.LineAddress, in_msg.WordAddress, in_msg.PrefetchConfig, true);
       
       //DPRINTF(Mesh, "offset %d line %d addr %d\n", wordOffset, lineAddr, wordAddr);
       
       // because this mimics a remote store, the return address should be
       // the storage address in the spad
-      Addr spadAddr := getSpadIdx(in_msg.PrefetchAddress, coreOffset, in_msg.PrefetchConfig);
+      Addr spadAddr := getSpadIdx(in_msg.PrefetchAddress, coreOffset, in_msg.PrefetchConfig, true);
       
       DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d\n", 
         spadIdx, coreIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset);
@@ -660,14 +738,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
       assert(machineIDToMachineType(tbe.Requestor) == MachineType:Scratchpad);
       NodeID baseId := machineIDToNodeID(tbe.Requestor);
       int coreIdx := IDToInt(baseId);
-      int spadIdx := getCoreIdx(coreIdx, tbe.CoreOffset, tbe.XDim, tbe.YDim, tbe.PrefetchConfig);
+      int spadIdx := getCoreIdx(coreIdx, tbe.CoreOffset, tbe.XDim, tbe.YDim, tbe.PrefetchConfig, false);
       int coreOffset := spadIdx - coreIdx;
       MachineID spad := createMachineID(MachineType:Scratchpad, intToID(spadIdx));
       
       // get offset into cache blk
-      int wordOffset := getWordIdx(in_msg.addr, tbe.WordAddress, tbe.PrefetchConfig);
+      int wordOffset := getWordIdx(in_msg.addr, tbe.WordAddress, tbe.PrefetchConfig, false);
       
-      Addr spadAddr := getSpadIdx(tbe.PrefetchAddress, coreOffset, tbe.PrefetchConfig);
+      Addr spadAddr := getSpadIdx(tbe.PrefetchAddress, coreOffset, tbe.PrefetchConfig, false);
       
       // if vector then send REVDATA, otherwise REDATA
       LLCResponseType respType;
@@ -897,7 +975,13 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
 
   action(z_vecStallAndWait, "vsw", desc = "Stall and wait due to active vector read") {
-    stall_and_wait(requestNetwork_in, _lastServicedVecAddr);
+    Addr depAddr := getPortLastServVecAddr(true);
+    stall_and_wait(requestNetwork_in, depAddr);
+  }
+
+  action(z_vecStallAndWaitMem, "vsm", desc = "Stall and wait due to active vector read") {
+    Addr depAddr := getPortLastServVecAddr(false);
+    stall_and_wait(memQueue_in, depAddr);
   }
 
   action(wua_wakeupAllDependents, "wua", desc = "Wake up all buffers") {
@@ -906,53 +990,66 @@ machine(MachineType:L2Cache, "SP LLC cache")
   
   // initialize vector request (to 0)
   action(rvm_resetVectorFromMem, "rvm", desc = "Initialize vector req counter") {
-    DPRINTF(Mesh, "reset vec cnt from mem\n");
-    resetVecCntr();
-    _vecFromMem := false;
+    DPRINTF(Frame, "reset vec cnt from mem\n");
+    resetVecCntr(false);
+    // _vecFromMem := false;
   }
   
   action(rvl_resetVectorFromLLC, "rvl", desc = "Initialize vector req counter") {
-    DPRINTF(Mesh, "reset vec cnt from LLC\n");
-    resetVecCntr();
-    _vecFromLLC := false;
+    DPRINTF(Frame, "reset vec cnt from LLC\n");
+    resetVecCntr(true);
+    // _vecFromLLC := false;
   }
 
   // mark that we've done a vector resp this cycle and don't allow anymore this cycle
-  action(mvr_markVectorRespThisCycle, "mvr", desc = "Mark vec resp this cycle") {
-    _lastVecRespTime := clockEdge();
-    _lastServicedVecAddr := address;
-    DPRINTF(Mesh, "mark vec resp this cycle %llu addr %#x\n", _lastVecRespTime, _lastServicedVecAddr);
+  action(mvl_markVectorRespThisCycleLLC, "mvl", desc = "Mark vec resp this cycle") {
+    setPortLastVecRespTime(clockEdge(), true);
+    setPortLastServVecAddr(address, true);
+    DPRINTF(Frame, "mark vec resp this cycle %llu addr %#x\n", 
+        getPortLastVecRespTime(true), getPortLastServVecAddr(true));
+  }
+
+  action(mvm_markVectorRespThisCycleMem, "mvm", desc = "Mark vec resp this cycle") {
+    setPortLastVecRespTime(clockEdge(), false);
+    setPortLastServVecAddr(address, false);
+    DPRINTF(Frame, "mark vec resp this cycle %llu addr %#x\n", 
+        getPortLastVecRespTime(false), getPortLastServVecAddr(false));
   }
   
   // handle vector decrement
   action(ivc_incVectorCount, "ivc", desc = "Increment vector count") {
-    // enqueue the same packet back on request queue with decremented vec count
-    // if no more counts don't put back onto the queue
-    peek(requestNetwork_in, LLCRequestMsg) {
-      // might need to put in TBE when split across cache line (and you want to do other reqs)
-      // store and then restore the count when send req and restore?
-      // NOT neccessary because no point to do vector request across a cache line
-      // ALSO don't need to worry about banks for this same reason b/c across a cache line
-      increaseVecCount(in_msg.XDim);
-      _vecFromLLC := true;
-    }
+    // // enqueue the same packet back on request queue with decremented vec count
+    // // if no more counts don't put back onto the queue
+    // peek(requestNetwork_in, LLCRequestMsg) {
+    //   // might need to put in TBE when split across cache line (and you want to do other reqs)
+    //   // store and then restore the count when send req and restore?
+    //   // NOT neccessary because no point to do vector request across a cache line
+    //   // ALSO don't need to worry about banks for this same reason b/c across a cache line
+    //   increaseVecCount(in_msg.XDim);
+    //   _vecFromLLC := true;
+    // }
+    increaseVecCount(true);
   }
   
   // for missed accesses
   action(ivt_incVectorCountTBE, "ivt", desc = "Increment vector count TBE") {
-    increaseVecCount(tbe.XDim);
-    _vecFromMem := true;
+    increaseVecCount(false);
+    // _vecFromMem := true;
   }
 
   // check vector error. in this case stall map interrupting in progress vector load
   // might have to give each req a counter (i.e. <10 bits from the TBE)
-  action(cve_checkVectorError0, "cve", desc = "Check for known failure case during vector load") {
-    if (_vecCnt != 0) {
-      DPRINTF(Mesh, "[[WARNING]] preempting in flight vec req\n");
+  action(vel_checkVectorErrorLLC, "vel", desc = "Check for known failure case during vector load") {
+    if (getPortVecCnt(true) != 0) {
+      DPRINTF(Frame, "[[WARNING]] preempting in flight vec req in cpu req port\n");
       assert(false);
     }
-    else {
-      DPRINTF(Mesh, "no vector error\n");
+  }
+
+  action(vem_checkVectorErrorMem, "vem", desc = "Check for known failure case during vector load") {
+    if (getPortVecCnt(false) != 0) {
+      DPRINTF(Frame, "[[WARNING]] preempting in flight vec req in mem resp port\n");
+      assert(false);
     }
   }
 
@@ -1022,28 +1119,28 @@ machine(MachineType:L2Cache, "SP LLC cache")
   transition(V, VREAD0, VV) {
     // set mru now so _very_ unlkiley to be freed while reading the line
     // eventually will want to make the line with a 'being read' to assure success
-    cve_checkVectorError0;
+    vel_checkVectorErrorLLC;
     smu_setMRU; 
     rsc_remoteStoreFromCache;
     ivc_incVectorCount;
     // stall this so we don't handle multiple resps in the same cycle
     // and this potentially can starve other ports of transition cycles
-    mvr_markVectorRespThisCycle;
+    mvl_markVectorRespThisCycleLLC;
     //pah_prefetchAckHit;
   }
 
   transition(M, VREAD0, VM) {
-    cve_checkVectorError0;
+    vel_checkVectorErrorLLC;
     smu_setMRU; 
     rsc_remoteStoreFromCache;
     ivc_incVectorCount;
-    mvr_markVectorRespThisCycle;
+    mvl_markVectorRespThisCycleLLC;
   }
   
   transition({VV, VM}, VREAD1) {
     rsc_remoteStoreFromCache;
     ivc_incVectorCount;
-    mvr_markVectorRespThisCycle;
+    mvl_markVectorRespThisCycleLLC;
   }
   
   transition(VV, VREAD2, V) {
@@ -1064,19 +1161,19 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   transition(IV, VData0) {
-    cve_checkVectorError0;
+    vem_checkVectorErrorMem;
     wdc_writeDataToCache
     smu_setMRU;
     rsm_remoteStoreFromMem;
     ivt_incVectorCountTBE;
-    mvr_markVectorRespThisCycle;
+    mvm_markVectorRespThisCycleMem;
     //pam_prefetchAckMiss;
   }
   
   transition(IV, VData1) {
     rsm_remoteStoreFromMem;
     ivt_incVectorCountTBE;
-    mvr_markVectorRespThisCycle;
+    mvm_markVectorRespThisCycleMem;
   }
   
   transition(IV, VData2, V) {
@@ -1284,5 +1381,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   transition({V, I, M, IV, MI, IM, IV_LL, IA, VV, VM}, VEC_STALL_WAIT) {
     z_vecStallAndWait;
+  }
+
+  transition({V, I, M, IV, MI, IM, IV_LL, IA, VV, VM}, VEC_STALL_WAIT_MEM) {
+    z_vecStallAndWaitMem;
   }
 }
