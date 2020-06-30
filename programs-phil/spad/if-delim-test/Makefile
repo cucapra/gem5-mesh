@@ -1,12 +1,11 @@
-BENCHNAME:=template
+BENCHNAME := if_test
 default: $(BENCHNAME)
 
-# plug in trilliasm make recipes
-TRILLIASM_KERNEL = if_test_kernel.c
-TRILLIUM_DIR=../../../trillium
-include $(TRILLIUM_DIR)/trilliasm.mk
+# Build the kernel with trilliasm.
+TRILLIASM_KERNEL := if_test_kernel.c
+include ../../../trillium/trilliasm.mk
 
-# run standard compilation
+# Standard benchmark compilation.
 include ../common/common.mk
 
 # specify number of cpus (TODO: rename to NUM_CPUS)
