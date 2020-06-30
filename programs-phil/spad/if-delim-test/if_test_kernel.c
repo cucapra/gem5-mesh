@@ -28,11 +28,9 @@ tril_if_delim_test(int mask, DTYPE *outbuf) {
     asm("trillium vissue_delim if_begin if_block");
     if (outbuf[vector_i] == 7) {
       outbuf[vector_i] = 42;
-    } else {
-      outbuf[vector_i] = 24;
     }
     ++vector_i;
-    asm("trillium vissue_delim if_end");
+    asm("trillium vissue_delim end at_jump");
 #endif
   }
 
