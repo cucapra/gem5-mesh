@@ -72,6 +72,8 @@
 #include "sim/full_system.hh"
 #include "sim/redirect_path.hh"
 
+#include "debug/Frame.hh"
+
 /**
  * To avoid linking errors with LTO, only include the header if we
  * actually have a definition.
@@ -517,6 +519,12 @@ System::cmplPrefetch(Addr spadAddr) {
 
         // remove
         prefetchMap.erase(spadAddr);
+
+        // if latency is large print out information about the packet so
+        // that we can do tracing of debug log to see where the hold up was
+        if (cycles > 600) {
+            DPRINTF(Frame, "prefetch resp %#x with trip %llu cycles\n", spadAddr, cycles);
+        }
 
         // update stat with current avg
         // avgPrefetchLatency = prefetchLatencySum / prefetchCnt;

@@ -416,9 +416,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
             // See transitions_per_cycle in Controller.py
             if (in_msg.Type == LLCRequestType:SPLOAD) {
               // if (isVector(in_msg.RespCnt)) {
-                DPRINTF(Mesh, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", canIssueVecLoad(true), getState(tbe, cache_entry, LineAddress), in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+                DPRINTF(Frame, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", canIssueVecLoad(true), getState(tbe, cache_entry, LineAddress), in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
                 // if currently issuing a vector load and a new one comes, then need to stallAndWait until the first one finishes
                 if (otherVecLoadInProgress(LineAddress)) {
+                  DPRINTF(Frame, "stall and wait other vec load in progess addr %#x line %#x curCnt %d to cnt %d\n", in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
                   trigger(Event:VEC_STALL_WAIT, LineAddress, cache_entry, tbe);
                 }
                 
@@ -436,7 +437,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
                     trigger(Event:VREAD2, LineAddress, cache_entry, tbe);
                   }
                 } else {
-                  DPRINTF(Mesh, "stall req addr %#x line %#x curCnt %d to cnt %d\n", in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
+                  DPRINTF(Frame, "stall req addr %#x line %#x curCnt %d to cnt %d\n", in_msg.WordAddress, LineAddress, _vecCnt, in_msg.RespCnt);
                   // DPRINTF(Mesh, "[[WARNING]] stalling req pkt %#x\n", in_msg.WordAddress);
                   // stall bro
                   trigger(Event:STALL, LineAddress, cache_entry, tbe);
@@ -482,7 +483,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
           // if (isVector(tbe.RespCnt)) {
             if (canIssueVecLoad(false)) {
               assert(is_valid(cache_entry));
-              DPRINTF(Mesh, "req %d %d\n", canIssueVecLoad(false), getState(tbe, cache_entry, in_msg.addr));
+              DPRINTF(Frame, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", canIssueVecLoad(false), getState(tbe, cache_entry, in_msg.addr), tbe.WordAddress, in_msg.addr, _vecCnt, tbe.RespCnt);
               if (!isVector(tbe.RespCnt)) {
                 trigger(Event:SP_Mem_Data, in_msg.addr, cache_entry, tbe);
               }
@@ -497,6 +498,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
               }
             }
             else {
+               DPRINTF(Frame, "stall req addr %#x line %#x curCnt %d to cnt %d\n", tbe.WordAddress, in_msg.addr, _vecCnt, tbe.RespCnt);
               // stall bro
               trigger(Event:STALL, in_msg.addr, cache_entry, tbe);
             }
@@ -617,7 +619,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // the storage address in the spad
       Addr spadAddr := getSpadIdx(in_msg.PrefetchAddress, coreOffset, in_msg.PrefetchConfig);
       
-      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d\n", 
+      DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d\n", 
         spadIdx, coreIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset);
       
       // if vector then send REVDATA, otherwise REDATA
@@ -676,7 +678,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         respType := LLCResponseType:REDATA;
       }
       
-      DPRINTF(Mesh, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d core offset %d\n", 
+      DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d core offset %d\n", 
         spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.CoreOffset);
       
       enqueue(responseNetwork_out, LLCResponseMsg, mem_to_cpu_latency) {
