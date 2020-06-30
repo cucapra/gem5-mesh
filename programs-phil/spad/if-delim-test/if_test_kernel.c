@@ -19,7 +19,7 @@ void tril_if_delim_test(int mask, DTYPE *outbuf) {
 #elif defined VECTOR_CORE
   volatile int BH;
   int vector_i = 0;
-  while (BH) {
+  do {
 #endif
 #ifdef SCALAR_CORE
     ISSUE_VINST(if_block_label);
@@ -31,7 +31,11 @@ void tril_if_delim_test(int mask, DTYPE *outbuf) {
     ++vector_i;
     asm("trillium vissue_delim end at_jump");
 #endif
+#ifdef SCALAR_CORE
   }
+#elif defined VECTOR_CORE
+  } while (BH);
+#endif
 
   // Clean up on the vector cores.
 #ifdef SCALAR_CORE
