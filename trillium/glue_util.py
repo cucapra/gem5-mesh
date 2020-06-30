@@ -28,8 +28,8 @@ def parse_label(inst):
     return m.group(1) if m else None
     #return "." == inst[0] and ":" == inst[-1]
 
-def is_footer_start(inst):
-    return ".size " in inst
+def is_func_end(inst):
+    return regex.match(r'\.size\b', inst)
 
 class RV_Inst(Enum):
     JUMP = auto()

@@ -152,34 +152,9 @@ def extract_vector_blocks(raw_vector_code):
         # so we look for any delimiter, discarding code in the meantime.
         # (we actually collect this "junk code" instead for debugging purposes)
         elif state == VectorParseState.JUNK:
-            delim_parse = parse_delim(l)
-
-            if delim_parse != None:
-                log.info("parsed junk block")
-                junk_postfix += 1
-
-                delim, new_vissue_key = delim_parse
-                curr_vissue_key = new_vissue_key
-                blocks[curr_func][new_vissue_key] = []
-
-                if delim == TrilliumAsmDelim.BEGIN:
-                    state = VectorParseState.BEGIN_END
-                elif delim == TrilliumAsmDelim.UNTIL_NEXT:
-                    state = VectorParseState.UNTIL_NEXT
-                elif delim == TrilliumAsmDelim.RETURN:
-                    state = VectorParseState.RETURN
-
-            else:
-                junk_vissue_key = junk_prefix + str(junk_postfix)
-                blocks[curr_func][junk_vissue_key].append(l)
-
-
-        # in this state, we've just seen a `return` delimiter,
-        # so we're looking for a "return-like" assembly.
-        # Once we find it, we've completed a Trillism kernel parse
-        elif state == VectorParseState.RETURN:
-            if is_return_inst(l):
-                log.info("parsed return block {}".format(curr_vissue_key))
+            # Check for the end of the function.
+            if is_func_end(l):
+                log.info('kernel function {} ended'.format(curr_func))
 
                 # prepend trillium_init block to the first block
                 trillium_init_block = blocks[curr_func]["trillium_init"]
@@ -198,7 +173,42 @@ def extract_vector_blocks(raw_vector_code):
                 terminator = ".insn i 0x1b, 0x7, x0, x0, 0"
                 for b in blocks[curr_func].values():
                     b.append(terminator)
-                state = VectorParseState.START #get the next kernel, if any
+
+                # Return to looking for a new kernel function.
+                state = VectorParseState.START
+
+            else:
+                delim_parse = parse_delim(l)
+
+                if delim_parse != None:
+                    log.info("parsed junk block")
+                    junk_postfix += 1
+
+                    delim, new_vissue_key = delim_parse
+                    curr_vissue_key = new_vissue_key
+                    blocks[curr_func][new_vissue_key] = []
+
+                    if delim == TrilliumAsmDelim.BEGIN:
+                        state = VectorParseState.BEGIN_END
+                    elif delim == TrilliumAsmDelim.UNTIL_NEXT:
+                        state = VectorParseState.UNTIL_NEXT
+                    elif delim == TrilliumAsmDelim.RETURN:
+                        state = VectorParseState.RETURN
+
+                else:
+                    junk_vissue_key = junk_prefix + str(junk_postfix)
+                    blocks[curr_func][junk_vissue_key].append(l)
+
+        # in this state, we've just seen a `return` delimiter,
+        # so we're looking for a "return-like" assembly.
+        # Once we find it, we've completed a Trillism kernel parse
+        elif state == VectorParseState.RETURN:
+            if is_return_inst(l):
+                log.info("parsed return block {}".format(curr_vissue_key))
+                junk_vissue_key = junk_prefix + str(junk_postfix)
+                blocks[curr_func][junk_vissue_key] = []
+                state = VectorParseState.JUNK
+
             else:
                 #TODO: this assumes the only branch/jump instruction has return address as target.
                 #      Should this error out otherwise?
@@ -295,6 +305,17 @@ def glue(raw_scalar_code, all_vector_bbs):
         for label, (func_name, vissue_key) in glue_points.items():
             commented_label = ".{}:  # {} vissue block".format(label, vissue_key)
             labeled_vector_bbs.append(commented_label)
+
+            if func_name not in all_vector_bbs:
+                raise ParseError(
+                    'attempting to glue in function missing from vector: {}'
+                    .format(func_name)
+                )
+            if vissue_key not in all_vector_bbs[func_name]:
+                raise ParseError(
+                    'attempt to glue missing vector block: {}'
+                    .format(vissue_key)
+                )
 
             labeled_vector_bbs.extend(all_vector_bbs[func_name][vissue_key])
 
