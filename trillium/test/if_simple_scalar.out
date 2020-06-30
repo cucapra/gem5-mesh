@@ -28,7 +28,10 @@
 	#trillium_init end
 .VEC2:
 	VECTOR_IF_BLOCK
-	j .VEC4
+	bnez r0 .VEC4
+	TRUE_BRANCH
+.VEC4:
+	FALSE_BRANCH
 .VEC3:
 	.insn i 0x1b, 0x7, x0, x0, 0
 .SCALAR4:  # vector_return vissue block
