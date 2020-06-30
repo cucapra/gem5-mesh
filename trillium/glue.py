@@ -65,7 +65,15 @@ def extract_vector_blocks(raw_vector_code):
         # so we're looking for any other delimiter.
         elif state == VectorParseState.UNTIL_NEXT:
             delim_parse = parse_delim(l)
-            if delim_parse != None:
+
+            if delim_parse in (TrilliumAsmDelim.END, TrilliumAsmDelim.IF_END):
+                raise ParseError(
+                    'until_next block {} terminated with end'.format(
+                        curr_vissue_key
+                    )
+                )
+
+            if delim_parse:
                 log.info("parsed 'until_next'-delimited block: {}".format(curr_vissue_key))
                 delim, new_vissue_key = delim_parse
                 curr_vissue_key = new_vissue_key
