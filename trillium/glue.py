@@ -221,47 +221,13 @@ def glue(raw_scalar_code, all_vector_bbs):
     log.info("GLUING VECTOR CODE TO SCALAR...")
     scalar_code = scalar_preprocess(raw_scalar_code)
 
-    # dissects scalar assembly into the following non-overlapping components:
-    # interval notation: open, closed, or half-open intervals
-
-    # [start of file, kernel launch label]
+    # The header consists of the interval [start of file, kernel launch
+    # label] and will accumulate all the lines of assembly *before* we
+    # encounter the first kernel function.
     header = []
 
-    # (kernel launch label, first VECTOR_EPOCH call)
-    before_VECTOR_EPOCH = []
-
-    # [first VECTOR_EPOCH call, first DEVEC call)
-    after_VECTOR_EPOCH_before_DEVEC = []
-
-    # [first DEVEC call, scalar return delimiter]
-    after_DEVEC_before_RET_DELIM = []
-
-    # Now things gets conditionally non-contiguous.
-    # scalar return cleanup assembly consists of the following potential assembly locations:
-    # - all code immediately following the scalar `return` delimiter and before a jump instruction
-    #   is scalar cleanup code (We assume no branching is emitted in that interval)
-    # - if a jump to a label is found (instead of to the return address), the block under that label,
-    #   excluding the return address jump, is scalar cleanup code 
-    scalar_cleanup = []
-
-    # All cores ultimately return to the scalar return address.
-    # This can be found at the end of scalar cleanup code, described in the two cases above
-    scalar_ret_inst = None
-
-    # `glue_points` maps labels to function name/vissue key pairs. vissue keys
-    # can be used to index into `all_vector_bbs` to get vector block code.
-    glue_points = {}
-    labels = [] #stack of labels
-
-    # labels pointing to scalar auxiliary blocks (not including scalar block that returns to jump address, if any)
-    # (Note: OrderedDict helps us keep track of the last inserted label)
-    aux_bbs = OrderedDict([("trillium_anon_aux_bb",[])])
-
-    # non-instruction lines after all labels/blocks
-    footer = []
-
-    # The name of the current kernel function we're parsing (or None if we're
-    # not in any kernel function).
+    # The name of the current kernel function we're parsing (or None if
+    # we're not in any kernel function).
     cur_kernel_func = None
 
     # The overall output from the gluer.
@@ -313,7 +279,56 @@ def glue(raw_scalar_code, all_vector_bbs):
                 header.append(l)
                 state = ScalarParseState.BEFORE_VECTOR_EPOCH
                 cur_kernel_func = func_name
+
+                # Initialize the storage for all the bits of the function we
+                # will extract. We dissect the scalar assembly into the
+                # following non-overlapping components: interval
+                # notation: open, closed, or half-open intervals.
+
+                # (kernel launch label, first VECTOR_EPOCH call)
+                before_VECTOR_EPOCH = []
+
+                # [first VECTOR_EPOCH call, first DEVEC call)
+                after_VECTOR_EPOCH_before_DEVEC = []
+
+                # [first DEVEC call, scalar return delimiter]
+                after_DEVEC_before_RET_DELIM = []
+
+                # Now things gets conditionally non-contiguous. Scalar
+                # return cleanup assembly consists of the following
+                # potential assembly locations:
+                # - all code immediately following the scalar `return`
+                #   delimiter and before a jump instruction is scalar
+                #   cleanup code (We assume no branching is emitted in
+                #   that interval)
+                # - if a jump to a label is found (instead of to the
+                #   return address), the block under that label, excluding
+                #   the return address jump, is scalar cleanup code
+                scalar_cleanup = []
+
+                # All cores ultimately return to the scalar return address.
+                # This can be found at the end of scalar cleanup code,
+                # described in the two cases above.
+                scalar_ret_inst = None
+
+                # `glue_points` maps labels to function name/vissue key pairs.
+                # vissue keys can be used to index into `all_vector_bbs` to
+                # get vector block code.
+                glue_points = {}
+                labels = [] #stack of labels
+
+                # labels pointing to scalar auxiliary blocks (not
+                # including scalar block that returns to jump address,
+                # if any). (OrderedDict helps us keep track of the
+                # last inserted label.)
+                aux_bbs = OrderedDict([("trillium_anon_aux_bb",[])])
+
+                # Non-instruction lines after all labels/blocks.
+                footer = []
+
             else:
+                # Not a kernel function label; just keep accumulating
+                # the non-function "header."
                 header.append(l)
 
         elif state == ScalarParseState.BEFORE_VECTOR_EPOCH:
@@ -396,18 +411,8 @@ def glue(raw_scalar_code, all_vector_bbs):
                 log.info('finished gluing kernel {}'.format(cur_kernel_func))
                 out_lines += glue_pieces()
 
-                # Reset the state. Don't love this copypasta; should clean it up.
+                # Reset the state.
                 header = []
-                before_VECTOR_EPOCH = []
-                after_VECTOR_EPOCH_before_DEVEC = []
-                after_DEVEC_before_RET_DELIM = []
-                scalar_cleanup = []
-                scalar_ret_inst = None
-                glue_points = {}
-                labels = []
-                aux_bbs = OrderedDict([("trillium_anon_aux_bb", [])])
-                footer = []
-
                 cur_kernel_func = None
                 state = ScalarParseState.HEADER
 
