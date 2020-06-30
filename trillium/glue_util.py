@@ -51,7 +51,6 @@ class TrilliumAsmDelim(Enum):
     BEGIN = auto()
     IF_BEGIN = auto()
     END = auto()
-    IF_END = auto()
     RETURN = auto()
 
 
@@ -59,20 +58,17 @@ def parse_delim(inst):
     delim_prefix = "trillium\s+vissue_delim"
     until_next_delim_match = regex.compile(delim_prefix + "\s+until_next\s+(\w+)").match(inst)
     begin_delim_match = regex.compile(delim_prefix + "\s+begin\s+(\w+)").match(inst)
-    end_delim_match = regex.compile(delim_prefix + "\s+end").match(inst)
+    end_delim_match = regex.compile(delim_prefix + "\s+end(\s+\w+)?").match(inst)
     if_begin_delim_match = regex.compile(delim_prefix + "\s+if_begin\s+(\w+)").match(inst)
-    if_end_delim_match = regex.compile(delim_prefix + "\s+if_end").match(inst)
     return_delim_match = regex.compile(delim_prefix + "\s+return\s+(\w+)").match(inst)
     if until_next_delim_match:
         return TrilliumAsmDelim.UNTIL_NEXT, until_next_delim_match.group(1)
     elif begin_delim_match:
         return TrilliumAsmDelim.BEGIN, begin_delim_match.group(1)
     elif end_delim_match:
-        return TrilliumAsmDelim.END#, end_delim_match.group(1)
+        return TrilliumAsmDelim.END, (end_delim_match.group(1) or '').strip()
     elif if_begin_delim_match:
         return TrilliumAsmDelim.IF_BEGIN, if_begin_delim_match.group(1)
-    elif if_end_delim_match:
-        return TrilliumAsmDelim.IF_END#, if_end_delim_match.group(1)
     elif return_delim_match:
         return TrilliumAsmDelim.RETURN, return_delim_match.group(1)
     else:
