@@ -66,7 +66,7 @@ def extract_vector_blocks(raw_vector_code):
         elif state == VectorParseState.UNTIL_NEXT:
             delim_parse = parse_delim(l)
 
-            if delim_parse in (TrilliumAsmDelim.END, TrilliumAsmDelim.IF_END):
+            if delim_parse == TrilliumAsmDelim.END:
                 raise ParseError(
                     'until_next block {} terminated with end'.format(
                         curr_vissue_key
@@ -115,7 +115,7 @@ def extract_vector_blocks(raw_vector_code):
         # so we're looking for a matching `if-end`
         elif state == VectorParseState.IF_BEGIN_END:
             delim_parse = parse_delim(l)
-            if delim_parse == TrilliumAsmDelim.IF_END:
+            if delim_parse == TrilliumAsmDelim.END:
                 log.info("parsed `if-begin/end`-delimited block: {}".format(curr_vissue_key))
 
                 # setup collection of "junk code" after `end` delim and before next delim,

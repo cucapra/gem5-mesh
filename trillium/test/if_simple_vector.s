@@ -7,7 +7,7 @@ tril_somefunc:
   VECTOR_IF_BLOCK
   j .L4
   .L3:
-	trillium vissue_delim if_end
+	trillium vissue_delim end
   .L4:
   VECTOR_JUNK0
   .L5:
