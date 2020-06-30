@@ -307,16 +307,14 @@ def glue(raw_scalar_code, all_vector_bbs):
     for (line_no, l) in scalar_code:
 
         if state == ScalarParseState.HEADER:
-          # Is this a Trillium function (indicated by the naming convention)?
-          func_name = is_kernel_func_label(l)
-          if func_name:
-            header.append(l)
-            state = ScalarParseState.BEFORE_VECTOR_EPOCH
-            cur_kernel_func = func_name
-          else:
-            header.append(l)
-
-
+            # Is this a Trillium function (indicated by the naming convention)?
+            func_name = is_kernel_func_label(l)
+            if func_name:
+                header.append(l)
+                state = ScalarParseState.BEFORE_VECTOR_EPOCH
+                cur_kernel_func = func_name
+            else:
+                header.append(l)
 
         elif state == ScalarParseState.BEFORE_VECTOR_EPOCH:
             if is_VECTOR_EPOCH_inst(l):
@@ -324,8 +322,6 @@ def glue(raw_scalar_code, all_vector_bbs):
                 state = ScalarParseState.AFTER_VECTOR_EPOCH
             else:
                 before_VECTOR_EPOCH.append(l)
-
-
 
         elif state == ScalarParseState.AFTER_VECTOR_EPOCH:
             if is_DEVEC(l):
@@ -336,16 +332,12 @@ def glue(raw_scalar_code, all_vector_bbs):
             else:
                 after_VECTOR_EPOCH_before_DEVEC.append(l)
 
-
-
         elif state == ScalarParseState.AFTER_DEVEC:
             delim = parse_delim(l)
             if delim != None and delim[0] == TrilliumAsmDelim.RETURN:
                 state = ScalarParseState.AFTER_RETURN_DELIM
             else:
                 after_DEVEC_before_RET_DELIM.append(l)
-
-
 
         elif state == ScalarParseState.AFTER_RETURN_DELIM:
             parsed_inst = parse_jump_inst(l)
@@ -370,7 +362,6 @@ def glue(raw_scalar_code, all_vector_bbs):
 
             else:
                 scalar_cleanup.append(l)
-
 
         #input for this state: scalar_ret_label
         #if not None, we search for scalar cleanup and return at that label
@@ -431,7 +422,6 @@ def glue(raw_scalar_code, all_vector_bbs):
                         aux_bbs[labels.pop()] = []
                 latest_aux_bb = list(aux_bbs.values())[-1]
                 latest_aux_bb.append(l)
-
 
         elif state == ScalarParseState.INDIRECT_SCALAR_RET_FOUND:
             parsed_label = parse_label(l)
