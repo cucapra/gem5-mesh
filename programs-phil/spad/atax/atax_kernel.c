@@ -136,9 +136,10 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
       col_thread+=PREFETCH_LEN;
     }
 
-    asm("trillium vissue_delim until_next loop_end");
+    asm("trillium vissue_delim begin loop_end");
     row_thread+=dim;
     asm volatile("fence\n\t"); //since I have store noacks I don't move to next iter until all stores are done to partial vec
+    asm("trillium vissue_delim end at_jump");
   }
 
   // mark vector stack cleanup assembly
