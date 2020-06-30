@@ -9,6 +9,6 @@
 #include "spad.h"
 #include "../../common/bind_defs.h"
 
-void tril_if_delim_test(int mask);
+void tril_if_delim_test(int mask, DTYPE *outbuf);
 
 #endif

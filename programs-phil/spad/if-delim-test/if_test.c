@@ -117,7 +117,6 @@ int get_reduction_dest(template_info_t *tinfo, int group_id, int vid_x, int vid_
 void kernel(DTYPE *a, int n,
     int tid_x, int tid_y, int dim_x, int dim_y)
 {
-
   // start recording all stats (all cores)
   if (tid_x == 0 && tid_y == 0)
   {
@@ -289,7 +288,7 @@ void kernel(DTYPE *a, int n,
 
 
 #if defined USE_VEC
-  tril_if_delim_test(mask);
+  tril_if_delim_test(mask, a);
 #else
   #error manycore unsupported
 #endif

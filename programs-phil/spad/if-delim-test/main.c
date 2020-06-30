@@ -80,11 +80,14 @@ int main(int argc, char *argv[])
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
 
+  for (int i = 0; i < 10; ++i) {
+    printf("val %i: %i\n", i, a[i]);
+  }
+
   // if (incorrect){
   //   printf("[[FAIL]]\n");
   //   return 1;
   // }
-
 
   free(a_ptr);
   printf("[[SUCCESS]]\n");

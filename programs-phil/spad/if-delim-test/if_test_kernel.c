@@ -1,7 +1,7 @@
 #include "if_test_kernel.h"
 
 void __attribute__((optimize("-fno-reorder-blocks")))
-tril_if_delim_test(int mask) {
+tril_if_delim_test(int mask, DTYPE *outbuf) {
 #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
 #endif
@@ -11,7 +11,6 @@ tril_if_delim_test(int mask) {
   ISSUE_VINST(init_label);
 #elif defined VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
-  volatile int myResult = 0;
 #endif
 
   // A loop that issues vector blocks. We use a "black hole" loop to replace
@@ -20,17 +19,19 @@ tril_if_delim_test(int mask) {
   for (int i = 0; i < 100; ++i) {
 #elif defined VECTOR_CORE
   volatile int BH;
+  int vector_i = 0;
   while (BH) {
 #endif
 #ifdef SCALAR_CORE
     ISSUE_VINST(if_block_label);
 #elif defined VECTOR_CORE
     asm("trillium vissue_delim if_begin if_block");
-    if (BH) {
-      myResult += 42;
+    if (outbuf[vector_i] == 7) {
+      outbuf[vector_i] = 42;
     } else {
-      myResult += 24;
+      outbuf[vector_i] = 24;
     }
+    ++vector_i;
     asm("trillium vissue_delim if_end");
 #endif
   }
