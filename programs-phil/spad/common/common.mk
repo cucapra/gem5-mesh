@@ -1,16 +1,18 @@
 # defaults if environment variables not set. allows scritable command line
 
-ifeq ($(ENV_N_SPS),)
-	N_SPS = 64
-else
-	N_SPS = $(ENV_N_SPS)
-endif	
+N_SPS ?= 64
+ifneq ($(ENV_N_SPS),)
+	N_SPS ?= $(ENV_N_SPS)
+endif
 
-EXTRA_FLAGS:= 
-
+EXTRA_FLAGS :=
 ifneq ($(ENV_EXTRA_MAKE_FLAGS),)
 	EXTRA_FLAGS := $(EXTRA_FLAGS) $(ENV_EXTRA_MAKE_FLAGS)
 endif
+
+# Overridable arguments to the simulation command for `make run`.
+GEM5_ARGS ?= --remote-gdb-port=0
+HB_ARGS ?= --options=""
 
 # Find the repository's base directory.
 COMMON_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
@@ -34,12 +36,12 @@ $(BENCHNAME) : $(TRILLIASM_OBJS) $(C_DEPS_NOKERN) $(COMMON_OBJS)
 
 run: $(BENCHNAME)
 	$(BASE_DIR)/build/RVSP/gem5.opt \
-	--remote-gdb-port=0 \
-	$(BASE_DIR)/configs/phil/brg_hammerblade.py \
-	--cmd=$(BENCHNAME) \
-	--options="" \
-	--num-cpus=$(N_SPS) \
-	--vector
+		$(GEM5_ARGS) \
+		$(BASE_DIR)/configs/phil/brg_hammerblade.py \
+		--cmd=$(BENCHNAME) \
+		$(HB_ARGS) \
+		--num-cpus=$(N_SPS) \
+		--vector
 
 $(C_DEPS_NOKERN): %.o: %.c
 	$(RV_CC) $(CFLAGS) -c $^ -o $@
