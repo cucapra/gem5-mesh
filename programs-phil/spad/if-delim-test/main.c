@@ -5,7 +5,7 @@
 
 #include "spad.h"
 #include "pthread_launch.h"
-#include "template.h"
+#include "if_test.h"
 
 
 int main(int argc, char *argv[])

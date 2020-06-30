@@ -1,7 +1,7 @@
-#include "template_kernel.h"
+#include "if_test_kernel.h"
 
 void __attribute__((optimize("-fno-reorder-blocks")))
-tril_template_vec(int mask) {
+tril_if_delim_test(int mask) {
 #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
 #endif

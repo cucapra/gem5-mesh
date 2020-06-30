@@ -2,13 +2,13 @@
 #include <stdio.h>
 
 #include "pthread_launch.h"
-#include "template.h"
+#include "if_test.h"
 #include "spad.h"
 #include "../../common/bind_defs.h"
 #include "token_queue.h"
 #include "group_templates.h"
 
-#include "template_kernel.h"
+#include "if_test_kernel.h"
 
 // use this to chunk data among vector groups
 // https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
