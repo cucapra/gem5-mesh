@@ -321,7 +321,9 @@ def glue(raw_scalar_code, all_vector_bbs):
                 # including scalar block that returns to jump address,
                 # if any). (OrderedDict helps us keep track of the
                 # last inserted label.)
-                aux_bbs = OrderedDict([("trillium_anon_aux_bb",[])])
+                aux_bbs = OrderedDict({
+                    '{}_anon_aux_bb'.format(func_name): [],
+                })
 
                 # Non-instruction lines after all labels/blocks.
                 footer = []
