@@ -1,7 +1,6 @@
 #include "if_test_kernel.h"
 
-void __attribute__((optimize("-fno-reorder-blocks")))
-tril_if_delim_test(int mask, DTYPE *outbuf) {
+void tril_if_delim_test(int mask, DTYPE *outbuf) {
 #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
 #endif

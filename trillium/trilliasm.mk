@@ -21,14 +21,15 @@
 TRILLIUM_DIR?=../../../trillium
 COMMON_PATH?=../common
 RV_CC?=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
-CFLAGS?=-D_N_SPS=16 -O3 --std=gnu11 -static -I$(COMMON_PATH) -T$(COMMON_PATH)/spm.ld -lpthread -lm
+CFLAGS?=-D_N_SPS=16 -O3 fno-reorder-blocks --std=gnu11 -static -I$(COMMON_PATH) -T$(COMMON_PATH)/spm.ld -lpthread -lm
+VECTOR_CFLAGS ?= -fno-reorder-blocks
 
 
 KERNEL_NAME:= $(basename $(TRILLIASM_KERNEL))
 TRILLIASM_OBJS=$(TRILLIASM_KERNEL:.c=.o)
 
 $(KERNEL_NAME)_vector.s: $(KERNEL_NAME).c
-	$(RV_CC) $(CFLAGS) -D VECTOR_CORE -S $< -o $@
+	$(RV_CC) $(VECTOR_CFLAGS) $(CFLAGS) -D VECTOR_CORE -S $< -o $@
 
 $(KERNEL_NAME)_scalar.s: $(KERNEL_NAME).c
 	$(RV_CC) $(CFLAGS) -D SCALAR_CORE -S $< -o $@ 
