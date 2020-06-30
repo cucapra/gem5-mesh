@@ -296,6 +296,17 @@ def glue(raw_scalar_code, all_vector_bbs):
             commented_label = ".{}:  # {} vissue block".format(label, vissue_key)
             labeled_vector_bbs.append(commented_label)
 
+            if func_name not in all_vector_bbs:
+                raise ParseError(
+                    'attempting to glue in function missing from vector: {}'
+                    .format(func_name)
+                )
+            if vissue_key not in all_vector_bbs[func_name]:
+                raise ParseError(
+                    'attempt to glue missing vector block: {}'
+                    .format(vissue_key)
+                )
+
             labeled_vector_bbs.extend(all_vector_bbs[func_name][vissue_key])
 
         return (
