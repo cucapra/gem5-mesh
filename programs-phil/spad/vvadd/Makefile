@@ -1,11 +1,9 @@
-BENCHNAME:=vvadd
+BENCHNAME := vvadd
 default: $(BENCHNAME)
 
-#plug in trilliasm make recipes
-TRILLIASM_KERNEL = vvadd_kernel.c
-TRILLIUM_DIR=../../../trillium
-include $(TRILLIUM_DIR)/trilliasm.mk
+# Build the kernel with trilliasm.
+TRILLIASM_KERNEL := vvadd_kernel.c
+include ../../../trillium/trilliasm.mk
 
-# run standard compilation
-COMMON_DIR=../common
-include $(COMMON_DIR)/common.mk
+# Standard benchmark compilation.
+include ../common/common.mk

@@ -8,10 +8,9 @@ N_SPS ?= 16  # This benchmark expects 16 CPUs for now.
 GEM5_ARGS := -d ../../../results/$(OUT)
 HB_ARGS := --options="$(SIZE) $(SIZE)"
 
-#plug in trilliasm make recipes
-TRILLIASM_KERNEL = atax_kernel.c
-TRILLIUM_DIR=../../../trillium
-include $(TRILLIUM_DIR)/trilliasm.mk
+# Build the kernel with trilliasm.
+TRILLIASM_KERNEL := atax_kernel.c
+include ../../../trillium/trilliasm.mk
 
-# run standard compilation
+# Standard benchmark compilation.
 include ../common/common.mk
