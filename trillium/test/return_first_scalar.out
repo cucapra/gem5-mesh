@@ -21,16 +21,16 @@
 	# trillium: auxiliary blocks end
 	# trillium: vector vissue blocks begin
 .SCALAR3:  # block_one vissue block
-	#prepended trillium_init block here (See docs for more info)
-	#trillium_init begin
-	TRILLIUM_INIT_BLOCK
-.VEC1:
-	#trillium_init end
 .VEC2:
 	VECTOR_BLOCK_ONE
 .VEC3:
 	.insn i 0x1b, 0x7, x0, x0, 0
 .SCALAR5:  # block_two vissue block
+	#prepended trillium_init block here (See docs for more info)
+	#trillium_init begin
+	TRILLIUM_INIT_BLOCK
+.VEC5:
+	#trillium_init end
 .VEC6:
 	VECTOR_BLOCK_TWO
 	.insn i 0x1b, 0x7, x0, x0, 0
