@@ -10,7 +10,7 @@ tril_somefunc:
   .L4:
   FALSE_BRANCH
   .L3:
-	trillium vissue_delim if_end
+	trillium vissue_delim end
   .L5:
 	trillium vissue_delim return vector_return
   .L6:

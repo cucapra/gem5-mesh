@@ -24,6 +24,7 @@ class VectorParseState(Enum):
     IF_BEGIN_END = auto()
     RETURN = auto()
     JUNK = auto()
+    END_AT_JUMP = auto()
 
 
 def extract_vector_blocks(raw_vector_code):
@@ -66,7 +67,7 @@ def extract_vector_blocks(raw_vector_code):
         elif state == VectorParseState.UNTIL_NEXT:
             delim_parse = parse_delim(l)
 
-            if delim_parse in (TrilliumAsmDelim.END, TrilliumAsmDelim.IF_END):
+            if delim_parse and delim_parse[0] == TrilliumAsmDelim.END:
                 raise ParseError(
                     'until_next block {} terminated with end'.format(
                         curr_vissue_key
@@ -94,39 +95,56 @@ def extract_vector_blocks(raw_vector_code):
 
         # in this state, we've just seen the `begin` delimiter,
         # so we're looking for a matching `end`
-        elif state == VectorParseState.BEGIN_END:
+        elif state in (VectorParseState.BEGIN_END,
+                       VectorParseState.IF_BEGIN_END):
             delim_parse = parse_delim(l)
-            if delim_parse == TrilliumAsmDelim.END:
-                log.info("parsed `begin/end`-delimited block: {}".format(curr_vissue_key))
+            if delim_parse and delim_parse[0] == TrilliumAsmDelim.END:
+                log.info("parsed `begin/end`-delimited block: {}".format(
+                    curr_vissue_key
+                ))
 
-                # setup collection of "junk code" after `end` delim and before next delim,
-                # for debugging purposes
+                # Support `end at_jump` delimiters, which continue adding
+                # instructions until we hit the next jump!
+                _, qualifier = delim_parse
+                if qualifier == 'at_jump':
+                    log.info("end at_jump: continuing for now")
+                    state = VectorParseState.END_AT_JUMP
+                else:
+                    # Set up collection of "junk code" after `end` delim and
+                    # before next delim, for debugging purposes.
+                    junk_vissue_key = junk_prefix + str(junk_postfix)
+                    blocks[curr_func][junk_vissue_key] = []
+                    state = VectorParseState.JUNK
+
+            elif delim_parse is not None:
+                raise ParseError(
+                    "expected `end` delimiter to match `begin` or `if_begin` in line {}".format(line_no)
+                )
+
+            else:
+                # A normal line of code. Drop jumps in "normal"
+                # begin/end blocks, but include jumps in "if" begin/end
+                # blocks.
+                if state == VectorParseState.IF_BEGIN_END or not is_jump(l):
+                    blocks[curr_func][curr_vissue_key].append(l)
+
+        # This state continues vacuuming up a few instructions *after*
+        # the "end" delimiter---until we hit a branch/jump instruction.
+        elif state == VectorParseState.END_AT_JUMP:
+            if is_jump(l):
+                log.info("end at_jump: jump found; ending {}".format(
+                    curr_vissue_key
+                ))
                 junk_vissue_key = junk_prefix + str(junk_postfix)
                 blocks[curr_func][junk_vissue_key] = []
                 state = VectorParseState.JUNK
-            elif delim_parse != None:
-                raise ParseError(
-                    "expected `end` delimiter to match `begin` in line {}".format(line_no)
-                )
-            elif not is_jump(l):
-                blocks[curr_func][curr_vissue_key].append(l)
 
-        # in this state, we've just seen the `if-begin` delimiter,
-        # so we're looking for a matching `if-end`
-        elif state == VectorParseState.IF_BEGIN_END:
-            delim_parse = parse_delim(l)
-            if delim_parse == TrilliumAsmDelim.IF_END:
-                log.info("parsed `if-begin/end`-delimited block: {}".format(curr_vissue_key))
+            elif parse_delim(l):
+                raise ParseError("hit delimiter in END_AT_JUMP state")
 
-                # setup collection of "junk code" after `end` delim and before next delim,
-                # for debugging purposes
-                junk_vissue_key = junk_prefix + str(junk_postfix)
-                blocks[curr_func][junk_vissue_key] = []
-                state = VectorParseState.JUNK
-            elif delim_parse != None:
-                raise ParseError(
-                    "expected `if-end` delimiter to match `if-begin` in line {}".format(line_no)
-                )
+            elif parse_label(l):
+                raise ParseError("hit label in END_AT_JUMP state")
+
             else:
                 blocks[curr_func][curr_vissue_key].append(l)
 
