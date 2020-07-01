@@ -326,10 +326,7 @@ def glue(raw_scalar_code, all_vector_bbs, rodata_chunks):
             ["# trillium: vector vissue blocks end"] +
             ["# trillium: footer begin"] +
             footer +
-            ["# trillium: footer end"] +
-            ["# trillium: vector constants begin"] +
-            list(itertools.chain.from_iterable(rodata_chunks)) +
-            ["# trillium: vector constants end"]
+            ["# trillium: footer end"]
         )
 
 
@@ -511,9 +508,21 @@ def glue(raw_scalar_code, all_vector_bbs, rodata_chunks):
                 log.info("adding line to scalar cleanup: {}".format(l))
                 scalar_cleanup.append(l)
 
-    # At the end, we will have accumulated the final chunk of code, below the
-    # last kernel, as the "header" of the next (nonexistent) kernel. Add these
-    # lines unchanged to the output.
+    # At the end, we will have accumulated the final chunk of code,
+    # below the last kernel, as the "header" of the next (nonexistent)
+    # kernel. We stitch in the rodata lines and dump the combination to
+    # the output.
+    if rodata_chunks:
+        for i, l in enumerate(header):
+            if '.comm' in l:
+                header[i + 1:i + 1] = (
+                    ["# trillium: vector constants begin"] +
+                    list(itertools.chain.from_iterable(rodata_chunks)) +
+                    ["# trillium: vector constants end"]
+                )
+                break
+        else:
+            raise ParseError('expected .comm to insert rodata constants')
     out_lines += header
 
     return out_lines
