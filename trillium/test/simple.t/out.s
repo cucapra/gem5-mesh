@@ -1,4 +1,4 @@
-	; ARGS: end_at_jump_vector.s
+	; ARGS: simple_vector.s
 	SCALAR_HEADER
 	tril_somefunc:
 	.insn i 0x77, 0, x0, a0, 0x401
@@ -12,7 +12,7 @@
 	SCALAR_AFTER_DEVEC
 	ret
 	# trillium: auxiliary blocks begin
-.trillium_anon_aux_bb:
+.tril_somefunc_anon_aux_bb:
 	SCALAR_AFTER_RETURN
 .SCALAR4:
 	AN_AUXILIARY_BLOCK
@@ -28,7 +28,7 @@
 	#trillium_init end
 .VEC2:
 	VECTOR_BLOCK_ONE
-	VECTOR_BLOCK_ONE_CONTINUED
+.VEC3:
 	.insn i 0x1b, 0x7, x0, x0, 0
 .SCALAR5:  # block_two vissue block
 .VEC6:

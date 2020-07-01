@@ -1,4 +1,4 @@
-	; ARGS: until_next_vector.s
+	; ARGS: end_at_jump_vector.s
 	SCALAR_HEADER
 	tril_somefunc:
 	.insn i 0x77, 0, x0, a0, 0x401
@@ -28,7 +28,7 @@
 	#trillium_init end
 .VEC2:
 	VECTOR_BLOCK_ONE
-.VEC3:
+	VECTOR_BLOCK_ONE_CONTINUED
 	.insn i 0x1b, 0x7, x0, x0, 0
 .SCALAR5:  # block_two vissue block
 .VEC6:
