@@ -2,6 +2,7 @@ from collections import OrderedDict
 from glue_util import *
 from glue_log import *
 import argparse
+import itertools
 from enum import Enum, auto
 
 
@@ -261,10 +262,11 @@ class ScalarParseState(Enum):
     # NON_VECTOR_BB = auto()
 
 
-def glue(raw_scalar_code, all_vector_bbs):
-    """Paste vector blocks from `all_vector_bbs`, which is a dict of dicts
-    mapping functions to blocks to code, into `raw_scalar_code`, which is an
-    assembly string.
+def glue(raw_scalar_code, all_vector_bbs, rodata_chunks):
+    """Paste vector blocks from `all_vector_bbs`, which is a dict of
+    dicts mapping functions to blocks to code, into `raw_scalar_code`,
+    which is an assembly string. `rodata_chunks` is a list of lists
+    containing lines to be inserted containing constant data sections.
     """
     log.info("GLUING VECTOR CODE TO SCALAR...")
     scalar_code = scalar_preprocess(raw_scalar_code)
@@ -324,7 +326,10 @@ def glue(raw_scalar_code, all_vector_bbs):
             ["# trillium: vector vissue blocks end"] +
             ["# trillium: footer begin"] +
             footer +
-            ["# trillium: footer end"]
+            ["# trillium: footer end"] +
+            ["# trillium: vector constants begin"] +
+            list(itertools.chain.from_iterable(rodata_chunks)) +
+            ["# trillium: vector constants end"]
         )
 
 
@@ -550,7 +555,7 @@ if __name__ == "__main__":
                 log.info("  {}".format(line))
 
         # Splice the vector blocks into the scalar assembly.
-        combined_code = glue(scalar_code, vector_blocks)
+        combined_code = glue(scalar_code, vector_blocks, rodata_chunks)
     except ParseError as exc:
         log.critical(exc)
         sys.exit(1)
