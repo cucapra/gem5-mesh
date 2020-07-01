@@ -39,11 +39,14 @@
 #include "mem/ruby/network/garnet2.0/OutputUnit.hh"
 #include "mem/ruby/network/garnet2.0/Router.hh"
 
+#include "debug/Frame.hh"
+
 SwitchAllocator::SwitchAllocator(Router *router)
     : Consumer(router)
 {
     m_router = router;
     m_num_vcs = m_router->get_num_vcs();
+    DPRINTF(Frame, "num vcs %d\n", m_num_vcs);
     m_vc_per_vnet = m_router->get_vc_per_vnet();
 
     m_input_arbiter_activity = 0;
@@ -91,6 +94,17 @@ SwitchAllocator::init()
 void
 SwitchAllocator::wakeup()
 {
+    // int p[4];
+    // for (int inport = 0; inport < 4; inport++) {
+    //     if (m_input_unit[inport]->peekTopFlit(0)) {
+    //         p[inport] = 1;
+    //     }
+    //     else {
+    //         p[inport] = 0;
+    //     }
+    // }
+    // DPRINTF(Frame, "switch allocator wakeup %d %d %d %d inports %d\n", p[0], p[1], p[2], p[3], m_num_inports);
+
     arbitrate_inports(); // First stage of allocation
     arbitrate_outports(); // Second stage of allocation
 

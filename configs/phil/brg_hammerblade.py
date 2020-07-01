@@ -346,6 +346,8 @@ n_l2s   = n_cols
 # network classes
 #assert(options.network == "garnet2.0")
 options.network = "garnet2.0"
+virt_channels = 1
+options.vcs_per_vnet = virt_channels
 NetworkClass = GarnetNetwork
 IntLinkClass = GarnetIntLink
 ExtLinkClass = GarnetExtLink
@@ -360,34 +362,12 @@ process = get_processes(options)[0]
 #------------------------------------------------------------------------------
 
 # CPU class
-#CPUClass = TimingSimpleCPU
-
-'''
-CPUClass = MinorCPU(   
-                    # modified minor currently only works with 1way proc
-                    # does compiler know that this is a 1way io proc? seems
-                    # like it would matter a lot for instruction order chosen
-                    fetch2InputBufferSize = 1,
-                    decodeInputWidth = 1,
-                    executeInputWidth = 1,
-                    executeIssueLimit = 1,
-                    executeCommitLimit = 1,
-                    # important that this is not greter than stream_width!!!
-                    # default both to 2
-                    #executeMaxAccessesInMemory = options.stream_width, 
-                    executeLSQMaxStoreBufferStoresPerCycle = 1,
-                  )
-'''
-
 CPUClass = IOCPU (
   includeVector = options.vector,
   meshBufferSize = 2
   ,
   numROBEntries = 8
-
 )
-
-
 
 # Create top-level system
 system = System(cpu = [ CPUClass(cpu_id = i) for i in xrange(n_cpus) ],
@@ -432,7 +412,10 @@ network = NetworkClass (ruby_system = system.ruby,
                         ext_links = [],
                         int_links = [],
                         netifs = [],
-                        number_of_virtual_networks = 2)
+                        number_of_virtual_networks = 2, # what does it mean to have two networks??
+                        #vcs_per_vnet=virt_channels
+                        )
+                        
 
 # Scratchpads
 #n_scratchpads = n_cpus + n_xcels
