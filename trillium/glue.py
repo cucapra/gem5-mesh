@@ -533,4 +533,4 @@ if __name__ == "__main__":
 
     # Print out the combined assembly.
     log.info("Done gluing; ready to print.")
-    combined_file.write(pretty(combined_code))
+    combined_file.write(pretty(combined_code) + '\n')
