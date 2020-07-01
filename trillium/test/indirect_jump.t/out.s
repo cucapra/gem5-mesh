@@ -1,10 +1,11 @@
-	; ARGS: simple_vector.s
+	; ARGS: indirect_jump_vector.s
 	SCALAR_HEADER
 	tril_somefunc:
 	.insn i 0x77, 0, x0, a0, 0x401
 	BEFORE_VECTOR_EPOCH
 	# trillium: scalar stack cleanup begin
-	SCALAR_STACK_CLEANUP
+	SCALAR_STACK_CLEANUP_1
+	SCALAR_STACK_CLEANUP_2
 	# trillium: scalar stack cleanup end
 .SCALAR1:
 	.insn uj 0x2b, x0, .SCALAR14
