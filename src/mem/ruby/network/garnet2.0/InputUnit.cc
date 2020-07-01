@@ -39,7 +39,8 @@
 #include "mem/ruby/network/garnet2.0/Router.hh"
 
 #include "mem/ruby/scratchpad/MemMessage.hh"
-#include "debug/Mesh.hh"
+#include "mem/protocol/LLCResponseMsg.hh"
+#include "debug/Frame.hh"
 
 using namespace std;
 using m5::stl_helpers::deletePointers;
@@ -130,6 +131,11 @@ InputUnit::wakeup()
             // auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
             // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
             //     DPRINTF(Mesh, "InputUnit %d Router %d single-cycle buffer %#x\n", m_id, m_router->get_id(), mem_msg->getPacket()->getAddr());
+
+            auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(t_flit->get_msg_ptr());
+            if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+                DPRINTF(Frame, "InputUnit %d Router %d single-cycle buffer %#x\n", m_id, m_router->get_id(), mem_msg->getLineAddress());
+
 
              DPRINTF(RubyNetwork, "InputUnit %d Router %d buffer %p\n", m_id, m_router->get_id(), t_flit);
 

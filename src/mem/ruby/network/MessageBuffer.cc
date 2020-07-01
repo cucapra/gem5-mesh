@@ -39,6 +39,9 @@
 
 #include "debug/RubyNetwork.hh"
 
+#include "mem/protocol/LLCResponseMsg.hh"
+#include "debug/Frame.hh"
+
 using namespace std;
 using m5::stl_helpers::operator<<;
 
@@ -214,6 +217,10 @@ MessageBuffer::enqueue(MsgPtr message, Tick current_time, Tick delta)
     DPRINTF(RubyQueue, "Enqueue arrival_time: %lld, Message: %p %s\n",
             arrival_time, message.get(), *(message.get()));
 
+    auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(message);
+    if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+        DPRINTF(Frame, "Message buffer enqueue addr %#x arrival %lld queue size %d\n", mem_msg->getLineAddress(), arrival_time, m_prio_heap.size());
+
     // Schedule the wakeup
     assert(m_consumer != NULL);
     m_consumer->scheduleEventAbsolute(arrival_time);
@@ -230,6 +237,10 @@ MessageBuffer::dequeue(Tick current_time, bool decrement_messages)
     MsgPtr message = m_prio_heap.front();
 
     DPRINTF(RubyNetwork, "Popping msg %p\n", message.get());
+
+    auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(message);
+    if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+        DPRINTF(Frame, "Message buffer dequeue addr %#x\n", mem_msg->getLineAddress());
 
     // get the delay cycles
     message->updateDelayedTicks(current_time);
