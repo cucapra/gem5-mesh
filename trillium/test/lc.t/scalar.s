@@ -21,4 +21,6 @@ tril_somefunc:
 .L6:
   ANOTHER_AUXILIARY_BLOCK
 .size whatever
-SCALAR_FOOTER
+.comm   start_barrier,32,8
+.ident  "GCC: (GNU) 8.3.0"
+.section        .note.GNU-stack,"",@progbits

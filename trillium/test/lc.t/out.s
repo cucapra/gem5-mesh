@@ -33,9 +33,23 @@
 .SCALAR5:  # block_two vissue block
 .VEC6:
 	VECTOR_BLOCK_TWO
+	lui s2,%hi(.VECC1)
+	addi a0,s2,%lo(.VECC1)
 	.insn i 0x1b, 0x7, x0, x0, 0
 	# trillium: vector vissue blocks end
 	# trillium: footer begin
 	.size whatever
 	# trillium: footer end
-	SCALAR_FOOTER
+	.comm   start_barrier,32,8
+	# trillium: vector constants begin
+	.section    .rodata.str1.8,"aMS",@progbits,1
+	.align  3
+.VECC1:
+	.string "sup"
+	.zero 2
+	.section        .srodata.cst8,"aM",@progbits,8
+.VECC0:
+	.word 1065353216
+	# trillium: vector constants end
+	.ident  "GCC: (GNU) 8.3.0"
+	.section        .note.GNU-stack,"",@progbits
