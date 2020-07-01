@@ -353,7 +353,7 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
 
   if(used!=0){
     #if defined _VEC
-      corr_vec_1(mask, data, symmat, mean, stddev, m, n, start, end, vtid, vdim, ptid);
+      tril_corr_vec_1(mask, data, symmat, mean, stddev, m, n, start, end, vtid, vdim, ptid);
     #else
       corr_manycore_1(data, symmat, mean, stddev, m, n, start, end, ptid);
     #endif
@@ -364,13 +364,15 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
   if (used == 0) goto stack_end;
   //redistribute work for 2nd kernel
   #ifdef _VEC
+  start = unique_id*VEC_LEN;
+  int stride = total_groups*VEC_LEN;
   #else
   start  = ptid;
   int stride = pdim;
   #endif
 
   #if defined _VEC
-      // corr_vec_2(mask);
+    tril_corr_vec_2(mask,data, symmat, mean, stddev, m, n, start, stride, vtid, vdim, ptid);
   #else
     corr_manycore_2(data, symmat, mean, stddev, m, n, start, stride, ptid);
   #endif

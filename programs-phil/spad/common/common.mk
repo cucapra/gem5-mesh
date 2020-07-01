@@ -25,9 +25,9 @@ $(BENCHNAME) : $(TRILLIASM_OBJS) $(C_DEPS_NOKERN)
 	$(RV_CC) $(TRILLIASM_OBJS) $(C_OBJS_NOKERN) $(CFLAGS) -o $@
 
 run : $(BENCHNAME)
-	~/gem5-mesh/build/RVSP/gem5.opt \
+	../../../build/RVSP/gem5.opt \
 	--remote-gdb-port=0 \
-	~/gem5-mesh/configs/phil/brg_hammerblade.py \
+	../../../configs/phil/brg_hammerblade.py \
 	--cmd=$(BENCHNAME) \
 	--options="" \
 	--num-cpus=$(N_SPS) \
