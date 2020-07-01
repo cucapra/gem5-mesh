@@ -41,9 +41,9 @@ int roundUp(int numToRound, int multiple) {
 
 void __attribute__((optimize("-fno-inline")))
 corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
-              int start, int end, int ptid)
+              int start, int end, int ptid, float eps)
 {
-  double eps = 0.1f;
+  // double eps = 0.1f;
 
   DTYPE mean_temp=0;
   DTYPE stddev_temp=0;
@@ -217,6 +217,7 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
   int total_groups = 0;
   int used=0;
 
+  float eps=0.1;
 
   #ifdef _VEC
   #if VEC_LEN==4
@@ -353,9 +354,9 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
 
   if(used!=0){
     #if defined _VEC
-      tril_corr_vec_1(mask, data, symmat, mean, stddev, m, n, start, end, vtid, vdim, ptid);
+      tril_corr_vec_1(mask, data, symmat, mean, stddev, m, n, start, end, vtid, vdim, ptid, eps);
     #else
-      corr_manycore_1(data, symmat, mean, stddev, m, n, start, end, ptid);
+      corr_manycore_1(data, symmat, mean, stddev, m, n, start, end, ptid, eps);
     #endif
   }
 

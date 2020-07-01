@@ -21,7 +21,7 @@ $(EXEC): $(TRILLIASM_KERNEL:.c=.o) $(C_OBJS_NOKERN)
 
 
 run: $(EXEC)
-		../../../build/RVSP/gem5.opt -d ../../../results/$(OUT) \
+		../../../build/RVSP/gem5.opt --debug-flags=Mesh -d ../../../results/$(OUT) \
 		../../../configs/phil/brg_hammerblade.py \
 		--cmd=$(EXEC) \
 		--options="$(SIZE) $(SIZE)" \

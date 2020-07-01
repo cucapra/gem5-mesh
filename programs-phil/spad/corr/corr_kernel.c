@@ -18,7 +18,7 @@ inline void prefetch_data_frame (DTYPE* data, int i, int j, int n, int vdim, int
 
 
 void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
-              int start, int end, int vtid, int vdim, int ptid)
+              int start, int end, int vtid, int vdim, int ptid, float eps)
 {
   //this template uses separate scalar and vector code blocks but they can be interspersed as well as shown here
   //https://github.com/cucapra/gem5-mesh/wiki/Trilliasm-Language-Overview:-Vector-SIMD-in-C
@@ -104,12 +104,12 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
   DTYPE mean_temp=0;
   DTYPE stddev_temp=0;
   DTYPE data_temp;
-  double eps = 0.1f;
+  // double eps = 0.1;
 
-  while(bh1){
+  do{
     asm("trillium vissue_delim until_next hoist1");
     mean_temp=0;
-    while(bh2){
+    do{
       asm("trillium vissue_delim until_next mean");
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(8)
@@ -120,13 +120,13 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       sp_offset += REGION_SIZE;
       // if(sp_offset==NUM_REGIONS)sp_offset=0;
       sp_offset = sp_offset%(NUM_REGIONS*REGION_SIZE);
-    }
+    } while(bh2); 
     asm("trillium vissue_delim until_next hoist2");
     mean_temp/=n;
     mean[i]=mean_temp;
 
     stddev_temp=0;
-    while(bh2){
+    do {
       asm("trillium vissue_delim until_next stddev");
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(8)
@@ -137,7 +137,7 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       sp_offset += REGION_SIZE;
       // if(sp_offset==NUM_REGIONS)sp_offset=0;
       sp_offset = sp_offset%(NUM_REGIONS*REGION_SIZE);
-    }
+    } while(bh2);
     asm("trillium vissue_delim until_next hoist3");
     stddev_temp = stddev_temp/n;
     stddev_temp = sqrt(stddev_temp);
@@ -152,7 +152,7 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
     stddev[i] = stddev_temp;
 
     j=0;
-    while(bh2){
+    do {
       asm("trillium vissue_delim until_next center");
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(8)
@@ -166,11 +166,11 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       // if(sp_offset==NUM_REGIONS)sp_offset=0;
       sp_offset = sp_offset%(NUM_REGIONS*REGION_SIZE);
       j+=REGION_SIZE;
-    }
+    } while(bh2);
     asm("trillium vissue_delim until_next symmat1");
     symmat[i*m+i]=1; //make diagonal 1 for the vectors it is assigned
     i+=vdim;
-  }
+  } while(bh1);
 
   asm("trillium vissue_delim return vector_stack"); //return delimiter
   return;
@@ -185,6 +185,9 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
 
   #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
+  if(ptid==0){
+    printf("Hello\n");
+  }
 
   //---------------------------------
   //scalar core code iterspersed with vissue
@@ -194,6 +197,9 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
   int spadRegion = 0;
   int sp_data_offset=0;
 
+  if(ptid==0){
+    printf("Hello again\n");
+  }
   for (int i1 = start; i1 < m-1; i1+=stride){
     ISSUE_VINST(hoist1_label);
     for(int i2 = i1+1; i2<m; i2++){
@@ -261,14 +267,14 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
   int j=0;
   DTYPE symmat_temp=0;
 
-  while(bh1){
+  do{
     asm("trillium vissue_delim until_next hoist1");
     i2=i1+1;
-    while(bh2){
+    do {
       asm("trillium vissue_delim until_next hoist2");
       symmat_temp=0;
       j=0;
-      while(bh3){
+      do {
         asm("trillium vissue_delim until_next symmat");
         FRAME_START(REGION_SIZE);
         #pragma GCC unroll(8)
@@ -280,7 +286,7 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
         // if(sp_offset==NUM_REGIONS)sp_offset=0;
         sp_offset = sp_offset%(NUM_REGIONS*REGION_SIZE);
         j+=REGION_SIZE;
-      }
+      } while(bh3);
 
       asm("trillium vissue_delim until_next i2");
       int cond = (i2<m);
@@ -292,10 +298,10 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       }
       PRED_EQ(ptid,ptid);
       i2+=1;
-    }
+    } while(bh2);
     asm("trillium vissue_delim until_next i1");
     i1+=stride;
-  }
+  } while(bh1);
 
   asm("trillium vissue_delim return vector_stack"); //return delimiter
   return;
