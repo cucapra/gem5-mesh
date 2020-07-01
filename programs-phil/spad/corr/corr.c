@@ -326,7 +326,6 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
 // only let certain tids continue
   // if (used == 0) return;
 
-
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
   // do before the function call so the arg stack frame is on the spad
@@ -334,12 +333,12 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
 
   unsigned long long *spTop = getSpTop(ptid);
   // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
-  spTop -= 30;
+  spTop -= 40;
 
   unsigned long long stackLoc;
   unsigned long long temp;
-  #pragma GCC unroll(30)
-  for(int i=0;i<30;i++){
+  #pragma GCC unroll(40)
+  for(int i=0;i<40;i++){
     asm volatile("ld t0, %[id](sp)\n\t"
                 "sd t0, %[id](%[spad])\n\t"
                 : "=r"(temp)
@@ -360,6 +359,10 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
     #endif
   }
 
+  #ifdef _VEC
+  prefetchMask = (NUM_REGIONS << PREFETCH_NUM_REGION_SHAMT) | (REGION_SIZE << PREFETCH_REGION_SIZE_SHAMT);
+  PREFETCH_EPOCH(prefetchMask);
+  #endif
 
   pthread_barrier_wait(&start_barrier);
   if (used == 0) goto stack_end;
