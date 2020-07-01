@@ -89,14 +89,16 @@ def vector_preprocess(code):
     pass2 = apply_filter(lambda instr: instr != "", pass1)
     #pass3 = apply_filter(lambda instr: not (is_jump(instr) and not is_return_inst(instr)), pass2)
     pass3 = rename_labels("L", "VEC", pass2)
-    return pass3
+    pass4 = rename_labels("LC", "VECC", pass3)
+    return pass4
 
 def scalar_preprocess(code):
     with_line_nos = list(enumerate(code))
     pass1 = apply_transformation(strip_whitespace_and_comments, with_line_nos)
     pass2 = apply_filter(lambda instr: instr != "", pass1)
     pass3 = rename_labels("L", "SCALAR", pass2)
-    return pass3
+    pass4 = rename_labels("LC", "SCALARC", pass3)
+    return pass4
 
 def rename_labels(curr_prefix, new_prefix, code):
     label_regex = regex.compile(r"(.*)\.({})(\d+)".format(curr_prefix))
