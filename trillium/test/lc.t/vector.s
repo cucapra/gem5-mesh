@@ -19,10 +19,13 @@ tril_somefunc:
   addi a0,s2,%lo(.LC1)
   ret
 .size whatever
-.section    .rodata.str1.8,"aMS",@progbits,1
-.align  3
-.LC0:
-    .word 1065353216
+    .section    .rodata.str1.8,"aMS",@progbits,1
+    .align  3
 .LC1:
     .string "sup"
-VECTOR_FOOTER
+    .zero 2
+    .section        .srodata.cst8,"aM",@progbits,8
+.LC0:
+    .word 1065353216
+    .ident  "GCC: (GNU) 8.3.0"
+    .section        .note.GNU-stack,"",@progbits

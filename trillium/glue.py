@@ -25,12 +25,14 @@ class VectorParseState(Enum):
     RETURN = auto()
     JUNK = auto()
     END_AT_JUMP = auto()
+    RODATA = auto()
 
 
 def extract_vector_blocks(raw_vector_code):
     vector_code = vector_preprocess(raw_vector_code)
 
     blocks = {}
+    rodata_chunks = []
     curr_vissue_key = None
     curr_func = None
 
@@ -58,6 +60,13 @@ def extract_vector_blocks(raw_vector_code):
                 blocks[curr_func] = OrderedDict([(curr_vissue_key, [])])
 
                 state = VectorParseState.UNTIL_NEXT
+
+            elif parse_rodata_section(l):
+                # A read-only data (constant) section.
+                log.info('starting read-only data section: {}'.format(l))
+                rodata_chunks.append([l])
+                state = VectorParseState.RODATA
+
             else:
                 log.info("dropping '{}' at line {} in between functions...".format(l, line_no))
                 continue
@@ -214,6 +223,18 @@ def extract_vector_blocks(raw_vector_code):
                 #      Should this error out otherwise?
                 blocks[curr_func][curr_vissue_key].append(l)
 
+        # Gather up read-only data (constants).
+        elif state == VectorParseState.RODATA:
+            if is_ident(l):
+                log.info('rodata section ended')
+                state = VectorParseState.START
+            elif parse_rodata_section(l):
+                log.info('starting another rodata section: {}'.format(l))
+                rodata_chunks.append([l])
+            else:
+                rodata_chunks[-1].append(l)
+
+
     # After the state machine finishes, we should end up in the RETURN
     # state at the end.
     if state != VectorParseState.START:
@@ -221,8 +242,7 @@ def extract_vector_blocks(raw_vector_code):
             "ended in intermediate parse state {}".format(state.name)
         )
 
-
-    return blocks
+    return blocks, rodata_chunks
 
 
 class ScalarParseState(Enum):
@@ -516,7 +536,7 @@ if __name__ == "__main__":
 
     try:
         # Parse the vector assembly and extract the vector blocks.
-        vector_blocks = extract_vector_blocks(vector_code)
+        vector_blocks, rodata_chunks = extract_vector_blocks(vector_code)
         log.info("Extracted the following Trilliasm Kernel vector blocks:")
         for func_name in vector_blocks.keys():
             log.info("For function {}:".format(func_name))
@@ -524,6 +544,10 @@ if __name__ == "__main__":
                 block = vector_blocks[func_name][vissue_key]
                 log.info("Block {} length {}".format(vissue_key, len(block)))
                 log.info(pretty(block))
+        log.info("Extracted these constant blocks:")
+        for chunk in rodata_chunks:
+            for line in chunk:
+                log.info("  {}".format(line))
 
         # Splice the vector blocks into the scalar assembly.
         combined_code = glue(scalar_code, vector_blocks)

@@ -28,6 +28,13 @@ def parse_label(inst):
     return m.group(1) if m else None
     #return "." == inst[0] and ":" == inst[-1]
 
+def parse_rodata_section(inst):
+    m = regex.match(r'\.section\s+\.(s?rodata)\.', inst)
+    return m.group(1) if m else None
+
+def is_ident(inst):
+    return regex.match(r'\.ident\b', inst)
+
 def is_func_end(inst):
     return regex.match(r'\.size\b', inst)
 
