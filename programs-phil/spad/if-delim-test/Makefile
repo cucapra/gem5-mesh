@@ -1,12 +1,12 @@
-BENCHNAME := template
+BENCHNAME := if_test
 default: $(BENCHNAME)
 
 # Build the kernel with trilliasm.
-TRILLIASM_KERNEL := template_kernel.c
+TRILLIASM_KERNEL := if_test_kernel.c
 include ../../../trillium/trilliasm.mk
 
 # Standard benchmark compilation.
 include ../common/common.mk
 
-# Specify number of CPUs. (TODO: rename to NUM_CPUS)
-N_SPS := 16
+# specify number of cpus (TODO: rename to NUM_CPUS)
+N_SPS=16

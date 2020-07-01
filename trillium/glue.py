@@ -1,31 +1,8 @@
 from collections import OrderedDict
 from glue_util import *
+from glue_log import *
 import argparse
-import logging
-import colorlog
 from enum import Enum, auto
-
-
-# Set up logging with ***colors***.
-_handler = colorlog.StreamHandler()
-_handler.setFormatter(colorlog.ColoredFormatter(
-    '%(log_color)s%(message)s',
-    log_colors={
-        'DEBUG':    'thin_white',
-        'INFO':     'thin_white',
-        'WARNING':  'yellow',
-        'ERROR':    'red',
-        'CRITICAL': 'red',
-    },
-))
-log = colorlog.getLogger('trillium')
-log.setLevel(logging.INFO)
-log.addHandler(_handler)
-
-
-class ParseError(Exception):
-    """The input assembly programs were in an unexpected form.
-    """
 
 
 # 3 kinds of delimiters demarcate the boundaries of vissue blocks in vector code
@@ -44,11 +21,13 @@ class VectorParseState(Enum):
     # INIT = auto()
     UNTIL_NEXT = auto()
     BEGIN_END = auto()
+    IF_BEGIN_END = auto()
     RETURN = auto()
     JUNK = auto()
+    END_AT_JUMP = auto()
 
 
-def read_vector_bbs(raw_vector_code):
+def extract_vector_blocks(raw_vector_code):
     vector_code = vector_preprocess(raw_vector_code)
 
     blocks = {}
@@ -87,7 +66,15 @@ def read_vector_bbs(raw_vector_code):
         # so we're looking for any other delimiter.
         elif state == VectorParseState.UNTIL_NEXT:
             delim_parse = parse_delim(l)
-            if delim_parse != None:
+
+            if delim_parse and delim_parse[0] == TrilliumAsmDelim.END:
+                raise ParseError(
+                    'until_next block {} terminated with end'.format(
+                        curr_vissue_key
+                    )
+                )
+
+            if delim_parse:
                 log.info("parsed 'until_next'-delimited block: {}".format(curr_vissue_key))
                 delim, new_vissue_key = delim_parse
                 curr_vissue_key = new_vissue_key
@@ -97,29 +84,67 @@ def read_vector_bbs(raw_vector_code):
                     state = VectorParseState.UNTIL_NEXT
                 elif delim == TrilliumAsmDelim.BEGIN:
                     state = VectorParseState.BEGIN_END
+                elif delim == TrilliumAsmDelim.IF_BEGIN:
+                    state = VectorParseState.IF_BEGIN_END
                 elif delim == TrilliumAsmDelim.RETURN:
                     state = VectorParseState.RETURN
                 else:
                     raise ParseError("unrecognized delim found: check parse_delim function")
-            else:
+            elif not is_jump(l):
                 blocks[curr_func][curr_vissue_key].append(l)
 
         # in this state, we've just seen the `begin` delimiter,
         # so we're looking for a matching `end`
-        elif state == VectorParseState.BEGIN_END:
+        elif state in (VectorParseState.BEGIN_END,
+                       VectorParseState.IF_BEGIN_END):
             delim_parse = parse_delim(l)
-            if delim_parse == TrilliumAsmDelim.END:
-                log.info("parsed `begin/end`-delimited block: {}".format(curr_vissue_key))
+            if delim_parse and delim_parse[0] == TrilliumAsmDelim.END:
+                log.info("parsed `begin/end`-delimited block: {}".format(
+                    curr_vissue_key
+                ))
 
-                # setup collection of "junk code" after `end` delim and before next delim,
-                # for debugging purposes
+                # Support `end at_jump` delimiters, which continue adding
+                # instructions until we hit the next jump!
+                _, qualifier = delim_parse
+                if qualifier == 'at_jump':
+                    log.info("end at_jump: continuing for now")
+                    state = VectorParseState.END_AT_JUMP
+                else:
+                    # Set up collection of "junk code" after `end` delim and
+                    # before next delim, for debugging purposes.
+                    junk_vissue_key = junk_prefix + str(junk_postfix)
+                    blocks[curr_func][junk_vissue_key] = []
+                    state = VectorParseState.JUNK
+
+            elif delim_parse is not None:
+                raise ParseError(
+                    "expected `end` delimiter to match `begin` or `if_begin` in line {}".format(line_no)
+                )
+
+            else:
+                # A normal line of code. Drop jumps in "normal"
+                # begin/end blocks, but include jumps in "if" begin/end
+                # blocks.
+                if state == VectorParseState.IF_BEGIN_END or not is_jump(l):
+                    blocks[curr_func][curr_vissue_key].append(l)
+
+        # This state continues vacuuming up a few instructions *after*
+        # the "end" delimiter---until we hit a branch/jump instruction.
+        elif state == VectorParseState.END_AT_JUMP:
+            if is_jump(l):
+                log.info("end at_jump: jump found; ending {}".format(
+                    curr_vissue_key
+                ))
                 junk_vissue_key = junk_prefix + str(junk_postfix)
                 blocks[curr_func][junk_vissue_key] = []
                 state = VectorParseState.JUNK
-            elif delim_parse != None:
-                raise ParseError(
-                    "expected `end` delimiter to match `begin` in line {}".format(line_no)
-                )
+
+            elif parse_delim(l):
+                raise ParseError("hit delimiter in END_AT_JUMP state")
+
+            elif parse_label(l):
+                raise ParseError("hit label in END_AT_JUMP state")
+
             else:
                 blocks[curr_func][curr_vissue_key].append(l)
 
@@ -127,35 +152,9 @@ def read_vector_bbs(raw_vector_code):
         # so we look for any delimiter, discarding code in the meantime.
         # (we actually collect this "junk code" instead for debugging purposes)
         elif state == VectorParseState.JUNK:
-            delim_parse = parse_delim(l)
-
-            if delim_parse != None:
-                log.info("parsed junk block")
-                junk_postfix += 1
-
-                delim, new_vissue_key = delim_parse
-                curr_vissue_key = new_vissue_key
-                blocks[curr_func][new_vissue_key] = []
-
-                if delim == TrilliumAsmDelim.BEGIN:
-                    state = VectorParseState.BEGIN_END
-                elif delim == TrilliumAsmDelim.UNTIL_NEXT:
-                    state = VectorParseState.UNTIL_NEXT
-                elif delim == TrilliumAsmDelim.RETURN:
-                    state = VectorParseState.RETURN
-
-            else:
-                junk_vissue_key = junk_prefix + str(junk_postfix)
-                blocks[curr_func][junk_vissue_key].append(l)
-
-
-
-        # in this state, we've just seen a `return` delimiter,
-        # so we're looking for a "return-like" assembly.
-        # Once we find it, we've completed a Trillism kernel parse
-        elif state == VectorParseState.RETURN:
-            if is_return_inst(l):
-                log.info("parsed return block {}".format(curr_vissue_key))
+            # Check for the end of the function.
+            if is_func_end(l):
+                log.info('kernel function {} ended'.format(curr_func))
 
                 # prepend trillium_init block to the first block
                 trillium_init_block = blocks[curr_func]["trillium_init"]
@@ -174,8 +173,45 @@ def read_vector_bbs(raw_vector_code):
                 terminator = ".insn i 0x1b, 0x7, x0, x0, 0"
                 for b in blocks[curr_func].values():
                     b.append(terminator)
-                state = VectorParseState.START #get the next kernel, if any
+
+                # Return to looking for a new kernel function.
+                state = VectorParseState.START
+
             else:
+                delim_parse = parse_delim(l)
+
+                if delim_parse != None:
+                    log.info("parsed junk block")
+                    junk_postfix += 1
+
+                    delim, new_vissue_key = delim_parse
+                    curr_vissue_key = new_vissue_key
+                    blocks[curr_func][new_vissue_key] = []
+
+                    if delim == TrilliumAsmDelim.BEGIN:
+                        state = VectorParseState.BEGIN_END
+                    elif delim == TrilliumAsmDelim.UNTIL_NEXT:
+                        state = VectorParseState.UNTIL_NEXT
+                    elif delim == TrilliumAsmDelim.RETURN:
+                        state = VectorParseState.RETURN
+
+                else:
+                    junk_vissue_key = junk_prefix + str(junk_postfix)
+                    blocks[curr_func][junk_vissue_key].append(l)
+
+        # in this state, we've just seen a `return` delimiter,
+        # so we're looking for a "return-like" assembly.
+        # Once we find it, we've completed a Trillism kernel parse
+        elif state == VectorParseState.RETURN:
+            if is_return_inst(l):
+                log.info("parsed return block {}".format(curr_vissue_key))
+                junk_vissue_key = junk_prefix + str(junk_postfix)
+                blocks[curr_func][junk_vissue_key] = []
+                state = VectorParseState.JUNK
+
+            else:
+                #TODO: this assumes the only branch/jump instruction has return address as target.
+                #      Should this error out otherwise?
                 blocks[curr_func][curr_vissue_key].append(l)
 
     # After the state machine finishes, we should end up in the RETURN
@@ -213,47 +249,13 @@ def glue(raw_scalar_code, all_vector_bbs):
     log.info("GLUING VECTOR CODE TO SCALAR...")
     scalar_code = scalar_preprocess(raw_scalar_code)
 
-    # dissects scalar assembly into the following non-overlapping components:
-    # interval notation: open, closed, or half-open intervals
-
-    # [start of file, kernel launch label]
+    # The header consists of the interval [start of file, kernel launch
+    # label] and will accumulate all the lines of assembly *before* we
+    # encounter the first kernel function.
     header = []
 
-    # (kernel launch label, first VECTOR_EPOCH call)
-    before_VECTOR_EPOCH = []
-
-    # [first VECTOR_EPOCH call, first DEVEC call)
-    after_VECTOR_EPOCH_before_DEVEC = []
-
-    # [first DEVEC call, scalar return delimiter]
-    after_DEVEC_before_RET_DELIM = []
-
-    # Now things gets conditionally non-contiguous.
-    # scalar return cleanup assembly consists of the following potential assembly locations:
-    # - all code immediately following the scalar `return` delimiter and before a jump instruction
-    #   is scalar cleanup code (We assume no branching is emitted in that interval)
-    # - if a jump to a label is found (instead of to the return address), the block under that label,
-    #   excluding the return address jump, is scalar cleanup code 
-    scalar_cleanup = []
-
-    # All cores ultimately return to the scalar return address.
-    # This can be found at the end of scalar cleanup code, described in the two cases above
-    scalar_ret_inst = None
-
-    # `glue_points` maps labels to function name/vissue key pairs. vissue keys
-    # can be used to index into `all_vector_bbs` to get vector block code.
-    glue_points = {}
-    labels = [] #stack of labels
-
-    # labels pointing to scalar auxiliary blocks (not including scalar block that returns to jump address, if any)
-    # (Note: OrderedDict helps us keep track of the last inserted label)
-    aux_bbs = OrderedDict([("trillium_anon_aux_bb",[])])
-
-    # non-instruction lines after all labels/blocks
-    footer = []
-
-    # The name of the current kernel function we're parsing (or None if we're
-    # not in any kernel function).
+    # The name of the current kernel function we're parsing (or None if
+    # we're not in any kernel function).
     cur_kernel_func = None
 
     # The overall output from the gluer.
@@ -269,6 +271,17 @@ def glue(raw_scalar_code, all_vector_bbs):
         for label, (func_name, vissue_key) in glue_points.items():
             commented_label = ".{}:  # {} vissue block".format(label, vissue_key)
             labeled_vector_bbs.append(commented_label)
+
+            if func_name not in all_vector_bbs:
+                raise ParseError(
+                    'attempting to glue in function missing from vector: {}'
+                    .format(func_name)
+                )
+            if vissue_key not in all_vector_bbs[func_name]:
+                raise ParseError(
+                    'attempt to glue missing vector block: {}'
+                    .format(vissue_key)
+                )
 
             labeled_vector_bbs.extend(all_vector_bbs[func_name][vissue_key])
 
@@ -299,16 +312,65 @@ def glue(raw_scalar_code, all_vector_bbs):
     for (line_no, l) in scalar_code:
 
         if state == ScalarParseState.HEADER:
-          # Is this a Trillium function (indicated by the naming convention)?
-          func_name = is_kernel_func_label(l)
-          if func_name:
-            header.append(l)
-            state = ScalarParseState.BEFORE_VECTOR_EPOCH
-            cur_kernel_func = func_name
-          else:
-            header.append(l)
+            # Is this a Trillium function (indicated by the naming convention)?
+            func_name = is_kernel_func_label(l)
+            if func_name:
+                header.append(l)
+                state = ScalarParseState.BEFORE_VECTOR_EPOCH
+                cur_kernel_func = func_name
 
+                # Initialize the storage for all the bits of the function we
+                # will extract. We dissect the scalar assembly into the
+                # following non-overlapping components: interval
+                # notation: open, closed, or half-open intervals.
 
+                # (kernel launch label, first VECTOR_EPOCH call)
+                before_VECTOR_EPOCH = []
+
+                # [first VECTOR_EPOCH call, first DEVEC call)
+                after_VECTOR_EPOCH_before_DEVEC = []
+
+                # [first DEVEC call, scalar return delimiter]
+                after_DEVEC_before_RET_DELIM = []
+
+                # Now things gets conditionally non-contiguous. Scalar
+                # return cleanup assembly consists of the following
+                # potential assembly locations:
+                # - all code immediately following the scalar `return`
+                #   delimiter and before a jump instruction is scalar
+                #   cleanup code (We assume no branching is emitted in
+                #   that interval)
+                # - if a jump to a label is found (instead of to the
+                #   return address), the block under that label, excluding
+                #   the return address jump, is scalar cleanup code
+                scalar_cleanup = []
+
+                # All cores ultimately return to the scalar return address.
+                # This can be found at the end of scalar cleanup code,
+                # described in the two cases above.
+                scalar_ret_inst = None
+
+                # `glue_points` maps labels to function name/vissue key pairs.
+                # vissue keys can be used to index into `all_vector_bbs` to
+                # get vector block code.
+                glue_points = {}
+                labels = [] #stack of labels
+
+                # labels pointing to scalar auxiliary blocks (not
+                # including scalar block that returns to jump address,
+                # if any). (OrderedDict helps us keep track of the
+                # last inserted label.)
+                aux_bbs = OrderedDict({
+                    '{}_anon_aux_bb'.format(func_name): [],
+                })
+
+                # Non-instruction lines after all labels/blocks.
+                footer = []
+
+            else:
+                # Not a kernel function label; just keep accumulating
+                # the non-function "header."
+                header.append(l)
 
         elif state == ScalarParseState.BEFORE_VECTOR_EPOCH:
             if is_VECTOR_EPOCH_inst(l):
@@ -316,8 +378,6 @@ def glue(raw_scalar_code, all_vector_bbs):
                 state = ScalarParseState.AFTER_VECTOR_EPOCH
             else:
                 before_VECTOR_EPOCH.append(l)
-
-
 
         elif state == ScalarParseState.AFTER_VECTOR_EPOCH:
             if is_DEVEC(l):
@@ -328,16 +388,12 @@ def glue(raw_scalar_code, all_vector_bbs):
             else:
                 after_VECTOR_EPOCH_before_DEVEC.append(l)
 
-
-
         elif state == ScalarParseState.AFTER_DEVEC:
             delim = parse_delim(l)
             if delim != None and delim[0] == TrilliumAsmDelim.RETURN:
                 state = ScalarParseState.AFTER_RETURN_DELIM
             else:
                 after_DEVEC_before_RET_DELIM.append(l)
-
-
 
         elif state == ScalarParseState.AFTER_RETURN_DELIM:
             parsed_inst = parse_jump_inst(l)
@@ -363,7 +419,6 @@ def glue(raw_scalar_code, all_vector_bbs):
             else:
                 scalar_cleanup.append(l)
 
-
         #input for this state: scalar_ret_label
         #if not None, we search for scalar cleanup and return at that label
         elif state == ScalarParseState.GLUE:
@@ -374,7 +429,6 @@ def glue(raw_scalar_code, all_vector_bbs):
             footer_parse = parse_footer(l)
 
             if parsed_label != None:
-                log.info("checking if {} is the indirect return label {}...".format(parsed_label, scalar_ret_label))
                 if parsed_label == scalar_ret_label:
                     log.info("found scalar return jump label")
                     state = ScalarParseState.INDIRECT_SCALAR_RET_FOUND
@@ -383,6 +437,10 @@ def glue(raw_scalar_code, all_vector_bbs):
 
             elif vissue_key != None:
                 # Save the glue point for later code insertion.
+                if not labels:
+                    raise ParseError(
+                        'glue point {} is missing a label'.format(vissue_key),
+                    )
                 latest_label = labels.pop()
                 glue_points[latest_label] = cur_kernel_func, vissue_key
 
@@ -394,18 +452,8 @@ def glue(raw_scalar_code, all_vector_bbs):
                 log.info('finished gluing kernel {}'.format(cur_kernel_func))
                 out_lines += glue_pieces()
 
-                # Reset the state. Don't love this copypasta; should clean it up.
+                # Reset the state.
                 header = []
-                before_VECTOR_EPOCH = []
-                after_VECTOR_EPOCH_before_DEVEC = []
-                after_DEVEC_before_RET_DELIM = []
-                scalar_cleanup = []
-                scalar_ret_inst = None
-                glue_points = {}
-                labels = []
-                aux_bbs = OrderedDict([("trillium_anon_aux_bb", [])])
-                footer = []
-
                 cur_kernel_func = None
                 state = ScalarParseState.HEADER
 
@@ -420,7 +468,6 @@ def glue(raw_scalar_code, all_vector_bbs):
                         aux_bbs[labels.pop()] = []
                 latest_aux_bb = list(aux_bbs.values())[-1]
                 latest_aux_bb.append(l)
-
 
         elif state == ScalarParseState.INDIRECT_SCALAR_RET_FOUND:
             parsed_label = parse_label(l)
@@ -469,7 +516,7 @@ if __name__ == "__main__":
 
     try:
         # Parse the vector assembly and extract the vector blocks.
-        vector_blocks = read_vector_bbs(vector_code)
+        vector_blocks = extract_vector_blocks(vector_code)
         log.info("Extracted the following Trilliasm Kernel vector blocks:")
         for func_name in vector_blocks.keys():
             log.info("For function {}:".format(func_name))

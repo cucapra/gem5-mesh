@@ -92,11 +92,11 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
   int col_thread=0;
   DTYPE temp;
   DTYPE* partialVec = _y_partial + ptid*ny;
-  while(bh1){
+  do {
     // hoist1:
     asm("trillium vissue_delim until_next hoist1");
     temp=0;
-    while(bh2){
+    do {
 
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
@@ -110,12 +110,12 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
-    }
+    } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
     STORE_NOACK(temp, ax + row_thread, 0);
     col_thread=0;
-    while(bh3){
+    do {
       
       // transpose_dp:
       asm("trillium vissue_delim until_next transpose_dp");
@@ -134,12 +134,13 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
       col_thread+=PREFETCH_LEN;
-    }
+    } while(bh3);
 
-    asm("trillium vissue_delim until_next loop_end");
+    asm("trillium vissue_delim begin loop_end");
     row_thread+=dim;
     asm volatile("fence\n\t"); //since I have store noacks I don't move to next iter until all stores are done to partial vec
-  }
+    asm("trillium vissue_delim end at_jump");
+  } while (bh1);
 
   // mark vector stack cleanup assembly
   asm("trillium vissue_delim return vector_stack");

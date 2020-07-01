@@ -1,4 +1,4 @@
-	; ARGS: simple_vector.s
+	; ARGS: until_next_vector.s
 	SCALAR_HEADER
 	tril_somefunc:
 	.insn i 0x77, 0, x0, a0, 0x401
