@@ -3,10 +3,10 @@ name: trillium
 on:
     push:
         branches:
-           - master
+            - scalar
     pull_request:
         branches:
-            - master
+            - scalar
 
 jobs:
     test:
