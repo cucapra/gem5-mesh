@@ -4,7 +4,7 @@
 #include "pthread_launch.h"
 #include "template.h"
 #include "spad.h"
-#include "../../common/bind_defs.h"
+#include "bind_defs.h"
 #include "token_queue.h"
 #include "group_templates.h"
 

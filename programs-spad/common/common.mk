@@ -16,7 +16,7 @@ HB_ARGS ?= --options=""
 
 # Find the repository's base directory.
 COMMON_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
-BASE_DIR := $(COMMON_DIR)/../../..
+BASE_DIR := $(COMMON_DIR)/../..
 
 # installed cross compiler gcc for riscv
 RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
