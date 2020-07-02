@@ -360,9 +360,10 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
 
   #ifdef _VEC
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
+  #else
+  pthread_barrier_wait(&start_barrier);
   #endif
 
-  pthread_barrier_wait(&start_barrier);
   if (used == 0) goto stack_end;
   //redistribute work for 2nd kernel
   #ifdef _VEC
