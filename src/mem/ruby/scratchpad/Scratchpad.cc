@@ -1326,7 +1326,7 @@ Scratchpad::resetRdyArray() {
 
 bool
 Scratchpad::isNextConsumerFrameRdy() {
-  DPRINTF(Frame, "check frames %d ?= %d\n", m_cur_consumer_region, m_cur_prefetch_region);
+  // DPRINTF(Frame, "check frames %d ?= %d\n", m_cur_consumer_region, m_cur_prefetch_region);
   return (m_cur_consumer_region != m_cur_prefetch_region);
 }
 

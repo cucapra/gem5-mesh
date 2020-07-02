@@ -65,6 +65,7 @@ SwitchAllocator::init()
     m_round_robin_invc.resize(m_num_inports);
     m_port_requests.resize(m_num_outports);
     m_vc_winners.resize(m_num_outports);
+    m_wakeup_info.resize(m_num_inports * m_num_vcs);
 
     for (int i = 0; i < m_num_inports; i++) {
         m_round_robin_invc[i] = 0;
@@ -91,22 +92,83 @@ SwitchAllocator::init()
  * next cycle for peforming SA for any flits ready next cycle.
  */
 
+// TODO i think this changes depending on the router, and also might be wrong?
+static char port_to_dir_symbol(int port) {
+    // 0 Local
+    // 1 South
+    // 2 West
+    // 3 East
+    // North doesn't exist for this router(70) for some reason? maybe these directions shuold be reversed?
+    char out_dir;
+    if (port == 0) out_dir = '*';
+    else if (port == 1) out_dir = 'v';
+    else if (port == 2) out_dir = '<';
+    else if (port == 3) out_dir = '>';
+    else out_dir = '^';
+    return out_dir;
+}
+
 void
 SwitchAllocator::wakeup()
 {
-    // int p[4];
-    // for (int inport = 0; inport < 4; inport++) {
-    //     if (m_input_unit[inport]->peekTopFlit(0)) {
-    //         p[inport] = 1;
-    //     }
-    //     else {
-    //         p[inport] = 0;
-    //     }
-    // }
-    // DPRINTF(Frame, "switch allocator wakeup %d %d %d %d inports %d\n", p[0], p[1], p[2], p[3], m_num_inports);
+    // reset the array
+    for (int i = 0; i < m_wakeup_info.size(); i++) {
+        m_wakeup_info[i] = '-';
+    }
+
+    for (int inport = 0; inport < m_num_inports; inport++) {
+        // if (m_router->get_id() == 70) DPRINTF(Frame, "%s %d\n", m_router->getInportDirection(inport), inport);
+        if (m_input_unit.size() > inport) {
+            for (int v = 0; v < m_num_vcs; v++) {
+                if (m_input_unit[inport]->isReady(v, m_router->curCycle()) && m_input_unit[inport]->peekTopFlit(v)) {
+                    m_wakeup_info[inport * m_num_vcs + v] = '0';
+                }
+            }
+        }
+    }
 
     arbitrate_inports(); // First stage of allocation
+
+    // check which one got input arbiration
+    for (int outport = 0; outport < m_num_outports; outport++) {
+        for (int inport = 0; inport < m_num_inports; inport++) {
+            if (m_port_requests[outport][inport]) {
+                int vc = m_vc_winners[outport][inport];
+                m_wakeup_info[inport * m_num_vcs + vc] = '1';
+            }
+        }
+    }
+
     arbitrate_outports(); // Second stage of allocation
+
+    // // check which one get output arbitration (actually check in function?)
+    // for (int outport = 0; outport < m_num_outports; outport++) {
+    //     for (int inport = 0; inport < m_num_inports; inport++) {
+    //         // check if was active but not active now
+    //         int vc = m_vc_winners[outport][inport];
+    //         if (!m_port_requests[outport][inport] && m_wakeup_info[inport * m_num_vcs + vc] == '1') { // bug doesn't pick right out direction
+    //             // auto dir = m_router->getOutportDirection(outport);
+
+    //             // if (m_router->get_id() == 70) DPRINTF(Frame, "%s %d\n", dir.c_str(), outport);
+    //             char out_dir = port_to_dir_symbol(outport);
+    //             m_wakeup_info[inport * m_num_vcs + vc] = out_dir; //'2'; // TODO maybe denote direction sent?: > < v ^ *(local)
+    //         }
+    //     }
+    // }
+
+    // print the trace for this wakeup
+    if (m_router->get_id() == 70) {
+        std::string trace = "";
+        for (int inport = 0; inport < m_num_inports; inport++) {
+            trace += port_to_dir_symbol(inport);
+            trace += " ";
+            for (int vc = 0; vc < m_num_vcs; vc++) {
+                trace += m_wakeup_info[inport * m_num_vcs + vc];
+            }
+            trace += " | ";
+        };
+        DPRINTF(Frame, "%s\n", trace.c_str());
+    }
 
     clear_request_vector();
     check_for_wakeup();
@@ -269,6 +331,10 @@ SwitchAllocator::arbitrate_outports()
                 m_round_robin_inport[outport] = inport + 1;
                 if (m_round_robin_inport[outport] >= m_num_inports)
                     m_round_robin_inport[outport] = 0;
+
+                // debug
+                char out_dir = port_to_dir_symbol(outport);
+                m_wakeup_info[inport * m_num_vcs + invc] = out_dir;
 
                 break; // got a input winner for this outport
             }

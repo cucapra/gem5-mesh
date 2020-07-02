@@ -346,8 +346,8 @@ n_l2s   = n_cols
 # network classes
 #assert(options.network == "garnet2.0")
 options.network = "garnet2.0"
-virt_channels = 1
-options.vcs_per_vnet = virt_channels
+# virt_channels = 64
+# options.vcs_per_vnet = virt_channels
 NetworkClass = GarnetNetwork
 IntLinkClass = GarnetIntLink
 ExtLinkClass = GarnetExtLink
