@@ -174,6 +174,10 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
 
   int_links = []
 
+  horiz_weight = 2
+  towards_l2_weight = 1
+  away_l2_weight = 3
+
   # East output to West input links (weight = 1)
   for row in xrange(n_rows):
     for col in xrange(n_cols):
@@ -186,7 +190,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                                  src_outport  = "East",
                                  dst_inport   = "West",
                                  latency      = link_latency,
-                                 weight       = 1 ))
+                                 weight       = horiz_weight ))
         link_count += 1
 
   # West output to East input links (weight = 1)
@@ -201,7 +205,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                                  src_outport  = "West",
                                  dst_inport   = "East",
                                  latency      = link_latency,
-                                 weight       = 1 ))
+                                 weight       = horiz_weight ))
         link_count += 1
 
   # North output to South input links (weight = 2)
@@ -216,7 +220,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                                  src_outport  = "North",
                                  dst_inport   = "South",
                                  latency      = link_latency,
-                                 weight       = 2 ))
+                                 weight       = away_l2_weight ))
         link_count += 1
 
   # South output to North input links (weight = 2)
@@ -231,7 +235,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                                  src_outport  = "South",
                                  dst_inport   = "North",
                                  latency      = link_latency,
-                                 weight       = 2 ))
+                                 weight       = towards_l2_weight ))
         link_count += 1
 
   network.int_links = int_links
