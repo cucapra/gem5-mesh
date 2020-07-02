@@ -167,130 +167,6 @@ static inline void stats_off()
 #endif
 }
 
-// TODO deprecated
-static int getVecMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
-  int mask = ALL_NORM;
-  
-  #ifndef _VEC
-  return mask;
-  #else
-  
-  // upper left corner is the master
-  if (tid_x == 0 && tid_y == 0) {
-    mask = FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
-  }
-  
-  // right edge does not send to anyone
-  else if (tid_x == dim_x - 1) {
-    mask = FET_I_INST_LEFT;
-  }
-  
-  // bottom left corner just sends to the right
-  else if (tid_x == 0 && tid_y == dim_y - 1) {
-    mask = FET_I_INST_UP | FET_O_INST_RIGHT_SEND;
-  }
-  
-  // the left edge (besides corners) sends down and to the right
-  else if (tid_x == 0) {
-    mask = FET_I_INST_UP | FET_O_INST_DOWN_SEND | FET_O_INST_RIGHT_SEND;
-  }
-  
-  // otherwise we're just forwarding to the right in the middle area
-  else {
-    mask = FET_I_INST_LEFT | FET_O_INST_RIGHT_SEND;
-  }
-  
-  // specify the vlen
-  int vlenX = dim_x;
-  int vlenY = dim_y;
-  mask |= (origin_x << FET_XORIGIN_SHAMT) | (origin_y << FET_YORIGIN_SHAMT) | (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
-
-  // specify each core is an execute core
-  mask |= (0 << FET_DAE_SHAMT);
-
-  return mask;
-  #endif
-}
-
-// TODO deprecated
-// mask that guarentees a linear chain with no fanout
-// implements a snake pattern
-// -> -> -> v
-// v <- <- <-
-// -> -> -> v
-// 0 <- <- <-
-static int getSerializedMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
-  int mask = ALL_NORM;
-  
-  #ifndef _VEC
-  return mask;
-  #else
-  
-  // each row alternates between different behavior
-  if (tid_y % 2 == 0) {
-    // if first column either recv from above or not at all
-    if (tid_x == 0) {
-      if (tid_y == 0) {
-        mask |= ALL_NORM;
-      }
-      else {
-        mask |= FET_I_INST_UP;
-      }
-    }
-    // otherwise recv from the left
-    else {
-      mask |= FET_I_INST_LEFT;
-    }
-
-    // send to the right if not at edge
-    if (tid_x < dim_x - 1) {
-      mask |= FET_O_INST_RIGHT_SEND;
-    }
-    // if at the edge send down
-    else {
-      mask |= FET_O_INST_DOWN_SEND;
-    }
-  }
-  else {
-    // input either above if at the right edge or from the right
-    if (tid_x == dim_x - 1) {
-      mask |= FET_I_INST_UP;
-    }
-    else {
-      mask |= FET_I_INST_RIGHT;
-    }
-
-    // output either to the left or down if at left edge
-    if (tid_x == 0) {
-      mask |= FET_O_INST_DOWN_SEND;
-    }
-    else {
-      mask |= FET_O_INST_LEFT_SEND;
-    }
-  }
-  
-  // specify the vlen
-  int vlenX = dim_x;
-  int vlenY = dim_y;
-  mask |= (origin_x << FET_XORIGIN_SHAMT) | (origin_y << FET_YORIGIN_SHAMT) | (vlenX << FET_XLEN_SHAMT) | (vlenY << FET_YLEN_SHAMT);
-
-  // specify each core is an execute core
-  mask |= (0 << FET_DAE_SHAMT);
-
-  return mask;
-  #endif
-}
-
-// TODO deprecated
-static int getDAEMask(int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y) {
-  int mask = (1 << FET_DAE_SHAMT) | 
-            (origin_x << FET_XORIGIN_SHAMT) | 
-            (origin_y << FET_YORIGIN_SHAMT) | 
-            (dim_x << FET_XLEN_SHAMT) | 
-            (dim_y << FET_YLEN_SHAMT);
-  return mask;
-}
-
 typedef struct Vector2_t {
   int x;
   int y;
@@ -415,7 +291,18 @@ static int getSIMDMaskHoriz(Vector2_t master, Vector2_t origin, Vector2_t tid, V
 // tid    x,y --> thread id within the group, don't care for master
 // dim    x,y --> dimension of the trailing core group
 // is_master  --> whether this core is the master or not
-static int getSIMDMask(int master_x, int master_y, int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y, int is_master) {
+static int getSIMDMask(core_config_info_t *cinfo) {
+  // unpack struct
+  int master_x  = cinfo->master_x;
+  int master_y  = cinfo->master_y;
+  int origin_x  = cinfo->orig_x;
+  int origin_y  = cinfo->orig_y;
+  int tid_x     = cinfo->vtid_x;
+  int tid_y     = cinfo->vtid_y;
+  int dim_x     = cinfo->vdim_x;
+  int dim_y     = cinfo->vdim_y;
+  int is_master = cinfo->is_scalar;
+  
   // TODO does not handle case where master is above or below due to nesting order?????????
 
   // pack x,y into coord struct
@@ -487,7 +374,14 @@ static int getSIMDMask(int master_x, int master_y, int origin_x, int origin_y, i
 // mask used for debugging prefetching. no instruction forwarding just works for prefetching
 // NOTE DANGEROUS because no syncronization between scalar and vector cores.
 // Avoid overfilling the scratchpad because may overwrite incorretly
-static int getDebugMask(int master_x, int master_y, int origin_x, int origin_y, int tid_x, int tid_y, int dim_x, int dim_y, int is_master) {
+static int getDebugMask(core_config_info_t *cinfo) {
+  // unpack
+  int origin_x  = cinfo->orig_x;
+  int origin_y  = cinfo->orig_y;
+  int dim_x     = cinfo->vdim_x;
+  int dim_y     = cinfo->vdim_y;
+  int is_master = cinfo->is_scalar;
+
   return (origin_x << FET_XORIGIN_SHAMT) | (origin_y << FET_YORIGIN_SHAMT) | (dim_x << FET_XLEN_SHAMT) | (dim_y << FET_YLEN_SHAMT) | (is_master << FET_DAE_SHAMT);
 }
 

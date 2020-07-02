@@ -75,7 +75,7 @@ inline int* get_other_data_ptr(token_queue_t *tq, int coreId) {
 }
 
 // want to declare token queue on the stack, so don't malloc
-void init_token_queue_consumer(int spadOffset, int size, int thisCoreIdx, token_queue_t *tq) {
+inline void init_token_queue_consumer(int spadOffset, int size, int thisCoreIdx, token_queue_t *tq) {
   tq->basePtr = spadOffset;
   tq->size = size;
   // tq->otherCoreIdx = otherCoreIdx; // confirm partner lazily, useful for vector were annoying to figure out partner
@@ -85,7 +85,7 @@ void init_token_queue_consumer(int spadOffset, int size, int thisCoreIdx, token_
   *get_tail_ptr(tq, thisCoreIdx) = 0;
 }
 
-void init_token_queue_producer(int spadOffset, int consumerOffset, int size, int thisCoreIdx, int otherCoreIdx, token_queue_t *tq) {
+inline void init_token_queue_producer(int spadOffset, int consumerOffset, int size, int thisCoreIdx, int otherCoreIdx, token_queue_t *tq) {
   tq->basePtr = spadOffset;
   tq->size = size;
 
@@ -108,7 +108,7 @@ void init_token_queue_producer(int spadOffset, int consumerOffset, int size, int
 }
 // don't use the fancy sleepy wait that's in hammerblade but w/e
 // return base offset of first to read
-int wait_tokens_consumer(token_queue_t *tq, int numTokens, int coreId) {
+inline int wait_tokens_consumer(token_queue_t *tq, int numTokens, int coreId) {
   int numTokensAvail;
   volatile int head;
   volatile int tail;
@@ -133,7 +133,7 @@ int wait_tokens_consumer(token_queue_t *tq, int numTokens, int coreId) {
 
 // wait for slots to be able to write to
 // return base offset of first place to write to
-int wait_tokens_producer(token_queue_t *tq, int numTokens, int coreId) {
+inline int wait_tokens_producer(token_queue_t *tq, int numTokens, int coreId) {
   int openSpots;
   volatile int head;
   volatile int tail;
@@ -197,7 +197,7 @@ inline void set_token(token_queue_t *tq, int data, int tokenIdx, int coreId) {
 }
 
 // consumer consumes tokens by modifying tail pointer in both itself and producer core
-void consume_tokens(token_queue_t *tq, int numTokens, int coreId) {
+inline void consume_tokens(token_queue_t *tq, int numTokens, int coreId) {
   int head = *get_head_ptr(tq, coreId);
   int bufSize = tq->size;
   int offset = get_circular_offset(tq, head + numTokens, bufSize);
@@ -215,7 +215,7 @@ void consume_tokens(token_queue_t *tq, int numTokens, int coreId) {
 }
 
 // produce tokens by modifying head pointer both iteself and consumer core
-void produce_tokens(token_queue_t *tq, int numTokens, int coreId) {
+inline void produce_tokens(token_queue_t *tq, int numTokens, int coreId) {
   int tail = *get_tail_ptr(tq, coreId);
   int bufSize = tq->size;
   int offset = get_circular_offset(tq, tail + numTokens, bufSize);

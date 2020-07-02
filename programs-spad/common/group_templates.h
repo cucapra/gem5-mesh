@@ -111,6 +111,28 @@ inline void rect_vector_group(
   }
 }
 
+// for parity make a manycore config as well
+inline core_config_info_t manycore_template(
+    // inputs
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y
+  ) {
+
+  core_config_info_t cinfo;
+  reset_core_config_info(&cinfo);
+
+  cinfo.is_scalar = 0;
+  cinfo.vtid = 0;
+  cinfo.vtid_x = 0;
+  cinfo.vtid_y = 0;
+  cinfo.vdim_x = 1;
+  cinfo.vdim_y = 1;
+  cinfo.used = 1;
+  cinfo.unique_id = ptid_x + ptid_y * pdim_x;
+  cinfo.total_groups = pdim_x * pdim_y;
+
+  return cinfo;
+}
+
 inline core_config_info_t vector_group_template(
     // inputs
     int ptid_x, int ptid_y, int pdim_x, int pdim_y, template_info_t *tinfo
