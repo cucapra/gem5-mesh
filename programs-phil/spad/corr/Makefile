@@ -19,9 +19,9 @@ C_OBJS_NOKERN := $(C_SRCS_NOKERN:.c=.o)
 $(EXEC): $(TRILLIASM_KERNEL:.c=.o) $(C_OBJS_NOKERN)
 		$(RV_CC) $(notdir $^) $(CFLAGS) -o $@
 
-
+#--debug-flags=Mesh
 run: $(EXEC)
-		../../../build/RVSP/gem5.opt --debug-flags=Mesh -d ../../../results/$(OUT) \
+		../../../build/RVSP/gem5.opt -d ../../../results/$(OUT) \
 		../../../configs/phil/brg_hammerblade.py \
 		--cmd=$(EXEC) \
 		--options="$(SIZE) $(SIZE)" \
