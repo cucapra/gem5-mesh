@@ -185,9 +185,6 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
 
   #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
-  // if(ptid==0){
-  //   printf("Hello before vissue\n");
-  // }
 
   //---------------------------------
   //scalar core code iterspersed with vissue
@@ -197,9 +194,6 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
   int spadRegion = 0;
   int sp_data_offset=0;
 
-  // if(ptid==0){
-  //   printf("Hello again\n");
-  // }
   for (int i1 = start; i1 < m-1; i1+=stride){
     ISSUE_VINST(hoist1_label);
     for(int i2 = i1+1; i2<m; i2++){
