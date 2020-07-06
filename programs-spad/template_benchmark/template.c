@@ -20,26 +20,18 @@ template_manycore()
 
 
 void kernel(DTYPE *a, int n,
-    int tid_x, int tid_y, int dim_x, int dim_y)
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y)
 {
 
   // start recording all stats (all cores)
-  if (tid_x == 0 && tid_y == 0)
-  {
+  if (ptid_x == 0 && ptid_y == 0) {
     stats_on();
   }
 
   // linearize tid and dim
-  int tid = tid_x + tid_y * dim_x;
-  int dim = dim_x * dim_y;
+  int ptid = ptid_x + ptid_y * pdim_x;
+  int pdim = pdim_x * pdim_y;
 
-  // split into physical and virtual tids + dim
-  int ptid_x = tid_x;
-  int ptid_y = tid_y;
-  int ptid = tid;
-  int pdim_x = dim_x;
-  int pdim_y = dim_y;
-  int pdim = dim;
   int start = 0;
   int end   = 0;
 
@@ -51,7 +43,7 @@ void kernel(DTYPE *a, int n,
   #endif
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
   
-  if(cinfo.used){
+  if(cinfo.used) {
     //do work division here
     int alignment = VEC_LEN; //each group should have elements of multiple of this number
     start = roundUp((cinfo.unique_id + 0) * n / cinfo.total_groups, alignment); 

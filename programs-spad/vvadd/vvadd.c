@@ -5,36 +5,9 @@
 #include "pthread_launch.h"
 #include "vvadd.h"
 #include "spad.h"
-#include "../../common/bind_defs.h"
+#include "bind_defs.h"
 #include "vvadd_kernel.h"
-
-// https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
-int roundUp(int numToRound, int multiple) {
-  if (multiple == 0) {
-    return numToRound;
-  }
-
-  int remainder = abs(numToRound) % multiple;
-  if (remainder == 0) {
-    return numToRound;
-  }
-
-  if (numToRound < 0) {
-    return -(abs(numToRound) - remainder);
-  }
-  else {
-    return numToRound + multiple - remainder;
-  }
-}
-
-inline int min(int a, int b) {
-  if (a > b) {
-    return b;
-  }
-  else {
-    return a;
-  }
-}
+#include "util.h"
 
 void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, 
     int ptid, int vtid, int dim, int unroll_len, int is_da, int origin) {
@@ -51,40 +24,19 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *b, DTYPE *c, int n,
-    int tid_x, int tid_y, int dim_x, int dim_y) {
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y) {
   
   // start recording all stats (all cores)
-  if (tid_x == 0 && tid_y == 0) {
+  if (ptid_x == 0 && ptid_y == 0) {
     stats_on();
   }
 
   // linearize tid and dim
-  int tid = tid_x + tid_y * dim_x;
-  int dim = dim_x * dim_y;
+  int ptid = ptid_x + ptid_y * pdim_x;
+  int pdim = pdim_x * pdim_y;
 
-  // split into physical and virtual tids + dim
-  int ptid_x = tid_x;
-  int ptid_y = tid_y;
-  int ptid   = tid;
-  int pdim_x = dim_x;
-  int pdim_y = dim_y;
-  int pdim   = dim;
-  int vtid_x = 0;
-  int vtid_y = 0;
-  int vtid   = 0;
-  int vdim_x = 0;
-  int vdim_y = 0;
-  int vdim   = 0;
   int start  = 0;
   int end    = 0;
-  int orig_x = 0;
-  int orig_y = 0;
-  int is_da  = 0;
-  int master_x = 0;
-  int master_y = 0;
-  int unique_id = 0;
-  int total_groups = 0;
-  int used = 0;
 
   // group construction
   #ifdef VECTOR_LEN
@@ -97,47 +49,23 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
-  vtid = cinfo.vtid;
-  vtid_x = cinfo.vtid_x;
-  vtid_y = cinfo.vtid_y;
-  vdim_x = cinfo.vdim_x;
-  vdim_y = cinfo.vdim_y;
-  orig_x = cinfo.orig_x;
-  orig_y = cinfo.orig_y;
-  is_da  = cinfo.is_scalar;
-  master_x = cinfo.master_x;
-  master_y = cinfo.master_y;
-  unique_id = cinfo.unique_id;
-  total_groups = cinfo.total_groups;
-  used = cinfo.used;
-  vdim = VECTOR_LEN;
-
-  if (used) {
-    int alignment = 16 * vdim;
-    start = roundUp((unique_id + 0) * n / total_groups, alignment);
-    end   = roundUp((unique_id + 1) * n / total_groups, alignment);
+  if (cinfo.used) {
+    int alignment = 16 * VECTOR_LEN;
+    start = roundUp((cinfo.unique_id + 0) * n / cinfo.total_groups, alignment);
+    end   = roundUp((cinfo.unique_id + 1) * n / cinfo.total_groups, alignment);
   }
 
   #elif !defined(USE_VEC)
+  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
 
-  vdim_x = 1;
-  vdim_y = 1;
-  vdim   = vdim_x * vdim_y;
-  vtid_x = 0;
-  vtid_y = 0;
-  vtid   = 0;
-  start  = ( ( ptid + 0 ) * n ) / pdim;
-  end    = ( ( ptid + 1 ) * n ) / pdim;
-
-
+  //do work division here
+  start  = ( ( cinfo.unique_id + 0 ) * n ) / cinfo.total_groups;
+  end    = ( ( cinfo.unique_id + 1 ) * n ) / cinfo.total_groups;
   #endif
-
-  // linearize some fields
-  int orig = orig_x + orig_y * dim_x;
 
   // construct special mask for dae example
   #ifdef USE_VEC
-  int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+  int mask = getSIMDMask(&cinfo);
   #endif
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
@@ -148,9 +76,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // only let certain tids continue
   #if defined(USE_VEC)
-  // if (ptid != 0 && ptid != 1 && ptid != 2 && ptid != 5 && ptid != 6) return; 
-  // if (ptid == 3) return;
-  if (used == 0) return;
+  if (cinfo.used == 0) return;
   #endif
 
   // run the actual kernel with the configuration
@@ -160,40 +86,18 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int unroll_len = 1;
   #endif
 
-  // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
-  // reset after the kernel is done
-  // do before the function call so the arg stack frame is on the spad
-  // store the the current spAddr to restore later 
-  unsigned long long *spTop = getSpTop(ptid);
-  spTop -= 30;
-
-  unsigned long long stackLoc;
-  unsigned long long temp;
-  #pragma GCC unroll(30)
-  for(int i=0;i<30;i++){
-    asm volatile("ld t0, %[id](sp)\n\t"
-                "sd t0, %[id](%[spad])\n\t"
-                : "=r"(temp)
-                : [id] "i"(i*8), [spad] "r"(spTop));
-  }
-  asm volatile (// save the stack ptr
-      "addi %[dest], sp, 0\n\t"
-      // overwrite stack ptr
-      "addi sp, %[spad], 0\n\t"
-      : [ dest ] "=r"(stackLoc)
-      : [ spad ] "r"(spTop));
+  // move stack onto scratchpad for faster local access than default on DRAM
+  MOVE_STACK_ONTO_SCRATCHPAD();
 
   // configure
   #ifdef USE_VEC
-  tril_vvadd(mask, a, b, c, start, end, ptid, vtid, vdim, is_da);
+  tril_vvadd(mask, a, b, c, start, end, ptid, get_vtid(&cinfo), get_vdim(&cinfo), cinfo.is_scalar);
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   #endif
 
-  // restore stack pointer
-  asm volatile (
-    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
-  );
+  // restore stack pointer to DRAM
+  RECOVER_DRAM_STACK();
 
 }
 

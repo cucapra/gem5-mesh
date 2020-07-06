@@ -23,7 +23,7 @@ size_t getSpadNumBytes();
     asm volatile("ld t0, %[id](sp)\n\t"       \
                 "sd t0, %[id](%[spad])\n\t"   \
                 : "=r"(temp)                  \
-                : [id] "i"(i*8), [spad] "r"(spTop)); \
+                : [id] "i"(i*8), [spad] "r"(spTop) : "memory"); \
   }                                                   \
   asm volatile (                                      \
       "addi %[dest], sp, 0\n\t"                       \
@@ -33,7 +33,7 @@ size_t getSpadNumBytes();
 
 #define RECOVER_DRAM_STACK() \
   asm volatile(              \
-      "addi sp, %[stackTop], 0\n\t" ::[stackTop] "r"(stackLoc))
+      "addi sp, %[stackTop], 0\n\t" ::[stackTop] "r"(stackLoc) : "memory")
 
 #endif
 

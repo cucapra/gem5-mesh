@@ -255,4 +255,13 @@ void group_id_to_origin(template_info_t *tinfo, int group_id, int *x, int *y);
 
 int get_ptid_from_group(template_info_t *tinfo, int group_id, int vid_x, int vid_y, int phys_dim_x);
 
+
+inline int get_vtid(core_config_info_t *cinfo) {
+  return cinfo->vtid_x + cinfo->vtid_y * cinfo->vdim_x;
+}
+
+inline int get_vdim(core_config_info_t *cinfo) {
+  return cinfo->vdim_x * cinfo->vdim_y;
+}
+
 #endif
