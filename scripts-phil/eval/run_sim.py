@@ -180,8 +180,8 @@ use_sps = True
 # ncols = 1730
 # good for reuse versions
 # ncols = 1842  # n * 460 + 2
-# ncols = 5522
-ncols = 1730
+ncols = 5522
+# ncols = 1730
 nrows = 60
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()

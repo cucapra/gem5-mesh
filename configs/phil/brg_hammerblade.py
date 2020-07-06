@@ -175,11 +175,11 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
   int_links = []
 
   # will try to take minimum weight path
-  horiz_weight = 2
+  horiz_weight = 1
   # TODO would of expected these two to be switched
   # but worse prefetch latencies
   towards_l2_weight = 1
-  away_l2_weight = 3
+  away_l2_weight = 1
 
   # East output to West input links (weight = 1)
   for row in xrange(n_rows):
