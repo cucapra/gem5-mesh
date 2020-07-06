@@ -38,7 +38,7 @@ void setup_reduction(token_queue_t *cons0, token_queue_t *cons1, token_queue_t *
 }
 
 // dim is the total number of active cores
-void reduce_vector_manycore(int* partialVec, int *c, int ptid, int activeTid, int dim, token_queue_t *cons0, 
+void reduce_vector_on_manycore(int* partialVec, int *c, int ptid, int activeTid, int dim, token_queue_t *cons0, 
     token_queue_t *cons1, token_queue_t *prod, int numElements, int token_len) {
 
   // one core is responsible for writing back the final value at the end

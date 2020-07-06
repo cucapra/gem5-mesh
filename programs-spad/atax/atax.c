@@ -4,9 +4,10 @@
 #include "pthread_launch.h"
 #include "atax.h"
 #include "spad.h"
-#include "../../common/bind_defs.h"
+#include "bind_defs.h"
 #include "token_queue.h"
 #include "group_templates.h"
+#include "util.h"
 
 #include "atax_kernel.h"
 
@@ -14,26 +15,6 @@
 
 // #define SERIAL_OUTPUT_REDUCE
 #define PARALLEL_OUTPUT_REDUCE
-
-// https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
-int roundUp(int numToRound, int multiple) {
-  if (multiple == 0) {
-    return numToRound;
-  }
-
-  int remainder = abs(numToRound) % multiple;
-  if (remainder == 0) {
-    return numToRound;
-  }
-
-  if (numToRound < 0) {
-    return -(abs(numToRound) - remainder);
-  }
-  else {
-    return numToRound + multiple - remainder;
-  }
-}
-
 
 void __attribute__((optimize("-fno-inline")))
 atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
@@ -316,11 +297,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // linearize some fields
   vdim = vdim_x * vdim_y;
-  int orig = orig_x + orig_y * dim_x;
 
   // get behavior of each core
   #ifdef _VEC
-  int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+  int mask = getSIMDMask(&cinfo);
   #else
   int mask = 0;
   #endif

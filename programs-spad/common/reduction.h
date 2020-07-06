@@ -7,7 +7,7 @@
 void setup_reduction(token_queue_t *cons0, token_queue_t *cons1, token_queue_t *prod,
     int spmOffset, int bufSize, int ptid, int pdim_x, int pdim_y, int is_vec, core_config_info_t *cinfo, template_info_t *tinfo);
 
-void reduce_vector_manycore(int* partialVec, int*c, int ptid, int activeTid, int dim, token_queue_t *cons0, 
+void reduce_vector_on_manycore(int* partialVec, int*c, int ptid, int activeTid, int dim, token_queue_t *cons0, 
     token_queue_t *cons1, token_queue_t *prod, int numElements, int token_len);
 
 int get_reduction_dest_manycore(int src_id);
