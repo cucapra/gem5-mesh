@@ -387,9 +387,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       : [ dest ] "=r"(stackLoc)
       : [ spad ] "r"(spTop));
 
-
-  
-
+  // move stack onto scratchpad for faster local access than default on DRAM
+  // TODO needs 60, but default is 30
+  // MOVE_STACK_ONTO_SCRATCHPAD();
 
   if(used!=0){
     #if defined _VEC
@@ -433,9 +433,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
 
   stack_end:
-  // restore stack pointer
-  asm volatile(
-      "addi sp, %[stackTop], 0\n\t" ::[stackTop] "r"(stackLoc));
+  // restore stack pointer to DRAM
+  RECOVER_DRAM_STACK();
   return;
 
   
