@@ -7,7 +7,7 @@
 #include "pthread_launch.h"
 #include "if_test.h"
 #include "spad.h"
-#include "../../common/bind_defs.h"
+#include "bind_defs.h"
 
 void tril_if_delim_test(int mask, DTYPE *outbuf);
 

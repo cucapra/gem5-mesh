@@ -5,7 +5,7 @@
 #include "pthread_launch.h"
 #include "stencil.h"
 #include "spad.h"
-#include "../../common/bind_defs.h"
+#include "bind_defs.h"
 
 /*
   3x3 stencil with a single 3x3 filter
@@ -508,31 +508,33 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int master_y = 0;
   int unique_id = 0;
   int total_groups = 0;
+  int used = 0;
 
   // group construction
+  #ifdef VECTOR_LEN
+
   #if VECTOR_LEN==4
-  // virtual group dimension
-  vdim_x = 2;
-  vdim_y = 2;
-
-  int used = vector_group_template_4(ptid_x, ptid_y, pdim_x, pdim_y, 
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
-
-  // TODO should use alignment
-  if (used) {
-    start = ( (unique_id + 0) * effRows ) / total_groups;
-    end   = ( (unique_id + 1) * effRows ) / total_groups;
-  }
-
-  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used); 
-
+  template_info_t tinfo = init_template_4x4_2x2();
+  // template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
+  template_info_t tinfo = init_template_8x8_4x4();
+  #endif
 
-  vdim_x = 4;
-  vdim_y = 4;
+  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
-  int used = vector_group_template_16(ptid_x, ptid_y, pdim_x, pdim_y, 
-    &vtid, &vtid_x, &vtid_y, &is_da, &orig_x, &orig_y, &master_x, &master_y, &unique_id, &total_groups);
+  vtid = cinfo.vtid;
+  vtid_x = cinfo.vtid_x;
+  vtid_y = cinfo.vtid_y;
+  vdim_x = cinfo.vdim_x;
+  vdim_y = cinfo.vdim_y;
+  orig_x = cinfo.orig_x;
+  orig_y = cinfo.orig_y;
+  is_da  = cinfo.is_scalar;
+  master_x = cinfo.master_x;
+  master_y = cinfo.master_y;
+  unique_id = cinfo.unique_id;
+  total_groups = cinfo.total_groups;
+  used = cinfo.used;
 
   if (used) {
     start = ( (unique_id + 0) * effRows ) / total_groups;
@@ -557,11 +559,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // linearize some fields
   vdim = vdim_x * vdim_y;
-  int orig = orig_x + orig_y * dim_x;
 
   #ifdef USE_VEC
   // volatile so dont reorder this function call
-  int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+  int mask = getSIMDMask(&cinfo);
   #endif
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
@@ -602,49 +603,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (used == 0) return;
   #endif
 
-  // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
-  // reset after the kernel is done
-  // do before the function call so the arg stack frame is on the spad
-  // store the the current spAddr to restore later 
-  unsigned long long *spTop = getSpTop(ptid);
-  // guess the remaining of the part of the frame that might be needed??
-  spTop -= 12;
-
-  unsigned long long stackLoc;
-  asm volatile (
-    // copy part of the stack onto the scratchpad in case there are any loads to scratchpad right before
-    // function call
-    "ld t0, 0(sp)\n\t"
-    "sd t0, 0(%[spad])\n\t"
-    "ld t0, 8(sp)\n\t"
-    "sd t0, 8(%[spad])\n\t"
-    "ld t0, 16(sp)\n\t"
-    "sd t0, 16(%[spad])\n\t"
-    "ld t0, 24(sp)\n\t"
-    "sd t0, 24(%[spad])\n\t"
-    "ld t0, 32(sp)\n\t"
-    "sd t0, 32(%[spad])\n\t"
-    "ld t0, 40(sp)\n\t"
-    "sd t0, 40(%[spad])\n\t"
-    "ld t0, 48(sp)\n\t"
-    "sd t0, 48(%[spad])\n\t"
-    "ld t0, 56(sp)\n\t"
-    "sd t0, 56(%[spad])\n\t"
-    "ld t0, 64(sp)\n\t"
-    "sd t0, 64(%[spad])\n\t"
-    "ld t0, 72(sp)\n\t"
-    "sd t0, 72(%[spad])\n\t"
-    "ld t0, 80(sp)\n\t"
-    "sd t0, 80(%[spad])\n\t"
-    "ld t0, 88(sp)\n\t"
-    "sd t0, 88(%[spad])\n\t"
-    // save the stack ptr
-    "addi %[dest], sp, 0\n\t" 
-    // overwrite stack ptr
-    "addi sp, %[spad], 0\n\t"
-    : [dest] "=r" (stackLoc)
-    : [spad] "r" (spTop)
-  );
+  // move stack onto scratchpad for faster local access than default on DRAM
+  MOVE_STACK_ONTO_SCRATCHPAD();
 
   #ifdef USE_VEC
   // do computation that we can map
@@ -656,10 +616,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   stencil_manycore(a, b, c, nrows, 0, mapped_len, ncols, ptid, vtid, vdim, start, end);
   #endif
 
-  // restore stack pointer
-  asm volatile (
-    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
-  );
+  // restore stack pointer to DRAM
+  RECOVER_DRAM_STACK();
 
 }
 

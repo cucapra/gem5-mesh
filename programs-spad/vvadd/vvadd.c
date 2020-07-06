@@ -86,12 +86,16 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int unroll_len = 1;
   #endif
 
+  int vtid = get_vtid(&cinfo);
+  int vdim = get_vdim(&cinfo);
+  int is_da = cinfo.is_scalar;
+
   // move stack onto scratchpad for faster local access than default on DRAM
   MOVE_STACK_ONTO_SCRATCHPAD();
 
   // configure
   #ifdef USE_VEC
-  tril_vvadd(mask, a, b, c, start, end, ptid, get_vtid(&cinfo), get_vdim(&cinfo), cinfo.is_scalar);
+  tril_vvadd(mask, a, b, c, start, end, ptid, vtid, vdim, is_da);
   #else
   vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
   #endif
