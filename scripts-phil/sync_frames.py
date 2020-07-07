@@ -1,13 +1,24 @@
-# script to take a .S assembly file and insert the correct length for the vissue instructions
+# script to take a .S assembly file and figure out sync cnt
 
-import os, subprocess, time, argparse, re, sys
+import os, subprocess, time, argparse, re, sys, math
+
+# cmd line arguments
+parser = argparse.ArgumentParser(description='Analyze stats file in a given directory')
+parser.add_argument('infile')
+parser.add_argument('--num-hardware-cntrs', default=5, help='Number of frame ctnrs in the hardware')
+parser.add_argument('--vec-dim', default=2, help='Vector dimension for square group')
+parser.add_argument('--mesh-queue-slots', default=2, help='Size of queues in mesh')
+parser.add_argument('--pipe-queue-slots', default=2, help='Size of queues between pipe stages')
+parser.add_argument('--rob-slots', default=8, help='ROB size')
+parser.add_argument('--pipe-stages-before-commit', default=4, help='Number of stages before instruction reserved in ROB (i.e. up to and including issue)')
+args = parser.parse_args()
 
 # opcodes of vissue type instructions
 vissue_opcode = '0x6b'
 devec_opcode = '0x2b'
 
 # figure out the file names
-infile = sys.argv[1]
+infile = args.infile
 
 
 # the assemble won't accept a number as the register value, so have to put in
@@ -336,6 +347,9 @@ def count_vissue(vissue_line):
     label = vissue_table[vissue_line]['label']
     vissue_table[vissue_line]['count'] = find_vissue_count(label)
 
+def ceiledDiv(a, b):
+    return int(math.ceil(float(a) / float(b)))
+
 # determines how many prefetch frame can be initially fetch to guarentee worst case sync
 # output
 #   returns number of frames
@@ -351,7 +365,8 @@ def det_sync_frames(vec_dim, mesh_queue_slots, rob_slots, pipe_slots, pipe_stage
     sum_pipe_stages = pipe_stages_up_to_commit * pipe_slots + rob_slots
 
     queue_spots = (2 * vec_dim - 1) * mesh_queue_slots + sum_pipe_stages
-    nr = queue_spots / instructions_per_frame
+    nr = ceiledDiv(queue_spots, instructions_per_frame)
+    print('frames possible in group {0} = {1} / {2}'.format(nr, queue_spots, instructions_per_frame))
 
     init_frames = num_hardware_cntrs - mesh_queue_slots - nr
 
@@ -392,7 +407,15 @@ for k,v in vissue_table.items():
 print("min frame size: " + str(min_frame_size))
 
 # do sync calculation using mesh size, frame size, etc..
-init_frames = det_sync_frames(2, 2, 8, 2, 4, min_frame_size, 5)
+init_frames = det_sync_frames(
+    args.vec_dim,
+    args.mesh_queue_slots,
+    args.rob_slots,
+    args.pipe_queue_slots,
+    args.pipe_stages_before_commit,
+    min_frame_size,
+    args.num_hardware_cntrs
+    )
 
 print("init_frames: " + str(init_frames))
 
