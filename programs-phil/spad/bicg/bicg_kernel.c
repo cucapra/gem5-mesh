@@ -114,7 +114,7 @@ void  __attribute__((optimize("-fno-reorder-blocks") /*, optimize("-fno-align-lo
   volatile int BH;
   do {
   // while(BH) {
-    asm("trillium vissue_delim vec_body if_block");
+    asm("trillium vissue_delim if_begin vec_body");
     FRAME_START(FRAME_SIZE);
     // s_local += a[i * NY + j] * r[i];
     s_local += sp_ptr[sp + 0] * sp_ptr[sp + 1];
@@ -254,7 +254,7 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
 #ifdef VECTOR_CORE
   volatile int BH;
   do {
-    asm("trillium vissue_delim vec_body if_block");
+    asm("trillium vissue_delim if_begin vec_body");
     FRAME_START(FRAME_SIZE);
     // q_local += a[i * NY + j] * p[j];
     q_local += sp_ptr[sp + 0] * sp_ptr[sp + 1];
