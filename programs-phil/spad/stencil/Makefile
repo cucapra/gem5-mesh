@@ -31,7 +31,7 @@ RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
 
 # script to find the correct vissue length
 VISS=python /home/pbb59/hammerblade/gem5/scripts-phil/vissue-asm.py
-COUNT=python ../../../scripts-phil/sync_frames.py
+# COUNT=python ../../../scripts-phil/sync_frames.py
 
 CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 
@@ -56,7 +56,7 @@ VISS: $(SM_DEPS)
 
 %.S:%.s
 	$(VISS) $(notdir $<) $(notdir $@) 1
-	$(COUNT) $(notdir $@)
+	# $(COUNT) $(notdir $@)
 
 %.s:%.c
 	$(RV_CC) $(CFLAGS) -S -o $(notdir $@) $<
