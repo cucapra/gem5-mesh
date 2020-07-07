@@ -441,7 +441,7 @@ for i in xrange(n_scratchpads):
                   # store noacks like it does for prefetch
                   maxNumPendingReqs = options.stream_width,
                   prefetchBufSize   = 10000, # make ridic number
-                  numFrameCntrs     = 48,
+                  numFrameCntrs     = 5,
                   cpu               = system.cpu[i])
 
   sp.memReqBuffer             = MessageBuffer(ordered = True)
