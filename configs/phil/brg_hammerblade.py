@@ -440,7 +440,7 @@ for i in xrange(n_scratchpads):
                   # might be too big but can solve by having spad not remember
                   # store noacks like it does for prefetch
                   maxNumPendingReqs = options.stream_width,
-                  prefetchBufSize   = 10000, # make ridic number
+                  prefetchBufSize   = 0, # don't allow to go over
                   numFrameCntrs     = 5,
                   cpu               = system.cpu[i])
 
