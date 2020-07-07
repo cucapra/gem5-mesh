@@ -74,10 +74,12 @@ stats = OrderedDict([
     'regex' : re.compile('system.cpu[0-9]+.vector.revec_stalls\s*' + intRegexStr), 
     'ignore-zero' : True,
   }),
-  ('cpi' ,  { 
-    'name' : 'cpi', 
+  ('active-cpi' ,  { 
+    'name' : 'active-cpi', 
     'regex' : re.compile('system.cpu[0-9]+.cpi\s*' + floatRegexStr), 
     'ignore-zero' : False,
+    # cpi of inactive cores is really high, ignore for stat reporting
+    'upper-bound' : 200
   }),
   ('llc-misses' ,  { 
     'name' : 'llc-misses', 

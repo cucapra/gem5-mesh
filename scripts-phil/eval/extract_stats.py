@@ -103,13 +103,19 @@ def parse_file(fileName):
             ignore_zero = v['ignore-zero']
           else:
             ignore_zero = False
+
+          if ('upper-bound' in v):
+            upper_bound = v['upper-bound']
+            has_upper_bound = True
+          else:
+            has_upper_bound = False
           
           try:
             arith_val = int(val)
           except:
             arith_val = float(val)
           
-          if (not (ignore_zero and (arith_val == 0))):
+          if ((not (ignore_zero and (arith_val == 0))) and (not has_upper_bound or arith_val < upper_bound)):
               if (is_hist_stat(v)):
                 v['buckets'].append((bucket_range, arith_val))
               else:
@@ -246,6 +252,8 @@ for dirPath in dirPaths:
       for i in range(0, find_max_buckets()):
         if (i < buck_len):
           (b, d) = buckets[i]
+          if (not 'meta' in annos):
+            annos['meta'] = ''
           histCSV[i] += '{0}:{1},{2},{3},,'.format(annos['meta'], v['name'], str(b), str(d))
         else:
           histCSV[i] += ',,,,'
