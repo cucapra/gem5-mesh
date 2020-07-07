@@ -392,7 +392,7 @@ for k,v in vissue_table.items():
 print("min frame size: " + str(min_frame_size))
 
 # do sync calculation using mesh size, frame size, etc..
-init_frames = det_sync_frames(2, 2, 8, 2, 4, min_frame_size, 2)
+init_frames = det_sync_frames(2, 2, 8, 2, 4, min_frame_size, 5)
 
 print("init_frames: " + str(init_frames))
 
