@@ -9,26 +9,26 @@
 // checker from polybench. single core implementation
 #include <math.h>
 
-void init_arrays(DTYPE* A, DTYPE* C, int N, int M)
-{
-	int i, j;
-	
-	for (i = 0; i < N; i++)
-    	{
-		for (j = 0; j < M; j++)
-		{
-			A[i*M + j] = ((DTYPE) i*j) / N;
-		}
-		
-		for (j = 0; j < N; j++)
-		{
-			C[i*M + j] = ((DTYPE) i*j + 2) / N;
-		}
-	}
+void init_arrays(DTYPE *A, DTYPE *B, DTYPE *C, int N, int M) {
+  int i, j;
+  
+  for (i = 0; i < N; i++)
+      {
+        for (j = 0; j < N; j++)
+    {
+      C[i*N + j] = ((DTYPE) i*j + 2) / N;
+    }
+        
+    for (j = 0; j < M; j++)
+    {
+        A[i*N + j] = ((DTYPE) i*j) / N;
+        B[i*N + j] = ((DTYPE) i*j + 1) / N;
+    }
+      }
 }
 
 
-void syrk_seq(DTYPE* A, DTYPE* C, int N, int M)
+void syrk_seq(DTYPE* A, DTYPE* B, DTYPE* C, int N, int M)
 {
 	int i, j, k;
 	
@@ -37,7 +37,7 @@ void syrk_seq(DTYPE* A, DTYPE* C, int N, int M)
 	{
 		for (j = 0; j < N; j++)
 		{
-			C[i*M + j] *= beta;
+			C[i*N + j] *= beta;
 		}
 	}
 	
@@ -47,7 +47,8 @@ void syrk_seq(DTYPE* A, DTYPE* C, int N, int M)
 		{
 			for (k = 0; k < M; k++)
 			{
-				C[i*N + j] += alpha * A[i*M + k] * A[j*M + k];
+			  C[i*N + j] += ALPHA * A[i*M + k] * B[j*M + k];
+        C[i*N + j] += ALPHA * B[i*M + k] * A[j*M + k];	
 			}
 		}
 	}
@@ -88,19 +89,20 @@ int main(int argc, char *argv[]) {
     skip_check = atoi(argv[3]);
   }
   
-  printf("SYRK on %d x %d. Num cores is %d\n", 
+  printf("SYR2K on %d x %d. Num cores is %d\n", 
     N, M, num_cores);
 
   /*--------------------------------------------------------------------
   * Data initialization
   *-------------------------------------------------------------------*/
 
-  DTYPE *a_ptr, *c_ptr;
+  DTYPE *a_ptr, *b_ptr, *c_ptr;
   DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), N*M, (void**)&a_ptr);
+  DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), N*M, (void**)&b_ptr);
   DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), N*M, (void**)&c_ptr);
 
   // initial data
-  init_arrays(a, c, N, M);
+  init_arrays(a, b, c, N, M);
   
   /*--------------------------------------------------------------------
   * Pack argument for kernel
@@ -112,7 +114,7 @@ int main(int argc, char *argv[]) {
   for (int y = 0; y < cores_y; y++) {
     for (int x = 0; x < cores_x; x++){
       int i = x + y * cores_x;
-      kern_args[i] = construct_args(a, c, N, M, x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(a, b, c, N, M, x, y, cores_x, cores_y);
     }  
   }
 
@@ -130,6 +132,7 @@ int main(int argc, char *argv[]) {
   if (skip_check) {
     printf("Skipping verification\n");
     free(a_ptr);
+    free(b_ptr);
     free(c_ptr);
     return 0;
   }
@@ -138,11 +141,12 @@ int main(int argc, char *argv[]) {
 
   // compare with results from a sequential version
 	DTYPE *a_exp = (DTYPE*)malloc(N*M*sizeof(DTYPE));
-	DTYPE *c_exp = (DTYPE*)malloc(N*M*sizeof(DTYPE));
+	DTYPE *b_exp = (DTYPE*)malloc(N*M*sizeof(DTYPE));
+  DTYPE *c_exp = (DTYPE*)malloc(N*M*sizeof(DTYPE));
 
-  init_arrays(a_exp, c_exp, N, M);
+  init_arrays(a_exp, b_exp, c_exp, N, M);
 
-  syrk_seq(a_exp, c_exp, N, M);
+  syrk_seq(a_exp, b_exp, c_exp, N, M);
 
   for (int i = 0; i < N; i++) {
     for (int j = 0; j < M; j++) {
@@ -156,9 +160,11 @@ int main(int argc, char *argv[]) {
   }
 
   free(a_exp);
+  free(b_exp);
   free(c_exp);
   
   free(a_ptr);
+  free(b_ptr);
   free(c_ptr);
   
   printf("[[SUCCESS]]\n");

@@ -19,7 +19,7 @@
  *---------------------------------------------------------------------------------*/
 
 // compute s by parallezing the outerloop around reduction (reductions done within a single core)
-void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) {
+void syr2k_manycore_baseline(DTYPE *a, DTYPE *b, DTYPE *c, int N, int M, int tid, int dim) {
   // could parallize over two dimensions. thats what gpu version does
   // just do 1d so easier
   int start = ((tid + 0) * N) / dim;
@@ -31,8 +31,8 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
       // c[i * N + j] *= beta;
 
       for (int k = 0; k < M; k++) {
-        // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
-        c_ij += alpha * a[i * M + k] * a[j * M + k];
+        // c[i * N + j] += ALPHA * a[i * M + k] * b[j * M + k] + ALPHA * b[i * M + k] * a[j * M + k];
+        c_ij += alpha * a[i * M + k] * b[j * M + k] + alpha * b[i * M + k] * a[j * M + k];
       }
       c[i * N + j] = c_ij;
     }
@@ -43,23 +43,23 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
  * Staging
  *---------------------------------------------------------------------------------*/
 
-void __attribute__((optimize("-fno-inline"))) syrk(
-    DTYPE *a, DTYPE *c,
+void __attribute__((optimize("-fno-inline"))) syr2k(
+    DTYPE *a, DTYPE *b, DTYPE *c,
     int ptid, int vtid, int dim, int N, int M, int groupId, int numGroups,
     int mask, int used
   ) {
 
     #ifndef USE_VEC
-    syrk_manycore_baseline(a, c, N, M, ptid, dim);
+    syr2k_manycore_baseline(a, b, c, N, M, ptid, dim);
     #else
     if (used)
-      tril_syr2k(mask, a, c, N, M, ptid, groupId, numGroups, vtid);
+      tril_syr2k(mask, a, b, c, N, M, ptid, groupId, numGroups, vtid);
     #endif
 
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
-    DTYPE *a, DTYPE *c, int N, int M,
+    DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
     int ptid_x, int ptid_y, int pdim_x, int pdim_y) {
   
   // start recording all stats (all cores)
@@ -139,7 +139,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   MOVE_STACK_ONTO_SCRATCHPAD();
 
   // do the kernel
-  syrk(a, c, ptid, vtid, pdim, N, M, unique_id, total_groups, mask, used);
+  syr2k(a, b, c, ptid, vtid, pdim, N, M, unique_id, total_groups, mask, used);
 
   // restore stack pointer
   RECOVER_DRAM_STACK();
@@ -148,12 +148,13 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
 
 // helper functions
-Kern_Args *construct_args(DTYPE *a, DTYPE *c, int N, int M,
+Kern_Args *construct_args(DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
   int tid_x, int tid_y, int dim_x, int dim_y) {
 
   Kern_Args *args = (Kern_Args*)malloc(sizeof(Kern_Args));
   
   args->a = a;
+  args->b = b;
   args->c = c;
   args->N = N;
   args->M = M;
@@ -174,7 +175,7 @@ void *pthread_kernel(void *args) {
   // call the spmd kernel
   Kern_Args *a = (Kern_Args*)args;
   
-  kernel(a->a, a->c, a->N, a->M,
+  kernel(a->a, a->b, a->c, a->N, a->M,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
   pthread_barrier_wait(&start_barrier);

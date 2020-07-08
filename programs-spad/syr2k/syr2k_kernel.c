@@ -65,7 +65,7 @@ inline void prefetch_inner_frame(DTYPE *a, int i, int j, int k, int *sp, int M) 
 //
 // then can use horizontal prefetching
 
-void tril_syr2k(int mask, DTYPE *a, DTYPE *c, int N, int M, 
+void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M, 
                   int ptid, int groupId, int numGroups, int vtid) {
 
 
