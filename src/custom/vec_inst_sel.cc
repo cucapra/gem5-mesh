@@ -177,6 +177,13 @@ VecInstSel::dequeueInst() {
       _vecCmds.pop();
     }
   }
+
+  // remove the block if its a devec
+  // TODO should prob pass flag into process head
+  if (ret && ret->isSquashAfter()) {
+    cleanCurIssueBlock();
+    _vecCmds.pop();
+  }
   
   // handle the next operation if there is an element on the queue
   processHead();
