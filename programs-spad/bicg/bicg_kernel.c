@@ -6,7 +6,8 @@
 #include "pthread_launch.h"
 #include "bicg.h"
 #include "spad.h"
-#include "../../common/bind_defs.h"
+#include "bind_defs.h"
+#include "util.h"
 
 // #define SCALAR_CORE
 // #define VECTOR_CORE
@@ -16,25 +17,6 @@
  *---------------------------------------------------------------------------------*/
 
 #ifdef USE_VEC
-// helper for mapping to vector groups.
-// doesn't handle odd numbers would need to split off into manycore kernel to handle that
-int roundUp(int numToRound, int multiple) {
-  if (multiple == 0) {
-    return numToRound;
-  }
-
-  int remainder = abs(numToRound) % multiple;
-  if (remainder == 0) {
-    return numToRound;
-  }
-
-  if (numToRound < 0) {
-    return -(abs(numToRound) - remainder);
-  }
-  else {
-    return numToRound + multiple - remainder;
-  }
-}
 
 // prefetch a and r
 inline void prefetch_s_frame(DTYPE *a, DTYPE *r, int i, int j, int *sp, int NY) {

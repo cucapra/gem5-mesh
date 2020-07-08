@@ -6,7 +6,7 @@
 #include "pthread_launch.h"
 #include "bicg.h"
 #include "spad.h"
-#include "../../common/bind_defs.h"
+#include "bind_defs.h"
 #include "group_templates.h"
 #include "bicg_kernel.h"
 
@@ -92,24 +92,18 @@ void __attribute__((optimize("-fno-inline"))) bicg(
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *r, DTYPE *p, DTYPE *s, DTYPE *q,  int NX, int NY,
-    int tid_x, int tid_y, int dim_x, int dim_y) {
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y) {
   
   // start recording all stats (all cores)
-  if (tid_x == 0 && tid_y == 0) {
+  if (ptid_x == 0 && ptid_y == 0) {
     stats_on();
   }
 
   // linearize tid and dim
-  int tid = tid_x + tid_y * dim_x;
-  int dim = dim_x * dim_y;
+  int ptid = ptid_x + ptid_y * pdim_x;
+  int pdim = pdim_x * pdim_y;
 
   // split into physical and virtual tids + dim
-  int ptid_x = tid_x;
-  int ptid_y = tid_y;
-  int ptid   = tid;
-  int pdim_x = dim_x;
-  int pdim_y = dim_y;
-  int pdim   = dim;
   int vtid_x = 0;
   int vtid_y = 0;
   int vtid   = 0;
@@ -164,11 +158,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // linearize some fields
   vdim = vdim_x * vdim_y;
-  int orig = orig_x + orig_y * dim_x;
 
   // get behavior of each core
   #ifdef USE_VEC
-  int mask = getSIMDMask(master_x, master_y, orig_x, orig_y, vtid_x, vtid_y, vdim_x, vdim_y, is_da);
+  int mask = getSIMDMask(&cinfo);
   // if (ptid == 0)
   //   printf("initial pf mask\n");
   SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
@@ -176,37 +169,13 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int mask = 0;
   #endif
 
-  // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
-  // reset after the kernel is done
-  // do before the function call so the arg stack frame is on the spad
-  // store the the current spAddr to restore later 
-  unsigned long long *spTop = getSpTop(ptid);
-  spTop -= 30;
+  MOVE_STACK_ONTO_SCRATCHPAD();
 
-  unsigned long long stackLoc;
-  unsigned long long temp;
-  #pragma GCC unroll(30)
-  for(int i=0;i<30;i++){
-    asm volatile("ld t0, %[id](sp)\n\t"
-                "sd t0, %[id](%[spad])\n\t"
-                : "=r"(temp)
-                : [id] "i"(i*8), [spad] "r"(spTop));
-  }
-  asm volatile (// save the stack ptr
-      "addi %[dest], sp, 0\n\t"
-      // overwrite stack ptr
-      "addi sp, %[spad], 0\n\t"
-      : [ dest ] "=r"(stackLoc)
-      : [ spad ] "r"(spTop));
-
-
-  // gramschmidt
-  bicg(a, r, p, s, q, ptid, vtid, dim, NX, NY, unique_id, total_groups, mask, used);
+  // bicg
+  bicg(a, r, p, s, q, ptid, vtid, pdim, NX, NY, unique_id, total_groups, mask, used);
 
   // restore stack pointer
-  asm volatile (
-    "addi sp, %[stackTop], 0\n\t" :: [stackTop] "r" (stackLoc)
-  );
+  RECOVER_DRAM_STACK();
 
 }
 
