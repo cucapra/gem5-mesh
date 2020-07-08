@@ -27,23 +27,30 @@ inline void prefetch_outer_frame(DTYPE *c, int i, int j, int *sp, int N) {
 
     // pad out
     VPREFETCH_L(*sp + 1, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_L(*sp + 2, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_L(*sp + 3, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
   }
 
-  *sp = *sp + 2*OUTER_PREFETCH_LEN;
+  *sp = *sp + 4*OUTER_PREFETCH_LEN;
   if (*sp == POST_FRAME_WORD) *sp = 0;
 }
 
 // prefetch a
-inline void prefetch_inner_frame(DTYPE *a, int i, int j, int k, int *sp, int M) {
+inline void prefetch_inner_frame(DTYPE *a, DTYPE *b, int i, int j, int k, int *sp, int M) {
   for (int core = 0; core < VECTOR_LEN; core++) {
     // TODO redundant
     VPREFETCH_L(*sp + 0, &a[i * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
 
     // TODO this can be horizontal?
     VPREFETCH_L(*sp + 1, &a[(j + core) * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
+
+    // fetch b's in the same way
+    VPREFETCH_L(*sp + 2, &b[i * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_L(*sp + 3, &b[(j + core) * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
+
   }
 
-  *sp = *sp + 2*INNER_PREFETCH_LEN;
+  *sp = *sp + INNER_FRAME_SIZE;
   if (*sp == POST_FRAME_WORD) *sp = 0;
 }
 
@@ -102,12 +109,12 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
   // get ahead
   prefetch_outer_frame(c, start, 0, &sp, N);
   for (int k = 0; k < INIT_OFFSET; k+=INNER_PREFETCH_LEN) {
-    prefetch_inner_frame(a, start, 0, k, &sp, M);
+    prefetch_inner_frame(a, b, start, 0, k, &sp, M);
   }
 
   // do first inner loop
   for (int k = INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
-    prefetch_inner_frame(a, start, 0, k, &sp, M);
+    prefetch_inner_frame(a, b, start, 0, k, &sp, M);
     ISSUE_VINST(vec_body_label);
   }
 
@@ -119,7 +126,7 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
       prefetch_outer_frame(c, i, j, &sp, N);
 
       for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
-        prefetch_inner_frame(a, i, j, k, &sp, M);
+        prefetch_inner_frame(a, b, i, j, k, &sp, M);
         ISSUE_VINST(vec_body_label);
       }
     }
@@ -142,7 +149,7 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
         // printf("c %f ?= %f\n", sp_ptr[sp], c[i*N+j]);
       c_ij = sp_ptr[sp + 0] * beta;
       REMEM(OUTER_FRAME_SIZE);
-      sp+=2;
+      sp+=OUTER_FRAME_SIZE;
       if (sp == POST_FRAME_WORD) sp = 0;
     }
 
@@ -150,9 +157,9 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
     FRAME_START(INNER_FRAME_SIZE);
     // printf("a %f ?= %f %f ?= %f\n", sp_ptr[sp + 0], a[i * M + k], sp_ptr[sp + 1], a[j * M +k]);
     // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
-    c_ij += alpha * sp_ptr[sp + 0] * sp_ptr[sp + 1];
+    c_ij += alpha * sp_ptr[sp + 0] * sp_ptr[sp + 3] + alpha * sp_ptr[sp + 2] * sp_ptr[sp + 1];
     REMEM(INNER_FRAME_SIZE);
-    sp+=2;
+    sp+=INNER_FRAME_SIZE;
     if (sp == POST_FRAME_WORD) sp = 0;
 
     // loop footer

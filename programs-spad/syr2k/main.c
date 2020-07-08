@@ -47,8 +47,8 @@ void syrk_seq(DTYPE* A, DTYPE* B, DTYPE* C, int N, int M)
 		{
 			for (k = 0; k < M; k++)
 			{
-			  C[i*N + j] += ALPHA * A[i*M + k] * B[j*M + k];
-        C[i*N + j] += ALPHA * B[i*M + k] * A[j*M + k];	
+			  C[i*N + j] += alpha * A[i*M + k] * B[j*M + k];
+        C[i*N + j] += alpha * B[i*M + k] * A[j*M + k];	
 			}
 		}
 	}

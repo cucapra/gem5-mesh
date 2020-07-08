@@ -35,7 +35,7 @@
 #define INIT_FRAMES 4
 
 // prefetch config for inner kernel
-#define INNER_FRAME_SIZE 2
+#define INNER_FRAME_SIZE 4
 #define NUM_FRAMES (POST_FRAME_WORD / INNER_FRAME_SIZE)
 #define INNER_PREFETCH_LEN 1
 #define INIT_OFFSET (INIT_FRAMES * 1)
