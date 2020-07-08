@@ -17,7 +17,8 @@
 
 # Ensure that RV_CC and CFLAGS are set (we do not define them here). These
 # extra flags apply only to compiling the vector "half" of the code.
-VECTOR_CFLAGS ?= -fno-reorder-blocks
+VECTOR_CFLAGS ?= -fno-reorder-blocks \
+	--param max-jump-thread-duplication-stmts=0
 
 TRILLIUM_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 KERNEL_NAME := $(basename $(TRILLIASM_KERNEL))
