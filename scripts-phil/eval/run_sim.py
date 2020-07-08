@@ -22,7 +22,7 @@ parser.add_argument('--results', default='../../results', help='Path to place to
 args = parser.parse_args()
 
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful
-progDir0 = '../../programs-phil/spad/'
+progDir0 = '../../programs-spad/'
 programs = {
 
   'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd/vvadd', 
