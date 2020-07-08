@@ -20,6 +20,8 @@
 VECTOR_CFLAGS ?= -fno-reorder-blocks \
 	--param max-jump-thread-duplication-stmts=0
 
+SCALAR_CFLAGS ?= -fno-reorder-blocks
+
 TRILLIUM_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 KERNEL_NAME := $(basename $(TRILLIASM_KERNEL))
 TRILLIASM_OBJS := $(TRILLIASM_KERNEL:.c=.o)
@@ -28,7 +30,7 @@ $(KERNEL_NAME)_vector.s: $(KERNEL_NAME).c
 	$(RV_CC) $(VECTOR_CFLAGS) $(CFLAGS) -D VECTOR_CORE -S $< -o $@
 
 $(KERNEL_NAME)_scalar.s: $(KERNEL_NAME).c
-	$(RV_CC) $(CFLAGS) -D SCALAR_CORE -S $< -o $@ 
+	$(RV_CC) $(SCALAR_CFLAGS) $(CFLAGS) -D SCALAR_CORE -S $< -o $@ 
 
 $(KERNEL_NAME).s: $(KERNEL_NAME)_vector.s $(KERNEL_NAME)_scalar.s
 	python3 $(TRILLIUM_DIR)/glue.py $^ -o $(KERNEL_NAME).s
