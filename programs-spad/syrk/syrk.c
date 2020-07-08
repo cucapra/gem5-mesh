@@ -60,24 +60,18 @@ void __attribute__((optimize("-fno-inline"))) syrk(
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *c, int N, int M,
-    int tid_x, int tid_y, int dim_x, int dim_y) {
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y) {
   
   // start recording all stats (all cores)
-  if (tid_x == 0 && tid_y == 0) {
+  if (ptid_x == 0 && ptid_y == 0) {
     stats_on();
   }
 
   // linearize tid and dim
-  int tid = tid_x + tid_y * dim_x;
-  int dim = dim_x * dim_y;
+  int ptid = ptid_x + ptid_y * pdim_x;
+  int pdim = pdim_x * pdim_y;
 
   // split into physical and virtual tids + dim
-  int ptid_x = tid_x;
-  int ptid_y = tid_y;
-  int ptid   = tid;
-  int pdim_x = dim_x;
-  int pdim_y = dim_y;
-  int pdim   = dim;
   int vtid_x = 0;
   int vtid_y = 0;
   int vtid   = 0;
@@ -96,8 +90,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // group construction
   #ifdef VECTOR_LEN
   #if VECTOR_LEN==4
-  // template_info_t tinfo = init_template_4x4_2x2();
-  template_info_t tinfo = init_template_debug();
+  template_info_t tinfo = init_template_4x4_2x2();
+  // template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif
@@ -132,12 +126,11 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // linearize some fields
   vdim = vdim_x * vdim_y;
-  int orig = orig_x + orig_y * dim_x;
 
   // get behavior of each core
   #ifdef USE_VEC
-  // int mask = getSIMDMask(&cinfo);
-  int mask = getDebugMask(&cinfo);
+  int mask = getSIMDMask(&cinfo);
+  // int mask = getDebugMask(&cinfo);
   SET_PREFETCH_MASK(NUM_FRAMES, INNER_FRAME_SIZE, &start_barrier);
   #else
   int mask = 0;
@@ -146,7 +139,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   MOVE_STACK_ONTO_SCRATCHPAD();
 
   // do the kernel
-  syrk(a, c, ptid, vtid, dim, N, M, unique_id, total_groups, mask, used);
+  syrk(a, c, ptid, vtid, pdim, N, M, unique_id, total_groups, mask, used);
 
   // restore stack pointer
   RECOVER_DRAM_STACK();

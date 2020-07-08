@@ -69,6 +69,10 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
                   int ptid, int groupId, int numGroups, int vtid) {
 
 
+  #ifdef SCALAR_CORE
+
+  VECTOR_EPOCH(mask);
+
   // chunk over vector gorups
   int start = ((groupId + 0) * N) / numGroups;
   int end   = ((groupId + 1) * N) / numGroups;
@@ -77,13 +81,24 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
 
-  VECTOR_EPOCH(mask);
+  ISSUE_VINST(init_label);
+  #endif
 
+  #ifdef VECTOR_CORE
+  asm("trillium vissue_delim until_next vector_init");
+  int start = ((groupId + 0) * N) / numGroups;
+  start = roundUp(start, VECTOR_LEN);
+  int i = start;
+  int j = vtid;
+  int k = 0;
+  int sp = 0;
+  DTYPE c_ij;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  #endif
+
+  #ifdef SCALAR_CORE
   int sp = 0;
 
-  if (ptid == 0) {
-  // ISSUE_VINST(fable0);
-    
   // get ahead
   prefetch_outer_frame(c, start, 0, &sp, N);
   for (int k = 0; k < INIT_OFFSET; k+=INNER_PREFETCH_LEN) {
@@ -93,7 +108,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   // do first inner loop
   for (int k = INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
     prefetch_inner_frame(a, start, 0, k, &sp, M);
-    // ISSUE_VINST(fable1);
+    ISSUE_VINST(vec_body_label);
   }
 
   // steady state
@@ -105,46 +120,87 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
       for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
-        // ISSUE_VINST(fable1);
+        ISSUE_VINST(vec_body_label);
       }
     }
   }
 
   // draining. do the last vissue corresponding to the initial round of prefetch
   for (int k = N - INIT_OFFSET; k < N; k+=INNER_PREFETCH_LEN) {
-    // ISSUE_VINST(fable1);
+    ISSUE_VINST(vec_body_label);
   }
-
-  // // devec with unique tag
-  // DEVEC(devec_0);
-  }
-  else {
-  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-  for (int i = start; i < end; i++) {
-    for (int j = vtid; j < M; j+=VECTOR_LEN) {
+  #endif
+  
+  #ifdef VECTOR_CORE
+  volatile int BH;
+  do {
+    asm("trillium vissue_delim if_begin vec_body");
+    // loop header
+    if ( k == 0 ) {
       FRAME_START(OUTER_FRAME_SIZE);
-      // c[i * N + j] *= beta;
-      // printf("c %f ?= %f\n", sp_ptr[sp], c[i*N+j]);
-      DTYPE c_ij = sp_ptr[sp + 0] * beta;
+        // c[i * N + j] *= beta;
+        // printf("c %f ?= %f\n", sp_ptr[sp], c[i*N+j]);
+      c_ij = sp_ptr[sp + 0] * beta;
       REMEM(OUTER_FRAME_SIZE);
       sp+=2;
       if (sp == POST_FRAME_WORD) sp = 0;
-
-      for (int k = 0; k < M; k++) {
-        FRAME_START(INNER_FRAME_SIZE);
-        // printf("a %f ?= %f %f ?= %f\n", sp_ptr[sp + 0], a[i * M + k], sp_ptr[sp + 1], a[j * M +k]);
-        // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
-        c_ij += alpha * sp_ptr[sp + 0] * sp_ptr[sp + 1];
-        REMEM(INNER_FRAME_SIZE);
-        sp+=2;
-        if (sp == POST_FRAME_WORD) sp = 0;
-      }
-      // TODO store_noack
-      c[i * N + j] = c_ij;
     }
-  }
-  }
 
+    // do innermost loop body (k)
+    FRAME_START(INNER_FRAME_SIZE);
+    // printf("a %f ?= %f %f ?= %f\n", sp_ptr[sp + 0], a[i * M + k], sp_ptr[sp + 1], a[j * M +k]);
+    // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
+    c_ij += alpha * sp_ptr[sp + 0] * sp_ptr[sp + 1];
+    REMEM(INNER_FRAME_SIZE);
+    sp+=2;
+    if (sp == POST_FRAME_WORD) sp = 0;
+
+    // loop footer
+    k++;
+    if ( k == M ) {
+      k = 0;
+
+      // TODO store NO ACK
+      c[i * N + j] = c_ij;
+
+      // handle outer loops
+      j+=VECTOR_LEN;
+      if (j >= M) {
+        j = vtid;
+        i++;
+      }
+    }
+    asm("trillium vissue_delim end at_jump");
+  } while(BH);
+  #endif
+  
+  // Clean up on the vector cores.
+#ifdef SCALAR_CORE
+  ISSUE_VINST(vector_return_label);
+#elif defined VECTOR_CORE
+  asm("trillium vissue_delim return vector_return");
+  return;
+#endif
+
+#ifdef SCALAR_CORE
+  // devec with unique tag
+  DEVEC(devec_0);
+
+  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
+  asm volatile("fence\n\t");
+  asm("trillium vissue_delim return scalar_return");  // XXX is this real???
+  return;
+#endif
+
+  // Glue points!
+#ifdef SCALAR_CORE
+init_label:
+  asm("trillium glue_point vector_init");
+vec_body_label:
+  asm("trillium glue_point vec_body");
+vector_return_label:
+  asm("trillium glue_point vector_return");
+#endif
 
   // can we change where paralleization is to get more horiz prefetch?
   // for (int i = start; i < end; i++) {
