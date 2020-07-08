@@ -124,6 +124,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   #if VECTOR_LEN==4
   template_info_t tinfo = init_template_4x4_2x2();
+  // template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif

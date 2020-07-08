@@ -37,8 +37,20 @@ inline void prefetch_s_frame(DTYPE *a, DTYPE *r, int i, int j, int *sp, int NY) 
   if (*sp == POST_FRAME_WORD) *sp = 0;
 }
 
-void  __attribute__((optimize("-fno-reorder-blocks") /*, optimize("-fno-align-loops")*/))
- tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int ptid, int groupId, int numGroups, int vtid) {
+void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int ptid, int groupId, int numGroups, int vtid) {
+
+  // CANT DO CODE HERE, also can't share code between scalar and vector here
+  // shared code should happen before go into this function
+  // // chunk over vector gorups
+  // int start = ((groupId + 0) * NY) / numGroups;
+  // int end   = ((groupId + 1) * NY) / numGroups;
+
+  // // make it a factor of vector group mapping size
+  // start = roundUp(start, VECTOR_LEN);
+  // end   = roundUp(end  , VECTOR_LEN);
+
+  #ifdef SCALAR_CORE
+  VECTOR_EPOCH(mask);
 
   // chunk over vector gorups
   int start = ((groupId + 0) * NY) / numGroups;
@@ -48,14 +60,15 @@ void  __attribute__((optimize("-fno-reorder-blocks") /*, optimize("-fno-align-lo
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
 
-  #ifdef SCALAR_CORE
-  VECTOR_EPOCH(mask);
   // issue header block
   ISSUE_VINST(init_label);
   #endif
 
   #ifdef VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
+  int start = ((groupId + 0) * NY) / numGroups;
+  start = roundUp(start, VECTOR_LEN);
+
   int i = 0;
   int j = start + vtid;
   DTYPE s_local = 0.0f;
@@ -95,7 +108,6 @@ void  __attribute__((optimize("-fno-reorder-blocks") /*, optimize("-fno-align-lo
 
   volatile int BH;
   do {
-  // while(BH) {
     asm("trillium vissue_delim if_begin vec_body");
     FRAME_START(FRAME_SIZE);
     // s_local += a[i * NY + j] * r[i];
@@ -169,8 +181,19 @@ inline void prefetch_q_frame(DTYPE *a, DTYPE *p, int i, int j, int *sp, int NY) 
   if (*sp == POST_FRAME_WORD) *sp = 0;
 }
 
-void  __attribute__((optimize("-fno-reorder-blocks")))
- tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int ptid, int groupId, int numGroups, int vtid) {
+void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int ptid, int groupId, int numGroups, int vtid) {
+
+  // // chunk over vector gorups
+  // int start = ((groupId + 0) * NX) / numGroups;
+  // int end   = ((groupId + 1) * NX) / numGroups;
+
+  // // make it a factor of vector group mapping size
+  // start = roundUp(start, VECTOR_LEN);
+  // end   = roundUp(end  , VECTOR_LEN);
+
+  #ifdef SCALAR_CORE
+  // goto vector mode
+  VECTOR_EPOCH(mask);
 
   // chunk over vector gorups
   int start = ((groupId + 0) * NX) / numGroups;
@@ -179,10 +202,6 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
   // make it a factor of vector group mapping size
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
-
-  #ifdef SCALAR_CORE
-  // goto vector mode
-  VECTOR_EPOCH(mask);
   
   // issue header block
   ISSUE_VINST(init_label);
@@ -190,6 +209,9 @@ void  __attribute__((optimize("-fno-reorder-blocks")))
 
   #ifdef VECTOR_CORE
     asm("trillium vissue_delim until_next vector_init");
+    int start = ((groupId + 0) * NX) / numGroups;
+    start = roundUp(start, VECTOR_LEN);
+
     int i = start + vtid;
     int j = 0;
     DTYPE q_local = 0.0f;
