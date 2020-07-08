@@ -31,7 +31,7 @@
 // scratchpad offset after prefetch frames
 #define POST_FRAME_WORD (FRAME_SIZE * NUM_FRAMES)
 // number of frames to get ahead
-#define INIT_FRAMES 4
+#define INIT_FRAMES 2
 #define INIT_SPM_OFFSET (INIT_FRAMES * FRAME_SIZE)
 // lenght of a prefetch
 #define Q_PREFETCH_LEN 1
