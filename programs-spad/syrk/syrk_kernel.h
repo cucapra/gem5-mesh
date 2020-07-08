@@ -1,5 +1,5 @@
-#ifndef __SYRKK_H__
-#define __SYRKK_H__
+#ifndef __SYRK_KERNEL_H__
+#define __SYRK_KERNEL_H__
 
 #include "syrk.h"
 

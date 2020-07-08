@@ -1,5 +1,5 @@
-#ifndef __BICG_H__
-#define __BICG_H__
+#ifndef __SYRK_H__
+#define __SYRK_H__
 
 // data type to do computation with
 #define DTYPE float
