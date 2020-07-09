@@ -200,6 +200,8 @@ def extract_vector_blocks(raw_vector_code):
 
                     if delim == TrilliumAsmDelim.BEGIN:
                         state = VectorParseState.BEGIN_END
+                    elif delim == TrilliumAsmDelim.IF_BEGIN:
+                        state = VectorParseState.IF_BEGIN_END
                     elif delim == TrilliumAsmDelim.UNTIL_NEXT:
                         state = VectorParseState.UNTIL_NEXT
                     elif delim == TrilliumAsmDelim.RETURN:
