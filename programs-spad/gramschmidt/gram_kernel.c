@@ -96,6 +96,9 @@ vector_return_label:
 void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q, 
     int numVectors, int vectorLen, int k, int ptid, int groupId, int numGroups, int vtid) {
 
+  // TODO going to need predictation b/c prob won't be nice factor
+
+
 #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
 
