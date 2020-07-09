@@ -9,7 +9,7 @@ inline int _idx_(int y, int x, int width)
 }
 
 void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, 
-                  DTYPE *x2_partial, int start, int end, int ptid, int vtid)
+                  int start, int end, int ptid, int vtid)
 {
   //this template uses separate scalar and vector code blocks but they can be interspersed as well as shown here
   //https://github.com/cucapra/gem5-mesh/wiki/Trilliasm-Language-Overview:-Vector-SIMD-in-C
@@ -123,7 +123,6 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
   int row_thread=start+vtid;
   int col_thread=0;
   DTYPE temp;
-  DTYPE* partialVec = x2_partial + ptid*n;
   do {
     // hoist1:
     asm("trillium vissue_delim until_next hoist1");

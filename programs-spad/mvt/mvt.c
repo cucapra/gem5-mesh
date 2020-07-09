@@ -16,10 +16,9 @@
 
 
 void __attribute__((optimize("-fno-inline")))
-mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, DTYPE *x2_partial, int start, int end, int ptid)
+mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, int start, int end, int ptid)
 {
   DTYPE temp;
-  DTYPE *partial_prod = x2_partial + ptid*n;
 
   for (int i = start; i < end; i++) {
       temp=0;
@@ -32,58 +31,12 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, DTYPE 
         temp+= a[j*n+i] * y2[j];
       }
       x2[i]+=temp;
-      // for(int j=0; j<n; j++){
-      //   partial_prod[j] += a[i*n+j] * y2[i];
-      // }
   }
-}
-
-void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int pdim,
-                    int phys_dim_x, core_config_info_t cinfo, template_info_t *tinfo){
-
-  
-  //cores are used
-  int start = ((ptid + 0) * n) / pdim; 
-  int end = ((ptid + 1) * n) / pdim;
-
-  DTYPE temp;
-  for(int i=start; i<end; i++){
-    temp=0;
-    for(int j=0; j<pdim; j++){
-      temp+=partial[j*n+i];
-    }
-    out[i]+=temp;
-  }
-
-  
-  // int start = ((cinfo.unique_id + 0) * n) / cinfo.total_groups;
-  // int end = ((cinfo.unique_id + 1) * n) / cinfo.total_groups;
-  // start+=cinfo.vtid;
-
-  // DTYPE temp;
-  // for(int i=start; i<end; i+=VEC_LEN){
-  //   temp=0;
-  //   for(int j=0; j<pdim; j++){
-  //     temp+=partial[j*n+i];
-  //   }
-  //   // for(int j=0; j<cinfo.total_groups; j++){
-  //   //   for(int x=0; x<cinfo.vdim_x; x++){
-  //   //     for(int y=0; y<cinfo.vdim_y; y++){
-  //   //       int p = get_ptid_from_group(tinfo, j, x, y, phys_dim_x);
-  //   //       temp+=partial[p*n+i];
-  //   //     }
-  //   //   }
-  //   // }
-  //   out[i]+=temp;
-  // }
-  
-  return;
-
 }
 
 void __attribute__((optimize("-fno-inline")))
 mvt_main(core_config_info_t cinfo, int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, 
-                  DTYPE *x2_partial, int start, int end, int ptid, int pdim, int pdim_x, template_info_t tinfo){
+                  int start, int end, int ptid, int pdim, int pdim_x, template_info_t tinfo){
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
@@ -97,10 +50,10 @@ mvt_main(core_config_info_t cinfo, int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTY
   if(cinfo.used!=0){
     // if(ptid==0)printf("2. ptid pointer %x\n",ptid_group);
     #if defined _VEC
-      tril_mvt_vec(mask,a,y1,y2,x1,x2,n,x2_partial,start,end,ptid, cinfo.vtid);
+      tril_mvt_vec(mask,a,y1,y2,x1,x2,n,start,end,ptid, cinfo.vtid);
 
     #else
-      mvt_manycore(a,y1,y2,x1,x2,n,x2_partial,start,end,ptid);
+      mvt_manycore(a,y1,y2,x1,x2,n,start,end,ptid);
     #endif
   }
 
@@ -110,7 +63,7 @@ mvt_main(core_config_info_t cinfo, int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTY
 }
 
 void kernel(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n,
-    DTYPE *x2_partial, int ptid_x, int ptid_y, int pdim_x, int pdim_y)
+    int ptid_x, int ptid_y, int pdim_x, int pdim_y)
 {
 
   // start recording all stats (all cores)
@@ -126,7 +79,7 @@ void kernel(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n,
   int start = 0;
   int end = 0;
   template_info_t tinfo;
-  int* ptid_group = getSpAddr(ptid,REGION_SIZE*NUM_REGIONS);
+  // int* ptid_group = getSpAddr(ptid,REGION_SIZE*NUM_REGIONS);
 
   #ifdef _VEC
   #if VEC_LEN==4
@@ -144,15 +97,6 @@ void kernel(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n,
     end = roundUp((cinfo.unique_id + 1) * n / cinfo.total_groups, alignment); 
 
     // if(cinfo.is_scalar==1) printf("ptid:%d, start=%d and end=%d\n",ptid,start,end);
-
-    if(cinfo.is_scalar==1){
-      for(int i=0; i<cinfo.vdim_y;i++){
-        for(int j=0; j<cinfo.vdim_x; j++){
-          ptid_group[i*cinfo.vdim_x+j] = get_ptid_from_group(&tinfo, cinfo.unique_id,j,i,pdim_x);
-          // if (ptid==0) printf("Ptid: %d\n", ptid_group[i*vdim_x+j]);
-        }
-      }
-    }
   }
 
   #else
@@ -179,12 +123,12 @@ void kernel(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n,
 // only let certain tids continue
   // if (used == 0) return;
 
-  mvt_main(cinfo, mask,a,y1,y2,x1,x2,n,x2_partial,start,end,ptid, pdim, pdim_x, tinfo);
+  mvt_main(cinfo, mask,a,y1,y2,x1,x2,n,start,end,ptid, pdim, pdim_x, tinfo);
 }
 
 // helper functions
 Kern_Args *construct_args(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n,
-                          DTYPE *x2_partial, int tid_x, int tid_y, int dim_x, int dim_y)
+                          int tid_x, int tid_y, int dim_x, int dim_y)
 {
 
   Kern_Args *args = (Kern_Args *)malloc(sizeof(Kern_Args));
@@ -195,7 +139,6 @@ Kern_Args *construct_args(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, 
   args->x1 = x1;
   args->x2 = x2;
   args->n = n;
-  args->x2_partial = x2_partial;
   args->tid_x = tid_x;
   args->tid_y = tid_y;
   args->dim_x = dim_x;
@@ -215,7 +158,7 @@ void *pthread_kernel(void *args)
   Kern_Args *a = (Kern_Args *)args;
 
   kernel(a->a, a->y1, a->y2, a->x1, a->x2, a->n,
-         a->x2_partial, a->tid_x, a->tid_y, a->dim_x, a->dim_y);
+          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
 
   if (a->tid_x == 0 && a->tid_y == 0)

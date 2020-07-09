@@ -16,7 +16,6 @@ typedef int DTYPE;
 typedef struct Kern_Args
 {
   DTYPE *a, *y1, *y2, *x1, *x2;
-  DTYPE *x2_partial;
   int n;
   int tid_x, tid_y;
   int dim_x, dim_y;
@@ -25,7 +24,7 @@ typedef struct Kern_Args
 // helper to pack vvadd args
 Kern_Args *construct_args(
     DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n,
-    DTYPE *x2_partial, int tid_x, int tid_y, int dim_x, int dim_y);
+    int tid_x, int tid_y, int dim_x, int dim_y);
 
 // pthread call
 void *pthread_kernel(void *args);
@@ -33,6 +32,6 @@ void *pthread_kernel(void *args);
 // vvadd kernel
 void kernel(
     DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n,
-    DTYPE *x2_partial, int tid_x, int tid_y, int dim_x, int dim_y);
+    int tid_x, int tid_y, int dim_x, int dim_y);
 
 #endif

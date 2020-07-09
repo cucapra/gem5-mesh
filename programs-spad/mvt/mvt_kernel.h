@@ -10,6 +10,6 @@
 #include "bind_defs.h"
 
 void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, 
-                  DTYPE *x2_partial, int start, int end, int ptid, int vtid);
+                  int start, int end, int ptid, int vtid);
 
 #endif
