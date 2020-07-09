@@ -27,9 +27,14 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, DTYPE 
         temp += a[i*n+j] * y1[j];
       }
       x1[i]+=temp;
+      temp=0;
       for(int j=0; j<n; j++){
-        partial_prod[j] += a[i*n+j] * y2[i];
+        temp+= a[j*n+i] * y2[j];
       }
+      x2[i]+=temp;
+      // for(int j=0; j<n; j++){
+      //   partial_prod[j] += a[i*n+j] * y2[i];
+      // }
   }
 }
 
@@ -98,26 +103,6 @@ mvt_main(core_config_info_t cinfo, int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTY
       mvt_manycore(a,y1,y2,x1,x2,n,x2_partial,start,end,ptid);
     #endif
   }
-
-  SET_PREFETCH_MASK(0,0,&start_barrier);
-  // pthread_barrier_wait(&start_barrier); //reduction needs barrier to allow all cores to complete
-
-  // if (cinfo.used == 0) {
-  //   #ifdef STACK_COPY
-  //  RECOVER_DRAM_STACK();
-  //   #endif
-  //   return;
-  // }
-  // #ifdef _VEC
-  // if (cinfo.is_scalar) {
-  //   #ifdef STACK_COPY
-  //   RECOVER_DRAM_STACK();
-  //   #endif
-  //   return;
-  // }
-  // #endif
-
-  reduce_parallel(x2_partial, x2, n, ptid, pdim, pdim_x, cinfo, &tinfo);
 
   #ifdef STACK_COPY
   RECOVER_DRAM_STACK();

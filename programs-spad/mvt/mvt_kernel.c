@@ -24,7 +24,7 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
 
    //prefetch variables
   int spadRegion = 0;
-  int sp_a_offset, sp_y1_offset, sp_y2_offset, sp_x2part_offset;
+  int sp_a_offset, sp_y1_offset, sp_x1_offset, sp_y2_offset, sp_x2_offset;
 
   int* ptid_group_sp = getSpAddr(ptid,NUM_REGIONS*REGION_SIZE);
   // if(ptid==0)printf("ptid %d %d %d %d\n",ptid_group_sp[0],ptid_group_sp[1],ptid_group_sp[2],ptid_group_sp[3]);
@@ -46,12 +46,11 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       ISSUE_VINST(dotprod_label);
     }
-    // ISSUE_VINST(store_dp_label);
 
-    // ----- prefetch y2[i+vtid] -----
-    sp_y2_offset = spadRegion * REGION_SIZE;
+    // ----- prefetch x1[i+vtid] -----
+    sp_x1_offset = spadRegion * REGION_SIZE;
     for (int d = 0; d < REGION_SIZE; d++){
-        VPREFETCH_L(sp_y2_offset+d, y2+i, 0, VEC_LEN ,0); //issue same request to fill region
+        VPREFETCH_L(sp_x1_offset+d, x1+i, 0, VEC_LEN ,0); //issue same request to fill region
     }
     spadRegion = (spadRegion + 1) % NUM_REGIONS;
 
@@ -59,16 +58,26 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
 
     for(int j=0; j<n; j+=REGION_SIZE/2){
       sp_a_offset = spadRegion * REGION_SIZE;
-      sp_x2part_offset = sp_a_offset + REGION_SIZE/2;
+      sp_y2_offset = sp_a_offset + REGION_SIZE/2;
 
-      for (int d = 0; d < VEC_LEN; d++){
-        VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/2 ,1);
-        VPREFETCH_L(sp_x2part_offset, (x2_partial + ptid_group_sp[d]*n)+j, d, REGION_SIZE/2 ,1); 
+      for(int ii=0; ii<REGION_SIZE/2; ii++){
+        VPREFETCH_L(sp_a_offset+ii, a+_idx_(j+ii,i,n), 0, VEC_LEN ,0);
       }
+      for (int d = 0; d < VEC_LEN; d++){
+        VPREFETCH_L(sp_y2_offset, y2+j, d, REGION_SIZE/2 ,1); 
+      }
+
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       
       ISSUE_VINST(transpose_dp_label);
     }
+    // ----- prefetch x2[i+vtid] -----
+    sp_x2_offset = spadRegion * REGION_SIZE;
+    for (int d = 0; d < REGION_SIZE; d++){
+        VPREFETCH_L(sp_x2_offset+d, x2+i, 0, VEC_LEN ,0);
+    }
+    spadRegion = (spadRegion + 1) % NUM_REGIONS;
+
     ISSUE_VINST(loop_end_label);
   }
 
@@ -136,14 +145,16 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
     x1[row_thread]+=temp;
-    // STORE_NOACK(temp, x1 + row_thread, 0);
+
+    FRAME_START(REGION_SIZE);
+    temp += *(spAddr + spadRegion*REGION_SIZE);
+    REMEM(REGION_SIZE);
+    STORE_NOACK(temp, x1 + row_thread, 0);
+    spadRegion = (spadRegion + 1) % NUM_REGIONS;
+    
 
     col_thread=0;
-    FRAME_START(REGION_SIZE);
-    DTYPE y2_on_sp = *(spAddr + spadRegion*REGION_SIZE);
-    spadRegion = (spadRegion + 1) % NUM_REGIONS;
-    REMEM(REGION_SIZE);
-    // DTYPE y2_on_sp = y2[row_thread];
+    temp=0;
     do {
       
       // transpose_dp:
@@ -152,14 +163,9 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
       #pragma GCC unroll(8)
       for(int jj=0; jj<REGION_SIZE/2; jj++){
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
-        DTYPE *x2part_on_sp = a_on_sp + REGION_SIZE/2;
-        DTYPE x2_temp;
+        DTYPE *y2_on_sp = a_on_sp + REGION_SIZE/2;
 
-        // x2_temp = *x2part_on_sp + ((*a_on_sp) * y2_on_sp);
-        x2_temp = partialVec[col_thread+jj] + ((*a_on_sp) * y2_on_sp);
-        STORE_NOACK(x2_temp, partialVec + col_thread+jj, 0);
-        // partialVec[col_thread+jj] = x2_temp;
-        // partialVec[col_thread+jj] += (*a_on_sp) * y2_on_sp;
+        temp+= *a_on_sp * (*y2_on_sp);
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
@@ -167,6 +173,14 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
     } while(bh3);
 
     asm("trillium vissue_delim until_next loop_end");
+    FRAME_START(REGION_SIZE);
+    temp += *(spAddr + spadRegion*REGION_SIZE);
+    REMEM(REGION_SIZE);
+    STORE_NOACK(temp, x2 + row_thread, 0);
+    spadRegion = (spadRegion + 1) % NUM_REGIONS;
+    
+    // x2[row_thread]+=temp;
+
     row_thread+=VEC_LEN;
     asm volatile("fence\n\t");
   } while(bh1);
