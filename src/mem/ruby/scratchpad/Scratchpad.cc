@@ -725,7 +725,12 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       msg_p->m_Requestor = m_machineID;
       msg_p->m_MessageSize = MessageSizeType_Request_Control;
       (msg_p->m_Destination).add(dst_port);
-      msg_p->m_SeqNum = m_cur_seq_num;
+      
+      if (noLLCAck)
+        msg_p->m_SeqNum = -1;
+      else
+        msg_p->m_SeqNum = m_cur_seq_num;
+
       // access length in x,y -- prob always linearized
       msg_p->m_XDim = pkt_p->getXDim();
       msg_p->m_YDim = pkt_p->getYDim();
