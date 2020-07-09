@@ -11,6 +11,9 @@
 #include "group_templates.h"
 #include "util.h"
 
+// #define SCALAR_CORE
+// #define VECTOR_CORE
+
 /*-----------------------------------------------------------------------------------
  * Vector versions of the kernels. Same memory access pattern as baseline but do prefetching
  *---------------------------------------------------------------------------------*/
@@ -20,6 +23,10 @@
 void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q, 
     int numVectors, int vectorLen, int k, int ptid, int groupId, int numGroups, int vtid) {
 
+
+#ifdef SCALAR_CORE
+  VECTOR_EPOCH(mask);
+
   // chunk over vector gorups
   int start = ((groupId + 0) * vectorLen) / numGroups;
   int end   = ((groupId + 1) * vectorLen) / numGroups;
@@ -28,56 +35,69 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
 
-  // prevents code from being reordered :|
-  volatile int ohjeez = 1;
-  if (ohjeez) {
-
-  // goto vector mode
-  VECTOR_EPOCH(mask);
-  
   // issue header block
-  ISSUE_VINST(fable0);
+  ISSUE_VINST(init_label);
+#endif
 
-  // issue loop body block
+#ifdef VECTOR_CORE
+  asm("trillium vissue_delim until_next vector_init");
+  int start = ((groupId + 0) * vectorLen) / numGroups;
+  start = roundUp(start, VECTOR_LEN);
+  int i = start + vtid;
+  DTYPE r_cache = r[k * numVectors + k];
+#endif
+
+#ifdef SCALAR_CORE
+  // TODO prefetch
   for (int i = start; i < end; i+=VECTOR_LEN) {
-    ISSUE_VINST(fable1);
+    ISSUE_VINST(vec_body_label);
   }
+#endif
 
-  // devec with unique tag
-  DEVEC(devec_0);
-
-  asm volatile("nop\n\t");
-
-  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
-  asm volatile("fence\n\t");
-  return;
-  }
-
-  // vector engine code
-
-  // declarations
-  int i;
-  DTYPE *qPtr, *aPtr;
-  DTYPE r_cache;
-
-  // header
-  fable0:
-    i = start + vtid;
-    // aPtr = a + (start + vtid) * numVectors + k;
-    // qPtr = q + (start + vtid) * numVectors + k;
-    // make sure r is cached
-    r_cache = r[k * numVectors + k];
-
-  // body
-  fable1:
+#ifdef VECTOR_CORE
+  volatile int BH;
+  do {
+    asm("trillium vissue_delim if_begin vec_body");
     q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
     // TODO consider ST_NOACK
     i+=VECTOR_LEN;
-    asm volatile goto("j %l[fable1]\n\t"::::fable1);
+    asm("trillium vissue_delim end at_jump");
+  } while(BH);
+
+#endif
+
+
+  // Clean up on the vector cores.
+#ifdef SCALAR_CORE
+  ISSUE_VINST(vector_return_label);
+#elif defined VECTOR_CORE
+  asm("trillium vissue_delim return vector_return");
+  return;
+#endif
+
+#ifdef SCALAR_CORE
+  DEVEC(devec_0);
+  asm volatile("fence\n\t");
+  asm("trillium vissue_delim return scalar_return");  // XXX is this real???
+  return;
+#endif
+
+  // Glue points!
+#ifdef SCALAR_CORE
+init_label:
+  asm("trillium glue_point vector_init");
+vec_body_label:
+  asm("trillium glue_point vec_body");
+vector_return_label:
+  asm("trillium glue_point vector_return");
+#endif
 }
 
 void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q, 
     int numVectors, int vectorLen, int k, int ptid, int groupId, int numGroups, int vtid) {
+
+#ifdef SCALAR_CORE
+  VECTOR_EPOCH(mask);
 
   // chunk over vector groups
   int numProjs = numVectors - ( k + 1 );
@@ -85,91 +105,93 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   int end   = ( ( groupId + 1 ) * numProjs ) / numGroups;
 
   // make it a factor of vector group mapping size
-  start = roundUp(start, VECTOR_LEN);
-  end   = roundUp(end  , VECTOR_LEN);
+  // first term ignores all vectors before the current orthonormal one
+  start = ( k + 1 ) + roundUp(start, VECTOR_LEN);
+  end   = ( k + 1 ) + roundUp(end  , VECTOR_LEN);
 
-  // ignore all vectors before the current orthonormal one
-  start += k + 1;
-  end   += k + 1;
-
-  // prevents code from being reordered :|
-  volatile int ohjeez = 1;
-  if (ohjeez) {
-
-  // goto vector mode
-  VECTOR_EPOCH(mask);
-  
   // issue header block
-  ISSUE_VINST(fable2);
+  ISSUE_VINST(init_label);
+#endif
 
-  // issue loop body block
+#ifdef VECTOR_CORE
+  asm("trillium vissue_delim until_next vector_init");
+  int numProjs = numVectors - ( k + 1 );
+  int start = ( ( groupId + 0 ) * numProjs ) / numGroups;
+  start = (k + 1) + roundUp(start, VECTOR_LEN);
+  int j = start + vtid;
+  int i = 0;
+  DTYPE r_cache = 0.0f;
+#endif
+
+#ifdef SCALAR_CORE
+  // TODO prefetch
+  // TODO remove if's from vector code in favor of more labels here
   for (int j = start; j < end; j+=VECTOR_LEN) {
-
-    // reset dot prod accum and init dot interator i
-    ISSUE_VINST(fable3);
-
-    // dot product
     for (int i = 0; i < vectorLen; i++) {
-      ISSUE_VINST(fable4);
+      ISSUE_VINST(vec_body_1_label);
     }
-
-    // init subtract iterator i
-    ISSUE_VINST(fable5);
-
-    // substract
     for (int i = 0; i < vectorLen; i++) {
-      ISSUE_VINST(fable6);
+      ISSUE_VINST(vec_body_2_label);
     }
-
-    // increment j
-    ISSUE_VINST(fable7);
-
   }
+#endif
 
-  // devec with unique tag
-  DEVEC(devec_1);
-
-  asm volatile("nop\n\t");
-
-  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
-  asm volatile("fence\n\t");
-  return;
-  }
-
-  // vector engine code
-
-  // declarations
-  int i, j; // iterators
-  // DTYPE *qPtr, *aPtr;
-  DTYPE r_cache;
-
-  // outer loop header
-  fable2:
-    j = start + vtid;
-
-  // init dot product header
-  fable3:
-    r_cache = 0.0f;
-    i = 0;
-
-  // dot product loop
-  fable4:
+// first inner loop
+#ifdef VECTOR_CORE
+  volatile int BH;
+  do {
+    asm("trillium vissue_delim if_begin vec_body_1");
     r_cache += q[i * numVectors + k] * a[i * numVectors + j];
-    asm volatile goto("j %l[fable4]\n\t"::::fable4);
+    i++;
+    if (i == vectorLen) i = 0;
+    asm("trillium vissue_delim end at_jump");
+  } while(BH);
+#endif
 
-  // init substract loop
-  fable5:
-    i = 0;
+// second inner loop
+#ifdef VECTOR_CORE
+  volatile int BH2;
+  do {
+    asm("trillium vissue_delim if_begin vec_body_2");
+    DTYPE val = a[i * numVectors + j] - q[i * numVectors + k] * r_cache;
+    STORE_NOACK(val, &a[i * numVectors + j], 0);
+    i++;
+    if (i == vectorLen) {
+      i = 0;
+      r_cache = 0.0f;
+      j+=VECTOR_LEN;
+    }
+    asm("trillium vissue_delim end at_jump");
+  } while(BH2);
+#endif
 
-  // subtract loop
-  fable6:
-    a[i * numVectors + j] -= q[i * numVectors + k] * r_cache;
-    asm volatile goto("j %l[fable6]\n\t"::::fable6);
 
-  // end outer loop
-  fable7:
-    j += VECTOR_LEN;
-    asm volatile goto("j %l[fable7]\n\t"::::fable7);
+  // Clean up on the vector cores.
+#ifdef SCALAR_CORE
+  ISSUE_VINST(vector_return_label);
+#elif defined VECTOR_CORE
+  asm("trillium vissue_delim return vector_return");
+  return;
+#endif
+
+#ifdef SCALAR_CORE
+  DEVEC(devec_0);
+  asm volatile("fence\n\t");
+  asm("trillium vissue_delim return scalar_return");  // XXX is this real???
+  return;
+#endif
+
+  // Glue points!
+#ifdef SCALAR_CORE
+init_label:
+  asm("trillium glue_point vector_init");
+vec_body_1_label:
+  asm("trillium glue_point vec_body_1");
+vec_body_2_label:
+  asm("trillium glue_point vec_body_2");
+vector_return_label:
+  asm("trillium glue_point vector_return");
+#endif
 }
 
 #endif

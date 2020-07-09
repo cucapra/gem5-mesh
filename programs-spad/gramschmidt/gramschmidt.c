@@ -150,16 +150,16 @@ void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, D
 
       // normalize the vector
       if (used)
-        u_normalize_vector_opt(a, r, q, numVectors, vectorLen, k, ptid, groupId, numGroups, vtid, mask);
+        tril_u_normalize(mask, a, r, q, numVectors, vectorLen, k, ptid, groupId, numGroups, vtid);
       // u_normalize_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
 
 
       pthread_barrier_wait(&start_barrier);
 
       // apply projection of this vector onto each vector that hasn't been orthonormalized
-      // if (used)
-        // u_dot_subtract_vector_opt(a, r, q, numVectors, vectorLen, k, ptid, groupId, numGroups, vtid, mask);
-      u_dot_subtract_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
+      if (used)
+        tril_u_dot_subtract(mask, a, r, q, numVectors, vectorLen, k, ptid, groupId, numGroups, vtid);
+      // u_dot_subtract_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
 
       pthread_barrier_wait(&start_barrier);
     }
