@@ -13,6 +13,7 @@ endif
 # Overridable arguments to the simulation command for `make run`.
 GEM5_ARGS ?= --remote-gdb-port=0
 HB_ARGS ?= --options=""
+DEBUG_FLAGS ?=
 
 # Find the repository's base directory.
 COMMON_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
@@ -36,6 +37,7 @@ $(BENCHNAME) : $(TRILLIASM_OBJS) $(C_DEPS_NOKERN) $(COMMON_OBJS)
 
 run: $(BENCHNAME)
 	$(BASE_DIR)/build/RVSP/gem5.opt \
+		$(DEBUG_FLAGS) \
 		$(GEM5_ARGS) \
 		$(BASE_DIR)/configs/phil/brg_hammerblade.py \
 		--cmd=$(BENCHNAME) \
