@@ -10,6 +10,8 @@
 
 #include "mvt_kernel.h"
 
+#define STACK_COPY
+
 // use this to chunk data among vector groups
 // https://stackoverflow.com/questions/3407012/c-rounding-up-to-the-nearest-multiple-of-a-number
 int roundUp(int numToRound, int multiple) {
@@ -175,7 +177,7 @@ int get_reduction_dest(template_info_t *tinfo, int group_id, int vid_x, int vid_
 
 void __attribute__((optimize("-fno-inline")))
 mvt_main(int used, int is_da, int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, 
-                  DTYPE *x2_partial, int start, int end, int ptid, int vtid, int vdim, int* ptid_group, int pdim,
+                  DTYPE *x2_partial, int start, int end, int ptid, int vtid, int vdim, int pdim,
                   int unique_id, int total_groups, int vdim_x, int vdim_y, int pdim_x, template_info_t tinfo){
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
@@ -208,15 +210,15 @@ mvt_main(int used, int is_da, int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x
   if(used!=0){
     // if(ptid==0)printf("2. ptid pointer %x\n",ptid_group);
     #if defined _VEC
-      tril_mvt_vec(mask,a,y1,y2,x1,x2,n,x2_partial,start,end,ptid, vtid, vdim, ptid_group);
+      tril_mvt_vec(mask,a,y1,y2,x1,x2,n,x2_partial,start,end,ptid, vtid, vdim);
 
     #else
       mvt_manycore(a,y1,y2,x1,x2,n,x2_partial,start,end,ptid);
     #endif
   }
 
-  
-  pthread_barrier_wait(&start_barrier); //reduction needs barrier to allow all cores to complete
+  SET_PREFETCH_MASK(0,0,&start_barrier);
+  // pthread_barrier_wait(&start_barrier); //reduction needs barrier to allow all cores to complete
 
   if (used == 0) {
     #ifdef STACK_COPY
@@ -286,14 +288,12 @@ void kernel(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n,
   int used=0;
   template_info_t tinfo;
 
+  int* ptid_group = getSpAddr(ptid,REGION_SIZE*NUM_REGIONS);
   #ifdef _VEC
   #if VEC_LEN==4
   tinfo = init_template_4x4_2x2();
-  int* ptid_group = getSpAddr(ptid,REGION_SIZE*NUM_REGIONS);
-  // int ptid_group[4];
   #elif VEC_LEN==16
   tinfo = init_template_8x8_4x4();
-  int ptid_group[16];
   #endif
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
@@ -406,10 +406,10 @@ void kernel(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n,
 // only let certain tids continue
   // if (used == 0) return;
 
-  mvt_main(used, is_da, mask,a,y1,y2,x1,x2,n,x2_partial,start,end,ptid, vtid, vdim, ptid_group, 
+  mvt_main(used, is_da, mask,a,y1,y2,x1,x2,n,x2_partial,start,end,ptid, vtid, vdim, 
           pdim, unique_id, total_groups, vdim_x, vdim_y, pdim_x, tinfo);
 
-  printf("ptid:%d\n",ptid);
+  // printf("ptid:%d\n",ptid);
 
 //   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
 //   // reset after the kernel is done

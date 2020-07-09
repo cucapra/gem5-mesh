@@ -9,7 +9,7 @@ inline int _idx_(int y, int x, int width)
 }
 
 void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, 
-                  DTYPE *x2_partial, int start, int end, int ptid, int vtid, int dim, int* ptid_group)
+                  DTYPE *x2_partial, int start, int end, int ptid, int vtid, int dim)
 {
   //this template uses separate scalar and vector code blocks but they can be interspersed as well as shown here
   //https://github.com/cucapra/gem5-mesh/wiki/Trilliasm-Language-Overview:-Vector-SIMD-in-C
@@ -27,7 +27,7 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
   int sp_a_offset, sp_y1_offset, sp_y2_offset, sp_x2part_offset;
 
   int* ptid_group_sp = getSpAddr(ptid,NUM_REGIONS*REGION_SIZE);
-  if(ptid==0)printf("ptid %d %d %d %d\n",ptid_group_sp[0],ptid_group_sp[1],ptid_group_sp[2],ptid_group_sp[3]);
+  // if(ptid==0)printf("ptid %d %d %d %d\n",ptid_group_sp[0],ptid_group_sp[1],ptid_group_sp[2],ptid_group_sp[3]);
 
   DTYPE temp;
   for (int i = start; i < end; i+=dim) {
@@ -61,15 +61,9 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
       sp_a_offset = spadRegion * REGION_SIZE;
       sp_x2part_offset = sp_a_offset + REGION_SIZE/2;
 
-      // if(ptid==0)printf("Hello\n");
-      //  if(ptid==4)printf("ptid %d\n",ptid_group[0]);
       for (int d = 0; d < dim; d++){
         VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/2 ,1);
-        VPREFETCH_L(sp_x2part_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/2 ,1); //temp
-        // VPREFETCH_L(sp_x2part_offset, (x2_partial + ptid_group_sp[d]*n)+j, d, REGION_SIZE/2 ,1); 
-        // if(ptid==0)printf("ptid %d\n",ptid_group_sp[d]);
-        // VPREFETCH_R(sp_x2part_offset, x2_partial + ptid_group[d]*n +j, d, REGION_SIZE/2 ,1); 
-        //NOTE:in the worst case, there should be fence to stop prefetching before vector core writes to it, highly unlikely in this case
+        VPREFETCH_L(sp_x2part_offset, (x2_partial + ptid_group_sp[d]*n)+j, d, REGION_SIZE/2 ,1); 
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       
@@ -158,12 +152,13 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
       #pragma GCC unroll(8)
       for(int jj=0; jj<REGION_SIZE/2; jj++){
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
-        // DTYPE *x2part_on_sp = a_on_sp + REGION_SIZE/2;
-        // DTYPE x2_temp;
+        DTYPE *x2part_on_sp = a_on_sp + REGION_SIZE/2;
+        DTYPE x2_temp;
 
-        // x2_temp = *x2part_on_sp + ((*a_on_sp) * y2_on_sp);
+        x2_temp = *x2part_on_sp + ((*a_on_sp) * y2_on_sp);
+        STORE_NOACK(x2_temp, partialVec + col_thread+jj, 0);
         // partialVec[col_thread+jj] = x2_temp;
-        partialVec[col_thread+jj] += (*a_on_sp) * y2_on_sp;
+        // partialVec[col_thread+jj] += (*a_on_sp) * y2_on_sp;
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
@@ -172,6 +167,7 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
 
     asm("trillium vissue_delim until_next loop_end");
     row_thread+=dim;
+    asm volatile("fence\n\t");
   } while(bh1);
 
 
