@@ -3,7 +3,7 @@ default: $(BENCHNAME)
 
 # Build the kernel with trilliasm.
 TRILLIASM_KERNEL := mvt_kernel.c
-include ../../../trillium/trilliasm.mk
+include ../../trillium/trilliasm.mk
 
 # Standard benchmark compilation.
 include ../common/common.mk

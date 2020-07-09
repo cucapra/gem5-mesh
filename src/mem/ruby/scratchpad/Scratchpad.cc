@@ -604,7 +604,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
         //assert(m_packet_buffer.size() <= m_spec_buf_size);
         // just say not rdy actually
         m_not_rdy_stalls++;
-        DPRINTF(Mesh, "not rdy for packet to addr %#x\n", pkt_p->getAddr());
+        DPRINTF(Frame, "not rdy for packet to addr %#x\n", pkt_p->getAddr());
         return false;
       }
     }
