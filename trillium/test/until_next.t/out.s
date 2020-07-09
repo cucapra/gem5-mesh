@@ -3,11 +3,12 @@
 	tril_somefunc:
 	.insn i 0x77, 0, x0, a0, 0x401
 	BEFORE_VECTOR_EPOCH
+.SCALAR1:
 	# trillium: scalar stack cleanup begin
 	SCALAR_STACK_CLEANUP
 	# trillium: scalar stack cleanup end
-.SCALAR1:
-	.insn uj 0x2b, x0, .SCALAR14
+.SCALAR14DEVEC:
+	.insn uj 0x2b, x0, .SCALAR14DEVEC
 .SCALAR2:
 	SCALAR_AFTER_DEVEC
 	ret
