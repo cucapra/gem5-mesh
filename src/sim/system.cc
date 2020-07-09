@@ -72,6 +72,8 @@
 #include "sim/full_system.hh"
 #include "sim/redirect_path.hh"
 
+#include "debug/Frame.hh"
+
 /**
  * To avoid linking errors with LTO, only include the header if we
  * actually have a definition.
@@ -455,6 +457,84 @@ System::regStats()
                          .desc("Run time stat for" + namestr.str())
                          .prereq(*workItemStats[j]);
     }
+
+    prefetchLatencies
+        .init(20)
+        .name(name() + ".prefetch_latencies")
+        .desc("Histogram of prefetch latencies")
+        .flags(Stats::nozero | Stats::pdf);
+    ;
+
+    // avgPrefetchLatency
+    //     .name(name() + ".avg_prefetch_latency")
+    //     .desc("Average time between prefetch to arrival in spad in ticks (cycles * 1000)")
+    //     ;
+
+    // prefetchLatencySum = 0;
+    // prefetchCnt = 0;
+}
+
+// should give physical address plz
+void
+System::initPrefetch(Addr spadAddr, int origin_x, int origin_y, int vec_x, int vec_y, 
+        int mesh_dim_x, int core_offset, int resp_cnt, bool is_vertical) {
+    // make the addresses we are going to prefetch to
+    // expect one response for each
+    // auto pf = PrefetchResp_t();
+    auto daLoc = bits(spadAddr, 22, 12); // TODO hardcoded number
+    spadAddr -= (daLoc << 12);
+    int offset_x = core_offset % vec_x;
+    int offset_y = core_offset / vec_x;
+
+    for (int i = 0; i < resp_cnt; i++) {
+        int x = origin_x;
+        int y = origin_y;
+        if (is_vertical) {
+            x += offset_x;
+            y += offset_y;
+        }
+        else {
+            x += ( ( i + core_offset ) % vec_x);
+            y += ( ( i + core_offset ) / vec_x);
+        }
+        int abs_offset = y * mesh_dim_x + x;
+        Addr respAddr = spadAddr + ( abs_offset << 12 );
+        if (is_vertical) {
+            respAddr += (sizeof(uint32_t) * i);
+        }
+        prefetchMap[respAddr] = curTick();
+    }
+}
+    
+void
+System::cmplPrefetch(Addr spadAddr) {
+    // should be an entry for this
+    if (prefetchMap.count(spadAddr) == 1) {
+        // log time diff
+        Tick diff = curTick() - prefetchMap[spadAddr];
+        Tick cycles = diff / 1000; // TODO should actually get cycle time somewhere
+        prefetchLatencies.sample(cycles);
+        // prefetchLatencySum += diff;
+        // prefetchCnt++;
+
+        // remove
+        prefetchMap.erase(spadAddr);
+
+        // if latency is large print out information about the packet so
+        // that we can do tracing of debug log to see where the hold up was
+        if (cycles > 2000) {
+            DPRINTF(Frame, "prefetch resp %#x with trip %llu cycles\n", spadAddr, cycles);
+            // assert(false);
+        }
+
+        // update stat with current avg
+        // avgPrefetchLatency = prefetchLatencySum / prefetchCnt;
+    }
+    else {
+        assert(false);
+    }
+
+
 }
 
 void

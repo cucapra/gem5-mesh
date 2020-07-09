@@ -226,11 +226,12 @@ Commit::commitHead(ThreadID tid)
   // }
   if (inst->static_inst_p->isRemem()) {
     // extract immediate b/c this is how much to remove
-    m_cpu_p->incMemEpoch();
-    if (inst->srcRegIdx(0).index() != 0) {
-      int tokens = m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0));
-      m_cpu_p->consumeMemTokens(tokens);
-    }
+    m_cpu_p->consumeFrame();
+    // m_cpu_p->incMemEpoch();
+    // if (inst->srcRegIdx(0).index() != 0) {
+    //   int tokens = m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0));
+    //   m_cpu_p->consumeMemTokens(tokens);
+    // }
   }
 
   // update last committed instruction

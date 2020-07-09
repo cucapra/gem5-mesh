@@ -23,5 +23,7 @@ class Scratchpad(RubyController):
   maxNumPendingReqs = Param.Int(8, "Max number of pending requests")
   
   prefetchBufSize   = Param.Int(2, "Allowed number of pending prefetches from master core")
+
+  numFrameCntrs     = Param.Int(4, "Number of frames that can be counted at the same time")
   
   cpu               = Param.IOCPU("")
