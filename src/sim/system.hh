@@ -601,11 +601,36 @@ class System : public SimObject
 
     void drainResume() override;
 
+    void initPrefetch(Addr spadAddr, int origin_x, int origin_y, int vec_x, int vec_y, int mesh_dim_x,
+      int core_offset, int resp_cnt, bool is_vertical);
+    void cmplPrefetch(Addr spadAddr);
+
   public:
     Counter totalNumInsts;
     EventQueue instEventQueue;
     std::map<std::pair<uint32_t,uint32_t>, Tick>  lastWorkItemStarted;
     std::map<uint32_t, Stats::Histogram*> workItemStats;
+    // stat to dump info into
+    // Stats::Scalar avgPrefetchLatency;
+    Stats::Histogram prefetchLatencies;
+    // actual trackers of avg
+    // uint64_t prefetchLatencySum;
+    // uint64_t prefetchCnt;
+
+    // // map of address to know when prefetch finishes
+    // typedef struct PrefetchResp_t {
+    //   Tick tickInit;
+    //   PrefetchResp_t() {
+    //     curTick();
+    //   }
+    //   // PrefetchResp_t(int vec_x, int vec_y) {
+    //   //   tickInit = curTick();
+    //   //   this->vec_x = vec_x;
+    //   //   this->vec_y = vec_y;
+    //   //   cnt = 0;
+    //   // }
+    // } PrefetchResp_t;
+    std::unordered_map<Addr, Tick> prefetchMap;
 
     ////////////////////////////////////////////
     //

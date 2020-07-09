@@ -11,6 +11,7 @@ from stat_list import stats
 parser = argparse.ArgumentParser(description='Analyze stats file in a given directory')
 parser.add_argument('--sims', default='../../results', help='Path with results you want to analyze')
 parser.add_argument('--outfile', default='../../results/extract.csv', help='CSV Path where extracted data should go')
+parser.add_argument('--prefix', default='vvadd', help='prefix of directory name to parse, could be program for example')
 args = parser.parse_args()
 
 #
@@ -18,7 +19,7 @@ args = parser.parse_args()
 
 dirPaths = []
 
-prog = 'bicg'
+prog = args.prefix
 
 # created by top/eval/run_sim.py
 nameConv = r'^' + prog + r'(.*)$'
@@ -59,12 +60,28 @@ def parse_dir_name(prog, dirName):
     
   return annos
 
+def is_hist_stat(v):
+  return ('hist' in v) and v['hist']
+
+def find_max_buckets():
+  return 20
+  # max_buckets = 0
+  # for k,v in stats.items():
+  #   if (is_hist_stat(v)):
+  #     cur_len = len(v['buckets'])
+  #     if (cur_len > max_buckets):
+  #       max_buckets = cur_len
+  # return max_buckets
+
 # parse stats file
 def parse_file(fileName):
   # reset stat table
   for k, v in stats.items():
-    v['avg'] = 0
-    v['count'] = 0
+    if (is_hist_stat(v)):
+      v['buckets'] = []
+    else:
+      v['avg'] = 0
+      v['count'] = 0
   
   with open(fileName, 'r') as fin:
     # foreach line search for each regex
@@ -72,26 +89,47 @@ def parse_file(fileName):
       for k, v in stats.items():
         match = v['regex'].search(line)
         if (match):
-          # get value (always int?)
-          val = match.group(1)
+          # TODO assumes only one copy of this hist
+          if (is_hist_stat(v)):
+            bucket_range = match.group(1)
+            val          = match.group(2)
+          else:
+            # get value
+            val = match.group(1)
 
           # setting in stat to ignore in avg when value is 0
           # generally this means this condition is not possible (like in vector config)
-          ignore_zero = v['ignore-zero']
-          if (not (ignore_zero and (int(val) == 0))):
-            try:
-              v['avg'] += int(val)
-            except:
-              v['avg'] += float(val)
-            v['count'] += 1
+          if ('ignore-zero' in v):
+            ignore_zero = v['ignore-zero']
+          else:
+            ignore_zero = False
+
+          if ('upper-bound' in v):
+            upper_bound = v['upper-bound']
+            has_upper_bound = True
+          else:
+            has_upper_bound = False
+          
+          try:
+            arith_val = int(val)
+          except:
+            arith_val = float(val)
+          
+          if ((not (ignore_zero and (arith_val == 0))) and (not has_upper_bound or arith_val < upper_bound)):
+              if (is_hist_stat(v)):
+                v['buckets'].append((bucket_range, arith_val))
+              else:
+                v['avg'] += arith_val
+                v['count'] += 1
           
           # no reason to search for other values
           #break
           
   # get avg
   for k, v in stats.items():
-    if (v['count'] > 0):
-      v['avg'] /= v['count']
+    if (not is_hist_stat(v)):
+      if (v['count'] > 0):
+        v['avg'] /= v['count']
       
 
 #
@@ -146,7 +184,13 @@ for dirPath in dirPaths:
     if (not exists):
       parameters.append(k)
 
+# collect data between all runs together
 dataCSV = ''
+# write all histograms, don't really fit nicely between diff runs so each run
+# going to be printed seperately
+histCSV = []
+for i in range(find_max_buckets()):
+  histCSV.append('')
 
 #
 # Extract data from directories 
@@ -173,7 +217,11 @@ for dirPath in dirPaths:
       val = 'N/A'
     print('\t{0}: {1}'.format(param, val))
   for k, v in stats.items():
-    print('\t{0}: {1}'.format(v['name'], v['avg']))
+    if (is_hist_stat(v)):
+      for b,d in v['buckets']:
+        print('\t{0}::{1}: {2}'.format(v['name'], b, str(d)))
+    else:
+      print('\t{0}: {1}'.format(v['name'], v['avg']))
     
   # 
   # serialize parameters and data into string row by row
@@ -191,9 +239,24 @@ for dirPath in dirPaths:
   
   # data
   for k, v in stats.items():
-    dataCSV += '{0}, '.format(str(v['avg']))
+    if (not is_hist_stat(v)):
+      dataCSV += '{0}, '.format(str(v['avg']))
     
   #dataCSV += '\n'
+
+  # hist data. from right to left base on run
+  for k, v in stats.items():
+    if (is_hist_stat(v)):
+      buckets = v['buckets']
+      buck_len = len(buckets)
+      for i in range(0, find_max_buckets()):
+        if (i < buck_len):
+          (b, d) = buckets[i]
+          if (not 'meta' in annos):
+            annos['meta'] = ''
+          histCSV[i] += '{0}:{1},{2},{3},,'.format(annos['meta'], v['name'], str(b), str(d))
+        else:
+          histCSV[i] += ',,,,'
   
 #
 # write output to a csv
@@ -204,12 +267,19 @@ with open(args.outfile, 'w+') as fout:
   for param in parameters:
     fout.write(param + ', ')
   for k, v in stats.items():
-    fout.write('{0}, '.format(v['name']))
+    if (not is_hist_stat(v)):
+      fout.write('{0}, '.format(v['name']))
       
   #fout.write('\n')
-  
+
   # add all of the data
   fout.write(dataCSV)
+
+  # write hist
+  fout.write('\n\n')
+  for i in range(len(histCSV)):
+    fout.write(histCSV[i])
+    fout.write('\n')
   
   
   

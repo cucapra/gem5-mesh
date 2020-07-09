@@ -391,7 +391,7 @@ GarnetNetwork::regStats()
     m_average_vc_load
         .init(m_virtual_networks * m_vcs_per_vnet)
         .name(name() + ".avg_vc_load")
-        .flags(Stats::pdf | Stats::total | Stats::nozero | Stats::oneline)
+        .flags(Stats::pdf | Stats::total | Stats::nozero /*| Stats::oneline*/)
         ;
 }
 
