@@ -42,6 +42,7 @@ int check_aty2(DTYPE* a, DTYPE* y2, DTYPE* x2, int n){
       tmp[i] = tmp[i] + a[j*n+i] * y2[j];
     if(tmp[i]!=x2[i]){
       printf("[[FAIL]] for matrix vector product Aty2\n");
+      printf("actual = %d calculated = %d at i=%d\n",tmp[i],x2[i],i);
       return 1;
     }
   }

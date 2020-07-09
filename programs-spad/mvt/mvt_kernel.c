@@ -9,7 +9,7 @@ inline int _idx_(int y, int x, int width)
 }
 
 void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, 
-                  DTYPE *x2_partial, int start, int end, int ptid, int vtid, int dim)
+                  DTYPE *x2_partial, int start, int end, int ptid, int vtid)
 {
   //this template uses separate scalar and vector code blocks but they can be interspersed as well as shown here
   //https://github.com/cucapra/gem5-mesh/wiki/Trilliasm-Language-Overview:-Vector-SIMD-in-C
@@ -30,7 +30,7 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
   // if(ptid==0)printf("ptid %d %d %d %d\n",ptid_group_sp[0],ptid_group_sp[1],ptid_group_sp[2],ptid_group_sp[3]);
 
   DTYPE temp;
-  for (int i = start; i < end; i+=dim) {
+  for (int i = start; i < end; i+=VEC_LEN) {
     temp=0;
     ISSUE_VINST(hoist1_label);
     
@@ -38,7 +38,7 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
       sp_a_offset = spadRegion * REGION_SIZE;
       sp_y1_offset = sp_a_offset + REGION_SIZE/2;
 
-      for (int d = 0; d < dim; d++){
+      for (int d = 0; d < VEC_LEN; d++){
         VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/2,1); //load A, hopefully cache alligned so no vprefetch_R
         VPREFETCH_L(sp_y1_offset, y1 + j, d, REGION_SIZE/2,1); //load x
       }
@@ -61,7 +61,7 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
       sp_a_offset = spadRegion * REGION_SIZE;
       sp_x2part_offset = sp_a_offset + REGION_SIZE/2;
 
-      for (int d = 0; d < dim; d++){
+      for (int d = 0; d < VEC_LEN; d++){
         VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/2 ,1);
         VPREFETCH_L(sp_x2part_offset, (x2_partial + ptid_group_sp[d]*n)+j, d, REGION_SIZE/2 ,1); 
       }
@@ -155,7 +155,8 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
         DTYPE *x2part_on_sp = a_on_sp + REGION_SIZE/2;
         DTYPE x2_temp;
 
-        x2_temp = *x2part_on_sp + ((*a_on_sp) * y2_on_sp);
+        // x2_temp = *x2part_on_sp + ((*a_on_sp) * y2_on_sp);
+        x2_temp = partialVec[col_thread+jj] + ((*a_on_sp) * y2_on_sp);
         STORE_NOACK(x2_temp, partialVec + col_thread+jj, 0);
         // partialVec[col_thread+jj] = x2_temp;
         // partialVec[col_thread+jj] += (*a_on_sp) * y2_on_sp;
@@ -166,7 +167,7 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
     } while(bh3);
 
     asm("trillium vissue_delim until_next loop_end");
-    row_thread+=dim;
+    row_thread+=VEC_LEN;
     asm volatile("fence\n\t");
   } while(bh1);
 

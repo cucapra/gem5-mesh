@@ -36,10 +36,10 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, DTYPE 
 void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int pdim,
                     int phys_dim_x, core_config_info_t cinfo, template_info_t *tinfo){
 
-  #ifndef _VEC
+  
   //cores are used
-  int start = (ptid + 0) * n / pdim; 
-  int end = (ptid + 1) * n / pdim;
+  int start = ((ptid + 0) * n) / pdim; 
+  int end = ((ptid + 1) * n) / pdim;
 
   DTYPE temp;
   for(int i=start; i<end; i++){
@@ -50,28 +50,28 @@ void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int pdim,
     out[i]+=temp;
   }
 
-  #else
-  int start = (cinfo.unique_id + 0) * n / cinfo.total_groups;
-  int end = (cinfo.unique_id + 1) * n / cinfo.total_groups;
-  start+=cinfo.vtid;
+  
+  // int start = ((cinfo.unique_id + 0) * n) / cinfo.total_groups;
+  // int end = ((cinfo.unique_id + 1) * n) / cinfo.total_groups;
+  // start+=cinfo.vtid;
 
-  DTYPE temp;
-  for(int i=start; i<end; i+=VEC_LEN){
-    temp=0;
-    for(int j=0; j<pdim; j++){
-      temp+=partial[j*n+i];
-    }
-    // for(int j=0; j<cinfo.total_groups; j++){
-    //   for(int x=0; x<cinfo.vdim_x; x++){
-    //     for(int y=0; y<cinfo.vdim_y; y++){
-    //       int p = get_ptid_from_group(tinfo, j, x, y, phys_dim_x);
-    //       temp+=partial[p*n+i];
-    //     }
-    //   }
-    // }
-    out[i]+=temp;
-  }
-  #endif
+  // DTYPE temp;
+  // for(int i=start; i<end; i+=VEC_LEN){
+  //   temp=0;
+  //   for(int j=0; j<pdim; j++){
+  //     temp+=partial[j*n+i];
+  //   }
+  //   // for(int j=0; j<cinfo.total_groups; j++){
+  //   //   for(int x=0; x<cinfo.vdim_x; x++){
+  //   //     for(int y=0; y<cinfo.vdim_y; y++){
+  //   //       int p = get_ptid_from_group(tinfo, j, x, y, phys_dim_x);
+  //   //       temp+=partial[p*n+i];
+  //   //     }
+  //   //   }
+  //   // }
+  //   out[i]+=temp;
+  // }
+  
   return;
 
 }
@@ -92,7 +92,7 @@ mvt_main(core_config_info_t cinfo, int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTY
   if(cinfo.used!=0){
     // if(ptid==0)printf("2. ptid pointer %x\n",ptid_group);
     #if defined _VEC
-      tril_mvt_vec(mask,a,y1,y2,x1,x2,n,x2_partial,start,end,ptid, cinfo.vtid, cinfo.vdim_x*cinfo.vdim_y);
+      tril_mvt_vec(mask,a,y1,y2,x1,x2,n,x2_partial,start,end,ptid, cinfo.vtid);
 
     #else
       mvt_manycore(a,y1,y2,x1,x2,n,x2_partial,start,end,ptid);
@@ -102,20 +102,20 @@ mvt_main(core_config_info_t cinfo, int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTY
   SET_PREFETCH_MASK(0,0,&start_barrier);
   // pthread_barrier_wait(&start_barrier); //reduction needs barrier to allow all cores to complete
 
-  if (cinfo.used == 0) {
-    #ifdef STACK_COPY
-   RECOVER_DRAM_STACK();
-    #endif
-    return;
-  }
-  #ifdef _VEC
-  if (cinfo.is_scalar) {
-    #ifdef STACK_COPY
-    RECOVER_DRAM_STACK();
-    #endif
-    return;
-  }
-  #endif
+  // if (cinfo.used == 0) {
+  //   #ifdef STACK_COPY
+  //  RECOVER_DRAM_STACK();
+  //   #endif
+  //   return;
+  // }
+  // #ifdef _VEC
+  // if (cinfo.is_scalar) {
+  //   #ifdef STACK_COPY
+  //   RECOVER_DRAM_STACK();
+  //   #endif
+  //   return;
+  // }
+  // #endif
 
   reduce_parallel(x2_partial, x2, n, ptid, pdim, pdim_x, cinfo, &tinfo);
 
@@ -151,12 +151,14 @@ void kernel(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n,
   #endif
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
-  
+  // if(ptid==0) printf("Total groups %d\n",cinfo.total_groups);
   if(cinfo.used){
     //do work division here
     int alignment = VEC_LEN; //each group should have elements of multiple of this number
     start = roundUp((cinfo.unique_id + 0) * n / cinfo.total_groups, alignment); 
     end = roundUp((cinfo.unique_id + 1) * n / cinfo.total_groups, alignment); 
+
+    // if(cinfo.is_scalar==1) printf("ptid:%d, start=%d and end=%d\n",ptid,start,end);
 
     if(cinfo.is_scalar==1){
       for(int i=0; i<cinfo.vdim_y;i++){
