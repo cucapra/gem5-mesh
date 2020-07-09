@@ -21,8 +21,9 @@ inline void prefetch_frame(DTYPE *a, DTYPE *b, int i, int *sp, int dim, int star
   
   #ifdef VERTICAL_LOADS
   for (int core = 0; core < dim; core++) {
-    VPREFETCH_L(*sp + 0       , a + start + i * dim + LOAD_LEN * core, core, LOAD_LEN, 1);
-    VPREFETCH_L(*sp + LOAD_LEN, b + start + i * dim + LOAD_LEN * core, core, LOAD_LEN, 1);
+    int memIdx = start + i * dim + LOAD_LEN * core;
+    VPREFETCH_L(*sp + 0       , a + memIdx, core, LOAD_LEN, 1);
+    VPREFETCH_L(*sp + LOAD_LEN, b + memIdx, core, LOAD_LEN, 1);
   }
   #elif defined(SPATIAL_UNROLL)
   for (int j = 0; j < LOAD_LEN; j++) {
@@ -44,7 +45,7 @@ inline void prefetch_frame(DTYPE *a, DTYPE *b, int i, int *sp, int dim, int star
   #endif
 
   (*sp)+=REGION_SIZE;
-  if (*sp == (NUM_REGIONS * REGION_SIZE)) *sp = 0;
+  if (*sp == POST_REGION_WORD) *sp = 0;
 }
 
 inline void vvadd_body(DTYPE *spadAddr, DTYPE **cPtr, int *sp, int dim) {
@@ -66,7 +67,7 @@ inline void vvadd_body(DTYPE *spadAddr, DTYPE **cPtr, int *sp, int dim) {
     REMEM(REGION_SIZE);
 
     (*cPtr) += LOAD_LEN * dim;
-    *sp = (*sp + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
+    *sp = (*sp + REGION_SIZE) % POST_REGION_WORD;
     #elif defined(SPATIAL_UNROLL)
     FRAME_START(REGION_SIZE);
 
@@ -84,7 +85,7 @@ inline void vvadd_body(DTYPE *spadAddr, DTYPE **cPtr, int *sp, int dim) {
     REMEM(REGION_SIZE);
 
     (*cPtr) += LOAD_LEN * dim;
-    *sp = (*sp + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
+    *sp = (*sp + REGION_SIZE) % POST_REGION_WORD;
     #else
 
     FRAME_START(REGION_SIZE);
@@ -101,7 +102,7 @@ inline void vvadd_body(DTYPE *spadAddr, DTYPE **cPtr, int *sp, int dim) {
     DTYPE c = a + b;
     STORE_NOACK(c, *cPtr, 0);
     (*cPtr) += dim;
-    *sp = (*sp + REGION_SIZE) % (NUM_REGIONS * REGION_SIZE);
+    *sp = (*sp + REGION_SIZE) % POST_REGION_WORD;
 
     #endif
 }
@@ -109,11 +110,14 @@ inline void vvadd_body(DTYPE *spadAddr, DTYPE **cPtr, int *sp, int dim) {
 void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int is_master)
 {
 
+
   #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
-  int numInitFetch = LOAD_LEN;
+  int prefetchFrames = 12; // BE carful about prefetching, this + queue size >= num hardware frames
+  int numInitFetch = LOAD_LEN * prefetchFrames;
   int step = LOAD_LEN;
   #else
-  int numInitFetch = 16;
+  int prefetchFrames = 16;
+  int numInitFetch = prefetchFrames;
   int step = 1;
   #endif
   
@@ -135,7 +139,11 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
   ISSUE_VINST(vector_init_label);
 #elif defined VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
+  #ifdef VERTICAL_LOADS
+  DTYPE *cPtr = c + start + vtid * LOAD_LEN;
+  #else
   DTYPE *cPtr = c + start + vtid;
+  #endif
   int *spadAddr = (int *)getSpAddr(ptid, 0);
 #endif
 
@@ -162,7 +170,7 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
 
 #ifdef SCALAR_CORE
 // issue the rest
-  for (int i = totalIter - beginIter; i < totalIter; i++)
+  for (int i = totalIter - beginIter; i < totalIter; i+=step)
   {
     ISSUE_VINST(vector_body_label);
   }

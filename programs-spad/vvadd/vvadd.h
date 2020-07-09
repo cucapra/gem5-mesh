@@ -40,14 +40,15 @@
 #endif
 
 // prefetch sizings
+#define POST_REGION_WORD 512
 #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
 // load 16 words (whole cacheline at a time)
 #define LOAD_LEN 16
-#define REGION_SIZE LOAD_LEN * 2
-#define NUM_REGIONS 16
+#define REGION_SIZE (LOAD_LEN * 2)
+#define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
 #elif defined(USE_VEC)
 #define REGION_SIZE 2
-#define NUM_REGIONS 256
+#define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
 #endif
 
 // define prefetch len externally

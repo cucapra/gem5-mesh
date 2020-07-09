@@ -33,6 +33,8 @@
 #include "cpu/io/pipeline.hh"
 #include "custom/vector.hh"
 
+class Scratchpad;
+
 class IOCPU : public BaseCPU
 {
   public:
@@ -252,17 +254,22 @@ class IOCPU : public BaseCPU
     /**
      * Mem epoch counter functions
      */ 
-    int getMemEpoch();
-    void incMemEpoch();
-    void produceMemTokens(int tokens);
-    void consumeMemTokens(int tokens);
-    int getMemTokens() const { return m_tokens; }
+    // int getMemEpoch();
+    // void incMemEpoch();
+    // void produceMemTokens(int tokens);
+    // void consumeMemTokens(int tokens);
+    // int getMemTokens() const { return m_tokens; }
+
+    bool isNextFrameReady();
+    void consumeFrame();
 
     /**
      * Spad prefetch region related functions
      */
     int getSpadNumRegions();
     int getSpadRegionSize();
+
+    Scratchpad *getLocalScratchpad();
 
     /**
      * Stats-related functions
@@ -423,14 +430,17 @@ class IOCPU : public BaseCPU
     /** This CPU's sequence number counter */
     InstSeqNum m_global_seq_num;
 
-    /** Count the number of revecs we've recved in the past */ 
-    int m_revec_cntr;
+    // /** Count the number of revecs we've recved in the past */ 
+    // int m_revec_cntr;
 
-    /** Count the number of remems we've recved in the past */
-    int m_mem_epoch;
+    // /** Count the number of remems we've recved in the past */
+    // int m_mem_epoch;
 
-    /** Keep track of count of instruction (make more like a token queue) */
-    int m_tokens;
+    // /** Keep track of count of instruction (make more like a token queue) */
+    // int m_tokens;
+
+    /** Cache pointer to local scratchpad */
+    Scratchpad *m_local_spm;
 
     /**
      * Stats variables
