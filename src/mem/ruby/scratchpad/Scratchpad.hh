@@ -203,6 +203,9 @@ class Scratchpad : public AbstractController
     void collateStats() override
     { warn("Scratchpad does not support collateStats()\n"); }
 
+    // inform of a csr write and update if correct one
+    void setupConfig(int csrId, RegVal csrVal);
+
   private:
     /**
      * Return NodeID of scratchpad owning the given address
@@ -284,6 +287,9 @@ class Scratchpad : public AbstractController
     void incRegionCntr(Addr addr);
     // get the current region (offset = 0) or a future region (offset > 1)
     int getCurRegion(int offset);
+
+    // reset the counters. meant to happen when set prefetch mask 
+    void resetAllRegionCntrs();
 
   private:
     /**
