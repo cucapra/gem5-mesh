@@ -540,10 +540,6 @@ if __name__ == "__main__":
 
     vector_file = open(args.vector, "r")
     scalar_file = open(args.scalar, "r")
-    if args.output:
-        combined_file = open(args.output, "w")
-    else:
-        combined_file = sys.stdout
 
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()
@@ -571,4 +567,10 @@ if __name__ == "__main__":
 
     # Print out the combined assembly.
     log.info("Done gluing; ready to print.")
-    combined_file.write(pretty(combined_code) + '\n')
+    out_asm = pretty(combined_code) + '\n'
+
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write(out_asm)
+    else:
+        sys.stdout.write(out_asm)
