@@ -2,7 +2,7 @@
 #define __TEMP_H__
 
 #define _VEC
-#define VEC_LEN 4 //vec group size
+#define VEC_LEN 16 //vec group size
 
 
 #define REGION_SIZE 8 //configure using LCM of required frame/region sizes

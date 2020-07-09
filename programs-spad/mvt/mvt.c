@@ -79,7 +79,7 @@ void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int pdim,
 void __attribute__((optimize("-fno-inline")))
 mvt_main(core_config_info_t cinfo, int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, 
                   DTYPE *x2_partial, int start, int end, int ptid, int pdim, int pdim_x, template_info_t tinfo){
-                    
+
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
   // do before the function call so the arg stack frame is on the spad
