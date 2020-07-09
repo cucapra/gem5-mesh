@@ -10,6 +10,7 @@ inline int min(int a, int b) {
     return a;
   }
 }
+int float_compare(float a, float b, float eps);
 
 
 

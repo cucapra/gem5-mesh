@@ -5,6 +5,7 @@
 #include "spad.h"
 #include "pthread_launch.h"
 #include "syr2k.h"
+#include "util.h"
 
 // checker from polybench. single core implementation
 #include <math.h>
@@ -151,7 +152,8 @@ int main(int argc, char *argv[]) {
   for (int i = 0; i < N; i++) {
     for (int j = 0; j < M; j++) {
       int idx = i * M + j;
-      if (c[idx] != c_exp[idx]) {
+      // if (c[idx] != c_exp[idx]) {
+      if (float_compare(c[idx], c_exp[idx], 0.000001f * c_exp[idx]) == 0) { 
         printf("i %d j %d idx %d | %f != %f\n", i, j, idx, c[idx], c_exp[idx]);
         printf("[[FAIL]]\n");
         return 1;

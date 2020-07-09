@@ -20,3 +20,14 @@ int roundUp(int numToRound, int multiple) {
     return numToRound + multiple - remainder;
   }
 }
+
+// ret 0 if not within eps diff
+// ret 1 if within eps diff
+int float_compare(float a, float b, float eps) {
+  float diff = b - a;
+  if (diff < 0) {
+    diff *= -1.0f;
+  }
+  if (diff < eps) return 1;
+  else return 0;
+}

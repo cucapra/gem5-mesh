@@ -3,7 +3,11 @@
 
 #include "syr2k.h"
 
+#ifdef USE_VEC
+
 void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M, 
                   int ptid, int groupId, int numGroups, int vtid);
+
+#endif
 
 #endif
