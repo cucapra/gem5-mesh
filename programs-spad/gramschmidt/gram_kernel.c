@@ -109,13 +109,12 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   int end   = ( ( groupId + 1 ) * numProjs ) / numGroups;
 
   // make it a factor of vector group mapping size
-  // first term 
   start += k + 1;
   end   += k + 1;
   // start = ( k + 1 ) + roundUp(start, VECTOR_LEN);
   // end   = ( k + 1 ) + roundUp(end  , VECTOR_LEN);
 
-  // printf("%d->%d k %d\n", start, end, k);
+  printf("%d->%d k %d\n", start, end, k);
 
   // issue header block
   ISSUE_VINST(init_label);
@@ -124,17 +123,17 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
 #ifdef VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
   // chunk over vector groups
+  // ignores all vectors before the current orthonormal one
   int numProjs = numVectors - ( k + 1 );
   int start = ( ( groupId + 0 ) * numProjs ) / numGroups;
   int end   = ( ( groupId + 1 ) * numProjs ) / numGroups;
 
   // make it a factor of vector group mapping size
-  // first term ignores all vectors before the current orthonormal one
-  start = ( k + 1 ) + roundUp(start, VECTOR_LEN);
-  end   = roundUp(end  , VECTOR_LEN);
+  start += k + 1;
+  end   += k + 1;
 
   int j = start + vtid;
-  int i = 0;
+  volatile int i = 0;
   DTYPE r_cache = 0.0f;
 #endif
 
@@ -151,7 +150,7 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   }
 #endif
 
-// first inner loop
+// first inner loop (dot product)
 #ifdef VECTOR_CORE
   volatile int BH;
   do {
@@ -162,10 +161,10 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     r_cache += q[i * numVectors + k] * a[i * numVectors + j];
     i++;
     PRED_EQ(i, vectorLen);
-    i = 0;
-    PRED_EQ(gt, 0);
+    i = 0; // DCE on this and above b/c always 0
+    // PRED_EQ(i, i);
     // if (i == vectorLen) i = 0;
-    PRED_EQ(0, 0);
+    PRED_EQ(i, i);
     asm("trillium vissue_delim end at_jump");
   } while(BH);
 #endif
@@ -176,16 +175,21 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   do {
     asm("trillium vissue_delim if_begin vec_body_2");
     int gt = (j >= end);
-    // PRED_EQ(gt, 0);
+    PRED_EQ(gt, 0);
     DTYPE val = a[i * numVectors + j] - q[i * numVectors + k] * r_cache;
     STORE_NOACK(val, &a[i * numVectors + j], 0);
     i++;
-    if (i == vectorLen) {
-      i = 0;
-      r_cache = 0.0f;
-      j+=VECTOR_LEN;
-    }
-    // PRED_EQ(0, 0);
+    PRED_EQ(i, vectorLen);
+    i = 0;
+    r_cache = 0.0f;
+    j+=VECTOR_LEN;
+    // PRED_EQ(j, j);
+    // if (i == vectorLen) {
+    //   i = 0;
+    //   r_cache = 0.0f;
+    //   j+=VECTOR_LEN;
+    // }
+    PRED_EQ(j, j);
     asm("trillium vissue_delim end at_jump");
   } while(BH2);
 #endif
