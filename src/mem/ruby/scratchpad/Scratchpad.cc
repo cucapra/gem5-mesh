@@ -598,13 +598,15 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // If this is a speculative load and the data isn't present, then
     // allow the packets equal to ld queue size be buffered here
     // if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
-    if (isRegionAccess(pkt_p) && !isWordRdy(pkt_p->getAddr())){
-      //m_packet_buffer.push_back(pkt_p);
-      //assert(m_packet_buffer.size() <= m_spec_buf_size);
-      // just say not rdy actually
-      m_not_rdy_stalls++;
-      DPRINTF(Frame, "not rdy for packet to addr %#x\n", pkt_p->getAddr());
-      return false;
+    if (m_cpu_p->getEarlyVector()->isSlave()){
+      if (isRegionAccess(pkt_p) && !isWordRdy(pkt_p->getAddr())){
+        //m_packet_buffer.push_back(pkt_p);
+        //assert(m_packet_buffer.size() <= m_spec_buf_size);
+        // just say not rdy actually
+        m_not_rdy_stalls++;
+        DPRINTF(Frame, "not rdy for packet to addr %#x\n", pkt_p->getAddr());
+        return false;
+      }
     }
     
     // TODO stats might be incorrect with these stalls
