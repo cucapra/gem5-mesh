@@ -574,6 +574,11 @@ IEW::doIssue()
         m_pred_flag = 
           m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)) != m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1));
       }
+
+      DPRINTF(Mesh, "predicate inst %s pred %d - %#x ? %#x\n", 
+        inst->toString(true), m_pred_flag,
+        m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), 
+        m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
     }
 
     // if (inst->static_inst_p->isPredicate() || !m_pred_flag) {

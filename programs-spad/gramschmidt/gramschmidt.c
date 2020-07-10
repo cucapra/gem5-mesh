@@ -149,9 +149,9 @@ void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, D
       pthread_barrier_wait(&start_barrier);
 
       // normalize the vector
-      if (used)
-        tril_u_normalize(mask, a, r, q, numVectors, vectorLen, k, ptid, groupId, numGroups, vtid);
-      // u_normalize_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
+      // if (used)
+        // tril_u_normalize(mask, a, r, q, numVectors, vectorLen, k, ptid, groupId, numGroups, vtid);
+      u_normalize_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
 
 
       pthread_barrier_wait(&start_barrier);
@@ -201,7 +201,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef VECTOR_LEN
 
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
+  // template_info_t tinfo = init_template_4x4_2x2();
+  template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif
