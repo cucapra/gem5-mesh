@@ -161,7 +161,10 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     PRED_EQ(gt, 0);
     r_cache += q[i * numVectors + k] * a[i * numVectors + j];
     i++;
-    if (i == vectorLen) i = 0;
+    PRED_EQ(i, vectorLen);
+    i = 0;
+    PRED_EQ(gt, 0);
+    // if (i == vectorLen) i = 0;
     PRED_EQ(0, 0);
     asm("trillium vissue_delim end at_jump");
   } while(BH);
