@@ -133,7 +133,7 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   end   += k + 1;
 
   int j = start + vtid;
-  volatile int i = 0;
+  int i = 0;
   DTYPE r_cache = 0.0f;
 #endif
 
