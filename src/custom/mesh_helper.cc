@@ -179,6 +179,12 @@ MeshHelper::isDecoupledAccess(RegVal csrVal) {
 
 
 bool
+MeshHelper::isExpander(RegVal csrVal) {
+  uint64_t ret = bits(csrVal, FET_EXPANDER_HI, FET_EXPANDER_LO);
+  return (ret == 1);
+}
+
+bool
 MeshHelper::csrToInSrcs(uint64_t csr, uint64_t csrVal, std::vector<Mesh_Dir> &dirs) {
   if (csr == MISCREG_EXE) {
     return exeCsrToInSrc(csrVal, dirs);

@@ -369,6 +369,10 @@ static int getSIMDMask(core_config_info_t *cinfo) {
 
     // send directions for the non-master vector group
     mask |= getSIMDMaskHoriz(master, origin, tid, dim, virtVecSrc, vectorSrc);
+
+    // specify whether expander core
+    if (virtVecSrc.x == cinfo->vtid_x && virtVecSrc.y == cinfo->vtid_y)
+      mask |= (1 << FET_EXPANDER_SHAMT);
   }
 
   // specify the vlen

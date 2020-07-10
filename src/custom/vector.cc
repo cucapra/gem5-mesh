@@ -776,6 +776,11 @@ Vector::isMaster() {
 }
 
 bool
+Vector::isExpander() {
+  return MeshHelper::isExpander(_curCsrVal);
+}
+
+bool
 Vector::isSlave() {
   return MeshHelper::isVectorSlave(_curCsrVal);
 }
@@ -787,7 +792,9 @@ Vector::hasForwardingPath() {
 
 bool
 Vector::canWriteMesh() {
-  return ((_canRootSend && isRootMaster()) || (!_canRootSend && !isRootMaster()));
+  return ((_canRootSend && isRootMaster()) || 
+    (!_canRootSend && !isExpander() && !isRootMaster()) ||
+    (_canRootSend && isExpander() && !isRootMaster()));
 }
 
 bool

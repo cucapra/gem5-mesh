@@ -140,8 +140,8 @@ VecInstSel::dequeueInst() {
     if (ret->isUncondCtrl() || ret->isCondCtrl()) {
       // TODO not sure if this if condition is required anymore
       if ((_uopIssueLen - _uopCnt > 0) || (_waitingForTerminator)) {
-        DPRINTF(Mesh, "stalling due to jump %s\n", ret->toString(true));
-        _stallUntilJumpPC = true;
+        // DPRINTF(Mesh, "stalling due to jump %s\n", ret->toString(true));
+        // _stallUntilJumpPC = true;
       }
       // TODO not sure this is needed anymore
       else {
@@ -229,8 +229,8 @@ VecInstSel::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   // allow to continue fetching after recving branch resolution from either decode or writeback
   // don't do anything about commit stalls (i.e. devec)?
   if (initiator == StageIdx::DecodeIdx || initiator == StageIdx::IEWIdx) {
-    if (_stallUntilJumpPC) DPRINTF(Mesh, "resolve pending jump %s %s\n", squashInfo.next_pc, squashInfo.trig_inst->toString(true));
-    _stallUntilJumpPC = false;
+    // if (_stallUntilJumpPC) DPRINTF(Mesh, "resolve pending jump %s %s\n", squashInfo.next_pc, squashInfo.trig_inst->toString(true));
+    // _stallUntilJumpPC = false;
     _uopPC = squashInfo.next_pc;
 
     // send out a request now b/c vector stage won't tick this if there is no uop present...

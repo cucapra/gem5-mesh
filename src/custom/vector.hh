@@ -193,6 +193,7 @@ class Vector : public Stage {
     bool isRootMaster();
     bool isMaster();
     bool isSlave();
+    bool isExpander(); 
     bool canWriteMesh();
     bool canReadMesh();
     bool isOutPipeStalled();

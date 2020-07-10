@@ -156,11 +156,16 @@ typedef struct Mesh_DS_t {
 #define FET_DAE_BITS     (1)
 #define FET_DAE_SHAMT    (FET_YLEN_SHAMT + FET_YLEN_BITS)
 
-// encode where the origin of the vector group is (7 * 2 = 14 bits, up to 16k cores)
-#define FET_XORIGIN_BITS (7)
-#define FET_XORIGIN_SHAMT (FET_DAE_SHAMT + FET_DAE_BITS)
+// encode whether this is a decoupled execute core (1bit)
+#define FET_EXPANDER_BITS (1)
+#define FET_EXPANDER_SHAMT (FET_DAE_SHAMT + FET_DAE_BITS)
 
-#define FET_YORIGIN_BITS (7)
+// encode where the origin of the vector group is (7 * 2 = 14 bits, up to 16k cores)
+// 6bits is 4096 cores, maybe fine?
+#define FET_XORIGIN_BITS (6)
+#define FET_XORIGIN_SHAMT (FET_EXPANDER_SHAMT + FET_EXPANDER_BITS)
+
+#define FET_YORIGIN_BITS (6)
 #define FET_YORIGIN_SHAMT (FET_XORIGIN_SHAMT + FET_XORIGIN_BITS)
 
 
@@ -183,6 +188,9 @@ typedef struct Mesh_DS_t {
 
 #define FET_DAE_HI (FET_DAE_SHAMT + FET_DAE_BITS - 1)
 #define FET_DAE_LO (FET_DAE_SHAMT)
+
+#define FET_EXPANDER_HI (FET_EXPANDER_SHAMT + FET_EXPANDER_BITS - 1)
+#define FET_EXPANDER_LO (FET_EXPANDER_SHAMT)
 
 #define FET_XORIGIN_HI (FET_XORIGIN_SHAMT + FET_XORIGIN_BITS - 1)
 #define FET_XORIGIN_LO (FET_XORIGIN_SHAMT)
