@@ -5,11 +5,12 @@
 	BEFORE_VECTOR_EPOCH
 	.insn uj 0x6b, x0, .SCALAR3
 	.insn uj 0x6b, x0, .SCALAR4
+.SCALAR1:
 	# trillium: scalar stack cleanup begin
 	SCALAR_STACK_CLEANUP
 	# trillium: scalar stack cleanup end
-.SCALAR1:
-	.insn uj 0x2b, x0, .SCALAR1
+.SCALAR1DEVEC:
+	.insn uj 0x2b, x0, .SCALAR1DEVEC
 .SCALAR2:
 	SCALAR_AFTER_DEVEC
 	ret
