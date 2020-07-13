@@ -408,13 +408,13 @@ for k,v in vissue_table.items():
 
 # do sync calculation using mesh size, frame size, etc..
 init_frames = det_sync_frames(
-    args.vec_dim,
-    args.mesh_queue_slots,
-    args.rob_slots,
-    args.pipe_queue_slots,
-    args.pipe_stages_before_commit,
+    int(args.vec_dim),
+    int(args.mesh_queue_slots),
+    int(args.rob_slots),
+    int(args.pipe_queue_slots),
+    int(args.pipe_stages_before_commit),
     min_frame_size,
-    args.num_hardware_cntrs
+    int(args.num_hardware_cntrs)
     )
 
 print("-------------------------------------------------------------")
