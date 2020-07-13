@@ -14,6 +14,13 @@
 #define USE_VEC 1
 #endif
 
+// prefetch sizings
+#ifdef USE_VEC
+#define POST_FRAME_WORD 128
+#define FRAME_SIZE 1
+#define NUM_FRAMES (POST_FRAME_WORD / FRAME_SIZE)
+#endif
+
 // vector grouping directives
 #if defined(VEC_4_SIMD)
 #define VECTOR_LEN 4

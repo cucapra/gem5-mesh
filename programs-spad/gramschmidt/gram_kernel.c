@@ -20,6 +20,15 @@
 
 #ifdef USE_VEC
 
+inline void prefetch_normalize_frame(DTYPE *a, int i, int k, int numVectors, int *sp) {
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_L(*sp, &a[(i + core) * numVectors + k], core, 1, VERTICAL);
+  }
+  *sp = *sp + 1;
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+}
+
+
 void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q, 
     int numVectors, int vectorLen, int k, int ptid, int groupId, int numGroups, int vtid) {
 
@@ -45,11 +54,15 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   start = roundUp(start, VECTOR_LEN);
   int i = start + vtid;
   DTYPE r_cache = r[k * numVectors + k];
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 #endif
 
 #ifdef SCALAR_CORE
+  int sp = 0;
   // TODO prefetch
   for (int i = start; i < end; i+=VECTOR_LEN) {
+    prefetch_normalize_frame(a, i, k, numVectors, &sp);
     ISSUE_VINST(vec_body_label);
   }
 #endif
@@ -58,9 +71,14 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   volatile int BH;
   do {
     asm("trillium vissue_delim if_begin vec_body");
-    q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
-    // TODO consider ST_NOACK
+    // q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
+    START_FRAME();
+    DTYPE val = sp_ptr[sp] / r_cache;
+    END_FRAME();
+    STORE_NOACK(val, &q[i * numVectors + k], 0);
     i+=VECTOR_LEN;
+    sp++;
+    if (sp == POST_FRAME_WORD) sp = 0;
     asm("trillium vissue_delim end at_jump");
   } while(BH);
 

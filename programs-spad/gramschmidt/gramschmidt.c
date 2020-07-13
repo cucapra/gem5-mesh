@@ -149,9 +149,9 @@ void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, D
       pthread_barrier_wait(&start_barrier);
 
       // normalize the vector
-      // if (used)
-        // tril_u_normalize(mask, a, r, q, numVectors, vectorLen, k, ptid, groupId, numGroups, vtid);
-      u_normalize_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
+      if (used)
+        tril_u_normalize(mask, a, r, q, numVectors, vectorLen, k, ptid, groupId, numGroups, vtid);
+      // u_normalize_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
 
 
       pthread_barrier_wait(&start_barrier);
@@ -245,8 +245,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int mask = 0;
   #endif
 
+  #ifdef USE_VEC
+  SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
+  #else
   // single barrier before kernel start
-  pthread_barrier_wait(&start_barrier);
+  // pthread_barrier_wait(&start_barrier);
+  #endif
 
   MOVE_STACK_ONTO_SCRATCHPAD();
 
