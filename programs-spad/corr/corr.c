@@ -168,6 +168,11 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
   pthread_barrier_wait(&start_barrier);
   #endif
 
+  // if (ptid== 0)
+  // {
+  //   stats_on();
+  // }
+
   if (cinfo.used == 0) goto stack_end;
   //redistribute work for 2nd kernel
   #ifdef _VEC

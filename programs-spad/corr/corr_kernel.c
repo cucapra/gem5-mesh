@@ -123,7 +123,8 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
     } while(bh2); 
     asm("trillium vissue_delim until_next hoist2");
     mean_temp/=n;
-    mean[i]=mean_temp;
+    STORE_NOACK(mean_temp, mean + i, 0);
+    // mean[i]=mean_temp;
 
     stddev_temp=0;
     do {
@@ -149,7 +150,9 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       stddev_temp = 1.0;
     }
     PRED_EQ(ptid,ptid);
-    stddev[i] = stddev_temp;
+    STORE_NOACK(stddev_temp, stddev + i, 0);
+    // stddev[i] = stddev_temp;
+    
 
     j=0;
     do {
@@ -159,7 +162,8 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       for(int jj=0; jj<REGION_SIZE; jj++){
         data_temp= (spAddr[sp_offset+jj]-mean_temp);
         data_temp/=(sqrt(n)*stddev_temp);
-        data[i*n+j+jj]= data_temp;
+        STORE_NOACK(data_temp, data + i*n+j+jj, 0);
+        // data[i*n+j+jj]= data_temp;
       }
       REMEM(REGION_SIZE);
       sp_offset += REGION_SIZE;
@@ -168,7 +172,8 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       j+=REGION_SIZE;
     } while(bh2);
     asm("trillium vissue_delim until_next symmat1");
-    symmat[i*m+i]=1; //make diagonal 1 for the vectors it is assigned
+    STORE_NOACK(1, symmat + i*m+i, 0);
+    // symmat[i*m+i]=1; //make diagonal 1 for the vectors it is assigned
     i+=vdim;
   } while(bh1);
 
@@ -287,8 +292,10 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       volatile int compiler_hack = 1;
       PRED_EQ(cond,1);
       if(compiler_hack){
-        symmat[i1*m+i2]=symmat_temp;
-        symmat[i2*m+i1]=symmat_temp;
+        STORE_NOACK(symmat_temp, symmat + i1*m+i2, 0);
+        // symmat[i1*m+i2]=symmat_temp;
+        STORE_NOACK(symmat_temp, symmat + i2*m+i1, 0);
+        // symmat[i2*m+i1]=symmat_temp;
       }
       PRED_EQ(ptid,ptid);
       i2+=1;
