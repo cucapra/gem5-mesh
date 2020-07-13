@@ -2,9 +2,10 @@ BENCHNAME := syrk
 default: $(BENCHNAME)
 
 # # run small sim for test
-PROB_SIZE := 32
+PROB_SIZE ?= 8
 N_SPS ?= 16
-HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
+HB_ARGS ?= --options="$(PROB_SIZE) $(PROB_SIZE)"
+GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Mesh
 
 # Build the kernel with trilliasm.
 TRILLIASM_KERNEL := syrk_kernel.c

@@ -602,7 +602,7 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   // clear all ports associated with this csr
   resetActive();
   
-  DPRINTF(Mesh, "csrVal %d\n", csrVal);
+  DPRINTF(Mesh, "csrVal %d s %d e %d v %d\n", csrVal, isRootMaster(), isExpander(), !isRootMaster() && !isExpander());
   
   //int csrId = MeshHelper::stageToCsr(_stage);
   
@@ -1007,7 +1007,7 @@ Vector::handleRevec(const IODynInstPtr pipeInst, const IODynInstPtr meshInst) {
 Vector::InstSource
 Vector::getOutMeshSource() {
   if (canWriteMesh()) {
-    if (isRootMaster()) {
+    if (isRootMaster() || isExpander()) {
       return Pipeline;
     }
     else {
