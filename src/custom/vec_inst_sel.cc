@@ -232,6 +232,8 @@ VecInstSel::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
     // if (_stallUntilJumpPC) DPRINTF(Mesh, "resolve pending jump %s %s\n", squashInfo.next_pc, squashInfo.trig_inst->toString(true));
     // _stallUntilJumpPC = false;
     _uopPC = squashInfo.next_pc;
+    
+    _lastICacheResp = nullptr;
 
     // send out a request now b/c vector stage won't tick this if there is no uop present...
     tryReqNextUop();
