@@ -26,6 +26,9 @@ TRILLIUM_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 KERNEL_NAME := $(basename $(TRILLIASM_KERNEL))
 TRILLIASM_OBJS := $(TRILLIASM_KERNEL:.c=.o)
 
+# incorporate frame checker script
+SYNC_CHECKER := python $(TRILLIUM_DIR)../scripts-phil/sync_frames.py
+
 $(KERNEL_NAME)_vector.s: $(KERNEL_NAME).c
 	$(RV_CC) $(VECTOR_CFLAGS) $(CFLAGS) -D VECTOR_CORE -S $< -o $@
 
@@ -37,3 +40,4 @@ $(KERNEL_NAME).s: $(KERNEL_NAME)_vector.s $(KERNEL_NAME)_scalar.s
 
 $(KERNEL_NAME).o: $(KERNEL_NAME).s
 	$(RV_CC) $(CFLAGS) -c $^ -o $@
+	$(SYNC_CHECKER) $^

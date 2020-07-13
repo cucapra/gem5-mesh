@@ -391,10 +391,10 @@ if len(vissue_table.items()) == 0:
 for k,v in vissue_table.items():
     count_vissue(k)
 
-# just print all
-for k,v in vissue_table.items():
-    print(k)
-    print(vissue_table[k]['count'])
+# # just print all
+# for k,v in vissue_table.items():
+#     print(k)
+#     print(vissue_table[k]['count'])
 
 # find minimum size of a vissue block that contains frames -> maximum number of open frames
 # TODO a real compiler would be able to figure out per prefetch/vissue block pair, but this prob good for now
@@ -404,7 +404,7 @@ for k,v in vissue_table.items():
         if (min_frame_size > v['count']):
             min_frame_size = v['count']
 
-print("min frame size: " + str(min_frame_size))
+# print("min frame size: " + str(min_frame_size))
 
 # do sync calculation using mesh size, frame size, etc..
 init_frames = det_sync_frames(
@@ -417,5 +417,6 @@ init_frames = det_sync_frames(
     args.num_hardware_cntrs
     )
 
-print("init_frames: " + str(init_frames))
-
+print("-------------------------------------------------------------")
+print("Guaranteed Synced if Init Frames <= " + str(init_frames) + " ... or your money back")
+print("-------------------------------------------------------------")
