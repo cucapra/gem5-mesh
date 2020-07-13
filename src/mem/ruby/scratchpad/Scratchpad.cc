@@ -38,8 +38,9 @@
 #include "mem/ruby/network/Network.hh"
 #include "mem/ruby/scratchpad/MemMessage.hh"
 #include "arch/registers.hh"
+#include "cpu/io/cpu.hh"
 
-#include "debug/Mesh.hh"
+#include "debug/Frame.hh"
 #include "debug/LoadTrack.hh"
 #include "debug/RubyNetwork.hh"
 
@@ -89,9 +90,6 @@ CpuPort::recvFunctional(Packet* pkt)
 // Scratchpad
 //-----------------------------------------------------------------------------
 
-
-#define NUM_REGION_CNTRS 2
-
 Scratchpad::Scratchpad(const Params* p)
     : AbstractController(p),
       m_ruby_system_p(p->ruby_system),
@@ -119,6 +117,7 @@ Scratchpad::Scratchpad(const Params* p)
       m_grid_dim_y(p->grid_dim_y),
       m_cpu_p(p->cpu),
       m_max_pending_sp_prefetches(p->prefetchBufSize),
+      m_num_frame_cntrs(p->numFrameCntrs),
       m_process_resp_event([this]{ processRespToSpad(); }, "Process a resp to spad", false),
       m_proc_ruby_last(false)
 {
@@ -288,7 +287,7 @@ Scratchpad::processRespToSpad() {
         enqueueStallRespToSp(pkt_p);
         
 
-        DPRINTF(Mesh, "[[WARNING]] potential diverge, now %d pending epoch %d core epoch %d addr %#x spadEntry %d\n", 
+        DPRINTF(Frame, "[[WARNING]] potential diverge, now %d pending epoch %d core epoch %d addr %#x spadEntry %d\n", 
           m_prefetch_resp_queue.size(), getDesiredRegion(m_prefetch_resp_queue.front()->getAddr()), getCoreEpoch(),
           m_prefetch_resp_queue.front()->getAddr(),
           getLocalAddr(m_prefetch_resp_queue.front()->getAddr()) / sizeof(uint32_t)
@@ -305,7 +304,7 @@ Scratchpad::processRespToSpad() {
         // epoch.... need to fix. Either remove since never run into problem here??? or 
         // somehow detect which epochs are still active
         if (m_prefetch_resp_queue.size() > m_max_pending_sp_prefetches) {
-          DPRINTF(Mesh, "[[WARNING]] must diverge now\n");
+          DPRINTF(Frame, "[[WARNING]] must diverge now\n");
           assert(false);
           // clear the pending buffer and inform cpu of divergence, to get squash
           //m_sp_prefetch_buffer.clear();
@@ -324,7 +323,7 @@ Scratchpad::processRespToSpad() {
       // access data array
       accessDataArray(pkt_p);
 
-      DPRINTF(Mesh, "store spec prefetch %#x\n", pkt_p->getAddr());
+      DPRINTF(Frame, "store spec prefetch %#x\n", pkt_p->getAddr());
         // if (isRegionAccess(pkt_p)){
         //   uint32_t *local_data_p = (uint32_t*)(m_data_array + getLocalAddr(pkt_p->getAddr()));
         //   float data = *(float*)local_data_p;
@@ -424,7 +423,7 @@ Scratchpad::wakeup()
       if (pkt_p->isRead())
         DPRINTF(LoadTrack, "Handling remote SP load locally %#x\n", pkt_p->getAddr());
 
-      if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Recv remote resp pkt %#x\n", pkt_p->getAddr());
+      if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Scratchpad, "Recv remote resp pkt %#x\n", pkt_p->getAddr());
 
       DPRINTF(RubyNetwork, "spad pull msg %p @addr %#x\n", mem_msg_p, pkt_p->getAddr());
 
@@ -460,7 +459,7 @@ Scratchpad::wakeup()
         memcpy(buff, data, sizeof(uint32_t));
         pkt_p->dataDynamic(buff);
         
-        DPRINTF(Mesh, "Recv remote store %#x from cache epoch %d data %d %d %d %d\n", 
+        DPRINTF(Frame, "Recv remote store %#x from cache epoch %d data %d %d %d %d\n", 
           llc_msg_p->m_LineAddress, llc_msg_p->m_Epoch, data[3], data[2], data[1], data[0]);
         
         assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
@@ -474,15 +473,16 @@ Scratchpad::wakeup()
         // m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
         m_mem_resp_buffer_p->dequeue(clockEdge());
 
-    } /*else if (m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 0 && 
+    } else if (m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 0 && 
               llc_msg_p->m_Type == LLCResponseType_ACK) {
+      DPRINTF(Scratchpad, "process store noack, ack\n");
       // we just need to send back to the core that we received an ack
       // make a fake resp packet to send back
       std::shared_ptr<Request> req =
                 std::make_shared<Request>(llc_msg_p->m_LineAddress,    // vaddr
                                           sizeof(uint32_t),    // size
                                           0, 0);
-        
+      req->isStoreNoAck = true;
       PacketPtr pending_mem_pkt_p = Packet::createWrite(req);
       pending_mem_pkt_p->pushSenderState(new MemUnit::SenderState(nullptr));
       pending_mem_pkt_p->makeResponse();
@@ -492,10 +492,11 @@ Scratchpad::wakeup()
       
       enqueueRubyRespToSp(pending_mem_pkt_p, Packet::RespPktType::LLC_Data_Resp);
 
-    }*/ else {
+    } else {
 
       // sanity check: make sure this is the response we're waiting for
       assert(m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 1);
+
       Packet* pending_mem_pkt_p = m_pending_pkt_map[llc_msg_p->m_SeqNum];
 
       DPRINTF(RubyNetwork, "spad pull msg %p @addr %#x\n", llc_msg_p, pending_mem_pkt_p->getAddr());
@@ -581,88 +582,6 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 
   if (pkt_p->isRead())
     DPRINTF(LoadTrack, "Load request received in local SP %#x\n", pkt_p->getAddr());
-  // /**
-  //  * From Xcel, access to base_addr field
-  //  */
-  // if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_BASE_ADDR_OFFSET) {
-  //   assert(pkt_p->isRead());
-
-  //   DPRINTF(Scratchpad, "Handling SPM_BASE_ADDR read: pkt %s\n",
-  //                       pkt_p->print());
-
-  //   if (*m_base_addr_p == 0) {
-  //     m_pending_base_addr_req = std::make_pair(MachineID(), pkt_p);
-  //   } else {
-  //     pkt_p->setData((uint8_t*) m_base_addr_p);
-  //     pkt_p->makeResponse();
-  //     // Save the response packet and schedule an event in the next cycle to
-  //     // send it to CPU
-  //     m_cpu_resp_pkts.push_back(pkt_p);
-  //     if (!m_cpu_resp_event.scheduled())
-  //       schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-  //   }
-
-  //   return true;
-  // }
-
-  // /**
-  //  * From Xcel, access to go_flag field
-  //  */
-  // if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_GO_FLAG_OFFSET) {
-  //   assert(pkt_p->isRead());
-
-  //   DPRINTF(Scratchpad, "Handling SPM_GO_FLAG read: pkt %s\n",
-  //                       pkt_p->print());
-
-  //   if (*m_go_flag_p == 0) {
-  //     m_pending_go_flag_req = std::make_pair(m_machineID, pkt_p);
-  //   } else {
-  //     pkt_p->setData((uint8_t *) m_go_flag_p);
-  //     pkt_p->makeResponse();
-  //     *m_go_flag_p = 0;
-  //     // Save the response packet and schedule an event in the next cycle to
-  //     // send it to CPU
-  //     m_cpu_resp_pkts.push_back(pkt_p);
-  //     if (!m_cpu_resp_event.scheduled())
-  //       schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-  //   }
-
-  //   return true;
-  // }
-
-  // /**
-  //  * From Xcel, access to done_flag field
-  //  */
-  // if (pkt_p->isSPM() && pkt_p->getAddr() == SPM_DONE_FLAG_OFFSET) {
-  //   assert(pkt_p->isWrite());
-
-  //   DPRINTF(Scratchpad, "Handling SPM_DONE_FLAG write: pkt %s\n",
-  //                       pkt_p->print());
-
-  //   pkt_p->writeData((uint8_t*) m_done_flag_p);
-
-  //   DPRINTF(Scratchpad, "Done value: %d\n", *m_done_flag_p);
-
-  //   pkt_p->makeResponse();
-  //   // Save the response packet and schedule an event in the next cycle to
-  //   // send it to CPU
-  //   m_cpu_resp_pkts.push_back(pkt_p);
-  //   if (!m_cpu_resp_event.scheduled())
-  //     schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
-
-  //   // wake up any remote request reading this flag
-  //   if (m_pending_done_flag_req.second) {
-  //     DPRINTF(Scratchpad, "Waking up a deferred SPM_DONE_FLAG read: pkt %s\n",
-  //                         m_pending_done_flag_req.second);
-
-  //     assert(handleRemoteReq(m_pending_done_flag_req.second,
-  //                            m_pending_done_flag_req.first));
-  //     m_pending_done_flag_req.first = MachineID();
-  //     m_pending_done_flag_req.second = nullptr;
-  //   }
-
-  //   return true;
-  // }
 
   /**
    * From either CPU or Xcel, access to data
@@ -679,13 +598,15 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // If this is a speculative load and the data isn't present, then
     // allow the packets equal to ld queue size be buffered here
     // if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
-    if (isRegionAccess(pkt_p) && !isWordRdy(pkt_p->getAddr())){
-      //m_packet_buffer.push_back(pkt_p);
-      //assert(m_packet_buffer.size() <= m_spec_buf_size);
-      // just say not rdy actually
-      m_not_rdy_stalls++;
-      DPRINTF(Mesh, "not rdy for packet to addr %#x\n", pkt_p->getAddr());
-      return false;
+    if (m_cpu_p->getEarlyVector()->isSlave()){
+      if (isRegionAccess(pkt_p) && !isWordRdy(pkt_p->getAddr())){
+        //m_packet_buffer.push_back(pkt_p);
+        //assert(m_packet_buffer.size() <= m_spec_buf_size);
+        // just say not rdy actually
+        m_not_rdy_stalls++;
+        DPRINTF(Frame, "not rdy for packet to addr %#x\n", pkt_p->getAddr());
+        return false;
+      }
     }
     
     // TODO stats might be incorrect with these stalls
@@ -749,9 +670,10 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // TODO currently checking normal pkt map, should we make our own so that can be
     // unlimited pending? doesn't seem like the spad has to track anything for a pending load?
     bool isPrefetch = pkt_p->isSpadPrefetch();
-    bool noLLCAck = isPrefetch;
-    bool pendingPktSpad = (m_pending_pkt_map.size() < m_max_num_pending_pkts) || noLLCAck;
-    if (isPrefetch && pendingPktSpad) {
+    bool noAckStore = pkt_p->isStoreNoAck();
+    bool noLLCAck = isPrefetch || noAckStore;
+    // bool pendingPktSpad = (m_pending_pkt_map.size() < m_max_num_pending_pkts) || noLLCAck;
+    if (isPrefetch /*&& pendingPktSpad*/) {
       // setWordNotRdy(pkt_p->getPrefetchAddr());
       
       // DPRINTF(Mesh, "reset word %#x\n", pkt_p->getPrefetchAddr());
@@ -763,6 +685,14 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       m_cpu_resp_pkts.push_back(resp_pkt_p);
       if (!m_cpu_resp_event.scheduled())
         schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+
+
+      // log that we sent
+      m_cpu_p->getSystemPtr()->initPrefetch(pkt_p->getPrefetchAddr(),
+        pkt_p->getXOrigin(), pkt_p->getYOrigin(),
+        pkt_p->getXDim(), pkt_p->getYDim(), m_grid_dim_x,
+        pkt_p->getCoreOffset(), pkt_p->getRespCnt(), (bool)pkt_p->getPrefetchConfig());
+
     }
     // // immedietly send an ACK back for a write if no syncronization is needed
     // // TODO mark writes as need sync or no need sync
@@ -782,7 +712,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // This packet will be delivered to LLC
     if (m_pending_pkt_map.size() == m_max_num_pending_pkts && !noLLCAck) {
       DPRINTF(Scratchpad, "Blocking. Pending pkt buffer is full\n");
-      if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Blocking. Pending pkt buffer is full\n");
+      if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Scratchpad, "Blocking. Pending pkt buffer is full\n");
       m_exceed_stream_width++;
       return false;
     } else {
@@ -795,7 +725,12 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       msg_p->m_Requestor = m_machineID;
       msg_p->m_MessageSize = MessageSizeType_Request_Control;
       (msg_p->m_Destination).add(dst_port);
-      msg_p->m_SeqNum = m_cur_seq_num;
+      
+      if (noLLCAck)
+        msg_p->m_SeqNum = -1;
+      else
+        msg_p->m_SeqNum = m_cur_seq_num;
+
       // access length in x,y -- prob always linearized
       msg_p->m_XDim = pkt_p->getXDim();
       msg_p->m_YDim = pkt_p->getYDim();
@@ -889,7 +824,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     DPRINTF(Scratchpad, "Sending pkt %s to %s\n", pkt_p->print(), dst_port);
     if (pkt_p->isRead())
       DPRINTF(LoadTrack, "Sending Load request to remote SP %#x\n", pkt_p->getAddr());
-    if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Sending remote req pkt %#x to %s\n", pkt_p->getAddr(), dst_port);
+    if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Scratchpad, "Sending remote req pkt %#x to %s\n", pkt_p->getAddr(), dst_port);
 
     // Make and queue the message
     std::shared_ptr<MemMessage> msg_p =
@@ -918,7 +853,7 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
   MachineID src_port = m_machineID;
   MachineID dst_port = remote_sender;
 
-  if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Mesh, "Recv remote req pkt %#x\n", pkt_p->getAddr());
+  if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Scratchpad, "Recv remote req pkt %#x\n", pkt_p->getAddr());
 
   bool respond_sender = true;
 
@@ -999,7 +934,7 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
     if (isRegionAccess(pkt_p) && !isWordRdyForRemote(pkt_p->getAddr()))
     //TODO: Will fail if remote access to past region and prefetching going on, but then again accessing into past region is faulty
     {
-      DPRINTF(Mesh, "remote region access into a region not ready (not cool bro) %s\n", pkt_p->print());
+      DPRINTF(Frame, "remote region access into a region not ready (not cool bro) %s\n", pkt_p->print());
       return false;
     }
 
@@ -1175,9 +1110,9 @@ Scratchpad::getL2BankFromAddr(Addr addr) const
 
 int
 Scratchpad::getCoreEpoch() {
-  // int coreEpoch = m_cpu_p->getRevecEpoch();
-  int coreEpoch = m_cpu_p->getMemEpoch();
-  return coreEpoch;
+  // int coreEpoch = m_cpu_p->getMemEpoch();
+  // return coreEpoch;
+  return m_cur_consumer_region;
 }
 
 int
@@ -1199,7 +1134,7 @@ Scratchpad::getDesiredRegion(Addr addr) {
   // NOTE currently assumed to be directly after metadata bits
   int prefetchSectionIdx = padIdx - SPM_DATA_WORD_OFFSET;
   int region = prefetchSectionIdx / getRegionElements();
-  DPRINTF(Mesh, "addr %#x padIdx %d region %d\n", addr, padIdx, region);
+  // DPRINTF(Frame, "addr %#x padIdx %d region %d\n", addr, padIdx, region);
   assert(region < getNumRegions());
   return region;
 }
@@ -1251,19 +1186,21 @@ Scratchpad::isPrefetchAhead(Addr addr) {
 
   // packet is ahead of any prefetch region, so can't process yet
   bool aheadCntr = true;
-  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
-    if (pktEpochMod == getCurRegion(i)) {
+  for (int i = 0; i < m_num_frame_cntrs; i++) {
+    if (pktEpochMod == getCurPrefetchRegion(i)) {
       aheadCntr = false;
     }
   }
 
   // packet would bring prefetch region to overlap with core access region and would cause undetectable overwrite
   // don't allow to be processed yet
-  // int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
-  bool wouldOverlap = m_cpu_p->getMemTokens() + getRegionElements() >= getAllRegionSize();
+  // // int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
+  // // TODO issue if don't consume the whole mem token frame
+  // bool wouldOverlap = m_cpu_p->getMemTokens() + getRegionElements() >= getAllRegionSize();
+  bool wouldOverlap = (getCurPrefetchRegion(1) == getCurConsumerRegion(0));
 
-  DPRINTF(Mesh, "wouldOverlap %d ahead %d pktEpoch %d tokens %d prefetchRegion %d region cntr %d\n", 
-    wouldOverlap, aheadCntr, pktEpochMod, m_cpu_p->getMemTokens(), m_cur_prefetch_region, m_region_cntrs[0]);
+  DPRINTF(Frame, "wouldOverlap %d ahead %d pktEpoch %d consumerRegion %d prefetchRegion %d region cntr %d\n", 
+    wouldOverlap, aheadCntr, pktEpochMod, m_cur_consumer_region, m_cur_prefetch_region, m_region_cntrs[0]);
   return wouldOverlap || aheadCntr;
 
 
@@ -1319,7 +1256,10 @@ Scratchpad::isWordRdy(Addr addr) {
   // just make sure have enough tokens
   // TODO should check in mem unit
   // DPRINTF(Mesh, "check if enough tokens to read cur %d need %d\n", m_cpu_p->getMemTokens(), getRegionElements());
-  return (m_cpu_p->getMemTokens() >= getRegionElements());
+  // return (m_cpu_p->getMemTokens() >= getRegionElements());
+
+  // ????
+  return (getDesiredRegion(addr) == m_cur_consumer_region);
 }
 
 void
@@ -1335,6 +1275,9 @@ Scratchpad::setWordRdy(Addr addr) {
 
   // tag = 1;
 
+  m_cpu_p->getSystemPtr()->cmplPrefetch(addr);
+
+
   // increment the counter for number of expected loads
   // need to find the right regon cntr
   // m_region_cntr++;
@@ -1349,7 +1292,7 @@ Scratchpad::setWordRdy(Addr addr) {
 
   // m_last_word_recv = (getLocalAddr(addr) / sizeof(uint32_t)) - SPM_DATA_WORD_OFFSET;
   // m_cpu_p->produceMemTokens(1);
-  DPRINTF(Mesh, "recv addr %lx first region cntr %d tokens %d\n", addr, m_region_cntrs[0], m_cpu_p->getMemTokens());
+  DPRINTF(Frame, "recv addr %lx first region cntr %d prefetch region %d\n", addr, m_region_cntrs[0], m_cur_prefetch_region);
 
   // DPRINTF(Mesh, "increment region wiht addr %#x cnt now %d\n", addr, m_region_cntr);
 }
@@ -1375,20 +1318,46 @@ Scratchpad::resetRdyArray() {
   // }
 
   // we can now prefetch in the next region
-  m_cur_prefetch_region = getCurRegion(1); //(m_cur_prefetch_region + 1) % getNumRegions();
+  m_cur_prefetch_region = getCurPrefetchRegion(1); //(m_cur_prefetch_region + 1) % getNumRegions();
+  DPRINTF(Frame, "goto next prefetch region %d\n", m_cur_prefetch_region);
 
   // start counting for that next region
   // do swap chain
-  for (int i = 0; i < NUM_REGION_CNTRS - 1; i++) {
+  for (int i = 0; i < m_num_frame_cntrs - 1; i++) {
     m_region_cntrs[i] = m_region_cntrs[i + 1];
   }
-  m_region_cntrs[NUM_REGION_CNTRS - 1] = 0;
+  m_region_cntrs[m_num_frame_cntrs - 1] = 0;
 
-  m_cpu_p->produceMemTokens(getRegionElements());
+  // m_cpu_p->produceMemTokens(getRegionElements());
+}
+
+bool
+Scratchpad::isNextConsumerFrameRdy() {
+  // DPRINTF(Frame, "check frames %d ?= %d\n", m_cur_consumer_region, m_cur_prefetch_region);
+  return (m_cur_consumer_region != m_cur_prefetch_region);
+}
+
+void
+Scratchpad::incConsumerFrame() {
+  m_cur_consumer_region = getCurConsumerRegion(1);
+  DPRINTF(Frame, "inc consumer frame %d\n", m_cur_consumer_region);
 }
 
 void
 Scratchpad::setupConfig(int csrId, RegVal csrVal) {
+  // finalize stats when devec, TODO doesn't work for multiple kernels
+  if (csrId == RiscvISA::MISCREG_FETCH) {
+    if (csrVal == 0) {
+      for (int i = 0; i < m_num_frame_cntrs; i++) {
+        m_occupancy_offset[i] = m_occupancy_offset[i].value() / num_occupancy_samples / getRegionElements();
+      }
+    }
+    else {
+      num_occupancy_samples = 0;
+    }
+  }
+
+
   if (csrId != RiscvISA::MISCREG_PREFETCH) return;
 
   resetAllRegionCntrs();
@@ -1398,21 +1367,24 @@ Scratchpad::setupConfig(int csrId, RegVal csrVal) {
 
 void
 Scratchpad::resetAllRegionCntrs() {
-  DPRINTF(Mesh, "reset frame cntrs\n");
+  // DPRINTF(Mesh, "reset frame cntrs\n");
   m_region_cntrs.clear();
-  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
+  for (int i = 0; i < m_num_frame_cntrs; i++) {
     m_region_cntrs.push_back(0);
   }
   m_cur_prefetch_region = 0;
+  m_cur_consumer_region = 0;
 }
 
 void
 Scratchpad::incRegionCntr(Addr addr) {
   // figure out which region this belongs to
   int region = getDesiredRegion(addr);
-  for (int i = 0; i < NUM_REGION_CNTRS; i++) {
-    if (region == getCurRegion(i)) {
+  for (int i = 0; i < m_num_frame_cntrs; i++) {
+    if (region == getCurPrefetchRegion(i)) {
       m_region_cntrs[i]++;
+      DPRINTF(Frame, "addr %#x region %d inc region cntr %d, count now %d\n",
+        addr, region, i, m_region_cntrs[i]);
       return;
     }
   }
@@ -1420,13 +1392,46 @@ Scratchpad::incRegionCntr(Addr addr) {
 }
 
 int
-Scratchpad::getCurRegion(int offset) {
+Scratchpad::getCurPrefetchRegion(int offset) {
   return (m_cur_prefetch_region + offset) % getNumRegions();
+}
+
+int
+Scratchpad::getCurConsumerRegion(int offset) {
+  return (m_cur_consumer_region + offset) % getNumRegions();
 }
 
 int
 Scratchpad::getAllRegionSize() {
   return getNumRegions() * getRegionElements();
+}
+
+int
+Scratchpad::getNumClosedFrames() {
+  int diff = m_cur_prefetch_region - m_cur_consumer_region;
+  int closedFrames;
+  if (diff >= 0) {
+    closedFrames = diff;
+  }
+  else {
+    closedFrames = getNumRegions() - (-1 * diff);
+  }
+  return closedFrames;
+}
+
+void
+Scratchpad::profileFrameCntrs() {
+  for (int i = 1; i < m_num_frame_cntrs; i++) {
+    // count from cpu frame, if region counter comes later then count as full
+    int getClosedFrames = getNumClosedFrames();
+    if (i < getClosedFrames) {
+      m_occupancy_offset[i] += getRegionElements();
+    }
+    else {
+      m_occupancy_offset[i] += m_region_cntrs[i - getClosedFrames];
+    }
+  }
+  num_occupancy_samples++;
 }
 
 void
@@ -1493,6 +1498,13 @@ Scratchpad::regStats()
   m_local_accesses = m_local_loads + m_local_stores;
   m_remote_accesses = m_remote_loads + m_remote_stores;
   m_total_accesses = m_local_accesses + m_remote_accesses;
+
+  m_occupancy_offset
+    .init(m_num_frame_cntrs)
+    .name(name() + ".occupancy")
+    .desc("average occupancy of counters on remem relative to consumer frame. cur frame(0) invalid")
+    // .flags(Stats::total | Stats::pdf | Stats::dist)
+    ;
   
 }
 

@@ -1,8 +1,0 @@
-Usage: ./build.sh <x86/riscv> <opt/debug>
-
-Builds all of the matrix multiply implementations
-
-
-RISCV meant to run on gem5 commit 53e74695ac28e02d10594af0ef6afff6536a0d35 (may 4 2019)
-Also doesn't seem to work with ruby (instead use --caches --l2cache in config/se.py)
-This looks like what BRG does in there release http://www.csl.cornell.edu/~cbatten/pdfs/ta-gem5-riscv-slides-carrv2018.pdf

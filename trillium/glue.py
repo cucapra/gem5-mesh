@@ -200,10 +200,16 @@ def extract_vector_blocks(raw_vector_code):
 
                     if delim == TrilliumAsmDelim.BEGIN:
                         state = VectorParseState.BEGIN_END
+                    elif delim == TrilliumAsmDelim.IF_BEGIN:
+                        state = VectorParseState.IF_BEGIN_END
                     elif delim == TrilliumAsmDelim.UNTIL_NEXT:
                         state = VectorParseState.UNTIL_NEXT
                     elif delim == TrilliumAsmDelim.RETURN:
                         state = VectorParseState.RETURN
+                    else:
+                        raise ParseError(
+                            'unhandled delimiter after junk: {}'.format(l)
+                        )
 
                 else:
                     junk_vissue_key = junk_prefix + str(junk_postfix)
@@ -244,6 +250,25 @@ def extract_vector_blocks(raw_vector_code):
         )
 
     return blocks, rodata_chunks
+
+
+def make_devec_label(devec):
+    """Given a `devec` instruction line, manufacture a label for the
+    instruction and return a list of lines to be inserted into the file
+    in its place.
+    """
+    if not is_DEVEC(devec):
+        raise ParseError("devec not found where expected")
+
+    # Get the current label the devec is using, and append a marker to
+    # make it unique.
+    rest, label = devec.rsplit(',', 1)
+    new_label = '{}DEVEC'.format(label.strip())
+
+    return [
+        '{}:'.format(new_label),
+        '{}, {}'.format(rest, new_label),
+    ]
 
 
 class ScalarParseState(Enum):
@@ -307,16 +332,20 @@ def glue(raw_scalar_code, all_vector_bbs, rodata_chunks):
 
             labeled_vector_bbs.extend(all_vector_bbs[func_name][vissue_key])
 
+        # Manufacture a new, special label *just* for the devec instruction.
+        devec = after_DEVEC_before_RET_DELIM[0]
+        devec_lines = make_devec_label(devec)
+
         return (
             header +
             [after_VECTOR_EPOCH_before_DEVEC[0]] +
             before_VECTOR_EPOCH +
-            after_VECTOR_EPOCH_before_DEVEC[1:-1] + #there's always a label before DEVEC
+            after_VECTOR_EPOCH_before_DEVEC[1:] +
             ["# trillium: scalar stack cleanup begin"] +
             scalar_cleanup +
             ["# trillium: scalar stack cleanup end"] +
-            [after_VECTOR_EPOCH_before_DEVEC[-1]] +
-            after_DEVEC_before_RET_DELIM +
+            devec_lines +
+            after_DEVEC_before_RET_DELIM[1:] +
             [scalar_ret_inst if scalar_ret_inst else "ret" + "# relocated return instruction"] +
             ["# trillium: auxiliary blocks begin"] +
             aux_bbs_as_list +
@@ -540,10 +569,6 @@ if __name__ == "__main__":
 
     vector_file = open(args.vector, "r")
     scalar_file = open(args.scalar, "r")
-    if args.output:
-        combined_file = open(args.output, "w")
-    else:
-        combined_file = sys.stdout
 
     vector_code = vector_file.readlines()
     scalar_code = scalar_file.readlines()
@@ -571,4 +596,10 @@ if __name__ == "__main__":
 
     # Print out the combined assembly.
     log.info("Done gluing; ready to print.")
-    combined_file.write(pretty(combined_code) + '\n')
+    out_asm = pretty(combined_code) + '\n'
+
+    if args.output:
+        with open(args.output, "w") as f:
+            f.write(out_asm)
+    else:
+        sys.stdout.write(out_asm)

@@ -17,20 +17,29 @@
 
 # Ensure that RV_CC and CFLAGS are set (we do not define them here). These
 # extra flags apply only to compiling the vector "half" of the code.
-VECTOR_CFLAGS ?= -fno-reorder-blocks
+VECTOR_CFLAGS ?= -fno-reorder-blocks \
+	--param max-jump-thread-duplication-stmts=0
+
+SCALAR_CFLAGS ?= -fno-reorder-blocks
 
 TRILLIUM_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 KERNEL_NAME := $(basename $(TRILLIASM_KERNEL))
 TRILLIASM_OBJS := $(TRILLIASM_KERNEL:.c=.o)
 
+# incorporate frame checker script
+SYNC_CHECKER := python $(TRILLIUM_DIR)../scripts-phil/sync_frames.py
+# single side length (not the full vec group size)
+VECTOR_DIM ?= 2
+
 $(KERNEL_NAME)_vector.s: $(KERNEL_NAME).c
 	$(RV_CC) $(VECTOR_CFLAGS) $(CFLAGS) -D VECTOR_CORE -S $< -o $@
 
 $(KERNEL_NAME)_scalar.s: $(KERNEL_NAME).c
-	$(RV_CC) $(CFLAGS) -D SCALAR_CORE -S $< -o $@ 
+	$(RV_CC) $(SCALAR_CFLAGS) $(CFLAGS) -D SCALAR_CORE -S $< -o $@
 
 $(KERNEL_NAME).s: $(KERNEL_NAME)_vector.s $(KERNEL_NAME)_scalar.s
 	python3 $(TRILLIUM_DIR)/glue.py $^ -o $(KERNEL_NAME).s
 
 $(KERNEL_NAME).o: $(KERNEL_NAME).s
 	$(RV_CC) $(CFLAGS) -c $^ -o $@
+	$(SYNC_CHECKER) $^ --vec-dim $(VECTOR_DIM)

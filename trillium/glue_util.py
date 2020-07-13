@@ -14,7 +14,8 @@ def is_return_inst(inst):
     return opcode == "ret" or (opcode == "jr" and arg == "ra")
 
 def is_jump(inst):
-    jump_opcodes = ["bgt", "beqz", "bnez", "jr", "j"]
+    jump_opcodes = ["bgt", "beqz", "bnez", "jr", "j",
+                    "beq", "blt", "bne", "bge"]
     return inst.split()[0] in jump_opcodes
 
 def is_DEVEC(inst):

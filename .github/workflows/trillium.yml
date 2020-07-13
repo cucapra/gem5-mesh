@@ -28,5 +28,5 @@ jobs:
             - name: Install Turnt
               run: "pip install 'turnt>=1.4.0'"
             - name: Test
-              run: turnt test/*.t
+              run: turnt --diff test/*.t
               working-directory: trillium

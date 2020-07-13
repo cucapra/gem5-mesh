@@ -188,9 +188,9 @@ IOCPU::IOCPU(IOCPUParams* params)
       m_active_thread_ids(),
       m_isa_list(),
       m_global_seq_num(1),
-      m_revec_cntr(0),
-      m_mem_epoch(0),
-      m_tokens(0),
+      // m_revec_cntr(0),
+      // m_mem_epoch(0),
+      // m_tokens(0),
       m_last_active_cycle(0)
       
 {
@@ -345,6 +345,7 @@ IOCPU::IOCPU(IOCPUParams* params)
     }
 #endif
   }
+
 }
 
 IOCPU::~IOCPU()
@@ -360,6 +361,9 @@ IOCPU::init()
   for (int i = 0; i < m_pipeline.getLen(); i++) {
     m_pipeline[i]->init();
   }
+
+  m_local_spm = static_cast<CpuPort&>(getDataPort().getSlavePort()).getAttachedSpad();
+
 }
 
 void
@@ -633,6 +637,9 @@ IOCPU::tick()
 
   // update stats
   numCycles++;
+
+  // if (getEarlyVector()->getConfigured())
+  //   getLocalScratchpad()->profileFrameCntrs();
 
 #ifdef DEBUG
   linetrace();
@@ -998,7 +1005,7 @@ IOCPU::setMiscReg(int misc_reg, RegVal val, ThreadID tid)
     getLateVector()->setupConfig(misc_reg, val);
 
   // set scracthpad prefetch mask
-  static_cast<CpuPort&>(getDataPort().getSlavePort()).getAttachedSpad()->setupConfig(misc_reg, val);
+  getLocalScratchpad()->setupConfig(misc_reg, val);
   
   m_isa_list[tid]->setMiscReg(misc_reg, val, tcBase(tid));
 }
@@ -1031,37 +1038,50 @@ IOCPU::setArchCCReg(int reg_idx, RegVal val, ThreadID tid)
   m_reg_file.setCCReg(phys_reg, val);
 }
 
-int
-IOCPU::getRevecEpoch() {
-  return m_revec_cntr;
+// int
+// IOCPU::getRevecEpoch() {
+//   return m_revec_cntr;
+// }
+
+// void
+// IOCPU::incRevecEpoch() {
+//   m_revec_cntr = (m_revec_cntr + 1) % getSpadNumRegions();
+//   DPRINTF(Mesh, "increment revec %d\n", m_revec_cntr);
+// }
+
+// int
+// IOCPU::getMemEpoch() {
+//   return m_mem_epoch;
+// }
+
+// void
+// IOCPU::incMemEpoch() {
+//   m_mem_epoch = (m_mem_epoch + 1) % getSpadNumRegions();
+//   DPRINTF(Mesh, "increment remem %d\n", m_mem_epoch);
+// }
+
+
+// void
+// IOCPU::produceMemTokens(int tokens) {
+//   m_tokens += tokens;
+// }
+
+// void
+// IOCPU::consumeMemTokens(int tokens) {
+//   m_tokens -= tokens;
+// }
+
+bool
+IOCPU::isNextFrameReady() {
+  return getLocalScratchpad()->isNextConsumerFrameRdy();
 }
 
 void
-IOCPU::incRevecEpoch() {
-  m_revec_cntr = (m_revec_cntr + 1) % getSpadNumRegions();
-  DPRINTF(Mesh, "increment revec %d\n", m_revec_cntr);
-}
+IOCPU::consumeFrame() {
+  // look at current state of frames here
+  getLocalScratchpad()->profileFrameCntrs();
 
-int
-IOCPU::getMemEpoch() {
-  return m_mem_epoch;
-}
-
-void
-IOCPU::incMemEpoch() {
-  m_mem_epoch = (m_mem_epoch + 1) % getSpadNumRegions();
-  DPRINTF(Mesh, "increment remem %d\n", m_mem_epoch);
-}
-
-
-void
-IOCPU::produceMemTokens(int tokens) {
-  m_tokens += tokens;
-}
-
-void
-IOCPU::consumeMemTokens(int tokens) {
-  m_tokens -= tokens;
+  getLocalScratchpad()->incConsumerFrame();
 }
 
 int
@@ -1078,6 +1098,11 @@ IOCPU::getSpadRegionSize() {
   int tid = 0;
   RegVal csrVal = readMiscRegNoEffect(RiscvISA::MISCREG_PREFETCH, tid);
   return MeshHelper::prefetchRegionSize(csrVal);
+}
+
+Scratchpad*
+IOCPU::getLocalScratchpad() {
+  return m_local_spm;
 }
 
 void
