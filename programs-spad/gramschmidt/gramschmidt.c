@@ -146,7 +146,7 @@ void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, D
       // compute magnitude of the vector
       u_magnitude_manycore_baseline(a, r, numVectors, vectorLen, k, ptid, dim);
 
-      pthread_barrier_wait(&start_barrier);
+      SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
 
       // normalize the vector
       if (used)
@@ -154,7 +154,7 @@ void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, D
       // u_normalize_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
 
 
-      pthread_barrier_wait(&start_barrier);
+      SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
 
       // apply projection of this vector onto each vector that hasn't been orthonormalized
       if (used)
