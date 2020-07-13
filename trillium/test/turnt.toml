@@ -1,1 +1,3 @@
-command = "python3 ../glue.py {args} {filename}"
+command = "python3 ../glue.py {filename}/vector.s {filename}/scalar.s"
+output.s = "-"
+opts_file = "scalar.s"
