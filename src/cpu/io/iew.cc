@@ -412,6 +412,10 @@ IEW::doIssue()
     // unless a predication instructoin in which case we need to send
     inst->pred_at_issue = m_pred_flag; //getPred();
     if (!inst->pred_at_issue && !inst->static_inst_p->isPredicate()) {
+
+      // if this was a branch clear the stall flag
+      m_cpu_p->getEarlyVector()->getVecInstSel().resetStallWait();
+
       // forward the value of the previous renamed reg for this one b/c there many be instructions
       // that read this
       inst->forwardOldRegs();

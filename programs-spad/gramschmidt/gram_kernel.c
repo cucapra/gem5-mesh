@@ -114,7 +114,7 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   // start = ( k + 1 ) + roundUp(start, VECTOR_LEN);
   // end   = ( k + 1 ) + roundUp(end  , VECTOR_LEN);
 
-  printf("%d->%d k %d\n", start, end, k);
+  // printf("%d->%d k %d\n", start, end, k);
 
   // issue header block
   ISSUE_VINST(init_label);
@@ -160,10 +160,10 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     PRED_EQ(gt, 0);
     r_cache += q[i * numVectors + k] * a[i * numVectors + j];
     i++;
-    PRED_EQ(i, vectorLen);
-    i = 0; // DCE on this and above b/c always 0
+    // PRED_EQ(i, vectorLen);
+    // i = 0; // DCE on this and above b/c always 0
     // PRED_EQ(i, i);
-    // if (i == vectorLen) i = 0;
+    if (i == vectorLen) i = 0;
     PRED_EQ(i, i);
     asm("trillium vissue_delim end at_jump");
   } while(BH);
@@ -179,16 +179,16 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     DTYPE val = a[i * numVectors + j] - q[i * numVectors + k] * r_cache;
     STORE_NOACK(val, &a[i * numVectors + j], 0);
     i++;
-    PRED_EQ(i, vectorLen);
-    i = 0;
-    r_cache = 0.0f;
-    j+=VECTOR_LEN;
+    // PRED_EQ(i, vectorLen);
+    // i = 0;
+    // r_cache = 0.0f;
+    // j+=VECTOR_LEN;
     // PRED_EQ(j, j);
-    // if (i == vectorLen) {
-    //   i = 0;
-    //   r_cache = 0.0f;
-    //   j+=VECTOR_LEN;
-    // }
+    if (i == vectorLen) {
+      i = 0;
+      r_cache = 0.0f;
+      j+=VECTOR_LEN;
+    }
     PRED_EQ(j, j);
     asm("trillium vissue_delim end at_jump");
   } while(BH2);
