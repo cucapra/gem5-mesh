@@ -16,9 +16,13 @@
 
 // prefetch sizings
 #ifdef USE_VEC
-#define POST_FRAME_WORD 128
-#define FRAME_SIZE 1
-#define NUM_FRAMES (POST_FRAME_WORD / FRAME_SIZE)
+#define POST_FRAME_WORD_NORM 128
+#define FRAME_SIZE_NORM 1
+#define NUM_FRAMES_NORM (POST_FRAME_WORD_NORM / FRAME_SIZE_NORM)
+
+#define POST_FRAME_WORD_SUB 128
+#define FRAME_SIZE_SUB 2
+#define NUM_FRAMES_SUB (POST_FRAME_WORD_SUB / FRAME_SIZE_SUB)
 #endif
 
 // vector grouping directives

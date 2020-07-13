@@ -146,7 +146,7 @@ void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, D
       // compute magnitude of the vector
       u_magnitude_manycore_baseline(a, r, numVectors, vectorLen, k, ptid, dim);
 
-      SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
+      SET_PREFETCH_MASK(NUM_FRAMES_NORM, FRAME_SIZE_NORM, &start_barrier);
 
       // normalize the vector
       if (used)
@@ -154,7 +154,7 @@ void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, D
       // u_normalize_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
 
 
-      SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
+      SET_PREFETCH_MASK(NUM_FRAMES_SUB, FRAME_SIZE_SUB, &start_barrier);
 
       // apply projection of this vector onto each vector that hasn't been orthonormalized
       if (used)
@@ -245,12 +245,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int mask = 0;
   #endif
 
-  #ifdef USE_VEC
-  SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
-  #else
-  // single barrier before kernel start
-  // pthread_barrier_wait(&start_barrier);
-  #endif
+  // #ifdef USE_VEC
+  // SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
+  // #else
+  // // single barrier before kernel start
+  // // pthread_barrier_wait(&start_barrier);
+  // #endif
 
   MOVE_STACK_ONTO_SCRATCHPAD();
 
