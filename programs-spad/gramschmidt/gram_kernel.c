@@ -71,11 +71,11 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   volatile int BH;
   do {
     asm("trillium vissue_delim if_begin vec_body");
-    q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
+    // q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
     START_FRAME();
-    // DTYPE val =  sp_ptr[sp] / r_cache;
+    DTYPE val =  sp_ptr[sp] / r_cache;
     END_FRAME();
-    // STORE_NOACK(val, &q[i * numVectors + k], 0);
+    STORE_NOACK(val, &q[i * numVectors + k], 0);
     i+=VECTOR_LEN;
     sp++;
     if (sp == POST_FRAME_WORD) sp = 0;
