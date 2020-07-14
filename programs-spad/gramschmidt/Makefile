@@ -5,7 +5,7 @@ default: $(BENCHNAME)
 PROB_SIZE := 16
 N_SPS ?= 16
 HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
-# GEM5_ARGS := --remote-gdb-port=0 --debug-flags=Frame
+GEM5_ARGS := --remote-gdb-port=0 --debug-flags=Mesh
 
 # Build the kernel with trilliasm.
 TRILLIASM_KERNEL := gram_kernel.c
