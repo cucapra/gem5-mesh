@@ -242,14 +242,10 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   volatile int BH;
   do {
     asm("trillium vissue_delim if_begin vec_body_1");
-    // TODO PRED_GRE
-
     // get data regardless of predication
     START_FRAME();
     // volatile needed or else does fmadd with r_cache += val
     volatile DTYPE val = sp_ptr[sp + 0]  * sp_ptr[sp + 1];
-    // volatile DTYPE val = q[i * numVectors + k] * a[i * numVectors + j];
-    // volatile DTYPE val = q[i * numVectors + k] * sp_ptr[sp + 1];
     END_FRAME();
 
     sp = (sp + FRAME_SIZE_SUB) % POST_FRAME_WORD_SUB;
@@ -257,16 +253,8 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     // volatile int j_ = j;
     int gt = (j >= end);
     PRED_EQ(gt, 0);
-    // if (BH) {
     // r_cache += q[i * numVectors + k] * a[i * numVectors + j];
     r_cache += val;
-    // i++;
-
-    // PRED_EQ(i, vectorLen);
-    // i = 0; // DCE on this and above b/c always 0
-    // PRED_EQ(i, i);
-    // if (i == vectorLen) i = 0;
-    // }
     PRED_EQ(gt, gt);
 
     asm("trillium vissue_delim end at_jump");
@@ -291,24 +279,11 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     END_FRAME();
     sp = (sp + FRAME_SIZE_SUB) % POST_FRAME_WORD_SUB;
 
-    // volatile int j_ = j;
     int gt = (j >= end);
     PRED_EQ(gt, 0);
-    // if (BH2) {
     // DTYPE val = a[i * numVectors + j] - q[i * numVectors + k] * r_cache;
     STORE_NOACK(val, &a[i * numVectors + j], 0);
     i++;
-    // PRED_EQ(i, vectorLen);
-    // i = 0;
-    // r_cache = 0.0f;
-    // j+=VECTOR_LEN;
-    // PRED_EQ(j, j);
-    // if (i == vectorLen) {
-    //   i = 0;
-    //   r_cache = 0.0f;
-    //   j+=VECTOR_LEN;
-    // }
-    // }
     PRED_EQ(i, i);
     asm("trillium vissue_delim end at_jump");
   } while(BH2);
