@@ -5,6 +5,7 @@
 #include "spad.h"
 #include "pthread_launch.h"
 #include "gramschmidt.h"
+#include "util.h"
 
 // checker from polybench. single core implementation
 #include <math.h>
@@ -167,6 +168,7 @@ int main(int argc, char *argv[]) {
   for (int j = 0; j < vector_len; j++) {
     for (int i = 0; i < num_vectors; i++) {
       int idx = j * num_vectors + i;
+      // if (!float_compare(a[idx], A_exp[idx], A_exp[idx] * 0.001f)) {
       if (a[idx] != A_exp[idx]) {
         printf("vec %d element %d | %f != %f\n", i, j, a[idx], A_exp[idx]);
         printf("[[FAIL]]\n");

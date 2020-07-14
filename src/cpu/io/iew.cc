@@ -283,24 +283,24 @@ IEW::doWriteback()
         }
 
         // debug during vec sections
-        // if (m_cpu_p->getEarlyVector()->isSlave()) {
-        //   if (inst->numDestRegs() > 0 && inst->numSrcRegs() > 1) {
-        //     DPRINTF(Mesh, "writeback %s %lx %lx %lx\n", inst->toString(true), 
-        //       m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
-        //       m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
-        //   }
-        //   else if (inst->numDestRegs() > 0 && inst->numSrcRegs() > 0) {
-        //     DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true), 
-        //       m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
-        //       m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)));
-        //   }
-        //   else if (inst->numDestRegs() > 0)
-        //     DPRINTF(Mesh, "writeback %s %lx\n", inst->toString(true), 
-        //       m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)));
-        //   else if (inst->numSrcRegs() > 1 && inst->renamedSrcRegIdx(0)->isIntPhysReg() && inst->renamedSrcRegIdx(1)->isIntPhysReg())
-        //     DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true),
-        //       m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
-        // }
+        if (m_cpu_p->getEarlyVector()->isSlave() && !inst->isFloating()) {
+          if (inst->numDestRegs() > 0 && inst->numSrcRegs() > 1) {
+            DPRINTF(Mesh, "writeback %s %lx %lx %lx\n", inst->toString(true), 
+              m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
+              m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
+          }
+          else if (inst->numDestRegs() > 0 && inst->numSrcRegs() > 0) {
+            DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true), 
+              m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
+              m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)));
+          }
+          else if (inst->numDestRegs() > 0)
+            DPRINTF(Mesh, "writeback %s %lx\n", inst->toString(true), 
+              m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)));
+          else if (inst->numSrcRegs() > 1 && inst->renamedSrcRegIdx(0)->isIntPhysReg() && inst->renamedSrcRegIdx(1)->isIntPhysReg())
+            DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true),
+              m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
+        }
 
         // // set values as temp renamed dest reg
         // if (inst->static_inst_p->isBroadcast()) {

@@ -168,8 +168,10 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   end   += k + 1;
 
   int j = start + vtid;
+  j -=VECTOR_LEN;
   int i = 0;
-  DTYPE r_cache = 0.0f;
+  // int i = 0;
+  // DTYPE r_cache = 0.0f;
 
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
@@ -180,19 +182,30 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
 
   // TODO remove if's from vector code in favor of more labels here
   for (int j = start; j < end; j+=VECTOR_LEN) {
+    ISSUE_VINST(vec_body_1_init_label);
     for (int i = 0; i < vectorLen; i++) {
       prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
       ISSUE_VINST(vec_body_1_label);
     }
+    ISSUE_VINST(vec_body_2_init_label);
     for (int i = 0; i < vectorLen; i++) {
       ISSUE_VINST(vec_body_2_label);
     }
+    ISSUE_VINST(vec_body_2_end_label);
   }
 #endif
 
 // first inner loop (dot product)
 #ifdef VECTOR_CORE
-  volatile int BH = 1;
+  volatile int WH;
+  do {
+  // header for first inner loop
+  asm("trillium vissue_delim until_next vec_body_1_init");
+  i = 0;
+  DTYPE r_cache = 0.0f;
+  j+=VECTOR_LEN;
+
+  volatile int BH;
   do {
     asm("trillium vissue_delim if_begin vec_body_1");
     // TODO PRED_GRE
@@ -206,9 +219,10 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     END_FRAME();
     sp = (sp + FRAME_SIZE_SUB) % POST_FRAME_WORD_SUB;
 
+    // volatile int j_ = j;
     int gt = (j >= end);
     PRED_EQ(gt, 0);
-    if (BH) {
+    // if (BH) {
     // r_cache += q[i * numVectors + k] * a[i * numVectors + j];
     r_cache += val;
     // i++;
@@ -217,21 +231,29 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     // i = 0; // DCE on this and above b/c always 0
     // PRED_EQ(i, i);
     // if (i == vectorLen) i = 0;
-    }
+    // }
     PRED_EQ(gt, gt);
 
     asm("trillium vissue_delim end at_jump");
   } while(BH);
 #endif
 
+// a0 in above block is to spad address
+// but a0 below should be to global (not being reset in between)
+
 // second inner loop
 #ifdef VECTOR_CORE
-  volatile int BH2 = 1;
+  // header for second inner loop
+  asm("trillium vissue_delim until_next vec_body_2_init");
+  i = 0;
+
+  volatile int BH2;
   do {
     asm("trillium vissue_delim if_begin vec_body_2");
+    // volatile int j_ = j;
     int gt = (j >= end);
     PRED_EQ(gt, 0);
-    if (BH2) {
+    // if (BH2) {
     DTYPE val = a[i * numVectors + j] - q[i * numVectors + k] * r_cache;
     STORE_NOACK(val, &a[i * numVectors + j], 0);
     i++;
@@ -240,15 +262,20 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     // r_cache = 0.0f;
     // j+=VECTOR_LEN;
     // PRED_EQ(j, j);
-    if (i == vectorLen) {
-      i = 0;
-      r_cache = 0.0f;
-      j+=VECTOR_LEN;
-    }
-    }
-    PRED_EQ(j, j);
+    // if (i == vectorLen) {
+    //   i = 0;
+    //   r_cache = 0.0f;
+    //   j+=VECTOR_LEN;
+    // }
+    // }
+    PRED_EQ(i, i);
     asm("trillium vissue_delim end at_jump");
   } while(BH2);
+
+  asm("trillium vissue_delim until_next vec_body_2_end");
+
+
+  } while(WH);
 #endif
 
 
@@ -271,10 +298,16 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
 #ifdef SCALAR_CORE
 init_label:
   asm("trillium glue_point vector_init");
+vec_body_1_init_label:
+  asm("trillium glue_point vec_body_1_init");
 vec_body_1_label:
   asm("trillium glue_point vec_body_1");
+vec_body_2_init_label:
+  asm("trillium glue_point vec_body_2_init");
 vec_body_2_label:
   asm("trillium glue_point vec_body_2");
+vec_body_2_end_label:
+  asm("trillium glue_point vec_body_2_end");
 vector_return_label:
   asm("trillium glue_point vector_return");
 #endif
