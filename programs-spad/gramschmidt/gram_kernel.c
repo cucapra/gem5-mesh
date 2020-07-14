@@ -193,16 +193,38 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
 
   // TODO remove if's from vector code in favor of more labels here
   for (int j = start; j < end; j+=VECTOR_LEN) {
+
+    // initial prefetch
+    int init_i_dist = INIT_FRAMES_SUB;
+    for (int i = 0; i < init_i_dist; i++) {
+      prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
+    }
+
     ISSUE_VINST(vec_body_1_init_label);
-    for (int i = 0; i < vectorLen; i++) {
+    for (int i = init_i_dist; i < vectorLen; i++) {
       prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
       ISSUE_VINST(vec_body_1_label);
     }
+
+    for (int i = vectorLen - init_i_dist; i < vectorLen; i++) {
+      ISSUE_VINST(vec_body_1_label);
+    }
+
+    for (int i = 0; i < init_i_dist; i++) {
+      prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
+    }
+
     ISSUE_VINST(vec_body_2_init_label);
-    for (int i = 0; i < vectorLen; i++) {
+
+    for (int i = init_i_dist; i < vectorLen; i++) {
       prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
       ISSUE_VINST(vec_body_2_label);
     }
+
+    for (int i = vectorLen - init_i_dist; i < vectorLen; i++) {
+      ISSUE_VINST(vec_body_2_label);
+    }
+
     ISSUE_VINST(vec_body_2_end_label);
   }
 #endif
