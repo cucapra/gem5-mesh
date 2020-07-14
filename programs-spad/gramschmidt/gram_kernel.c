@@ -60,11 +60,22 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
 
 #ifdef SCALAR_CORE
   int sp = 0;
-  // TODO prefetch
-  for (int i = start; i < end; i+=VECTOR_LEN) {
+
+  int init_i_dist = INIT_FRAMES_NORM*VECTOR_LEN;
+  for (int i = start; i < start + init_i_dist; i+=VECTOR_LEN) {
+    prefetch_normalize_frame(a, i, k, numVectors, &sp);
+  }
+
+  for (int i = start + init_i_dist; i < end; i+=VECTOR_LEN) {
     prefetch_normalize_frame(a, i, k, numVectors, &sp);
     ISSUE_VINST(vec_body_label);
   }
+
+  for (int i = end - init_i_dist; i < end; i+=VECTOR_LEN) {
+    ISSUE_VINST(vec_body_label);
+  }
+
+
 #endif
 
 #ifdef VECTOR_CORE
