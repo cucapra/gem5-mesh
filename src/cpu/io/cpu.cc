@@ -1004,10 +1004,12 @@ IOCPU::setMiscReg(int misc_reg, RegVal val, ThreadID tid)
   if (getLateVector())
     getLateVector()->setupConfig(misc_reg, val);
 
+  m_isa_list[tid]->setMiscReg(misc_reg, val, tcBase(tid));
+
   // set scracthpad prefetch mask
   getLocalScratchpad()->setupConfig(misc_reg, val);
   
-  m_isa_list[tid]->setMiscReg(misc_reg, val, tcBase(tid));
+
 }
 
 RegVal

@@ -282,8 +282,8 @@ IEW::doWriteback()
           }
         }
 
-        // debug during vec sections
-        // if (m_cpu_p->getEarlyVector()->isSlave()) {
+        // // debug during vec sections
+        // if (m_cpu_p->getEarlyVector()->isSlave() && !inst->isFloating()) {
         //   if (inst->numDestRegs() > 0 && inst->numSrcRegs() > 1) {
         //     DPRINTF(Mesh, "writeback %s %lx %lx %lx\n", inst->toString(true), 
         //       m_cpu_p->readIntReg(inst->renamedDestRegIdx(0)),
@@ -412,6 +412,10 @@ IEW::doIssue()
     // unless a predication instructoin in which case we need to send
     inst->pred_at_issue = m_pred_flag; //getPred();
     if (!inst->pred_at_issue && !inst->static_inst_p->isPredicate()) {
+
+      // if this was a branch clear the stall flag
+      m_cpu_p->getEarlyVector()->getVecInstSel().resetStallWait();
+
       // forward the value of the previous renamed reg for this one b/c there many be instructions
       // that read this
       inst->forwardOldRegs();
@@ -574,6 +578,11 @@ IEW::doIssue()
         m_pred_flag = 
           m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)) != m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1));
       }
+
+      DPRINTF(Mesh, "predicate inst %s pred %d - %#x ? %#x\n", 
+        inst->toString(true), m_pred_flag,
+        m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), 
+        m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
     }
 
     // if (inst->static_inst_p->isPredicate() || !m_pred_flag) {
