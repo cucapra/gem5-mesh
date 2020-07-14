@@ -1,0 +1,32 @@
+name: trillium
+
+on:
+    push:
+        branches:
+            - scalar
+    pull_request:
+        branches:
+            - scalar
+
+jobs:
+    test:
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v2
+            - name: Set up Python
+              uses: actions/setup-python@v1
+              with:
+                  python-version: 3.8
+            - name: Cache
+              uses: actions/cache@v1
+              with:
+                  path: .cache/pip
+                  key: ${{runner.os}}-pip-${{hashFiles('**/requirements.txt')}}
+                  restore-keys: ${{runner.os}}-test
+            - name: Install dependencies
+              run: pip install -r trillium/requirements.txt
+            - name: Install Turnt
+              run: "pip install 'turnt>=1.4.0'"
+            - name: Test
+              run: turnt --diff test/*.t
+              working-directory: trillium

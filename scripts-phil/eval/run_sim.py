@@ -22,7 +22,7 @@ parser.add_argument('--results', default='../../results', help='Path to place to
 args = parser.parse_args()
 
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful
-progDir0 = '../../programs-phil/spad/'
+progDir0 = '../../programs-spad/'
 programs = {
 
   'vvadd' : { 'name': 'vvadd', 'path' : progDir0 + 'vvadd/vvadd', 
@@ -181,6 +181,7 @@ use_sps = True
 # good for reuse versions
 # ncols = 1842  # n * 460 + 2
 ncols = 5522
+# ncols = 1730
 nrows = 60
 # not sure gem5 se would produce diff ranodm seed each time so do here
 random.seed()
@@ -201,9 +202,9 @@ make_flags = []
 # vec_sizes = [ 4, 16 ]
 # load_types = [ 'SPATIAL', 'VERTICAL', 'SPATIAL_UNROLL', 'REUSE ]
 # prefetch_sizes = [ 1, 2, 4, 8, 16 ]
-vec_sizes = [ 4 ]
-load_types = [ 'SPATIAL' ]
-prefetch_sizes = [ 4 ]
+vec_sizes = [ 4, 16 ]
+load_types = [ 'SPATIAL', 'VERTICAL' ]
+prefetch_sizes = [ 4, 16 ]
 for v in vec_sizes:
   for l in load_types:
     for p in prefetch_sizes:

@@ -60,6 +60,7 @@ DebugFlag('RubyTester')
 DebugFlag('RubyStats')
 DebugFlag('RubyResourceStalls')
 DebugFlag('Scratchpad')
+DebugFlag('Frame')
 
 CompoundFlag('Ruby', [ 'RubyQueue', 'RubyNetwork', 'RubyTester',
     'RubyGenerated', 'RubySlicc', 'RubySystem', 'RubyCache',

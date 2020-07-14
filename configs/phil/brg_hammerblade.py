@@ -174,6 +174,13 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
 
   int_links = []
 
+  # will try to take minimum weight path
+  horiz_weight = 1
+  # TODO would of expected these two to be switched
+  # but worse prefetch latencies
+  towards_l2_weight = 1
+  away_l2_weight = 1
+
   # East output to West input links (weight = 1)
   for row in xrange(n_rows):
     for col in xrange(n_cols):
@@ -186,7 +193,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                                  src_outport  = "East",
                                  dst_inport   = "West",
                                  latency      = link_latency,
-                                 weight       = 1 ))
+                                 weight       = horiz_weight ))
         link_count += 1
 
   # West output to East input links (weight = 1)
@@ -201,7 +208,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                                  src_outport  = "West",
                                  dst_inport   = "East",
                                  latency      = link_latency,
-                                 weight       = 1 ))
+                                 weight       = horiz_weight ))
         link_count += 1
 
   # North output to South input links (weight = 2)
@@ -216,7 +223,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                                  src_outport  = "North",
                                  dst_inport   = "South",
                                  latency      = link_latency,
-                                 weight       = 2 ))
+                                 weight       = away_l2_weight ))
         link_count += 1
 
   # South output to North input links (weight = 2)
@@ -231,7 +238,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                                  src_outport  = "South",
                                  dst_inport   = "North",
                                  latency      = link_latency,
-                                 weight       = 2 ))
+                                 weight       = towards_l2_weight ))
         link_count += 1
 
   network.int_links = int_links
@@ -346,6 +353,8 @@ n_l2s   = n_cols
 # network classes
 #assert(options.network == "garnet2.0")
 options.network = "garnet2.0"
+# virt_channels = 64
+# options.vcs_per_vnet = virt_channels
 NetworkClass = GarnetNetwork
 IntLinkClass = GarnetIntLink
 ExtLinkClass = GarnetExtLink
@@ -360,33 +369,12 @@ process = get_processes(options)[0]
 #------------------------------------------------------------------------------
 
 # CPU class
-#CPUClass = TimingSimpleCPU
-
-'''
-CPUClass = MinorCPU(   
-                    # modified minor currently only works with 1way proc
-                    # does compiler know that this is a 1way io proc? seems
-                    # like it would matter a lot for instruction order chosen
-                    fetch2InputBufferSize = 1,
-                    decodeInputWidth = 1,
-                    executeInputWidth = 1,
-                    executeIssueLimit = 1,
-                    executeCommitLimit = 1,
-                    # important that this is not greter than stream_width!!!
-                    # default both to 2
-                    #executeMaxAccessesInMemory = options.stream_width, 
-                    executeLSQMaxStoreBufferStoresPerCycle = 1,
-                  )
-'''
-
 CPUClass = IOCPU (
-  includeVector = options.vector
+  includeVector = options.vector,
+  meshBufferSize = 2
   ,
   numROBEntries = 8
-
 )
-
-
 
 # Create top-level system
 system = System(cpu = [ CPUClass(cpu_id = i) for i in xrange(n_cpus) ],
@@ -431,7 +419,10 @@ network = NetworkClass (ruby_system = system.ruby,
                         ext_links = [],
                         int_links = [],
                         netifs = [],
-                        number_of_virtual_networks = 2)
+                        number_of_virtual_networks = 2, # what does it mean to have two networks??
+                        #vcs_per_vnet=virt_channels
+                        )
+                        
 
 # Scratchpads
 #n_scratchpads = n_cpus + n_xcels
@@ -446,8 +437,11 @@ for i in xrange(n_scratchpads):
                   num_l2s           = n_l2s,
                   grid_dim_x        = n_cols,
                   grid_dim_y        = n_cols,
+                  # might be too big but can solve by having spad not remember
+                  # store noacks like it does for prefetch
                   maxNumPendingReqs = options.stream_width,
-                  prefetchBufSize   = 10000, # make ridic number
+                  prefetchBufSize   = 0, # don't allow to go over
+                  numFrameCntrs     = 5,
                   cpu               = system.cpu[i])
 
   sp.memReqBuffer             = MessageBuffer(ordered = True)

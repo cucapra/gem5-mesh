@@ -131,6 +131,17 @@ IEW::regStats()
     .name(name() + ".issue_mem_barrier")
     .desc("number of stalls due to pending mem barrier in issue")
   ;
+
+  m_frame_start_tokens
+    .name(name() + ".stall_on_tokens")
+    .desc("number of stalls due to waiting for tokens in frame")
+  ;
+
+  m_frame_start_remem
+    .name(name() + ".stall_on_remem")
+    .desc("number of stalls due to waiting for remem before frame start")
+  ;
+
   iew_dep_insts
       .init(1, Enums::Num_OpClass)
       .name(name() + ".dep_stall_insts")
@@ -471,13 +482,17 @@ IEW::doIssue()
     // frame start can stall if there aren't enough tokens to being the frame
     // also need to wait for remem to take away tokens
     if (inst->static_inst_p->isFrameStart() && (m_robs[tid]->getRememInstCount() > 0 || 
-        m_cpu_p->getMemTokens() < m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)))) {
+        /*m_cpu_p->getMemTokens() < m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0))*/
+        !m_cpu_p->isNextFrameReady())) {
       if (m_robs[tid]->getRememInstCount() > 0) {
+        m_frame_start_remem++;
         DPRINTF(Mesh, "[sn:%d] Can't issue frame start because remem in flight\n", inst->seq_num);
       }
       else {
-        DPRINTF(Mesh, "[sn:%d] Can't issue frame start because not enough tokens. Have %d need %d\n", inst->seq_num,
-          m_cpu_p->getMemTokens(), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)));
+        m_frame_start_tokens++;
+        DPRINTF(Mesh, "[sn:%d] Can't issue frame start because not enough tokens\n", inst->seq_num);
+        // DPRINTF(Mesh, "[sn:%d] Can't issue frame start because not enough tokens. Have %d need %d\n", inst->seq_num,
+        //   m_cpu_p->getMemTokens(), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)));
       }
       return;
     }

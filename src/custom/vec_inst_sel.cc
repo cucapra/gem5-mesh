@@ -10,7 +10,7 @@ VecInstSel::VecInstSel(IOCPU *_cpu_p, IOCPUParams *params) :
   _uopPC(0),
   _uopIssueLen(0),
   _uopCnt(0),
-  _maxVecCmds(2), // TODO should have in params!
+  _maxVecCmds(params->meshBufferSize),
   _lastICacheResp(nullptr),
   _pendingICacheReqAddr(0),
   _pendingICacheReq(false),
@@ -78,6 +78,10 @@ VecInstSel::enqueueCmd() {
 
 bool
 VecInstSel::getVal() {
+  if (!_vecCmds.empty() && !_vecCmds.front()->isInst && !_lastICacheResp && lastReqNoInst != m_cpu_p->curCycle()) {
+    NoFetchedInst++;
+    lastReqNoInst = m_cpu_p->curCycle();
+  }
   // not empty with inst cmd or a uop is available
   return (!_vecCmds.empty() && _vecCmds.front()->isInst) ||
     (_lastICacheResp);
@@ -100,6 +104,13 @@ VecInstSel::willHaveOpening() {
 IODynInstPtr
 VecInstSel::dequeueInst() {
   IODynInstPtr ret = nullptr;
+
+  DequeueReqs++;
+
+  // // profile no instruction, want call this if no instruction
+  // if (!_lastICacheResp && !_vecCmds.empty() && !_vecCmds.front()->isInst) {
+  //   NoFetchedInst++;
+  // }
 
   // if we have an icache resp, then prioritize that
   if (_lastICacheResp) {
@@ -165,6 +176,13 @@ VecInstSel::dequeueInst() {
       // TODO move this pop into process head?
       _vecCmds.pop();
     }
+  }
+
+  // remove the block if its a devec
+  // TODO should prob pass flag into process head
+  if (ret && ret->isSquashAfter()) {
+    cleanCurIssueBlock();
+    _vecCmds.pop();
   }
   
   // handle the next operation if there is an element on the queue
@@ -372,6 +390,18 @@ VecInstSel::sendICacheReq(int tid, Addr instAddr) {
 // try to send a request for the next uop addr
 void
 VecInstSel::tryReqNextUop() {
+
+  // record reason can't issue next
+  if (_lastICacheResp) {
+    AlreadyInstruction++;
+  }
+  else if (_pendingICacheReq) {
+    TryFetchAgain++;
+  }
+  else if (_stallUntilJumpPC) {
+    StallsOnControl++;
+  }
+
   // TODO in the case of stallUntilJUmpPC should we still issue the reqs and then drop them
   // to make a fair comparison with how the normal fetch stage does this
   if (_lastICacheResp || _pendingICacheReq || _stallUntilJumpPC) return;
@@ -382,4 +412,45 @@ VecInstSel::tryReqNextUop() {
     sendICacheReq(0, _uopPC.instAddr());
   }
 
+}
+
+void
+VecInstSel::regStats(std::string parentName) {
+  MeshQueueSize
+    .init(1, _maxVecCmds + 1)
+    .name(parentName + "." + name() + ".occupancy")
+    .desc("number of cycles mesh queue has a certain occupancy while vec unit is configured")
+    .flags(Stats::total | Stats::pdf | Stats::dist);
+  // iew_dep_insts.ysubnames(Enums::OpClassStrings);
+
+  NoFetchedInst
+    .name(parentName + "." + name() + ".no_fetched_inst")
+    .desc("vissue block but no instruction rdy")
+  ;  
+
+  TryFetchAgain
+    .name(parentName + "." + name() + ".fetch_multiple")
+    .desc("tried to fetch while already pending inst")
+  ;  
+
+  StallsOnControl
+    .name(parentName + "." + name() + ".stall_control")
+    .desc("stall due to waiting for control to resolve")
+  ;  
+
+  AlreadyInstruction
+    .name(parentName + "." + name() + ".already_inst")
+    .desc("cant fetch because already instruction rdy")
+  ;   
+
+  DequeueReqs
+    .name(parentName + "." + name() + ".dequeue_reqs")
+    .desc("number of cycles there was a dequeue request from vec stage")
+  ;   
+
+}
+
+void
+VecInstSel::profile() {
+  MeshQueueSize[0][_vecCmds.size()]++;
 }

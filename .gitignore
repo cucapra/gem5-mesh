@@ -7,6 +7,7 @@ cscope.out
 *~
 .*.swp
 .*.swo
+.mypy_cache
 m5out
 /src/doxygen
 /ext/dramsim2/DRAMSim2

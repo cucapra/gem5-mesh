@@ -826,6 +826,11 @@ class Packet : public Printable
      */ 
     int getPrefetchConfig() const { return req->prefetchConfig; }
 
+    /**
+     * Accessor to store no ack
+     */ 
+    bool isStoreNoAck() const { return req->isStoreNoAck; }
+
     // packet type for processing scratchpad
     typedef enum RespPktType {
         NotVal = 0,
