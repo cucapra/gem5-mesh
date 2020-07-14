@@ -252,6 +252,25 @@ def extract_vector_blocks(raw_vector_code):
     return blocks, rodata_chunks
 
 
+def make_devec_label(devec):
+    """Given a `devec` instruction line, manufacture a label for the
+    instruction and return a list of lines to be inserted into the file
+    in its place.
+    """
+    if not is_DEVEC(devec):
+        raise ParseError("devec not found where expected")
+
+    # Get the current label the devec is using, and append a marker to
+    # make it unique.
+    rest, label = devec.rsplit(',', 1)
+    new_label = '{}DEVEC'.format(label.strip())
+
+    return [
+        '{}:'.format(new_label),
+        '{}, {}'.format(rest, new_label),
+    ]
+
+
 class ScalarParseState(Enum):
     HEADER = auto()
     BEFORE_VECTOR_EPOCH = auto()
@@ -313,16 +332,20 @@ def glue(raw_scalar_code, all_vector_bbs, rodata_chunks):
 
             labeled_vector_bbs.extend(all_vector_bbs[func_name][vissue_key])
 
+        # Manufacture a new, special label *just* for the devec instruction.
+        devec = after_DEVEC_before_RET_DELIM[0]
+        devec_lines = make_devec_label(devec)
+
         return (
             header +
             [after_VECTOR_EPOCH_before_DEVEC[0]] +
             before_VECTOR_EPOCH +
-            after_VECTOR_EPOCH_before_DEVEC[1:-1] + #there's always a label before DEVEC
+            after_VECTOR_EPOCH_before_DEVEC[1:] +
             ["# trillium: scalar stack cleanup begin"] +
             scalar_cleanup +
             ["# trillium: scalar stack cleanup end"] +
-            [after_VECTOR_EPOCH_before_DEVEC[-1]] +
-            after_DEVEC_before_RET_DELIM +
+            devec_lines +
+            after_DEVEC_before_RET_DELIM[1:] +
             [scalar_ret_inst if scalar_ret_inst else "ret" + "# relocated return instruction"] +
             ["# trillium: auxiliary blocks begin"] +
             aux_bbs_as_list +

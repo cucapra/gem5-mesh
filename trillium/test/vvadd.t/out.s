@@ -266,10 +266,11 @@
 	bne	a7,a0,.SCALAR12
 .SCALAR11:
 	.insn uj 0x6b, x0, .SCALAR13
+.SCALAR14:
 	# trillium: scalar stack cleanup begin
 	# trillium: scalar stack cleanup end
-.SCALAR14:
-	.insn uj 0x2b, x0, .SCALAR14
+.SCALAR14DEVEC:
+	.insn uj 0x2b, x0, .SCALAR14DEVEC
 	fence
 	ret
 	# trillium: auxiliary blocks begin
