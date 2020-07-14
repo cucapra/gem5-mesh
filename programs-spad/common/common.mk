@@ -13,7 +13,6 @@ endif
 # Overridable arguments to the simulation command for `make run`.
 GEM5_ARGS ?= --remote-gdb-port=0
 HB_ARGS ?= --options=""
-DEBUG_FLAGS ?=
 
 # Find the repository's base directory.
 COMMON_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
