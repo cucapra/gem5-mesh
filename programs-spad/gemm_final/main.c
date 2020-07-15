@@ -10,9 +10,8 @@
 #define CONST 5
 // #define PRINT_OUT
 
-#ifdef _VEC
 #define TRANSPOSE
-#endif
+
 
 void fill_array(DTYPE *m, int n)
 {

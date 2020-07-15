@@ -20,48 +20,20 @@ static inline int _idx_(int y, int x, int width)
 
 
 void __attribute__((optimize("-fno-inline")))
-gemm_manycore(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
+gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
      int m_start, int n_start, int ptid, int pdim_x, int pdim_y)
 {
-
-#if defined(UNBLOCKED_INNER)
-  // use inner product unblocked gemm - minimize DRAM writes in this case
-  for (int i = m_start; i < m; i++)
-  {
-    for (int j = n_start; j < n; j++)
-    {
-      DTYPE c_temp = 0;
-      for (int k = 0; k < t; k++)
-      {
-        c_temp += a[_idx_(i, k, t)] * b[_idx_(k, j, n)];
-      }
-      c[_idx_(i, j, n)] = c_temp;
-    }
-  }
-
-#elif defined(UNBLOCKED_OUTER)
-  for (int k = 0; k < t; k++)
-  {
-    for (int i = m_start; i < m_end; i++)
-    {
-      for (int j = n_start; j < n_end; j++)
-      {
-        c[_idx_(i, j, n)] += a[_idx_(i, k, t)] * b[_idx_(k, j, n)];
-      }
-    }
-  }
-
-#else
-
   int spadRegion = 0;
   DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
 
-  DTYPE *sp_c = spAddr;
+  DTYPE *sp_c = spAddr + NUM_REGIONS * REGION_SIZE;
 
   int offset_x, offset_y;
 
   offset_x = BLK_DIM * pdim_x;
   offset_y = BLK_DIM * pdim_y;
+
+  int sp_a_offset,sp_b_offset;
 
   //assuming m_start-m_end is divisble by BLK_DIM
   for (int i0 = m_start; i0 < m; i0 += offset_x)
@@ -70,19 +42,37 @@ gemm_manycore(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
     {
       for (int k = 0; k < t; k++)
       {
+        #ifdef MANYCORE_PREFETCH
+        sp_a_offset = spadRegion * REGION_SIZE;
+        sp_b_offset = sp_a_offset + BLK_DIM;
 
+        // fetch a in scratchpad
+        VPREFETCH_L(sp_a_offset, aT + _idx_(k, i0, m), 0, BLK_DIM,1);
+        // fetch b in scratchpad
+        VPREFETCH_L(sp_b_offset, b + _idx_(k, j0, n), 0, BLK_DIM,1);
+        FRAME_START(REGION_SIZE);
+        #endif
         for (int i = 0; i < BLK_DIM; i++)
         {
           for (int j = 0; j < BLK_DIM; j++)
           {
             DTYPE a_, b_;
-
-            a_ = a[_idx_(i + i0, k, t)];
+            #ifdef MANYCORE_PREFETCH
+            a_ = spAddr[sp_a_offset+i];
+            b_ = spAddr[sp_b_offset+j];
+            #else
+            a_ = aT[_idx_(k,i + i0, m)];
             b_ = b[_idx_(k, j + j0, n)];
+            #endif
             sp_c[_idx_(i, j, BLK_DIM)] += ALPHA* a_ * b_;
             // c[_idx_(i + i0, j + j0, n)] += a_ * b_;
           }
         }
+
+        #ifdef MANYCORE_PREFETCH
+        spadRegion = (spadRegion + 1) % NUM_REGIONS;
+        REMEM(REGION_SIZE);
+        #endif
       }
 
       for (int i = 0; i < BLK_DIM; i++)
@@ -99,8 +89,6 @@ gemm_manycore(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
 
     }
   }
-
-#endif
 }
 
 // actual kernel
@@ -160,6 +148,8 @@ void kernel(
 
   // region based mask for scratchpad
 #ifdef _VEC
+  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+#elif defined MANYCORE_PREFETCH
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
 #endif
 
