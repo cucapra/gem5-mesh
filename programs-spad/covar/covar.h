@@ -28,7 +28,7 @@
 #define POST_FRAME_WORD 256
 
 // number of frames to get ahead
-#define INIT_FRAMES 4
+#define INIT_FRAMES 1
 
 // prefetch config for mean kernel
 #define MEAN_FRAME_SIZE 1
