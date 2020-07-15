@@ -49,12 +49,24 @@ void center_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, i
   }
 }
 
+int n_sum(int n) {
+  int sum = 0;
+  for (int i = 1; i < n + 1; i++) {
+    sum += i;
+  }
+  return sum;
+}
+
+
 // compute the covariance matrix
 void covar_manycore_baseline(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) {
-  int start = ((tid + 0) * M) / dim;
-  int end   = ((tid + 1) * M) / dim;
+  // if chunk then load balancing problem
+  // opt for strided load balancing
+  int start = tid;
+  int stride = dim;
+  int end   = M;
 
-  for (int j1 = start + 1; j1 < (end+1); j1++) {
+  for (int j1 = start + 1; j1 < (end+1); j1+=stride) {
     for (int j2 = j1; j2 < (M+1); j2++) {
       DTYPE symmat_idx = 0.0f;
       for (int i = 1; i < (N+1); i++) {
