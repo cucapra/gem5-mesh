@@ -81,32 +81,6 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
 
     ISSUE_VINST(vec_body_end_label);
   }
-
-
-  // // initial round
-  // for (int i = 1; i < 1 + INIT_MEAN_OFFSET; i++) {
-  //   prefetch_mean_frame(data, i, start, &sp, M);
-  // }
-
-  // // first row
-  // for (int i = 1 + INIT_MEAN_OFFSET; i < (N+1); i++) {
-  //   prefetch_mean_frame(data, i, start, &sp, M);
-  //   ISSUE_VINST(vec_body_label);
-  // }
-
-  // // steady state
-  // for (int j = start + VECTOR_LEN; j < end; j+=VECTOR_LEN) {
-  //   for (int i = 1; i < (N+1); i++) {
-  //     prefetch_mean_frame(data, i, j, &sp, M);
-  //     ISSUE_VINST(vec_body_label);
-  //   }
-  // }
-
-  // // cooldown
-  // for (int i = (N+1) - INIT_MEAN_OFFSET; i < (N+1); i++) {
-  //   ISSUE_VINST(vec_body_label);
-  // }
-
   #endif
 
   #ifdef VECTOR_CORE
@@ -124,16 +98,6 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
       asm volatile("nop\n\t");
       asm volatile("nop\n\t");
       asm volatile("nop\n\t");
-      // i++;
-      // do loop check here, to take load off scalar core?
-      // does reduce vector core utilization
-      // if (i == (N+1)) {
-      //   mean_j /= (DTYPE)FLOAT_N;
-      //   STORE_NOACK(mean_j, &mean[j], 0);
-      //   i = 1;
-      //   j+=VECTOR_LEN;
-      //   mean_j = 0.0f;
-      // }
       sp+=1;
       sp = sp % POST_FRAME_WORD;
       asm("trillium vissue_delim end at_jump");
@@ -148,18 +112,6 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     asm("trillium vissue_delim end at_jump");
 
   } while (BHO);
-
-  // volatile int BH2;
-  // do {
-  //   asm("trillium vissue_delim if_begin vec_body_end");
-  //   mean_j /= (DTYPE)FLOAT_N;
-  //   STORE_NOACK(mean_j, &mean[j], 0);
-  //   i = 1;
-  //   j+=VECTOR_LEN;
-  //   mean_j = 0.0f;
-  //   asm("trillium vissue_delim end at_jump");
-  // } while(BH2);
-
   #endif
 
 
@@ -284,30 +236,6 @@ void tril_center(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     ISSUE_VINST(vec_body_end_label);
 
   }
-
-  // // initial round
-  // for (int j = 1; j < 1 + INIT_CENTER_OFFSET; j++) {
-  //   prefetch_center_frame(data, mean, start, j, &sp, M);
-  // }
-
-  // // first row
-  // for (int j = 1 + INIT_CENTER_OFFSET; j < (M+1); j++) {
-  //   prefetch_center_frame(data, mean, start, j, &sp, M);
-  //   ISSUE_VINST(vec_body_label);
-  // }
-
-  // // steady state
-  // for (int i = start + VECTOR_LEN; i < end; i+=VECTOR_LEN) {
-  //   for (int j = 1; j < (M+1); j++) {
-  //     prefetch_center_frame(data, mean, i, j, &sp, M);
-  //     ISSUE_VINST(vec_body_label);   
-  //   }
-  // }
-
-  // // cooldown
-  // for (int j = M - INIT_CENTER_OFFSET; j < (M+1); j++) {
-  //   ISSUE_VINST(vec_body_label);
-  // }
   #endif
 
   #ifdef VECTOR_CORE
@@ -396,101 +324,230 @@ vector_return_label:
   // }
 }
 
-// inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, int M) {
-//   // everyone in groups gets the same j1. could share and/or do vertical
-//   for (int core = 0; core < VECTOR_LEN; core++) {
-//     VPREFETCH_L(*sp, &data[i * (M+1) + j1], core, COVAR_J1_PREFETCH_LEN, VERTICAL);
-//   }
-//   *sp = *sp + COVAR_J1_PREFETCH_LEN;
+inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, int M) {
+  // everyone in groups gets the same j1. could share and/or do vertical
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_L(*sp, &data[i * (M+1) + j1], core, COVAR_J1_PREFETCH_LEN, VERTICAL);
+  }
+  *sp = *sp + COVAR_J1_PREFETCH_LEN;
 
-//   VPREFETCH_L(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
-//   VPREFETCH_R(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
-//   *sp = *sp + 1;
+  VPREFETCH_L(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_R(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
+  *sp = *sp + 1;
 
-//   if (*sp == POST_FRAME_WORD) *sp = 0;
-// }
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+}
 
-// // compute the covariance matrix
-// void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M, 
-//     int ptid, int groupId, int numGroups, int vtid) {
-//   int start = ((groupId + 0) * M) / numGroups;
-//   int end   = ((groupId + 1) * M) / numGroups;
+// compute the covariance matrix
+void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M, 
+    int ptid, int groupId, int numGroups, int vtid) {
 
-//   // make it a factor of vector group mapping size
-//   start = 1 + roundUp(start, VECTOR_LEN);
-//   end   = 1 + roundUp(end  , VECTOR_LEN);
+  #ifdef SCALAR_CORE
+  VECTOR_EPOCH(mask);
 
-//   int sp  = 0;
+  // int start = ((groupId + 0) * M) / numGroups;
+  // int end   = ((groupId + 1) * M) / numGroups;
 
-//   VECTOR_EPOCH(mask);
+  int start = 1 + groupId * VECTOR_LEN;
+  int stride = numGroups * VECTOR_LEN;
+  int end = M + 1;
 
-//   if (ptid == 0) {
+  ISSUE_VINST(init_label);
+  #endif
+
+  #ifdef VECTOR_CORE
+  asm("trillium vissue_delim until_next vector_init");
+  int start = 1 + groupId * VECTOR_LEN;
+  int j1 = start;
+  int j2 = j1;
+  int stride = numGroups * VECTOR_LEN;
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  #endif
+
+
+  #ifdef SCALAR_CORE
+  int sp  = 0;
+
+  for (int j1 = start; j1 < end; j1+=stride) {
+    for (int j2 = j1; j2 < (M+1); j2+=VECTOR_LEN) {
+
+      ISSUE_VINST(vec_body_init_label);
+
+      // initial round
+      for (int i = 1; i < 1 + INIT_COVAR_OFFSET; i++) {
+        prefetch_covar_frame(data, i, start, start, &sp, M);
+      }
+
+       // steady state
+      for (int i = 1 + INIT_COVAR_OFFSET; i < (N+1); i++) {
+        prefetch_covar_frame(data, i, start, start, &sp, M);
+        ISSUE_VINST(vec_body_label);
+      }
+
+      // cooldown
+      for (int i = (N+1) - INIT_MEAN_OFFSET; i < (N+1); i++) {
+        ISSUE_VINST(vec_body_label);
+      }
+
+      ISSUE_VINST(vec_body_end_label);
+    }
+
+    ISSUE_VINST(j2_end_label);
+  }
+  #endif
+
+  #ifdef VECTOR_CORE
+  volatile int BH;
+  volatile int BHO;
+  volatile int BHOO;
+  do {
+    asm("trillium vissue_delim until_next vec_body_init");
+    int j2_idx = j2 + vtid;
+    DTYPE symmat_idx = 0.0f;
+
+  do {
+
+
+
+    do {
+      
+      asm("trillium vissue_delim if_begin vec_body");
+      FRAME_START(COVAR_FRAME_SIZE);
+      symmat_idx += sp_ptr[sp + 0] * sp_ptr[sp + 1];
+      REMEM(COVAR_FRAME_SIZE);
+      sp+=2;
+      sp = sp % POST_FRAME_WORD;
+      asm("trillium vissue_delim end at_jump");
+      // if (j2_idx < (M+1)) {
+      //   symmat[j2_idx * (M+1) + j1] = symmat_idx;
+      //   symmat[j1 * (M+1) + j2_idx] = symmat_idx;
+      // }
+    } while(BH);
+
+
+    asm("trillium vissue_delim if_begin vec_body_end");
+    int gt = (j2_idx >= (M+1));
+    PRED_EQ(gt, 0);
+    symmat[j2_idx * (M+1) + j1] = symmat_idx;
+    symmat[j1 * (M+1) + j2_idx] = symmat_idx;
+    PRED_EQ(j2, j2);
+    j2+=VECTOR_LEN;
+    asm("trillium vissue_delim end at_jump");
+
+  } while (BHO);
+
+    asm("trillium vissue_delim if_begin j2_end");
+    j1+=stride;
+    j2 = j1;
+    asm("trillium vissue_delim end at_jump");
+
+  } while(BHOO);
+  #endif
+
+
+  // Clean up on the vector cores.
+#ifdef SCALAR_CORE
+  ISSUE_VINST(vector_return_label);
+#elif defined VECTOR_CORE
+  asm("trillium vissue_delim return vector_return");
+  return;
+#endif
+
+#ifdef SCALAR_CORE
+  // devec with unique tag
+  DEVEC(devec_0);
+
+  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
+  asm volatile("fence\n\t");
+  asm("trillium vissue_delim return scalar_return");  // XXX is this real???
+  return;
+#endif
+
+  // Glue points!
+#ifdef SCALAR_CORE
+init_label:
+  asm("trillium glue_point vector_init");
+vec_body_init_label:
+  asm("trillium glue_point vec_body_init");
+vec_body_label:
+  asm("trillium glue_point vec_body");
+vec_body_end_label:
+  asm("trillium glue_point vec_body_end");
+j2_end_label:
+  asm("trillium glue_point j2_end");
+vector_return_label:
+  asm("trillium glue_point vector_return");
+#endif
+
+
+  // if (ptid == 0) {
   
-//   // ISSUE_VINST()
+  // ISSUE_VINST()
 
-//   // initial round
-//   for (int i = 1; i < 1 + INIT_COVAR_OFFSET; i++) {
-//     prefetch_covar_frame(data, i, start, start, &sp, M);
-//   }
+  // // initial round
+  // for (int i = 1; i < 1 + INIT_COVAR_OFFSET; i++) {
+  //   prefetch_covar_frame(data, i, start, start, &sp, M);
+  // }
 
-//   // first row
-//   for (int i = 1 + INIT_COVAR_OFFSET; i < (N+1); i++) {
-//     prefetch_covar_frame(data, i, start, start, &sp, M);
-//     // ISSUE_VINST()
-//   }
+  // // first row
+  // for (int i = 1 + INIT_COVAR_OFFSET; i < (N+1); i++) {
+  //   prefetch_covar_frame(data, i, start, start, &sp, M);
+  //   // ISSUE_VINST()
+  // }
 
-//   // steady state
-//   for (int j1 = start; j1 < end; j1++) {
-//     int startJ2 = j1;
-//     if (j1 == start) startJ2 += VECTOR_LEN;
-//     for (int j2 = startJ2; j2 < (M+1); j2+=VECTOR_LEN) {
-//       for (int i = 1; i < (N+1); i++) {
-//         prefetch_covar_frame(data, i, j1, j2, &sp, M);
-//         // ISSUE_VINST()
-//       }
-//     }
-//   }
+  // // steady state
+  // for (int j1 = start; j1 < end; j1++) {
+  //   int startJ2 = j1;
+  //   if (j1 == start) startJ2 += VECTOR_LEN;
+  //   for (int j2 = startJ2; j2 < (M+1); j2+=VECTOR_LEN) {
+  //     for (int i = 1; i < (N+1); i++) {
+  //       prefetch_covar_frame(data, i, j1, j2, &sp, M);
+  //       // ISSUE_VINST()
+  //     }
+  //   }
+  // }
 
-//   // cooldown
-//   for (int i = N - INIT_MEAN_OFFSET; i < (N+1); i++) {
-//     // ISSUE_VINST()
-//   }
+  // // cooldown
+  // for (int i = N - INIT_MEAN_OFFSET; i < (N+1); i++) {
+  //   // ISSUE_VINST()
+  // }
 
-//   }
-//   else {
-//   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-//   for (int j1 = start; j1 < end; j1++) {
-//     // for (int j2 = j1 + vtid; j2 < (M+1); j2+=VECTOR_LEN) { // TODO needs predication on this loop
-//     for (int j2 = j1; j2 < (M+1); j2+=VECTOR_LEN) {
-//       int j2_idx = j2 + vtid;
-//       DTYPE symmat_idx = 0.0f;
-//       for (int i = 1; i < (N+1); i++) {
-//         FRAME_START(COVAR_FRAME_SIZE);
-//         // printf("j1 %d j2 %d i %d vtid %d %f ?= %f | %f ?= %f\n", j1, j2, i, vtid, sp_ptr[sp+0], data[i *(M+1) + j1], sp_ptr[sp+1], data[i *(M+1) + j2]);
-//         symmat_idx += sp_ptr[sp + 0] * sp_ptr[sp + 1]; // not prefetching the right stuff here
-//         REMEM(COVAR_FRAME_SIZE);
-//         sp+=2;
-//         if (sp == POST_FRAME_WORD) sp = 0;
-//       }
+  // }
+  // else {
+  // DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  // for (int j1 = start; j1 < end; j1++) {
+  //   // for (int j2 = j1 + vtid; j2 < (M+1); j2+=VECTOR_LEN) { // TODO needs predication on this loop
+  //   for (int j2 = j1; j2 < (M+1); j2+=VECTOR_LEN) {
+  //     int j2_idx = j2 + vtid;
+  //     DTYPE symmat_idx = 0.0f;
+  //     for (int i = 1; i < (N+1); i++) {
+  //       FRAME_START(COVAR_FRAME_SIZE);
+  //       // printf("j1 %d j2 %d i %d vtid %d %f ?= %f | %f ?= %f\n", j1, j2, i, vtid, sp_ptr[sp+0], data[i *(M+1) + j1], sp_ptr[sp+1], data[i *(M+1) + j2]);
+  //       symmat_idx += sp_ptr[sp + 0] * sp_ptr[sp + 1]; // not prefetching the right stuff here
+  //       REMEM(COVAR_FRAME_SIZE);
+  //       sp+=2;
+  //       if (sp == POST_FRAME_WORD) sp = 0;
+  //     }
 
-//       if (j2_idx < (M+1)) {
-//         symmat[j2_idx * (M+1) + j1] = symmat_idx;
-//         symmat[j1 * (M+1) + j2_idx] = symmat_idx;
-//       }
-//     }
-//   }
+  //     if (j2_idx < (M+1)) {
+  //       symmat[j2_idx * (M+1) + j1] = symmat_idx;
+  //       symmat[j1 * (M+1) + j2_idx] = symmat_idx;
+  //     }
+  //   }
+  // }
 
-//   }
+  // }
 
-//   // for (int j1 = start + 1; j1 < (end+1); j1++) {
-//   //   for (int j2 = j1; j2 < (M+1); j2++) {
-//   //     DTYPE symmat_idx = 0.0f;
-//   //     for (int i = 1; i < (N+1); i++) {
-//   //       symmat_idx += data[i *(M+1) + j1] * data[i *(M+1) + j2];
-//   //     }
-//   //     symmat[j2 * (M+1) + j1] = symmat_idx;
-//   //     symmat[j1 * (M+1) + j2] = symmat_idx;
-//   //   }
-//   // }
-// }
+  // for (int j1 = start + 1; j1 < (end+1); j1++) {
+  //   for (int j2 = j1; j2 < (M+1); j2++) {
+  //     DTYPE symmat_idx = 0.0f;
+  //     for (int i = 1; i < (N+1); i++) {
+  //       symmat_idx += data[i *(M+1) + j1] * data[i *(M+1) + j2];
+  //     }
+  //     symmat[j2 * (M+1) + j1] = symmat_idx;
+  //     symmat[j1 * (M+1) + j2] = symmat_idx;
+  //   }
+  // }
+}
 #endif
