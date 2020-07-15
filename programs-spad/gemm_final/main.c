@@ -65,7 +65,7 @@ int check_matmul(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t)
       }
       if (c[i * n + j] != c_temp)
       {
-        printf("%f %f\n",c[i * n + j],c_temp);
+        printf("%d %d at i:%d, j:%d\n",c[i * n + j],c_temp, i,j);
         printf("[[FAIL]]\n");
         return 1;
       }

@@ -10,5 +10,5 @@ include ../common/common.mk
 
 # Specify number of CPUs. (TODO: rename to NUM_CPUS)
 N_SPS := 16
-HB_ARGS := --options="128"
+HB_ARGS := --options="64 64 64"
 # DEBUG_FLAGS := --debug-flags=Mesh

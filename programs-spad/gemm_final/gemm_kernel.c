@@ -185,7 +185,7 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
             a_= *addr_a;
             b_= *addr_b;
 
-            sp_c[_idx_(i, j, BLK_DIM)] += a_ * b_;
+            sp_c[_idx_(i, j, BLK_DIM)] += ALPHA* a_ * b_;
           }
         }
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
@@ -197,7 +197,9 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
       {
         for (int j = 0; j < BLK_DIM; j++)
         {
-          STORE_NOACK(sp_c[_idx_(i, j, BLK_DIM)], c + _idx_(i + i_st, j + j_st, n), 0);
+          DTYPE temp = c[_idx_(i+i_st, j+j_st, n)]*BETA;
+          temp += sp_c[_idx_(i, j, BLK_DIM)];
+          STORE_NOACK(temp, c + _idx_(i + i_st, j + j_st, n), 0);
           sp_c[_idx_(i, j, BLK_DIM)] = 0;
         }
       }

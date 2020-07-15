@@ -10,6 +10,6 @@
 #include "bind_defs.h"
 
 void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
-                   int m_start, int m_end, int tid_x, int tid_y, int tid, int ptid);
+                   int m_start, int m_end, int vtid_x, int vtid_y, int vtid, int ptid);
 
 #endif

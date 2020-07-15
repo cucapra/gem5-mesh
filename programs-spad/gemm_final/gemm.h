@@ -3,17 +3,15 @@
 
 #include "util.h"
 
-// #define _VEC
+#define _VEC
 #define VEC_LEN 4 //vec group size
 
-
-#define REGION_SIZE 8 //configure using LCM of required frame/region sizes
+#define BLK_DIM 4
+#define REGION_SIZE (2*BLK_DIM) //configure using LCM of required frame/region sizes
 #define NUM_REGIONS (512 / REGION_SIZE) // (0,512) in this case is the hardware region area 
 
 #define ALPHA 4
 #define BETA 5
-
-#define BLK_DIM 4
 
 typedef int DTYPE;
 
