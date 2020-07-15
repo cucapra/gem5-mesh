@@ -5,6 +5,7 @@
 #include "spad.h"
 #include "pthread_launch.h"
 #include "covar.h"
+#include "util.h"
 
 // checker from polybench. single core implementation
 void covariance(DTYPE* data, DTYPE* symmat, DTYPE* mean, int N, int M)
@@ -156,7 +157,8 @@ int main(int argc, char *argv[]) {
   for (int i = 1; i < (M+1); i++) {
     for (int j = 1; j < (N+1); j++) {
       int idx = i*(N+1) + j;
-      if (symmat[idx] != symmat_exp[idx]) {
+      // if (symmat[idx] != symmat_exp[idx]) {
+      if (!float_compare(symmat[idx], symmat_exp[idx], symmat_exp[idx] * 0.000001f)) {
         printf("i %d j %d idx %d | %f != %f\n", i, j, idx, symmat[idx], symmat_exp[idx]);
         printf("[[FAIL]]\n");
         return 1;      

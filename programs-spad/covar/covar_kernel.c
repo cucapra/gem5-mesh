@@ -48,7 +48,7 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   asm("trillium vissue_delim until_next vector_init");
   int start = ((groupId + 0) * M) / numGroups;
   start = 1 + roundUp(start, VECTOR_LEN);
-  int i = 1;
+  // int i = 1;
   int j = start + vtid;
   DTYPE mean_j = 0.0f;
   int sp = 0;
@@ -59,53 +59,95 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
 
   int sp  = 0;
 
-  // initial round
-  for (int i = 1; i < 1 + INIT_MEAN_OFFSET; i++) {
-    prefetch_mean_frame(data, i, start, &sp, M);
-  }
+  for (int j = start; j < end; j+=VECTOR_LEN) {
 
-  // first row
-  for (int i = 1 + INIT_MEAN_OFFSET; i < (N+1); i++) {
-    prefetch_mean_frame(data, i, start, &sp, M);
-    ISSUE_VINST(vec_body_label);
-  }
+    ISSUE_VINST(vec_body_init_label);
 
-  // steady state
-  for (int j = start + VECTOR_LEN; j < end; j+=VECTOR_LEN) {
+    // initial round
+    for (int i = 1; i < 1 + INIT_MEAN_OFFSET; i++) {
+      prefetch_mean_frame(data, i, start, &sp, M);
+    }
+
+    // steady state
     for (int i = 1; i < (N+1); i++) {
       prefetch_mean_frame(data, i, j, &sp, M);
       ISSUE_VINST(vec_body_label);
     }
+
+    //cooldown
+    for (int i = (N+1) - INIT_MEAN_OFFSET; i < (N+1); i++) {
+      ISSUE_VINST(vec_body_label);
+    }
+
+    ISSUE_VINST(vec_body_end_label);
   }
 
-  // cooldown
-  for (int i = (N+1) - INIT_MEAN_OFFSET; i < (N+1); i++) {
-    ISSUE_VINST(vec_body_label);
-  }
+
+  // // initial round
+  // for (int i = 1; i < 1 + INIT_MEAN_OFFSET; i++) {
+  //   prefetch_mean_frame(data, i, start, &sp, M);
+  // }
+
+  // // first row
+  // for (int i = 1 + INIT_MEAN_OFFSET; i < (N+1); i++) {
+  //   prefetch_mean_frame(data, i, start, &sp, M);
+  //   ISSUE_VINST(vec_body_label);
+  // }
+
+  // // steady state
+  // for (int j = start + VECTOR_LEN; j < end; j+=VECTOR_LEN) {
+  //   for (int i = 1; i < (N+1); i++) {
+  //     prefetch_mean_frame(data, i, j, &sp, M);
+  //     ISSUE_VINST(vec_body_label);
+  //   }
+  // }
+
+  // // cooldown
+  // for (int i = (N+1) - INIT_MEAN_OFFSET; i < (N+1); i++) {
+  //   ISSUE_VINST(vec_body_label);
+  // }
 
   #endif
 
   #ifdef VECTOR_CORE
   volatile int BH;
+  volatile int BHO;
   do {
-    asm("trillium vissue_delim if_begin vec_body");
-    FRAME_START(MEAN_FRAME_SIZE);
-    mean_j += sp_ptr[sp];
-    i++;
-    // do loop check here, to take load off scalar core?
-    // does reduce vector core utilization
-    if (i == (N+1)) {
-      mean_j /= (DTYPE)FLOAT_N;
-      STORE_NOACK(mean_j, &mean[j], 0);
-      i = 1;
-      j+=VECTOR_LEN;
-      mean_j = 0.0f;
-    }
-    sp+=1;
-    sp = sp % POST_FRAME_WORD;
-    REMEM(MEAN_FRAME_SIZE);
+
+    asm("trillium vissue_delim until_next vec_body_init");
+
+    do {
+      asm("trillium vissue_delim if_begin vec_body");
+      START_FRAME();
+      mean_j += sp_ptr[sp];
+      END_FRAME();
+      asm volatile("nop\n\t");
+      asm volatile("nop\n\t");
+      asm volatile("nop\n\t");
+      // i++;
+      // do loop check here, to take load off scalar core?
+      // does reduce vector core utilization
+      // if (i == (N+1)) {
+      //   mean_j /= (DTYPE)FLOAT_N;
+      //   STORE_NOACK(mean_j, &mean[j], 0);
+      //   i = 1;
+      //   j+=VECTOR_LEN;
+      //   mean_j = 0.0f;
+      // }
+      sp+=1;
+      sp = sp % POST_FRAME_WORD;
+      asm("trillium vissue_delim end at_jump");
+    } while(BH);
+
+    asm("trillium vissue_delim if_begin vec_body_end");
+    mean_j /= (DTYPE)FLOAT_N;
+    STORE_NOACK(mean_j, &mean[j], 0);
+    // i = 1;
+    j+=VECTOR_LEN;
+    mean_j = 0.0f;
     asm("trillium vissue_delim end at_jump");
-  } while(BH);
+
+  } while (BHO);
 
   // volatile int BH2;
   // do {
@@ -143,8 +185,12 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
 #ifdef SCALAR_CORE
 init_label:
   asm("trillium glue_point vector_init");
+vec_body_init_label:
+  asm("trillium glue_point vec_body_init");
 vec_body_label:
   asm("trillium glue_point vec_body");
+vec_body_end_label:
+  asm("trillium glue_point vec_body_end");
 vector_return_label:
   asm("trillium glue_point vector_return");
 #endif
