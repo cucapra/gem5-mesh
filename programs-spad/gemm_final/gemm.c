@@ -91,8 +91,8 @@ gemm_manycore(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         {
           DTYPE temp = c[_idx_(i + i0, j + j0, n)]*BETA;
           temp += sp_c[_idx_(i, j, BLK_DIM)];
-          c[_idx_(i + i0, j + j0, n)] = temp;
-          // STORE_NOACK(temp, c + _idx_(i + i0, j + j0, n), 0);
+          // c[_idx_(i + i0, j + j0, n)] = temp;
+          STORE_NOACK(temp, c + _idx_(i + i0, j + j0, n), 0);
           sp_c[_idx_(i, j, BLK_DIM)] = 0;
         }
       }

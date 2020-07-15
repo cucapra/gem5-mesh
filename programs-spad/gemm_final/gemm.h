@@ -3,7 +3,7 @@
 
 #include "util.h"
 
-#define _VEC
+// #define _VEC
 #define VEC_LEN 4 //vec group size
 
 #define BLK_DIM 4
