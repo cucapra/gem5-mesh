@@ -248,7 +248,7 @@ def template CSRExecute {{
             if (fault == NoFault) {
                 if (mask != CSRMasks.end())
                     data &= mask->second;
-                if (data != olddata) {
+                if (true) {
                     if (bits(csr, 11, 10) == 0x3) {
                         std::string error = csprintf("CSR %s is read-only\n",
                                                      CSRData.at(csr).name);

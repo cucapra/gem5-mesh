@@ -84,6 +84,8 @@ class Vector : public Stage {
     // currently does nothing in IOCPU
     void signalActivity() {}
     
+    VecInstSel &getVecInstSel() { return _vecUops; }
+
   protected:
     // // information to use to create local IODynInst
     // // currenlty cheating and using all possible info

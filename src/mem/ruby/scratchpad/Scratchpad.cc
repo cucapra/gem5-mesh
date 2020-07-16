@@ -1359,7 +1359,7 @@ Scratchpad::setupConfig(int csrId, RegVal csrVal) {
 
 
   if (csrId != RiscvISA::MISCREG_PREFETCH) return;
-
+  DPRINTF(Frame, "prefetch reg config %#x # %d cnt %d\n", csrVal, getNumRegions(), getRegionElements());
   resetAllRegionCntrs();
 
   // can also probably store region size and number here rather than going to cpu

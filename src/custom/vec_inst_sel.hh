@@ -73,6 +73,8 @@ class VecInstSel : public Named {
     // actually do profiling for the cycle, called from vector stage
     void profile();
 
+    void resetStallWait() { _stallUntilJumpPC = false; }
+
   protected:
     // PC gen for uop decomposition
     // I think this would be in the normal fetch PC GEN in real RTL
