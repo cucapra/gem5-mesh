@@ -373,7 +373,7 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   for (int j1 = start; j1 < end; j1+=stride) {
     for (int j2 = j1; j2 < (M+1); j2+=VECTOR_LEN) {
 
-      // ISSUE_VINST(vec_body_init_label);
+      ISSUE_VINST(vec_body_init_label);
 
       // initial round
       for (int i = 1; i < 1 + INIT_COVAR_OFFSET; i++) {
@@ -383,68 +383,68 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
        // steady state
       for (int i = 1 + INIT_COVAR_OFFSET; i < (N+1); i++) {
         prefetch_covar_frame(data, i, start, start, &sp, M);
-        // ISSUE_VINST(vec_body_label);
+        ISSUE_VINST(vec_body_label);
       }
 
       // cooldown
       for (int i = (N+1) - INIT_MEAN_OFFSET; i < (N+1); i++) {
-        // ISSUE_VINST(vec_body_label);
+        ISSUE_VINST(vec_body_label);
       }
 
-      // ISSUE_VINST(vec_body_end_label);
+      ISSUE_VINST(vec_body_end_label);
     }
 
-    // ISSUE_VINST(j2_end_label);
+    ISSUE_VINST(j2_end_label);
   }
   #endif
 
-  // #ifdef VECTOR_CORE
-  // volatile int BH;
-  // volatile int BHO;
-  // volatile int BHOO;
-  // do {
-  //   asm("trillium vissue_delim until_next vec_body_init");
-  //   int j2_idx = j2 + vtid;
-  //   DTYPE symmat_idx = 0.0f;
+  #ifdef VECTOR_CORE
+  volatile int BH;
+  volatile int BHO;
+  volatile int BHOO;
+  do {
+    asm("trillium vissue_delim until_next vec_body_init");
+    int j2_idx = j2 + vtid;
+    DTYPE symmat_idx = 0.0f;
 
-  // do {
+  do {
 
 
 
-  //   do {
+    do {
       
-  //     asm("trillium vissue_delim if_begin vec_body");
-  //     FRAME_START(COVAR_FRAME_SIZE);
-  //     symmat_idx += sp_ptr[sp + 0] * sp_ptr[sp + 1];
-  //     REMEM(COVAR_FRAME_SIZE);
-  //     sp+=2;
-  //     sp = sp % POST_FRAME_WORD;
-  //     asm("trillium vissue_delim end at_jump");
-  //     // if (j2_idx < (M+1)) {
-  //     //   symmat[j2_idx * (M+1) + j1] = symmat_idx;
-  //     //   symmat[j1 * (M+1) + j2_idx] = symmat_idx;
-  //     // }
-  //   } while(BH);
+      asm("trillium vissue_delim if_begin vec_body");
+      FRAME_START(COVAR_FRAME_SIZE);
+      symmat_idx += sp_ptr[sp + 0] * sp_ptr[sp + 1];
+      REMEM(COVAR_FRAME_SIZE);
+      sp+=2;
+      sp = sp % POST_FRAME_WORD;
+      asm("trillium vissue_delim end at_jump");
+      // if (j2_idx < (M+1)) {
+      //   symmat[j2_idx * (M+1) + j1] = symmat_idx;
+      //   symmat[j1 * (M+1) + j2_idx] = symmat_idx;
+      // }
+    } while(BH);
 
 
-  //   asm("trillium vissue_delim if_begin vec_body_end");
-  //   int gt = (j2_idx >= (M+1));
-  //   PRED_EQ(gt, 0);
-  //   symmat[j2_idx * (M+1) + j1] = symmat_idx;
-  //   symmat[j1 * (M+1) + j2_idx] = symmat_idx;
-  //   PRED_EQ(j2, j2);
-  //   j2+=VECTOR_LEN;
-  //   asm("trillium vissue_delim end at_jump");
+    asm("trillium vissue_delim if_begin vec_body_end");
+    int gt = (j2_idx >= (M+1));
+    PRED_EQ(gt, 0);
+    symmat[j2_idx * (M+1) + j1] = symmat_idx;
+    symmat[j1 * (M+1) + j2_idx] = symmat_idx;
+    PRED_EQ(j2, j2);
+    j2+=VECTOR_LEN;
+    asm("trillium vissue_delim end at_jump");
 
-  // } while (BHO);
+  } while (BHO);
 
-  //   asm("trillium vissue_delim if_begin j2_end");
-  //   j1+=stride;
-  //   j2 = j1;
-  //   asm("trillium vissue_delim end at_jump");
+    asm("trillium vissue_delim if_begin j2_end");
+    j1+=stride;
+    j2 = j1;
+    asm("trillium vissue_delim end at_jump");
 
-  // } while(BHOO);
-  // #endif
+  } while(BHOO);
+  #endif
 
 
   // Clean up on the vector cores.
@@ -469,17 +469,21 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
 #ifdef SCALAR_CORE
 init_label:
   asm("trillium glue_point vector_init");
-// vec_body_init_label:
-//   asm("trillium glue_point vec_body_init");
-// vec_body_label:
-//   asm("trillium glue_point vec_body");
-// vec_body_end_label:
-//   asm("trillium glue_point vec_body_end");
-// j2_end_label:
-//   asm("trillium glue_point j2_end");
+return;
+vec_body_init_label:
+  asm("trillium glue_point vec_body_init");
+return;
+vec_body_label:
+  asm("trillium glue_point vec_body");
+vec_body_end_label:
+  asm("trillium glue_point vec_body_end");
+j2_end_label:
+  asm("trillium glue_point j2_end");
+return;
 vector_return_label:
   asm("trillium glue_point vector_return");
 #endif
+
 
 
   // if (ptid == 0) {
