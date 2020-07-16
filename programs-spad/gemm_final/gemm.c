@@ -79,7 +79,7 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
       
       for (int ii = 0; ii < BLK_DIM; ii+=2)
       {
-        #ifdef MANYCORE_PREFETCH
+        #ifdef C_PREFETCH
         // fetch c in scratchpad
         sp_c_offset[0] = spadRegion * REGION_SIZE;
         sp_c_offset[1] = sp_c_offset[0] + BLK_DIM;
@@ -91,7 +91,7 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
           for (int j = 0; j < BLK_DIM; j++)
           {
             DTYPE temp;
-            #ifdef MANYCORE_PREFETCH
+            #ifdef C_PREFETCH
             temp = spAddr[sp_c_offset[i-ii]+j]*BETA;
             #else
             temp = c[_idx_(i + i0, j + j0, n)]*BETA;
@@ -102,7 +102,7 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
             sp_c[_idx_(i, j, BLK_DIM)] = 0;
           }
         }
-        #ifdef MANYCORE_PREFETCH
+        #ifdef C_PREFETCH
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
         REMEM(REGION_SIZE);
         #endif
@@ -141,12 +141,21 @@ void kernel(
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
   vdim = cinfo.vdim_x*cinfo.vdim_y;
+  int *ptid_group = getSpAddr(ptid,NUM_REGIONS * REGION_SIZE + BLK_DIM*BLK_DIM + 10);
 
   if(cinfo.used){
     //do work division here
     int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
     start = roundUp((cinfo.unique_id + 0) * m / cinfo.total_groups, alignment); 
     end = roundUp((cinfo.unique_id + 1) * m / cinfo.total_groups, alignment); 
+
+    for(int i=0; i<cinfo.vdim_y;i++){
+      for(int j=0; j<cinfo.vdim_x; j++){
+        ptid_group[i*cinfo.vdim_x+j] = get_ptid_from_group(&tinfo, cinfo.unique_id,j,i,pdim_x);
+        // if (ptid==0) printf("Ptid: %d\n", ptid_group_[i*vdim_x+j]);
+      }
+    }
+
   }
 
   

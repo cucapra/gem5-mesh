@@ -5,15 +5,30 @@
 
 // #define _VEC
 #define VEC_LEN 4 //vec group size
+#define BLK_DIM 4 //tile size
 
-#define BLK_DIM 4
-#define REGION_SIZE (2*BLK_DIM) //configure using LCM of required frame/region sizes
-#define NUM_REGIONS (512 / REGION_SIZE) // (0,512) in this case is the hardware region area 
+#if VEC_LEN==4
+#define DIM_X 2
+#elif VEC_LEN==16
+#define DIM_X 4
+#endif
+
+// #define SHARING
+// #define C_PREFETCH 
+#define MANYCORE_PREFETCH
+
+#ifdef SHARING
+#define REGION_SIZE (BLK_DIM*2)/DIM_X
+#define NUM_REGIONS (512 / REGION_SIZE)
+#else
+#define REGION_SIZE (BLK_DIM * 2)
+#define NUM_REGIONS (512 / REGION_SIZE)
+#endif
 
 #define ALPHA 4
 #define BETA 5
 
-#define MANYCORE_PREFETCH
+
 
 typedef int DTYPE;
 

@@ -8,26 +8,43 @@ inline int _idx_(int y, int x, int width)
   return (y * width) + x;
 }
 
+
 inline void vert_prefetch(int *sp_a_offset, int *sp_b_offset, int *spadRegion, int dim_y, int dim_x, int k,
-                          int *a, int m_start, int m, int *b, int n_start, int n){
+                          DTYPE *a, int m_start, int m, DTYPE *b, int n_start, int n){
 
-    *sp_a_offset = *spadRegion * REGION_SIZE;
-    *sp_b_offset = *sp_a_offset + REGION_SIZE / 2;
+  *sp_a_offset = *spadRegion * REGION_SIZE;
+  *sp_b_offset = *sp_a_offset + REGION_SIZE / 2;
 
-    for (int yy = 0; yy < dim_y; yy++)
-    {
-      for (int xx = 0; xx < dim_x; xx++)
-      {
-        //fetch a
-        VPREFETCH_L(*sp_a_offset, a + _idx_(k, m_start + yy * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
-        VPREFETCH_R(*sp_a_offset, a + _idx_(k, m_start + yy * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
-
-        //fetch b
-        VPREFETCH_L(*sp_b_offset, b + _idx_(k, n_start + xx * BLK_DIM, n), xx + yy * dim_x, BLK_DIM,1);
-        VPREFETCH_R(*sp_b_offset, b + _idx_(k, n_start + xx * BLK_DIM, n), xx + yy * dim_x, BLK_DIM,1);
-      }
+  for (int yy = 0; yy < dim_y; yy++)
+  {
+    for (int xx = 0; xx < dim_x; xx++){
+      //fetch a
+      VPREFETCH_L(*sp_a_offset, a + _idx_(k, m_start + yy * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
+    
+      //fetch b
+      VPREFETCH_L(*sp_b_offset, b + _idx_(k, n_start + xx * BLK_DIM, n), xx + yy * dim_x, BLK_DIM,1);
     }
-    *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
+  }
+  *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
+}
+
+inline void horiz_prefetch(int *sp_a_offset, int *sp_b_offset, int *spadRegion, int offset_y, int offset_x,
+                           int k, int m_start, int n_start, int m , int n, DTYPE *a, DTYPE *b){
+
+  *sp_a_offset = *spadRegion * REGION_SIZE;
+  *sp_b_offset = *sp_a_offset + REGION_SIZE / 2;
+
+  // fetch a
+  for (int i = 0; i < (offset_y / VEC_LEN); i++){
+    VPREFETCH_L(*sp_a_offset + i, a + _idx_(k, m_start + (i * VEC_LEN), m), 0, VEC_LEN,0);
+  }
+
+  // fetch b
+  for (int j = 0; j < (offset_x / VEC_LEN); j++){
+    VPREFETCH_L(*sp_b_offset + j, b + _idx_(k, n_start + (j * VEC_LEN), n), 0, VEC_LEN,0);
+  }
+
+  *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
 }
 
 void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
@@ -50,7 +67,6 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   int dim_y = 4;
 #endif
 
-  int total_cores = VEC_LEN;
   int offset_x, offset_y;
   offset_x = BLK_DIM * dim_x;
   offset_y = BLK_DIM * dim_y;
@@ -64,8 +80,13 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   /* ------------ prefetch ahead of issuing ----------*/
   int iter_ahead = min(t,1);
   for (int k = 0; k < iter_ahead; k++){
+    #ifdef SHARING
+    horiz_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, offset_y, offset_x,
+                    k, m_start, 0, m, n, a, b);
+    #else
     vert_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, dim_y, dim_x, k, 
                   a, m_start, m , b, 0, n);
+    #endif
   }
   /* ------------ initial prefetch end ----------*/
 
@@ -88,14 +109,20 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         vector_iter++;
 
         // ---------------prefetch region ------------------
+        #ifdef SHARING
+        horiz_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, offset_y, offset_x,
+                        k, i0, j0, m, n, a, b);
+        #else
         vert_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, dim_y, dim_x, k, 
                   a, i0, m , b, j0, n);
+        #endif
         // ----------------prefetch end --------------------
 
         if(vector_iter%level3_size ==0) ISSUE_VINST(fable4567);
         if(vector_iter%(level2_size*level3_size)==0) ISSUE_VINST(fable8);
         
       }
+
     }
   }
   /* ------------------ end of vprefetches ----------------------*/
@@ -139,7 +166,10 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   volatile int bh1, bh2, bh3;
   DTYPE a_, b_;
   int spadRegion;
-  
+
+  int *ptid_group = getSpAddr(ptid,NUM_REGIONS * REGION_SIZE + BLK_DIM*BLK_DIM + 10);
+  DTYPE *sp_all[VEC_LEN];
+
   #if VEC_LEN==4
   int dim_x = 2; //num cpu in a group in x dim
   int dim_y = 2;
@@ -148,10 +178,15 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
 
   int dim_x = 4; //num cpu in a group in x dim
   int dim_y = 4;
-  
+  #endif
+
+  #ifdef SHARING
+  #pragma GCC unroll (16)
+  for(int i=0;i<VEC_LEN;i++){
+    sp_all[i] = (DTYPE *)getSpAddr(ptid_group[i], 0);
+  }
   #endif
   
-  int total_cores = VEC_LEN;
   DTYPE *spAddr;
   int offset_x, offset_y;
   
@@ -179,8 +214,18 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         {
           for (int j = 0; j < BLK_DIM; j++)
           {
+            #ifdef SHARING
+            int which_sp_a = (vtid_y * BLK_DIM + i) % VEC_LEN;
+            int sp_offset_a = (vtid_y * BLK_DIM + i) / VEC_LEN;
+            DTYPE *addr_a = sp_all[which_sp_a] + spadRegion * REGION_SIZE + sp_offset_a;
+
+            int which_sp_b = (vtid_x * BLK_DIM + j) % VEC_LEN;
+            int sp_offset_b = (vtid_x * BLK_DIM + j) / VEC_LEN;
+            DTYPE *addr_b = sp_all[which_sp_b] + spadRegion * REGION_SIZE + REGION_SIZE / 2 + sp_offset_b;
+            #else
             DTYPE *addr_a = spAddr + spadRegion * REGION_SIZE + i;
             DTYPE *addr_b = spAddr + spadRegion * REGION_SIZE + REGION_SIZE / 2 + j;
+            #endif
 
             a_= *addr_a;
             b_= *addr_b;
