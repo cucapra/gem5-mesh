@@ -469,17 +469,14 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
 #ifdef SCALAR_CORE
 init_label:
   asm("trillium glue_point vector_init");
-return;
 vec_body_init_label:
   asm("trillium glue_point vec_body_init");
-return;
 vec_body_label:
   asm("trillium glue_point vec_body");
 vec_body_end_label:
   asm("trillium glue_point vec_body_end");
 j2_end_label:
   asm("trillium glue_point j2_end");
-return;
 vector_return_label:
   asm("trillium glue_point vector_return");
 #endif
