@@ -34,6 +34,7 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
   offset_y = BLK_DIM * pdim_y;
 
   int sp_a_offset,sp_b_offset;
+  int sp_c_offset[2];
 
   //assuming m_start-m_end is divisble by BLK_DIM
   for (int i0 = m_start; i0 < m; i0 += offset_x)
@@ -75,16 +76,36 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
         #endif
       }
 
-      for (int i = 0; i < BLK_DIM; i++)
+      
+      for (int ii = 0; ii < BLK_DIM; ii+=2)
       {
-        for (int j = 0; j < BLK_DIM; j++)
-        {
-          DTYPE temp = c[_idx_(i + i0, j + j0, n)]*BETA;
-          temp += sp_c[_idx_(i, j, BLK_DIM)];
-          // c[_idx_(i + i0, j + j0, n)] = temp;
-          STORE_NOACK(temp, c + _idx_(i + i0, j + j0, n), 0);
-          sp_c[_idx_(i, j, BLK_DIM)] = 0;
+        #ifdef MANYCORE_PREFETCH
+        // fetch c in scratchpad
+        sp_c_offset[0] = spadRegion * REGION_SIZE;
+        sp_c_offset[1] = sp_c_offset[0] + BLK_DIM;
+        VPREFETCH_L(sp_c_offset[0], c + _idx_(ii + i0, j0, n), 0, BLK_DIM,1);
+        VPREFETCH_L(sp_c_offset[1], c + _idx_(ii+1 + i0, j0, n), 0, BLK_DIM,1);
+        FRAME_START(REGION_SIZE);
+        #endif
+        for (int i=ii; i<ii+2; i++){
+          for (int j = 0; j < BLK_DIM; j++)
+          {
+            DTYPE temp;
+            #ifdef MANYCORE_PREFETCH
+            temp = spAddr[sp_c_offset[i-ii]+j]*BETA;
+            #else
+            temp = c[_idx_(i + i0, j + j0, n)]*BETA;
+            #endif
+            temp += sp_c[_idx_(i, j, BLK_DIM)];
+            // c[_idx_(i + i0, j + j0, n)] = temp;
+            STORE_NOACK(temp, c + _idx_(i + i0, j + j0, n), 0);
+            sp_c[_idx_(i, j, BLK_DIM)] = 0;
+          }
         }
+        #ifdef MANYCORE_PREFETCH
+        spadRegion = (spadRegion + 1) % NUM_REGIONS;
+        REMEM(REGION_SIZE);
+        #endif
       }
 
     }
