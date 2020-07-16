@@ -92,12 +92,12 @@ void __attribute__((optimize("-fno-inline"))) covar(
     covar_manycore_baseline(symmat, data, N, M, ptid, dim);
     #else
     SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);
-    if (used)
-      tril_mean(mask, mean, data, N, M, ptid, groupId, numGroups, vtid);
+    // if (used)
+      // tril_mean(mask, mean, data, N, M, ptid, groupId, numGroups, vtid);
     SET_PREFETCH_MASK(NUM_CENTER_FRAMES, CENTER_FRAME_SIZE, &start_barrier);
     // center_manycore_baseline(mean, data, N, M, ptid, dim);
-    if (used)
-      tril_center(mask, mean, data, N, M, ptid, groupId, numGroups, vtid);
+    // if (used)
+      // tril_center(mask, mean, data, N, M, ptid, groupId, numGroups, vtid);
     SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
     covar_manycore_baseline(symmat, data, N, M, ptid, dim);
     // if (used)
