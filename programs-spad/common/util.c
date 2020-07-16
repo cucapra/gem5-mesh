@@ -23,14 +23,13 @@ int roundUp(int numToRound, int multiple) {
 
 // ret 0 if not within eps diff
 // ret 1 if within eps diff
-int float_compare(float a, float b, float eps) {
-  if (eps < 0.0f)
-    eps *= -1.0f;
-
+int float_compare(float a, float b, float allowed_perc_diff) {
   float diff = b - a;
   if (diff < 0.0f)
     diff *= -1.0f;
 
-  if (diff < eps) return 1;
+  float perc_diff = diff / b;
+
+  if (perc_diff < allowed_perc_diff) return 1;
   else return 0;
 }

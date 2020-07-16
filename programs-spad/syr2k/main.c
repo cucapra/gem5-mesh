@@ -153,7 +153,7 @@ int main(int argc, char *argv[]) {
     for (int j = 0; j < M; j++) {
       int idx = i * M + j;
       // if (c[idx] != c_exp[idx]) {
-      if (float_compare(c[idx], c_exp[idx], 0.000001f * c_exp[idx]) == 0) { 
+      if (float_compare(c[idx], c_exp[idx], 0.0001f) == 0) { 
         printf("i %d j %d idx %d | %f != %f\n", i, j, idx, c[idx], c_exp[idx]);
         printf("[[FAIL]]\n");
         return 1;
