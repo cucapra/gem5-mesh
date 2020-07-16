@@ -141,6 +141,8 @@ void kernel(
 // get behavior of each core
   #ifdef _VEC
   int mask = getSIMDMask(&cinfo);
+  #elif defined MANYCORE_PREFETCH
+  int mask = getDebugMask(&cinfo);
   #else
   int mask = 0;
   #endif
@@ -162,6 +164,7 @@ MOVE_STACK_ONTO_SCRATCHPAD();
 #if defined _VEC
   tril_gemm_vec(mask, a, b, c, m, n, t, start, end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
 #else
+  VECTOR_EPOCH(mask);
   gemm_manycore(a, b, c, m, n, t, m_start, n_start, ptid, pdim_x, pdim_y);
 #endif
 

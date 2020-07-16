@@ -13,7 +13,7 @@
 #define ALPHA 4
 #define BETA 5
 
-// #define MANYCORE_PREFETCH
+#define MANYCORE_PREFETCH
 
 typedef int DTYPE;
 

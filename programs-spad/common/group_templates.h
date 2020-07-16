@@ -127,6 +127,8 @@ inline core_config_info_t manycore_template(
   cinfo.vdim_x = 1;
   cinfo.vdim_y = 1;
   cinfo.used = 1;
+  cinfo.orig_x = ptid_x;
+  cinfo.orig_y = ptid_y;
   cinfo.unique_id = ptid_x + ptid_y * pdim_x;
   cinfo.total_groups = pdim_x * pdim_y;
 
