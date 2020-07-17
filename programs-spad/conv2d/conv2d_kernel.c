@@ -63,9 +63,9 @@ inline void prefetch_vert_frame(DTYPE *a, int r, int c, int ncols, int dim, int 
 inline void prefetch_horiz_frame(DTYPE *a, int r, int c, int ncols, int pRatio, int *spadIdx) {
   // prefetch all 9 values required for computation
   // #pragma GCC unroll 3
-  for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+  for (int k1 = -1; k1 <= 1; k1++) {
     // #pragma GCC unroll 3
-    for (int k2 = 0; k2 < FILTER_DIM; k2++) {
+    for (int k2 = -1; k2 <= 1; k2++) {
       int aIdx = (r + k1) * ncols + (c + k2);
       
       #if PREFETCH_LEN != VECTOR_LEN
@@ -91,14 +91,13 @@ inline void prefetch_horiz_frame(DTYPE *a, int r, int c, int ncols, int pRatio, 
 #endif
 
 void tril_conv2d(int mask,
-    DTYPE *a, DTYPE *b, int start_row, int end_row, int ncols,
-    int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y, int effCols) {
+    DTYPE *a, DTYPE *b, int outer_start, int outer_end, int inner_dim, int eff_inner_dim,
+    int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y) {
 
   #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
 
   int dim = vdim_x * vdim_y;
-  int vtid = vtid_x + vtid_y * vdim_x;
 
   #ifdef REUSE
   int step = dim*FILTER_DIM - (FILTER_DIM - 1);
@@ -107,6 +106,10 @@ void tril_conv2d(int mask,
   #else
   int step = dim;
   #endif
+
+  //   int unmappedColLen = inner_dim - eff_inner_dim;
+  // printf("%d %d %d %d %d\n", outer_start, outer_end, inner_dim, eff_inner_dim,
+  //   unmappedColLen);
 
   // TODO better way to do this for arbitrary groups
   #ifdef REUSE
@@ -136,56 +139,61 @@ void tril_conv2d(int mask,
   
 	DEF_WEIGHTS();
 
+  int vtid = vtid_x + vtid_y * vdim_x;
+  int dim = vdim_x * vdim_y;
+
+
+  #ifdef REUSE
+  int step = dim*FILTER_DIM - (FILTER_DIM - 1);
+  #elif defined(VERTICAL_LOADS)
+  int step = CORE_STEP*dim;
+  #else
+  int step = dim;
+  #endif
+
   #ifdef REUSE
   int startOffset = vtid * FILTER_DIM - 1;
   #else
   int startOffset = vtid * (step/dim);
   #endif
 
-  DTYPE *bPtr = b + start_row * ncols + startOffset;
-  int unmappedColLen = ncols - effCols;
+  DTYPE *bPtr = b + outer_start * inner_dim + startOffset + 1;
+  int unmappedColLen = inner_dim - eff_inner_dim;
 
 
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
   #endif
 
-
-
-  // TODO fails if put this here... sigh
-  // // how much we're actually going to do (ignore edges)
-  // // TODO can we use predication instead?
-  // int effCols = ncols - (FILTER_DIM - 1);
-
   #ifdef SCALAR_CORE
   int sp = 0;
-  int beginCol = min(INIT_FRAMES * step, effCols);
+  int beginCol = min(INIT_FRAMES * step, eff_inner_dim);
 
-  for (int r = start_row; r < end_row; r++) {
+  for (int r = outer_start; r < outer_end; r++) {
     // initial warmup
-    for (int c = 0; c < beginCol; c+=step) {
+    for (int c = 1; c < 1 + beginCol; c+=step) {
       #ifdef VERTICAL_LOADS
       // exhibit temporal reuse within a frame in a cacheline (16) can do 16-2=14 3x1 filters
       // TODO spatial should also do reuse maybe between frames (by putting in temporal storage). 
       // But maybe can't do memory layout restrictions
       prefetch_vert_frame(a, r, c, ncols, dim, &sp);
       #else
-      prefetch_horiz_frame(a, r, c, ncols, pRatio, &sp);
+      prefetch_horiz_frame(a, r, c, inner_dim, pRatio, &sp);
       #endif
     }
 
     // steady state
-    for (int c = beginCol; c < effCols; c+=step) {
+    for (int c = 1 + beginCol; c < 1 + eff_inner_dim; c+=step) {
       #ifdef VERTICAL_LOADS
       prefetch_vert_frame(a, r, c, ncols, dim, &sp);
       #else
-      prefetch_horiz_frame(a, r, c, ncols, pRatio, &sp);
+      prefetch_horiz_frame(a, r, c, inner_dim, pRatio, &sp);
       #endif
       ISSUE_VINST(vec_body_label);
     }
 
     // cooldown
-    for (int c = effCols - beginCol; c < effCols; c+=step) {
+    for (int c = 1 + eff_inner_dim - beginCol; c < 1 + eff_inner_dim; c+=step) {
       ISSUE_VINST(vec_body_label);
     }
 
@@ -307,16 +315,21 @@ void tril_conv2d(int mask,
         cPtr += unmappedColLen;
       }
       #else
-      DTYPE out = 0.0f;
-      out += c11 * sp_ptr[sp + 0];
-      out += c21 * sp_ptr[sp + 1];
-      out += c31 * sp_ptr[sp + 2];
-      out += c12 * sp_ptr[sp + 3];
-      out += c22 * sp_ptr[sp + 4];
-      out += c32 * sp_ptr[sp + 5];
-      out += c13 * sp_ptr[sp + 6];
-      out += c23 * sp_ptr[sp + 7];
-      out += c33 * sp_ptr[sp + 8];
+      // DTYPE out = 0.0f;
+      // out += c11 * sp_ptr[sp + 0];
+      // out += c21 * sp_ptr[sp + 1];
+      // out += c31 * sp_ptr[sp + 2];
+      // out += c12 * sp_ptr[sp + 3];
+      // out += c22 * sp_ptr[sp + 4];
+      // out += c32 * sp_ptr[sp + 5];
+      // out += c13 * sp_ptr[sp + 6];
+      // out += c23 * sp_ptr[sp + 7];
+      // out += c33 * sp_ptr[sp + 8];
+      DTYPE out = CONV_3x3(
+        sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
+        sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
+        sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8]
+      );
 
       END_FRAME();
 
@@ -358,12 +371,16 @@ void tril_conv2d(int mask,
 #ifdef SCALAR_CORE
 init_label:
   asm("trillium glue_point vector_init");
+exit(1);
 vec_body_label:
   asm("trillium glue_point vec_body");
+exit(1);
 vec_body_end_label:
   asm("trillium glue_point vec_body_end");
+exit(1);
 vector_return_label:
   asm("trillium glue_point vector_return");
+exit(1);
 #endif
 
   return;

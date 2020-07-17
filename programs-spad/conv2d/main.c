@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int nrows = 4;
+  int nrows = 6;
   int ncols = nrows;
 
   int skip_check = 0;
@@ -139,6 +139,9 @@ int main(int argc, char *argv[]) {
         printf("[[FAIL]]\n");
         return 1;
       }
+      // else {
+      //   printf("%f == %f @ row %d cold %d\n", b[idx], b_exp[idx], row, col);
+      // }
     }
   }
   

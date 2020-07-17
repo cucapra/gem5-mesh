@@ -77,13 +77,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int unique_id = 0;
   int total_groups = 0;
   int used = 0;
+  int start = 0;
+  int end = 0;
 
   // group construction
   #ifdef VECTOR_LEN
 
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
+  // template_info_t tinfo = init_template_4x4_2x2();
+  template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif
@@ -98,10 +100,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   total_groups = cinfo.total_groups;
   used = cinfo.used;
 
-  // if (used) {
-  //   start = ( (unique_id + 0) * NJ ) / total_groups;
-  //   end   = ( (unique_id + 1) * NJ ) / total_groups;
-  // }
+  if (used) {
+    start = 1 + ( (unique_id + 0) * (NJ-2) ) / total_groups;
+    end   = 1 + ( (unique_id + 1) * (NJ-2) ) / total_groups;
+  }
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 16, vdim_x, vdim_y, start, end, used); 
 
@@ -141,7 +143,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #elif defined(VERTICAL_LOADS)
   rated_size = ( VECTOR_LEN * CORE_STEP );
   #elif defined(VECTOR_LEN)
-  rated_size = ( VECTOR_LEN * FILTER_DIM );
+  rated_size = ( VECTOR_LEN + (FILTER_DIM-1) );
   #else
   rated_size = 1;
   #endif
@@ -151,6 +153,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // mapped len is schedule on main config, unmapped will be scheduled on base manycore
   int unmapped_len = eff_len % rated_size;
   int mapped_len = eff_len - unmapped_len;
+  mapped_len -= (FILTER_DIM-1);
+  unmapped_len -= (FILTER_DIM-1);
 
   // only let certain tids continue
   #if defined(USE_VEC)
@@ -162,10 +166,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   #ifdef USE_VEC
   // do computation that we can map
-  tril_conv2d(a, b, c, start, end, mapped_len, ncols, ptid, vtid_x, vtid_y, vdim_x, vdim_y, mask);
+  tril_conv2d(mask, a, b, start, end, NJ, mapped_len, ptid, vtid_x, vtid_y, vdim_x, vdim_y);
 
+  // TODO
   // do remainder of computation starting from offset
-  conv2d_manycore(a, b, c, nrows, mapped_len, mapped_len + unmapped_len, ncols, ptid, vtid, vdim, start, end);
+  // conv2d_manycore(a, b, NI, NJ, ptid, pdim);
+  // conv2d_manycore(a, b, c, nrows, mapped_len, mapped_len + unmapped_len, ncols, ptid, vtid, vdim, start, end);
   #else
   conv2d_manycore(a, b, NI, NJ, ptid, pdim);
   #endif

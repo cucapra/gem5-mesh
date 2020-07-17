@@ -20,8 +20,8 @@
 
 
 // one of these should be defined to dictate config
-#define NO_VEC 1
-// #define VEC_4_SIMD 1
+// #define NO_VEC 1
+#define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_REUSE_VERTICAL 1
 // #define VEC_16_SIMD 1
@@ -62,7 +62,7 @@
 // prefetch sizings
 #if defined(USE_VEC)
 #define POST_REGION_WORD 256
-#define INIT_FRAMES 1
+#define INIT_FRAMES 2
 #if defined(REUSE)
 #define LOAD_DEPTH 3
 #define REGION_SIZE (LOAD_DEPTH*FILTER_DIM)
