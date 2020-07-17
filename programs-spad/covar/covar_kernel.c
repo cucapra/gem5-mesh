@@ -329,10 +329,12 @@ inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, in
   for (int core = 0; core < VECTOR_LEN; core++) {
     VPREFETCH_L(*sp, &data[i * (M+1) + j1], core, COVAR_J1_PREFETCH_LEN, VERTICAL);
   }
+  // printf("%d %f\n", *sp, data[i * (M+1) + j1]);
   *sp = *sp + COVAR_J1_PREFETCH_LEN;
 
   VPREFETCH_L(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
   VPREFETCH_R(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
+  // printf("%d %f\n", *sp, data[i * (M+1) + j2]);
   *sp = *sp + 1;
 
   if (*sp == POST_FRAME_WORD) *sp = 0;
@@ -357,10 +359,10 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
 
   #ifdef VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
-  int start = 1 + groupId * VECTOR_LEN;
+  int start = 1 + groupId; // * VECTOR_LEN;
   // int j2 = j1;
   int j2;
-  int stride = numGroups * VECTOR_LEN;
+  int stride = numGroups;// * VECTOR_LEN;
   int j1 = start - stride;
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
@@ -372,6 +374,9 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   int sp  = 0;
 
   for (int j1 = start; j1 < end; j1+=stride) {
+
+    ISSUE_VINST(j2_begin_label);
+
     for (int j2 = j1; j2 < (M+1); j2+=VECTOR_LEN) {
 
       ISSUE_VINST(vec_body_init_label);
@@ -404,14 +409,13 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   volatile int BHO;
   volatile int BHOO;
   do {
-
+    asm("trillium vissue_delim until_next j2_begin");
+    j1+=stride;
+    j2 = j1 + vtid;
 
   do {
 
     asm("trillium vissue_delim until_next vec_body_init");
-    j1+=stride;
-    j2 = j1;
-    int j2_idx = j2 + vtid;
     DTYPE symmat_idx = 0.0f;
 
     do {
@@ -431,10 +435,10 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
 
 
     asm("trillium vissue_delim if_begin vec_body_end");
-    int gt = (j2_idx >= (M+1));
+    int gt = (j2 >= (M+1));
     PRED_EQ(gt, 0);
-    symmat[j2_idx * (M+1) + j1] = symmat_idx;
-    symmat[j1 * (M+1) + j2_idx] = symmat_idx;
+    symmat[j2 * (M+1) + j1] = symmat_idx;
+    symmat[j1 * (M+1) + j2] = symmat_idx;
     PRED_EQ(j2, j2);
     j2+=VECTOR_LEN;
     asm("trillium vissue_delim end at_jump");
@@ -471,6 +475,9 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
 #ifdef SCALAR_CORE
 init_label:
   asm("trillium glue_point vector_init");
+  exit(1);
+j2_begin_label:
+  asm("trillium glue_point j2_begin");
   exit(1);
 vec_body_init_label:
   asm("trillium glue_point vec_body_init");
