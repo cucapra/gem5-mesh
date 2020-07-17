@@ -358,9 +358,10 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   #ifdef VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
   int start = 1 + groupId * VECTOR_LEN;
-  int j1 = start;
-  int j2 = j1;
+  // int j2 = j1;
+  int j2;
   int stride = numGroups * VECTOR_LEN;
+  int j1 = start - stride;
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
   #endif
@@ -403,13 +404,15 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   volatile int BHO;
   volatile int BHOO;
   do {
-    asm("trillium vissue_delim until_next vec_body_init");
-    int j2_idx = j2 + vtid;
-    DTYPE symmat_idx = 0.0f;
+
 
   do {
 
-
+    asm("trillium vissue_delim until_next vec_body_init");
+    j1+=stride;
+    j2 = j1;
+    int j2_idx = j2 + vtid;
+    DTYPE symmat_idx = 0.0f;
 
     do {
       
@@ -439,8 +442,7 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   } while (BHO);
 
     asm("trillium vissue_delim if_begin j2_end");
-    j1+=stride;
-    j2 = j1;
+
     asm("trillium vissue_delim end at_jump");
 
   } while(BHOO);
