@@ -20,6 +20,8 @@ void conv2D(DTYPE* A, DTYPE* B, int NI, int NJ)
 			B[i*NJ + j] = c11 * A[(i - 1)*NJ + (j - 1)]  +  c12 * A[(i + 0)*NJ + (j - 1)]  +  c13 * A[(i + 1)*NJ + (j - 1)]
 				+ c21 * A[(i - 1)*NJ + (j + 0)]  +  c22 * A[(i + 0)*NJ + (j + 0)]  +  c23 * A[(i + 1)*NJ + (j + 0)] 
 				+ c31 * A[(i - 1)*NJ + (j + 1)]  +  c32 * A[(i + 0)*NJ + (j + 1)]  +  c33 * A[(i + 1)*NJ + (j + 1)];
+
+      // printf("%f\n", B[i*NJ+j]);
 		}
 	}
 }
@@ -33,7 +35,8 @@ void init(DTYPE* A, int NI, int NJ)
 		for (j = 0; j < NJ; ++j)
 		{
 		  // A[i*NJ + j] = (float)rand()/RAND_MAX;
-      A[i*NJ + j] = (float)(NI + 1) / 4.0f * (float)(NJ + 1) / 2.0f;
+      A[i*NJ + j] = ((float)(i + 1) / 4.0f) * ((float)(j + 1) / 3.0f);
+      // printf("%f\n", A[i*NJ+j]);
     }
   }
 }
@@ -127,13 +130,10 @@ int main(int argc, char *argv[]) {
   conv2D(a_exp, b_exp, ncols, nrows);
 
 
-  for (int row = 0; row < nrows; row++) {
-    for (int col = 0; col < ncols; col++) {
+  for (int row = 1; row < nrows - 1; row++) {
+    for (int col = 1; col < ncols - 1; col++) {
       int idx = row * ncols + col;
       // if (b[idx] != b_exp[idx]) {
-      float diff = b[idx] - b_exp[idx];
-      float percdiff = diff / b_exp[idx];
-      printf("%f %f\n", diff, percdiff);
       if (!float_compare(b[idx], b_exp[idx], 0.00001f)) {
         printf("%f != %f @ row %d cold %d\n", b[idx], b_exp[idx], row, col);
         printf("[[FAIL]]\n");
