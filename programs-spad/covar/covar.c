@@ -62,9 +62,9 @@ int n_sum(int n) {
 void covar_manycore_baseline(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) {
   // if chunk then load balancing problem
   // opt for strided load balancing
-  int start = tid;
+  int start  = tid;
   int stride = dim;
-  int end   = M;
+  int end    = M;
 
   for (int j1 = start + 1; j1 < (end+1); j1+=stride) {
     for (int j2 = j1; j2 < (M+1); j2++) {

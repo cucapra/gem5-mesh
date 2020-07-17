@@ -378,12 +378,12 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
 
       // initial round
       for (int i = 1; i < 1 + INIT_COVAR_OFFSET; i++) {
-        prefetch_covar_frame(data, i, start, start, &sp, M);
+        prefetch_covar_frame(data, i, j1, j2, &sp, M);
       }
 
        // steady state
       for (int i = 1 + INIT_COVAR_OFFSET; i < (N+1); i++) {
-        prefetch_covar_frame(data, i, start, start, &sp, M);
+        prefetch_covar_frame(data, i, j1, j2, &sp, M);
         ISSUE_VINST(vec_body_label);
       }
 
