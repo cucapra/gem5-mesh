@@ -274,8 +274,6 @@
 	fence
 	ret
 	# trillium: auxiliary blocks begin
-.tril_vvadd_anon_aux_bb:
-	ret
 .SCALAR16:
 	li	a6,16
 	j	.SCALAR2

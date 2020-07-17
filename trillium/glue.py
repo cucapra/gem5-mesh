@@ -407,13 +407,11 @@ def glue(raw_scalar_code, all_vector_bbs, rodata_chunks):
                 glue_points = {}
                 labels = [] #stack of labels
 
-                # labels pointing to scalar auxiliary blocks (not
-                # including scalar block that returns to jump address,
-                # if any). (OrderedDict helps us keep track of the
-                # last inserted label.)
-                aux_bbs = OrderedDict({
-                    '{}_anon_aux_bb'.format(func_name): [],
-                })
+                # "Auxiliary blocks" are code that appears *after* and
+                # *among* glue points (not including any scalar block
+                # that jumps to return address). We move these before
+                # the vector block stuff.
+                aux_bbs = OrderedDict()
 
                 # Non-instruction lines after all labels/blocks.
                 footer = []
@@ -510,15 +508,25 @@ def glue(raw_scalar_code, all_vector_bbs, rodata_chunks):
 
             else:
                 if len(labels) > 1:
-                    log.warn(
+                    log.warning(
                         "appending empty auxiliary blocks: {}\n".format(labels[1:]) +
                         "Is it ok that your scalar assembly code contains empty labels?"
                     )
-                if len(labels) > 0:
+
+                if labels:
                     for _ in labels:
                         aux_bbs[labels.pop()] = []
-                latest_aux_bb = list(aux_bbs.values())[-1]
-                latest_aux_bb.append(l)
+
+                if aux_bbs:
+                    latest_aux_bb = list(aux_bbs.values())[-1]
+                    latest_aux_bb.append(l)
+                else:
+                    # No label has occurred yet. We ignore lines that
+                    # happen after the glue points but before any label.
+                    log.warning(
+                        'Ignoring post-glue-point line: {}\n'
+                        'Make sure this is not important!'.format(l)
+                    )
 
         elif state == ScalarParseState.INDIRECT_SCALAR_RET_FOUND:
             parsed_label = parse_label(l)

@@ -13,8 +13,6 @@
 	SCALAR_AFTER_DEVEC
 	ret
 	# trillium: auxiliary blocks begin
-.tril_somefunc_anon_aux_bb:
-	SCALAR_AFTER_RETURN
 .SCALAR4:
 	AN_AUXILIARY_BLOCK
 .SCALAR6:
