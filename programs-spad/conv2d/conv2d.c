@@ -29,8 +29,12 @@
 
 */
 
-void conv2d_manycore(DTYPE *a, DTYPE *b, int inner_dim,
-    int ptid, int outer_start, int outer_end) {
+void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
+    int ptid, int pdim) {
+
+  int eff_outer_dim = outer_dim - (FILTER_DIM-1);
+  int outer_start  = 1 + ( ( ptid + 0 ) * eff_outer_dim ) / pdim;
+  int outer_end    = 1 + ( ( ptid + 1 ) * eff_outer_dim ) / pdim;
 
   DEF_WEIGHTS();
 
@@ -70,8 +74,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int vdim_x = 0;
   int vdim_y = 0;
   int vdim   = 0;
-  int start  = 0;
-  int end    = 0;
   int unique_id = 0;
   int total_groups = 0;
   int used = 0;
@@ -96,10 +98,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   total_groups = cinfo.total_groups;
   used = cinfo.used;
 
-  if (used) {
-    start = ( (unique_id + 0) * NJ ) / total_groups;
-    end   = ( (unique_id + 1) * NJ ) / total_groups;
-  }
+  // if (used) {
+  //   start = ( (unique_id + 0) * NJ ) / total_groups;
+  //   end   = ( (unique_id + 1) * NJ ) / total_groups;
+  // }
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 16, vdim_x, vdim_y, start, end, used); 
 
@@ -110,8 +112,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vtid_x = 0;
   vtid_y = 0;
   vtid   = 0;
-  start  = ( ( ptid + 0 ) * NI ) / pdim;
-  end    = ( ( ptid + 1 ) * NI ) / pdim;
+  // start  = ( ( ptid + 0 ) * NI ) / pdim;
+  // end    = ( ( ptid + 1 ) * NI ) / pdim;
 
   // printf("%d->%d\n", start, end); 
 
@@ -165,7 +167,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // do remainder of computation starting from offset
   conv2d_manycore(a, b, c, nrows, mapped_len, mapped_len + unmapped_len, ncols, ptid, vtid, vdim, start, end);
   #else
-  conv2d_manycore(a, b, NJ, ptid, start, end);
+  conv2d_manycore(a, b, NI, NJ, ptid, pdim);
   #endif
 
   // restore stack pointer to DRAM
