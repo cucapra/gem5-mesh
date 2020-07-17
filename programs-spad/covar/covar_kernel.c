@@ -350,8 +350,8 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   // int start = ((groupId + 0) * M) / numGroups;
   // int end   = ((groupId + 1) * M) / numGroups;
 
-  int start = 1 + groupId * VECTOR_LEN;
-  int stride = numGroups * VECTOR_LEN;
+  int start = 1 + groupId; // * VECTOR_LEN;
+  int stride = numGroups; // * VECTOR_LEN;
   int end = M + 1;
 
   ISSUE_VINST(init_label);
