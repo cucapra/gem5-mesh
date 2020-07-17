@@ -49,15 +49,6 @@ void center_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, i
   }
 }
 
-int n_sum(int n) {
-  int sum = 0;
-  for (int i = 1; i < n + 1; i++) {
-    sum += i;
-  }
-  return sum;
-}
-
-
 // compute the covariance matrix
 void covar_manycore_baseline(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) {
   // if chunk then load balancing problem
@@ -94,12 +85,12 @@ void __attribute__((optimize("-fno-inline"))) covar(
     SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);
     if (used)
       tril_mean(mask, mean, data, N, M, ptid, groupId, numGroups, vtid);
+    
     SET_PREFETCH_MASK(NUM_CENTER_FRAMES, CENTER_FRAME_SIZE, &start_barrier);
-    // center_manycore_baseline(mean, data, N, M, ptid, dim);
     if (used)
       tril_center(mask, mean, data, N, M, ptid, groupId, numGroups, vtid);
+    
     SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
-    // covar_manycore_baseline(symmat, data, N, M, ptid, dim);
     if (used)
       tril_covar(mask, symmat, data, N, M, ptid, groupId, numGroups, vtid);
     #endif
@@ -126,11 +117,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int vdim_x = 0;
   int vdim_y = 0;
   int vdim   = 0;
-  int orig_x = 0;
-  int orig_y = 0;
-  int is_da  = 0;
-  int master_x = 0;
-  int master_y = 0;
   int unique_id = 0;
   int total_groups = 0;
   int used = 0;
@@ -139,8 +125,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef VECTOR_LEN
 
   #if VECTOR_LEN==4
-  // template_info_t tinfo = init_template_4x4_2x2();
-  template_info_t tinfo = init_template_debug();
+  template_info_t tinfo = init_template_4x4_2x2();
+  // template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif
@@ -151,11 +137,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vtid_y = cinfo.vtid_y;
   vdim_x = cinfo.vdim_x;
   vdim_y = cinfo.vdim_y;
-  orig_x = cinfo.orig_x;
-  orig_y = cinfo.orig_y;
-  is_da  = cinfo.is_scalar;
-  master_x = cinfo.master_x;
-  master_y = cinfo.master_y;
   unique_id = cinfo.unique_id;
   total_groups = cinfo.total_groups;
   used = cinfo.used;

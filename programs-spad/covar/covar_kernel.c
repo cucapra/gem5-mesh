@@ -347,9 +347,6 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
 
-  // int start = ((groupId + 0) * M) / numGroups;
-  // int end   = ((groupId + 1) * M) / numGroups;
-
   int start = 1 + groupId; // * VECTOR_LEN;
   int stride = numGroups; // * VECTOR_LEN;
   int end = M + 1;
@@ -368,8 +365,6 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
   #endif
 
-
-  // fails when comment in
   #ifdef SCALAR_CORE
   int sp  = 0;
 
@@ -419,7 +414,6 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
     DTYPE symmat_idx = 0.0f;
 
     do {
-      
       asm("trillium vissue_delim if_begin vec_body");
       FRAME_START(COVAR_FRAME_SIZE);
       symmat_idx += sp_ptr[sp + 0] * sp_ptr[sp + 1];
@@ -427,10 +421,6 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
       sp+=2;
       sp = sp % POST_FRAME_WORD;
       asm("trillium vissue_delim end at_jump");
-      // if (j2_idx < (M+1)) {
-      //   symmat[j2_idx * (M+1) + j1] = symmat_idx;
-      //   symmat[j1 * (M+1) + j2_idx] = symmat_idx;
-      // }
     } while(BH);
 
 
