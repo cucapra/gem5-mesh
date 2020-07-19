@@ -111,7 +111,7 @@ def run_all_configs(vec_configs, num_cpus, prog_key, argv):
     # compile program with the specificed vec config
     compile_prog(num_cpus, prog_key, strings_to_make_args(vec_config))
 
-    run_prog(num_cpus, prog_key, argv, strings_to_metadata(vec_config))
+    return run_prog(num_cpus, prog_key, argv, strings_to_metadata(vec_config))
 
 
   
