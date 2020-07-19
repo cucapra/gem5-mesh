@@ -46,6 +46,8 @@ def compile_prog(numCpus, program, extra_flags):
 def run_prog(numCpus, program, argv, extra_info):
   
   # check if the success flag was asserted using regex checking on the gem5 output
+  if (not 'success' in program['success']):
+    program['success'] = '\[\[SUCCESS\]\]'
   success_regex = re.compile(program['success'])
 
   # run with currSize
