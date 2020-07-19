@@ -15,13 +15,19 @@
 
 # choose which programs to run via script and with what configs
 sim_configs = {
-  'stencil' : {
+  'stencil': {
     'prog' : 'stencil',
     'vec'  : ["VEC_4_SIMD"],
     'argv' : ['1730', '60']
     # 'style': V_S,
     # 'pf'   : [4,16]
   },
+  'bicg'   : {
+    'prog' : 'bicg',
+    'vec'  : ["VEC_4_SIMD"],
+    'argv' : ['96']
+  },
+
   
 }
 

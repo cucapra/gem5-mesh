@@ -34,19 +34,20 @@ gem5_cmd = lambda program, options, result, cpus, vec: \
 def compile_cmd(program_dir, cpus, extra_flags):
   cmd = 'make clean -C {}'.format(program_dir)
   cmd += ' && '
-  cmd += extra_flags + ' ENV_N_SPS={} make -C {}'.format(cpus, program_dir)
+  cmd += extra_flags + ' N_SPS={} make -C {}'.format(cpus, program_dir)
   return cmd
 
 # just compile with args needed for makefile (#cores, and whether vec enabled...etc)
-def compile_prog(numCpus, program, extra_flags):
+def compile_prog(numCpus, prog_key, extra_flags):
+  program = sim_list.programs[prog_key]
   cmplCmd = compile_cmd(os.path.dirname(program['path']), numCpus, extra_flags)
   result = subprocess.check_output(cmplCmd, shell=True)
   print(result)
 
-def run_prog(numCpus, program, argv, extra_info):
-  
+def run_prog(numCpus, prog_key, argv, extra_info):
+  program = sim_list.programs[prog_key]
   # check if the success flag was asserted using regex checking on the gem5 output
-  if (not 'success' in program['success']):
+  if (not 'success' in program):
     program['success'] = '\[\[SUCCESS\]\]'
   success_regex = re.compile(program['success'])
 
@@ -68,45 +69,6 @@ def run_prog(numCpus, program, argv, extra_info):
     return True
   else:
     return False
-
-# # consturct a valid config from the args
-# # filters out configurations that don't make sense
-# # only works for vec configs
-# def vvadd_merge_args(vec_size, prefetch_len, load_type):
-#   config = []
-
-#   # vec size flag
-#   if (vec_size == 1):
-#     assert(0)
-#   if (vec_size > 1):
-#     config.append('VECTOR_LEN=' + str(vec_size))
-
-#   # load type flag
-#   if (load_type == 'SPATIAL'):
-#     pass
-#   elif (load_type == 'VERTICAL'):
-#     config.append('VERTICAL_LOADS')
-#   elif (load_type == 'SPATIAL_UNROLL'):
-#     config.append('SPATIAL_UNROLL')
-#   elif (load_type == 'REUSE'):
-#     config.append('REUSE')
-#     config.append('VERTICAL_LOADS')
-
-#   # vertical only works with prefetch 16
-#   if (load_type == 'VERTICAL' or load_type == 'REUSE'):
-#     if (prefetch_len != 16):
-#       return (False, config)
-#     else:
-#       config.append('PF=16')
-#       return (True, config)
-
-#   # remove configs where vec size exceeds prefetch size
-#   else:
-#     if (vec_size < prefetch_len):
-#       return (False, config)
-#     else:
-#       config.append('PF=' + str(prefetch_len))
-#       return (True, config)
 
 # either array or single string
 def strings_to_make_args(args):
@@ -141,45 +103,56 @@ def strings_to_metadata(args):
     meta = args
   return meta
 
+# run all configuration for a single benchmark
+# this must be done serially due to recompiling benchmark
+# (but can parallize across benchmarks)
+def run_all_configs(vec_configs, num_cpus, prog_key, argv):
+  for vec_config in vec_configs:
+    # compile program with the specificed vec config
+    compile_prog(num_cpus, prog_key, strings_to_make_args(vec_config))
+
+    run_prog(num_cpus, prog_key, argv, strings_to_metadata(vec_config))
+
+
   
 # choose which programs to run with diff parameters
 
 # fixed parameters for the run, compile the binary for these
-numCpus = 64
+num_cpus = 64
 
 pool = multiprocessing.Pool(processes=4)
+jobs = []
 
 # for use_vec in use_vec_arr:
 for sim_config in sim_list.sim_configs.values():
   prog_name = sim_config['prog']
-  prog_def  = sim_list.programs[prog_name]
+  # prog_def  = sim_list.programs[prog_name] # TODO can't pass dicts?
   argv      = sim_config['argv']
+  vec_configs = sim_config['vec']
 
-  for vec_config in sim_config['vec']:
-    # compile program with the specificed vec config
-    compile_prog(numCpus, prog_def, strings_to_make_args(vec_config))
+  # for vec_config in vec_configs:
+  #   # compile program with the specificed vec config
+  #   compile_prog(num_cpus, prog_def, strings_to_make_args(vec_config))
 
-    run_prog(numCpus, prog_def, argv, strings_to_metadata(vec_config))
+  #   run_prog(num_cpus, prog_def, argv, strings_to_metadata(vec_config))
 
-    # jobs = []
+  # the new file will have the same name as the old file, but also specify the new dir
+  proc = pool.apply_async(run_all_configs, args=(vec_configs, num_cpus, prog_name, argv, ))
+  jobs.append(proc)
 
-    # # the new file will have the same name as the old file, but also specify the new dir
-    # proc = pool.apply_async(run_prog, args=(numCpus, prog_def, argv, strings_to_metadata(vec_config) ))
-    # jobs.append(proc)
+# Wait for jobs to complete before exiting
+while(not all([p.ready() for p in jobs])):
+  time.sleep(5)
 
-    # # Wait for jobs to complete before exiting
-    # while(not all([p.ready() for p in jobs])):
-    #   time.sleep(5)
+# Check if any jobs failed
+failed_runs = 0
+for p in jobs:
+  if (p.get() == False):
+    failed_runs += 1
 
-    # # Check if any jobs failed
-    # failed_runs = 0
-    # for p in jobs:
-    #   if (p.get() == False):
-    #     failed_runs += 1
-
-    # if (failed_runs > 0):
-    #   print('{} runs failed'.format(failed_runs))
-    #   assert(False)
+if (failed_runs > 0):
+  print('{} runs failed'.format(failed_runs))
+  assert(False)
 
 # Safely terminate the pool
 pool.close()

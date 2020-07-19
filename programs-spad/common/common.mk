@@ -1,11 +1,11 @@
 # defaults if environment variables not set. allows scritable command line
 
 N_SPS ?= 64
-ifneq ($(ENV_N_SPS),)
-	N_SPS ?= $(ENV_N_SPS)
-endif
+# ifneq ($(ENV_N_SPS),)
+# 	N_SPS ?= $(ENV_N_SPS)
+# endif
 
-EXTRA_FLAGS :=
+EXTRA_FLAGS ?=
 ifneq ($(ENV_EXTRA_MAKE_FLAGS),)
 	EXTRA_FLAGS := $(EXTRA_FLAGS) $(ENV_EXTRA_MAKE_FLAGS)
 endif
