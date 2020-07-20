@@ -2,16 +2,7 @@
   Sim configurations
 '''
 
-# possible vector config enumerators
-# V_0      = ['no_vec']
-# V_4      = ['vec_4']
-# V_0_4    = ['no_vec', 'vec_4']
-# V_0_4_16 = ['no_vec', 'vec_4', 'vec_16']
-
-# V_S      = ['spatial']
-# V_V      = ['vertical']
-# V_S_V    = ['spatial', 'vertical']
-
+# helper set of vec configs you can use in a benchmark (assuming it supports)
 ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD']
 
 
