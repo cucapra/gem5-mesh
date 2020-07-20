@@ -11,7 +11,7 @@ from stat_list import stats
 parser = argparse.ArgumentParser(description='Analyze stats file in a given directory')
 parser.add_argument('--sims', default='../../results', help='Path with results you want to analyze')
 parser.add_argument('--outfile', default='../../results/extract.csv', help='CSV Path where extracted data should go')
-parser.add_argument('--prefix', default='vvadd', help='prefix of directory name to parse, could be program for example')
+parser.add_argument('--prefix', default='', help='prefix of directory name to parse, could be program for example')
 args = parser.parse_args()
 
 #
@@ -19,31 +19,49 @@ args = parser.parse_args()
 
 dirPaths = []
 
-prog = args.prefix
+prefix = args.prefix
 
 # created by top/eval/run_sim.py
-nameConv = r'^' + prog + r'(.*)$'
+nameConv = r'^' + prefix + r'(.*)$'
 annoConv = r'-([a-zA-Z]+)(\d+\.?\d*)'
 metaConv = r'-([a-zA-Z0-9_]+)'
-dirRegex = re.compile(nameConv)
+prefixRegex = re.compile(nameConv)
 annoRegex = re.compile(annoConv)
 metaRegex = re.compile(metaConv)
+
+# try to parse as prog-vec-othermeta
+mc = '[a-zA-Z0-9_]+'
+mcdash = '[a-zA-Z0-9_-]+'
+dirConv = '({})-({})-({})'.format(mc, mc, mcdash)
+dirRegex = re.compile(dirConv)
+
 
 #
 # Function defs
 
 # parse results directory name
-def parse_dir_name(prog, dirName):
-  # parse the name of the file
-  nameMatch = dirRegex.search(dirName)
-  if (nameMatch):
-    annotation = nameMatch.group(1)
-  else:
-    assert(False)
-    
-  # parse annotation
+def parse_dir_name(dirName):
   annos = {}
-  annos['prog'] = prog
+  dirMatch = dirRegex.search(dirName)
+  if (dirMatch):
+    annos['prog'] = dirMatch.group(1)
+    annos['config'] = dirMatch.group(2)
+    annos['meta'] = dirMatch.group(3)
+  else:
+    annos['prog'] = dirName
+    annos['config'] = 'unknown'
+    annos['meta'] = 'na'
+
+  # # parse the name of the file
+  # nameMatch = dirRegex.search(dirName)
+  # if (nameMatch):
+  #   annotation = nameMatch.group(1)
+  # else:
+  #   assert(False)
+    
+  # # parse annotation
+  # annos = {}
+  # annos['prog'] = prog
   
   # for match in annoRegex.finditer(annotation):
   #   field = match.group(1)
@@ -51,12 +69,12 @@ def parse_dir_name(prog, dirName):
 
   #   annos[field] = value
 
-  # check for any meta data that isn't field-val
-  for match in metaRegex.finditer(annotation):
-      fullStr = match.group(0)
-      meta = match.group(1)
-      # if (not annoRegex.search(fullStr)):
-      annos['meta'] = meta
+  # # check for any meta data that isn't field-val
+  # for match in metaRegex.finditer(annotation):
+  #     fullStr = match.group(0)
+  #     meta = match.group(1)
+  #     if (not annoRegex.search(fullStr)):
+  #       annos['meta'] = meta
     
   return annos
 
@@ -143,7 +161,7 @@ for root, dirs, files in os.walk(args.sims):
     path = os.path.join(root, name)
     
     # check that the name is in a format we can read
-    dirMatch = dirRegex.search(name)
+    dirMatch = prefixRegex.search(name)
     if (not dirMatch):
       continue
       
@@ -175,7 +193,7 @@ for root, dirs, files in os.walk(args.sims):
 
 parameters = []
 for dirPath in dirPaths:
-  annos = parse_dir_name(prog, os.path.basename(dirPath))
+  annos = parse_dir_name(os.path.basename(dirPath))
   for k, v in annos.items():
     exists = False
     for param in parameters:
@@ -200,7 +218,7 @@ for dirPath in dirPaths:
   # parse dir and stats
   
   # get size of file, TODO should try to do on first check and insert into a dict
-  annos = parse_dir_name(prog, os.path.basename(dirPath))
+  annos = parse_dir_name(os.path.basename(dirPath))
   
   # get path to stats
   statsFile = os.path.join(dirPath, 'stats.txt')
