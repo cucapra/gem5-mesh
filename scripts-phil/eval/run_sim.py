@@ -129,8 +129,9 @@ pool = multiprocessing.Pool(processes=4)
 jobs = []
 
 # for use_vec in use_vec_arr:
-for sim_config in sim_list.sim_configs.values():
-  prog_name = sim_config['prog']
+for k,v in sim_list.sim_configs.items():
+  prog_key = k
+  sim_config = v
   # prog_def  = sim_list.programs[prog_name] # TODO can't pass dicts?
   argv      = sim_config['argv']
   vec_configs = sim_config['vec']
@@ -142,7 +143,7 @@ for sim_config in sim_list.sim_configs.values():
   #   run_prog(num_cpus, prog_def, argv, strings_to_metadata(vec_config))
 
   # the new file will have the same name as the old file, but also specify the new dir
-  proc = pool.apply_async(run_all_configs, args=(vec_configs, num_cpus, prog_name, argv, ))
+  proc = pool.apply_async(run_all_configs, args=(vec_configs, num_cpus, prog_key, argv, ))
   jobs.append(proc)
 
 # Wait for jobs to complete before exiting
