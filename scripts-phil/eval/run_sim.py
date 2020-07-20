@@ -121,28 +121,21 @@ def run_all_configs(vec_configs, num_cpus, prog_key, argv):
   return all_pass
 
 
-  
-# choose which programs to run with diff parameters
+# MAIN
+# 
 
-# fixed parameters for the run, compile the binary for these
 num_cpus = args.num_cpus
 
-pool = multiprocessing.Pool(processes=4)
+# limit to 16 threads, each benchmark in parallel, but configs are serial
+pool = multiprocessing.Pool(processes=16)
 jobs = []
 
-# for use_vec in use_vec_arr:
 for k,v in sim_list.sim_configs.items():
   prog_key = k
   sim_config = v
   # prog_def  = sim_list.programs[prog_name] # TODO can't pass dicts?
   argv      = sim_config['argv']
   vec_configs = sim_config['vec']
-
-  # for vec_config in vec_configs:
-  #   # compile program with the specificed vec config
-  #   compile_prog(num_cpus, prog_def, strings_to_make_args(vec_config))
-
-  #   run_prog(num_cpus, prog_def, argv, strings_to_metadata(vec_config))
 
   # the new file will have the same name as the old file, but also specify the new dir
   proc = pool.apply_async(run_all_configs, args=(vec_configs, num_cpus, prog_key, argv, ))
