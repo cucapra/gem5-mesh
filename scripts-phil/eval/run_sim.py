@@ -42,8 +42,8 @@ def compile_cmd(program_dir, cpus, extra_flags):
 def compile_prog(numCpus, prog_key, extra_flags):
   program = sim_list.programs[prog_key]
   cmplCmd = compile_cmd(os.path.dirname(program['path']), numCpus, extra_flags)
-  result = subprocess.check_output(cmplCmd, shell=True)
-  print(result)
+  result = subprocess.check_output(cmplCmd, shell=True, stderr=subprocess.STDOUT)
+  # print(result)
 
 def run_prog(numCpus, prog_key, argv, extra_info):
   program = sim_list.programs[prog_key]
@@ -62,7 +62,7 @@ def run_prog(numCpus, prog_key, argv, extra_info):
   cmd = gem5_cmd(program['path'], optionsStr, resultsDir, numCpus, True)
   print(cmd)
   result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
-  print(result)
+  # print(result)
 
   # make sure that the run passed
   success = success_regex.search(result)
@@ -105,7 +105,9 @@ def run_all_configs(vec_configs, num_cpus, prog_key, argv):
 
     ret = run_prog(num_cpus, prog_key, argv, strings_to_metadata(vec_config))
     if (not ret):
+      print('-------------------------------------------------------------')
       print('{} failed w/ config {}'.format(prog_key, vec_config))
+      print('-------------------------------------------------------------')
       all_pass = False
 
   return all_pass
