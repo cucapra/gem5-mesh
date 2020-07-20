@@ -22,6 +22,7 @@ parser = argparse.ArgumentParser(description='Run gem5 simulation and output inf
 parser.add_argument('--build', default='../../build/RVSP/gem5.opt', help='Path to gem5 build')
 parser.add_argument('--config', default='../../configs/phil/brg_hammerblade.py', help='Path to gem5 build')
 parser.add_argument('--results', default='../../results', help='Path to place to store results')
+parser.add_argument('--num-cpus', default=64, help='Number of cpus to use in simulation')
 args = parser.parse_args()
 
 # create a template for the gem5 command line
@@ -123,7 +124,7 @@ def run_all_configs(vec_configs, num_cpus, prog_key, argv):
 # choose which programs to run with diff parameters
 
 # fixed parameters for the run, compile the binary for these
-num_cpus = 64
+num_cpus = args.num_cpus
 
 pool = multiprocessing.Pool(processes=4)
 jobs = []
