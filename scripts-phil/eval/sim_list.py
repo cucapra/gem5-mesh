@@ -12,21 +12,51 @@
 # V_V      = ['vertical']
 # V_S_V    = ['spatial', 'vertical']
 
+ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD']
+
 
 # choose which programs to run via script and with what configs
 sim_configs = {
-  'stencil': {
-    'vec'  : ['VEC_4_SIMD'],
-    'argv' : ['1730', '60']
-  },
+  # 'stencil': {
+  #   'vec'  : ['VEC_4_SIMD'],
+  #   'argv' : ['1730', '60']
+  # },
   'bicg'   : {
-    'vec'  : ['NO_VEC', 'VEC_4_SIMD'],
+    'vec'  : ALL_CONFIGS,
     'argv' : ['96']
+  },
+  'gram'   : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['16']
+  },
+  'syrk'   : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['32']
+  },
+  'syr2k'  : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['32']
+  },
+  # 'atax'   : { # TODO 16 CPUs?
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['128']
+  # },
+  'mvt'    : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['128']
+  },
+  'gemm'   : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['64']
+  },
+  'corr'   : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['64']
   },
 }
 
 
-# specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful
+# specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful (opt)
 progDir0 = '../../programs-spad/'
 programs = {
 

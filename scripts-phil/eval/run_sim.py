@@ -115,6 +115,7 @@ def run_all_configs(vec_configs, num_cpus, prog_key, argv):
 
     ret = run_prog(num_cpus, prog_key, argv, strings_to_metadata(vec_config))
     if (not ret):
+      print('{} failed w/ config {}'.format(prog_key, vec_config))
       all_pass = False
 
   return all_pass
