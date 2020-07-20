@@ -72,7 +72,7 @@ programs = {
     'options' : lambda argv: "{0} {0}".format(str(argv[0])),
     'serialize' : lambda argv: '-NX{0}-NY{0}'.format(str(argv[0])),
   },
-  'gram' : { 'name': 'gram-schmidt', 'path' : progDir0 + 'gramschmidt/gramschmidt', 
+  'gram' : { 'name': 'gram_schmidt', 'path' : progDir0 + 'gramschmidt/gramschmidt', 
     'options' : lambda argv: "{0} {0}".format(str(argv[0])), 
     'serialize' : lambda argv: '-vecs{0}-len{0}'.format(str(argv[0])),
   },
