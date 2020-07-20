@@ -107,11 +107,16 @@ def strings_to_metadata(args):
 # this must be done serially due to recompiling benchmark
 # (but can parallize across benchmarks)
 def run_all_configs(vec_configs, num_cpus, prog_key, argv):
+  all_pass = True
   for vec_config in vec_configs:
     # compile program with the specificed vec config
     compile_prog(num_cpus, prog_key, strings_to_make_args(vec_config))
 
-    return run_prog(num_cpus, prog_key, argv, strings_to_metadata(vec_config))
+    ret = run_prog(num_cpus, prog_key, argv, strings_to_metadata(vec_config))
+    if (not ret):
+      all_pass = False
+
+  return all_pass
 
 
   

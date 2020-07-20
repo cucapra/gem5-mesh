@@ -45,18 +45,18 @@ def parse_dir_name(prog, dirName):
   annos = {}
   annos['prog'] = prog
   
-  for match in annoRegex.finditer(annotation):
-    field = match.group(1)
-    value = match.group(2)
+  # for match in annoRegex.finditer(annotation):
+  #   field = match.group(1)
+  #   value = match.group(2)
 
-    annos[field] = value
+  #   annos[field] = value
 
   # check for any meta data that isn't field-val
   for match in metaRegex.finditer(annotation):
       fullStr = match.group(0)
       meta = match.group(1)
-      if (not annoRegex.search(fullStr)):
-        annos['meta'] = meta
+      # if (not annoRegex.search(fullStr)):
+      annos['meta'] = meta
     
   return annos
 

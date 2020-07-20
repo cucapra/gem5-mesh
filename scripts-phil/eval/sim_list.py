@@ -24,7 +24,7 @@ sim_configs = {
   },
   'bicg'   : {
     'prog' : 'bicg',
-    'vec'  : ["VEC_4_SIMD"],
+    'vec'  : ['NO_VEC', 'VEC_4_SIMD'],
     'argv' : ['96']
   },
 
