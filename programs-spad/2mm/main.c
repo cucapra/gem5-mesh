@@ -43,17 +43,17 @@ int check_1mm(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t)
   return 0;
 }
 
-// int check_transpose(DTYPE* a, DTYPE* aT, int r, int c){
-//   for(int i=0; i<r; i++){
-//     for(int j=0; j<c; j++){
-//       if(a[i*c+j]!=aT[j*r+i]) {
-//         printf("[[FAIL at transpose]]\n");
-//         return 1;
-//       }
-//     }
-//   }
-//   return 0;
-// }
+int check_transpose(DTYPE* a, DTYPE* aT, int r, int c){
+  for(int i=0; i<r; i++){
+    for(int j=0; j<c; j++){
+      if(a[i*c+j]!=aT[j*r+i]) {
+        printf("[[FAIL at transpose]]\n");
+        return 1;
+      }
+    }
+  }
+  return 0;
+}
 
 
 int main(int argc, char *argv[])
@@ -111,8 +111,8 @@ int main(int argc, char *argv[])
   DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeB, (void**)&b_ptr);
   DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeC, (void**)&c_ptr);
   DTYPE *cT = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeC, (void**)&cT_ptr);
-  DTYPE *d = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeC, (void**)&d_ptr);
-  DTYPE *e = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeC, (void**)&e_ptr);
+  DTYPE *d = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeD, (void**)&d_ptr);
+  DTYPE *e = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeE, (void**)&e_ptr);
 
   // initilaize arrays
   srand(0);
@@ -150,7 +150,7 @@ int main(int argc, char *argv[])
   a = a_;
   a_ = _temp;
   #endif
-
+  printf("hello\n");
 
   /*--------------------------------------------------------------------
   * Pack argument for kernel
@@ -190,11 +190,11 @@ int main(int argc, char *argv[])
 
   printf("[[mini SUCCESS for 1st mm]]\n");
 
-  // fail = check_transpose(c, cT, m,t2);
-  // if (fail)
-  //   return 1;
+  fail = check_transpose(c, cT, m,t2);
+  if (fail)
+    return 1;
 
-  // printf("[[mini SUCCESS transpose]]\n");
+  printf("[[mini SUCCESS transpose]]\n");
 
   fail = check_1mm(c, d, e, m, n, t2);
   if (fail)
