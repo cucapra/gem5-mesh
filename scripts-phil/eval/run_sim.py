@@ -61,7 +61,7 @@ def run_prog(numCpus, prog_key, argv, extra_info):
   resultsDir = program['name'] + resultsAnno
   cmd = gem5_cmd(program['path'], optionsStr, resultsDir, numCpus, True)
   print(cmd)
-  result = subprocess.check_output(cmd, shell=True)
+  result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
   print(result)
 
   # make sure that the run passed
@@ -88,20 +88,10 @@ def strings_to_metadata(args):
   if (isinstance(args, list)):
     for a in args:
       # special interpretations
-      arg = a
-      if (a == 'VERTICAL_LOADS'):
-        arg = 'V'
-      elif (a == 'SPATIAL_UNROLL'):
-        arg = 'S'
-      elif (a == 'REUSE'):
-        arg = 'R'
-      elif (a[0:11] == 'VECTOR_LEN='):
-        arg = a[11:len(a)]
-      elif (a[0:3] == 'PF='):
-        arg = a[3:len(a)]
+      arg = sim_list.abbreviate_config(a)
       meta += arg + '_'
   else:
-    meta = args
+    meta = sim_list.abbreviate_config(args)
   return meta
 
 # run all configuration for a single benchmark

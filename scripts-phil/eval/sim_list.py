@@ -55,6 +55,23 @@ sim_configs = {
   },
 }
 
+# make a shorthand to represent the config output name
+def abbreviate_config(config):
+  if (config == 'VEC_4_SIMD'):
+    return 'V4'
+  elif (config == 'VEC_16_SIMD'):
+    return 'V16'
+  elif (config == 'NO_VEC'):
+    return 'NV'
+  elif (config == 'REUSE'):
+    return 'R'
+  elif (config[0:11] == 'VECTOR_LEN='):
+    return a[11:len(a)]
+  elif (config[0:3] == 'PF='):
+    return a[3:len(a)]
+  else:
+    return config
+
 
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful (opt)
 progDir0 = '../../programs-spad/'
@@ -100,6 +117,8 @@ programs = {
     'options' : lambda argv: "{0} {0}".format(str(argv[0])), 
     'serialize' : lambda argv: '-M{0}-N{0}'.format(str(argv[0]))
   },
-
 }
+
+
+
 
