@@ -83,7 +83,8 @@ inline void prefetch_horiz_frame(DTYPE *a, int r, int c, int ncols, int pRatio, 
 
 void tril_conv2d(int mask,
     DTYPE *a, DTYPE *b, int outer_start, int outer_end, int inner_dim, int eff_inner_dim,
-    int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y) {
+    int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y,
+    DTYPE *p_sp_ptr, DTYPE *n_sp_ptr) {
 
   #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
@@ -101,21 +102,6 @@ void tril_conv2d(int mask,
   //   int unmappedColLen = inner_dim - eff_inner_dim;
   // printf("%d %d %d %d %d\n", outer_start, outer_end, inner_dim, eff_inner_dim,
   //   unmappedColLen);
-
-  // TODO better way to do this for arbitrary groups
-  #ifdef REUSE
-  // calculate prev and next spAddr for reuse
-  int *prevSpadAddr = NULL;
-  int *nextSpadAddr = NULL;
-  if (vtid != 0) {
-    if (vtid_x == 0) prevSpadAddr = (int*)getSpAddr(ptid - (GRID_XDIM - (vdim_x - 1)), 0);
-    else prevSpadAddr = (int*)getSpAddr(ptid - 1, 0);
-  }
-  if (vtid != dim - 1) {
-    if (vtid_x == vdim_x - 1) nextSpadAddr = (int*)getSpAddr(ptid + (GRID_XDIM - (vdim_x - 1)), 0);
-    else nextSpadAddr = (int*)getSpAddr(ptid + 1, 0);
-  }
-  #endif
 
   // should be a constant from static analysis of dim
   int pRatio = VECTOR_LEN / PREFETCH_LEN;
@@ -202,84 +188,82 @@ void tril_conv2d(int mask,
       FRAME_START();
 
       #ifdef REUSE
-
+      volatile int ohjeez = 1;
       // note we need to unroll in order to get cPtr indexing to work b/c it goes +1 +1 +3*dim
       // potentially can move routine into a function call?
       // also could access an indirection array that gives and then have counter mod 3
       // or could even have 3 seperate issue block
 
-
-      int spData0 = spadAddr[spIdx + 0];
-      int spData1 = spadAddr[spIdx + 1];
-      int spData2 = spadAddr[spIdx + 2];
-      int spData3 = spadAddr[spIdx + 3];
-      int spData4 = spadAddr[spIdx + 4];
-      int spData5 = spadAddr[spIdx + 5];
-      int spData6 = spadAddr[spIdx + 6];
-      int spData7 = spadAddr[spIdx + 7];
-      int spData8 = spadAddr[spIdx + 8];
-
       // center computation with local values
       // important to put non-predicated first so any shared values between pred blocks
       // are not masked out... really need compiler help on this
-      c_ = 0;
-      c_ += b0 * spData0;
-      c_ += b1 * spData1;
-      c_ += b2 * spData2;
-      c_ += b3 * spData3;
-      c_ += b4 * spData4;
-      c_ += b5 * spData5;
-      c_ += b6 * spData6;
-      c_ += b7 * spData7;
-      c_ += b8 * spData8;
-      STORE_NOACK(c_, cPtr + 1, 0);
+      // c_ = 0;
+      // c_ += b0 * spData0;
+      // c_ += b1 * spData1;
+      // c_ += b2 * spData2;
+      // c_ += b3 * spData3;
+      // c_ += b4 * spData4;
+      // c_ += b5 * spData5;
+      // c_ += b6 * spData6;
+      // c_ += b7 * spData7;
+      // c_ += b8 * spData8;
+      DTYPE out = CONV_3x3(
+        sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
+        sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
+        sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8]
+      );
+      STORE_NOACK(out, bPtr + 1, 0);
 
       // if swap following two pred blocks core0 pred works, but then core3 pred doesn't work
       // definetly something wrong with pred...
       // fetch one column from the left to perform leftmost computation
       PRED_NEQ(vtid, 0);
       if (ohjeez) {
-      c_ = 0;
-      c_ += b0 * prevSpadAddr[spIdx + 2];
-      c_ += b1 * spData0;
-      c_ += b2 * spData1;
-      c_ += b3 * prevSpadAddr[spIdx + 5];
-      c_ += b4 * spData3;
-      c_ += b5 * spData4;
-      c_ += b6 * prevSpadAddr[spIdx + 8];
-      c_ += b7 * spData6;
-      c_ += b8 * spData7;
-      STORE_NOACK(c_, cPtr, 0);
+      // c_ = 0;
+      // c_ += b0 * prevSpadAddr[spIdx + 2];
+      // c_ += b1 * spData0;
+      // c_ += b2 * spData1;
+      // c_ += b3 * prevSpadAddr[spIdx + 5];
+      // c_ += b4 * spData3;
+      // c_ += b5 * spData4;
+      // c_ += b6 * prevSpadAddr[spIdx + 8];
+      // c_ += b7 * spData6;
+      // c_ += b8 * spData7;
+      DTYPE out = CONV_3x3(
+        p_sp_ptr[sp + 2], sp_ptr[sp + 0], sp_ptr[sp + 1],
+        p_sp_ptr[sp + 5], sp_ptr[sp + 3], sp_ptr[sp + 4],
+        p_sp_ptr[sp + 8], sp_ptr[sp + 6], sp_ptr[sp + 7]
+      );
+      STORE_NOACK(out, bPtr, 0);
       }
       PRED_EQ(vtid, vtid);
 
       // fetch one column from the right to perform rightmost computation
       PRED_NEQ(vtid, dim - 1); // last core in group can't do this
       if (ohjeez) { 
-      c_ = 0;
-      c_ += b0 * spData1;
-      c_ += b1 * spData2;
-      c_ += b2 * nextSpadAddr[spIdx + 0];
-      c_ += b3 * spData4;
-      c_ += b4 * spData5;
-      c_ += b5 * nextSpadAddr[spIdx + 3];
-      c_ += b6 * spData7;
-      c_ += b7 * spData8;
-      c_ += b8 * nextSpadAddr[spIdx + 6];
-      STORE_NOACK(c_, cPtr + 2, 0);
+      // c_ = 0;
+      // c_ += b0 * spData1;
+      // c_ += b1 * spData2;
+      // c_ += b2 * nextSpadAddr[spIdx + 0];
+      // c_ += b3 * spData4;
+      // c_ += b4 * spData5;
+      // c_ += b5 * nextSpadAddr[spIdx + 3];
+      // c_ += b6 * spData7;
+      // c_ += b7 * spData8;
+      // c_ += b8 * nextSpadAddr[spIdx + 6];
+      DTYPE out = CONV_3x3(
+        sp_ptr[sp + 1], sp_ptr[sp + 2], n_sp_ptr[sp + 0],
+        sp_ptr[sp + 4], sp_ptr[sp + 5], n_sp_ptr[sp + 3],
+        sp_ptr[sp + 7], sp_ptr[sp + 8], n_sp_ptr[sp + 6]
+      );
+      STORE_NOACK(out, bPtr + 2, 0);
       }
       PRED_EQ(vtid, vtid);
 
-      REMEM(frameSize);
+      END_FRAME();
 
       // 10 results are computed per reuse iteration
-      // cPtr+=step;
-      cPtr += step;
-      colCntr+=step;
-      CONVERGENT_IF(colCntr == eff_cols) {
-        colCntr = 0;
-        cPtr += unmappedColLen;
-      }
+      bPtr += step;
 
       #elif defined(VERTICAL_LOADS)
       #pragma GCC unroll(14)
@@ -292,32 +276,12 @@ void tril_conv2d(int mask,
           sp_ptr[sp1 + 0], sp_ptr[sp1 + 1], sp_ptr[sp1 + 2],
           sp_ptr[sp2 + 0], sp_ptr[sp2 + 1], sp_ptr[sp2 + 2]
         );
-        // c_ += b0 * spadAddr[baseSpIdx + 0];
-        // c_ += b1 * spadAddr[baseSpIdx + 1];
-        // c_ += b2 * spadAddr[baseSpIdx + 2];
-        // c_ += b3 * spadAddr[baseSpIdx + LOAD_DEPTH + 0];
-        // c_ += b4 * spadAddr[baseSpIdx + LOAD_DEPTH + 1];
-        // c_ += b5 * spadAddr[baseSpIdx + LOAD_DEPTH + 2];
-        // c_ += b6 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 0];
-        // c_ += b7 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 1];
-        // c_ += b8 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 2];
-        // STORE_NOACK(c_, cPtr + i, 0);
         STORE_NOACK(out, bPtr + i, 0);
       }
       END_FRAME();
 
       bPtr += step;
       #else
-      // DTYPE out = 0.0f;
-      // out += c11 * sp_ptr[sp + 0];
-      // out += c21 * sp_ptr[sp + 1];
-      // out += c31 * sp_ptr[sp + 2];
-      // out += c12 * sp_ptr[sp + 3];
-      // out += c22 * sp_ptr[sp + 4];
-      // out += c32 * sp_ptr[sp + 5];
-      // out += c13 * sp_ptr[sp + 6];
-      // out += c23 * sp_ptr[sp + 7];
-      // out += c33 * sp_ptr[sp + 8];
       DTYPE out = CONV_3x3(
         sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
         sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],

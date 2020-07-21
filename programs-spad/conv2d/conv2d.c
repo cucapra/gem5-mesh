@@ -159,6 +159,25 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // mapped_len -= (FILTER_DIM-1);
   // unmapped_len -= (FILTER_DIM-1);
 
+  // TODO better way to do this for arbitrary groups
+  DTYPE *p_sp_ptr = NULL;
+  DTYPE *n_sp_ptr = NULL;
+  #ifdef REUSE
+  // calculate prev and next spAddr for reuse
+  if (vtid != 0) {
+    if (vtid_x == 0) 
+      p_sp_ptr = (DTYPE*)getSpAddr(ptid - (GRID_XDIM - (vdim_x - 1)), 0);
+    else
+      p_sp_ptr = (DTYPE*)getSpAddr(ptid - 1, 0);
+  }
+  if (vtid != vdim - 1) {
+    if (vtid_x == vdim_x - 1)
+      n_sp_ptr = (DTYPE*)getSpAddr(ptid + (GRID_XDIM - (vdim_x - 1)), 0);
+    else 
+      n_sp_ptr = (DTYPE*)getSpAddr(ptid + 1, 0);
+  }
+  #endif
+
   // printf("%d %d\n", mapped_len, unmapped_len);
 
   // move stack onto scratchpad for faster local access than default on DRAM
@@ -167,7 +186,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef USE_VEC
   // do computation that we can map
   if (used)
-    tril_conv2d(mask, a, b, start, end, NJ, mapped_len, ptid, vtid_x, vtid_y, vdim_x, vdim_y);
+    tril_conv2d(mask, a, b, start, end, NJ, mapped_len, 
+      ptid, vtid_x, vtid_y, vdim_x, vdim_y, p_sp_ptr, n_sp_ptr);
 
   // do remainder of computation starting from offset
   conv2d_manycore(a, b, NI, NJ, mapped_len + 1, ptid, pdim);
