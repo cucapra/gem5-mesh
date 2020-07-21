@@ -9,6 +9,7 @@
 #include "reduction.h"
 #include "util.h"
 
+#include "gemm.h"
 #include "gemm_kernel.h"
 
 void transpose(DTYPE *a, int row, int col, DTYPE *aT){

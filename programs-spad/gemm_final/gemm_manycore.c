@@ -1,7 +1,7 @@
 #include <stdio.h>
 
 #include "pthread_launch.h"
-#include "gemm_common.h"
+#include "gemm.h"
 #include "spad.h"
 #include "bind_defs.h"
 #include "token_queue.h"

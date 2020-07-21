@@ -1,9 +1,7 @@
 #ifndef __VVADD_H__
 #define __VVADD_H__
 
-#include "util.h"
-
-// #define _VEC
+#define _VEC
 #define VEC_LEN 4 //vec group size
 #define BLK_DIM 4 //tile size
 
@@ -12,6 +10,9 @@
 #elif VEC_LEN==16
 #define DIM_X 4
 #endif
+
+#define ALPHA 4
+#define BETA 5
 
 // #define SHARING
 // #define C_PREFETCH 
@@ -24,11 +25,6 @@
 #define REGION_SIZE (BLK_DIM * 2)
 #define NUM_REGIONS (512 / REGION_SIZE)
 #endif
-
-#define ALPHA 4
-#define BETA 5
-
-
 
 typedef int DTYPE;
 
