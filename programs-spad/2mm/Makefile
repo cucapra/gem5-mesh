@@ -2,7 +2,8 @@ BENCHNAME := 2mm
 default: $(BENCHNAME)
 
 # Build the kernel with trilliasm.
-TRILLIASM_KERNEL := 2mm_kernel.c
+TRILLIASM_KERNEL := gemm_kernel.c
+KERNEL_DIR := ../common/
 include ../../trillium/trilliasm.mk
 
 # Standard benchmark compilation.

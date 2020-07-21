@@ -3,27 +3,15 @@
 
 #include "gemm_common.h"
 
-// #define _VEC
+#define _VEC
 #define VEC_LEN 4 //vec group size
 #define BLK_DIM 4 //tile size
 
-#if VEC_LEN==4
-#define DIM_X 2
-#elif VEC_LEN==16
-#define DIM_X 4
-#endif
-
-#undef SHARING
-#undef C_PREFETCH 
 #define MANYCORE_PREFETCH
 
-#ifdef SHARING
-#define REGION_SIZE (BLK_DIM*2)/DIM_X
-#define NUM_REGIONS (512 / REGION_SIZE)
-#else
 #define REGION_SIZE (BLK_DIM * 2)
 #define NUM_REGIONS (512 / REGION_SIZE)
-#endif
+
 
 #define ALPHA 1
 #define BETA 0

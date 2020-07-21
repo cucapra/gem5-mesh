@@ -1,11 +1,16 @@
 #ifndef __GEMM_COMMON_H__
 #define __GEMM_COMMON_H__
 
+#include "util.h"
+
 typedef int DTYPE;
 
 #define BLK_DIM 4
+
 #define REGION_SIZE (BLK_DIM * 2)
 #define NUM_REGIONS (512 / REGION_SIZE)
+
+#define VEC_LEN 4
 
 #define MANYCORE_PREFETCH
 

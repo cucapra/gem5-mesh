@@ -28,7 +28,7 @@ C_DEPS_NOKERN := $(C_SRCS_NOKERN:.c=.o)
 
 # Build common libraries, but build them "locally" (in this directory) so
 # they get updated according to this benchmark's configuration.
-COMMON_SRCS := $(wildcard $(COMMON_DIR)/*.c)
+COMMON_SRCS := $(filter-out $(COMMON_DIR)/$(TRILLIASM_KERNEL), $(wildcard $(COMMON_DIR)/*.c))
 COMMON_OBJS := $(notdir $(COMMON_SRCS:.c=.o))
 
 $(BENCHNAME) : $(TRILLIASM_OBJS) $(C_DEPS_NOKERN) $(COMMON_OBJS)

@@ -9,7 +9,7 @@
 #include "reduction.h"
 #include "util.h"
 
-#include "2mm_kernel.h"
+#include "gemm_kernel.h"
 
 void transpose(DTYPE *a, int row, int col, DTYPE *aT){
 
@@ -23,12 +23,20 @@ void transpose(DTYPE *a, int row, int col, DTYPE *aT){
 
 void __attribute__((optimize("-fno-inline")))
 kernel_2mm(int used, int mask, DTYPE *a, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE *e, int m, int n, int t1, int t2,
-            int m_start, int n_start, int ptid, int pdim_x, int pdim_y){
+            int m_start, int m_end, int n_start, int n_end, int ptid, int pdim_x, int pdim_y, int vtid_x, int vtid_y, int vtid){
 
   #ifdef _VEC
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
-  if (used)
-    tril_2mm_vec(mask);
+  if(ptid==0) printf("launching gemm kernel\n");
+  if (used) tril_gemm_vec(mask, a, b, c, m, t2, t1, m_start, m_end, vtid_x, vtid_y, vtid, ptid);
+  
+  pthread_barrier_wait(&start_barrier);
+
+  //do transpose at ptid=0
+  if(ptid==0)transpose(c,m,t2,cT);
+
+  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+  if (used) tril_gemm_vec(mask, cT, d, e, m, n, t2, m_start, m_end, vtid_x, vtid_y, vtid, ptid);
 
   #elif defined MANYCORE_PREFETCH
     SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
@@ -68,8 +76,10 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE *e, int m, 
   // linearize tid and dim
   int ptid = ptid_x + ptid_y * pdim_x;
   int pdim = pdim_x * pdim_y;
-  int start = 0;
-  int end = 0;
+  int m_start = 0;
+  int m_end = m;
+  int n_start = 0;
+  int n_end = n;
   int vdim;
   template_info_t tinfo;
 
@@ -85,8 +95,8 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE *e, int m, 
   if(cinfo.used) {
     //do work division here
     int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
-    start = roundUp((cinfo.unique_id + 0) * m / cinfo.total_groups, alignment); 
-    end = roundUp((cinfo.unique_id + 1) * m / cinfo.total_groups, alignment); 
+    m_start = roundUp((cinfo.unique_id + 0) * m / cinfo.total_groups, alignment); 
+    m_end = roundUp((cinfo.unique_id + 1) * m / cinfo.total_groups, alignment); 
   }
 
   #else
@@ -94,8 +104,8 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE *e, int m, 
 
   //do work division here
 
-  int m_start  = ptid_y * BLK_DIM;
-  int n_start  = ptid_x * BLK_DIM;
+  m_start  = ptid_y * BLK_DIM;
+  n_start  = ptid_x * BLK_DIM;
   #endif
 
   // get behavior of each core
@@ -107,12 +117,35 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE *e, int m, 
   int mask = 0;
   #endif
 
-
+  if(ptid==0) printf("moving stack on spad\n");
   // move stack onto scratchpad for faster local access than default on DRAM
-  MOVE_STACK_ONTO_SCRATCHPAD();
+  // MOVE_STACK_ONTO_SCRATCHPAD();
+
+    unsigned long long *spTop = getSpTop(ptid);
+  // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
+  spTop -= 40;
+
+  unsigned long long stackLoc;
+  unsigned long long temp;
+  #pragma GCC unroll(40)
+  for(int i=0;i<40;i++){
+    asm volatile("ld t0, %[id](sp)\n\t"
+                "sd t0, %[id](%[spad])\n\t"
+                : "=r"(temp)
+                : [id] "i"(i*8), [spad] "r"(spTop));
+  }
+  if(ptid==0) printf("done copying elements on spad\n");
+  asm volatile (// save the stack ptr
+      "addi %[dest], sp, 0\n\t"
+      // overwrite stack ptr
+      "addi sp, %[spad], 0\n\t"
+      : [ dest ] "=r"(stackLoc)
+      : [ spad ] "r"(spTop));
+
+  if(ptid==0) printf("done moving stack on spad\n");
 
   kernel_2mm(cinfo.used, mask, a, b,c,cT,d,e,m,n,t1,t2,
-            m_start, n_start, ptid, pdim_x, pdim_y);
+            m_start, m_end, n_start, n_end, ptid, pdim_x, pdim_y, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid);
 
   // restore stack pointer to DRAM
   RECOVER_DRAM_STACK();

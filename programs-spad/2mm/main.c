@@ -150,7 +150,6 @@ int main(int argc, char *argv[])
   a = a_;
   a_ = _temp;
   #endif
-  printf("hello\n");
 
   /*--------------------------------------------------------------------
   * Pack argument for kernel
