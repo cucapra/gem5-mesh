@@ -3,7 +3,7 @@ default: $(BENCHNAME)
 
 # run small sim for test
 # PROB_SIZE := 96
-N_SPS ?= 16
+N_SPS ?= 64
 # HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
 # GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Mesh
 

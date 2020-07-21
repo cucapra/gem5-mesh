@@ -61,8 +61,8 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int nrows = 6;
-  int ncols = 60;
+  int nrows = 12;
+  int ncols = 80;
 
   int skip_check = 0;
   
@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
     for (int col = 1; col < ncols - 1; col++) {
       int idx = row * ncols + col;
       // if (b[idx] != b_exp[idx]) {
-      if (!float_compare(b[idx], b_exp[idx], 0.00001f)) {
+      if (!float_compare(b[idx], b_exp[idx], 0.0001f)) {
         printf("%f != %f @ row %d cold %d\n", b[idx], b_exp[idx], row, col);
         printf("[[FAIL]]\n");
         return 1;
