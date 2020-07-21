@@ -53,10 +53,10 @@ def run_prog(numCpus, prog_key, argv, extra_info):
   success_regex = re.compile(program['success'])
 
   # run with currSize
-  optionsStr = program['options'](argv)
+  optionsStr = program['options'].format(*argv)
   
   # serialize arguments
-  serialArgs = program['serialize'](argv)
+  serialArgs = program['serialize'].format(*argv)
   resultsAnno = '-' + extra_info + serialArgs
   resultsDir = program['name'] + resultsAnno
   cmd = gem5_cmd(program['path'], optionsStr, resultsDir, numCpus, True)
