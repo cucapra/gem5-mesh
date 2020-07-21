@@ -20,9 +20,7 @@ void conv3d_manycore(DTYPE *a, DTYPE *b, int NI, int NJ, int NK, int ptid, int p
 
   DEF_WEIGHTS();
 
-  if (ptid != 0) return;
-
-  for (int i = 1; i < NI - 1; i++) {
+  for (int i = outer_start; i < outer_end; i++) {
     for (int j = 1; j < NJ - 1; j++) {
       for (int k = 1; k < NK - 1; k++) {
         b[IDX(i, j, k, NJ, NK)] = 
