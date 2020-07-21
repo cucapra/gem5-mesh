@@ -32,84 +32,57 @@
 
 #ifdef USE_VEC
 
-// #define SCALAR_CORE
-// #define VECTOR_CORE
+#define SCALAR_CORE
+#define VECTOR_CORE
 
-#ifdef VERTICAL_LOADS
-inline void prefetch_vert_frame(DTYPE *a, int r, int c, int ncols, int dim, int *spadIdx) {
-  for (int k1 = -1; k1 <= 1; k1++) {
-    for (int core = 0; core < dim; core++) {
-      int aIdx = (r + k1) * ncols + c - 1 + core * CORE_STEP;
-      // int aIdx = core * 16; // at least for size 4, only use 4/8 caches so less bw
-      // printf("mid issue r %d c %d k1 %d core %d, depth %d, aIdx %d\n", r, c, k1, core, LOAD_DEPTH, aIdx);
-      VPREFETCH_L(*spadIdx, a + aIdx, core, LOAD_DEPTH, VERTICAL);
-      VPREFETCH_R(*spadIdx, a + aIdx, core, LOAD_DEPTH, VERTICAL);
-    }
-    (*spadIdx)+=LOAD_DEPTH;
-  }
+// vec parallel across k
+// group parallel across i
+// j along for the ride?
 
-  if (*spadIdx == POST_REGION_WORD) *spadIdx = 0;
-}
-#else
-inline void prefetch_horiz_frame(DTYPE *a, int r, int c, int ncols, int pRatio, int *spadIdx) {
-  // prefetch all 9 values required for computation
-  // #pragma GCC unroll 3
-  for (int k1 = -1; k1 <= 1; k1++) {
-    // #pragma GCC unroll 3
-    for (int k2 = -1; k2 <= 1; k2++) {
-      int aIdx = (r + k1) * ncols + (c + k2);
-      
-      #if PREFETCH_LEN != VECTOR_LEN
-      for (int p = 0; p < pRatio; p++) {
-        VPREFETCH_L(*spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, HORIZONTAL);
-        VPREFETCH_R(*spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, HORIZONTAL);
-      }
-      #else
-      VPREFETCH_L(*spadIdx, a + aIdx, 0, PREFETCH_LEN, HORIZONTAL);
-      VPREFETCH_R(*spadIdx, a + aIdx, 0, PREFETCH_LEN, HORIZONTAL);
-      #endif
+#define VPREFETCH_LR(sp, memIdx, core, len, style)  \
+  VPREFETCH_L(sp, memIdx, core, len, style);        \
+  VPREFETCH_R(sp, memIdx, core, len, style)
 
-      (*spadIdx)++;
-      
-    }
-  }
+
+inline void prefetch_horiz_frame(DTYPE *a, int i, int j, int k, int NJ, int NK, int *sp) {
+  // prefetch all 15 values required for computation
+            // a[IDX(i-1, j-1, k-1, NJ, NK)], a[IDX(i-1, j-1, k+1, NJ, NK)], 
+            // a[IDX(i-1, j+0, k+1, NJ, NK)], a[IDX(i-1, j+1, k+1, NJ, NK)], 
+            // a[IDX(i+0, j-1, k+0, NJ, NK)], a[IDX(i+0, j+0, k+0, NJ, NK)], 
+            // a[IDX(i+0, j+1, k+0, NJ, NK)], a[IDX(i+1, j-1, k-1, NJ, NK)], 
+            // a[IDX(i+1, j-1, k+1, NJ, NK)], a[IDX(i+1, j+0, k+1, NJ, NK)], 
+            // a[IDX(i+1, j+1, k+1, NJ, NK)];
+
+  VPREFETCH_LR(*sp + 0 , a + IDX(i-1, j-1, k-1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 1 , a + IDX(i-1, j-1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 2 , a + IDX(i-1, j+0, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 3 , a + IDX(i-1, j+1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 4 , a + IDX(i+0, j-1, k+0, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 5 , a + IDX(i+0, j+0, k+0, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 6 , a + IDX(i+0, j+1, k+0, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 7 , a + IDX(i+1, j-1, k-1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 8 , a + IDX(i+1, j-1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 9 , a + IDX(i+1, j+0, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 10, a + IDX(i+1, j+1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+
+  *sp = (*sp + REGION_SIZE);
 
   // spad is circular buffer so do cheap mod here
-  if (*spadIdx == POST_REGION_WORD) {
-    *spadIdx = 0;
+  if (*sp == POST_REGION_WORD) {
+    *sp = 0;
   }
 }
-#endif
 
 void tril_conv3d(int mask,
-    DTYPE *a, DTYPE *b, int outer_start, int outer_end, int inner_dim, int eff_inner_dim,
-    int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y,
-    DTYPE *p_sp_ptr, DTYPE *n_sp_ptr) {
+    DTYPE *a, DTYPE *b, int outer_start, int outer_end, int NJ, int NK,
+    int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y) {
 
   #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
-
   int dim = vdim_x * vdim_y;
-
-  #ifdef REUSE
-  int step = dim*FILTER_DIM - (FILTER_DIM - 1);
-  #elif defined(VERTICAL_LOADS)
-  int step = CORE_STEP*dim;
-  #else
   int step = dim;
-  #endif
-
-  //   int unmappedColLen = inner_dim - eff_inner_dim;
-  // printf("%d %d %d %d %d\n", outer_start, outer_end, inner_dim, eff_inner_dim,
-  //   unmappedColLen);
-
-  // should be a constant from static analysis of dim
-  int pRatio = VECTOR_LEN / PREFETCH_LEN;
-
   ISSUE_VINST(init_label);
-
   #endif
-
 
   #ifdef VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
@@ -118,23 +91,9 @@ void tril_conv3d(int mask,
 
   int vtid = vtid_x + vtid_y * vdim_x;
   int dim = vdim_x * vdim_y;
-
-
-  #ifdef REUSE
-  int step = dim*FILTER_DIM - (FILTER_DIM - 1);
-  #elif defined(VERTICAL_LOADS)
-  int step = CORE_STEP*dim;
-  #else
   int step = dim;
-  #endif
 
-  #ifdef REUSE
-  int startOffset = vtid * FILTER_DIM - 1;
-  #else
-  int startOffset = vtid * (step/dim);
-  #endif
-
-  DTYPE *bPtr = b + outer_start * inner_dim + startOffset + 1;
+  DTYPE *bPtr = b + outer_start * NJ * NK + vtid + 1;
   int unmappedColLen = inner_dim - eff_inner_dim;
 
 
@@ -179,101 +138,43 @@ void tril_conv3d(int mask,
   #endif
 
   #ifdef VECTOR_CORE
-  volatile int BH;
+  volatile int BH; // TODO are 3 needed? or 1 suffices?
   volatile int BHO;
+  volatile int BHOO;
   do {
     do {
-    asm("trillium vissue_delim if_begin vec_body");
+      do {
+      asm("trillium vissue_delim if_begin vec_body");
 
-      FRAME_START();
+        FRAME_START();
 
-      #ifdef REUSE
-      // volatile int ohjeez = 1;
-      // note we need to unroll in order to get cPtr indexing to work b/c it goes +1 +1 +3*dim
-      // potentially can move routine into a function call?
-      // also could access an indirection array that gives and then have counter mod 3
-      // or could even have 3 seperate issue block
-
-      // center computation with local values
-      // important to put non-predicated first so any shared values between pred blocks
-      // are not masked out... really need compiler help on this
-      DTYPE out_m = CONV_3x3(
-        sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
-        sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
-        sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8]
-      );
-      STORE_NOACK(out_m, bPtr + 1, 0);
-
-      // fetch one column from the left to perform leftmost computation
-      PRED_NEQ(vtid, 0);
-      // if (ohjeez) {
-      DTYPE out_l = CONV_3x3(
-        p_sp_ptr[sp + 2], sp_ptr[sp + 0], sp_ptr[sp + 1],
-        p_sp_ptr[sp + 5], sp_ptr[sp + 3], sp_ptr[sp + 4],
-        p_sp_ptr[sp + 8], sp_ptr[sp + 6], sp_ptr[sp + 7]
-      );
-      STORE_NOACK(out_l, bPtr, 0);
-      // }
-      PRED_EQ(vtid, vtid);
-
-      // fetch one column from the right to perform rightmost computation
-      PRED_NEQ(vtid, dim - 1); // last core in group can't do this
-      // if (ohjeez) { 
-      DTYPE out_r = CONV_3x3(
-        sp_ptr[sp + 1], sp_ptr[sp + 2], n_sp_ptr[sp + 0],
-        sp_ptr[sp + 4], sp_ptr[sp + 5], n_sp_ptr[sp + 3],
-        sp_ptr[sp + 7], sp_ptr[sp + 8], n_sp_ptr[sp + 6]
-      );
-      STORE_NOACK(out_r, bPtr + 2, 0);
-      // }
-      PRED_EQ(vtid, vtid);
-
-      END_FRAME();
-
-      // 10 results are computed per reuse iteration
-      bPtr += step;
-
-      #elif defined(VERTICAL_LOADS)
-      #pragma GCC unroll(14)
-      for (int i = 0; i < CORE_STEP; i++) {
-        int sp0 = sp + i;
-        int sp1 = sp0 + LOAD_DEPTH;
-        int sp2 = sp1 + LOAD_DEPTH;
         DTYPE out = CONV_3x3(
-          sp_ptr[sp0 + 0], sp_ptr[sp0 + 1], sp_ptr[sp0 + 2],
-          sp_ptr[sp1 + 0], sp_ptr[sp1 + 1], sp_ptr[sp1 + 2],
-          sp_ptr[sp2 + 0], sp_ptr[sp2 + 1], sp_ptr[sp2 + 2]
+          sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
+          sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
+          sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8]
         );
-        STORE_NOACK(out, bPtr + i, 0);
-      }
-      END_FRAME();
 
-      bPtr += step;
-      #else
-      DTYPE out = CONV_3x3(
-        sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
-        sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
-        sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8]
-      );
+        END_FRAME();
 
-      END_FRAME();
+        STORE_NOACK(out, bPtr, 0);
+        bPtr += dim;
+        sp += REGION_SIZE;
+        if (sp == POST_REGION_WORD) sp = 0;
+        asm("trillium vissue_delim end at_jump");
+      } while (BH);
 
-      STORE_NOACK(out, bPtr, 0);
-      bPtr += dim;
-      #endif
-
-      sp += REGION_SIZE;
-      // sp = sp % POST_REGION_WORD; // not a power of 2 --> if cheaper than mod
-      if (sp == POST_REGION_WORD) sp = 0;
+      asm("trillium vissue_delim if_begin vec_body_end");
+      bPtr += unmappedColLen;
       asm("trillium vissue_delim end at_jump");
-    } while (BH);
+
+
+    } while (BHO);
 
     asm("trillium vissue_delim if_begin vec_body_end");
     bPtr += unmappedColLen;
     asm("trillium vissue_delim end at_jump");
 
-
-  } while (BHO);
+  } while (BHOO);
   #endif
 
 

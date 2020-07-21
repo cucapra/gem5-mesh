@@ -68,8 +68,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef VECTOR_LEN
 
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
+  // template_info_t tinfo = init_template_4x4_2x2();
+  template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif
@@ -137,27 +137,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // mapped len is schedule on main config, unmapped will be scheduled on base manycore
   int unmapped_len = eff_len % rated_size;
   int mapped_len = eff_len - unmapped_len;
-  // mapped_len -= (FILTER_DIM-1);
-  // unmapped_len -= (FILTER_DIM-1);
-
-  // TODO better way to do this for arbitrary groups
-  DTYPE *p_sp_ptr = NULL;
-  DTYPE *n_sp_ptr = NULL;
-  #ifdef REUSE
-  // calculate prev and next spAddr for reuse
-  if (vtid != 0) {
-    if (vtid_x == 0) 
-      p_sp_ptr = (DTYPE*)getSpAddr(ptid - (GRID_XDIM - (vdim_x - 1)), 0);
-    else
-      p_sp_ptr = (DTYPE*)getSpAddr(ptid - 1, 0);
-  }
-  if (vtid != vdim - 1) {
-    if (vtid_x == vdim_x - 1)
-      n_sp_ptr = (DTYPE*)getSpAddr(ptid + (GRID_XDIM - (vdim_x - 1)), 0);
-    else 
-      n_sp_ptr = (DTYPE*)getSpAddr(ptid + 1, 0);
-  }
-  #endif
 
   // printf("%d %xd\n", mapped_len, unmapped_len);
 
@@ -167,11 +146,11 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef USE_VEC
   // do computation that we can map
   if (used)
-    tril_conv2d(mask, a, b, start, end, NJ, mapped_len, 
-      ptid, vtid_x, vtid_y, vdim_x, vdim_y, p_sp_ptr, n_sp_ptr);
+    tril_conv3d(mask, a, b, start, end, NJ, NK, 
+      ptid, vtid_x, vtid_y, vdim_x, vdim_y);
 
   // do remainder of computation starting from offset
-  conv2d_manycore(a, b, NI, NJ, mapped_len + 1, ptid, pdim);
+  // conv3d_manycore(a, b, NI, NJ, mapped_len + 1, ptid, pdim);
   #else
   conv3d_manycore(a, b, NI, NJ, NK, ptid, pdim);
   #endif

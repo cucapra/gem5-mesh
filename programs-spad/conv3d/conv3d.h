@@ -32,8 +32,8 @@
 
 
 // one of these should be defined to dictate config
-#define NO_VEC 1
-// #define VEC_4_SIMD 1
+// #define NO_VEC 1
+#define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_REUSE_VERTICAL 1
 
@@ -75,20 +75,11 @@
 // prefetch sizings
 #if defined(USE_VEC)
 // can guarentee power of 2 works
-#define POST_REGION_WORD 144
+#define POST_REGION_WORD 121
 #define INIT_FRAMES 2
-#if defined(REUSE)
-#define LOAD_DEPTH 3
-#define REGION_SIZE (LOAD_DEPTH*FILTER_DIM)
+#define REGION_SIZE 11
 #define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
-#elif defined(VERTICAL_LOADS)
-#define LOAD_DEPTH 8
-#define REGION_SIZE (LOAD_DEPTH*FILTER_DIM)
-#define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
-#else
-#define REGION_SIZE (FILTER_DIM * FILTER_DIM)
-#define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
-#endif
+
 #endif
 
 // define prefetch len externally
