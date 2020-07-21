@@ -5,7 +5,7 @@
 #include <stdio.h>
 
 #include "pthread_launch.h"
-#include "gemm.h"
+#include "2mm.h"
 #include "spad.h"
 #include "bind_defs.h"
 #include "util.h"
