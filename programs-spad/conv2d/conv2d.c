@@ -40,6 +40,8 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
 
   int NJ = inner_dim;
 
+
+
   for (int i = outer_start; i < outer_end; i++) {
     for (int j = inner_start; j < NJ - 1; j++) {
       // TODO order in gpu version is outer dim first for some reason,
@@ -143,18 +145,20 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #elif defined(VERTICAL_LOADS)
   rated_size = ( VECTOR_LEN * CORE_STEP );
   #elif defined(VECTOR_LEN)
-  rated_size = ( VECTOR_LEN + (FILTER_DIM-1) );
+  rated_size = ( VECTOR_LEN );
   #else
   rated_size = 1;
   #endif
 
   // cols without the edge case
-  int eff_len = NJ;
+  int eff_len = NJ - (FILTER_DIM-1);
   // mapped len is schedule on main config, unmapped will be scheduled on base manycore
   int unmapped_len = eff_len % rated_size;
   int mapped_len = eff_len - unmapped_len;
-  mapped_len -= (FILTER_DIM-1);
-  unmapped_len -= (FILTER_DIM-1);
+  // mapped_len -= (FILTER_DIM-1);
+  // unmapped_len -= (FILTER_DIM-1);
+
+  // printf("%d %d\n", mapped_len, unmapped_len);
 
   // move stack onto scratchpad for faster local access than default on DRAM
   MOVE_STACK_ONTO_SCRATCHPAD();

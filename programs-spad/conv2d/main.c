@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) {
   
   // default values
   int nrows = 6;
-  int ncols = 7;
+  int ncols = 22;
 
   int skip_check = 0;
   
@@ -84,14 +84,8 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
 
   DTYPE *a_ptr, *b_ptr;
-  // DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_ptr);
-  // DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&b_ptr);
-
-  DTYPE *a = (DTYPE*)malloc(sizeof(DTYPE) * nrows * ncols);
-  DTYPE *b = (DTYPE*)malloc(sizeof(DTYPE) * nrows * ncols);
-  a_ptr = a;
-  b_ptr = b;
-
+  DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_ptr);
+  DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&b_ptr);
 
   init(a, nrows, ncols);
   
