@@ -156,21 +156,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   mapped_len -= (FILTER_DIM-1);
   unmapped_len -= (FILTER_DIM-1);
 
-  // only let certain tids continue
-  #if defined(USE_VEC)
-  if (used == 0) return;
-  #endif
-
   // move stack onto scratchpad for faster local access than default on DRAM
   MOVE_STACK_ONTO_SCRATCHPAD();
 
   #ifdef USE_VEC
   // do computation that we can map
-  tril_conv2d(mask, a, b, start, end, NJ, mapped_len, ptid, vtid_x, vtid_y, vdim_x, vdim_y);
+  if (used)
+    tril_conv2d(mask, a, b, start, end, NJ, mapped_len, ptid, vtid_x, vtid_y, vdim_x, vdim_y);
 
   // do remainder of computation starting from offset
-  // if (mapped_len == 0) mapped_len++;
-  // printf("%d\n", mapped_len);
   conv2d_manycore(a, b, NI, NJ, mapped_len + 1, ptid, pdim);
   #else
   conv2d_manycore(a, b, NI, NJ, 1, ptid, pdim);
