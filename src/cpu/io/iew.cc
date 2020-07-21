@@ -414,7 +414,8 @@ IEW::doIssue()
     if (!inst->pred_at_issue && !inst->static_inst_p->isPredicate()) {
 
       // if this was a branch clear the stall flag
-      m_cpu_p->getEarlyVector()->getVecInstSel().resetStallWait();
+      if (inst->isControl())
+        m_cpu_p->getEarlyVector()->getVecInstSel().resetStallWait();
 
       // forward the value of the previous renamed reg for this one b/c there many be instructions
       // that read this

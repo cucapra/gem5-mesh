@@ -61,8 +61,8 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int nrows = 6;
-  int ncols = 40;
+  int nrows = 3;
+  int ncols = 15;
 
   int skip_check = 0;
   
