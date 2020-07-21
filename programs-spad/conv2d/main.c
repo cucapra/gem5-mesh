@@ -17,11 +17,10 @@ void conv2D(DTYPE* A, DTYPE* B, int NI, int NJ)
 	{
 		for (j = 1; j < NJ - 1; ++j) // 1
 		{
-			B[i*NJ + j] = c11 * A[(i - 1)*NJ + (j - 1)]  +  c12 * A[(i + 0)*NJ + (j - 1)]  +  c13 * A[(i + 1)*NJ + (j - 1)]
+			B[i*NJ + j] = 
+          c11 * A[(i - 1)*NJ + (j - 1)]  +  c12 * A[(i + 0)*NJ + (j - 1)]  +  c13 * A[(i + 1)*NJ + (j - 1)]
 				+ c21 * A[(i - 1)*NJ + (j + 0)]  +  c22 * A[(i + 0)*NJ + (j + 0)]  +  c23 * A[(i + 1)*NJ + (j + 0)] 
 				+ c31 * A[(i - 1)*NJ + (j + 1)]  +  c32 * A[(i + 0)*NJ + (j + 1)]  +  c33 * A[(i + 1)*NJ + (j + 1)];
-
-      // printf("%f\n", B[i*NJ+j]);
 		}
 	}
 }
@@ -63,7 +62,7 @@ int main(int argc, char *argv[]) {
   
   // default values
   int nrows = 6;
-  int ncols = nrows;
+  int ncols = 7;
 
   int skip_check = 0;
   
@@ -85,10 +84,16 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
 
   DTYPE *a_ptr, *b_ptr;
-  DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_ptr);
-  DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&b_ptr);
+  // DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_ptr);
+  // DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&b_ptr);
 
-  init(a, ncols, nrows);
+  DTYPE *a = (DTYPE*)malloc(sizeof(DTYPE) * nrows * ncols);
+  DTYPE *b = (DTYPE*)malloc(sizeof(DTYPE) * nrows * ncols);
+  a_ptr = a;
+  b_ptr = b;
+
+
+  init(a, nrows, ncols);
   
   /*--------------------------------------------------------------------
   * Pack argument for kernel
@@ -100,7 +105,7 @@ int main(int argc, char *argv[]) {
   for (int y = 0; y < cores_y; y++) {
     for (int x = 0; x < cores_x; x++){
       int i = x + y * cores_x;
-      kern_args[i] = construct_args(a, b, ncols, nrows, x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(a, b, nrows, ncols, x, y, cores_x, cores_y);
     }  
   }
 
@@ -126,8 +131,8 @@ int main(int argc, char *argv[]) {
   // verify
   DTYPE *a_exp = (DTYPE*)malloc(sizeof(DTYPE) * nrows * ncols);
   DTYPE *b_exp = (DTYPE*)malloc(sizeof(DTYPE) * nrows * ncols);
-  init(a_exp, ncols, nrows);
-  conv2D(a_exp, b_exp, ncols, nrows);
+  init(a_exp, nrows, ncols);
+  conv2D(a_exp, b_exp, nrows, ncols);
 
 
   for (int row = 1; row < nrows - 1; row++) {

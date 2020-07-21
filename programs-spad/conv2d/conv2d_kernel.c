@@ -46,9 +46,9 @@
 
 #ifdef VERTICAL_LOADS
 inline void prefetch_vert_frame(DTYPE *a, int r, int c, int ncols, int dim, int *spadIdx) {
-  for (int k1 = 0; k1 < FILTER_DIM; k1++) {
+  for (int k1 = -1; k1 <= 1; k1++) {
     for (int core = 0; core < dim; core++) {
-      int aIdx = (r + k1) * ncols + c + core * CORE_STEP;
+      int aIdx = (r + k1) * ncols + c - 1 + core * CORE_STEP;
       // int aIdx = core * 16; // at least for size 4, only use 4/8 caches so less bw
       // printf("mid issue r %d c %d k1 %d core %d, depth %d, aIdx %d\n", r, c, k1, core, LOAD_DEPTH, aIdx);
       VPREFETCH_L(*spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
@@ -293,27 +293,29 @@ void tril_conv2d(int mask,
       #elif defined(VERTICAL_LOADS)
       #pragma GCC unroll(14)
       for (int i = 0; i < CORE_STEP; i++) {
-        c_ = 0;
-        int baseSpIdx = spIdx + i;
-        c_ += b0 * spadAddr[baseSpIdx + 0];
-        c_ += b1 * spadAddr[baseSpIdx + 1];
-        c_ += b2 * spadAddr[baseSpIdx + 2];
-        c_ += b3 * spadAddr[baseSpIdx + LOAD_DEPTH + 0];
-        c_ += b4 * spadAddr[baseSpIdx + LOAD_DEPTH + 1];
-        c_ += b5 * spadAddr[baseSpIdx + LOAD_DEPTH + 2];
-        c_ += b6 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 0];
-        c_ += b7 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 1];
-        c_ += b8 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 2];
-        STORE_NOACK(c_, cPtr + i, 0);
+        int sp0 = sp + i;
+        int sp1 = sp0 + LOAD_DEPTH;
+        int sp2 = sp1 + LOAD_DEPTH;
+        DTYPE out = CONV_3x3(
+          sp_ptr[sp0 + 0], sp_ptr[sp0 + 1], sp_ptr[sp0 + 2],
+          sp_ptr[sp1 + 0], sp_ptr[sp1 + 1], sp_ptr[sp1 + 2],
+          sp_ptr[sp2 + 0], sp_ptr[sp2 + 1], sp_ptr[sp2 + 2]
+        );
+        // c_ += b0 * spadAddr[baseSpIdx + 0];
+        // c_ += b1 * spadAddr[baseSpIdx + 1];
+        // c_ += b2 * spadAddr[baseSpIdx + 2];
+        // c_ += b3 * spadAddr[baseSpIdx + LOAD_DEPTH + 0];
+        // c_ += b4 * spadAddr[baseSpIdx + LOAD_DEPTH + 1];
+        // c_ += b5 * spadAddr[baseSpIdx + LOAD_DEPTH + 2];
+        // c_ += b6 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 0];
+        // c_ += b7 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 1];
+        // c_ += b8 * spadAddr[baseSpIdx + 2*LOAD_DEPTH + 2];
+        // STORE_NOACK(c_, cPtr + i, 0);
+        STORE_NOACK(out, bPtr + i, 0);
       }
-      REMEM(frameSize);
+      END_FRAME();
 
-      cPtr += step;
-      colCntr+=step;
-      CONVERGENT_IF(colCntr == eff_cols) {
-        colCntr = 0;
-        cPtr += unmappedColLen;
-      }
+      bPtr += step;
       #else
       // DTYPE out = 0.0f;
       // out += c11 * sp_ptr[sp + 0];

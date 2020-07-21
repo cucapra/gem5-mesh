@@ -30,7 +30,7 @@
 */
 
 void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
-    int ptid, int pdim) {
+    int inner_start, int ptid, int pdim) {
 
   int eff_outer_dim = outer_dim - (FILTER_DIM-1);
   int outer_start  = 1 + ( ( ptid + 0 ) * eff_outer_dim ) / pdim;
@@ -41,7 +41,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
   int NJ = inner_dim;
 
   for (int i = outer_start; i < outer_end; i++) {
-    for (int j = 1; j < NJ - 1; j++) {
+    for (int j = inner_start; j < NJ - 1; j++) {
       // TODO order in gpu version is outer dim first for some reason,
       // better to access in order below
       b[i*NJ + j] = CONV_3x3(
@@ -101,8 +101,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   used = cinfo.used;
 
   if (used) {
-    start = 1 + ( (unique_id + 0) * (NJ-2) ) / total_groups;
-    end   = 1 + ( (unique_id + 1) * (NJ-2) ) / total_groups;
+    start = 1 + ( (unique_id + 0) * (NI-2) ) / total_groups;
+    end   = 1 + ( (unique_id + 1) * (NI-2) ) / total_groups;
   }
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 16, vdim_x, vdim_y, start, end, used); 
@@ -168,12 +168,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // do computation that we can map
   tril_conv2d(mask, a, b, start, end, NJ, mapped_len, ptid, vtid_x, vtid_y, vdim_x, vdim_y);
 
-  // TODO
   // do remainder of computation starting from offset
-  // conv2d_manycore(a, b, NI, NJ, ptid, pdim);
-  // conv2d_manycore(a, b, c, nrows, mapped_len, mapped_len + unmapped_len, ncols, ptid, vtid, vdim, start, end);
+  // if (mapped_len == 0) mapped_len++;
+  // printf("%d\n", mapped_len);
+  conv2d_manycore(a, b, NI, NJ, mapped_len + 1, ptid, pdim);
   #else
-  conv2d_manycore(a, b, NI, NJ, ptid, pdim);
+  conv2d_manycore(a, b, NI, NJ, 1, ptid, pdim);
   #endif
 
   // restore stack pointer to DRAM
