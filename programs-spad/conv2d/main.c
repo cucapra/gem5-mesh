@@ -4,56 +4,42 @@
 
 #include "spad.h"
 #include "pthread_launch.h"
-#include "syr2k.h"
+#include "conv2d.h"
 #include "util.h"
 
-// checker from polybench. single core implementation
-#include <math.h>
-
-void init_arrays(DTYPE *A, DTYPE *B, DTYPE *C, int N, int M) {
-  int i, j;
-  
-  for (i = 0; i < N; i++)
-      {
-        for (j = 0; j < N; j++)
-    {
-      C[i*N + j] = ((DTYPE) i*j + 2) / N;
-    }
-        
-    for (j = 0; j < M; j++)
-    {
-        A[i*N + j] = ((DTYPE) i*j) / N;
-        B[i*N + j] = ((DTYPE) i*j + 1) / N;
-    }
-      }
-}
-
-
-void syrk_seq(DTYPE* A, DTYPE* B, DTYPE* C, int N, int M)
+// serial version for verification
+void conv2D(DTYPE* A, DTYPE* B, int NI, int NJ)
 {
-	int i, j, k;
-	
-	/*  C := alpha*A*A' + beta*C */
-	for (i = 0; i < N; i++)
+	int i, j;
+  DEF_WEIGHTS();
+
+	for (i = 1; i < NI - 1; ++i) // 0
 	{
-		for (j = 0; j < N; j++)
+		for (j = 1; j < NJ - 1; ++j) // 1
 		{
-			C[i*N + j] *= beta;
-		}
-	}
-	
-	for (i = 0; i < N; i++)
-	{
-		for (j = 0; j < N; j++)
-		{
-			for (k = 0; k < M; k++)
-			{
-			  C[i*N + j] += alpha * A[i*M + k] * B[j*M + k];
-        C[i*N + j] += alpha * B[i*M + k] * A[j*M + k];	
-			}
+			B[i*NJ + j] = 
+          c11 * A[(i - 1)*NJ + (j - 1)]  +  c12 * A[(i + 0)*NJ + (j - 1)]  +  c13 * A[(i + 1)*NJ + (j - 1)]
+				+ c21 * A[(i - 1)*NJ + (j + 0)]  +  c22 * A[(i + 0)*NJ + (j + 0)]  +  c23 * A[(i + 1)*NJ + (j + 0)] 
+				+ c31 * A[(i - 1)*NJ + (j + 1)]  +  c32 * A[(i + 0)*NJ + (j + 1)]  +  c33 * A[(i + 1)*NJ + (j + 1)];
 		}
 	}
 }
+
+void init(DTYPE* A, int NI, int NJ)
+{
+	int i, j;
+
+	for (i = 0; i < NI; ++i)
+  {
+		for (j = 0; j < NJ; ++j)
+		{
+		  // A[i*NJ + j] = (float)rand()/RAND_MAX;
+      A[i*NJ + j] = ((float)(i + 1) / 4.0f) * ((float)(j + 1) / 3.0f);
+      // printf("%f\n", A[i*NJ+j]);
+    }
+  }
+}
+
 
 int main(int argc, char *argv[]) {
   
@@ -74,36 +60,34 @@ int main(int argc, char *argv[]) {
   * Put the command line arguments into variables
   *-------------------------------------------------------------------*/
   
-  int N = 8;
-  int M = N;
+  // default values
+  int nrows = 12;
+  int ncols = 80;
 
-  // whether to skip verification or not
   int skip_check = 0;
-
+  
+  // parse positional arguments (X Y)
   if (argc > 1) {
-    N = atoi(argv[1]);
+    ncols = atoi(argv[1]);
   }
   if (argc > 2) {
-    M = atoi(argv[2]);
+    nrows = atoi(argv[2]);
   }
   if (argc > 3) {
     skip_check = atoi(argv[3]);
   }
-  
-  printf("SYR2K on %d x %d. Num cores is %d\n", 
-    N, M, num_cores);
+
+  printf("Conv2D %dx%d on %dx%d image. Num cores is %d\n", FILTER_DIM, FILTER_DIM, ncols, nrows, num_cores);
 
   /*--------------------------------------------------------------------
   * Data initialization
   *-------------------------------------------------------------------*/
 
-  DTYPE *a_ptr, *b_ptr, *c_ptr;
-  DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), N*M, (void**)&a_ptr);
-  DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), N*M, (void**)&b_ptr);
-  DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), N*M, (void**)&c_ptr);
+  DTYPE *a_ptr, *b_ptr;
+  DTYPE *a = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&a_ptr);
+  DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), nrows * ncols, (void**)&b_ptr);
 
-  // initial data
-  init_arrays(a, b, c, N, M);
+  init(a, nrows, ncols);
   
   /*--------------------------------------------------------------------
   * Pack argument for kernel
@@ -115,7 +99,7 @@ int main(int argc, char *argv[]) {
   for (int y = 0; y < cores_y; y++) {
     for (int x = 0; x < cores_x; x++){
       int i = x + y * cores_x;
-      kern_args[i] = construct_args(a, b, c, N, M, x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(a, b, nrows, ncols, x, y, cores_x, cores_y);
     }  
   }
 
@@ -129,47 +113,44 @@ int main(int argc, char *argv[]) {
   /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
-
+  
   if (skip_check) {
     printf("Skipping verification\n");
+    printf("[[SUCCESS]]\n");
     free(a_ptr);
     free(b_ptr);
-    free(c_ptr);
     return 0;
   }
 
-  printf("Checking results\n");
+  // verify
+  DTYPE *a_exp = (DTYPE*)malloc(sizeof(DTYPE) * nrows * ncols);
+  DTYPE *b_exp = (DTYPE*)malloc(sizeof(DTYPE) * nrows * ncols);
+  init(a_exp, nrows, ncols);
+  conv2D(a_exp, b_exp, nrows, ncols);
 
-  // compare with results from a sequential version
-	DTYPE *a_exp = (DTYPE*)malloc(N*M*sizeof(DTYPE));
-	DTYPE *b_exp = (DTYPE*)malloc(N*M*sizeof(DTYPE));
-  DTYPE *c_exp = (DTYPE*)malloc(N*M*sizeof(DTYPE));
 
-  init_arrays(a_exp, b_exp, c_exp, N, M);
-
-  syrk_seq(a_exp, b_exp, c_exp, N, M);
-
-  for (int i = 0; i < N; i++) {
-    for (int j = 0; j < M; j++) {
-      int idx = i * M + j;
-      // if (c[idx] != c_exp[idx]) {
-      if (float_compare(c[idx], c_exp[idx], 0.0001f) == 0) { 
-        printf("i %d j %d idx %d | %f != %f\n", i, j, idx, c[idx], c_exp[idx]);
+  for (int row = 1; row < nrows - 1; row++) {
+    for (int col = 1; col < ncols - 1; col++) {
+      int idx = row * ncols + col;
+      // if (b[idx] != b_exp[idx]) {
+      if (!float_compare(b[idx], b_exp[idx], 0.0001f)) {
+        printf("%f != %f @ row %d cold %d\n", b[idx], b_exp[idx], row, col);
         printf("[[FAIL]]\n");
         return 1;
       }
+      // else {
+      //   printf("%f == %f @ row %d cold %d\n", b[idx], b_exp[idx], row, col);
+      // }
     }
   }
-
-  free(a_exp);
-  free(b_exp);
-  free(c_exp);
   
   free(a_ptr);
   free(b_ptr);
-  free(c_ptr);
+  free(a_exp);
+  free(b_exp);
   
   printf("[[SUCCESS]]\n");
+  
   
   return 0;
 }

@@ -73,7 +73,7 @@ class VecInstSel : public Named {
     // actually do profiling for the cycle, called from vector stage
     void profile();
 
-    void resetStallWait() { _stallUntilJumpPC = false; }
+    void resetStallWait();
 
   protected:
     // PC gen for uop decomposition

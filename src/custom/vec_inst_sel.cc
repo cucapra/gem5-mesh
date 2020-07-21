@@ -230,12 +230,22 @@ VecInstSel::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   // don't do anything about commit stalls (i.e. devec)?
   if (initiator == StageIdx::DecodeIdx || initiator == StageIdx::IEWIdx) {
     if (_stallUntilJumpPC) DPRINTF(Mesh, "resolve pending jump %s %s\n", squashInfo.next_pc, squashInfo.trig_inst->toString(true));
-    _stallUntilJumpPC = false;
+
     _uopPC = squashInfo.next_pc;
 
-    // send out a request now b/c vector stage won't tick this if there is no uop present...
-    tryReqNextUop();
+    resetStallWait();
+    // _stallUntilJumpPC = false;
+    // // send out a request now b/c vector stage won't tick this if there is no uop present...
+    // tryReqNextUop();
   }
+}
+
+void
+VecInstSel::resetStallWait() {
+  DPRINTF(Mesh, "reset stall wait\n");
+  _stallUntilJumpPC = false;
+  // send out a request now b/c vector stage won't tick this if there is no uop present...
+  tryReqNextUop();
 }
 
 // reset by cleaning queue and removing any uop tracking state
