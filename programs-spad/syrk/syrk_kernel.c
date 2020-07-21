@@ -90,7 +90,6 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   start = roundUp(start, VECTOR_LEN);
   int i = start;
   int j = vtid;
-  int k = 0;
   int sp = 0;
   DTYPE c_ij;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
@@ -99,79 +98,106 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   #ifdef SCALAR_CORE
   int sp = 0;
 
-  // get ahead
-  prefetch_outer_frame(c, start, 0, &sp, N);
-  for (int k = 0; k < INIT_OFFSET; k+=INNER_PREFETCH_LEN) {
-    prefetch_inner_frame(a, start, 0, k, &sp, M);
-  }
+  // int init_offset = min(INIT_OFFSET, M);
 
-  // do first inner loop
-  for (int k = INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
-    prefetch_inner_frame(a, start, 0, k, &sp, M);
-    ISSUE_VINST(vec_body_label);
-  }
-
-  // steady state
   for (int i = start; i < end; i++) {
-    int startJ = 0;
-    if (i == start) startJ += VECTOR_LEN;
-    for (int j = startJ; j < M; j+=VECTOR_LEN) {
+    for (int j = 0; j < M; j+=VECTOR_LEN) {
       prefetch_outer_frame(c, i, j, &sp, N);
+      ISSUE_VINST(vec_body_init_label);
 
-      for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
+      // warmup 
+      for (int k = 0; k < INIT_OFFSET; k+=INNER_PREFETCH_LEN) {
+        prefetch_inner_frame(a, i, j, k, &sp, M);
+      }
+
+      // steady-state
+      for (int k = INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
         ISSUE_VINST(vec_body_label);
       }
+
+      // cooldown
+      for (int k = M - INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
+        ISSUE_VINST(vec_body_label);
+      }
+
+      ISSUE_VINST(vec_body_end_label);
     }
   }
 
-  // draining. do the last vissue corresponding to the initial round of prefetch
-  for (int k = N - INIT_OFFSET; k < N; k+=INNER_PREFETCH_LEN) {
-    ISSUE_VINST(vec_body_label);
-  }
+
+  // // get ahead
+  // prefetch_outer_frame(c, start, 0, &sp, N);
+  // for (int k = 0; k < INIT_OFFSET; k+=INNER_PREFETCH_LEN) {
+  //   prefetch_inner_frame(a, start, 0, k, &sp, M);
+  // }
+
+  // // do first inner loop
+  // for (int k = INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
+  //   prefetch_inner_frame(a, start, 0, k, &sp, M);
+  //   ISSUE_VINST(vec_body_label);
+  // }
+
+  // // steady state
+  // for (int i = start; i < end; i++) {
+  //   int startJ = 0;
+  //   if (i == start) startJ += VECTOR_LEN;
+  //   for (int j = startJ; j < M; j+=VECTOR_LEN) {
+  //     prefetch_outer_frame(c, i, j, &sp, N);
+
+  //     for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
+  //       prefetch_inner_frame(a, i, j, k, &sp, M);
+  //       ISSUE_VINST(vec_body_label);
+  //     }
+  //   }
+  // }
+
+  // // draining. do the last vissue corresponding to the initial round of prefetch
+  // for (int k = N - INIT_OFFSET; k < N; k+=INNER_PREFETCH_LEN) {
+  //   ISSUE_VINST(vec_body_label);
+  // }
   #endif
   
   #ifdef VECTOR_CORE
   volatile int BH;
-  do {
-    asm("trillium vissue_delim if_begin vec_body");
-    // loop header
-    if ( k == 0 ) {
-      FRAME_START(OUTER_FRAME_SIZE);
-        // c[i * N + j] *= beta;
-        // printf("c %f ?= %f\n", sp_ptr[sp], c[i*N+j]);
-      c_ij = sp_ptr[sp + 0] * beta;
-      REMEM(OUTER_FRAME_SIZE);
-      sp+=2;
-      if (sp == POST_FRAME_WORD) sp = 0;
-    }
-
-    // do innermost loop body (k)
-    FRAME_START(INNER_FRAME_SIZE);
-    // printf("a %f ?= %f %f ?= %f\n", sp_ptr[sp + 0], a[i * M + k], sp_ptr[sp + 1], a[j * M +k]);
-    // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
-    c_ij += alpha * sp_ptr[sp + 0] * sp_ptr[sp + 1];
-    REMEM(INNER_FRAME_SIZE);
+  volatile int BHO;
+  do { 
+    asm("trillium vissue_delim until_next vec_body_init");
+    FRAME_START(OUTER_FRAME_SIZE);
+    // c[i * N + j] *= beta;
+    // printf("c %f ?= %f\n", sp_ptr[sp], c[i*N+j]);
+    c_ij = sp_ptr[sp + 0] * beta;
+    REMEM(OUTER_FRAME_SIZE);
     sp+=2;
-    if (sp == POST_FRAME_WORD) sp = 0;
+    sp = sp % POST_FRAME_WORD;
 
-    // loop footer
-    k++;
-    if ( k == M ) {
-      k = 0;
+    do {
+      asm("trillium vissue_delim if_begin vec_body");
+      // do innermost loop body (k)
+      FRAME_START(INNER_FRAME_SIZE);
+      // printf("a %f ?= %f %f ?= %f\n", sp_ptr[sp + 0], a[i * M + k], sp_ptr[sp + 1], a[j * M +k]);
+      // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
+      c_ij += alpha * sp_ptr[sp + 0] * sp_ptr[sp + 1];
+      REMEM(INNER_FRAME_SIZE);
+      sp+=2;
+      sp = sp % POST_FRAME_WORD;
+      asm("trillium vissue_delim end at_jump");
+    } while(BH);
 
-      // TODO store NO ACK
-      c[i * N + j] = c_ij;
+    asm("trillium vissue_delim if_begin vec_body_end");
+    // TODO store NO ACK
+    // c[i * N + j] = c_ij;
+    STORE_NOACK(c_ij, &c[i * N + j], 0);
 
-      // handle outer loops
-      j+=VECTOR_LEN;
-      if (j >= M) {
-        j = vtid;
-        i++;
-      }
+    // handle outer loops
+    j+=VECTOR_LEN;
+    if (j >= M) {
+      j = vtid;
+      i++;
     }
     asm("trillium vissue_delim end at_jump");
-  } while(BH);
+
+  } while(BHO);
   #endif
   
   // Clean up on the vector cores.
@@ -196,8 +222,12 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 #ifdef SCALAR_CORE
 init_label:
   asm("trillium glue_point vector_init");
+vec_body_init_label:
+  asm("trillium glue_point vec_body_init");
 vec_body_label:
   asm("trillium glue_point vec_body");
+vec_body_end_label:
+  asm("trillium glue_point vec_body_end");
 vector_return_label:
   asm("trillium glue_point vector_return");
 #endif

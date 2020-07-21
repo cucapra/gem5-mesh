@@ -61,7 +61,7 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
 #ifdef SCALAR_CORE
   int sp = 0;
 
-  int init_i_dist = INIT_FRAMES_NORM*VECTOR_LEN;
+  int init_i_dist = min(end - start, INIT_FRAMES_NORM*VECTOR_LEN);
   for (int i = start; i < start + init_i_dist; i+=VECTOR_LEN) {
     prefetch_normalize_frame(a, i, k, numVectors, &sp);
   }
