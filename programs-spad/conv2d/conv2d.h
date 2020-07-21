@@ -21,8 +21,8 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-#define VEC_4_SIMD 1
-// #define VEC_4_SIMD_VERTICAL 1
+// #define VEC_4_SIMD 1
+#define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_REUSE_VERTICAL 1
 // #define VEC_16_SIMD 1
 // #define VEC_16_SIMD_VERTICAL 1
@@ -61,7 +61,8 @@
 
 // prefetch sizings
 #if defined(USE_VEC)
-#define POST_REGION_WORD 256
+// can guarentee power of 2 works
+#define POST_REGION_WORD 144
 #define INIT_FRAMES 2
 #if defined(REUSE)
 #define LOAD_DEPTH 3
@@ -83,6 +84,15 @@
 #elif defined(VECTOR_LEN)
 // default size is the vlen
 #define PREFETCH_LEN VECTOR_LEN
+#endif
+
+#ifdef VERTICAL_LOADS
+// number of filters done per iteration per core
+#ifdef REUSE
+#define CORE_STEP LOAD_DEPTH
+#else
+#define CORE_STEP (LOAD_DEPTH - (FILTER_DIM - 1))
+#endif
 #endif
 
 

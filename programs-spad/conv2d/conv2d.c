@@ -44,6 +44,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
 
   for (int i = outer_start; i < outer_end; i++) {
     for (int j = inner_start; j < NJ - 1; j++) {
+      // printf("%d->%d\n", inner_start, NJ-1);
       // TODO order in gpu version is outer dim first for some reason,
       // better to access in order below
       b[i*NJ + j] = CONV_3x3(

@@ -36,15 +36,6 @@
 // #define VECTOR_CORE
 
 #ifdef VERTICAL_LOADS
-// number of filters done per iteration per core
-#ifdef REUSE
-#define CORE_STEP LOAD_DEPTH
-#else
-#define CORE_STEP (LOAD_DEPTH - (FILTER_DIM - 1))
-#endif
-#endif
-
-#ifdef VERTICAL_LOADS
 inline void prefetch_vert_frame(DTYPE *a, int r, int c, int ncols, int dim, int *spadIdx) {
   for (int k1 = -1; k1 <= 1; k1++) {
     for (int core = 0; core < dim; core++) {
@@ -176,7 +167,7 @@ void tril_conv2d(int mask,
       // exhibit temporal reuse within a frame in a cacheline (16) can do 16-2=14 3x1 filters
       // TODO spatial should also do reuse maybe between frames (by putting in temporal storage). 
       // But maybe can't do memory layout restrictions
-      prefetch_vert_frame(a, r, c, ncols, dim, &sp);
+      prefetch_vert_frame(a, r, c, inner_dim, dim, &sp);
       #else
       prefetch_horiz_frame(a, r, c, inner_dim, pRatio, &sp);
       #endif
@@ -185,7 +176,7 @@ void tril_conv2d(int mask,
     // steady state
     for (int c = 1 + beginCol; c < 1 + eff_inner_dim; c+=step) {
       #ifdef VERTICAL_LOADS
-      prefetch_vert_frame(a, r, c, ncols, dim, &sp);
+      prefetch_vert_frame(a, r, c, inner_dim, dim, &sp);
       #else
       prefetch_horiz_frame(a, r, c, inner_dim, pRatio, &sp);
       #endif
@@ -340,7 +331,8 @@ void tril_conv2d(int mask,
       #endif
 
       sp += REGION_SIZE;
-      sp = sp % POST_REGION_WORD;
+      // sp = sp % POST_REGION_WORD; // not a power of 2 --> if cheaper than mod
+      if (sp == POST_REGION_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
     } while (BH);
 
