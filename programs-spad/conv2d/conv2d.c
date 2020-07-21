@@ -178,7 +178,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   }
   #endif
 
-  // printf("%d %d\n", mapped_len, unmapped_len);
+  // printf("%d %xd\n", mapped_len, unmapped_len);
 
   // move stack onto scratchpad for faster local access than default on DRAM
   MOVE_STACK_ONTO_SCRATCHPAD();

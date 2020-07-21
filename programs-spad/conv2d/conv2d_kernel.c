@@ -42,8 +42,8 @@ inline void prefetch_vert_frame(DTYPE *a, int r, int c, int ncols, int dim, int 
       int aIdx = (r + k1) * ncols + c - 1 + core * CORE_STEP;
       // int aIdx = core * 16; // at least for size 4, only use 4/8 caches so less bw
       // printf("mid issue r %d c %d k1 %d core %d, depth %d, aIdx %d\n", r, c, k1, core, LOAD_DEPTH, aIdx);
-      VPREFETCH_L(*spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
-      VPREFETCH_R(*spadIdx, a + aIdx, core, LOAD_DEPTH, 1);
+      VPREFETCH_L(*spadIdx, a + aIdx, core, LOAD_DEPTH, VERTICAL);
+      VPREFETCH_R(*spadIdx, a + aIdx, core, LOAD_DEPTH, VERTICAL);
     }
     (*spadIdx)+=LOAD_DEPTH;
   }
@@ -61,12 +61,12 @@ inline void prefetch_horiz_frame(DTYPE *a, int r, int c, int ncols, int pRatio, 
       
       #if PREFETCH_LEN != VECTOR_LEN
       for (int p = 0; p < pRatio; p++) {
-        VPREFETCH_L(*spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
-        VPREFETCH_R(*spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, 0);
+        VPREFETCH_L(*spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, HORIZONTAL);
+        VPREFETCH_R(*spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, HORIZONTAL);
       }
       #else
-      VPREFETCH_L(*spadIdx, a + aIdx, 0, PREFETCH_LEN, 0);
-      VPREFETCH_R(*spadIdx, a + aIdx, 0, PREFETCH_LEN, 0);
+      VPREFETCH_L(*spadIdx, a + aIdx, 0, PREFETCH_LEN, HORIZONTAL);
+      VPREFETCH_R(*spadIdx, a + aIdx, 0, PREFETCH_LEN, HORIZONTAL);
       #endif
 
       (*spadIdx)++;
@@ -188,7 +188,7 @@ void tril_conv2d(int mask,
       FRAME_START();
 
       #ifdef REUSE
-      volatile int ohjeez = 1;
+      // volatile int ohjeez = 1;
       // note we need to unroll in order to get cPtr indexing to work b/c it goes +1 +1 +3*dim
       // potentially can move routine into a function call?
       // also could access an indirection array that gives and then have counter mod 3
@@ -197,67 +197,35 @@ void tril_conv2d(int mask,
       // center computation with local values
       // important to put non-predicated first so any shared values between pred blocks
       // are not masked out... really need compiler help on this
-      // c_ = 0;
-      // c_ += b0 * spData0;
-      // c_ += b1 * spData1;
-      // c_ += b2 * spData2;
-      // c_ += b3 * spData3;
-      // c_ += b4 * spData4;
-      // c_ += b5 * spData5;
-      // c_ += b6 * spData6;
-      // c_ += b7 * spData7;
-      // c_ += b8 * spData8;
-      DTYPE out = CONV_3x3(
+      DTYPE out_m = CONV_3x3(
         sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
         sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
         sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8]
       );
-      STORE_NOACK(out, bPtr + 1, 0);
+      STORE_NOACK(out_m, bPtr + 1, 0);
 
-      // if swap following two pred blocks core0 pred works, but then core3 pred doesn't work
-      // definetly something wrong with pred...
       // fetch one column from the left to perform leftmost computation
       PRED_NEQ(vtid, 0);
-      if (ohjeez) {
-      // c_ = 0;
-      // c_ += b0 * prevSpadAddr[spIdx + 2];
-      // c_ += b1 * spData0;
-      // c_ += b2 * spData1;
-      // c_ += b3 * prevSpadAddr[spIdx + 5];
-      // c_ += b4 * spData3;
-      // c_ += b5 * spData4;
-      // c_ += b6 * prevSpadAddr[spIdx + 8];
-      // c_ += b7 * spData6;
-      // c_ += b8 * spData7;
-      DTYPE out = CONV_3x3(
+      // if (ohjeez) {
+      DTYPE out_l = CONV_3x3(
         p_sp_ptr[sp + 2], sp_ptr[sp + 0], sp_ptr[sp + 1],
         p_sp_ptr[sp + 5], sp_ptr[sp + 3], sp_ptr[sp + 4],
         p_sp_ptr[sp + 8], sp_ptr[sp + 6], sp_ptr[sp + 7]
       );
-      STORE_NOACK(out, bPtr, 0);
-      }
+      STORE_NOACK(out_l, bPtr, 0);
+      // }
       PRED_EQ(vtid, vtid);
 
       // fetch one column from the right to perform rightmost computation
       PRED_NEQ(vtid, dim - 1); // last core in group can't do this
-      if (ohjeez) { 
-      // c_ = 0;
-      // c_ += b0 * spData1;
-      // c_ += b1 * spData2;
-      // c_ += b2 * nextSpadAddr[spIdx + 0];
-      // c_ += b3 * spData4;
-      // c_ += b4 * spData5;
-      // c_ += b5 * nextSpadAddr[spIdx + 3];
-      // c_ += b6 * spData7;
-      // c_ += b7 * spData8;
-      // c_ += b8 * nextSpadAddr[spIdx + 6];
-      DTYPE out = CONV_3x3(
+      // if (ohjeez) { 
+      DTYPE out_r = CONV_3x3(
         sp_ptr[sp + 1], sp_ptr[sp + 2], n_sp_ptr[sp + 0],
         sp_ptr[sp + 4], sp_ptr[sp + 5], n_sp_ptr[sp + 3],
         sp_ptr[sp + 7], sp_ptr[sp + 8], n_sp_ptr[sp + 6]
       );
-      STORE_NOACK(out, bPtr + 2, 0);
-      }
+      STORE_NOACK(out_r, bPtr + 2, 0);
+      // }
       PRED_EQ(vtid, vtid);
 
       END_FRAME();
