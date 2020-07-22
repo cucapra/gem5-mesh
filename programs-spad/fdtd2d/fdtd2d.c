@@ -18,20 +18,59 @@
  * Manycore. Using PolyBench GPU parallelization strategy. No scratchpad use
  *---------------------------------------------------------------------------------*/
 
+void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY, int tid, int dim) {
+  int start = ((tid + 0) * NX) / dim;
+  int end   = ((tid + 1) * NX) / dim;
+
+  for (int i = start; i < end; i++) {
+    for (int j = 0; j < NY; j++) {
+      if (i == 0) {
+        ey[i * NY + j] = fict[t];
+      }
+      else {
+        ey[i * NY + j] = ey[i * NY + j] - 0.5f * (hz[i * NY + j] - hz[(i-1) * NY + j]);
+      }
+    }
+  }
+}
+
+void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY, int tid, int dim) {
+  int start = ((tid + 0) * NX) / dim;
+  int end   = ((tid + 1) * NX) / dim;
+
+  for (int i = start; i < end; i++) {
+    for (int j = 1; j < NY; j++) {
+      ex[i * (NY+1) + j] = ex[i * (NY+1) + j] - 0.5f * (hz[i * NY + j] - hz[i * NY + (j-1)]);
+    }
+  }
+}
+
+void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY, int tid, int dim) {
+  int start = ((tid + 0) * NX) / dim;
+  int end   = ((tid + 1) * NX) / dim;
+
+  for (int i = start; i < end; i++) {
+    for (int j = 0; j < NY; j++) {
+      hz[i * NY + j] = hz[i * NY + j] - 0.7f * (ex[i * (NY+1) + (j+1)] - ex[i * (NY+1) + j] + ey[(i + 1) * NY + j] - ey[i * NY + j]);
+    }
+  }
+}
+
+
 
 void __attribute__((optimize("-fno-inline"))) fdtd(
-    DTYPE *fict, DTYPE *ez, DTYPE *ey, DTYPE *hz, int NX, int NY, int tmax,
+    DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int NX, int NY, int tmax,
     int ptid, int vtid, int dim, int groupId, int numGroups,
     int mask, int used
   ) {
 
     #ifndef USE_VEC
     for (int t = 0; t < tmax; t++) {
-      // fdtd_step1_manycore
+      fdtd_step1_manycore(fict, ex, ey, hz, t, NX, NY, ptid, dim);
       pthread_barrier_wait(&start_barrier);
-      // fdtd_step2_manycore
+      fdtd_step2_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
       pthread_barrier_wait(&start_barrier);
-      // fdtd_step3_manycore
+      fdtd_step3_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
       pthread_barrier_wait(&start_barrier);
     }
     #else
