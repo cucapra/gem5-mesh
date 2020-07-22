@@ -146,7 +146,8 @@ int main(int argc, char *argv[]) {
       for (int k = 1; k < NK - 1; k++) {
         int idx = IDX(i, j, k, NJ, NK);
         if (!float_compare(b[idx], b_exp[idx], 0.0001f)) {
-          printf("%f != %f @ %d-%d-%d\n", b[idx], b_exp[idx], i, j, k);
+          printf("%f != %f @ %d-%d-%d (%d)\n", b[idx], b_exp[idx], i, j, k,
+            IDX(i, j, k, NJ, NK));
           printf("[[FAIL]]\n");
           return 1;
         }
