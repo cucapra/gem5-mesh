@@ -2,9 +2,9 @@ BENCHNAME := conv3d
 default: $(BENCHNAME)
 
 # run small sim for test
-# PROB_SIZE := 96
-N_SPS ?= 16
-# HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
+PROB_SIZE := 12 12 10
+N_SPS ?= 64
+HB_ARGS := --options="$(PROB_SIZE)"
 # GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Frame
 
 # Build the kernel with trilliasm.
