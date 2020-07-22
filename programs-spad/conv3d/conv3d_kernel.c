@@ -32,8 +32,8 @@
 
 #ifdef USE_VEC
 
-#define SCALAR_CORE
-#define VECTOR_CORE
+// #define SCALAR_CORE
+// #define VECTOR_CORE
 
 // vec parallel across k
 // group parallel across i
@@ -74,13 +74,11 @@ inline void prefetch_horiz_frame(DTYPE *a, int i, int j, int k, int NJ, int NK, 
 }
 
 void tril_conv3d(int mask,
-    DTYPE *a, DTYPE *b, int outer_start, int outer_end, int NJ, int NK,
+    DTYPE *a, DTYPE *b, int outer_start, int outer_end, int NJ, int NK, //int eff_NK,
     int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y) {
 
   #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
-  int dim = vdim_x * vdim_y;
-  int step = dim;
   ISSUE_VINST(init_label);
   #endif
 
@@ -90,11 +88,10 @@ void tril_conv3d(int mask,
 	DEF_WEIGHTS();
 
   int vtid = vtid_x + vtid_y * vdim_x;
-  int dim = vdim_x * vdim_y;
-  int step = dim;
 
-  DTYPE *bPtr = b + outer_start * NJ * NK + vtid + 1;
-  int unmappedColLen = inner_dim - eff_inner_dim;
+  DTYPE *bPtr = b + outer_start * NJ * NK + NK + vtid + 1;
+  int unmappedJ = (FILTER_DIM-1);
+  int unmappedK = (FILTER_DIM-1);//NK - eff_NK;
 
 
   int sp = 0;
@@ -103,37 +100,37 @@ void tril_conv3d(int mask,
 
   #ifdef SCALAR_CORE
   int sp = 0;
-  int beginCol = min(INIT_FRAMES * step, eff_inner_dim);
+  int eff_NK = NK - (FILTER_DIM-1);
+  int beginK = min(INIT_FRAMES * VECTOR_LEN, eff_NK);
 
-  for (int r = outer_start; r < outer_end; r++) {
-    // initial warmup
-    for (int c = 1; c < 1 + beginCol; c+=step) {
-      #ifdef VERTICAL_LOADS
-      // exhibit temporal reuse within a frame in a cacheline (16) can do 16-2=14 3x1 filters
-      // TODO spatial should also do reuse maybe between frames (by putting in temporal storage). 
-      // But maybe can't do memory layout restrictions
-      prefetch_vert_frame(a, r, c, inner_dim, dim, &sp);
-      #else
-      prefetch_horiz_frame(a, r, c, inner_dim, pRatio, &sp);
-      #endif
+  for (int i = outer_start; i < outer_end; i++) {
+
+    // ISSUE_VINST(j_body_begin_label);
+
+    for (int j = 1; j < NJ - 1; j++) {
+
+      ISSUE_VINST(k_body_begin_label);
+
+      // initial warmup
+      for (int k = 1; k < 1 + beginK; k+=VECTOR_LEN) {
+        prefetch_horiz_frame(a, i, j, k, NJ, NK, &sp);
+      }
+
+      // steady state
+      for (int k = 1 + beginK; k < 1 + eff_NK; k+=VECTOR_LEN) {
+        prefetch_horiz_frame(a, i, j, k, NJ, NK, &sp);
+        ISSUE_VINST(vec_body_label);
+      }
+
+      // cooldown
+      for (int k = 1 + eff_NK - beginK; k < 1 + eff_NK; k+=VECTOR_LEN) {
+        ISSUE_VINST(vec_body_label);
+      }
+
+      ISSUE_VINST(k_body_end_label);
     }
 
-    // steady state
-    for (int c = 1 + beginCol; c < 1 + eff_inner_dim; c+=step) {
-      #ifdef VERTICAL_LOADS
-      prefetch_vert_frame(a, r, c, inner_dim, dim, &sp);
-      #else
-      prefetch_horiz_frame(a, r, c, inner_dim, pRatio, &sp);
-      #endif
-      ISSUE_VINST(vec_body_label);
-    }
-
-    // cooldown
-    for (int c = 1 + eff_inner_dim - beginCol; c < 1 + eff_inner_dim; c+=step) {
-      ISSUE_VINST(vec_body_label);
-    }
-
-    ISSUE_VINST(vec_body_end_label);
+    ISSUE_VINST(j_body_end_label);
   }
   #endif
 
@@ -142,36 +139,44 @@ void tril_conv3d(int mask,
   volatile int BHO;
   volatile int BHOO;
   do {
+
+    // TODO needed? check if empty
+    // asm("trillium vissue_delim until_next j_body_begin");
+
     do {
+
+      asm("trillium vissue_delim until_next k_body_begin");
+
       do {
       asm("trillium vissue_delim if_begin vec_body");
 
         FRAME_START();
 
-        DTYPE out = CONV_3x3(
+        DTYPE out = CONV_15(
           sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
           sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
-          sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8]
+          sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8],
+          sp_ptr[sp + 9], sp_ptr[sp + 10]
         );
 
         END_FRAME();
 
         STORE_NOACK(out, bPtr, 0);
-        bPtr += dim;
+        bPtr += VECTOR_LEN;
         sp += REGION_SIZE;
         if (sp == POST_REGION_WORD) sp = 0;
         asm("trillium vissue_delim end at_jump");
       } while (BH);
 
-      asm("trillium vissue_delim if_begin vec_body_end");
-      bPtr += unmappedColLen;
+      asm("trillium vissue_delim if_begin k_body_end");
+      bPtr += unmappedK;
       asm("trillium vissue_delim end at_jump");
 
 
     } while (BHO);
 
-    asm("trillium vissue_delim if_begin vec_body_end");
-    bPtr += unmappedColLen;
+    asm("trillium vissue_delim if_begin j_body_end");
+    bPtr += unmappedJ;
     asm("trillium vissue_delim end at_jump");
 
   } while (BHOO);
@@ -202,9 +207,18 @@ exit(1);
 vec_body_label:
   asm("trillium glue_point vec_body");
 exit(1);
-vec_body_end_label:
-  asm("trillium glue_point vec_body_end");
+k_body_end_label:
+  asm("trillium glue_point k_body_end");
 exit(1);
+j_body_end_label:
+  asm("trillium glue_point j_body_end");
+exit(1);
+k_body_begin_label:
+  asm("trillium glue_point k_body_begin");
+exit(1);
+// j_body_begin_label:
+//   asm("trillium glue_point j_body_begin");
+// exit(1);
 vector_return_label:
   asm("trillium glue_point vector_return");
 exit(1);

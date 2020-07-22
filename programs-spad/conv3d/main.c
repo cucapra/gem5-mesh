@@ -70,9 +70,9 @@ int main(int argc, char *argv[]) {
   *-------------------------------------------------------------------*/
   
   // default values
-  int NI = 4;
-  int NJ = 4;
-  int NK = 4;
+  int NI = 6;
+  int NJ = 6;
+  int NK = 6;
 
   int skip_check = 0;
   

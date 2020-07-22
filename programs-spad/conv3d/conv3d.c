@@ -87,9 +87,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (used) {
     start = 1 + ( (unique_id + 0) * (NI-2) ) / total_groups;
     end   = 1 + ( (unique_id + 1) * (NI-2) ) / total_groups;
+    // printf("%d->%d\n", start, end); 
   }
-
-  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 16, vdim_x, vdim_y, start, end, used); 
 
   #elif !defined(USE_VEC)
 
@@ -121,22 +120,22 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // each vector group size is rated to do a certain problem size and multiples of that problem size
   // for the mod of this we need to do the rest on the flexible manycore version
-  int rated_size = 0;
-  #ifdef REUSE
-  rated_size = ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1) );
-  #elif defined(VERTICAL_LOADS)
-  rated_size = ( VECTOR_LEN * CORE_STEP );
-  #elif defined(VECTOR_LEN)
-  rated_size = ( VECTOR_LEN );
-  #else
-  rated_size = 1;
-  #endif
+  // int rated_size = 0;
+  // #ifdef REUSE
+  // rated_size = ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1) );
+  // #elif defined(VERTICAL_LOADS)
+  // rated_size = ( VECTOR_LEN * CORE_STEP );
+  // #elif defined(VECTOR_LEN)
+  // rated_size = ( VECTOR_LEN );
+  // #else
+  // rated_size = 1;
+  // #endif
 
-  // cols without the edge case
-  int eff_len = NJ - (FILTER_DIM-1);
-  // mapped len is schedule on main config, unmapped will be scheduled on base manycore
-  int unmapped_len = eff_len % rated_size;
-  int mapped_len = eff_len - unmapped_len;
+  // // cols without the edge case
+  // int eff_len = NJ - (FILTER_DIM-1);
+  // // mapped len is schedule on main config, unmapped will be scheduled on base manycore
+  // int unmapped_len = eff_len % rated_size;
+  // int mapped_len = eff_len - unmapped_len;
 
   // printf("%d %xd\n", mapped_len, unmapped_len);
 
@@ -146,7 +145,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef USE_VEC
   // do computation that we can map
   if (used)
-    tril_conv3d(mask, a, b, start, end, NJ, NK, 
+    tril_conv3d(mask, a, b, start, end, NJ, NK,
       ptid, vtid_x, vtid_y, vdim_x, vdim_y);
 
   // do remainder of computation starting from offset
