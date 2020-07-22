@@ -134,10 +134,10 @@ void tril_conv3d(int mask,
         ISSUE_VINST(vec_body_label);
       }
 
-      ISSUE_VINST(k_body_end_label);
+      // ISSUE_VINST(k_body_end_label);
     }
 
-    ISSUE_VINST(j_body_end_label);
+    // ISSUE_VINST(j_body_end_label);
   }
   // }
   #endif
@@ -210,16 +210,16 @@ void tril_conv3d(int mask,
         asm("trillium vissue_delim end at_jump");
       } while (BH);
 
-      asm("trillium vissue_delim if_begin k_body_end");
-      // bIdx += 10;
-      asm("trillium vissue_delim end at_jump");
+      // asm("trillium vissue_delim if_begin k_body_end");
+      // // bIdx += unmappedK * NK;
+      // asm("trillium vissue_delim end at_jump");
 
 
     } while (BHO);
 
-    asm("trillium vissue_delim if_begin j_body_end");
-    // bIdx += unmappedJ;
-    asm("trillium vissue_delim end at_jump");
+    // asm("trillium vissue_delim if_begin j_body_end");
+    // // bIdx += unmappedJ;
+    // asm("trillium vissue_delim end at_jump");
 
   } while (BHOO);
   #endif
@@ -249,12 +249,12 @@ exit(1);
 vec_body_label:
   asm("trillium glue_point vec_body");
 exit(1);
-k_body_end_label:
-  asm("trillium glue_point k_body_end");
-exit(1);
-j_body_end_label:
-  asm("trillium glue_point j_body_end");
-exit(1);
+// k_body_end_label:
+//   asm("trillium glue_point k_body_end");
+// exit(1);
+// j_body_end_label:
+//   asm("trillium glue_point j_body_end");
+// exit(1);
 k_body_begin_label:
   asm("trillium glue_point k_body_begin");
 exit(1);
