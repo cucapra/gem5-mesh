@@ -109,10 +109,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   #ifdef USE_VEC
   // volatile so dont reorder this function call
-  // int mask = getSIMDMask(&cinfo);
-  int mask = 0;
-  if (cinfo.is_scalar)
-    mask = getDebugMask(&cinfo);
+  int mask = getSIMDMask(&cinfo);
+  // int mask = 0;
+  // if (cinfo.is_scalar)
+  //   mask = getDebugMask(&cinfo);
   #endif
 
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 

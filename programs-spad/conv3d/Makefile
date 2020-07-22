@@ -8,8 +8,7 @@ N_SPS ?= 16
 GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Frame
 
 # Build the kernel with trilliasm.
-TRILLIASM_KERNEL := 
-# conv3d_kernel.c
+TRILLIASM_KERNEL := conv3d_kernel.c
 include ../../trillium/trilliasm.mk
 
 # Standard benchmark compilation.
