@@ -151,6 +151,10 @@ int main(int argc, char *argv[]) {
           printf("[[FAIL]]\n");
           return 1;
         }
+        // else {
+        //   printf("%f == %f @ %d-%d-%d (%d)\n", b[idx], b_exp[idx], i, j, k,
+        //     IDX(i, j, k, NJ, NK));
+        // }
       }
     }
   }

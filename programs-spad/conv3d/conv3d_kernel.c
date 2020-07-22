@@ -95,7 +95,7 @@ void tril_conv3d(int mask,
 
   int vtid = vtid_x + vtid_y * vdim_x;
 
-  int bIdx = IDX(outer_start, 1, vtid + 1, NJ, NK); //outer_start * NJ * NK + NK + vtid + 1;
+  int bIdx = IDX(outer_start, 1, vtid + 1, NJ, NK) - 2 - 2 * NK; //outer_start * NJ * NK + NK + vtid + 1;
   int unmappedJ = (FILTER_DIM-1);
   int unmappedK = (FILTER_DIM-1);//NK - eff_NK;
 
@@ -110,11 +110,11 @@ void tril_conv3d(int mask,
   int eff_NK = NK - (FILTER_DIM-1);
   int beginK = min(INIT_FRAMES * VECTOR_LEN, eff_NK);
 
-  for (int i = outer_start; i < 2 /*outer_end*/; i++) {
+  for (int i = outer_start; i < outer_end; i++) {
 
-    // ISSUE_VINST(j_body_begin_label);
+    ISSUE_VINST(j_body_begin_label);
 
-    for (int j = 1; j < 2/*NJ - 1*/; j++) {
+    for (int j = 1; j < NJ - 1; j++) {
 
       ISSUE_VINST(k_body_begin_label);
 
@@ -179,11 +179,13 @@ void tril_conv3d(int mask,
   do {
 
     // TODO needed? check if empty
-    // asm("trillium vissue_delim until_next j_body_begin");
+    asm("trillium vissue_delim until_next j_body_begin");
+    bIdx += 2 * NK;
 
     do {
 
       asm("trillium vissue_delim until_next k_body_begin");
+      bIdx += 2;
 
       do {
       asm("trillium vissue_delim if_begin vec_body");
@@ -209,14 +211,14 @@ void tril_conv3d(int mask,
       } while (BH);
 
       asm("trillium vissue_delim if_begin k_body_end");
-      bIdx += unmappedK;
+      // bIdx += 10;
       asm("trillium vissue_delim end at_jump");
 
 
     } while (BHO);
 
     asm("trillium vissue_delim if_begin j_body_end");
-    bIdx += unmappedJ;
+    // bIdx += unmappedJ;
     asm("trillium vissue_delim end at_jump");
 
   } while (BHOO);
@@ -256,9 +258,9 @@ exit(1);
 k_body_begin_label:
   asm("trillium glue_point k_body_begin");
 exit(1);
-// j_body_begin_label:
-//   asm("trillium glue_point j_body_begin");
-// exit(1);
+j_body_begin_label:
+  asm("trillium glue_point j_body_begin");
+exit(1);
 vector_return_label:
   asm("trillium glue_point vector_return");
 exit(1);
