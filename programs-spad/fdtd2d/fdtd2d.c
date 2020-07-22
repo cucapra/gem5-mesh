@@ -11,76 +11,29 @@
 #include "fdtd2d_kernel.h"
 
 /*
-  Covariance
+  FDTD-2D
 */
 
 /*-----------------------------------------------------------------------------------
  * Manycore. Using PolyBench GPU parallelization strategy. No scratchpad use
  *---------------------------------------------------------------------------------*/
 
-// compute each mean across each vector (single dimension)
-void mean_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
-  int start = ((tid + 0) * M) / dim;
-  int end   = ((tid + 1) * M) / dim;
 
-  for (int j = start + 1; j < end + 1; j++) {
-    DTYPE mean_j = 0.0f;
-    for (int i = 1; i < (N+1); i++) {
-      mean_j += data[i * (M+1) + j];
-    }
-    mean_j /= (DTYPE)FLOAT_N;
-    mean[j] = mean_j;
-  }
-}
-
-// subract mean from data to "center"
-void center_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
-  // unlike gpu version only parallelize outer loop? find if N dimension big enough which prob is
-  // or should we use same method as gpu to be fair?
-
-  // I think just paralleize outer here? and maybe optimize gpu later?
-  int start = ((tid + 0) * N) / dim;
-  int end   = ((tid + 1) * N) / dim;
-
-  for (int i = start + 1; i < end + 1; i++) {
-    for (int j = 1; j < (M+1); j++) {
-      data[i * (M+1) + j] -= mean[j];	
-    }
-  }
-}
-
-// compute the covariance matrix
-void covar_manycore_baseline(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) {
-  // if chunk then load balancing problem
-  // opt for strided load balancing
-  int start  = tid;
-  int stride = dim;
-  int end    = M;
-
-  for (int j1 = start + 1; j1 < (end+1); j1+=stride) {
-    for (int j2 = j1; j2 < (M+1); j2++) {
-      DTYPE symmat_idx = 0.0f;
-      for (int i = 1; i < (N+1); i++) {
-        symmat_idx += data[i *(M+1) + j1] * data[i *(M+1) + j2];
-      }
-      symmat[j2 * (M+1) + j1] = symmat_idx;
-      symmat[j1 * (M+1) + j2] = symmat_idx;
-    }
-  }
-}
-
-void __attribute__((optimize("-fno-inline"))) covar(
-    DTYPE *data, DTYPE *mean, DTYPE *symmat,
-    int ptid, int vtid, int dim, int N, int M, int groupId, int numGroups,
+void __attribute__((optimize("-fno-inline"))) fdtd(
+    DTYPE *fict, DTYPE *ez, DTYPE *ey, DTYPE *hz, int NX, int NY, int tmax,
+    int ptid, int vtid, int dim, int groupId, int numGroups,
     int mask, int used
   ) {
 
     #ifndef USE_VEC
-    mean_manycore_baseline(mean, data, N, M, ptid, dim);
-    pthread_barrier_wait(&start_barrier);
-    center_manycore_baseline(mean, data, N, M, ptid, dim);
-    pthread_barrier_wait(&start_barrier);
-    covar_manycore_baseline(symmat, data, N, M, ptid, dim);
+    for (int t = 0; t < tmax; t++) {
+      // fdtd_step1_manycore
+      pthread_barrier_wait(&start_barrier);
+      // fdtd_step2_manycore
+      pthread_barrier_wait(&start_barrier);
+      // fdtd_step3_manycore
+      pthread_barrier_wait(&start_barrier);
+    }
     #else
     SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);
     if (used)
@@ -98,7 +51,7 @@ void __attribute__((optimize("-fno-inline"))) covar(
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
-    DTYPE *data, DTYPE *mean, DTYPE *symmat, int N, int M,
+    DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int NX, int NY, int tmax,
     int ptid_x, int ptid_y, int pdim_x, int pdim_y) {
   
   // start recording all stats (all cores)
@@ -166,8 +119,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   MOVE_STACK_ONTO_SCRATCHPAD();
 
-  // compute covariance
-  covar(data, mean, symmat, ptid, vtid, pdim, N, M, unique_id, total_groups, mask, used);
+  // compute fdtd
+  fdtd(fict, ex, ey, hz, NX, NY, tmax, ptid, vtid, pdim, unique_id, total_groups, mask, used);
 
   // restore stack pointer
   RECOVER_DRAM_STACK();
@@ -176,16 +129,18 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
 
 // helper functions
-Kern_Args *construct_args(DTYPE *data, DTYPE *mean, DTYPE *symmat, int N, int M,
+Kern_Args *construct_args(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int NX, int NY, int tmax,
   int tid_x, int tid_y, int dim_x, int dim_y) {
 
   Kern_Args *args = (Kern_Args*)malloc(sizeof(Kern_Args));
   
-  args->data = data;
-  args->mean = mean;
-  args->symmat = symmat;
-  args->N = N;
-  args->M = M;
+  args->fict = fict;
+  args->ex   = ex;
+  args->ey   = ey;
+  args->hz   = hz;
+  args->NX    = NX;
+  args->NY    = NY;
+  args->tmax  = tmax;
   args->tid_x = tid_x;
   args->tid_y = tid_y;
   args->dim_x = dim_x;
@@ -203,7 +158,7 @@ void *pthread_kernel(void *args) {
   // call the spmd kernel
   Kern_Args *a = (Kern_Args*)args;
   
-  kernel(a->data, a->mean, a->symmat, a->N, a->M,
+  kernel(a->fict, a->ex, a->ey, a->hz, a->NX, a->NY, a->tmax,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
   pthread_barrier_wait(&start_barrier);

@@ -8,7 +8,7 @@
 #include "util.h"
 
 // checker from polybench. single core implementation
-void fdtd(DTYPE* _fict_, DTYPE* ex, DTYPE* ey, DTYPE* hz, int NY, int NX, int tmax)
+void fdtd_serial(DTYPE* _fict_, DTYPE* ex, DTYPE* ey, DTYPE* hz, int NY, int NX, int tmax)
 {
 	int t, i, j;
 	
@@ -86,36 +86,41 @@ int main(int argc, char *argv[]) {
   * Put the command line arguments into variables
   *-------------------------------------------------------------------*/
   
-  int N = 12;
-  int M = N;
+  int NX   = 8;
+  int NY   = 8;
+  int tmax = 4;
 
   // whether to skip verification or not
   int skip_check = 0;
 
   if (argc > 1) {
-    N = atoi(argv[1]);
+    NX = atoi(argv[1]);
   }
   if (argc > 2) {
-    M = atoi(argv[2]);
+    NY = atoi(argv[2]);
   }
   if (argc > 3) {
-    skip_check = atoi(argv[3]);
+    tmax = atoi(argv[3]);
+  }
+  if (argc > 4) {
+    skip_check = atoi(argv[4]);
   }
   
-  printf("Covariance on %d x %d matrix. Num cores is %d\n", 
-    N, M, num_cores);
+  printf("FDTD-2D on %dx%d image w/ %d steps. Num cores is %d\n", 
+    NX, NY, tmax, num_cores);
 
   /*--------------------------------------------------------------------
   * Data initialization
   *-------------------------------------------------------------------*/
 
-  DTYPE *mean_ptr, *data_ptr, *symmat_ptr;
-  DTYPE *data   = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), (M+1)*(N+1), (void**)&data_ptr);
-  DTYPE *symmat = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), (M+1)*(N+1), (void**)&symmat_ptr);
-  DTYPE *mean   = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), (M+1),       (void**)&mean_ptr);
+  DTYPE *fict_ptr, *ex_ptr, *ey_ptr, *hz_ptr;
+  DTYPE *fict = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), tmax         , (void**)&fict_ptr);
+  DTYPE *ex   = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), NX * (NY + 1), (void**)&ex_ptr);
+  DTYPE *ey   = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), (NX + 1) * NY, (void**)&ey_ptr);
+  DTYPE *hz   = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), NX * NY      , (void**)&hz_ptr);
 
-  // initial data (other arrays initialized to zero within the kernel)
-  init_arrays(data, N, M);
+  // initial data
+  init_arrays(fict, ex, ey, hz, NY, NX, tmax);
   
   /*--------------------------------------------------------------------
   * Pack argument for kernel
@@ -127,7 +132,7 @@ int main(int argc, char *argv[]) {
   for (int y = 0; y < cores_y; y++) {
     for (int x = 0; x < cores_x; x++){
       int i = x + y * cores_x;
-      kern_args[i] = construct_args(data, mean, symmat, N, M, x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(fict, ex, ey, hz, NX, NY, tmax, x, y, cores_x, cores_y);
     }  
   }
 
@@ -144,45 +149,46 @@ int main(int argc, char *argv[]) {
 
   if (skip_check) {
     printf("Skipping verification\n");
-    free(mean_ptr);
-    free(symmat_ptr);
-    free(data_ptr);
+    free(fict_ptr);
+    free(ex_ptr);
+    free(ey_ptr);
+    free(hz_ptr);
     return 0;
   }
 
   printf("Checking results\n");
 
   // compare with results from a sequential version
-  DTYPE *data_exp   = (DTYPE*)malloc(sizeof(DTYPE) * (M+1)*(N+1));
-  DTYPE *symmat_exp = (DTYPE*)malloc(sizeof(DTYPE) * (M+1)*(N+1));
-  DTYPE *mean_exp   = (DTYPE*)malloc(sizeof(DTYPE) * (M+1));
+  DTYPE *fict_exp = (DTYPE*)malloc(sizeof(DTYPE) * tmax);
+  DTYPE *ex_exp   = (DTYPE*)malloc(sizeof(DTYPE) * NX * (NY + 1));
+  DTYPE *ey_exp   = (DTYPE*)malloc(sizeof(DTYPE) * (NX + 1) * NY);
+  DTYPE *hz_exp   = (DTYPE*)malloc(sizeof(DTYPE) * NX * NY);
 
-  init_arrays(data_exp, N, M);
+  init_arrays(fict_exp, ex_exp, ey_exp, hz_exp, NY, NX, tmax);
 
-  covariance(data_exp, symmat_exp, mean_exp, N, M);
+  fdtd_serial(fict_exp, ex_exp, ey_exp, hz_exp, NY, NX, tmax);
 
-  for (int i = 1; i < (M+1); i++) {
-    for (int j = 1; j < (N+1); j++) {
-      int idx = i*(N+1) + j;
-      // if (symmat[idx] != symmat_exp[idx]) {
-      if (!float_compare(symmat[idx], symmat_exp[idx], symmat_exp[idx] * 0.000001f)) {
-        printf("i %d j %d idx %d | %f != %f\n", i, j, idx, symmat[idx], symmat_exp[idx]);
+  // check hz
+  for (int i = 0; i < NX; i++) {
+    for (int j = 0; j < NY; j++) {
+      int idx = i*NY + j;
+      if (hz[idx] != hz_exp[idx]) {
+        printf("%f != %f | i %d j %d (%d)\n", hz[idx], hz_exp[idx], i, j, idx);
         printf("[[FAIL]]\n");
-        return 1;      
+        return 1;
       }
-      // else {
-      //   printf("i %d j %d idx %d | %f == %f\n", i, j, idx, symmat[idx], symmat_exp[idx]);
-      // }
     }
   }
 
-  free(data_exp);
-  free(symmat_exp);
-  free(mean_exp);
+  free(fict_exp);
+  free(ex_exp);
+  free(ey_exp);
+  free(hz_exp);
   
-  free(data_ptr);
-  free(symmat_ptr);
-  free(mean_ptr);
+  free(fict_ptr);
+  free(ex_ptr);
+  free(ey_ptr);
+  free(hz_ptr);
   
   printf("[[SUCCESS]]\n");
   

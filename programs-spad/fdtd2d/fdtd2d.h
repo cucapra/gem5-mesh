@@ -64,16 +64,16 @@
 
 // pthread argument for the kernel
 typedef struct Kern_Args {
-  DTYPE *data, *mean, *symmat;
-  int N, M;
+  DTYPE *fict, *ex, *ey, *hz;
+  int NX, NY, tmax;
   int tid_x, tid_y;
   int dim_x, dim_y;
 } Kern_Args;
 
 // helper to pack args
 Kern_Args *construct_args(
-    DTYPE *data, DTYPE *mean, DTYPE *symmat,
-    int N, int M,
+    DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz,
+    int NX, int NY, int tmax,
     int tid_x, int tid_y, int dim_x, int dim_y
   );
 
@@ -82,8 +82,8 @@ void *pthread_kernel(void *args);
 
 // kernel
 void kernel(
-    DTYPE *data, DTYPE *mean, DTYPE *symmat,
-    int N, int M,
+    DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz,
+    int NX, int NY, int tmax,
     int tid_x, int tid_y, int dim_x, int dim_y
   );
 
