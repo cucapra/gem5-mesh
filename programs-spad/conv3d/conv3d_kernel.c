@@ -95,10 +95,10 @@ void tril_conv3d(int mask,
 
   int vtid = vtid_x + vtid_y * vdim_x;
 
-  int bIdx = IDX(outer_start, 1, vtid + 1, NJ, NK) - 2 - 2 * NK; //outer_start * NJ * NK + NK + vtid + 1;
   int unmappedJ = (FILTER_DIM-1);
   int unmappedK = (FILTER_DIM-1);//NK - eff_NK;
-
+  int bIdx = IDX(outer_start, 1, vtid + 1, NJ, NK) - 
+    unmappedK - unmappedJ * NK;
 
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
@@ -180,12 +180,12 @@ void tril_conv3d(int mask,
 
     // TODO needed? check if empty
     asm("trillium vissue_delim until_next j_body_begin");
-    bIdx += 2 * NK;
+    bIdx += unmappedJ * NK;
 
     do {
 
       asm("trillium vissue_delim until_next k_body_begin");
-      bIdx += 2;
+      bIdx += unmappedK;
 
       do {
       asm("trillium vissue_delim if_begin vec_body");
