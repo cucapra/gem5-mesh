@@ -78,7 +78,7 @@ void tril_fdtd_step1(int mask,
   for (int i = start; i < end; i++) {
 
     ISSUE_VINST(vec_body_init_i0_label);
-    if (i == 0)
+    if (i != 0)
       ISSUE_VINST(vec_body_init_in0_label);
 
     // warmup
