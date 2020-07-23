@@ -5,8 +5,8 @@
 #define DTYPE float
 
 // one of these should be defined to dictate config
-#define NO_VEC 1
-// #define VEC_4_SIMD 1
+// #define NO_VEC 1
+#define VEC_4_SIMD 1
 // #define VEC_16_SIMD 1
 
 // vvadd_execute config directives
@@ -25,29 +25,14 @@
 // prefetch sizing
 #ifdef USE_VEC
 // dedicate a quarter of scratchpad to frames
-#define POST_FRAME_WORD 256
+#define POST_FRAME_WORD 120
 
 // number of frames to get ahead
 #define INIT_FRAMES 1
 
-// prefetch config for mean kernel
-#define MEAN_FRAME_SIZE 1
-#define NUM_MEAN_FRAMES (POST_FRAME_WORD / MEAN_FRAME_SIZE)
-#define MEAN_PREFETCH_LEN VECTOR_LEN
-#define INIT_MEAN_OFFSET (INIT_FRAMES * 1)
-
-// prefetch config for center kernel
-#define CENTER_FRAME_SIZE 2
-#define NUM_CENTER_FRAMES (POST_FRAME_WORD / CENTER_FRAME_SIZE)
-#define CENTER_PREFETCH_LEN 1
-#define INIT_CENTER_OFFSET (INIT_FRAMES * 1)
-
-// prefetch config for covar kernel
-#define COVAR_FRAME_SIZE 2
-#define NUM_COVAR_FRAMES (POST_FRAME_WORD / COVAR_FRAME_SIZE)
-#define COVAR_J1_PREFETCH_LEN 1
-#define COVAR_J2_PREFETCH_LEN VECTOR_LEN
-#define INIT_COVAR_OFFSET (INIT_FRAMES * 1)
+// prefetch sizings for step1
+#define STEP1_REGION_SIZE 3
+#define STEP1_NUM_REGIONS (POST_FRAME_WORD / STEP1_REGION_SIZE)
 #endif
 
 // covariance specific value

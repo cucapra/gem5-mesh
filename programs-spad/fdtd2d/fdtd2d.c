@@ -64,28 +64,26 @@ void __attribute__((optimize("-fno-inline"))) fdtd(
     int mask, int used
   ) {
 
-    #ifndef USE_VEC
     for (int t = 0; t < tmax; t++) {
+    #ifndef USE_VEC
+      pthread_barrier_wait(&start_barrier);
       fdtd_step1_manycore(fict, ex, ey, hz, t, NX, NY, ptid, dim);
       pthread_barrier_wait(&start_barrier);
       fdtd_step2_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
       pthread_barrier_wait(&start_barrier);
       fdtd_step3_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
-      pthread_barrier_wait(&start_barrier);
-    }
+
     #else
-    SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);
-    if (used)
-      tril_mean(mask, mean, data, N, M, ptid, groupId, numGroups, vtid);
-    
-    SET_PREFETCH_MASK(NUM_CENTER_FRAMES, CENTER_FRAME_SIZE, &start_barrier);
-    if (used)
-      tril_center(mask, mean, data, N, M, ptid, groupId, numGroups, vtid);
-    
-    SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
-    if (used)
-      tril_covar(mask, symmat, data, N, M, ptid, groupId, numGroups, vtid);
+      SET_PREFETCH_MASK(STEP1_NUM_REGIONS, STEP1_REGION_SIZE, &start_barrier);
+      // fdtd_step1_manycore(fict, ex, ey, hz, t, NX, NY, ptid, dim);
+      if (used)
+        tril_fdtd_step1(mask, fict, ex, ey, hz, t, NX, NY, ptid, groupId, numGroups, vtid);
+      pthread_barrier_wait(&start_barrier);
+      fdtd_step2_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
+      pthread_barrier_wait(&start_barrier);
+      fdtd_step3_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
     #endif
+    }
 
 }
 
