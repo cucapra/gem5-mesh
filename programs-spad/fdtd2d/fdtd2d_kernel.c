@@ -258,6 +258,8 @@ void tril_fdtd_step2(int mask,
     for (int j = NY - init_len; j < NY; j+=VECTOR_LEN) {
       ISSUE_VINST(vec_body_label);
     }
+
+    ISSUE_VINST(vec_body_end_label);
   }
   
   #endif
@@ -292,6 +294,9 @@ void tril_fdtd_step2(int mask,
 
     } while(BH);
 
+      asm("trillium vissue_delim if_begin vec_body_end");
+      asm("trillium vissue_delim end at_jump");
+
   } while(BHO);
   #endif
 
@@ -320,6 +325,8 @@ vec_body_init_label:
   asm("trillium glue_point vec_body_init");
 vec_body_label:
   asm("trillium glue_point vec_body");
+vec_body_end_label:
+  asm("trillium glue_point vec_body_end");
 vector_return_label:
   asm("trillium glue_point vector_return");
 #endif
