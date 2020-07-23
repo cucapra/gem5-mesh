@@ -350,7 +350,7 @@ void tril_fdtd_step3(int mask,
   int start = ((groupId + 0) * NX) / numGroups;
   
   int unmappedLen = 0; // TODO should by NY?
-  int idx = start * NY + 1 + vtid - unmappedLen;
+  int idx = start * NY + vtid - unmappedLen;
 
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);

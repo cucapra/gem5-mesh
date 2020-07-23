@@ -79,10 +79,10 @@ void __attribute__((optimize("-fno-inline"))) fdtd(
       // if (used)
         // tril_fdtd_step1(mask, fict, ex, ey, hz, t, NX, NY, ptid, groupId, numGroups, vtid);
       SET_PREFETCH_MASK(STEP2_NUM_REGIONS, STEP2_REGION_SIZE, &start_barrier);
-      // fdtd_step2_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
-      if (used) // TODO on NY-1
-        tril_fdtd_step2(mask, ex, ey, hz, t, NX, NY, NY-1, ptid, groupId, numGroups, vtid);
-      SET_PREFETCH_MASK(STEP3_REGION_SIZE, STEP3_NUM_REGIONS, &start_barrier);
+      fdtd_step2_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
+      // if (used) // TODO on NY-1
+        // tril_fdtd_step2(mask, ex, ey, hz, t, NX, NY, NY-1, ptid, groupId, numGroups, vtid);
+      SET_PREFETCH_MASK(STEP3_NUM_REGIONS, STEP3_REGION_SIZE, &start_barrier);
       // fdtd_step3_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
       if (used)
         tril_fdtd_step3(mask, ex, ey, hz, t, NX, NY, ptid, groupId, numGroups, vtid);
@@ -119,8 +119,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef VECTOR_LEN
 
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
+  // template_info_t tinfo = init_template_4x4_2x2();
+  template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif
