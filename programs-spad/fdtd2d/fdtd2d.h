@@ -33,6 +33,14 @@
 // prefetch sizings for step1
 #define STEP1_REGION_SIZE 3
 #define STEP1_NUM_REGIONS (POST_FRAME_WORD / STEP1_REGION_SIZE)
+
+// prefetch sizings for step2
+#define STEP2_REGION_SIZE 3
+#define STEP2_NUM_REGIONS (POST_FRAME_WORD / STEP1_REGION_SIZE)
+
+// prefetch sizings for step3
+#define STEP3_REGION_SIZE 5
+#define STEP3_NUM_REGIONS (POST_FRAME_WORD / STEP1_REGION_SIZE)
 #endif
 
 // covariance specific value

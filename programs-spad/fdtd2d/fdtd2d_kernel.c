@@ -62,9 +62,7 @@ void tril_fdtd_step1(int mask,
   #ifdef VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
   int start = ((groupId + 0) * NX) / numGroups;
-  int i = start;
-  int j = vtid;
-  
+
   int unmappedLen = 0;
   int idx = start * NY + vtid - unmappedLen;
 
@@ -200,168 +198,249 @@ vector_return_label:
 
 }
 
-// void tril_fdtd_step2(int mask,
+
+inline void prefetch_step2_frame(DTYPE *ex, DTYPE *hz, int i, int j, int NY, int *sp) {
+  VPREFETCH_LR(*sp + 0, ex + i * (NY+1) + j, 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 1, hz + i * NY + j    , 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 2, hz + i * NY + (j-1), 0, VECTOR_LEN, HORIZONTAL);
+
+  *sp += STEP2_REGION_SIZE;
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+}
+
+
+
+// weird bounds so need to only do up to eff_NY
+void tril_fdtd_step2(int mask,
+  DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY, int eff_NY,
+  int ptid, int groupId, int numGroups, int vtid) {
+   #ifdef SCALAR_CORE
+  VECTOR_EPOCH(mask);
+
+  int start = ((groupId + 0) * NX) / numGroups;
+  int end   = ((groupId + 1) * NX) / numGroups;
+
+  ISSUE_VINST(init_label);
+  #endif
+
+  #ifdef VECTOR_CORE
+  asm("trillium vissue_delim until_next vector_init");
+  int start = ((groupId + 0) * NX) / numGroups;
   
-//   int ptid, int groupId, int numGroups, int vtid) {
-//   #ifdef SCALAR_CORE
-//   VECTOR_EPOCH(mask);
+  int unmappedLen = 0; // TODO should by NY
+  int idx = start * NY + 1 + vtid - unmappedLen;
 
-//   int start = ((tid + 0) * NX) / dim;
-//   int end   = ((tid + 1) * NX) / dim;
-
-//   ISSUE_VINST(init_label);
-//   #endif
-
-//   #ifdef VECTOR_CORE
-//   asm("trillium vissue_delim until_next vector_init");
-//   int start = ((groupId + 0) * NX) / numGroups;
-//   int i = start;
-//   int j = vtid;
-//   DTYPE mean_j = 0.0f;
-//   int sp = 0;
-//   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-//   #endif
+  int sp = 0;
+  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  #endif
 
 
-//   #ifdef SCALAR_CORE
-//   int sp = 0;
-//   #endif
+  #ifdef SCALAR_CORE
+  int sp = 0;
+  int init_len = min(INIT_FRAMES*VECTOR_LEN, eff_NY-1);
 
-//   // TODO do first row in scalar and no vector core. maybe want another kernel?
+  for (int i = start; i < end; i++) {
 
-//   #ifdef VECTOR_CORE
-//   volatile int BH;
-//   volatile int BHO;
-//   do {
+    ISSUE_VINST(vec_body_init_label);
 
-//     asm("trillium vissue_delim until_next vec_body_start");
+    // warmup
+    for (int j = 1; j < 1 + init_len; j+=VECTOR_LEN) {
+      prefetch_step2_frame(ex, hz, i, j, NY, &sp);
+    }
 
+    // steady-state
+    for (int j = 1 + init_len; j < eff_NY; j+=VECTOR_LEN) {
+      prefetch_step2_frame(ex, hz, i, j, NY, &sp);
+      ISSUE_VINST(vec_body_label);
+    }
 
-//     do {
-
-//       asm("trillium vissue_delim begin vec_body");
-      
-
-
-//       asm("trillium vissue_delim end");
-
-
-//     } while(BH);
-//   } while(BHO);
-//   #endif
-
-
-
-//   // Clean up on the vector cores.
-// #ifdef SCALAR_CORE
-//   ISSUE_VINST(vector_return_label);
-// #elif defined VECTOR_CORE
-//   asm("trillium vissue_delim return vector_return");
-//   return;
-// #endif
-
-// #ifdef SCALAR_CORE
-//   DEVEC(devec_0);
-//   asm volatile("fence\n\t");
-//   asm("trillium vissue_delim return scalar_return");
-//   return;
-// #endif
-
-//   // Glue points!
-// #ifdef SCALAR_CORE
-// init_label:
-//   asm("trillium glue_point vector_init");
-// vec_body_init_label:
-//   asm("trillium glue_point vec_body_init");
-// vec_body_label:
-//   asm("trillium glue_point vec_body");
-// vec_body_end_label:
-//   asm("trillium glue_point vec_body_end");
-// vector_return_label:
-//   asm("trillium glue_point vector_return");
-// #endif
-// }
-
-// void tril_fdtd_step3(int mask,
+    // coolodown
+    for (int j = NY - init_len; j < NY; j+=VECTOR_LEN) {
+      ISSUE_VINST(vec_body_label);
+    }
+  }
   
-//   int ptid, int groupId, int numGroups, int vtid) {
-//   #ifdef SCALAR_CORE
-//   VECTOR_EPOCH(mask);
+  #endif
 
-//   int start = ((tid + 0) * NX) / dim;
-//   int end   = ((tid + 1) * NX) / dim;
+  // TODO do first row in scalar and no vector core. maybe want another kernel?
 
-//   ISSUE_VINST(init_label);
-//   #endif
+  #ifdef VECTOR_CORE
+  volatile int BH;
+  volatile int BHO;
 
-//   #ifdef VECTOR_CORE
-//   asm("trillium vissue_delim until_next vector_init");
-//   int start = ((groupId + 0) * NX) / numGroups;
-//   int i = start;
-//   int j = vtid;
-//   DTYPE mean_j = 0.0f;
-//   int sp = 0;
-//   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-//   #endif
+  do {
 
+    asm("trillium vissue_delim until_next vec_body_init");
+    idx += unmappedLen;
 
-//   #ifdef SCALAR_CORE
-//   int sp = 0;
-//   #endif
+    do {
 
-//   // TODO do first row in scalar and no vector core. maybe want another kernel?
+      asm("trillium vissue_delim if_begin vec_body");
+      START_FRAME();
+      DTYPE out = sp_ptr[sp + 0] - 0.5f * (sp_ptr[sp + 1] - sp_ptr[sp + 2]);
+      END_FRAME();
+      STORE_NOACK(out, ex + idx, 0);
+      idx += VECTOR_LEN;
+      sp += STEP2_REGION_SIZE;
+      if (sp == POST_FRAME_WORD) sp = 0;
+      asm("trillium vissue_delim end at_jump");
 
-//   #ifdef VECTOR_CORE
-//   volatile int BH;
-//   volatile int BHO;
-//   do {
+    } while(BH);
 
-//     asm("trillium vissue_delim until_next vec_body_start");
-
-
-//     do {
-
-//       asm("trillium vissue_delim begin vec_body");
-      
-
-
-//       asm("trillium vissue_delim end");
-
-
-//     } while(BH);
-//   } while(BHO);
-//   #endif
+  } while(BHO);
+  #endif
 
 
 
-//   // Clean up on the vector cores.
-// #ifdef SCALAR_CORE
-//   ISSUE_VINST(vector_return_label);
-// #elif defined VECTOR_CORE
-//   asm("trillium vissue_delim return vector_return");
-//   return;
-// #endif
+  // Clean up on the vector cores.
+#ifdef SCALAR_CORE
+  ISSUE_VINST(vector_return_label);
+#elif defined VECTOR_CORE
+  asm("trillium vissue_delim return vector_return");
+  return;
+#endif
 
-// #ifdef SCALAR_CORE
-//   DEVEC(devec_0);
-//   asm volatile("fence\n\t");
-//   asm("trillium vissue_delim return scalar_return");
-//   return;
-// #endif
+#ifdef SCALAR_CORE
+  DEVEC(devec_0);
+  asm volatile("fence\n\t");
+  asm("trillium vissue_delim return scalar_return");
+  return;
+#endif
 
-//   // Glue points!
-// #ifdef SCALAR_CORE
-// init_label:
-//   asm("trillium glue_point vector_init");
-// vec_body_init_label:
-//   asm("trillium glue_point vec_body_init");
-// vec_body_label:
-//   asm("trillium glue_point vec_body");
-// vec_body_end_label:
-//   asm("trillium glue_point vec_body_end");
-// vector_return_label:
-//   asm("trillium glue_point vector_return");
-// #endif
-// }
+  // Glue points!
+#ifdef SCALAR_CORE
+init_label:
+  asm("trillium glue_point vector_init");
+vec_body_init_label:
+  asm("trillium glue_point vec_body_init");
+vec_body_label:
+  asm("trillium glue_point vec_body");
+vector_return_label:
+  asm("trillium glue_point vector_return");
+#endif
+}
+
+inline void prefetch_step3_frame(DTYPE *ex, DTYPE *ey, DTYPE *hz, 
+      int i, int j, int NY, int *sp) {
+
+  VPREFETCH_LR(*sp + 0, hz + i     * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 1, ex + i     * (NY+1) + (j+1), 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 2, ex + i     * (NY+1) + j    , 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 3, ey + (i+1) * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR(*sp + 4, ey + i     * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
+
+  *sp += STEP3_REGION_SIZE;
+  if (*sp == POST_FRAME_WORD) *sp = 0;      
+}
+
+void tril_fdtd_step3(int mask,
+  DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY, 
+  int ptid, int groupId, int numGroups, int vtid) {
+   #ifdef SCALAR_CORE
+  VECTOR_EPOCH(mask);
+
+  int start = ((groupId + 0) * NX) / numGroups;
+  int end   = ((groupId + 1) * NX) / numGroups;
+
+  ISSUE_VINST(init_label);
+  #endif
+
+  #ifdef VECTOR_CORE
+  asm("trillium vissue_delim until_next vector_init");
+  int start = ((groupId + 0) * NX) / numGroups;
+  
+  int unmappedLen = 0; // TODO should by NY?
+  int idx = start * NY + 1 + vtid - unmappedLen;
+
+  int sp = 0;
+  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  #endif
+
+
+  #ifdef SCALAR_CORE
+  int sp = 0;
+  int init_len = min(INIT_FRAMES*VECTOR_LEN, NY);
+
+  for (int i = start; i < end; i++) {
+
+    ISSUE_VINST(vec_body_init_label);
+
+    // warmup
+    for (int j = 0; j < init_len; j+=VECTOR_LEN) {
+      prefetch_step3_frame(ex, ey, hz, i, j, NY, &sp);
+    }
+
+    // steady-state
+    for (int j = init_len; j < NY; j+=VECTOR_LEN) {
+      prefetch_step3_frame(ex, ey, hz, i, j, NY, &sp);
+      ISSUE_VINST(vec_body_label);
+    }
+
+    // coolodown
+    for (int j = NY - init_len; j < NY; j+=VECTOR_LEN) {
+      ISSUE_VINST(vec_body_label);
+    }
+  }
+  
+  #endif
+
+  // TODO do first row in scalar and no vector core. maybe want another kernel?
+
+  #ifdef VECTOR_CORE
+  volatile int BH;
+  volatile int BHO;
+
+  do {
+
+    asm("trillium vissue_delim until_next vec_body_init");
+    idx += unmappedLen;
+
+    do {
+
+      asm("trillium vissue_delim if_begin vec_body");
+      START_FRAME();
+      DTYPE out = sp_ptr[sp + 0] - 0.7f * 
+        (sp_ptr[sp + 1] - sp_ptr[sp + 2] + sp_ptr[sp + 3] - sp_ptr[sp + 4]);
+      END_FRAME();
+      STORE_NOACK(out, hz + idx, 0);
+      idx += VECTOR_LEN;
+      sp += STEP3_REGION_SIZE;
+      if (sp == POST_FRAME_WORD) sp = 0;
+      asm("trillium vissue_delim end at_jump");
+
+    } while(BH);
+
+  } while(BHO);
+  #endif
+
+
+
+  // Clean up on the vector cores.
+#ifdef SCALAR_CORE
+  ISSUE_VINST(vector_return_label);
+#elif defined VECTOR_CORE
+  asm("trillium vissue_delim return vector_return");
+  return;
+#endif
+
+#ifdef SCALAR_CORE
+  DEVEC(devec_0);
+  asm volatile("fence\n\t");
+  asm("trillium vissue_delim return scalar_return");
+  return;
+#endif
+
+  // Glue points!
+#ifdef SCALAR_CORE
+init_label:
+  asm("trillium glue_point vector_init");
+vec_body_init_label:
+  asm("trillium glue_point vec_body_init");
+vec_body_label:
+  asm("trillium glue_point vec_body");
+vector_return_label:
+  asm("trillium glue_point vector_return");
+#endif
+}
 
 #endif
