@@ -212,7 +212,7 @@ inline void prefetch_step2_frame(DTYPE *ex, DTYPE *hz, int i, int j, int NY, int
 
 // weird bounds so need to only do up to eff_NY
 void tril_fdtd_step2(int mask,
-  DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY, int eff_NY,
+  DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   int ptid, int groupId, int numGroups, int vtid) {
    #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
@@ -227,8 +227,8 @@ void tril_fdtd_step2(int mask,
   asm("trillium vissue_delim until_next vector_init");
   int start = ((groupId + 0) * NX) / numGroups;
   
-  int unmappedLen = 0; // TODO should by NY
-  int idx = start * NY + 1 + vtid - unmappedLen;
+  int i = start - 1;
+  int j = 1 + vtid;
 
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
@@ -237,7 +237,7 @@ void tril_fdtd_step2(int mask,
 
   #ifdef SCALAR_CORE
   int sp = 0;
-  int init_len = min(INIT_FRAMES*VECTOR_LEN, eff_NY-1);
+  int init_len = min(INIT_FRAMES*VECTOR_LEN, NY-1);
 
   for (int i = start; i < end; i++) {
 
@@ -249,7 +249,7 @@ void tril_fdtd_step2(int mask,
     }
 
     // steady-state
-    for (int j = 1 + init_len; j < eff_NY; j+=VECTOR_LEN) {
+    for (int j = 1 + init_len; j < NY; j+=VECTOR_LEN) {
       prefetch_step2_frame(ex, hz, i, j, NY, &sp);
       ISSUE_VINST(vec_body_label);
     }
@@ -271,7 +271,8 @@ void tril_fdtd_step2(int mask,
   do {
 
     asm("trillium vissue_delim until_next vec_body_init");
-    idx += unmappedLen;
+    i++;
+    j = 1 + vtid;
 
     do {
 
@@ -279,8 +280,12 @@ void tril_fdtd_step2(int mask,
       START_FRAME();
       DTYPE out = sp_ptr[sp + 0] - 0.5f * (sp_ptr[sp + 1] - sp_ptr[sp + 2]);
       END_FRAME();
+      int idx = i * (NY+1) + j;
+      int gt = (j >= NY);
+      PRED_EQ(gt, 0);
       STORE_NOACK(out, ex + idx, 0);
-      idx += VECTOR_LEN;
+      PRED_EQ(gt, gt);
+      j += VECTOR_LEN;
       sp += STEP2_REGION_SIZE;
       if (sp == POST_FRAME_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
