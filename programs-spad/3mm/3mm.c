@@ -142,23 +142,19 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *e
   
 
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
-  if(ptid==0) printf("done MM1\n");
   VECTOR_EPOCH(mask);
   // F = C(k,t2).D(t2,n)
- 
   gemm_manycore(c, d, f, k, n, t2, m_start, n_start, ptid, pdim_x, pdim_y);
-  if(ptid==0) printf("done MM2\n");
 
   pthread_barrier_wait(&start_barrier);
   //do transpose at ptid=0
   if(ptid==0)transpose(e,m,k,eT);
-  if(ptid==0) printf("done ET\n");
+  
 
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
   VECTOR_EPOCH(mask);
   // G = E(m,k).F(k,n)
   gemm_manycore(eT, f, g, m, n, k, m_start, n_start, ptid, pdim_x, pdim_y);
-  if(ptid==0) printf("done MM3\n");
 
 
 #else

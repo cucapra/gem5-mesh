@@ -1,7 +1,7 @@
 #ifndef __3MM_H__
 #define __3MM_H__
 
-// #define _VEC
+#define _VEC
 #define VEC_LEN 4 //vec group size
 #define BLK_DIM 4 //tile size
 
