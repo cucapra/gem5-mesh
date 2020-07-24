@@ -110,13 +110,12 @@ inline void vvadd_body(DTYPE *spadAddr, DTYPE **cPtr, int *sp, int dim) {
 void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int ptid, int vtid, int dim, int is_master)
 {
 
+  int prefetchFrames = INIT_FRAMES; // BE carful about prefetching, this + queue size >= num hardware frames
 
   #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
-  int prefetchFrames = 12; // BE carful about prefetching, this + queue size >= num hardware frames
   int numInitFetch = LOAD_LEN * prefetchFrames;
   int step = LOAD_LEN;
   #else
-  int prefetchFrames = 16;
   int numInitFetch = prefetchFrames;
   int step = 1;
   #endif
