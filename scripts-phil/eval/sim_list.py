@@ -12,38 +12,38 @@ sim_configs = {
   #   'vec'  : ['VEC_4_SIMD'],
   #   'argv' : ['1730', '60']
   # },
-  'bicg'   : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['96']
-  },
-  'gram'   : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['16']
-  },
+  # 'bicg'   : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['96']
+  # },
+  # 'gram'   : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['16']
+  # },
   'syrk'   : {
     'vec'  : ALL_CONFIGS,
     'argv' : ['32']
   },
-  'syr2k'  : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['32']
-  },
+  # 'syr2k'  : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['32']
+  # },
   # 'atax'   : { # TODO 16 CPUs?
   #   'vec'  : ALL_CONFIGS,
   #   'argv' : ['128']
   # },
-  'mvt'    : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['128']
-  },
-  'gemm'   : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['64']
-  },
-  'corr'   : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['64']
-  },
+  # 'mvt'    : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['128']
+  # },
+  # 'gemm'   : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['64']
+  # },
+  # 'corr'   : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['64']
+  # },
 }
 
 # make a shorthand to represent the config output name

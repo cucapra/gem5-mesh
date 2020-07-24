@@ -172,6 +172,8 @@ class IEW : public Stage
     Stats::Vector2d iew_dep_on;
     Stats::Scalar m_frame_start_tokens;
     Stats::Scalar m_frame_start_remem;
+
+    Stats::Vector2d executed_insts;
 };
 
 #endif // CPU_IO_IEW_HH

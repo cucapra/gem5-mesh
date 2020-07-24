@@ -161,6 +161,14 @@ IEW::regStats()
     .desc("Class of instruction blocking at head of ROB")
     .flags(Stats::total | Stats::pdf | Stats::dist);
   m_stall_rob_head_insts.ysubnames(Enums::OpClassStrings);
+
+
+  executed_insts
+      .init(1, Enums::Num_OpClass)
+      .name(name() + ".executed_insts")
+      .desc("Number of instruction executed by class")
+      .flags(Stats::total | Stats::pdf | Stats::dist);
+  executed_insts.ysubnames(Enums::OpClassStrings);
 }
 
 void
@@ -232,6 +240,11 @@ IEW::doWriteback()
     // check if the unit has instruction(s) to write back
     if (next_unit_p->hasInstsToWriteBack()) {
       IODynInstPtr inst = next_unit_p->removeCompletedInst();
+
+      // count instruction here as executed
+      // (even though it may have been squash, predicated or be squashed later) still did the work
+      executed_insts[0][inst->static_inst_p->opClass()]++;
+
 
       // if the instruction is not squashed, process it this cycle. Otherwise,
       // just skip it
