@@ -10,7 +10,7 @@
 #include "util.h"
 
 void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, 
-    int ptid, int vtid, int dim, int unroll_len, int is_da, int origin) {
+    int ptid, int vtid, int dim, int unroll_len) {
   
   for (int i = start + vtid; i < end; i+=unroll_len*dim) {
       DTYPE a_, b_, c_;
@@ -97,7 +97,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef USE_VEC
   tril_vvadd(mask, a, b, c, start, end, ptid, vtid, vdim, is_da);
   #else
-  vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len, is_da, orig);
+  vvadd(a, b, c, start, end, ptid, vtid, vdim, unroll_len);
   #endif
 
   // restore stack pointer to DRAM

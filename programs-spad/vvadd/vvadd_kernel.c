@@ -1,19 +1,10 @@
 #include "vvadd_kernel.h"
+#include "util.h"
 
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
-inline int min(int a, int b)
-{
-  if (a > b)
-  {
-    return b;
-  }
-  else
-  {
-    return a;
-  }
-}
+#ifdef USE_VEC
 
 inline void prefetch_frame(DTYPE *a, DTYPE *b, int i, int *sp, int dim, int start) {
   // should be a constant from static analysis of dim
@@ -198,3 +189,5 @@ return;
 #endif
 
 }
+
+#endif
