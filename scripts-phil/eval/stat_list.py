@@ -117,16 +117,23 @@ stats = OrderedDict([
     'regex' : re.compile('system.scratchpads[0-9]+.occupancy::5\s+' + floatRegexStr), 
     'ignore-zero' : True,
   }),
-  ('frame-occupancy6' ,  { 
-    'name' : '6', 
-    'regex' : re.compile('system.scratchpads[0-9]+.occupancy::6\s+' + floatRegexStr), 
-    'ignore-zero' : True,
-  }),
   #
   # ('prefetch-latency' ,  { 
   #   'name' : 'prefetch-latency', 
   #   'regex' : re.compile('system.prefetch_latencies::([0-9\-]+)\s+' + intRegexStr), 
   #   'hist' : True,
   # }),
+  ('inst-cnts' ,  { 
+    'name' : 'inst-cnts', 
+    'regex' : re.compile('system.cpu[0-9]+.iew.executed_insts_0::([a-zA-Z_]+)\s+' + intRegexStr),
+    'hist' : True,
+    'average' : False,
+  }),
+  ('icache-read' ,  { 
+    'name' : 'icache-access-energy(nJ)', 
+    'regex' : re.compile('system.cpu[0-9]+.fetch.icache_word_accesses\s*' + intRegexStr), 
+    'energy' : 'icache',
+    'average' : False,
+  }),
 
 ])
