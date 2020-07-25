@@ -44,7 +44,21 @@ def parse_inst_cost_file(file_name, cur_node, des_node):
 
 # return dict containing info about memory cost file
 def parse_memory_file(file_name):
-  pass
+  # is this r/w or just read?
+  floatRegexStr = '([+-]?([0-9]*[.])?[0-9]+)'
+  energy_regex = re.compile('Total dynamic read energy per access \(nJ\): ' + floatRegexStr)
+
+  data = {}
+
+  with open(file_name, 'r') as f:
+    for line in f:
+      match = energy_regex.search(line)
+      if (match):
+        # TODO is read energy the same as write energy??
+        data['read_energy'] = float(match.group(1))
+
+  return data
+      
 
 # get cost for specified name
 def get_cost(name, field):
@@ -79,5 +93,8 @@ cost_dicts['llc'] = parse_memory_file(args.llc_file)
 for k,v in cost_dicts['inst'].items():
   print('{} {}'.format(k, v))
 
+print('{} {}'.format('icache', cost_dicts['icache']['read_energy']))
+print('{} {}'.format('dmem', cost_dicts['dmem']['read_energy']))
+print('{} {}'.format('llc', cost_dicts['llc']['read_energy']))
 
 
