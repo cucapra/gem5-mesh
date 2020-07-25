@@ -149,11 +149,11 @@ cost_dicts['llc'] = parse_memory_file(args.llc_file)
 # MAIN
 # 
 
-for k,v in cost_dicts['inst'].items():
-  print('{} {}'.format(k, v))
+# for k,v in cost_dicts['inst'].items():
+#   print('{} {}'.format(k, v))
 
-print('{} {}'.format('icache', cost_dicts['icache']['read_energy']))
-print('{} {}'.format('dmem', cost_dicts['dmem']['read_energy']))
-print('{} {}'.format('llc', cost_dicts['llc']['read_energy']))
+# print('{} {}'.format('icache', cost_dicts['icache']['read_energy']))
+# print('{} {}'.format('dmem', cost_dicts['dmem']['read_energy']))
+# print('{} {}'.format('llc', cost_dicts['llc']['read_energy']))
 
 
