@@ -4,7 +4,7 @@
   Meant to be called from extract_stats with counts
 '''
 
-import argparse, re
+import argparse, re, json
 
 parser = argparse.ArgumentParser(description='Estimate energy based on gem5 stats file')
 parser.add_argument('--inst-cost-file', default='../data/inst/inst_energy_28nm.json', help='Path to json containing instruction costs')
@@ -26,11 +26,20 @@ cost_dicts = {
 
 # scale value
 def linear_scale(val, from_val, to_val):
-  pass
+  ratio =  to_val / from_val
+  return val * ratio
 
 # return dict containing info about instruction cost file, scaled to des_node
 def parse_inst_cost_file(file_name, cur_node, des_node):
-  pass
+  # load data
+  with open(file_name, 'r') as f:
+    data = json.load(f)
+
+  # scale data to target tech node
+  for k,v in data.items():
+    data[k] = linear_scale(float(v), float(cur_node), float(des_node))
+
+  return data
 
 # return dict containing info about memory cost file
 def parse_memory_file(file_name):
@@ -66,6 +75,8 @@ cost_dicts['llc'] = parse_memory_file(args.llc_file)
 # MAIN
 # 
 
+for k,v in cost_dicts['inst'].items():
+  print('{} {}'.format(k, v))
 
 
 
