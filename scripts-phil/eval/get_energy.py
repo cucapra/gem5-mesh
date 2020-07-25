@@ -37,7 +37,8 @@ def parse_inst_cost_file(file_name, cur_node, des_node):
 
   # scale data to target tech node
   for k,v in data.items():
-    data[k] = linear_scale(float(v), float(cur_node), float(des_node))
+    if (k != 'DRAM IO/bit'):
+      data[k] = linear_scale(float(v), float(cur_node), float(des_node))
 
   return data
 
