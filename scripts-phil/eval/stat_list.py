@@ -143,5 +143,9 @@ stats = OrderedDict([
     'energy' : 'llc',
     'average' : False,
   }),
+  ('energy-sum' ,  { 
+    'name' : 'energy-sum(nJ)', 
+    'formula' : ['inst-cnts', 'icache-read-energy', 'dmem-access-energy', 'llc-access-energy'],
+  }),
 
 ])

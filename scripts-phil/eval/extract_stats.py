@@ -58,6 +58,9 @@ def parse_dir_name(dirName):
 def is_hist_stat(v):
   return ('hist' in v) and v['hist']
 
+def is_formula_stat(v):
+  return ('formula' in v)
+
 def find_max_buckets():
   return 20
   # max_buckets = 0
@@ -75,7 +78,9 @@ def can_normal_write(v):
 def parse_file(fileName):
   # reset stat table
   for k, v in stats.items():
-    if (is_hist_stat(v)):
+    if (is_formula_stat(v)):
+      pass
+    elif (is_hist_stat(v)):
       v['buckets'] = {}
       v['avg'] = 0
     else:
@@ -86,6 +91,9 @@ def parse_file(fileName):
     # foreach line search for each regex
     for line in fin:
       for k, v in stats.items():
+        if (is_formula_stat(v)):
+          break
+
         match = v['regex'].search(line)
         if (match):
           # TODO assumes only one copy of this hist
@@ -128,6 +136,9 @@ def parse_file(fileName):
           
   # get avg or just keep as sum
   for k, v in stats.items():
+    if (is_formula_stat(v)):
+      continue
+
     average = True
     if ('average' in v):
       average = v['average']
@@ -145,8 +156,11 @@ def parse_file(fileName):
         # just use read energy for all accesses
         v['avg'] = get_energy.get_read_energy(v['energy'], v['avg'])
 
-      
-
+  for k, v in stats.items():
+    if (is_formula_stat(v)):
+      v['avg'] = 0
+      for s in v['formula']:
+        v['avg'] += stats[s]['avg']
 #
 # find which directories contain legit data
 
