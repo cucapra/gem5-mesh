@@ -37,8 +37,8 @@ def parse_inst_cost_file(file_name, cur_node, des_node):
 
   # scale data to target tech node
   for k,v in data.items():
-    if (k != 'DRAM IO/bit'):
-      data[k] = linear_scale(float(v), float(cur_node), float(des_node))
+    # if (k != 'DRAM IO/bit'):
+    data[k] = linear_scale(float(v), float(cur_node), float(des_node))
 
   return data
 
@@ -62,21 +62,69 @@ def parse_memory_file(file_name):
 
 # get cost for specified name
 def get_cost(name, field):
+  if (not name in cost_dicts or not field in cost_dicts[name]):
+    return 0
   return cost_dicts[name][field]
 
 # give name of memory ('icache', 'dmem', or 'llc') along with count
 def get_read_energy(memory_name, num_reads):
-  pass
+  return get_cost(memory_name, 'read_energy') * num_reads
 
 def get_write_energy(memory_name, num_writes):
-  pass
+  # TODO using read energy (all cacti reports)
+  # looks like pretty similar based on paper I saw
+  return get_cost(memory_name, 'read_energy') * num_writes
 
 def get_memory_energy(memory_name, num_reads, num_writes):
-  pass
+  return get_read_energy(memory_name, num_reads) + get_write_energy(memory_name, num_writes)
 
 # get instruction cost
-def get_instruction_energy(num_int_alu, num_float_add, num_float_mul, num_mem):
-  pass
+# expect a dict with total counts for relevant OpClasses from gem5 stats
+def get_instruction_energy(cnts):
+  # aggregate gem5 op types into counts we know how to map
+  intAlu = \
+    cnts['No_OpClass'] + \
+    cnts['IntAlu']
+
+  intMult = \
+    cnts['IntMult']
+
+  intDiv = \
+    cnts['IntDiv'] + \
+    cnts['FloatDiv']
+
+  floatAdd = \
+    cnts['FloatAdd'] + \
+    cnts['FloatCmp'] + \
+    cnts['FloatMultAcc'] # double cnt this for add and mult
+
+  floatMult = \
+    cnts['FloatMult'] + \
+    cnts['FloatMultAcc']
+
+  # just the core energy to do (AFAIK)
+  memRead = \
+    cnts['MemRead'] + \
+    cnts['FloatMemRead']
+
+  memWrite = \
+    cnts['MemWrite'] + \
+    cnts['FloatMemWrite']
+
+  # ignoring the follwoing
+    # branch T/NT (just using NT for now)
+    # cnts['FloatCvt']
+    # cnts['FloatSqrt']
+
+  # merge counts with costs
+  return \
+    get_cost('inst', 'IntAlu')    * intAlu    + \
+    get_cost('inst', 'IntMult')   * intMult   + \
+    get_cost('inst', 'IntDiv')    * intDiv    + \
+    get_cost('inst', 'FloatAdd')  * floatAdd  + \
+    get_cost('inst', 'FloatMult') * floatMult + \
+    get_cost('inst', 'MemRead')   * memRead   + \
+    get_cost('inst', 'MemWrite')  * memWrite
 
 
 # do parsing into member/global variables

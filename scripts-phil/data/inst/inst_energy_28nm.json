@@ -1,11 +1,11 @@
 
 
 {
-  "Alu_Int": 9.8584,
-  "FP Instruction": 11.6345,
-  "Branch T Instruction": 20.91,
-  "Branch NT Instruction": 8.361666667,
-  "Unconditional Branch Inst.":	8.44,
-  "LW/SW":		18.565,
-  "DRAM IO/bit": 0.875
+  "IntALU"    : 9.9352,
+  "IntMult"   : 8.05,
+  "IntDiv"    : 161.33,
+  "FloatAdd"  : 13.24,
+  "FloatMult" :	10.029,
+  "MemRead"   : 19.96,
+  "MemWrite"  : 17.17
 }
