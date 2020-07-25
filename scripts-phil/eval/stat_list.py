@@ -124,10 +124,11 @@ stats = OrderedDict([
   #   'hist' : True,
   # }),
   ('inst-cnts' ,  { 
-    'name' : 'inst-cnts', 
+    'name' : 'inst-cnts-energy', 
     'regex' : re.compile('system.cpu[0-9]+.iew.executed_insts_0::([a-zA-Z_]+)\s+' + intRegexStr),
     'hist' : True,
     'average' : False,
+    'energy' : 'inst',
   }),
   ('icache-read' ,  { 
     'name' : 'icache-access-energy(nJ)', 

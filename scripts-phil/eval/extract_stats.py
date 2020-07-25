@@ -74,6 +74,7 @@ def parse_file(fileName):
   for k, v in stats.items():
     if (is_hist_stat(v)):
       v['buckets'] = {}
+      v['avg'] = 0
     else:
       v['avg'] = 0
       v['count'] = 0
@@ -135,8 +136,12 @@ def parse_file(fileName):
 
     # check if should do energy analysis
     if ('energy' in v):
-      # just use read energy for all accesses
-      v['avg'] = get_energy.get_read_energy(v['energy'], v['avg'])
+      if v['energy'] == 'inst':
+        v['avg'] = get_energy.get_instruction_energy(v['buckets'])
+      else:
+        # just use read energy for all accesses
+        v['avg'] = get_energy.get_read_energy(v['energy'], v['avg'])
+
       
 
 #
@@ -224,10 +229,10 @@ for dirPath in dirPaths:
       val = 'N/A'
     print('\t{0}: {1}'.format(param, val))
   for k, v in stats.items():
-    if (is_hist_stat(v)):
+    if (is_hist_stat(v)): # TODO change back to if/else once verify inst counts
       for b,d in v['buckets'].items():
         print('\t{0}::{1}: {2}'.format(v['name'], b, str(d)))
-    else:
+    if (not is_hist_stat(v) or 'energy' in v):
       print('\t{0}: {1}'.format(v['name'], v['avg']))
     
   # 

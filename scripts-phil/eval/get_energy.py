@@ -86,6 +86,9 @@ def get_memory_energy(memory_name, num_reads, num_writes):
 # get instruction cost
 # expect a dict with total counts for relevant OpClasses from gem5 stats
 def get_instruction_energy(cnts):
+  if (len(cnts) == 0):
+    return 0
+
   # aggregate gem5 op types into counts we know how to map
   intAlu = \
     cnts['No_OpClass'] + \
