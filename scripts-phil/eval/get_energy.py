@@ -2,6 +2,8 @@
   Estimates energy based on gem5 sim.
 
   Meant to be called from extract_stats with counts
+
+  Everything is converted and output as nJ
 '''
 
 import argparse, re, json
@@ -39,6 +41,9 @@ def parse_inst_cost_file(file_name, cur_node, des_node):
   for k,v in data.items():
     # if (k != 'DRAM IO/bit'):
     data[k] = linear_scale(float(v), float(cur_node), float(des_node))
+
+    # scale from pJ to nJ
+    data[k] *= 0.001
 
   return data
 
@@ -133,6 +138,9 @@ cost_dicts['inst'] = parse_inst_cost_file(args.inst_cost_file, args.inst_cost_no
 cost_dicts['icache'] = parse_memory_file(args.icache_file)
 cost_dicts['dmem'] = parse_memory_file(args.dmem_file)
 cost_dicts['llc'] = parse_memory_file(args.llc_file)
+
+# TODO DRAM energy. pj/bit = 7
+# Access prob 64bytes (line) * 8bits/byte * 7pj/bit = 3584pJ
 
 
 # MAIN
