@@ -68,6 +68,9 @@ def find_max_buckets():
   #       max_buckets = cur_len
   # return max_buckets
 
+def can_normal_write(v):
+  return (not is_hist_stat(v) or 'energy' in v) # TODO assume energy is merged into one value
+
 # parse stats file
 def parse_file(fileName):
   # reset stat table
@@ -229,10 +232,10 @@ for dirPath in dirPaths:
       val = 'N/A'
     print('\t{0}: {1}'.format(param, val))
   for k, v in stats.items():
-    if (is_hist_stat(v)): # TODO change back to if/else once verify inst counts
+    if (not can_normal_write(v)):
       for b,d in v['buckets'].items():
         print('\t{0}::{1}: {2}'.format(v['name'], b, str(d)))
-    if (not is_hist_stat(v) or 'energy' in v):
+    else:
       print('\t{0}: {1}'.format(v['name'], v['avg']))
     
   # 
@@ -251,7 +254,7 @@ for dirPath in dirPaths:
   
   # data
   for k, v in stats.items():
-    if (not is_hist_stat(v)):
+    if (can_normal_write(v)):
       dataCSV += '{0}, '.format(str(v['avg']))
     
   #dataCSV += '\n'
@@ -280,7 +283,7 @@ with open(args.outfile, 'w+') as fout:
   for param in parameters:
     fout.write(param + ', ')
   for k, v in stats.items():
-    if (not is_hist_stat(v)):
+    if (can_normal_write(v)):
       fout.write('{0}, '.format(v['name']))
       
   #fout.write('\n')
