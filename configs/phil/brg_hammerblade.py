@@ -572,6 +572,10 @@ system.mem_ctrl.range = system.mem_ranges[0]
 system.mem_ctrl.latency = '60ns'
 system.mem_ctrl.bandwidth = '16GB/s'
 
+# TODO need to config this more like in MemConfig.py
+# system.mem_ctrl = DDR3_1600_8x8()
+# system.mem_ctrl.range = system.mem_ranges[0]
+
 #------------------------------------------------------------------------------
 # Construct a crossbar that connects L2s and mem_ctrl
 #------------------------------------------------------------------------------
