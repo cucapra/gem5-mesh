@@ -8,42 +8,71 @@ ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD']
 
 # choose which programs to run via script and with what configs
 sim_configs = {
-  'stencil': {
-    'vec'  : ['VEC_4_SIMD'],
-    'argv' : ['1730', '60']
-  },
+  # 'stencil': {
+  #   'vec'  : ['VEC_4_SIMD'],
+  #   'argv' : ['1730', '60']
+  # },
   'bicg'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['96']
+    'argv' : ['4096']
   },
   'gram'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['16']
+    'argv' : ['1280']
   },
   'syrk'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['32']
+    'argv' : ['1024']
   },
   'syr2k'  : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['32']
+    'argv' : ['2048']
   },
-  # 'atax'   : { # TODO 16 CPUs?
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['128']
-  # },
+  'atax'   : { # TODO 16 CPUs?
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['4096']
+  },
   'mvt'    : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['128']
+    'argv' : ['4096']
   },
   'gemm'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['64']
+    'argv' : ['512']
+  },
+  'gesummv'   : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['4096']
   },
   'corr'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['64']
+    'argv' : ['2048']
   },
+  'covar'   : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['2048']
+  },
+  'conv2d' : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['4096']
+  },
+  'conv3d' : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['256']
+  },
+  '2mm' : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['2048']
+  },
+  '3mm' : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['512']
+  },
+  'fdtd' : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['2048', '500']
+  },
+
 }
 
 # make a shorthand to represent the config output name
@@ -104,9 +133,37 @@ programs = {
     'options' : "{0} {0} {0}",
     'serialize' : '-N{0}-M{0}-T{0}',
   },
+  'gesummv' : { 'name': 'gesummv', 'path' : progDir0 + 'gesummv/gesummv', 
+    'options' : "{0}",
+    'serialize' : '-N{0}',
+  },
   'corr' : { 'name': 'corr', 'path' : progDir0 + 'corr/corr', 
     'options' : "{0} {0}",
     'serialize' : '-M{0}-N{0}',
+  },
+  'covar' : { 'name': 'covar', 'path' : progDir0 + 'covar/covar', 
+    'options' : "{0} {0}",
+    'serialize' : '-M{0}-N{0}',
+  },
+  'conv2d' : { 'name': 'conv2d', 'path' : progDir0 + 'conv2d/conv2d', 
+    'options' : "{0} {0}",
+    'serialize' : '-NI{0}-NJ{0}',
+  },
+  'conv3d' : { 'name': 'conv3d', 'path' : progDir0 + 'conv3d/conv3d', 
+    'options' : "{0} {0}",
+    'serialize' : '-NI{0}-NJ{0}-NK{0}',
+  },
+  '2mm' : { 'name': '2mm', 'path' : progDir0 + '2mm/2mm', 
+    'options' : "{0} {0} {0} {0}",
+    'serialize' : '-{0}-{0}-{0}-{0}',
+  },
+  '3mm' : { 'name': '3mm', 'path' : progDir0 + '3mm/3mm', 
+    'options' : "{0} {0} {0} {0} {0}",
+    'serialize' : '-{0}-{0}-{0}-{0}-{0}',
+  },
+  'fdtd' : { 'name': 'fdtd', 'path' : progDir0 + 'fdtd2d/fdtd2d', 
+    'options' : "{0} {0} {1}",
+    'serialize' : '-NX{0}-NY{0}-t{1}',
   },
 }
 
