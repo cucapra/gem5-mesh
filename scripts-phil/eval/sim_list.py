@@ -32,26 +32,26 @@ sim_configs = {
     'vec'  : ALL_CONFIGS,
     'argv' : ['2048']
   },
-  'atax'   : { # TODO 16 CPUs?
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['4096']
-  },
-  'mvt'    : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['4096']
-  },
-  'gemm'   : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['512']
-  },
-  'gesummv'   : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['4096']
-  },
-  'corr'   : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['2048']
-  },
+  # 'atax'   : { # TODO 16 CPUs?
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['4096']
+  # },
+  # 'mvt'    : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['4096']
+  # },
+  # 'gemm'   : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['512']
+  # },
+  # 'gesummv'   : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['4096']
+  # },
+  # 'corr'   : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['2048']
+  # },
   'covar'   : {
     'vec'  : ALL_CONFIGS,
     'argv' : ['2048']
@@ -64,14 +64,14 @@ sim_configs = {
     'vec'  : ALL_CONFIGS,
     'argv' : ['256']
   },
-  '2mm' : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['2048']
-  },
-  '3mm' : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['512']
-  },
+  # '2mm' : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['2048']
+  # },
+  # '3mm' : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['512']
+  # },
   'fdtd' : {
     'vec'  : ALL_CONFIGS,
     'argv' : ['2048', '500']
