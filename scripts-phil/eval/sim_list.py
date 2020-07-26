@@ -8,10 +8,10 @@ ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD']
 
 # choose which programs to run via script and with what configs
 sim_configs = {
-  # 'stencil': {
-  #   'vec'  : ['VEC_4_SIMD'],
-  #   'argv' : ['1730', '60']
-  # },
+  'stencil': {
+    'vec'  : ['VEC_4_SIMD'],
+    'argv' : ['1730', '60']
+  },
   'bicg'   : {
     'vec'  : ALL_CONFIGS,
     'argv' : ['96']

@@ -112,21 +112,40 @@ stats = OrderedDict([
     'regex' : re.compile('system.scratchpads[0-9]+.occupancy::4\s+' + floatRegexStr), 
     'ignore-zero' : True,
   }),
-  ('frame-occupancy5' ,  { 
-    'name' : '5', 
-    'regex' : re.compile('system.scratchpads[0-9]+.occupancy::5\s+' + floatRegexStr), 
-    'ignore-zero' : True,
-  }),
-  ('frame-occupancy6' ,  { 
-    'name' : '6', 
-    'regex' : re.compile('system.scratchpads[0-9]+.occupancy::6\s+' + floatRegexStr), 
-    'ignore-zero' : True,
-  }),
   #
   # ('prefetch-latency' ,  { 
   #   'name' : 'prefetch-latency', 
   #   'regex' : re.compile('system.prefetch_latencies::([0-9\-]+)\s+' + intRegexStr), 
   #   'hist' : True,
   # }),
+  ('inst-cnts' ,  { 
+    'name' : 'inst-cnts-energy(nJ)', 
+    'regex' : re.compile('system.cpu[0-9]+.iew.executed_insts_0::([a-zA-Z_]+)\s+' + intRegexStr),
+    'hist' : True,
+    'average' : False,
+    'energy' : 'inst',
+  }),
+  ('icache-read-energy' ,  { 
+    'name' : 'icache-access-energy(nJ)', 
+    'regex' : re.compile('system.cpu[0-9]+.fetch.icache_word_accesses\s*' + intRegexStr), 
+    'energy' : 'icache',
+    'average' : False,
+  }),
+  ('dmem-access-energy' ,  { 
+    'name' : 'dmem-access-energy(nJ)', 
+    'regex' : re.compile('system.scratchpads[0-9]+.total_accesses\s*' + intRegexStr), 
+    'energy' : 'dmem',
+    'average' : False,
+  }),
+  ('llc-access-energy' ,  { 
+    'name' : 'llc-access-energy(nJ)', 
+    'regex' : re.compile('system.l2_cntrls[0-9]+.cacheMemory.demand_accesses\s*' + intRegexStr), 
+    'energy' : 'llc',
+    'average' : False,
+  }),
+  ('energy-sum' ,  { 
+    'name' : 'energy-sum(nJ)', 
+    'formula' : ['inst-cnts', 'icache-read-energy', 'dmem-access-energy', 'llc-access-energy'],
+  }),
 
 ])

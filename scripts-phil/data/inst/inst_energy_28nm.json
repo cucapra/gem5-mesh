@@ -1,0 +1,11 @@
+
+
+{
+  "IntALU"    : 9.9352,
+  "IntMult"   : 8.05,
+  "IntDiv"    : 161.33,
+  "FloatAdd"  : 13.24,
+  "FloatMult" :	10.029,
+  "MemRead"   : 19.96,
+  "MemWrite"  : 17.17
+}
