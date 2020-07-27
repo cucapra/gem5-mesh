@@ -112,9 +112,6 @@ def run_all_configs(vec_configs, num_cpus, prog_key, argv):
 
   return all_pass
 
-def raise_except(x):
-  raise Exception("Oh no")
-
 # MAIN
 # 
 
@@ -132,8 +129,7 @@ for k,v in sim_list.sim_configs.items():
   vec_configs = sim_config['vec']
 
   # the new file will have the same name as the old file, but also specify the new dir
-  # proc = pool.apply_async(run_all_configs, args=(vec_configs, num_cpus, prog_key, argv, ))
-  proc = pool.apply_async(raise_except, args=(1,))
+  proc = pool.apply_async(run_all_configs, args=(vec_configs, num_cpus, prog_key, argv, ))
   jobs.append(proc)
 
 # Wait for jobs to complete before exiting
