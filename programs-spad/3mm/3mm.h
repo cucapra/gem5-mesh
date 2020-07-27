@@ -1,8 +1,11 @@
 #ifndef __3MM_H__
 #define __3MM_H__
 
+// #define VEC_LEN 4
+#ifdef VEC_LEN
 #define _VEC
-#define VEC_LEN 4 //vec group size
+#endif
+
 #define BLK_DIM 4 //tile size
 
 #define MANYCORE_PREFETCH

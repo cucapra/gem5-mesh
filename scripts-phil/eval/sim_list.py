@@ -4,16 +4,17 @@
 
 # helper set of vec configs you can use in a benchmark (assuming it supports)
 ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD']
+ALL_NEIL_CONFIGS = ['NO_VEC', 'VEC_LEN=4']
 
 
 # choose which programs to run via script and with what configs
 sim_configs = {
   # Test programs, not actual benchmarks
 
-  'vvadd': {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['131072']
-  },
+  # 'vvadd': {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['131072'] # ['1024']
+  # },
   # 'stencil': {
   #   'vec'  : ['VEC_4_SIMD'],
   #   'argv' : ['1730', '60']
@@ -21,76 +22,74 @@ sim_configs = {
 
   # Benchmarks
 
-  # 'bicg'   : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['4096']
-  # },
-  # 'gram'   : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['1280']
-  # },
-  # 'syrk'   : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['1024']
-  # },
-  # 'syr2k'  : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['2048']
-  # },
-  # 'covar'   : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['2048']
-  # },
-  # 'conv2d' : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['4096']
-  # },
-  # 'conv3d' : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['256']
-  # },
-  # 'fdtd' : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['2048', '500']
-  # },
+  'bicg'   : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['4096']
+  },
+  'gram'   : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['1280']
+  },
+  'syrk'   : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['1024']
+  },
+  'syr2k'  : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['2048']
+  },
+  'covar'   : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['2048']
+  },
+  'conv2d' : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['4096']
+  },
+  'conv3d' : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['256']
+  },
+  'fdtd' : {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['2048', '500']
+  },
 
-  # TODO below need compatibility with this script
-
-  # 'atax'   : { # TODO 16 CPUs?
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['4096']
+  # 'atax'   : { # TODO 16 CPUs? # Currently failing on 64cpus
+  #   'vec'  : ALL_NEIL_CONFIGS,
+  #   'argv' : ['4096'] # ['128']
   # },
-  # 'mvt'    : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['4096']
-  # },
-  # 'gemm'   : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['512']
-  # },
-  # 'gesummv'   : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['4096']
-  # },
-  # 'corr'   : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['2048']
-  # },
-  # '2mm' : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['2048']
-  # },
-  # '3mm' : {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['512']
-  # },
+  'mvt'    : {
+    'vec'  : ALL_NEIL_CONFIGS,
+    'argv' : ['4096'] # ['128']
+  },
+  'gemm'   : {
+    'vec'  : ALL_NEIL_CONFIGS,
+    'argv' : ['512'] #['64']
+  },
+  'gesummv'   : {
+    'vec'  : ALL_NEIL_CONFIGS,
+    'argv' : ['4096'] #['128'] 
+  },
+  'corr'   : {
+    'vec'  : ALL_NEIL_CONFIGS,
+    'argv' : ['2048'] #['64']
+  },
+  '2mm' : {
+    'vec'  : ALL_NEIL_CONFIGS,
+    'argv' : ['2048'] #['64']
+  },
+  '3mm' : {
+    'vec'  : ALL_NEIL_CONFIGS,
+    'argv' : ['512'] #['32']
+  },
 }
 
 # make a shorthand to represent the config output name
 def abbreviate_config(config):
-  if (config == 'VEC_4_SIMD'):
+  if (config == 'VEC_4_SIMD' or config == 'VEC_LEN=4'):
     return 'V4'
-  elif (config == 'VEC_16_SIMD'):
+  elif (config == 'VEC_16_SIMD' or config == 'VEC_LEN=16'):
     return 'V16'
   elif (config == 'NO_VEC'):
     return 'NV'
