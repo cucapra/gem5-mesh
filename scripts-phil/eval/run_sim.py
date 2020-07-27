@@ -43,6 +43,7 @@ def compile_prog(numCpus, prog_key, extra_flags):
   program = sim_list.programs[prog_key]
   cmplCmd = compile_cmd(os.path.dirname(program['path']), numCpus, extra_flags)
   result = subprocess.check_output(cmplCmd, shell=True, stderr=subprocess.STDOUT)
+  # result = subprocess.check_output(cmplCmd, shell=True)
   # print(result)
 
 def run_prog(numCpus, prog_key, argv, extra_info):

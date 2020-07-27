@@ -3,6 +3,8 @@
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
+#ifdef _VEC
+
 inline int _idx_(int y, int x, int width)
 {
   return (y * width) + x;
@@ -190,3 +192,5 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
   #endif
 
 }
+
+#endif

@@ -59,6 +59,7 @@ sim_configs = {
   #   'vec'  : ALL_NEIL_CONFIGS,
   #   'argv' : ['4096'] # ['128']
   # },
+
   'mvt'    : {
     'vec'  : ALL_NEIL_CONFIGS,
     'argv' : ['4096'] # ['128']
