@@ -73,7 +73,8 @@ def run_prog(numCpus, prog_key, argv, extra_info):
 
 # either array or single string
 def strings_to_make_args(args):
-  cmd_line = 'ENV_EXTRA_MAKE_FLAGS=\''
+  # cmd_line = 'ENV_EXTRA_MAKE_FLAGS=\''
+  cmd_line = 'EXTRA_FLAGS=\''
   if (isinstance(args, list)):
     for a in args:
       cmd_line += '-D' + a + ' '
