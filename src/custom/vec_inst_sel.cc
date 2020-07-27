@@ -41,6 +41,7 @@ VecInstSel::enqueueTiming(PacketPtr pkt) {
     auto msg = ss->master_data;
     assert(!_toEnqueue); // structural hazard
     _toEnqueue = msg;
+    // TODO schedule for 1 tick later, so not ready this cycle, but def ready next cycle
     m_cpu_p->schedule(_enqueueEvent, m_cpu_p->clockEdge(Cycles(1)));
     if (!_toEnqueue->isInst) {
       _tempBlocksRecv++;

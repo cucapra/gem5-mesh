@@ -8,30 +8,54 @@ ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD']
 
 # choose which programs to run via script and with what configs
 sim_configs = {
-  # 'vvadd': {
-  #   'vec'  : ['VEC_4_SIMD'],
-  #   'argv' : ['1024']
-  # },
+  # Test programs, not actual benchmarks
+
+  'vvadd': {
+    'vec'  : ALL_CONFIGS,
+    'argv' : ['131072']
+  },
   # 'stencil': {
   #   'vec'  : ['VEC_4_SIMD'],
   #   'argv' : ['1730', '60']
   # },
-  'bicg'   : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['4096']
-  },
-  'gram'   : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['1280']
-  },
-  'syrk'   : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['1024']
-  },
-  'syr2k'  : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['2048']
-  },
+
+  # Benchmarks
+
+  # 'bicg'   : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['4096']
+  # },
+  # 'gram'   : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['1280']
+  # },
+  # 'syrk'   : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['1024']
+  # },
+  # 'syr2k'  : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['2048']
+  # },
+  # 'covar'   : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['2048']
+  # },
+  # 'conv2d' : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['4096']
+  # },
+  # 'conv3d' : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['256']
+  # },
+  # 'fdtd' : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['2048', '500']
+  # },
+
+  # TODO below need compatibility with this script
+
   # 'atax'   : { # TODO 16 CPUs?
   #   'vec'  : ALL_CONFIGS,
   #   'argv' : ['4096']
@@ -52,18 +76,6 @@ sim_configs = {
   #   'vec'  : ALL_CONFIGS,
   #   'argv' : ['2048']
   # },
-  'covar'   : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['2048']
-  },
-  'conv2d' : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['4096']
-  },
-  'conv3d' : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['256']
-  },
   # '2mm' : {
   #   'vec'  : ALL_CONFIGS,
   #   'argv' : ['2048']
@@ -72,11 +84,6 @@ sim_configs = {
   #   'vec'  : ALL_CONFIGS,
   #   'argv' : ['512']
   # },
-  'fdtd' : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['2048', '500']
-  },
-
 }
 
 # make a shorthand to represent the config output name

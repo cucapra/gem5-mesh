@@ -6,7 +6,7 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
-#define VEC_4_SIMD 1
+// #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
 
