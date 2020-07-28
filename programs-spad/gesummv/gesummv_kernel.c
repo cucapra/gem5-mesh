@@ -3,6 +3,8 @@
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
+#ifdef _VEC
+
 inline int _idx_(int y, int x, int width)
 {
   return (y * width) + x;
@@ -119,3 +121,5 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
   #endif
 
 }
+
+#endif

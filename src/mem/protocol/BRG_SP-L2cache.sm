@@ -1107,6 +1107,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     rsm_remoteStoreFromMem;
     // rvm_resetVectorFromMem;
     dtb_deallocateTBE;
+    pms_profileMissAccess;
     pmq_popMemResponseQueue;
     wua_wakeupAllDependents;
   }
@@ -1127,6 +1128,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     // and this potentially can starve other ports of transition cycles
     mvl_markVectorRespThisCycleLLC;
     //pah_prefetchAckHit;
+    pht_profileHitAccess; // TODO could seperate reqs vs resps, but for now just look at resps
   }
 
   transition(M, VREAD0, VM) {
@@ -1135,12 +1137,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
     rsc_remoteStoreFromCache;
     ivc_incVectorCount;
     mvl_markVectorRespThisCycleLLC;
+    pht_profileHitAccess; // TODO could seperate reqs vs resps, but for now just look at resps
   }
   
   transition({VV, VM}, VREAD1) {
     rsc_remoteStoreFromCache;
     ivc_incVectorCount;
     mvl_markVectorRespThisCycleLLC;
+    pht_profileHitAccess; // TODO could seperate reqs vs resps, but for now just look at resps
   }
   
   transition(VV, VREAD2, V) {
@@ -1167,6 +1171,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     rsm_remoteStoreFromMem;
     ivt_incVectorCountTBE;
     mvm_markVectorRespThisCycleMem;
+    pht_profileHitAccess; // count as a hit, only count the last one as a miss
     //pam_prefetchAckMiss;
   }
   
@@ -1174,6 +1179,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     rsm_remoteStoreFromMem;
     ivt_incVectorCountTBE;
     mvm_markVectorRespThisCycleMem;
+    pht_profileHitAccess; // count as a hit, only count the last one as a miss
   }
   
   transition(IV, VData2, V) {
@@ -1182,6 +1188,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     rsm_remoteStoreFromMem;
     rvm_resetVectorFromMem;
     dtb_deallocateTBE;
+    pms_profileMissAccess; // count the final one as the miss
     pmq_popMemResponseQueue;
     wua_wakeupAllDependents;
   }

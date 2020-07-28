@@ -43,6 +43,7 @@ def compile_prog(numCpus, prog_key, extra_flags):
   program = sim_list.programs[prog_key]
   cmplCmd = compile_cmd(os.path.dirname(program['path']), numCpus, extra_flags)
   result = subprocess.check_output(cmplCmd, shell=True, stderr=subprocess.STDOUT)
+  # result = subprocess.check_output(cmplCmd, shell=True)
   # print(result)
 
 def run_prog(numCpus, prog_key, argv, extra_info):
@@ -61,7 +62,10 @@ def run_prog(numCpus, prog_key, argv, extra_info):
   resultsDir = program['name'] + resultsAnno
   cmd = gem5_cmd(program['path'], optionsStr, resultsDir, numCpus, True)
   print(cmd)
-  result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+  try:
+    result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+  except:
+    return False
   # print(result)
 
   # make sure that the run passed
@@ -73,7 +77,8 @@ def run_prog(numCpus, prog_key, argv, extra_info):
 
 # either array or single string
 def strings_to_make_args(args):
-  cmd_line = 'ENV_EXTRA_MAKE_FLAGS=\''
+  # cmd_line = 'ENV_EXTRA_MAKE_FLAGS=\''
+  cmd_line = 'EXTRA_FLAGS=\''
   if (isinstance(args, list)):
     for a in args:
       cmd_line += '-D' + a + ' '
@@ -112,7 +117,6 @@ def run_all_configs(vec_configs, num_cpus, prog_key, argv):
 
   return all_pass
 
-
 # MAIN
 # 
 
@@ -140,7 +144,10 @@ while(not all([p.ready() for p in jobs])):
 # Check if any jobs failed
 failed_runs = 0
 for p in jobs:
-  if (p.get() == False):
+  try:
+    if (p.get() == False):
+      failed_runs += 1
+  except:
     failed_runs += 1
 
 if (failed_runs > 0):

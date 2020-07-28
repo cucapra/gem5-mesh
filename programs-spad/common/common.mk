@@ -6,9 +6,9 @@ N_SPS ?= 64
 # endif
 
 EXTRA_FLAGS ?=
-ifneq ($(ENV_EXTRA_MAKE_FLAGS),)
-	EXTRA_FLAGS := $(EXTRA_FLAGS) $(ENV_EXTRA_MAKE_FLAGS)
-endif
+# ifneq ($(ENV_EXTRA_MAKE_FLAGS),)
+# 	EXTRA_FLAGS := $(EXTRA_FLAGS) $(ENV_EXTRA_MAKE_FLAGS)
+# endif
 
 # Overridable arguments to the simulation command for `make run`.
 GEM5_ARGS ?= --remote-gdb-port=0

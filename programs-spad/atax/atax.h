@@ -1,8 +1,10 @@
 #ifndef __TEMP_H__
 #define __TEMP_H__
 
+// #define VEC_LEN 4
+#ifdef VEC_LEN
 #define _VEC
-#define VEC_LEN 4
+#endif
 
 #define PREFETCH_LEN 4
 #define REGION_SIZE (PREFETCH_LEN * 2)
