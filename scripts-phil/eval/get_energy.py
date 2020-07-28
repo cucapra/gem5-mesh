@@ -107,8 +107,8 @@ def get_instruction_energy(cnts):
 
   floatAdd = \
     cnts['FloatAdd'] + \
-    cnts['FloatCmp'] + \
-    cnts['FloatMultAcc'] # double cnt this for add and mult
+    cnts['FloatCmp']
+    # cnts['FloatMultAcc'] # double cnt this for add and mult. TODO but then counts non-op non-icache overhead
 
   floatMult = \
     cnts['FloatMult'] + \
