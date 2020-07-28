@@ -25,8 +25,15 @@ void get_template_offset(int group_id, template_info_t *tinfo, int *offset_x, in
   int template_offset = group_id / tinfo->num_groups_in_template;
   int template_dim_x = tinfo->template_dim_x;
   int template_dim_y = tinfo->template_dim_y;
-  int template_offset_x = template_offset % template_dim_x;
-  int template_offset_y = template_offset / template_dim_x;
+
+  int grid_x = sqrtf(_N_SPS);
+  int grid_y = sqrtf(_N_SPS);
+
+  int num_temp_x = grid_x/template_dim_x;
+  int num_temp_y = grid_y/template_dim_y;
+  
+  int template_offset_x = template_offset % num_temp_x;
+  int template_offset_y = template_offset / num_temp_x;
   *offset_x = template_offset_x * template_dim_x;
   *offset_y = template_offset_y * template_dim_y;
 }
