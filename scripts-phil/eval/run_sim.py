@@ -62,7 +62,10 @@ def run_prog(numCpus, prog_key, argv, extra_info):
   resultsDir = program['name'] + resultsAnno
   cmd = gem5_cmd(program['path'], optionsStr, resultsDir, numCpus, True)
   print(cmd)
-  result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+  try:
+    result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
+  except:
+    return False
   # print(result)
 
   # make sure that the run passed
