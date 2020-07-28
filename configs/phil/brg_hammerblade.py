@@ -337,6 +337,9 @@ parser.add_option("--vector", action="store_true", default=False,
 
 (options, args) = parser.parse_args()
 
+# set large mem-size needed for larger problem sizes
+options.mem_size = '1GB'
+
 # figure out system size
 n_cpus  = options.num_cpus
 n_xcels = 0 #options.num_xcels
