@@ -17,6 +17,9 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
   VECTOR_EPOCH(mask);
   ISSUE_VINST(init); // issue vector block early so that vector cores don't stay idol
   
+  int* ptid_group_sp = getSpAddr(ptid,10);
+  // if(ptid==0)printf("ptid %d %d %d %d\n",ptid_group_sp[0],ptid_group_sp[1],ptid_group_sp[2],ptid_group_sp[3]);
+
   //prefetch variables
   int spadRegion = 0;
   int sp_a_offset, sp_x_offset, sp_ypart_offset;
@@ -45,8 +48,9 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
 
       for (int d = 0; d < dim; d++){
         VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,ny), d, PREFETCH_LEN ,1);
-        VPREFETCH_L(sp_ypart_offset, _y_partial + ptid_group[d]*ny +j, d, PREFETCH_LEN ,1); 
+        VPREFETCH_L(sp_ypart_offset, _y_partial + ptid_group_sp[d]*ny +j, d, PREFETCH_LEN ,1); 
         //NOTE:in the worst case, there should be fence to stop prefetching before vector core writes to it, highly unlikely in this case
+        // if (ptid==0) printf("prefetching for ptid %d, vtid %d via core %d\n",ptid_group_sp[d],d,ptid);
       }
       
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
@@ -120,7 +124,7 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
       // transpose_dp:
       asm("trillium vissue_delim until_next transpose_dp");
       FRAME_START(REGION_SIZE);
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(4)
       for(int jj=0; jj<PREFETCH_LEN; jj++){ 
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *ypart_on_sp = a_on_sp + REGION_SIZE/2;

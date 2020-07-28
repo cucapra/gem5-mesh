@@ -48,7 +48,7 @@ int check_atax (DTYPE* a, DTYPE* _x, DTYPE* _y, int nx, int ny){
   }
 
   // for (int i = 0; i < ny; i++)
-  //   printf("Kernel val:%d Actual val:%d\n",y_temp[i],_y[i]);
+  // printf("Kernel val:%d Actual val:%d\n",y_temp[i],_y[i]);
   for (int i = 0; i < ny; i++){
     if (y_temp[i]!=_y[i]){
       printf("[[FAIL]] for At(Ax)\n");

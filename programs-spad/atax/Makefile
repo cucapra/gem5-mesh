@@ -4,7 +4,7 @@ default: $(BENCHNAME)
 SIZE ?= 128
 OUT ?= $(EXEC)-vec0-$(SIZE)
 
-N_SPS ?= 16  # This benchmark expects 16 CPUs for now.
+N_SPS ?= 64  # This benchmark expects 16 CPUs for now.
 EXTRA_FLAGS ?= -DVEC_LEN=4
 GEM5_ARGS := -d ../../results/$(OUT)
 HB_ARGS := --options="$(SIZE) $(SIZE)"

@@ -243,14 +243,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int total_groups = 0;
   int used = 0;
   template_info_t tinfo;
+  int* ptid_group = getSpAddr(ptid,10);
 
   #ifdef _VEC
   #if VEC_LEN==4
   tinfo = init_template_4x4_2x2();
-  int ptid_group[4];
+  // int ptid_group[4];
   #elif VEC_LEN==16
   tinfo = init_template_8x8_4x4();
-  int ptid_group[16];
+  // int ptid_group[16];
   #endif
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
@@ -274,13 +275,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     end = roundUp((unique_id + 1) * nx / total_groups, alignment); 
 
     if(is_da==1){
-    for(int i=0; i<vdim_y;i++){
-      for(int j=0; j<vdim_x; j++){
-        ptid_group[i*vdim_x+j] = get_ptid_from_group(&tinfo, unique_id,j,i,dim_x);
-        // if (ptid==0) printf("Ptid: %d\n", ptid_group_[i*vdim_x+j]);
+      // printf("I'm a DA core:%d\n",ptid);
+      for(int i=0; i<vdim_y;i++){
+        for(int j=0; j<vdim_x; j++){
+          ptid_group[i*vdim_x+j] = get_ptid_from_group(&tinfo, unique_id,j,i,pdim_x);
+          // if (ptid==0) printf("Ptid: %d\n", ptid_group[i*vdim_x+j]);
+        }
       }
+      // sprintf("group id: %d, DA core:%d, Origin: %d\n", unique_id, ptid, ptid_group[0]);
     }
-  }
   }
 
   #else
@@ -308,46 +311,46 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
 
 
-  // setup token queues
-  // TODO lightweight scratchpad memory allocator?
-  #ifndef _VEC
-  int spmOffset = 100;
-  #else
-  int spmOffset = REGION_SIZE*NUM_REGIONS;
-  #endif
-  int bufSize = 10;
-  int tqWords = bufSize + 4 + 2 + 2; // +2 extra just to be safe
+  // // setup token queues
+  // // TODO lightweight scratchpad memory allocator?
+  // #ifndef _VEC
+  // int spmOffset = 100;
+  // #else
+  // int spmOffset = REGION_SIZE*NUM_REGIONS;
+  // #endif
+  // int bufSize = 10;
+  // int tqWords = bufSize + 4 + 2 + 2; // +2 extra just to be safe
 
-  // each spm gets two consumer queues and one producer queue for a reduction
-  token_queue_t consumer0;
-  token_queue_t consumer1;
-  token_queue_t producer;
+  // // each spm gets two consumer queues and one producer queue for a reduction
+  // token_queue_t consumer0;
+  // token_queue_t consumer1;
+  // token_queue_t producer;
 
-  #ifndef _VEC
-  int activeTid = ptid;
-  int pairTid = get_reduction_dest(ptid); 
-  int active_dim = pdim;
-  #else
-  int activeTid;
-  int pairTid = get_reduction_dest(&tinfo, unique_id, vtid_x, vtid_y, vdim_x, pdim_x, &activeTid);
-  int active_dim = total_groups * VEC_LEN;
-  #endif
+  // #ifndef _VEC
+  // int activeTid = ptid;
+  // int pairTid = get_reduction_dest(ptid); 
+  // int active_dim = pdim;
+  // #else
+  // int activeTid;
+  // int pairTid = get_reduction_dest(&tinfo, unique_id, vtid_x, vtid_y, vdim_x, pdim_x, &activeTid);
+  // int active_dim = total_groups * VEC_LEN;
+  // #endif
 
-  init_token_queue_consumer(spmOffset + tqWords * 0, bufSize, ptid, &consumer0);
-  init_token_queue_consumer(spmOffset + tqWords * 1, bufSize, ptid, &consumer1);
+  // init_token_queue_consumer(spmOffset + tqWords * 0, bufSize, ptid, &consumer0);
+  // init_token_queue_consumer(spmOffset + tqWords * 1, bufSize, ptid, &consumer1);
 
-  // important to skip this if the core won't be used b/c might overwrite the link ptr
-  if (used && !is_da) {
-    // figure out which token queue you're going to be sending to
-    int pairOffset;
-    if (activeTid % 2 == 0) {
-      pairOffset = spmOffset + tqWords * 0;
-    }
-    else {
-      pairOffset = spmOffset + tqWords * 1;
-    }
-    init_token_queue_producer(spmOffset + tqWords * 2, pairOffset, bufSize, ptid, pairTid, &producer);
-  }
+  // // important to skip this if the core won't be used b/c might overwrite the link ptr
+  // if (used && !is_da) {
+  //   // figure out which token queue you're going to be sending to
+  //   int pairOffset;
+  //   if (activeTid % 2 == 0) {
+  //     pairOffset = spmOffset + tqWords * 0;
+  //   }
+  //   else {
+  //     pairOffset = spmOffset + tqWords * 1;
+  //   }
+  //   init_token_queue_producer(spmOffset + tqWords * 2, pairOffset, bufSize, ptid, pairTid, &producer);
+  // }
 
 // do after tokens to avoid stalling due to region not ready
 // region based mask for scratchpad
