@@ -45,6 +45,10 @@ def parse_inst_cost_file(file_name, cur_node, des_node):
     # scale from pJ to nJ
     data[k] *= 0.001
 
+    # also subtract icache cost (make sure already parsed) b/c applied seperately
+    # TODO this is somewhat hand wavy!
+    data[k] -= get_read_energy('icache', 1)
+
   return data
 
 # return dict containing info about memory cost file
@@ -103,8 +107,8 @@ def get_instruction_energy(cnts):
 
   floatAdd = \
     cnts['FloatAdd'] + \
-    cnts['FloatCmp'] + \
-    cnts['FloatMultAcc'] # double cnt this for add and mult
+    cnts['FloatCmp']
+    # cnts['FloatMultAcc'] # double cnt this for add and mult. TODO but then counts non-op non-icache overhead
 
   floatMult = \
     cnts['FloatMult'] + \
@@ -137,10 +141,10 @@ def get_instruction_energy(cnts):
 
 # do parsing into member/global variables
 
-cost_dicts['inst'] = parse_inst_cost_file(args.inst_cost_file, args.inst_cost_node, args.used_node)
 cost_dicts['icache'] = parse_memory_file(args.icache_file)
 cost_dicts['dmem'] = parse_memory_file(args.dmem_file)
 cost_dicts['llc'] = parse_memory_file(args.llc_file)
+cost_dicts['inst'] = parse_inst_cost_file(args.inst_cost_file, args.inst_cost_node, args.used_node)
 
 # TODO DRAM energy. pj/bit = 7
 # Access prob 64bytes (line) * 8bits/byte * 7pj/bit = 3584pJ

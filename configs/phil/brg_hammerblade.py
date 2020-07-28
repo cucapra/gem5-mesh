@@ -337,6 +337,9 @@ parser.add_option("--vector", action="store_true", default=False,
 
 (options, args) = parser.parse_args()
 
+# set large mem-size needed for larger problem sizes
+options.mem_size = '1GB'
+
 # figure out system size
 n_cpus  = options.num_cpus
 n_xcels = 0 #options.num_xcels
@@ -571,6 +574,13 @@ system.mem_ctrl = SimpleMemory()
 system.mem_ctrl.range = system.mem_ranges[0]
 system.mem_ctrl.latency = '60ns'
 system.mem_ctrl.bandwidth = '16GB/s'
+
+# TODO need to config this more like in MemConfig.py?
+# I don't think need to do when only one address range?
+# Perf drops by about 2x. I think bw, a little less ~13GB/s, but also more complex model might be causing perf slowdown
+# Also wall-clock sim time is about 30% slower
+# system.mem_ctrl = DDR3_1600_8x8()
+# system.mem_ctrl.range = system.mem_ranges[0]
 
 #------------------------------------------------------------------------------
 # Construct a crossbar that connects L2s and mem_ctrl

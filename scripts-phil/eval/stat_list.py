@@ -58,22 +58,22 @@ stats = OrderedDict([
     'regex' : re.compile('system.cpu[0-9]+.vector.pipe_input_stalls\s*' + intRegexStr), 
     'ignore-zero' : False,
   }),
-  ('inPipeRoot' , { 
-    'name' : 'root_pipe_stall', 
-    'regex' : re.compile('system.cpu0.vector.pipe_input_stalls\s*' + intRegexStr), 
-    'ignore-zero' : False,
-  }),
+  # ('inPipeRoot' , { 
+  #   'name' : 'root_pipe_stall', 
+  #   'regex' : re.compile('system.cpu0.vector.pipe_input_stalls\s*' + intRegexStr), 
+  #   'ignore-zero' : False,
+  # }),
   # backpressure
   ('backHg' , { 
     'name' : 'master_backpress_stall',
     'regex' : re.compile('system.cpu[0-9]+.late_vector.backpressure_stalls\s*' + intRegexStr), 
     'ignore-zero' : True,
   }),
-  ('revec' ,  { 
-    'name' : 'slave_revec_stall', 
-    'regex' : re.compile('system.cpu[0-9]+.vector.revec_stalls\s*' + intRegexStr), 
-    'ignore-zero' : True,
-  }),
+  # ('revec' ,  { 
+  #   'name' : 'slave_revec_stall', 
+  #   'regex' : re.compile('system.cpu[0-9]+.vector.revec_stalls\s*' + intRegexStr), 
+  #   'ignore-zero' : True,
+  # }),
   ('active-cpi' ,  { 
     'name' : 'active-cpi', 
     'regex' : re.compile('system.cpu[0-9]+.cpi\s*' + floatRegexStr), 
@@ -86,11 +86,11 @@ stats = OrderedDict([
     'regex' : re.compile('system.l2_cntrls[0-9]+.cacheMemory.demand_misses\s*' + intRegexStr), 
     'ignore-zero' : False,
   }),
-  ('prefetch-queue-size' ,  { 
-    'name' : 'prefetch-queue-size', 
-    'regex' : re.compile('system.scratchpads[0-9]+.max_queue_size\s*' + intRegexStr), 
-    'ignore-zero' : False,
-  }),
+  # ('prefetch-queue-size' ,  { 
+  #   'name' : 'prefetch-queue-size', 
+  #   'regex' : re.compile('system.scratchpads[0-9]+.max_queue_size\s*' + intRegexStr), 
+  #   'ignore-zero' : False,
+  # }),
   #
   ('frame-occupancy1' ,  { 
     'name' : '1', 
@@ -107,11 +107,11 @@ stats = OrderedDict([
     'regex' : re.compile('system.scratchpads[0-9]+.occupancy::3\s+' + floatRegexStr), 
     'ignore-zero' : True,
   }),
-  ('frame-occupancy4' ,  { 
-    'name' : '4', 
-    'regex' : re.compile('system.scratchpads[0-9]+.occupancy::4\s+' + floatRegexStr), 
-    'ignore-zero' : True,
-  }),
+  # ('frame-occupancy4' ,  { 
+  #   'name' : '4', 
+  #   'regex' : re.compile('system.scratchpads[0-9]+.occupancy::4\s+' + floatRegexStr), 
+  #   'ignore-zero' : True,
+  # }),
   #
   # ('prefetch-latency' ,  { 
   #   'name' : 'prefetch-latency', 
