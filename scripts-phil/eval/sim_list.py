@@ -161,7 +161,7 @@ programs = {
     'serialize' : '-NI{0}-NJ{0}',
   },
   'conv3d' : { 'name': 'conv3d', 'path' : progDir0 + 'conv3d/conv3d', 
-    'options' : "{0} {0}",
+    'options' : "{0} {0} {0}",
     'serialize' : '-NI{0}-NJ{0}-NK{0}',
   },
   '2mm' : { 'name': '2mm', 'path' : progDir0 + '2mm/2mm', 
