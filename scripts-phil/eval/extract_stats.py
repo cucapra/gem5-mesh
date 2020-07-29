@@ -7,6 +7,7 @@
 import os, subprocess, time, argparse, re
 from stat_list import stats
 import get_energy
+import graph_king
 
 # cmd line arguments
 parser = argparse.ArgumentParser(description='Analyze stats file in a given directory')
@@ -222,7 +223,9 @@ for i in range(find_max_buckets()):
   histCSV.append('')
 
 #
-# Extract data from directories 
+# Extract data from directories
+
+all_data = []
 
 for dirPath in dirPaths:
   #
@@ -234,6 +237,14 @@ for dirPath in dirPaths:
   # get path to stats
   statsFile = os.path.join(dirPath, 'stats.txt')
   parse_file(statsFile)
+
+  # copy data, TODO terrible should return a dict from parsefile
+  stat_dict = {}
+  for k,v in annos.items():
+    stat_dict[k] = v
+  for k,v in stats.items():
+    stat_dict[k] = v['avg']
+  all_data.append(stat_dict)
 
   #
   # print extracted stats
@@ -311,6 +322,9 @@ with open(args.outfile, 'w+') as fout:
     fout.write(histCSV[i])
     fout.write('\n')
   
+
+# plot data to graphs
+graph_king.plot_speedup(all_data)
   
   
   
