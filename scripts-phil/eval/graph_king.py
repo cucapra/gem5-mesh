@@ -21,8 +21,10 @@ def group_bar_data(data, desired_field):
     label_str = row['prog'] + row['meta']
     if (not label_str in values):
       values[label_str] = {}
+      values[label_str]['_meta_'] = {}
 
     values[label_str][row['config']] = row[desired_field]
+    values[label_str]['_meta_']['prog_name'] = row['prog']
 
   # flatten labels and values for display
   labels = []
@@ -32,7 +34,7 @@ def group_bar_data(data, desired_field):
   config_map = []
   for k,v in values.items():
     for c in v.keys():
-      if (not c in config_map):
+      if (not c in config_map and c != '_meta_'):
         config_map.append(c)
 
   for i in range(len(config_map)):
@@ -40,7 +42,8 @@ def group_bar_data(data, desired_field):
 
   # create flat data to graph
   for k,v in values.items():
-    labels.append(k)
+    # just use progname
+    labels.append(v['_meta_']['prog_name'])
     for i in range(len(config_map)):
       c = config_map[i]
       if (c in v):
