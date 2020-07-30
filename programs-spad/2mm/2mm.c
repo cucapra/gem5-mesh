@@ -28,7 +28,6 @@ kernel_2mm(int used, int mask, DTYPE *a, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d
 
   #ifdef _VEC
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
-  if(ptid==0) printf("launching gemm kernel\n");
   if (used) tril_gemm_vec(mask, a, b, c, m, t2, t1, m_start, m_end, vtid_x, vtid_y, vtid, ptid);
   
   pthread_barrier_wait(&start_barrier);
@@ -58,10 +57,12 @@ kernel_2mm(int used, int mask, DTYPE *a, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d
   gemm_manycore(a, b, c, m, t2, t1, m_start, n_start, ptid, pdim_x, pdim_y);
   pthread_barrier_wait(&start_barrier);
   //do transpose
-  if(ptid==0)transpose(c,m,t2);
+  if(ptid==0)transpose(c,m,t2,cT);
   pthread_barrier_wait(&start_barrier);
   gemm_manycore(cT, d, e, m, n, t2, m_start, n_start, ptid, pdim_x, pdim_y);
   #endif
+
+  pthread_barrier_wait(&start_barrier);
 
 }
 
@@ -118,32 +119,29 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE *e, int m, 
   int mask = 0;
   #endif
 
-  if(ptid==0) printf("moving stack on spad\n");
   // move stack onto scratchpad for faster local access than default on DRAM
   // MOVE_STACK_ONTO_SCRATCHPAD();
 
-    unsigned long long *spTop = getSpTop(ptid);
+  unsigned long long *spTop = getSpTop(ptid);
   // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
-  spTop -= 40;
+  spTop -= 120;
 
   unsigned long long stackLoc;
   unsigned long long temp;
-  #pragma GCC unroll(40)
-  for(int i=0;i<40;i++){
+  #pragma GCC unroll(120)
+  for(int i=0;i<120;i++){
     asm volatile("ld t0, %[id](sp)\n\t"
                 "sd t0, %[id](%[spad])\n\t"
                 : "=r"(temp)
                 : [id] "i"(i*8), [spad] "r"(spTop));
   }
-  if(ptid==0) printf("done copying elements on spad\n");
+  // if(ptid==0) printf("done copying elements on spad\n");
   asm volatile (// save the stack ptr
       "addi %[dest], sp, 0\n\t"
       // overwrite stack ptr
       "addi sp, %[spad], 0\n\t"
       : [ dest ] "=r"(stackLoc)
       : [ spad ] "r"(spTop));
-
-  if(ptid==0) printf("done moving stack on spad\n");
 
   kernel_2mm(cinfo.used, mask, a, b,c,cT,d,e,m,n,t1,t2,
             m_start, m_end, n_start, n_end, ptid, pdim_x, pdim_y, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid);
