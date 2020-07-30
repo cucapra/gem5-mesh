@@ -24,27 +24,27 @@ sim_configs = {
 
   'bicg'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['4096']
+    'argv' : ['2048']
   },
   'gram'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['1280']
+    'argv' : ['640']
   },
   'syrk'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['1024']
+    'argv' : ['512']
   },
   'syr2k'  : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['2048']
+    'argv' : ['512']
   },
   'covar'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['2048']
+    'argv' : ['1024']
   },
   'conv2d' : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['4096']
+    'vec'  : ['NO_VEC', 'VEC_4_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL'],
+    'argv' : ['2048']
   },
   'conv3d' : {
     'vec'  : ALL_CONFIGS,
@@ -52,21 +52,20 @@ sim_configs = {
   },
   'fdtd' : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['2048', '500']
+    'argv' : ['1024', '250']
   },
 
-  # 'atax'   : { # TODO 16 CPUs? # Currently failing on 64cpus
-  #   'vec'  : ALL_NEIL_CONFIGS,
-  #   'argv' : ['4096'] # ['128']
-  # },
-
+  'atax'   : {
+    'vec'  : ALL_NEIL_CONFIGS,
+    'argv' : ['2048'] # ['128']
+  },
   'mvt'    : {
     'vec'  : ALL_NEIL_CONFIGS,
     'argv' : ['4096'] # ['128']
   },
   'gemm'   : {
     'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['512'] #['64']
+    'argv' : ['256'] #['64']
   },
   'gesummv'   : {
     'vec'  : ALL_NEIL_CONFIGS,
@@ -74,16 +73,17 @@ sim_configs = {
   },
   'corr'   : {
     'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['2048'] #['64']
+    'argv' : ['1024'] #['64']
   },
   '2mm' : {
     'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['2048'] #['64']
+    'argv' : ['256'] #['64']
   },
   '3mm' : {
     'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['512'] #['32']
+    'argv' : ['256'] #['32']
   },
+
 }
 
 # make a shorthand to represent the config output name
@@ -161,7 +161,7 @@ programs = {
     'serialize' : '-NI{0}-NJ{0}',
   },
   'conv3d' : { 'name': 'conv3d', 'path' : progDir0 + 'conv3d/conv3d', 
-    'options' : "{0} {0}",
+    'options' : "{0} {0} {0}",
     'serialize' : '-NI{0}-NJ{0}-NK{0}',
   },
   '2mm' : { 'name': '2mm', 'path' : progDir0 + '2mm/2mm', 

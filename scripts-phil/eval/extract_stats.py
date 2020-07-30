@@ -5,14 +5,21 @@
 '''
 
 import os, subprocess, time, argparse, re
-from stat_list import stats
+from stat_list import cpu_stats, gpu_stats
 import get_energy
+import graph_king
+
+from collections import OrderedDict
 
 # cmd line arguments
 parser = argparse.ArgumentParser(description='Analyze stats file in a given directory')
-parser.add_argument('--sims', default='../../results', help='Path with results you want to analyze')
-parser.add_argument('--outfile', default='../../results/extract.csv', help='CSV Path where extracted data should go')
+parser.add_argument('--cpu', action="store_true", help='Want to analyze cpu/manycore results')
+parser.add_argument('--gpu', action="store_true", help='Want to analyze gpu results')
+parser.add_argument('--cpu-sims', default='../../results', help='Path with manycore results you want to analyze')
+parser.add_argument('--gpu-sims', default='../../../gem5-gcn3/results/', help='Path with gpu results you want to analyze')
+parser.add_argument('--outfile', default='./extract.csv', help='CSV Path where extracted data should go')
 parser.add_argument('--prefix', default='', help='prefix of directory name to parse, could be program for example')
+get_energy.define_options(parser)
 args = parser.parse_args()
 
 #
@@ -36,6 +43,9 @@ mcdash = '[a-zA-Z0-9_-]+'
 dirConv = '({})-({})-({})'.format(mc, mc, mcdash)
 dirRegex = re.compile(dirConv)
 
+
+# setup energy model
+get_energy.setup_energy_model(args)
 
 #
 # Function defs
@@ -75,22 +85,27 @@ def can_normal_write(v):
   return (not is_hist_stat(v) or 'energy' in v) # TODO assume energy is merged into one value
 
 # parse stats file
-def parse_file(fileName):
+def parse_file(fileName, stat_info):
+  # extract stat data
+  stat_data = OrderedDict()
+
   # reset stat table
-  for k, v in stats.items():
+  for k, v in stat_info.items():
+    stat_data[k] = {}
+
     if (is_formula_stat(v)):
       pass
     elif (is_hist_stat(v)):
-      v['buckets'] = {}
-      v['avg'] = 0
+      stat_data[k]['buckets'] = {}
+      stat_data[k]['avg'] = 0
     else:
-      v['avg'] = 0
-      v['count'] = 0
+      stat_data[k]['avg'] = 0
+      stat_data[k]['count'] = 0
   
   with open(fileName, 'r') as fin:
     # foreach line search for each regex
     for line in fin:
-      for k, v in stats.items():
+      for k, v in stat_info.items():
         if (is_formula_stat(v)):
           break
 
@@ -124,18 +139,18 @@ def parse_file(fileName):
           
           if ((not (ignore_zero and (arith_val == 0))) and (not has_upper_bound or arith_val < upper_bound)):
               if (is_hist_stat(v)):
-                if (not bucket_range in v['buckets']):
-                  v['buckets'][bucket_range] = 0
-                v['buckets'][bucket_range] += arith_val
+                if (not bucket_range in stat_data[k]['buckets']):
+                  stat_data[k]['buckets'][bucket_range] = 0
+                stat_data[k]['buckets'][bucket_range] += arith_val
               else:
-                v['avg'] += arith_val
-                v['count'] += 1
+                stat_data[k]['avg'] += arith_val
+                stat_data[k]['count'] += 1
           
           # no reason to search for other values
           #break
           
   # get avg or just keep as sum
-  for k, v in stats.items():
+  for k, v in stat_info.items():
     if (is_formula_stat(v)):
       continue
 
@@ -145,172 +160,218 @@ def parse_file(fileName):
 
     if (average):
       if (not is_hist_stat(v)):
-        if (v['count'] > 0):
-          v['avg'] /= v['count']
+        if (stat_data[k]['count'] > 0):
+          stat_data[k]['avg'] /= stat_data[k]['count']
 
     # check if should do energy analysis
     if ('energy' in v):
       if v['energy'] == 'inst':
-        v['avg'] = get_energy.get_instruction_energy(v['buckets'])
+        stat_data[k]['avg'] = get_energy.get_instruction_energy(stat_data[k]['buckets'])
       else:
         # just use read energy for all accesses
-        v['avg'] = get_energy.get_read_energy(v['energy'], v['avg'])
+        stat_data[k]['avg'] = get_energy.get_read_energy(v['energy'], stat_data[k]['avg'])
 
-  for k, v in stats.items():
+  for k, v in stat_info.items():
     if (is_formula_stat(v)):
-      v['avg'] = 0
+      stat_data[k]['avg'] = 0
       for s in v['formula']:
-        v['avg'] += stats[s]['avg']
+        stat_data[k]['avg'] += stat_data[s]['avg']
+
+  return stat_data
+
+# parse a results directory, and return all data in a dict
+def parse_results_dir(results_dir_name, stats_info):
+  #
+  # find which directories contain legit data
+  dirPaths = []
+
+  # https://www.tutorialspoint.com/python/os_walk.htm
+  for root, dirs, files in os.walk(results_dir_name):
+    #for name in files:
+    #  print(os.path.join(root, name))
+    for name in dirs:
+      path = os.path.join(root, name)
+      
+      # check that the name is in a format we can read
+      dirMatch = prefixRegex.search(name)
+      if (not dirMatch):
+        continue
+        
+      # check that this directory has a stats file
+      foundStats = False
+      for root_, dirs_, files_ in os.walk(path):
+        # only look one level down
+        if (root_ == path):
+          for fname in files_:
+            if (fname == 'stats.txt'):
+              foundStats = True
+      
+      if (not foundStats):
+        continue
+        
+      # check if stats file is empty or not (empty is sign of failed run)
+      numLines = 0
+      with open(os.path.join(path, 'stats.txt')) as fin:
+        for line in fin:
+          numLines += 1
+      
+      if (numLines == 0):
+        continue
+      
+      dirPaths.append(path)
+
+  all_data = []
+  for dirPath in dirPaths:
+    #
+    # parse dir and stats
+    
+    # get size of file, TODO should try to do on first check and insert into a dict
+    annos = parse_dir_name(os.path.basename(dirPath))
+    
+    # get path to stats
+    statsFile = os.path.join(dirPath, 'stats.txt')
+    rawStats = parse_file(statsFile, stats_info)
+
+    # cleanup raw data a little bit to just include avg
+    stat_dict = OrderedDict()
+    for k,v in annos.items():
+      stat_dict[k] = v
+    for k,v in rawStats.items():
+      stat_dict[k] = v['avg']
+
+    stat_dict['_path_'] = dirPath
+
+    all_data.append(stat_dict)
+
+  return all_data
+
+
 #
-# find which directories contain legit data
+# Extract data from directories
 
-# https://www.tutorialspoint.com/python/os_walk.htm
-for root, dirs, files in os.walk(args.sims):
-  #for name in files:
-  #  print(os.path.join(root, name))
-  for name in dirs:
-    path = os.path.join(root, name)
-    
-    # check that the name is in a format we can read
-    dirMatch = prefixRegex.search(name)
-    if (not dirMatch):
-      continue
-      
-    # check that this directory has a stats file
-    foundStats = False
-    for root_, dirs_, files_ in os.walk(path):
-      # only look one level down
-      if (root_ == path):
-        for fname in files_:
-          if (fname == 'stats.txt'):
-            foundStats = True
-    
-    if (not foundStats):
-      continue
-      
-    # check if stats file is empty or not (empty is sign of failed run)
-    numLines = 0
-    with open(os.path.join(path, 'stats.txt')) as fin:
-      for line in fin:
-        numLines += 1
-    
-    if (numLines == 0):
-      continue
-    
-    dirPaths.append(path)
+# if neither asserted default to cpu
+if (not args.cpu and not args.gpu):
+  args.cpu = True
 
-# 
-# figure out where each parameter should be displayed
+manycore_data = []
+gpu_data = []
 
-parameters = []
-for dirPath in dirPaths:
-  annos = parse_dir_name(os.path.basename(dirPath))
-  for k, v in annos.items():
-    exists = False
-    for param in parameters:
-      if (param == k):
-        exists = True
-    if (not exists):
-      parameters.append(k)
+if (args.cpu):
+  manycore_data = parse_results_dir(args.cpu_sims, cpu_stats)
+if (args.gpu):
+  gpu_data      = parse_results_dir(args.gpu_sims, gpu_stats)
+
+all_data = manycore_data + gpu_data
+
+# determine all keys
+keys = []
+for data in all_data:
+  for k in data.keys():
+    if (not k in keys):
+      keys.append(k)
+
+#
+# Backend outputs
 
 # collect data between all runs together
 dataCSV = ''
+
+# write header row
+dataCSV += 'name, '
+for k in keys:
+  dataCSV += '{}, '.format(k)
+
+
+# TODO currently no hist support
 # write all histograms, don't really fit nicely between diff runs so each run
 # going to be printed seperately
-histCSV = []
-for i in range(find_max_buckets()):
-  histCSV.append('')
+# histCSV = []
+# for i in range(find_max_buckets()):
+#   histCSV.append('')
 
 #
-# Extract data from directories 
+# serialize and print extracted stats
 
-for dirPath in dirPaths:
-  #
-  # parse dir and stats
-  
-  # get size of file, TODO should try to do on first check and insert into a dict
-  annos = parse_dir_name(os.path.basename(dirPath))
-  
-  # get path to stats
-  statsFile = os.path.join(dirPath, 'stats.txt')
-  parse_file(statsFile)
+for data in all_data:
+  dirPath = data['_path_']
 
-  #
-  # print extracted stats
-  
-  print(statsFile)
-  for param in parameters:
-    if (param in annos):
-      val = annos[param]
+  print(dirPath)
+
+  for k in keys:
+    if (k == '_path_'):
+      continue
+    # if (not can_normal_write(v)):
+    #   for b,d in d[k]['buckets'].items():
+    #     print('\t{0}::{1}: {2}'.format(k, b, str(d)))
+    # else:
+    if (k in data):
+      dat = data[k]
     else:
-      val = 'N/A'
-    print('\t{0}: {1}'.format(param, val))
-  for k, v in stats.items():
-    if (not can_normal_write(v)):
-      for b,d in v['buckets'].items():
-        print('\t{0}::{1}: {2}'.format(v['name'], b, str(d)))
-    else:
-      print('\t{0}: {1}'.format(v['name'], v['avg']))
+      dat = 0
+
+    print('\t{0}: {1}'.format(k, dat))
     
   # 
   # serialize parameters and data into string row by row
-  
+
   dataCSV += '\n'
-  
+
   # add file name
   dataCSV += os.path.basename(dirPath) + ', '
 
-  # parameters (might not have been annotated with parameter)
-  for param in parameters:
-    if (param in annos):
-      dataCSV += str(annos[param])
-    dataCSV += ', '
-  
   # data
-  for k, v in stats.items():
-    if (can_normal_write(v)):
-      dataCSV += '{0}, '.format(str(v['avg']))
-    
-  #dataCSV += '\n'
+  for k in keys:
+    # if (can_normal_write(v)):
 
-  # hist data. from right to left base on run
-  # TODO don't put into extract stats currently
-  # for k, v in stats.items():
-  #   if (is_hist_stat(v)):
-  #     buckets = v['buckets']
-  #     buck_len = len(buckets)
-  #     for i in range(0, find_max_buckets()):
-  #       if (i < buck_len):
-  #         (b, d) = buckets[i]
-  #         if (not 'meta' in annos):
-  #           annos['meta'] = ''
-  #         histCSV[i] += '{0}:{1},{2},{3},,'.format(annos['meta'], v['name'], str(b), str(d))
-  #       else:
-  #         histCSV[i] += ',,,,'
+    if (k in data):
+      dat = data[k]
+    else:
+      dat = 0
+
+    dataCSV += '{}, '.format(str(dat))
   
+#dataCSV += '\n'
+
+# hist data. from right to left base on run
+# TODO don't put into extract stats currently
+# for k, v in stats.items():
+#   if (is_hist_stat(v)):
+#     buckets = v['buckets']
+#     buck_len = len(buckets)
+#     for i in range(0, find_max_buckets()):
+#       if (i < buck_len):
+#         (b, d) = buckets[i]
+#         if (not 'meta' in annos):
+#           annos['meta'] = ''
+#         histCSV[i] += '{0}:{1},{2},{3},,'.format(annos['meta'], v['name'], str(b), str(d))
+#       else:
+#         histCSV[i] += ',,,,'
+
 #
 # write output to a csv
 
 with open(args.outfile, 'w+') as fout:
   # header line
-  fout.write('run' + ', ')
-  for param in parameters:
-    fout.write(param + ', ')
-  for k, v in stats.items():
-    if (can_normal_write(v)):
-      fout.write('{0}, '.format(v['name']))
+  # fout.write('run' + ', ')
+  # for k, v in stats.items():
+  #   if (can_normal_write(v)):
+  #     fout.write('{0}, '.format(v['name']))
       
   #fout.write('\n')
 
   # add all of the data
   fout.write(dataCSV)
 
-  # write hist
-  fout.write('\n\n')
-  for i in range(len(histCSV)):
-    fout.write(histCSV[i])
-    fout.write('\n')
+  # # write hist
+  # fout.write('\n\n')
+  # for i in range(len(histCSV)):
+  #   fout.write(histCSV[i])
+  #   fout.write('\n')
   
+
+# plot data to graphs
+graph_king.plot_speedup(all_data)
+graph_king.plot_energy(all_data)
   
   
   
