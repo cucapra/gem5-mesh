@@ -19,7 +19,7 @@
 
 // #define SHARING
 // #define C_PREFETCH 
-#define MANYCORE_PREFETCH
+// #define MANYCORE_PREFETCH
 
 #ifdef SHARING
 #define REGION_SIZE (BLK_DIM*2)/DIM_X

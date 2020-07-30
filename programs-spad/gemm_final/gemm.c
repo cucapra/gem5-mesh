@@ -85,19 +85,22 @@ void kernel(
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
 #endif
 
-  if (cinfo.used == 0) return;
+  // if (cinfo.used == 0) return;
 
 
 MOVE_STACK_ONTO_SCRATCHPAD();
 
 
 #if defined _VEC
+if (cinfo.used)
   tril_gemm_vec(mask, a, b, c, m, n, t, start, end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
 #else
+if (cinfo.used){
   VECTOR_EPOCH(mask);
   gemm_manycore(a, b, c, m, n, t, m_start, n_start, ptid, pdim_x, pdim_y);
+}
 #endif
-
+  pthread_barrier_wait(&start_barrier);
   RECOVER_DRAM_STACK();
 }
 
