@@ -76,22 +76,27 @@ def can_normal_write(v):
   return (not is_hist_stat(v) or 'energy' in v) # TODO assume energy is merged into one value
 
 # parse stats file
-def parse_file(fileName):
+def parse_file(fileName, stat_info):
+  # extract stat data
+  stat_data = {}
+
   # reset stat table
-  for k, v in stats.items():
+  for k, v in stat_info.items():
+    stat_data[k] = {}
+
     if (is_formula_stat(v)):
       pass
     elif (is_hist_stat(v)):
-      v['buckets'] = {}
-      v['avg'] = 0
+      stat_data[k]['buckets'] = {}
+      stat_data[k]['avg'] = 0
     else:
-      v['avg'] = 0
-      v['count'] = 0
+      stat_data[k]['avg'] = 0
+      stat_data[k]['count'] = 0
   
   with open(fileName, 'r') as fin:
     # foreach line search for each regex
     for line in fin:
-      for k, v in stats.items():
+      for k, v in stat_info.items():
         if (is_formula_stat(v)):
           break
 
@@ -125,18 +130,18 @@ def parse_file(fileName):
           
           if ((not (ignore_zero and (arith_val == 0))) and (not has_upper_bound or arith_val < upper_bound)):
               if (is_hist_stat(v)):
-                if (not bucket_range in v['buckets']):
-                  v['buckets'][bucket_range] = 0
-                v['buckets'][bucket_range] += arith_val
+                if (not bucket_range in stat_data[k]['buckets']):
+                  stat_data[k]['buckets'][bucket_range] = 0
+                stat_data[k]['buckets'][bucket_range] += arith_val
               else:
-                v['avg'] += arith_val
-                v['count'] += 1
+                stat_data[k]['avg'] += arith_val
+                stat_data[k]['count'] += 1
           
           # no reason to search for other values
           #break
           
   # get avg or just keep as sum
-  for k, v in stats.items():
+  for k, v in stat_info.items():
     if (is_formula_stat(v)):
       continue
 
@@ -146,22 +151,24 @@ def parse_file(fileName):
 
     if (average):
       if (not is_hist_stat(v)):
-        if (v['count'] > 0):
-          v['avg'] /= v['count']
+        if (stat_data[k]['count'] > 0):
+          stat_data[k]['avg'] /= stat_data[k]['count']
 
     # check if should do energy analysis
     if ('energy' in v):
       if v['energy'] == 'inst':
-        v['avg'] = get_energy.get_instruction_energy(v['buckets'])
+        stat_data[k]['avg'] = get_energy.get_instruction_energy(stat_data[k]['buckets'])
       else:
         # just use read energy for all accesses
-        v['avg'] = get_energy.get_read_energy(v['energy'], v['avg'])
+        stat_data[k]['avg'] = get_energy.get_read_energy(v['energy'], stat_data[k]['avg'])
 
-  for k, v in stats.items():
+  for k, v in stat_info.items():
     if (is_formula_stat(v)):
-      v['avg'] = 0
+      stat_data[k]['avg'] = 0
       for s in v['formula']:
-        v['avg'] += stats[s]['avg']
+        stat_data[k]['avg'] += stat_data[s]['avg']
+
+  return stat_data
 #
 # find which directories contain legit data
 
@@ -236,13 +243,13 @@ for dirPath in dirPaths:
   
   # get path to stats
   statsFile = os.path.join(dirPath, 'stats.txt')
-  parse_file(statsFile)
+  statData = parse_file(statsFile, stats)
 
   # copy data, TODO terrible should return a dict from parsefile
   stat_dict = {}
   for k,v in annos.items():
     stat_dict[k] = v
-  for k,v in stats.items():
+  for k,v in statData.items():
     stat_dict[k] = v['avg']
   all_data.append(stat_dict)
 
@@ -258,10 +265,10 @@ for dirPath in dirPaths:
     print('\t{0}: {1}'.format(param, val))
   for k, v in stats.items():
     if (not can_normal_write(v)):
-      for b,d in v['buckets'].items():
+      for b,d in statData[k]['buckets'].items():
         print('\t{0}::{1}: {2}'.format(v['name'], b, str(d)))
     else:
-      print('\t{0}: {1}'.format(v['name'], v['avg']))
+      print('\t{0}: {1}'.format(v['name'], statData[k]['avg']))
     
   # 
   # serialize parameters and data into string row by row
@@ -280,7 +287,7 @@ for dirPath in dirPaths:
   # data
   for k, v in stats.items():
     if (can_normal_write(v)):
-      dataCSV += '{0}, '.format(str(v['avg']))
+      dataCSV += '{0}, '.format(str(statData[k]['avg']))
     
   #dataCSV += '\n'
 
