@@ -8,7 +8,7 @@
 
 #define BLK_DIM 4 //tile size
 
-#define MANYCORE_PREFETCH
+// #define MANYCORE_PREFETCH
 
 #define REGION_SIZE (BLK_DIM * 2)
 #define NUM_REGIONS (512 / REGION_SIZE)

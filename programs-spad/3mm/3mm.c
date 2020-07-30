@@ -74,18 +74,17 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *e
 
   unsigned long long *spTop = getSpTop(ptid);
   // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
-  spTop -= 60;
+  spTop -= 100;
 
   unsigned long long stackLoc;
   unsigned long long temp;
-  #pragma GCC unroll(60)
-  for(int i=0;i<60;i++){
+  #pragma GCC unroll(100)
+  for(int i=0;i<100;i++){
     asm volatile("ld t0, %[id](sp)\n\t"
                 "sd t0, %[id](%[spad])\n\t"
                 : "=r"(temp)
                 : [id] "i"(i*8), [spad] "r"(spTop));
   }
-  if(ptid==0) printf("done copying elements on spad\n");
   asm volatile (// save the stack ptr
       "addi %[dest], sp, 0\n\t"
       // overwrite stack ptr
