@@ -8,6 +8,7 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 from math import floor, ceil
+from copy import deepcopy
 
 # group together similar series and get preferred field
 # expects 3 meta fields(prog, config, meta) along with desired_field
@@ -53,6 +54,33 @@ def group_bar_data(data, desired_field):
 
   return (labels, config_map, flat_values)
 
+# try to normalize to NV otherwise do from first value
+def normalize(sub_labels, values, pref_base='NV'):
+  # figure out what to normalize with
+  norm_idx = 0
+  for i in range(len(sub_labels)):
+    if (pref_base == sub_labels[i]):
+      norm_idx = i
+
+  base_values = deepcopy(values[norm_idx])
+
+  for j in range(len(values)):
+    for i in range(len(values[j])):
+      try:
+        values[j][i] = float(values[j][i]) / float(base_values[i])
+      except:
+        print('failed to normalize ' + sub_labels[i])
+        values[j][i] = 1.0
+      
+def inverse(values):
+  for j in range(len(values)):
+    for i in range(len(values[j])):
+      try:
+        values[j][i] = 1.0 / float(values[j][i])
+      except:
+        values[j][i] = 0
+
+
 # plot speedup
 # group together same benchmark (if metadata the same)
 def plot_speedup(data):
@@ -71,6 +99,9 @@ def plot_speedup(data):
 
   # TODO
   # flip from cycles to speedup normalized to NV
+  normalize(sub_labels, values)
+  inverse(values)
+
 
   fig, ax = plt.subplots()
   rects = []
@@ -80,22 +111,23 @@ def plot_speedup(data):
   # rects1 = ax.bar(x - width/2, men_means, width, label='Men')
   # rects2 = ax.bar(x + width/2, women_means, width, label='Women')
   # Add some text for labels, title and custom x-axis tick labels, etc.
-  ax.set_ylabel('Cycles')
-  ax.set_title('Cycles')
+  ax.set_ylabel('Speedup Relative to Baseline Manycore (NV)')
+  ax.set_title('Speedup')
   ax.set_xticks(x)
   ax.set_xticklabels(labels)
   ax.legend()
-  # def autolabel(rects):
-  #     """Attach a text label above each bar in *rects*, displaying its height."""
-  #     for rect in rects:
-  #         height = rect.get_height()
-  #         ax.annotate('{}'.format(height),
-  #                     xy=(rect.get_x() + rect.get_width() / 2, height),
-  #                     xytext=(0, 3),  # 3 points vertical offset
-  #                     textcoords="offset points",
-  #                     ha='center', va='bottom')
-  # autolabel(rects1)
-  # autolabel(rects2)
+  def autolabel(rects):
+      """Attach a text label above each bar in *rects*, displaying its height."""
+      for rect in rects:
+          height = rect.get_height()
+          ax.annotate('{:.2f}'.format(height),
+                      xy=(rect.get_x() + rect.get_width() / 2, height),
+                      xytext=(0, 3),  # 3 points vertical offset
+                      textcoords="offset points",
+                      ha='center', va='bottom')
+                
+  for r in rects:
+    autolabel(r)
 
   fig.tight_layout()
   # plt.show()
