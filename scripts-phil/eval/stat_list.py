@@ -133,6 +133,6 @@ cpu_stats = OrderedDict([
 
 gpu_stats = OrderedDict([ 
   ('cycles' , { 
-    'regex' : re.compile('system.cpu2.CUs0.num_instr_executed\s*' + intRegexStr),
+    'regex' : re.compile('system.cpu2.CUs0.num_total_cycles\s*' + intRegexStr),
   }), 
 ])
