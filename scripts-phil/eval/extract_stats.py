@@ -325,6 +325,7 @@ with open(args.outfile, 'w+') as fout:
 
 # plot data to graphs
 graph_king.plot_speedup(all_data)
+graph_king.plot_energy(all_data)
   
   
   

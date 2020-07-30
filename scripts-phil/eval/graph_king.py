@@ -85,6 +85,19 @@ def inverse(values):
 # group together same benchmark (if metadata the same)
 def plot_speedup(data):
   (labels, sub_labels, values) = group_bar_data(data, 'cycles')
+
+  # flip from cycles to speedup normalized to NV
+  normalize(sub_labels, values)
+  inverse(values)
+
+  bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline Manycore (NV)', 'Speedup')
+
+def plot_energy(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'energy-sum')
+  bar_plot(labels, sub_labels, values, 'Energy(nJ)', 'Energy', False)
+
+# create specified barplot and write to file
+def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
   # labels = ['G1', 'G2', 'G3', 'G4', 'G5']
   # men_means = [20, 34, 30, 35, 27]
   # women_means = [25, 32, 34, 20, 25]
@@ -97,12 +110,6 @@ def plot_speedup(data):
 
   first_bar_offset = width / -2 * (num_sub_bars-1)
 
-  # TODO
-  # flip from cycles to speedup normalized to NV
-  normalize(sub_labels, values)
-  inverse(values)
-
-
   fig, ax = plt.subplots()
   rects = []
   for i in range(num_sub_bars):
@@ -111,8 +118,8 @@ def plot_speedup(data):
   # rects1 = ax.bar(x - width/2, men_means, width, label='Men')
   # rects2 = ax.bar(x + width/2, women_means, width, label='Women')
   # Add some text for labels, title and custom x-axis tick labels, etc.
-  ax.set_ylabel('Speedup Relative to Baseline Manycore (NV)')
-  ax.set_title('Speedup')
+  ax.set_ylabel(ylabel)
+  ax.set_title(title)
   ax.set_xticks(x)
   ax.set_xticklabels(labels)
   ax.legend()
@@ -128,10 +135,11 @@ def plot_speedup(data):
                       textcoords="offset points",
                       ha='center', va='bottom')
                 
-  for r in rects:
-    autolabel(r)
+  if (annotate):
+    for r in rects:
+      autolabel(r)
 
   fig.tight_layout()
   # plt.show()
 
-  plt.savefig('foo.png')
+  plt.savefig(str(title) + '.png')
