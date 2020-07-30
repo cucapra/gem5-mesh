@@ -23,6 +23,19 @@ void transpose(DTYPE *a, int row, int col, DTYPE *aT){
   }
 }
 
+void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int pdim){
+
+  int start = (ptid + 0) * a_col / pdim;
+  int end = (ptid + 1) * a_col / pdim;
+
+  for(int i=start; i<end; i++){
+    for(int j=0; j<a_row; j++){
+      aT[i*a_row+j] = a[j*a_col+i];
+    }
+  }
+
+}
+
 
 void kernel(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *eT, DTYPE *g, 
             int m, int t1, int k, int t2, int n, int ptid_x, int ptid_y, int pdim_x, int pdim_y)
@@ -74,12 +87,12 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *e
 
   unsigned long long *spTop = getSpTop(ptid);
   // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
-  spTop -= 100;
+  spTop -= 110;
 
   unsigned long long stackLoc;
   unsigned long long temp;
-  #pragma GCC unroll(100)
-  for(int i=0;i<100;i++){
+  #pragma GCC unroll(110)
+  for(int i=0;i<110;i++){
     asm volatile("ld t0, %[id](sp)\n\t"
                 "sd t0, %[id](%[spad])\n\t"
                 : "=r"(temp)
@@ -106,6 +119,8 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *e
     tril_gemm_vec(mask, a, b, e, m, k, t1, m_start, m_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
   }
 
+  // if(ptid==0)printf("Done 1MM\n");
+
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   // F = C(k,t2).D(t2,n)
   if(cinfo.used) {
@@ -116,11 +131,13 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *e
     
     tril_gemm_vec(mask, c, d, f, k, n, t2, m_start, m_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
   }
-
+  // if(ptid==0)printf("Done 2MM\n");
   pthread_barrier_wait(&start_barrier);
   //do transpose at ptid=0
-  if(ptid==0)transpose(e,m,k,eT);
+  // if(ptid==0)transpose(e,m,k,eT);
+  transpose_manycore(e,m,k,eT,ptid,pdim);
 
+  // if(ptid==0)printf("Done tranpose\n");
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   // G = E(m,k).F(k,n)
   if(cinfo.used) {
@@ -131,7 +148,7 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *e
     
     tril_gemm_vec(mask, eT, f, g, m, n, k, m_start, m_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
   }
-
+  // if(ptid==0)printf("Done 3MM\n");
 #elif defined MANYCORE_PREFETCH
 
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
@@ -147,8 +164,8 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *e
 
   pthread_barrier_wait(&start_barrier);
   //do transpose at ptid=0
-  if(ptid==0)transpose(e,m,k,eT);
-  
+  // if(ptid==0)transpose(e,m,k,eT);
+  transpose_manycore(e,m,k,eT,ptid,pdim);
 
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
   VECTOR_EPOCH(mask);
@@ -166,8 +183,9 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *e
   gemm_manycore(c, d, f, k, n, t2, m_start, n_start, ptid, pdim_x, pdim_y);
 
   pthread_barrier_wait(&start_barrier);
-  if(ptid==0)transpose(e,m,k,eT);
-
+  // if(ptid==0)transpose(e,m,k,eT);
+  transpose_manycore(e,m,k,eT,ptid,pdim);
+  
   pthread_barrier_wait(&start_barrier);
   gemm_manycore(eT, f, g, m, n, k, m_start, n_start, ptid, pdim_x, pdim_y);
 

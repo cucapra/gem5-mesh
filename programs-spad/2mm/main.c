@@ -183,17 +183,19 @@ int main(int argc, char *argv[])
   a = a_;
 #endif
 
-  int fail = check_1mm(a, b, c, m, t2, t1);
-  if (fail)
-    return 1;
+  int fail;
 
-  printf("[[mini SUCCESS for 1st mm]]\n");
+  // fail = check_1mm(a, b, c, m, t2, t1);
+  // if (fail)
+  //   return 1;
 
-  fail = check_transpose(c, cT, m,t2);
-  if (fail)
-    return 1;
+  // printf("[[mini SUCCESS for 1st mm]]\n");
 
-  printf("[[mini SUCCESS transpose]]\n");
+  // fail = check_transpose(c, cT, m,t2);
+  // if (fail)
+  //   return 1;
+
+  // printf("[[mini SUCCESS transpose]]\n");
 
   fail = check_1mm(c, d, e, m, n, t2);
   if (fail)

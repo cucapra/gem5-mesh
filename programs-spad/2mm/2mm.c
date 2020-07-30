@@ -22,9 +22,22 @@ void transpose(DTYPE *a, int row, int col, DTYPE *aT){
   }
 }
 
+void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int pdim){
+
+  int start = (ptid + 0) * a_col / pdim;
+  int end = (ptid + 1) * a_col / pdim;
+
+  for(int i=start; i<end; i++){
+    for(int j=0; j<a_row; j++){
+      aT[i*a_row+j] = a[j*a_col+i];
+    }
+  }
+
+}
+
 void __attribute__((optimize("-fno-inline")))
 kernel_2mm(int used, int mask, DTYPE *a, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE *e, int m, int n, int t1, int t2,
-            int m_start, int m_end, int n_start, int n_end, int ptid, int pdim_x, int pdim_y, int vtid_x, int vtid_y, int vtid){
+int m_start, int m_end, int n_start, int n_end, int ptid, int pdim_x, int pdim_y, int vtid_x, int vtid_y, int vtid){
 
   #ifdef _VEC
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
@@ -33,7 +46,8 @@ kernel_2mm(int used, int mask, DTYPE *a, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d
   pthread_barrier_wait(&start_barrier);
 
   //do transpose at ptid=0
-  if(ptid==0)transpose(c,m,t2,cT);
+  // if(ptid==0)transpose(c,m,t2,cT);
+  transpose_manycore(c,m,t2,cT,ptid,pdim_y*pdim_x);
 
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
   if (used) tril_gemm_vec(mask, cT, d, e, m, n, t2, m_start, m_end, vtid_x, vtid_y, vtid, ptid);
@@ -46,7 +60,9 @@ kernel_2mm(int used, int mask, DTYPE *a, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d
     pthread_barrier_wait(&start_barrier);
 
     //do transpose at ptid=0
-    if(ptid==0)transpose(c,m,t2,cT);
+    // if(ptid==0)transpose(c,m,t2,cT);
+
+    transpose_manycore(c,m,t2,cT,ptid,pdim_y*pdim_x);
 
     SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
     VECTOR_EPOCH(mask);
@@ -57,7 +73,8 @@ kernel_2mm(int used, int mask, DTYPE *a, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d
   gemm_manycore(a, b, c, m, t2, t1, m_start, n_start, ptid, pdim_x, pdim_y);
   pthread_barrier_wait(&start_barrier);
   //do transpose
-  if(ptid==0)transpose(c,m,t2,cT);
+  // if(ptid==0)transpose(c,m,t2,cT);
+  transpose_manycore(c,m,t2,cT,ptid,pdim_y*pdim_x);
   pthread_barrier_wait(&start_barrier);
   gemm_manycore(cT, d, e, m, n, t2, m_start, n_start, ptid, pdim_x, pdim_y);
   #endif
