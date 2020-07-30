@@ -120,7 +120,9 @@ def plot_speedup(data):
       """Attach a text label above each bar in *rects*, displaying its height."""
       for rect in rects:
           height = rect.get_height()
-          ax.annotate('{:.2f}'.format(height),
+          if (height == 0.0):
+            continue
+          ax.annotate('{:.1f}'.format(height),
                       xy=(rect.get_x() + rect.get_width() / 2, height),
                       xytext=(0, 3),  # 3 points vertical offset
                       textcoords="offset points",
