@@ -93,7 +93,7 @@ def plot_speedup(data):
   bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline Manycore (NV)', 'Speedup')
 
 def plot_energy(data):
-  (labels, sub_labels, values) = group_bar_data(data, 'energy-sum')
+  (labels, sub_labels, values) = group_bar_data(data, 'energy-sum(nJ)')
   bar_plot(labels, sub_labels, values, 'Energy(nJ)', 'Energy', False)
 
 # create specified barplot and write to file
