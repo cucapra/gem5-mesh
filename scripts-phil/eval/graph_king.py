@@ -24,7 +24,13 @@ def group_bar_data(data, desired_field):
       values[label_str] = {}
       values[label_str]['_meta_'] = {}
 
-    values[label_str][row['config']] = row[desired_field]
+
+    if (desired_field in row):
+      single_val = row[desired_field]
+    else:
+      single_val = 0
+
+    values[label_str][row['config']] = single_val
     values[label_str]['_meta_']['prog_name'] = row['prog']
 
   # flatten labels and values for display
@@ -69,8 +75,8 @@ def normalize(sub_labels, values, pref_base='NV'):
       try:
         values[j][i] = float(values[j][i]) / float(base_values[i])
       except:
-        print('failed to normalize ' + sub_labels[i])
-        values[j][i] = 1.0
+        print('failed to normalize ' + sub_labels[j])
+        values[j][i] = 0
       
 def inverse(values):
   for j in range(len(values)):

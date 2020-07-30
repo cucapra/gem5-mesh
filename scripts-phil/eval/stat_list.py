@@ -7,7 +7,7 @@ from collections import OrderedDict
 floatRegexStr = '([+-]?([0-9]*[.])?[0-9]+)'
 intRegexStr = '([0-9]+)'
 
-stats = OrderedDict([ 
+cpu_stats = OrderedDict([ 
   ('cycles' , { 
     'regex' : re.compile('system.cpu0+.numCycles\s*' + intRegexStr),
     'ignore-zero' : False,
@@ -128,4 +128,11 @@ stats = OrderedDict([
     'formula' : ['inst-cnts-energy(nJ)', 'icache-access-energy(nJ)', 'dmem-access-energy(nJ)', 'llc-access-energy(nJ)'],
   }),
 
+])
+
+
+gpu_stats = OrderedDict([ 
+  ('cycles' , { 
+    'regex' : re.compile('system.cpu2.CUs0.num_instr_executed\s*' + intRegexStr),
+  }), 
 ])

@@ -5,7 +5,7 @@
 '''
 
 import os, subprocess, time, argparse, re
-from stat_list import stats
+from stat_list import cpu_stats, gpu_stats
 import get_energy
 import graph_king
 
@@ -13,9 +13,13 @@ from collections import OrderedDict
 
 # cmd line arguments
 parser = argparse.ArgumentParser(description='Analyze stats file in a given directory')
-parser.add_argument('--sims', default='../../results', help='Path with results you want to analyze')
-parser.add_argument('--outfile', default='../../results/extract.csv', help='CSV Path where extracted data should go')
+parser.add_argument('--cpu', action="store_true", help='Want to analyze cpu/manycore results')
+parser.add_argument('--gpu', action="store_true", help='Want to analyze gpu results')
+parser.add_argument('--cpu-sims', default='../../results', help='Path with manycore results you want to analyze')
+parser.add_argument('--gpu-sims', default='../../../gem5-gcn3/results/', help='Path with gpu results you want to analyze')
+parser.add_argument('--outfile', default='./extract.csv', help='CSV Path where extracted data should go')
 parser.add_argument('--prefix', default='', help='prefix of directory name to parse, could be program for example')
+get_energy.define_options(parser)
 args = parser.parse_args()
 
 #
@@ -39,6 +43,9 @@ mcdash = '[a-zA-Z0-9_-]+'
 dirConv = '({})-({})-({})'.format(mc, mc, mcdash)
 dirRegex = re.compile(dirConv)
 
+
+# setup energy model
+get_energy.setup_energy_model(args)
 
 #
 # Function defs
@@ -223,7 +230,7 @@ def parse_results_dir(results_dir_name, stats_info):
     
     # get path to stats
     statsFile = os.path.join(dirPath, 'stats.txt')
-    rawStats = parse_file(statsFile, stats)
+    rawStats = parse_file(statsFile, stats_info)
 
     # cleanup raw data a little bit to just include avg
     stat_dict = OrderedDict()
@@ -242,14 +249,23 @@ def parse_results_dir(results_dir_name, stats_info):
 #
 # Extract data from directories
 
-manycore_data = parse_results_dir(args.sims, stats)
+# if neither asserted default to cpu
+if (not args.cpu and not args.gpu):
+  args.cpu = True
 
-# TODO
-# gpu_data
+manycore_data = []
+gpu_data = []
+
+if (args.cpu):
+  manycore_data = parse_results_dir(args.cpu_sims, cpu_stats)
+if (args.gpu):
+  gpu_data      = parse_results_dir(args.gpu_sims, gpu_stats)
+
+all_data = manycore_data + gpu_data
 
 # determine all keys
 keys = []
-for data in manycore_data:
+for data in all_data:
   for k in data.keys():
     if (not k in keys):
       keys.append(k)
@@ -276,7 +292,7 @@ for k in keys:
 #
 # serialize and print extracted stats
 
-for data in manycore_data:
+for data in all_data:
   dirPath = data['_path_']
 
   print(dirPath)
@@ -288,7 +304,12 @@ for data in manycore_data:
     #   for b,d in d[k]['buckets'].items():
     #     print('\t{0}::{1}: {2}'.format(k, b, str(d)))
     # else:
-    print('\t{0}: {1}'.format(k, data[k]))
+    if (k in data):
+      dat = data[k]
+    else:
+      dat = 0
+
+    print('\t{0}: {1}'.format(k, dat))
     
   # 
   # serialize parameters and data into string row by row
@@ -301,7 +322,13 @@ for data in manycore_data:
   # data
   for k in keys:
     # if (can_normal_write(v)):
-    dataCSV += '{}, '.format(str(data[k]))
+
+    if (k in data):
+      dat = data[k]
+    else:
+      dat = 0
+
+    dataCSV += '{}, '.format(str(dat))
   
 #dataCSV += '\n'
 
@@ -343,8 +370,8 @@ with open(args.outfile, 'w+') as fout:
   
 
 # plot data to graphs
-graph_king.plot_speedup(manycore_data)
-graph_king.plot_energy(manycore_data)
+graph_king.plot_speedup(all_data)
+graph_king.plot_energy(all_data)
   
   
   

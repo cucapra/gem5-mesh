@@ -8,14 +8,14 @@
 
 import argparse, re, json
 
-parser = argparse.ArgumentParser(description='Estimate energy based on gem5 stats file')
-parser.add_argument('--inst-cost-file', default='../data/inst/inst_energy_28nm.json', help='Path to json containing instruction costs')
-parser.add_argument('--inst-cost-node', default='28', help='What technology node the costs were measured at in nm')
-parser.add_argument('--used-node', default='32', help='Desired technology node to scale to')
-parser.add_argument('--icache-file', default='../data/memory/4kB_icache.out', help='Path to file containing params for icache')
-parser.add_argument('--dmem-file', default='../data/memory/4kB_spad.out', help='Path to file containing params for local data mem')
-parser.add_argument('--llc-file', default='../data/memory/32kb_llc.out', help='Path to file containing params for llc')
-args = parser.parse_args()
+# parser = argparse.ArgumentParser(description='Estimate energy based on gem5 stats file')
+# parser.add_argument('--inst-cost-file', default='../data/inst/inst_energy_28nm.json', help='Path to json containing instruction costs')
+# parser.add_argument('--inst-cost-node', default='28', help='What technology node the costs were measured at in nm')
+# parser.add_argument('--used-node', default='32', help='Desired technology node to scale to')
+# parser.add_argument('--icache-file', default='../data/memory/4kB_icache.out', help='Path to file containing params for icache')
+# parser.add_argument('--dmem-file', default='../data/memory/4kB_spad.out', help='Path to file containing params for local data mem')
+# parser.add_argument('--llc-file', default='../data/memory/32kb_llc.out', help='Path to file containing params for llc')
+# args = parser.parse_args()
 
 # globals that are set in main
 
@@ -138,26 +138,32 @@ def get_instruction_energy(cnts):
     get_cost('inst', 'MemRead')   * memRead   + \
     get_cost('inst', 'MemWrite')  * memWrite
 
+# define options
+def define_options(parser):
+  parser.add_argument('--inst-cost-file', default='../data/inst/inst_energy_28nm.json', help='Path to json containing instruction costs')
+  parser.add_argument('--inst-cost-node', default='28', help='What technology node the costs were measured at in nm')
+  parser.add_argument('--used-node', default='32', help='Desired technology node to scale to')
+  parser.add_argument('--icache-file', default='../data/memory/4kB_icache.out', help='Path to file containing params for icache')
+  parser.add_argument('--dmem-file', default='../data/memory/4kB_spad.out', help='Path to file containing params for local data mem')
+  parser.add_argument('--llc-file', default='../data/memory/32kb_llc.out', help='Path to file containing params for llc')
 
 # do parsing into member/global variables
+def setup_energy_model(args):
+  cost_dicts['icache'] = parse_memory_file(args.icache_file)
+  cost_dicts['dmem'] = parse_memory_file(args.dmem_file)
+  cost_dicts['llc'] = parse_memory_file(args.llc_file)
+  cost_dicts['inst'] = parse_inst_cost_file(args.inst_cost_file, args.inst_cost_node, args.used_node)
 
-cost_dicts['icache'] = parse_memory_file(args.icache_file)
-cost_dicts['dmem'] = parse_memory_file(args.dmem_file)
-cost_dicts['llc'] = parse_memory_file(args.llc_file)
-cost_dicts['inst'] = parse_inst_cost_file(args.inst_cost_file, args.inst_cost_node, args.used_node)
-
-# TODO DRAM energy. pj/bit = 7
-# Access prob 64bytes (line) * 8bits/byte * 7pj/bit = 3584pJ
-
-
-# MAIN
-# 
-
-# for k,v in cost_dicts['inst'].items():
-#   print('{} {}'.format(k, v))
-
-# print('{} {}'.format('icache', cost_dicts['icache']['read_energy']))
-# print('{} {}'.format('dmem', cost_dicts['dmem']['read_energy']))
-# print('{} {}'.format('llc', cost_dicts['llc']['read_energy']))
+  # TODO DRAM energy. pj/bit = 7
+  # Access prob 64bytes (line) * 8bits/byte * 7pj/bit = 3584pJ
 
 
+  # MAIN
+  # 
+
+  # for k,v in cost_dicts['inst'].items():
+  #   print('{} {}'.format(k, v))
+
+  # print('{} {}'.format('icache', cost_dicts['icache']['read_energy']))
+  # print('{} {}'.format('dmem', cost_dicts['dmem']['read_energy']))
+  # print('{} {}'.format('llc', cost_dicts['llc']['read_energy']))
