@@ -143,8 +143,12 @@ def parse_file(fileName, stat_info):
                   stat_data[k]['buckets'][bucket_range] = 0
                 stat_data[k]['buckets'][bucket_range] += arith_val
               else:
-                stat_data[k]['avg'] += arith_val
-                stat_data[k]['count'] += 1
+                if ('max' in v and v['max']):
+                  if (arith_val > stat_data[k]['avg']):
+                    stat_data[k]['avg'] = arith_val
+                else:
+                  stat_data[k]['avg'] += arith_val
+                  stat_data[k]['count'] += 1
           
           # no reason to search for other values
           #break
