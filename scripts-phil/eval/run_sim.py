@@ -99,7 +99,9 @@ def strings_to_metadata(args):
     for a in args:
       # special interpretations
       arg = sim_list.abbreviate_config(a)
-      meta += arg + '_'
+      meta += arg
+      if (a != args[-1]):
+        meta += '_'
   else:
     meta = sim_list.abbreviate_config(args)
   return meta
