@@ -64,7 +64,7 @@ sim_configs = {
     'argv' : ['4096'] # ['128']
   },
   'gemm'   : {
-    'vec'  : ALL_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['256'] #['64']
   },
   'gesummv'   : {
@@ -76,11 +76,11 @@ sim_configs = {
     'argv' : ['512'] #['64']
   },
   '2mm' : {
-    'vec'  : ALL_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['256'] #['64']
   },
   '3mm' : {
-    'vec'  : ALL_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['256'] #['32']
   },
 
@@ -96,6 +96,8 @@ def abbreviate_config(config):
     return 'NV'
   elif (config == 'REUSE'):
     return 'R'
+  elif (config == 'MANYCORE_PREFETCH'):
+    return 'PF'
   elif (config[0:11] == 'VECTOR_LEN='):
     return a[11:len(a)]
   elif (config[0:3] == 'PF='):
