@@ -3,6 +3,7 @@ default: $(BENCHNAME)
 
 # run small sim for test
 PROB_SIZE := 96
+EXTRA_FLAGS := -DVEC_4_SIMD
 N_SPS ?= 16
 HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
 
