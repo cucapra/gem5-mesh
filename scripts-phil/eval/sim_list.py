@@ -32,15 +32,15 @@ sim_configs = {
   },
   'syrk'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['512']
+    'argv' : ['256']
   },
   'syr2k'  : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['512']
+    'argv' : ['256']
   },
   'covar'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['1024']
+    'argv' : ['512']
   },
   'conv2d' : {
     'vec'  : ['NO_VEC', 'VEC_4_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL'],
@@ -52,7 +52,7 @@ sim_configs = {
   },
   'fdtd' : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['1024', '250']
+    'argv' : ['1024', '125']
   },
 
   'atax'   : {
@@ -73,7 +73,7 @@ sim_configs = {
   },
   'corr'   : {
     'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['1024'] #['64']
+    'argv' : ['512'] #['64']
   },
   '2mm' : {
     'vec'  : ALL_NEIL_CONFIGS,
