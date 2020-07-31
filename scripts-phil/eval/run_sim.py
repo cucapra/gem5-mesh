@@ -65,6 +65,10 @@ def run_prog(numCpus, prog_key, argv, extra_info):
   try:
     result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
   except:
+    try:
+      print(result)
+    except:
+      pass
     return False
   # print(result)
 
@@ -73,6 +77,7 @@ def run_prog(numCpus, prog_key, argv, extra_info):
   if (success):
     return True
   else:
+    print(result)
     return False
 
 # either array or single string
