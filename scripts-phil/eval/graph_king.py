@@ -127,7 +127,7 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
   ax.set_ylabel(ylabel)
   ax.set_title(title)
   ax.set_xticks(x)
-  ax.set_xticklabels(labels)
+  ax.set_xticklabels(labels, rotation=45, ha='right')
   ax.legend()
   def autolabel(rects):
       """Attach a text label above each bar in *rects*, displaying its height."""

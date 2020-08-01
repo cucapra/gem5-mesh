@@ -28,7 +28,7 @@ sim_configs = {
   },
   'gram'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['640']
+    'argv' : ['320']
   },
   'syrk'   : {
     'vec'  : ALL_CONFIGS,
@@ -36,7 +36,7 @@ sim_configs = {
   },
   'syr2k'  : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['256']
+    'argv' : ['512']
   },
   'covar'   : {
     'vec'  : ALL_CONFIGS,
@@ -52,7 +52,7 @@ sim_configs = {
   },
   'fdtd' : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['1024', '125']
+    'argv' : ['512', '60']
   },
 
   'atax'   : {
