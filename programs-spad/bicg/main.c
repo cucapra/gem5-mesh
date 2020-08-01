@@ -132,7 +132,7 @@ int main(int argc, char *argv[]) {
 
   if (skip_check) {
     printf("Skipping verification\n");
-    printf("[[SUCCESS]]\n");
+    // printf("[[SUCCESS]]\n");
     free(a_ptr);
     free(r_ptr);
     free(q_ptr);
