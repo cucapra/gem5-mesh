@@ -24,7 +24,8 @@ VecInstSel::VecInstSel(IOCPU *_cpu_p, IOCPUParams *params) :
   _waitingForTerminator(false),
   _terminatorFound(false),
   _pendingFailedReq(false),
-  _failedReqVirtAddr(0)
+  _failedReqVirtAddr(0),
+  lastReqNoInst(0)
 {
 }
 
@@ -245,7 +246,7 @@ VecInstSel::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
 
 void
 VecInstSel::resetStallWait() {
-  DPRINTF(Mesh, "reset stall wait\n");
+  // DPRINTF(Mesh, "reset stall wait\n");
   _stallUntilJumpPC = false;
   // send out a request now b/c vector stage won't tick this if there is no uop present...
   tryReqNextUop();
