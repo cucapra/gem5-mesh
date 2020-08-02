@@ -4,7 +4,7 @@ default: $(BENCHNAME)
 # # run small sim for test
 PROB_SIZE := 32
 N_SPS ?= 64
-EXTRA_FLAGS ?= -DVEC_4_SIMD
+EXTRA_FLAGS ?= -DVEC_16_SIMD
 HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
 
 # Build the kernel with trilliasm.

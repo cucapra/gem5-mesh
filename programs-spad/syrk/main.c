@@ -135,6 +135,8 @@ int main(int argc, char *argv[]) {
     return 0;
   }
 
+  free(a_ptr);
+
   printf("Checking results\n");
 
   // compare with results from a sequential version
@@ -159,7 +161,7 @@ int main(int argc, char *argv[]) {
   free(a_exp);
   free(c_exp);
   
-  free(a_ptr);
+  // free(a_ptr);
   free(c_ptr);
   
   printf("[[SUCCESS]]\n");

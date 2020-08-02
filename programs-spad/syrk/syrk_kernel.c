@@ -168,6 +168,11 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     // printf("c %f ?= %f\n", sp_ptr[sp], c[i*N+j]);
     c_ij = sp_ptr[sp + 0] * beta;
     REMEM(OUTER_FRAME_SIZE);
+    // pad so num regions possible regions is lower
+    #if VECTOR_LEN==16
+    asm volatile("nop\n\t");
+    asm volatile("nop\n\t");    
+    #endif
     sp+=2;
     sp = sp % POST_FRAME_WORD;
 
