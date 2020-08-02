@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
   // default values
   int NI = 6;
   int NJ = 8;
-  int NK = 6; // TODO currently needs to be of form x * VEC_LEN + 2
+  int NK = 6;
 
   int skip_check = 0;
   
