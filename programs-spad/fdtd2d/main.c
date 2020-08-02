@@ -173,7 +173,7 @@ int main(int argc, char *argv[]) {
     for (int j = 0; j < NY; j++) {
       int idx = i*NY + j;
       // if (hz[idx] != hz_exp[idx]) {
-      if (!float_compare(hz[idx], hz_exp[idx], 0.0001f)) {
+      if (!float_compare(hz[idx], hz_exp[idx], 0.001f)) {
         printf("%f != %f | i %d j %d (%d)\n", hz[idx], hz_exp[idx], i, j, idx);
         printf("[[FAIL]]\n");
         return 1;
