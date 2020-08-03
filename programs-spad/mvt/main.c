@@ -6,6 +6,7 @@
 #include "spad.h"
 #include "pthread_launch.h"
 #include "mvt.h"
+#include "util.h"
 
 #define CONST 5
 
@@ -25,7 +26,8 @@ int check_ay1(DTYPE* a, DTYPE* y1, DTYPE* x1, int n){
     tmp[i] = CONST;
     for (int j = 0; j < n; j++)
       tmp[i] = tmp[i] + a[i*n+j] * y1[j];
-    if(tmp[i]!=x1[i]){
+    // if(tmp[i]!=x1[i]){
+    if (!float_compare(tmp[i], x1[i], 0.0001f)){
       printf("[[FAIL]] for matrix vector product Ay1\n");
       return 1;
     }
@@ -40,9 +42,10 @@ int check_aty2(DTYPE* a, DTYPE* y2, DTYPE* x2, int n){
     tmp[i] = CONST;
     for (int j = 0; j < n; j++)
       tmp[i] = tmp[i] + a[j*n+i] * y2[j];
-    if(tmp[i]!=x2[i]){
+    // if(tmp[i]!=x2[i]){
+    if (!float_compare(tmp[i], x2[i], 0.0001f)){
       printf("[[FAIL]] for matrix vector product Aty2\n");
-      printf("actual = %d calculated = %d at i=%d\n",tmp[i],x2[i],i);
+      printf("actual = %f calculated = %f at i=%d\n",tmp[i],x2[i],i);
       return 1;
     }
   }
