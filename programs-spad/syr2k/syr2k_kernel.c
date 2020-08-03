@@ -85,8 +85,8 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
   int end   = ((groupId + 1) * N) / numGroups;
 
   // make it a factor of vector group mapping size
-  start = roundUp(start, VECTOR_LEN);
-  end   = roundUp(end  , VECTOR_LEN);
+  // start = roundUp(start, VECTOR_LEN);
+  // end   = roundUp(end  , VECTOR_LEN);
 
   ISSUE_VINST(init_label);
   #endif
@@ -94,7 +94,7 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
   #ifdef VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
   int start = ((groupId + 0) * N) / numGroups;
-  start = roundUp(start, VECTOR_LEN);
+  // start = roundUp(start, VECTOR_LEN);
   int i = start;
   int j = vtid;
   int k = 0;
