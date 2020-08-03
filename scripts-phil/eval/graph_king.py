@@ -128,11 +128,17 @@ def plot_inst_energy(data):
   add_average(labels, values)
   bar_plot(labels, sub_labels, values, 'InstEnergy relative to Baseline Manycore', 'Instruction_Energy', True)
 
-def plot_icache_energy(data):
+def plot_icache_energy(data, norm = False):
   (labels, sub_labels, values) = group_bar_data(data, 'icache-access-energy(nJ)')
-  # normalize(sub_labels, values)
+  if (norm):
+    normalize(sub_labels, values)
   add_average(labels, values)
-  bar_plot(labels, sub_labels, values, 'IcacheEnergy relative to Baseline Manycore', 'ICache_Energy', False)
+  name = 'ICache_Energy'
+  yaxis = 'Icache Energy(nJ)'
+  if (norm):
+    name = 'ICache_Energy_Norm'
+    yaxis = 'Icache Energy relative to Baseline Manycore'
+  bar_plot(labels, sub_labels, values, yaxis, name, False)
 
 def plot_dmem_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'dmem-access-energy(nJ)')
