@@ -17,7 +17,7 @@
 #define ALPHA 1
 #define BETA 0
 
-typedef int DTYPE;
+typedef float DTYPE;
 
 // pthread argument for the kernel
 typedef struct Kern_Args

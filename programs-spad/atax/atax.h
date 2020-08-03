@@ -10,7 +10,7 @@
 #define REGION_SIZE (PREFETCH_LEN * 2)
 #define NUM_REGIONS (512 / REGION_SIZE)
 
-typedef int DTYPE;
+typedef float DTYPE;
 
 // pthread argument for the kernel
 typedef struct Kern_Args

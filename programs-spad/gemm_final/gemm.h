@@ -29,7 +29,7 @@
 #define NUM_REGIONS (512 / REGION_SIZE)
 #endif
 
-typedef int DTYPE;
+typedef float DTYPE;
 
 // pthread argument for the kernel
 typedef struct Kern_Args

@@ -11,7 +11,7 @@
 
 #define TOKEN_LEN 8 //how many elements get reduced together in tree
 
-typedef int DTYPE;
+typedef float DTYPE;
 
 // pthread argument for the kernel
 typedef struct Kern_Args
