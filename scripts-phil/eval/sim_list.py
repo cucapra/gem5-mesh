@@ -3,7 +3,7 @@
 '''
 
 # helper set of vec configs you can use in a benchmark (assuming it supports)
-ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD']
+ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD', 'VEC_16_SIMD']
 ALL_NEIL_CONFIGS = ['NO_VEC', 'VEC_LEN=4']
 
 

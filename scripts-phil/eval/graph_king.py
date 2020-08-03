@@ -86,6 +86,22 @@ def inverse(values):
       except:
         values[j][i] = 0
 
+def add_average(labels, values):
+  # add an average column
+  labels.append("Average")
+  for config in values:
+    summ = 0
+    nnz = 0
+    for v in config:
+      summ += v
+      if (v != 0):
+        nnz += 1
+
+    if (nnz > 0):
+      config.append(summ / nnz)
+    else:
+      config.append(0)
+
 
 # plot speedup
 # group together same benchmark (if metadata the same)
@@ -95,12 +111,34 @@ def plot_speedup(data):
   # flip from cycles to speedup normalized to NV
   normalize(sub_labels, values)
   inverse(values)
+  add_average(labels, values)
 
   bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline Manycore (NV)', 'Speedup')
 
 def plot_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'energy-sum(nJ)')
-  bar_plot(labels, sub_labels, values, 'Energy(nJ)', 'Energy', False)
+  normalize(sub_labels, values)
+  add_average(labels, values)
+  bar_plot(labels, sub_labels, values, 'Energy', 'Energy', True)
+  # need to have a buttom=[] when define bar. where bottom is sum of prev
+
+def plot_inst_energy(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'inst-cnts-energy(nJ)')
+  normalize(sub_labels, values)
+  add_average(labels, values)
+  bar_plot(labels, sub_labels, values, 'InstEnergy relative to Baseline Manycore', 'Instruction_Energy', True)
+
+def plot_icache_energy(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'icache-access-energy(nJ)')
+  # normalize(sub_labels, values)
+  add_average(labels, values)
+  bar_plot(labels, sub_labels, values, 'IcacheEnergy relative to Baseline Manycore', 'ICache_Energy', False)
+
+def plot_dmem_energy(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'dmem-access-energy(nJ)')
+  # normalize(sub_labels, values)
+  add_average(labels, values)
+  bar_plot(labels, sub_labels, values, 'DmemEnergy relative to Baseline Manycore', 'DMem_Energy', False)  
 
 # create specified barplot and write to file
 def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
