@@ -12,7 +12,7 @@
 #define ALPHA 3
 #define BETA 2
 
-typedef int DTYPE;
+typedef float DTYPE;
 
 // pthread argument for the kernel
 typedef struct Kern_Args
