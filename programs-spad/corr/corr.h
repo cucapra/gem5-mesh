@@ -8,8 +8,36 @@
 #define _VEC
 #endif
 
-#define REGION_SIZE 8 //configure using LCM of required frame/region sizes
+// #define MANYCORE_PREFETCH
+
+
+#define REGION_SIZE 16 //configure using LCM of required frame/region sizes
 #define NUM_REGIONS (512 / REGION_SIZE) // (0,512) in this case is the hardware region area 
+
+#define REGION_SIZE_K2 32 //region size for kernel 2
+#define NUM_REGIONS_K2 (512 / REGION_SIZE_K2) // kernel 2
+
+#define PF_BEGIN(pf_len) \
+  for (int j = 0; j < n; j+=pf_len){ 
+
+#define PF_END(num_region) \
+  REMEM(); \
+  spadRegion = (spadRegion + 1) % num_region;  \
+  }
+
+#define PF1(off,idx) \
+  off = spadRegion * REGION_SIZE; \
+  VPREFETCH_L(off, data + idx, 0, REGION_SIZE,1); \
+  FRAME_START(); \
+  for(int jj=0; jj<REGION_SIZE; jj++)
+
+#define PF2(off1,off2,idx1,idx2) \
+  off1 = spadRegion * REGION_SIZE_K2; \
+  off2 = off1 + REGION_SIZE_K2/2; \
+  VPREFETCH_L(off1, data + idx1, 0, REGION_SIZE_K2/2,1); \
+  VPREFETCH_L(off2, data + idx2, 0, REGION_SIZE_K2/2,1); \
+  FRAME_START(); \
+  for(int jj=0; jj<REGION_SIZE_K2/2; jj++)
 
 
 typedef float DTYPE;
