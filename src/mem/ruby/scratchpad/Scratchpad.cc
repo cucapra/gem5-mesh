@@ -680,7 +680,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       
       // deliver a response packet to the core that this was completed
       // but need to copy it because will be delete there
-      PacketPtr resp_pkt_p = new Packet(pkt_p, true, false);
+      PacketPtr resp_pkt_p = pkt_p; //new Packet(pkt_p, true, false);
       resp_pkt_p->makeResponse();
       m_cpu_resp_pkts.push_back(resp_pkt_p);
       if (!m_cpu_resp_event.scheduled())
@@ -817,8 +817,8 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       DPRINTF(Scratchpad, "Sent pkt %s to LLC seq_num %d\n",
                         pkt_p->print(), m_cur_seq_num - 1);
 
-      if (isPrefetch) {
-        // delete pkt_p->popSenderState();
+      if (noAckStore) {
+        delete pkt_p->popSenderState();
         delete pkt_p;
       }
     }
