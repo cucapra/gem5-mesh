@@ -31,23 +31,36 @@ def linear_scale(val, from_val, to_val):
   ratio =  to_val / from_val
   return val * ratio
 
-# return dict containing info about instruction cost file, scaled to des_node
-def parse_inst_cost_file(file_name, cur_node, des_node):
+# return dict containing info about instruction cost file, scaled to target_node
+def parse_inst_cost_file(file_name, target_node):
   # load data
   with open(file_name, 'r') as f:
     data = json.load(f)
 
+  cur_node = data['Node']
+  assert(data['Units'] == 'pJ')
+
   # scale data to target tech node
-  for k,v in data.items():
-    # if (k != 'DRAM IO/bit'):
-    data[k] = linear_scale(float(v), float(cur_node), float(des_node))
+  for inst_key, i in data['Costs'].items():
+    for k,v in i.items():
+      if k == 'Ex_Cycles':
+        continue
+      i[k] = linear_scale(float(v), float(cur_node), float(target_node))
 
-    # scale from pJ to nJ
-    data[k] *= 0.001
+      # scale from pJ to nJ
+      i[k] *= 0.001
 
-    # also subtract icache cost (make sure already parsed) b/c applied seperately
-    # TODO this is somewhat hand wavy!
-    data[k] -= get_read_energy('icache', 1)
+    # take relevant fields to calculate total energy cost
+    # Add most fields. For mul and div that have multiple cycle executions 
+    #   incorporate by increasing mul cost by that factor
+    # excluding the following
+    #   I$
+    #   VM
+    #   D$
+    #   CTS - i assume this is counters
+    data[inst_key] = i['PC'] + i['IF_Rest'] + i['DEC'] + i['ID_Rest'] + \
+      i['IS'] + i['LS'] + (i['MUL'] * i['Ex_Cycles']) + i['ALU'] + i['EX_Rest'] + \
+      i['WB'] + i['CSR'] + i['Rest']
 
   return data
 
@@ -73,7 +86,8 @@ def parse_memory_file(file_name):
 def get_cost(name, field):
   if (not name in cost_dicts or not field in cost_dicts[name]):
     return 0
-  return cost_dicts[name][field]
+  else:
+    return cost_dicts[name][field]
 
 # give name of memory ('icache', 'dmem', or 'llc') along with count
 def get_read_energy(memory_name, num_reads):
@@ -133,15 +147,14 @@ def get_instruction_energy(cnts):
     get_cost('inst', 'IntAlu')    * intAlu    + \
     get_cost('inst', 'IntMult')   * intMult   + \
     get_cost('inst', 'IntDiv')    * intDiv    + \
-    get_cost('inst', 'FloatAdd')  * floatAdd  + \
-    get_cost('inst', 'FloatMult') * floatMult + \
-    get_cost('inst', 'MemRead')   * memRead   + \
-    get_cost('inst', 'MemWrite')  * memWrite
+    get_cost('inst', 'IntAlu')    * floatAdd  + \
+    get_cost('inst', 'IntMult')   * floatMult + \
+    get_cost('inst', 'MemOp')     * memRead   + \
+    get_cost('inst', 'MemOp')     * memWrite
 
 # define options
 def define_options(parser):
   parser.add_argument('--inst-cost-file', default='../data/inst/inst_energy_28nm.json', help='Path to json containing instruction costs')
-  parser.add_argument('--inst-cost-node', default='28', help='What technology node the costs were measured at in nm')
   parser.add_argument('--used-node', default='32', help='Desired technology node to scale to')
   parser.add_argument('--icache-file', default='../data/memory/4kB_icache.out', help='Path to file containing params for icache')
   parser.add_argument('--dmem-file', default='../data/memory/4kB_spad.out', help='Path to file containing params for local data mem')
@@ -152,7 +165,7 @@ def setup_energy_model(args):
   cost_dicts['icache'] = parse_memory_file(args.icache_file)
   cost_dicts['dmem'] = parse_memory_file(args.dmem_file)
   cost_dicts['llc'] = parse_memory_file(args.llc_file)
-  cost_dicts['inst'] = parse_inst_cost_file(args.inst_cost_file, args.inst_cost_node, args.used_node)
+  cost_dicts['inst'] = parse_inst_cost_file(args.inst_cost_file, args.used_node)
 
   # TODO DRAM energy. pj/bit = 7
   # Access prob 64bytes (line) * 8bits/byte * 7pj/bit = 3584pJ
