@@ -816,6 +816,11 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // }
       DPRINTF(Scratchpad, "Sent pkt %s to LLC seq_num %d\n",
                         pkt_p->print(), m_cur_seq_num - 1);
+
+      if (isPrefetch) {
+        // delete pkt_p->popSenderState();
+        delete pkt_p;
+      }
     }
   } else if (dst_sp_id != m_version) {
     // This packet will be delivered to a remote scratchpad
