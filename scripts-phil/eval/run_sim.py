@@ -163,7 +163,7 @@ for k,v in sim_list.sim_configs.items():
     jobs.append(proc)
 
     # sleep for some time to give time for gem5 to load the binary
-    time.sleep(7)
+    time.sleep(11)
     
 
 # Wait for jobs to complete before exiting
