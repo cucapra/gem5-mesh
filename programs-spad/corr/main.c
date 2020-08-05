@@ -6,6 +6,7 @@
 #include "spad.h"
 #include "pthread_launch.h"
 #include "corr.h"
+#include "util.h"
 
 void fill_array(DTYPE *m, int n)
 {
@@ -25,7 +26,8 @@ int check_mean (DTYPE* mean, DTYPE* data, int m, int n){
       tmp[i] += data[i*n+j];
     }
     tmp[i] = tmp[i]/n;
-    if(tmp[i]!=mean[i]){
+    // if(tmp[i]!=mean[i]){
+    if (!float_compare(tmp[i], mean[i], 0.0001f)){
       printf("[[FAIL]] for mean of A\n");
       printf("kernel out:%f, actual out:%f\n",mean[i],tmp[i]);
       return 1;
@@ -45,7 +47,8 @@ int check_stddev(DTYPE* stddev, DTYPE* data, DTYPE* mean, int m, int n){
     tmp[i] = tmp[i]/n;
     tmp[i] = sqrt(tmp[i]);
     tmp[i] = tmp[i] <= eps ? 1.0 : tmp[i];
-    if(tmp[i]!=stddev[i]){
+    // if(tmp[i]!=stddev[i]){
+    if (!float_compare(tmp[i], stddev[i], 0.0001f)){
       printf("[[FAIL]] for stddev of A\n");
       printf("kernel out:%f, actual out:%f\n",stddev[i],tmp[i]);
       return 1;
@@ -61,7 +64,8 @@ int check_center (DTYPE* kernel_data, DTYPE* orig_data, DTYPE* stddev, DTYPE* me
     for (int j = 0; j < n; j++){
       tmp[i*n+j] = orig_data[i*n+j] - mean[i];
       tmp[i*n+j] /= sqrt(n)*stddev[i];
-      if(tmp[i*n+j]!=kernel_data[i*n+j]){
+      // if(tmp[i*n+j]!=kernel_data[i*n+j]){
+      if (!float_compare(tmp[i*n+j], kernel_data[i*n+j], 0.0001f)){
         printf("[[FAIL]] for centering of A\n");
         printf("kernel out:%f, actual out:%f\n",kernel_data[i*n+j],tmp[i*n+j]);
         return 1;
@@ -81,7 +85,8 @@ int check_corr (DTYPE* symmat, DTYPE* data, int m, int n){
         tmp[i1*m+i2]+=data[i1*n+j]*data[i2*n+j];
       }
       tmp[i2*m+i1]=tmp[i1*m+i2];
-      if(tmp[i1*m+i2]!=symmat[i1*m+i2]){
+      // if(tmp[i1*m+i2]!=symmat[i1*m+i2]){
+      if (!float_compare(tmp[i1*m+i2], symmat[i1*m+i2], 0.0001f)){
         printf("[[FAIL]] for corr\n");
         printf("kernel out:%f, actual out:%f\n",symmat[i1*m+i2],tmp[i1*m+i2]);
         return 1;

@@ -6,6 +6,7 @@
 #include "spad.h"
 #include "pthread_launch.h"
 #include "2mm.h"
+#include "util.h"
 
 // #define PRINT_OUT
 
@@ -32,9 +33,10 @@ int check_1mm(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t)
       {
         c_temp += ALPHA* a[i * t + k] * b[k * n + j];
       }
-      if (c[i * n + j] != c_temp)
+      // if (c[i * n + j] != c_temp)
+      if (!float_compare(c[i * n + j], c_temp, 0.0001f))
       {
-        printf("%d %d at i:%d, j:%d\n",c[i * n + j],c_temp, i,j);
+        printf("%f %f at i:%d, j:%d\n",c[i * n + j],c_temp, i,j);
         printf("[[FAIL]]\n");
         return 1;
       }

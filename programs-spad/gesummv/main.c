@@ -6,6 +6,7 @@
 #include "spad.h"
 #include "pthread_launch.h"
 #include "gesummv.h"
+#include "util.h"
 
 #define CONST 5
 
@@ -25,7 +26,8 @@ int check_ax (DTYPE* a, DTYPE* _x, DTYPE* ax, int n){
     tmp_[i] = CONST;
     for (int j = 0; j < n; j++)
       tmp_[i] = tmp_[i] + a[i*n+j] * _x[j];
-    if(tmp_[i]!=ax[i]){
+    // if(tmp_[i]!=ax[i]){
+    if (!float_compare(tmp_[i], ax[i], 0.0001f)){
       printf("[[FAIL]] for matrix vector product Ax\n");
       return 1;
     }
@@ -42,7 +44,8 @@ int check_gesummv(DTYPE *b, DTYPE *x, DTYPE *ax, DTYPE *y, int n){
       tmp_[i] = tmp_[i] + b[i*n+j] * x[j];
     tmp_[i] = ALPHA* ax[i] + BETA* tmp_[i];
 
-    if(tmp_[i]!=y[i]){
+    // if(tmp_[i]!=y[i]){
+    if (!float_compare(tmp_[i], y[i], 0.0001f)){
       printf("[[FAIL]] for GESUMMV\n");
       return 1;
     }

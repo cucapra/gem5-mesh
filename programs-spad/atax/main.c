@@ -6,6 +6,7 @@
 #include "spad.h"
 #include "pthread_launch.h"
 #include "atax.h"
+#include "util.h"
 
 void fill_array(DTYPE *m, int n)
 {
@@ -23,7 +24,8 @@ int check_ax (DTYPE* a, DTYPE* _x, DTYPE* ax, int nx, int ny){
     tmp[i] = 0;
     for (int j = 0; j < ny; j++)
       tmp[i] = tmp[i] + a[i*ny+j] * _x[j];
-    if(tmp[i]!=ax[i]){
+    // if(tmp[i]!=ax[i]){
+    if (!float_compare(tmp[i], ax[i], 0.0001f)){
       printf("[[FAIL]] for matrix vector product Ax\n");
       return 1;
     }
@@ -50,7 +52,8 @@ int check_atax (DTYPE* a, DTYPE* _x, DTYPE* _y, int nx, int ny){
   // for (int i = 0; i < ny; i++)
   // printf("Kernel val:%d Actual val:%d\n",y_temp[i],_y[i]);
   for (int i = 0; i < ny; i++){
-    if (y_temp[i]!=_y[i]){
+    // if (y_temp[i]!=_y[i]){
+    if (!float_compare(y_temp[i], _y[i], 0.0001f)){
       printf("[[FAIL]] for At(Ax)\n");
       return 1;
     }
