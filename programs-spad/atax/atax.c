@@ -192,9 +192,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
 #endif
 
-    // single barrier before kernel start
-  pthread_barrier_wait(&start_barrier);
-
   // only let certain tids continue
   // if (used == 0) return; moved this part later
 
