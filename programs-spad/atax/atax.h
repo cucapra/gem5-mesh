@@ -6,7 +6,9 @@
 #define _VEC
 #endif
 
-#define PREFETCH_LEN 4
+// #define MANYCORE_PREFETCH
+
+#define PREFETCH_LEN 16
 #define REGION_SIZE (PREFETCH_LEN * 2)
 #define NUM_REGIONS (512 / REGION_SIZE)
 

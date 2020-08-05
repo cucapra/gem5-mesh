@@ -112,7 +112,7 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
     do{
       asm("trillium vissue_delim until_next mean");
       FRAME_START(REGION_SIZE);
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(16)
       for(int jj=0; jj<REGION_SIZE; jj++){
         mean_temp+= spAddr[sp_offset+jj];
       }
@@ -130,7 +130,7 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
     do {
       asm("trillium vissue_delim until_next stddev");
       FRAME_START(REGION_SIZE);
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(16)
       for(int jj=0; jj<REGION_SIZE; jj++){
         stddev_temp+= (spAddr[sp_offset+jj]-mean_temp)*(spAddr[sp_offset+jj]-mean_temp);
       }
@@ -158,7 +158,7 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
     do {
       asm("trillium vissue_delim until_next center");
       FRAME_START(REGION_SIZE);
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(16)
       for(int jj=0; jj<REGION_SIZE; jj++){
         data_temp= (spAddr[sp_offset+jj]-mean_temp);
         data_temp/=(sqrt(n)*stddev_temp);
@@ -204,17 +204,17 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
     for(int i2 = i1+1; i2<m; i2++){
 
       ISSUE_VINST(hoist2_label);
-      for(int j=0; j<n; j+=REGION_SIZE/2){
+      for(int j=0; j<n; j+=REGION_SIZE_K2/2){
         
         for (int d = 0; d < vdim; d++){
           int vec1 = (i1+d)%m;
           int vec2 = (i2+d)%m;
-          VPREFETCH_L(sp_data_offset, data + _idx_(vec1,j,n), d, REGION_SIZE/2,1); //vertical loads
-          VPREFETCH_L(sp_data_offset+REGION_SIZE/2, data + _idx_(vec2,j,n), d, REGION_SIZE/2,1);
+          VPREFETCH_L(sp_data_offset, data + _idx_(vec1,j,n), d, REGION_SIZE_K2/2,1); //vertical loads
+          VPREFETCH_L(sp_data_offset+REGION_SIZE_K2/2, data + _idx_(vec2,j,n), d, REGION_SIZE_K2/2,1);
         }
         ISSUE_VINST(symmat_label);
-        sp_data_offset = sp_data_offset + REGION_SIZE;
-        if(sp_data_offset==NUM_REGIONS*REGION_SIZE)sp_data_offset=0;
+        sp_data_offset = sp_data_offset + REGION_SIZE_K2;
+        if(sp_data_offset==NUM_REGIONS_K2*REGION_SIZE_K2)sp_data_offset=0;
 
       }
       ISSUE_VINST(i2_label);
@@ -275,16 +275,16 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       j=0;
       do {
         asm("trillium vissue_delim until_next symmat");
-        FRAME_START(REGION_SIZE);
-        #pragma GCC unroll(8)
-        for(int jj=0; jj<REGION_SIZE/2; jj++){
-          symmat_temp+= spAddr[sp_offset+jj]*spAddr[sp_offset+REGION_SIZE/2+jj];
+        FRAME_START();
+        #pragma GCC unroll(16)
+        for(int jj=0; jj<REGION_SIZE_K2/2; jj++){
+          symmat_temp+= spAddr[sp_offset+jj]*spAddr[sp_offset+REGION_SIZE_K2/2+jj];
         }
-        REMEM(REGION_SIZE);
-        sp_offset += REGION_SIZE;
-        // if(sp_offset==NUM_REGIONS)sp_offset=0;
-        sp_offset = sp_offset%(NUM_REGIONS*REGION_SIZE);
-        j+=REGION_SIZE;
+        REMEM();
+        sp_offset += REGION_SIZE_K2;
+        // if(sp_offset==NUM_REGIONS_K2)sp_offset=0;
+        sp_offset = sp_offset%(NUM_REGIONS_K2*REGION_SIZE_K2);
+        j+=REGION_SIZE_K2;
       } while(bh3);
 
       asm("trillium vissue_delim until_next i2");

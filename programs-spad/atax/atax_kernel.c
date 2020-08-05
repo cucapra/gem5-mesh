@@ -105,7 +105,7 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
       FRAME_START(REGION_SIZE);
-      #pragma GCC unroll(4)
+      #pragma GCC unroll(16)
       for(int jj=0; jj<PREFETCH_LEN; jj++){
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *x_on_sp = a_on_sp + REGION_SIZE/2;
@@ -124,7 +124,7 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
       // transpose_dp:
       asm("trillium vissue_delim until_next transpose_dp");
       FRAME_START(REGION_SIZE);
-      #pragma GCC unroll(4)
+      #pragma GCC unroll(16)
       for(int jj=0; jj<PREFETCH_LEN; jj++){ 
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *ypart_on_sp = a_on_sp + REGION_SIZE/2;
