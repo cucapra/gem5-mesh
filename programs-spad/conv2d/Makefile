@@ -2,9 +2,9 @@ BENCHNAME := conv2d
 default: $(BENCHNAME)
 
 # run small sim for test
-PROB_SIZE := 20
+PROB_SIZE := 40
 N_SPS ?= 64
-EXTRA_FLAGS ?= -DVEC_16_SIMD
+EXTRA_FLAGS ?= -DVEC_4_SIMD_UNROLL
 HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
 # GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Mesh
 

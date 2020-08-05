@@ -87,8 +87,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef VECTOR_LEN
 
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
+  // template_info_t tinfo = init_template_4x4_2x2();
+  template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif
@@ -145,6 +145,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   rated_size = ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1) );
   #elif defined(VERTICAL_LOADS)
   rated_size = ( VECTOR_LEN * CORE_STEP );
+  #elif defined(UNROLL)
+  rated_size = ( VECTOR_LEN * UNROLL );
   #elif defined(VECTOR_LEN)
   rated_size = ( VECTOR_LEN );
   #else
