@@ -56,7 +56,7 @@ sim_configs = {
   },
 
   'atax'   : {
-    'vec'  : ALL_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['2048'] # ['128']
   },
   'mvt'    : {
@@ -72,7 +72,7 @@ sim_configs = {
     'argv' : ['4096'] #['128'] 
   },
   'corr'   : {
-    'vec'  : ALL_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['512'] #['64']
   },
   '2mm' : {
