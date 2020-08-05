@@ -146,6 +146,12 @@ def plot_dmem_energy(data):
   add_average(labels, values)
   bar_plot(labels, sub_labels, values, 'DmemEnergy relative to Baseline Manycore', 'DMem_Energy', False)  
 
+def plot_llc_energy(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'llc-access-energy(nJ)')
+  # normalize(sub_labels, values)
+  add_average(labels, values)
+  bar_plot(labels, sub_labels, values, 'LLC Energy', 'LLC_Energy', False)  
+
 # create specified barplot and write to file
 def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
   # labels = ['G1', 'G2', 'G3', 'G4', 'G5']
