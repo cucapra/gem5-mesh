@@ -180,16 +180,17 @@ int main(int argc, char *argv[])
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
 
-  int fail = check_mean(mean,data_copy,m,n);
-  if (fail)
-    return 1;
-  printf("[[mini SUCCESS]] for mean\n");
+  int fail;
+  // fail = check_mean(mean,data_copy,m,n);
+  // if (fail)
+  //   return 1;
+  // printf("[[mini SUCCESS]] for mean\n");
 
-  fail = check_stddev(stddev, data_copy, mean,  m, n);
-  if (fail)
-    return 1;
+  // fail = check_stddev(stddev, data_copy, mean,  m, n);
+  // if (fail)
+  //   return 1;
 
-  printf("[[mini SUCCESS]] for std dev\n");
+  // printf("[[mini SUCCESS]] for std dev\n");
 
   fail = check_center(data, data_copy, stddev, mean, m, n);
   if (fail)

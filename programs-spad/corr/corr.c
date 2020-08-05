@@ -12,6 +12,11 @@
 
 #include "corr_kernel.h"
 
+static inline int _idx_(int y, int x, int width)
+{
+  return (y * width) + x;
+}
+
 void __attribute__((optimize("-fno-inline")))
 corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
               int start, int end, int ptid, float eps)
@@ -21,30 +26,73 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
   DTYPE mean_temp=0;
   DTYPE stddev_temp=0;
   DTYPE data_temp;
+
+  #ifdef MANYCORE_PREFETCH
+  int spadRegion = 0;
+  DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
+  int sp_offset;
+  #endif
+
   for (int i = start; i < end; i++){
     //mean
     mean_temp = 0;
+
+    #ifdef MANYCORE_PREFETCH
+    PF_BEGIN(REGION_SIZE)
+    PF1(sp_offset,_idx_(i,j,n))
+    {
+      mean_temp += spAddr[sp_offset+jj];
+    }
+    PF_END(NUM_REGIONS)
+    #else
     for (int j = 0; j < n; j++)
       mean_temp += data[i*n+j];
+    #endif
     mean_temp /= n;
-    mean[i]=mean_temp;
+    // mean[i]=mean_temp;
+    STORE_NOACK(mean_temp,mean+i,0);
 
     //stddev
     stddev_temp = 0;
+
+    #ifdef MANYCORE_PREFETCH
+    PF_BEGIN(REGION_SIZE)
+    PF1(sp_offset,_idx_(i,j,n))
+    {
+      stddev_temp += (spAddr[sp_offset+jj]-mean_temp)*(spAddr[sp_offset+jj]-mean_temp);
+    }
+    PF_END(NUM_REGIONS)
+    #else
     for (int j = 0; j < n; j++)
-      stddev_temp += (data[i*n+j]-mean_temp)*(data[i*n+j]-mean[i]);
+      stddev_temp += (data[i*n+j]-mean_temp)*(data[i*n+j]-mean_temp);
+    #endif
     stddev_temp = stddev_temp/n;
     stddev_temp = sqrt(stddev_temp);
     stddev_temp = stddev_temp <= eps ? 1.0 : stddev_temp;
-    stddev[i] = stddev_temp;
+    // stddev[i] = stddev_temp;
+    STORE_NOACK(stddev_temp,stddev+i,0);
 
     //center
+
+    #ifdef MANYCORE_PREFETCH
+    PF_BEGIN(REGION_SIZE)
+    PF1(sp_offset,_idx_(i,j,n))
+    {
+      data_temp = spAddr[sp_offset+jj]-mean_temp;
+      data_temp = data_temp/(sqrt(n)*stddev_temp);
+      // data[i*n+(j+jj)] = data_temp;
+      STORE_NOACK(data_temp,data+(i*n)+(j+jj),0);
+    }
+    PF_END(NUM_REGIONS)
+    #else
     for (int j = 0; j < n; j++){
       data_temp = data[i*n+j]-mean_temp;
       data[i*n+j] = data_temp/(sqrt(n)*stddev_temp);
     }
+    #endif
 
     symmat[i*m+i]=1; //make diagonal 1 for the vectors it is assigned
+    asm volatile("fence\n\t");
   }
     
 }
@@ -54,19 +102,36 @@ corr_manycore_2(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
               int start, int stride, int ptid)
 {
 
+  #ifdef MANYCORE_PREFETCH
+  int spadRegion = 0;
+  DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
+  int sp_i1_offset,sp_i2_offset;
+  #endif
+
   DTYPE sym_temp=0;
   for (int i1 = start; i1 < m-1; i1+=stride){
     for (int i2 = i1+1; i2 < m; i2++){
       sym_temp=0;
+      #ifdef MANYCORE_PREFETCH
+      PF_BEGIN(REGION_SIZE_K2/2)
+      PF2(sp_i1_offset,sp_i2_offset,_idx_(i1, j, n),_idx_(i2, j, n))
+      {
+        sym_temp+=spAddr[sp_i1_offset+jj]*spAddr[sp_i2_offset+jj];
+      }
+      PF_END(NUM_REGIONS_K2)
+      #else
       for(int j=0; j<n; j++){
         sym_temp+=data[i1*n+j]*data[i2*n+j];
       }
-      symmat[i1*m+i2]=sym_temp;
-      symmat[i2*m+i1]=sym_temp;
+      #endif
+      STORE_NOACK(sym_temp,symmat+(i1*m)+i2,0);
+      STORE_NOACK(sym_temp,symmat+(i2*m)+i1,0);
+      // symmat[i1*m+i2]=sym_temp;
+      // symmat[i2*m+i1]=sym_temp;
     }
   }
 
-
+  asm volatile("fence\n\t");
 }
 
 void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
@@ -116,6 +181,8 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
    // get behavior of each core
   #ifdef _VEC
   int mask = getSIMDMask(&cinfo);
+  #elif defined MANYCORE_PREFETCH
+  int mask = getDebugMask(&cinfo);
   #else
   int mask = 0;
   #endif
@@ -123,6 +190,8 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
 
  // region based mask for scratchpad
 #ifdef _VEC
+  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+#elif defined MANYCORE_PREFETCH
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
 #endif
 
@@ -158,12 +227,15 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
     #if defined _VEC
       tril_corr_vec_1(mask, data, symmat, mean, stddev, m, n, start, end, cinfo.vtid, cinfo.vdim_x*cinfo.vdim_y, ptid, eps);
     #else
+      VECTOR_EPOCH(mask);
       corr_manycore_1(data, symmat, mean, stddev, m, n, start, end, ptid, eps);
     #endif
   }
 
   #ifdef _VEC
-  SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
+  SET_PREFETCH_MASK(NUM_REGIONS_K2, REGION_SIZE_K2, &start_barrier);
+  #elif defined MANYCORE_PREFETCH
+  SET_PREFETCH_MASK(NUM_REGIONS_K2,REGION_SIZE_K2,&start_barrier);
   #else
   pthread_barrier_wait(&start_barrier);
   #endif
@@ -186,6 +258,7 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
   #if defined _VEC
     tril_corr_vec_2(mask,data, symmat, mean, stddev, m, n, start, stride, cinfo.vtid, cinfo.vdim_x*cinfo.vdim_y, ptid);
   #else
+    VECTOR_EPOCH(mask);
     corr_manycore_2(data, symmat, mean, stddev, m, n, start, stride, ptid);
   #endif
 
