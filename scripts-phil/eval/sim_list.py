@@ -43,7 +43,7 @@ sim_configs = {
     'argv' : ['512']
   },
   'conv2d' : {
-    'vec'  : ALL_CONFIGS + [ 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL' ],
+    'vec'  : ALL_CONFIGS + [ 'VEC_4_SIMD_UNROLL', 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL' ],
     'argv' : ['2048']
   },
   'conv3d' : {
