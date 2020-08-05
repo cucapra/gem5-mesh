@@ -1,7 +1,7 @@
 BENCHNAME := atax
 default: $(BENCHNAME)
 
-SIZE ?= 128
+SIZE ?= 256
 OUT ?= $(EXEC)-vec0-$(SIZE)
 
 N_SPS ?= 64  # This benchmark expects 16 CPUs for now.

@@ -156,11 +156,12 @@ int main(int argc, char *argv[])
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
 
-  int fail = check_ax(a,_x,ax,nx,ny);
-  if (fail)
-    return 1;
+  int fail;
+  // fail = check_ax(a,_x,ax,nx,ny);
+  // if (fail)
+  //   return 1;
   
-  printf("[[mini SUCCESS]] for Ax\n");
+  // printf("[[mini SUCCESS]] for Ax\n");
   
   fail = check_atax(a, _x, _y, nx, ny);
   if (fail)
