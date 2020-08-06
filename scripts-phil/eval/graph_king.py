@@ -138,7 +138,7 @@ def plot_icache_energy(data, norm = False):
   if (norm):
     name = 'ICache_Energy_Norm'
     yaxis = 'Icache Energy relative to Baseline Manycore'
-  bar_plot(labels, sub_labels, values, yaxis, name, False)
+  bar_plot(labels, sub_labels, values, yaxis, name, norm)
 
 def plot_dmem_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'dmem-access-energy(nJ)')
