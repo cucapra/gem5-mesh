@@ -18,15 +18,42 @@ gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int 
   
   DTYPE temp1, temp2;
 
+  #ifdef MANYCORE_PREFETCH
+  int spadRegion = 0;
+  DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
+  int sp_a_offset, sp_b_offset, sp_x_offset;
+  #endif
+
   for (int i = start; i < end; i++) {
       
       temp1=tmp[i];
       temp2=y[i];
       
+      #ifdef MANYCORE_PREFETCH
+      for (int j = 0; j < n; j+=REGION_SIZE/3){
+        sp_a_offset = spadRegion * REGION_SIZE;
+        VPREFETCH_L(sp_a_offset, a + i*n+j, 0, REGION_SIZE/3,1);
+
+        sp_b_offset = sp_a_offset + (REGION_SIZE/3);
+        VPREFETCH_L(sp_b_offset, b + i*n+j, 0, REGION_SIZE/3,1);
+
+        sp_x_offset = sp_b_offset + (REGION_SIZE/3);        
+        VPREFETCH_L(sp_x_offset, x+j, 0, REGION_SIZE/3,1);
+
+        FRAME_START();
+        for(int jj=0; jj<REGION_SIZE/3; jj++){
+          temp1 += spAddr[sp_a_offset+jj]*spAddr[sp_x_offset+jj];
+          temp2 += spAddr[sp_b_offset+jj]*spAddr[sp_x_offset+jj];
+        }
+        REMEM();
+        spadRegion = (spadRegion + 1) % NUM_REGIONS;
+      }
+      #else
       for(int j=0; j<n; j++){
         temp1 += a[i*n+j] * x[j];
         temp2 += b[i*n+j] * x[j];
       }
+      #endif
       tmp[i]=temp1;
       y[i]=ALPHA*temp1 + BETA*temp2;
   }
@@ -76,6 +103,8 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
   // get behavior of each core
   #ifdef _VEC
   int mask = getSIMDMask(&cinfo);
+  #elif defined MANYCORE_PREFETCH
+  int mask = getDebugMask(&cinfo);
   #else
   int mask = 0;
   #endif
@@ -83,6 +112,8 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
   // region based mask for scratchpad
 #ifdef _VEC
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
+#elif defined MANYCORE_PREFETCH
+  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
 #endif
 
   // only let certain tids continue
@@ -93,8 +124,8 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
 
 #if defined _VEC
   tril_gesummv_vec(mask,a,b,x,tmp,y,n,start,end,ptid,cinfo.vtid);
-
 #else
+  VECTOR_EPOCH(mask);
   gesummv_manycore(a,b,x,tmp,y,n,start,end,ptid);
 #endif
 
