@@ -150,7 +150,12 @@ def plot_llc_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'llc-access-energy(nJ)')
   # normalize(sub_labels, values)
   add_average(labels, values)
-  bar_plot(labels, sub_labels, values, 'LLC Energy', 'LLC_Energy', False)  
+  bar_plot(labels, sub_labels, values, 'LLC Energy', 'LLC_Energy', False) 
+
+def plot_first_frame_rdy(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'frame-occupancy1')
+  add_average(labels, values)
+  bar_plot(labels, sub_labels, values, 'Next frame ready on remem fraction', 'NextFrameRdy', False) 
 
 # create specified barplot and write to file
 def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):

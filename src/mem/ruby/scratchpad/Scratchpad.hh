@@ -478,8 +478,24 @@ class Scratchpad : public AbstractController
     // Stats::Vector2d m_occupancy_offset;
 
     Stats::Vector m_occupancy_offset;
+    // int num_occupancy_samples;
+    typedef struct occupancy_info_t {
+      int num_samples;
+      std::vector<int> frameSums;
+      int regionElements;
 
-    int num_occupancy_samples;
+      occupancy_info_t(int numFrames, int regElements) {
+        num_samples = 0;
+        for (int i = 0; i < numFrames; i++) frameSums.push_back(0);
+        regionElements = regElements;
+      }
+
+      float frac_usage(int i) {
+        if (regionElements == 0) return 0.0f;
+        return (float)frameSums[i] / (float)regionElements;
+      }
+    } occupany_info_t;
+    std::vector<occupancy_info_t> m_occupancies;
 };
 
 #endif // MEM_RUBY_SCRATCHPAD_HH

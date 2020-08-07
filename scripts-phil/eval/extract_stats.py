@@ -381,6 +381,8 @@ graph_king.plot_icache_energy(all_data)
 graph_king.plot_icache_energy(all_data, True)
 graph_king.plot_dmem_energy(all_data)
 graph_king.plot_llc_energy(all_data)
+graph_king.plot_first_frame_rdy(all_data)
+
   
   
   

@@ -83,14 +83,17 @@ cpu_stats = OrderedDict([
   ('frame-occupancy1' ,  { 
     'regex' : re.compile('system.scratchpads[0-9]+.occupancy::1\s+' + floatRegexStr), 
     'ignore-zero' : True,
+    'upper-bound' : 1.000001,
   }),
   ('frame-occupancy2' ,  { 
     'regex' : re.compile('system.scratchpads[0-9]+.occupancy::2\s+' + floatRegexStr), 
     'ignore-zero' : True,
+    'upper-bound' : 1.000001,
   }),
   ('frame-occupancy3' ,  { 
     'regex' : re.compile('system.scratchpads[0-9]+.occupancy::3\s+' + floatRegexStr), 
     'ignore-zero' : True,
+    'upper-bound' : 1.000001,
   }),
   # ('frame-occupancy4' ,  { 
   #   'name' : '4', 

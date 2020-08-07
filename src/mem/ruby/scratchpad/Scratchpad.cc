@@ -1282,24 +1282,54 @@ Scratchpad::incConsumerFrame() {
 
 void
 Scratchpad::setupConfig(int csrId, RegVal csrVal) {
-  // finalize stats when devec, TODO doesn't work for multiple kernels
+  // // finalize stats when devec, TODO doesn't work for multiple kernels
+  // if (csrId == RiscvISA::MISCREG_FETCH) {
+  //   if (csrVal == 0) {
+  //     for (int i = 0; i < m_num_frame_cntrs; i++) {
+  //       m_occupancy_offset[i] = m_occupancy_offset[i].value() / num_occupancy_samples / getRegionElements();
+  //     }
+  //   }
+  //   else {
+  //     num_occupancy_samples = 0;
+  //   }
+  // }
+
+
+  if (csrId == RiscvISA::MISCREG_PREFETCH) {
+    DPRINTF(Frame, "prefetch reg config %#x # %d cnt %d\n", csrVal, getNumRegions(), getRegionElements());
+    resetAllRegionCntrs();
+  }
+
+    // can also probably store region size and number here rather than going to cpu
+
+
+  // finalize stats when devec
   if (csrId == RiscvISA::MISCREG_FETCH) {
     if (csrVal == 0) {
+
       for (int i = 0; i < m_num_frame_cntrs; i++) {
-        m_occupancy_offset[i] = m_occupancy_offset[i].value() / num_occupancy_samples / getRegionElements();
+        for (int j = 0; j < m_occupancies.size(); j++) {
+          m_occupancy_offset[i] += m_occupancies[j].frac_usage(i);
+        }
+      }
+
+      int totSamples = 0;
+      for (int j = 0; j < m_occupancies.size(); j++) {
+        totSamples += m_occupancies[j].num_samples;
+      }
+      if (totSamples > 0) {
+        for (int i = 0; i < m_num_frame_cntrs; i++) {
+          m_occupancy_offset[i] = m_occupancy_offset[i].value() / totSamples;
+        }
       }
     }
     else {
-      num_occupancy_samples = 0;
+      // num_occupancy_samples = 0;
+      m_occupancies.emplace_back(m_num_frame_cntrs, getRegionElements());
     }
   }
 
 
-  if (csrId != RiscvISA::MISCREG_PREFETCH) return;
-  DPRINTF(Frame, "prefetch reg config %#x # %d cnt %d\n", csrVal, getNumRegions(), getRegionElements());
-  resetAllRegionCntrs();
-
-  // can also probably store region size and number here rather than going to cpu
 }
 
 void
@@ -1358,17 +1388,21 @@ Scratchpad::getNumClosedFrames() {
 
 void
 Scratchpad::profileFrameCntrs() {
+  int oIdx = m_occupancies.size() - 1;
   for (int i = 1; i < m_num_frame_cntrs; i++) {
     // count from cpu frame, if region counter comes later then count as full
     int getClosedFrames = getNumClosedFrames();
     if (i < getClosedFrames) {
-      m_occupancy_offset[i] += getRegionElements();
+      // m_occupancy_offset[i] += getRegionElements();
+      m_occupancies[oIdx].frameSums[i] += getRegionElements();
     }
     else {
-      m_occupancy_offset[i] += m_region_cntrs[i - getClosedFrames];
+      // m_occupancy_offset[i] += m_region_cntrs[i - getClosedFrames];
+      m_occupancies[oIdx].frameSums[i] += m_region_cntrs[i - getClosedFrames];
     }
   }
-  num_occupancy_samples++;
+  // num_occupancy_samples++;
+  m_occupancies[oIdx].num_samples++;
 }
 
 void
