@@ -26,6 +26,7 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
    //prefetch variables
   int spadRegion = 0;
   int sp_a_offset, sp_b_offset, sp_x_offset, sp_y_offset, sp_tmp_offset;
+  // sp_a_offset=0;
 
   for (int i = start; i < end; i+=VEC_LEN) {
     ISSUE_VINST(hoist1_label);
@@ -41,6 +42,8 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
         VPREFETCH_L(sp_x_offset, x + j, d, REGION_SIZE/3,1); //load x
       }
 
+      // sp_a_offset += REGION_SIZE;
+      // if (sp_a_offset == NUM_REGIONS*REGION_SIZE) sp_a_offset=0;
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       ISSUE_VINST(dotprod_label);
     }
@@ -81,6 +84,7 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
   volatile int bh1,bh2,bh3;
   
   int spadRegion =0;
+  // int sp_offset = 0;
   DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
 
   int row_thread=start+vtid;
@@ -94,10 +98,12 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
     do {
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
+      // asm("trillium vissue_delim if_begin dotprod");
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(8)
       for(int jj=0; jj<REGION_SIZE/3; jj++){
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
+        // DTYPE *a_on_sp = spAddr + sp_offset + jj;
         DTYPE *b_on_sp = a_on_sp + REGION_SIZE/3;
         DTYPE *x_on_sp = b_on_sp + REGION_SIZE/3;
 
@@ -106,6 +112,9 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
+      // sp_offset += REGION_SIZE;
+      // if (sp_offset == NUM_REGIONS*REGION_SIZE) sp_offset=0;
+      // asm("trillium vissue_delim end at_jump");
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
