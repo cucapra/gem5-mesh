@@ -227,7 +227,7 @@ def plot_inet_stalls(data):
       i -= 1
     i += 1
 
-  line_plot(xaxes, values, labels, 'Frac Stalls', 'stalls')
+  line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', 'stalls')
 
 
   
@@ -283,7 +283,7 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
 
 # create specified lineplot and write to file
 # provide all y_axes and either a single or multiple x_axes
-def line_plot(x_axes, y_axes, labels, ylabel, title, duplicate_x=False):
+def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, duplicate_x=False):
   fig, ax = plt.subplots()
 
   for i in range(len(y_axes)):
@@ -293,14 +293,11 @@ def line_plot(x_axes, y_axes, labels, ylabel, title, duplicate_x=False):
       x_axis = x_axes[i]
 
     y_axis = y_axes[i]
-    print(x_axis)
-    print(y_axis)
     ax.plot(x_axis, y_axis)
 
+  ax.set_xlabel(xlabel)
   ax.set_ylabel(ylabel)
   ax.set_title(title)
-  # ax.set_xticks(x)
-  # ax.set_xticklabels(labels, rotation=45, ha='right')
   ax.legend(labels)
 
   fig.tight_layout()
