@@ -4,7 +4,7 @@
 
 # helper set of vec configs you can use in a benchmark (assuming it supports)
 ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD', 'VEC_16_SIMD']
-ALL_NEIL_CONFIGS = ['NO_VEC', 'VEC_LEN=4', 'VEC_LEN=16']
+ALL_NEIL_CONFIGS = ['NO_VEC', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_VEC', 'MANYCORE_PREFETCH' ]]
 
 
 # choose which programs to run via script and with what configs
@@ -56,7 +56,7 @@ sim_configs = {
   },
 
   'atax'   : {
-    'vec'  : ALL_NEIL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+    'vec'  : ALL_NEIL_CONFIGS,
     'argv' : ['2048'] # ['128']
   },
   'mvt'    : {
@@ -64,7 +64,7 @@ sim_configs = {
     'argv' : ['4096'] # ['128']
   },
   'gemm'   : {
-    'vec'  : ALL_NEIL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+    'vec'  : ALL_NEIL_CONFIGS,
     'argv' : ['256'] #['64']
   },
   'gesummv'   : {
@@ -72,15 +72,15 @@ sim_configs = {
     'argv' : ['4096'] #['128'] 
   },
   'corr'   : {
-    'vec'  : ALL_NEIL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+    'vec'  : ALL_NEIL_CONFIGS,
     'argv' : ['512'] #['64']
   },
   '2mm' : {
-    'vec'  : ALL_NEIL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+    'vec'  : ALL_NEIL_CONFIGS,
     'argv' : ['256'] #['64']
   },
   '3mm' : {
-    'vec'  : ALL_NEIL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+    'vec'  : ALL_NEIL_CONFIGS,
     'argv' : ['256'] #['32']
   },
 
