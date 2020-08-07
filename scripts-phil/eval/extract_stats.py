@@ -71,6 +71,9 @@ def is_hist_stat(v):
 def is_formula_stat(v):
   return ('formula' in v)
 
+def is_seperated(v):
+  return ('seperate-cores' in v and v['seperate-cores'])
+
 def find_max_buckets():
   return 20
   # max_buckets = 0
@@ -93,21 +96,24 @@ def parse_file(fileName, stat_info):
   for k, v in stat_info.items():
     stat_data[k] = {}
 
-    if (is_formula_stat(v)):
-      pass
-    elif (is_hist_stat(v)):
+    # if (is_formula_stat(v)):
+    #   pass
+    if (is_hist_stat(v)):
       stat_data[k]['buckets'] = {}
       stat_data[k]['avg'] = 0
+    elif (is_seperated(v)):
+      # relying on order to be 0-64
+      stat_data[k]['avg'] = []
     else:
       stat_data[k]['avg'] = 0
       stat_data[k]['count'] = 0
-  
+
   with open(fileName, 'r') as fin:
     # foreach line search for each regex
     for line in fin:
       for k, v in stat_info.items():
         if (is_formula_stat(v)):
-          break
+          continue
 
         match = v['regex'].search(line)
         if (match):
@@ -138,24 +144,25 @@ def parse_file(fileName, stat_info):
             arith_val = float(val)
           
           if ((not (ignore_zero and (arith_val == 0))) and (not has_upper_bound or arith_val < upper_bound)):
-              if (is_hist_stat(v)):
-                if (not bucket_range in stat_data[k]['buckets']):
-                  stat_data[k]['buckets'][bucket_range] = 0
-                stat_data[k]['buckets'][bucket_range] += arith_val
+            if (is_hist_stat(v)):
+              if (not bucket_range in stat_data[k]['buckets']):
+                stat_data[k]['buckets'][bucket_range] = 0
+              stat_data[k]['buckets'][bucket_range] += arith_val
+            elif (is_seperated(v)):
+              stat_data[k]['avg'].append(arith_val)
+            else:
+              if ('max' in v and v['max']):
+                if (arith_val > stat_data[k]['avg']):
+                  stat_data[k]['avg'] = arith_val
               else:
-                if ('max' in v and v['max']):
-                  if (arith_val > stat_data[k]['avg']):
-                    stat_data[k]['avg'] = arith_val
-                else:
-                  stat_data[k]['avg'] += arith_val
-                  stat_data[k]['count'] += 1
-          
-          # no reason to search for other values
-          #break
+                stat_data[k]['avg'] += arith_val
+                stat_data[k]['count'] += 1
           
   # get avg or just keep as sum
   for k, v in stat_info.items():
     if (is_formula_stat(v)):
+      continue
+    if (is_seperated(v)):
       continue
 
     average = True
@@ -175,11 +182,27 @@ def parse_file(fileName, stat_info):
         # just use read energy for all accesses
         stat_data[k]['avg'] = get_energy.get_read_energy(v['energy'], stat_data[k]['avg'])
 
+  # apply any formulas
   for k, v in stat_info.items():
     if (is_formula_stat(v)):
-      stat_data[k]['avg'] = 0
+
+      # stat_data[k]['avg'] = 0
+
+      # get list of data from sub-stats
+      formula_data = []
       for s in v['formula']:
-        stat_data[k]['avg'] += stat_data[s]['avg']
+        formula_data.append(stat_data[s]['avg'])
+
+      # apply formula
+      if (is_seperated(v)):
+        for i in range(len(formula_data[0])):
+          s_args = []
+          for j in range(len(v['formula'])):
+            s_args.append(formula_data[j][i])
+          stat_data[k]['avg'].append(v['formula_op'](s_args))
+
+      else:
+        stat_data[k]['avg'] = v['formula_op'](formula_data)
 
   return stat_data
 
@@ -304,16 +327,19 @@ for data in all_data:
   for k in keys:
     if (k == '_path_'):
       continue
+
     # if (not can_normal_write(v)):
     #   for b,d in d[k]['buckets'].items():
     #     print('\t{0}::{1}: {2}'.format(k, b, str(d)))
     # else:
     if (k in data):
-      dat = data[k]
-    else:
-      dat = 0
-
-    print('\t{0}: {1}'.format(k, dat))
+      dat = ''
+      if (isinstance(data[k], list)):
+        for d in data[k]:
+          dat += '{} '.format(d)
+      else:
+        dat = data[k]
+      print('\t{0}: {1}'.format(k, dat))
     
   # 
   # serialize parameters and data into string row by row
@@ -327,8 +353,13 @@ for data in all_data:
   for k in keys:
     # if (can_normal_write(v)):
 
+    dat = 0
     if (k in data):
-      dat = data[k]
+      # dont handle lists
+      if (isinstance(data[k], list)):
+        dat = 0
+      else:
+        dat = data[k]
     else:
       dat = 0
 
@@ -384,5 +415,5 @@ graph_king.plot_llc_energy(all_data)
 graph_king.plot_first_frame_rdy(all_data)
 graph_king.plot_cpi(all_data)
   
-  
+
 
