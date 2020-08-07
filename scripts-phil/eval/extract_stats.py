@@ -414,6 +414,7 @@ graph_king.plot_dmem_energy(all_data)
 graph_king.plot_llc_energy(all_data)
 graph_king.plot_first_frame_rdy(all_data)
 graph_king.plot_cpi(all_data)
+graph_king.plot_inet_stalls(all_data)
   
 
 

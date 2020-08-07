@@ -96,3 +96,10 @@ def get_mesh_dist(config_name, core_id, num_cpus=64):
 
   return -1
 
+# get a sequence of hops based on core id in order
+def get_mesh_dist_sequence(config_name, num_cpus=64):
+  seq = []
+  for i in range(num_cpus):
+    seq.append(get_mesh_dist(config_name, i, num_cpus))
+  return seq
+

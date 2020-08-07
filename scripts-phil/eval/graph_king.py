@@ -10,6 +10,24 @@ import numpy as np
 from math import floor, ceil
 from copy import deepcopy
 
+from layout_helper import get_mesh_dist_sequence
+
+# extract all data for a specific field across all benchmarks
+# only get the yaxis data, assumed xaxis is trivial to get (i.e., arange or core_id)
+def group_line_data(data, desired_field):
+  labels = []
+  configs = []
+  values = []
+
+  for row in data:
+    if (not desired_field in row):
+      continue
+    labels.append('{}_{}'.format(row['prog'], row['config']))
+    configs.append(row['config'])
+    values.append(row[desired_field])
+
+  return (labels, configs, values)
+
 # group together similar series and get preferred field
 # expects 3 meta fields(prog, config, meta) along with desired_field
 def group_bar_data(data, desired_field):
@@ -162,6 +180,59 @@ def plot_cpi(data):
   add_average(labels, values)
   bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
 
+def plot_inet_stalls(data):
+  (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep')
+
+  # figure out xaxis (#hops) depending on config. 
+  # remove certain values if scalar or inactive core
+  v4_hops = get_mesh_dist_sequence('V4')
+  v16_hops = get_mesh_dist_sequence('V16')
+
+  # average together series with the same number of hops
+
+  # print(v4_hops)
+  # print(v16_hops)
+  xaxes = []
+
+  i = 0
+  while (i < len(configs)):
+    if (configs[i] == 'V4' or configs[i] == 'V16'):
+      hop_avgs = []
+      hop_cnts = []
+      max_hops = 7 if configs[i] == 'V16' else 3
+      for j in range(1, max_hops+1):
+        hop_avgs.append(0)
+        hop_cnts.append(0)
+
+      xaxes.append(np.arange(1, max_hops+1))
+
+      hop_list = v16_hops if (configs[i] == 'V16') else v4_hops
+      for j in range(len(hop_list)):
+        # avg >0
+        hops = hop_list[j]
+        if (hops > 0):
+          hop_avgs[hops - 1] += values[i][j]
+          hop_cnts[hops - 1] += 1
+
+      for j in range(len(hop_avgs)):
+        hop_avgs[j] = float(hop_avgs[j]) / float(hop_cnts[j])
+
+      values[i] = hop_avgs
+
+    # delete non vector series
+    else:
+      labels.pop(i)
+      configs.pop(i)
+      values.pop(i)
+      i -= 1
+    i += 1
+
+  line_plot(xaxes, values, labels, 'Frac Stalls', 'stalls')
+
+
+  
+
+
 # create specified barplot and write to file
 def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
   # labels = ['G1', 'G2', 'G3', 'G4', 'G5']
@@ -207,5 +278,31 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
 
   fig.tight_layout()
   # plt.show()
+
+  plt.savefig(str(title) + '.png')
+
+# create specified lineplot and write to file
+# provide all y_axes and either a single or multiple x_axes
+def line_plot(x_axes, y_axes, labels, ylabel, title, duplicate_x=False):
+  fig, ax = plt.subplots()
+
+  for i in range(len(y_axes)):
+    if (duplicate_x):
+      x_axis = x_axes
+    else:
+      x_axis = x_axes[i]
+
+    y_axis = y_axes[i]
+    print(x_axis)
+    print(y_axis)
+    ax.plot(x_axis, y_axis)
+
+  ax.set_ylabel(ylabel)
+  ax.set_title(title)
+  # ax.set_xticks(x)
+  # ax.set_xticklabels(labels, rotation=45, ha='right')
+  ax.legend(labels)
+
+  fig.tight_layout()
 
   plt.savefig(str(title) + '.png')
