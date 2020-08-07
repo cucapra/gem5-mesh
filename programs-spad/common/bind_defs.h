@@ -144,6 +144,10 @@
     [mem] "r" (memAddr),                                              \
     [off] "i" ((count << 2) | config))
 
+#define VPREFETCH_LR(sp, memIdx, core, len, style)  \
+  VPREFETCH_L(sp, memIdx, core, len, style);        \
+  VPREFETCH_R(sp, memIdx, core, len, style)
+
 #define LWSPEC(dest, spadAddr, offset)                    \
   asm volatile (                                          \
     ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"   \

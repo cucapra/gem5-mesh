@@ -20,12 +20,6 @@
 
 #ifdef USE_VEC
 
-// TODO put this in header
-#define VPREFETCH_LR(sp, memIdx, core, len, style)  \
-  VPREFETCH_L(sp, memIdx, core, len, style);        \
-  VPREFETCH_R(sp, memIdx, core, len, style)
-
-
 inline void prefetch_step1_frame_i0(DTYPE *fict, int t, int *sp) {
   // pad out to region size (3). also only fetch one element
   for (int core = 0; core < VECTOR_LEN; core++) {
@@ -136,7 +130,8 @@ void tril_fdtd_step1(int mask,
       STORE_NOACK(out, ey + idx, 0);
       idx += VECTOR_LEN;
       sp += STEP1_REGION_SIZE;
-      if (sp == POST_FRAME_WORD) sp = 0;
+      sp = sp % POST_FRAME_WORD;
+      // if (sp == POST_FRAME_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
 
     } while(BH);
@@ -153,7 +148,8 @@ void tril_fdtd_step1(int mask,
       STORE_NOACK(out, ey + idx, 0);
       idx += VECTOR_LEN;
       sp += STEP1_REGION_SIZE;
-      if (sp == POST_FRAME_WORD) sp = 0;
+      sp = sp % POST_FRAME_WORD;
+      // if (sp == POST_FRAME_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
 
     } while(BH);
@@ -289,7 +285,8 @@ void tril_fdtd_step2(int mask,
       PRED_EQ(gt, gt);
       j += VECTOR_LEN;
       sp += STEP2_REGION_SIZE;
-      if (sp == POST_FRAME_WORD) sp = 0;
+      sp = sp % POST_FRAME_WORD;
+      // if (sp == POST_FRAME_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
 
     } while(BH);
@@ -417,7 +414,8 @@ void tril_fdtd_step3(int mask,
       STORE_NOACK(out, hz + idx, 0);
       idx += VECTOR_LEN;
       sp += STEP3_REGION_SIZE;
-      if (sp == POST_FRAME_WORD) sp = 0;
+      sp = sp % POST_FRAME_WORD;
+      // if (sp == POST_FRAME_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
 
     } while(BH);

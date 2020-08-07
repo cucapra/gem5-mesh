@@ -32,11 +32,11 @@ sim_configs = {
   },
   'syrk'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['512']
+    'argv' : ['256']
   },
   'syr2k'  : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['512']
+    'argv' : ['256']
   },
   'covar'   : {
     'vec'  : ALL_CONFIGS,

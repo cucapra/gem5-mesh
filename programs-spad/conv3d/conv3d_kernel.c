@@ -39,11 +39,6 @@
 // group parallel across i
 // j along for the ride?
 
-#define VPREFETCH_LR(sp, memIdx, core, len, style)  \
-  VPREFETCH_L(sp, memIdx, core, len, style);        \
-  VPREFETCH_R(sp, memIdx, core, len, style)
-
-
 inline void prefetch_horiz_frame(DTYPE *a, int i, int j, int k, int NJ, int NK, int *sp) {
   // prefetch all 15 values required for computation
             // a[IDX(i-1, j-1, k-1, NJ, NK)], a[IDX(i-1, j-1, k+1, NJ, NK)], 

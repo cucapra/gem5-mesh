@@ -157,6 +157,11 @@ def plot_first_frame_rdy(data):
   add_average(labels, values)
   bar_plot(labels, sub_labels, values, 'Next frame ready on remem fraction', 'NextFrameRdy', False) 
 
+def plot_cpi(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'active-cpi')
+  add_average(labels, values)
+  bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
+
 # create specified barplot and write to file
 def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
   # labels = ['G1', 'G2', 'G3', 'G4', 'G5']

@@ -81,7 +81,7 @@ void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int pti
   int sp = 0;
   
   for (int j = start; j < end; j+=VECTOR_LEN) {
-    // do initial prefetching for a small amount of first row
+    // do initial prefetching for a small amount
     for (int i = 0; i < INIT_FRAMES*Q_PREFETCH_LEN; i+=Q_PREFETCH_LEN) {
       prefetch_s_frame(a, r, i, j, &sp, NY);
     }
