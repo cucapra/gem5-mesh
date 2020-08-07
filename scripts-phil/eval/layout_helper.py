@@ -64,7 +64,7 @@ def loc_contained(loc, base, dim):
     
 
 # give how far this core is from scalar in terms of hops
-def get_mesh_dist(config_name, num_cpus, core_id):
+def get_mesh_dist(config_name, core_id, num_cpus=64):
   # unflatten
   grid_dim = [ int(sqrt(num_cpus)), int(sqrt(num_cpus)) ]
   core_loc = [ core_id % grid_dim[0], core_id / grid_dim[0] ]
