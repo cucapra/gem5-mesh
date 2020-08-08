@@ -58,11 +58,41 @@ def parse_inst_cost_file(file_name, target_node):
     #   VM
     #   D$
     #   CTS - i assume this is counters
-    data[inst_key] = i['PC'] + i['IF_Rest'] + i['DEC'] + i['ID_Rest'] + \
-      i['IS'] + i['LS'] + (i['MUL'] * i['Ex_Cycles']) + i['ALU'] + i['EX_Rest'] + \
-      i['WB'] + i['CSR'] + i['Rest']
+    # # i['PC'] + i['IF_Rest'] + \
+    # data[inst_key] = \
+    #   i['PC'] + i['IF_Rest'] + \
+    #   i['DEC'] + i['ID_Rest'] + \
+    #   i['IS'] + \
+    #   i['LS'] + (i['MUL'] * i['Ex_Cycles']) + i['ALU'] + i['EX_Rest'] + \
+    #   i['WB'] + i['CSR'] + i['Rest']
 
   return data
+
+def update_inst_cost():
+  data = cost_dicts['inst']
+  for inst_key, i in data['Costs'].items():
+    # take relevant fields to calculate total energy cost
+    # Add most fields. For mul and div that have multiple cycle executions 
+    #   incorporate by increasing mul cost by that factor
+    # excluding the following
+    #   I$
+    #   VM
+    #   D$
+    #   CTS - i assume this is counters
+    # # i['PC'] + i['IF_Rest'] + \
+    data[inst_key] = \
+      i['DEC'] + i['ID_Rest'] + \
+      i['IS'] + \
+      i['LS'] + (i['MUL'] * i['Ex_Cycles']) + i['ALU'] + i['EX_Rest'] + \
+      i['WB'] + i['CSR'] + i['Rest']
+
+def update_icache_cost():
+  # bake in energy from fetch stage into this icache access
+  # just take IntALU cost pc and if cost, 
+  # these dont vary much between instruction types (div a lil low but its weird)
+  cost_dicts['icache']['read_energy'] += \
+    cost_dicts['inst']['Costs']['IntAlu']['PC'] + \
+    cost_dicts['inst']['Costs']['IntAlu']['IF_Rest']
 
 # return dict containing info about memory cost file
 def parse_memory_file(file_name):
@@ -162,10 +192,15 @@ def define_options(parser):
 
 # do parsing into member/global variables
 def setup_energy_model(args):
+  cost_dicts['inst'] = parse_inst_cost_file(args.inst_cost_file, args.used_node)
   cost_dicts['icache'] = parse_memory_file(args.icache_file)
   cost_dicts['dmem'] = parse_memory_file(args.dmem_file)
   cost_dicts['llc'] = parse_memory_file(args.llc_file)
-  cost_dicts['inst'] = parse_inst_cost_file(args.inst_cost_file, args.used_node)
+
+  # figure out totals
+  update_inst_cost()
+  update_icache_cost()
+
 
   # TODO DRAM energy. pj/bit = 7
   # Access prob 64bytes (line) * 8bits/byte * 7pj/bit = 3584pJ
