@@ -6,11 +6,14 @@ import matplotlib as mpl
 # switch away from display backend to Agg backend
 mpl.use('Agg')
 import matplotlib.pyplot as plt
+from cycler import cycler
 import numpy as np
 from math import floor, ceil
 from copy import deepcopy
 
 from layout_helper import get_mesh_dist_sequence
+
+default_prop_cycle = mpl.rcParams['axes.prop_cycle']
 
 # extract all data for a specific field across all benchmarks
 # only get the yaxis data, assumed xaxis is trivial to get (i.e., arange or core_id)
@@ -27,6 +30,65 @@ def group_line_data(data, desired_field):
     values.append(row[desired_field])
 
   return (labels, configs, values)
+
+def avg_by_hops(labels, configs, values, include_v4, include_v16):
+  # figure out xaxis (#hops) depending on config. 
+  # remove certain values if scalar or inactive core
+  v4_hops = get_mesh_dist_sequence('V4')
+  v16_hops = get_mesh_dist_sequence('V16')
+
+  # average together series with the same number of hops
+
+  # print(v4_hops)
+  # print(v16_hops)
+  xaxes = []
+
+  v4_configs = [
+    'V4',
+    'VEC_4_SIMD_VERTICAL',
+    'VEC_4_REUSE_VERTICAL',
+    'VEC_4_SIMD_UNROLL'
+  ]
+  v16_configs = [
+    'V16'
+  ]
+
+  i = 0
+  while (i < len(configs)):
+    if (((configs[i] in v4_configs) and include_v4) or
+        ((configs[i] in v16_configs) and include_v16)):
+      hop_avgs = []
+      hop_cnts = []
+      max_hops = 7 if configs[i] in v16_configs else 3
+      for j in range(1, max_hops+1):
+        hop_avgs.append(0)
+        hop_cnts.append(0)
+
+      xaxes.append(np.arange(1, max_hops+1))
+
+      hop_list = v16_hops if (configs[i] in v16_configs) else v4_hops
+      for j in range(len(hop_list)):
+        # avg >0
+        hops = hop_list[j]
+        if (hops > 0):
+          hop_avgs[hops - 1] += values[i][j]
+          hop_cnts[hops - 1] += 1
+
+      for j in range(len(hop_avgs)):
+        hop_avgs[j] = float(hop_avgs[j]) / float(hop_cnts[j])
+
+      values[i] = hop_avgs
+
+    # delete non vector series
+    else:
+      labels.pop(i)
+      configs.pop(i)
+      values.pop(i)
+      i -= 1
+    i += 1
+
+  return (labels, configs, values, xaxes)
+
 
 # group together similar series and get preferred field
 # expects 3 meta fields(prog, config, meta) along with desired_field
@@ -180,54 +242,11 @@ def plot_cpi(data):
   add_average(labels, values)
   bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
 
-def plot_inet_stalls(data):
+def plot_inet_stalls(data, includeV4, includeV16):
   (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep')
-
-  # figure out xaxis (#hops) depending on config. 
-  # remove certain values if scalar or inactive core
-  v4_hops = get_mesh_dist_sequence('V4')
-  v16_hops = get_mesh_dist_sequence('V16')
-
-  # average together series with the same number of hops
-
-  # print(v4_hops)
-  # print(v16_hops)
-  xaxes = []
-
-  i = 0
-  while (i < len(configs)):
-    if (configs[i] == 'V4' or configs[i] == 'V16'):
-      hop_avgs = []
-      hop_cnts = []
-      max_hops = 7 if configs[i] == 'V16' else 3
-      for j in range(1, max_hops+1):
-        hop_avgs.append(0)
-        hop_cnts.append(0)
-
-      xaxes.append(np.arange(1, max_hops+1))
-
-      hop_list = v16_hops if (configs[i] == 'V16') else v4_hops
-      for j in range(len(hop_list)):
-        # avg >0
-        hops = hop_list[j]
-        if (hops > 0):
-          hop_avgs[hops - 1] += values[i][j]
-          hop_cnts[hops - 1] += 1
-
-      for j in range(len(hop_avgs)):
-        hop_avgs[j] = float(hop_avgs[j]) / float(hop_cnts[j])
-
-      values[i] = hop_avgs
-
-    # delete non vector series
-    else:
-      labels.pop(i)
-      configs.pop(i)
-      values.pop(i)
-      i -= 1
-    i += 1
-
-  line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', 'stalls')
+  (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, includeV4, includeV16)
+  title = 'Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
+  line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', title)
 
 
   
@@ -235,6 +254,7 @@ def plot_inet_stalls(data):
 
 # create specified barplot and write to file
 def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
+  mpl.rcParams['axes.prop_cycle'] = default_prop_cycle
   # labels = ['G1', 'G2', 'G3', 'G4', 'G5']
   # men_means = [20, 34, 30, 35, 27]
   # women_means = [25, 32, 34, 20, 25]
@@ -284,6 +304,7 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
 # create specified lineplot and write to file
 # provide all y_axes and either a single or multiple x_axes
 def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, duplicate_x=False):
+  mpl.rcParams['axes.prop_cycle'] = cycler(linestyle=['-', '--', '-.']) * default_prop_cycle
   fig, ax = plt.subplots()
 
   for i in range(len(y_axes)):
