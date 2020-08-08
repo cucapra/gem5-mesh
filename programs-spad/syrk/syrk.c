@@ -30,6 +30,7 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
       DTYPE c_ij = c[i * N + j] * beta;
       // c[i * N + j] *= beta;
 
+      #pragma GCC unroll(16)
       for (int k = 0; k < M; k++) {
         // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
         c_ij += alpha * a[i * M + k] * a[j * M + k];

@@ -28,6 +28,7 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
   for (int j = start; j < end; j++) {
     // s[j] = 0.0f;
     DTYPE s_local = 0.0f;
+    #pragma GCC unroll(16)
     for (int i = 0; i < NX; i++) {
       // s[j] += a[i * NY + j] * r[i];
       s_local += a[i * NY + j] * r[i];
@@ -50,6 +51,7 @@ void compute_q_manycore_baseline(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, i
   for (int i = start; i < end; i++) {
     // q[i] = 0.0f;
     DTYPE q_local = 0.0f;
+    #pragma GCC unroll(16)
     for (int j = 0; j < NY; j++) {
       // q[i] += a[i * NY + j] * p[j];
       q_local += a[i * NY + j] * p[j];

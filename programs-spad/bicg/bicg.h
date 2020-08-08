@@ -24,18 +24,20 @@
 
 // prefetch sizing
 #ifdef USE_VEC
-// number of 32bits words per frame
-#define FRAME_SIZE 2
-// number of frames
-#define NUM_FRAMES 16
-// scratchpad offset after prefetch frames
-#define POST_FRAME_WORD (FRAME_SIZE * NUM_FRAMES)
+
 // number of frames to get ahead
 #define INIT_FRAMES 2
 #define INIT_SPM_OFFSET (INIT_FRAMES * FRAME_SIZE)
 // lenght of a prefetch
-#define Q_PREFETCH_LEN 1
+#define Q_PREFETCH_LEN 16
 #define S_PREFETCH_LEN VECTOR_LEN
+
+// number of 32bits words per frame
+#define FRAME_SIZE 2*Q_PREFETCH_LEN
+// number of frames
+#define NUM_FRAMES 8
+// scratchpad offset after prefetch frames
+#define POST_FRAME_WORD (FRAME_SIZE * NUM_FRAMES)
 #endif
 
 // grid dim xy assuming always a square
