@@ -32,17 +32,17 @@
 #define POST_FRAME_WORD 256
 
 // number of frames to get ahead
-#define INIT_FRAMES 4
+#define INIT_FRAMES 1
 
 // prefetch config for inner kernel
-#define INNER_FRAME_SIZE 2
+#define INNER_PREFETCH_LEN 16
+#define INNER_FRAME_SIZE (2*INNER_PREFETCH_LEN)
 #define NUM_FRAMES (POST_FRAME_WORD / INNER_FRAME_SIZE)
-#define INNER_PREFETCH_LEN 1
-#define INIT_OFFSET (INIT_FRAMES * 1)
+#define INIT_OFFSET (INIT_FRAMES * INNER_PREFETCH_LEN)
 
 // frame size to get the c to accumulate on
 #define OUTER_FRAME_SIZE INNER_FRAME_SIZE
-#define OUTER_PREFETCH_LEN 1
+#define OUTER_PREFETCH_LEN INNER_PREFETCH_LEN
 #endif
 
 // grid dim xy assuming always a square

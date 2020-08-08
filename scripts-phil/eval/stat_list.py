@@ -83,14 +83,17 @@ cpu_stats = OrderedDict([
   ('frame-occupancy1' ,  { 
     'regex' : re.compile('system.scratchpads[0-9]+.occupancy::1\s+' + floatRegexStr), 
     'ignore-zero' : True,
+    'upper-bound' : 1.000001,
   }),
   ('frame-occupancy2' ,  { 
     'regex' : re.compile('system.scratchpads[0-9]+.occupancy::2\s+' + floatRegexStr), 
     'ignore-zero' : True,
+    'upper-bound' : 1.000001,
   }),
   ('frame-occupancy3' ,  { 
     'regex' : re.compile('system.scratchpads[0-9]+.occupancy::3\s+' + floatRegexStr), 
     'ignore-zero' : True,
+    'upper-bound' : 1.000001,
   }),
   # ('frame-occupancy4' ,  { 
   #   'name' : '4', 
@@ -126,6 +129,21 @@ cpu_stats = OrderedDict([
   }),
   ('energy-sum(nJ)' ,  { 
     'formula' : ['inst-cnts-energy(nJ)', 'icache-access-energy(nJ)', 'dmem-access-energy(nJ)', 'llc-access-energy(nJ)'],
+    'formula_op' : lambda args: args[0] + args[1] + args[2] + args[3] 
+  }),
+
+  ('mesh_stall_sep' , {
+    'regex' : re.compile('system.cpu[0-9]+.vector.mesh_input_stalls\s*' + intRegexStr), 
+    'seperate-cores' : True,
+  }),
+  ('vec_cycles_sep' , {
+    'regex' : re.compile('system.cpu[0-9]+.vector.vec_cycles\s*' + intRegexStr), 
+    'seperate-cores' : True,
+  }),
+  ('frac_mesh_stall_sep' , {
+    'formula' : ['mesh_stall_sep', 'vec_cycles_sep'],
+    'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
+    'seperate-cores' : True,
   }),
 
 ])
@@ -133,6 +151,7 @@ cpu_stats = OrderedDict([
 
 gpu_stats = OrderedDict([ 
   ('cycles' , { 
-    'regex' : re.compile('system.cpu2.CUs0.num_total_cycles\s*' + intRegexStr),
+    'regex' : re.compile('system.cpu2.CUs[0-9]+.num_total_cycles\s*' + intRegexStr),
+    'max'   : True,
   }), 
 ])

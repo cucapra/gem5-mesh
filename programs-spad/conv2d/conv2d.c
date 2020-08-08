@@ -145,6 +145,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   rated_size = ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1) );
   #elif defined(VERTICAL_LOADS)
   rated_size = ( VECTOR_LEN * CORE_STEP );
+  #elif defined(UNROLL)
+  rated_size = ( VECTOR_LEN * UNROLL );
   #elif defined(VECTOR_LEN)
   rated_size = ( VECTOR_LEN );
   #else

@@ -2,9 +2,10 @@ BENCHNAME := conv2d
 default: $(BENCHNAME)
 
 # run small sim for test
-# PROB_SIZE := 96
+PROB_SIZE := 40
 N_SPS ?= 64
-# HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
+EXTRA_FLAGS ?= -DVEC_4_SIMD_UNROLL
+HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
 # GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Mesh
 
 # Build the kernel with trilliasm.

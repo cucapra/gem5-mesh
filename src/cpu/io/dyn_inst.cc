@@ -39,12 +39,17 @@ IODynInst::IODynInst(const StaticInstPtr& static_inst,
 { 
       master_info.fill(0);
 
+      m_dest_reg_idx.fill(nullptr);
+
 }
 
 IODynInst::~IODynInst()
 {
   if (mem_data_p)
     delete[] mem_data_p;
+
+  static_inst_p = nullptr;
+  mem_req_p = nullptr;
 }
 
 Fault

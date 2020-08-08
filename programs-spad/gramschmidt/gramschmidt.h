@@ -14,26 +14,30 @@
 #define USE_VEC 1
 #endif
 
+// vector grouping directives
+#if defined(VEC_4_SIMD)
+#define VECTOR_LEN 4
+#define INIT_FRAMES 1
+#endif
+#if defined(VEC_16_SIMD)
+#define VECTOR_LEN 16
+// TODO 0 frames
+#define INIT_FRAMES 0
+#endif
+
 // prefetch sizings
 #ifdef USE_VEC
 #define POST_FRAME_WORD_NORM 128
 #define FRAME_SIZE_NORM 1
 #define NUM_FRAMES_NORM (POST_FRAME_WORD_NORM / FRAME_SIZE_NORM)
-#define INIT_FRAMES_NORM 1
+#define INIT_FRAMES_NORM INIT_FRAMES
 
 #define POST_FRAME_WORD_SUB 128
 #define FRAME_SIZE_SUB 2
 #define NUM_FRAMES_SUB (POST_FRAME_WORD_SUB / FRAME_SIZE_SUB)
-#define INIT_FRAMES_SUB 1
+#define INIT_FRAMES_SUB INIT_FRAMES
 #endif
 
-// vector grouping directives
-#if defined(VEC_4_SIMD)
-#define VECTOR_LEN 4
-#endif
-#if defined(VEC_16_SIMD)
-#define VECTOR_LEN 16
-#endif
 
 // grid dim xy assuming always a square
 #if _N_SPS==16

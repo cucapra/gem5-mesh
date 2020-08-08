@@ -3,8 +3,8 @@
 '''
 
 # helper set of vec configs you can use in a benchmark (assuming it supports)
-ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD']
-ALL_NEIL_CONFIGS = ['NO_VEC', 'VEC_LEN=4']
+ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD', 'VEC_16_SIMD']
+ALL_NEIL_CONFIGS = ['NO_VEC', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_VEC', 'MANYCORE_PREFETCH' ]]
 
 
 # choose which programs to run via script and with what configs
@@ -28,22 +28,22 @@ sim_configs = {
   },
   'gram'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['640']
+    'argv' : ['320']
   },
   'syrk'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['512']
+    'argv' : ['256']
   },
   'syr2k'  : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['512']
+    'argv' : ['256']
   },
   'covar'   : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['1024']
+    'argv' : ['512']
   },
   'conv2d' : {
-    'vec'  : ['NO_VEC', 'VEC_4_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL'],
+    'vec'  : ALL_CONFIGS + [ 'VEC_4_SIMD_UNROLL', 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL' ],
     'argv' : ['2048']
   },
   'conv3d' : {
@@ -52,7 +52,7 @@ sim_configs = {
   },
   'fdtd' : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['1024', '250']
+    'argv' : ['512', '60']
   },
 
   'atax'   : {
@@ -73,7 +73,7 @@ sim_configs = {
   },
   'corr'   : {
     'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['1024'] #['64']
+    'argv' : ['512'] #['64']
   },
   '2mm' : {
     'vec'  : ALL_NEIL_CONFIGS,
@@ -96,6 +96,8 @@ def abbreviate_config(config):
     return 'NV'
   elif (config == 'REUSE'):
     return 'R'
+  elif (config == 'MANYCORE_PREFETCH'):
+    return 'PF'
   elif (config[0:11] == 'VECTOR_LEN='):
     return a[11:len(a)]
   elif (config[0:3] == 'PF='):

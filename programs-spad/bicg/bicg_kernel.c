@@ -21,6 +21,7 @@
 // prefetch a and r
 inline void prefetch_s_frame(DTYPE *a, DTYPE *r, int i, int j, int *sp, int NY) {
   // don't think need prefetch_R here?
+  // for (int i = 0 )
   VPREFETCH_L(*sp, &a[i * NY + j], 0, S_PREFETCH_LEN, HORIZONTAL);
   // VPREFETCH_R(*sp, &a[i * NY + j], 0, S_PREFETCH_LEN, HORIZONTAL);
   // printf("horiz pf i %d j %d idx %d sp %d val %f %f %f %f\n", i, j, i * NY + j, *sp, a[i* NY + j], a[i*NY+j+1], a[i*NY+j+2], a[i*NY+j+3]);
@@ -79,29 +80,24 @@ void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int pti
   #ifdef SCALAR_CORE
   int sp = 0;
   
-  // do initial prefetching for a small amount of first row
-  for (int i = 0; i < INIT_FRAMES*Q_PREFETCH_LEN; i+=Q_PREFETCH_LEN) {
-    prefetch_s_frame(a, r, i, start, &sp, NY);
-  }
-
-  // do modified first row that has already been prefetch
-  for (int i = INIT_FRAMES*Q_PREFETCH_LEN; i < NX; i+=Q_PREFETCH_LEN) {
-    prefetch_s_frame(a, r, i, start, &sp, NY);
-    ISSUE_VINST(vec_body_label);
-  }
-
-  // steady state
-  for (int j = start + VECTOR_LEN; j < end; j+=VECTOR_LEN) {
-    for (int i = 0; i < NX; i+=Q_PREFETCH_LEN) {
+  for (int j = start; j < end; j+=VECTOR_LEN) {
+    // do initial prefetching for a small amount
+    for (int i = 0; i < INIT_FRAMES*Q_PREFETCH_LEN; i+=Q_PREFETCH_LEN) {
       prefetch_s_frame(a, r, i, j, &sp, NY);
+    }
+
+    // steady state
+    for (int i = INIT_FRAMES*Q_PREFETCH_LEN; i < NX; i+=Q_PREFETCH_LEN) {
+      prefetch_s_frame(a, r, i, j, &sp, NY);
+      ISSUE_VINST(vec_body_label);
+    }
+
+    // draining. do the last vissue corresponding to the initial round of prefetch
+    for (int i = NX - INIT_FRAMES*Q_PREFETCH_LEN; i < NX; i+=Q_PREFETCH_LEN) {
       ISSUE_VINST(vec_body_label);
     }
   }
 
-  // draining. do the last vissue corresponding to the initial round of prefetch
-  for (int i = NX - INIT_FRAMES*Q_PREFETCH_LEN; i < NX; i+=Q_PREFETCH_LEN) {
-    ISSUE_VINST(vec_body_label);
-  }
 #endif
 
 #ifdef VECTOR_CORE
@@ -230,29 +226,24 @@ void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int pti
 
   // TODO merge INIT_FRAMES*Q_PREFEATCH_LEN
 
-  // do initial prefetching for a small amount of first row
-  for (int j = 0; j < INIT_FRAMES*Q_PREFETCH_LEN; j+=Q_PREFETCH_LEN) {
-    prefetch_q_frame(a, p, start, j, &sp, NY);
-  }
-
-  // do modified first row that has already been prefetch
-  for (int j = INIT_FRAMES*Q_PREFETCH_LEN; j < NY; j+=Q_PREFETCH_LEN) {
-    prefetch_q_frame(a, p, start, j, &sp, NY);
-    ISSUE_VINST(vec_body_label);
-  }
-
-  // steady state
-  for (int i = start + VECTOR_LEN; i < end; i+=VECTOR_LEN) {
-    for (int j = 0; j < NY; j+=Q_PREFETCH_LEN) {
+  for (int i = start; i < end; i+=VECTOR_LEN) {
+    // do initial prefetching for a small amount
+    for (int j = 0; j < INIT_FRAMES*Q_PREFETCH_LEN; j+=Q_PREFETCH_LEN) {
       prefetch_q_frame(a, p, i, j, &sp, NY);
+    }
+
+    // steady state
+    for (int j = INIT_FRAMES*Q_PREFETCH_LEN; j < NY; j+=Q_PREFETCH_LEN) {
+      prefetch_q_frame(a, p, i, j, &sp, NY);
+      ISSUE_VINST(vec_body_label);
+    }
+
+    // draining. do the last vissue corresponding to the initial round of prefetch
+    for (int j = NY - INIT_FRAMES*Q_PREFETCH_LEN; j < NY; j+=Q_PREFETCH_LEN) {
       ISSUE_VINST(vec_body_label);
     }
   }
 
-  // draining. do the last vissue corresponding to the initial round of prefetch
-  for (int j = NY - INIT_FRAMES*Q_PREFETCH_LEN; j < NY; j+=Q_PREFETCH_LEN) {
-    ISSUE_VINST(vec_body_label);
-  }
   #endif
 
 #ifdef VECTOR_CORE

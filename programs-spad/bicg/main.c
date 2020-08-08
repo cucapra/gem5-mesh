@@ -5,6 +5,7 @@
 #include "spad.h"
 #include "pthread_launch.h"
 #include "bicg.h"
+#include "util.h"
 
 // checker from polybench. single core implementation
 #include <math.h>
@@ -131,7 +132,7 @@ int main(int argc, char *argv[]) {
 
   if (skip_check) {
     printf("Skipping verification\n");
-    printf("[[SUCCESS]]\n");
+    // printf("[[SUCCESS]]\n");
     free(a_ptr);
     free(r_ptr);
     free(q_ptr);
@@ -164,7 +165,7 @@ int main(int argc, char *argv[]) {
     // }
   }
   for (int i = 0; i < NX; i++) {
-    if (q[i] != q_exp[i]) {
+    if (float_compare(q[i], q_exp[i], 0.0001f) == 0) {
       printf("i %d | %f != %f\n", i, q[i], q_exp[i]);
       printf("[[FAIL]]\n");
       return 1;      

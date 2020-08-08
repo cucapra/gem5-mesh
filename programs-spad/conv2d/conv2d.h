@@ -22,6 +22,7 @@
 // one of these should be defined to dictate config
 // #define NO_VEC 1
 // #define VEC_4_SIMD 1
+// #define VEC_4_SIMD_UNROLL 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_REUSE_VERTICAL 1
 
@@ -35,8 +36,7 @@
 #endif
 
 // vector grouping directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_SINGLE_PREFETCH) || defined(VEC_4_REUSE) || defined(VEC_4_SIMD_LARGE_FRAME) \
-  || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_REUSE_VERTICAL)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_REUSE_VERTICAL) || defined(VEC_4_SIMD_UNROLL)
 #define VECTOR_LEN 4
 #endif
 #if defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_16_REUSE_VERTICAL)
@@ -59,11 +59,14 @@
 #if defined(VEC_4_SIMD_VERTICAL) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_4_REUSE_VERTICAL) || defined(VEC_16_REUSE_VERTICAL)
 #define VERTICAL_LOADS 1
 #endif
+#if defined(VEC_4_SIMD_UNROLL)
+#define UNROLL 4
+#endif
 
 // prefetch sizings
 #if defined(USE_VEC)
 // can guarentee power of 2 works
-#define POST_REGION_WORD 144
+#define POST_REGION_WORD 288
 #define INIT_FRAMES 2
 #if defined(REUSE)
 #define LOAD_DEPTH 3
@@ -72,6 +75,9 @@
 #elif defined(VERTICAL_LOADS)
 #define LOAD_DEPTH 8
 #define REGION_SIZE (LOAD_DEPTH*FILTER_DIM)
+#define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
+#elif defined(UNROLL)
+#define REGION_SIZE (FILTER_DIM * FILTER_DIM * UNROLL)
 #define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
 #else
 #define REGION_SIZE (FILTER_DIM * FILTER_DIM)
