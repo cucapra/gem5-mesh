@@ -18,35 +18,6 @@
 
 #ifdef USE_VEC
 
-// prefetch c
-// pad out to the frame size (1->2 currently)
-// maybe don't have to prefetch this
-inline void prefetch_outer_frame(DTYPE *c, int i, int j, int *sp, int N) {
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_LR(*sp + 0, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
-
-    // pad out
-    VPREFETCH_LR(*sp + OUTER_PREFETCH_LEN, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + OUTER_FRAME_SIZE;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
-// prefetch a
-inline void prefetch_inner_frame(DTYPE *a, int i, int j, int k, int *sp, int M) {
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    // TODO redundant across cores
-    VPREFETCH_L(*sp + 0, &a[i * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
-
-    // TODO this can be horizontal?
-    VPREFETCH_L(*sp + INNER_PREFETCH_LEN, &a[(j + core) * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + INNER_FRAME_SIZE;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
 // TODO there are def oppurtuniteis to parallize inner loop instead of outer loop to get more horizontal prefetching
 //
 // for (int i = start + vtid; i < end; i+=VECTOR_LEN) {
