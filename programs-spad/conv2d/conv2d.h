@@ -67,7 +67,7 @@
 #if defined(USE_VEC)
 // can guarentee power of 2 works
 #define POST_REGION_WORD 288
-#define INIT_FRAMES 5
+#define INIT_FRAMES 2
 #if defined(REUSE)
 #define LOAD_DEPTH 3
 #define REGION_SIZE (LOAD_DEPTH*FILTER_DIM)
