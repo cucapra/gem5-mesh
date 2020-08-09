@@ -43,6 +43,9 @@
 // compute magnitude of normalized vector to project on
 // polybench does this sequentially because its a reduction
 // might consider doing this in parallel if large enough?
+
+// TODO nonblocking loads for this kernel??
+// would need to have vector switch on and off
 void u_magnitude_manycore_baseline(DTYPE *a, DTYPE *r, int numVectors, int vectorLen, int k, int tid, int dim) {
   if (tid == 0) {
     DTYPE sqrMagnitude = 0;

@@ -174,7 +174,7 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
 
     // initial prefetch
     int init_i_dist = min(INIT_OFFSET_SUB, vectorLen);
-    for (int i = 0; i < init_i_dist; i++) {
+    for (int i = 0; i < init_i_dist; i+=UNROLL_LEN_SUB) {
       prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
     }
 
