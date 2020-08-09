@@ -237,7 +237,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim = vdim_x * vdim_y;
 
   // get behavior of each core
-  #ifdef NUM_FRAMES
+  #ifdef MEAN_FRAME_SIZE
   // setup up self prefetch
   #ifdef MANYCORE_PREFETCH
   core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
