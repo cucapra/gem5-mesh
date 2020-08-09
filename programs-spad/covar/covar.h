@@ -1,6 +1,8 @@
 #ifndef __COVAR_H__
 #define __COVAR_H__
 
+#include "bind_defs.h"
+
 // data type to do computation with
 #define DTYPE float
 
@@ -8,9 +10,10 @@
 // #define NO_VEC 1
 // #define VEC_4_SIMD 1
 // #define VEC_16_SIMD 1
+// #define MANYCORE_PREFETCH
 
 // vvadd_execute config directives
-#if !defined(NO_VEC)
+#if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH)
 #define USE_VEC 1
 #endif
 
@@ -23,9 +26,13 @@
 #define VECTOR_LEN 16
 #define INIT_FRAMES 0
 #endif
+#if defined(MANYCORE_PREFETCH)
+#define VECTOR_LEN 1
+#define INIT_FRAMES 0
+#endif
 
 // prefetch sizing
-#ifdef USE_VEC
+#if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
 // dedicate a quarter of scratchpad to frames
 #define POST_FRAME_WORD 256
 
@@ -50,6 +57,55 @@
 #define COVAR_J1_PREFETCH_LEN 1
 #define COVAR_J2_PREFETCH_LEN VECTOR_LEN
 #define INIT_COVAR_OFFSET (INIT_FRAMES * 1)
+
+
+inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
+  VPREFETCH_L(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_R(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
+
+  #ifndef MANYCORE_PREFETCH
+  *sp = *sp + MEAN_FRAME_SIZE;
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+  #endif
+}
+
+inline void prefetch_center_frame(DTYPE *data, DTYPE *mean, int i, int j, int *sp, int M) {
+  // fetch data
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_L(*sp, &data[(i + core) * (M+1) + j], core, CENTER_PREFETCH_LEN, VERTICAL);
+  }
+
+  // TODO should do more than 1 here
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_L(*sp + CENTER_PREFETCH_LEN, &mean[j], core, CENTER_PREFETCH_LEN, VERTICAL);
+  }
+
+  #ifndef MANYCORE_PREFETCH
+  *sp = *sp + CENTER_FRAME_SIZE;
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+  #endif
+}
+
+inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, int M) {
+  // everyone in groups gets the same j1. could share and/or do vertical
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_L(*sp, &data[i * (M+1) + j1], core, COVAR_J1_PREFETCH_LEN, VERTICAL);
+  }
+  // printf("%d %f\n", *sp, data[i * (M+1) + j1]);
+  // *sp = *sp + COVAR_J1_PREFETCH_LEN;
+
+  VPREFETCH_LR(*sp + COVAR_J1_PREFETCH_LEN, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
+  // VPREFETCH_R(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
+  // printf("%d %f\n", *sp, data[i * (M+1) + j2]);
+
+  #ifndef MANYCORE_PREFETCH
+  *sp = *sp + COVAR_FRAME_SIZE;
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+  #endif
+}
+
+
+
 #endif
 
 // covariance specific value

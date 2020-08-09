@@ -18,15 +18,6 @@
  *---------------------------------------------------------------------------------*/
 
 #ifdef USE_VEC
-
-inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
-  VPREFETCH_L(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_R(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
-
-  *sp = *sp + 1;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
 // compute each mean across each vector (single dimension)
 void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M, 
     int ptid, int groupId, int numGroups, int vtid) {
@@ -165,22 +156,6 @@ vector_return_label:
   // }
 }
 
-inline void prefetch_center_frame(DTYPE *data, DTYPE *mean, int i, int j, int *sp, int M) {
-  // fetch data
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &data[(i + core) * (M+1) + j], core, CENTER_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + CENTER_PREFETCH_LEN;
-
-  // TODO should do more than 1 here
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &mean[j], core, CENTER_PREFETCH_LEN, VERTICAL);
-  }
-  *sp = *sp + CENTER_PREFETCH_LEN;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
 // subract mean from data to "center"
 void tril_center(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     int ptid, int groupId, int numGroups, int vtid) {
@@ -248,8 +223,9 @@ void tril_center(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     do {
       asm("trillium vissue_delim if_begin vec_body");
       START_FRAME();
-      data[i * (M+1) + j] = sp_ptr[sp + 0] - sp_ptr[sp + 1];
+      DTYPE dat = sp_ptr[sp + 0] - sp_ptr[sp + 1];
       END_FRAME();
+      STORE_NOACK(dat, &data[i * (M+1) + j], 0);
       sp+=CENTER_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
       j++;
@@ -322,22 +298,6 @@ vector_return_label:
   //     data[i * (M+1) + j] -= mean[j];	
   //   }
   // }
-}
-
-inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, int M) {
-  // everyone in groups gets the same j1. could share and/or do vertical
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &data[i * (M+1) + j1], core, COVAR_J1_PREFETCH_LEN, VERTICAL);
-  }
-  // printf("%d %f\n", *sp, data[i * (M+1) + j1]);
-  *sp = *sp + COVAR_J1_PREFETCH_LEN;
-
-  VPREFETCH_L(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_R(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
-  // printf("%d %f\n", *sp, data[i * (M+1) + j2]);
-  *sp = *sp + 1;
-
-  if (*sp == POST_FRAME_WORD) *sp = 0;
 }
 
 // compute the covariance matrix
@@ -427,8 +387,10 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
     asm("trillium vissue_delim if_begin vec_body_end");
     int gt = (j2 >= (M+1));
     PRED_EQ(gt, 0);
-    symmat[j2 * (M+1) + j1] = symmat_idx;
-    symmat[j1 * (M+1) + j2] = symmat_idx;
+    STORE_NOACK(symmat_idx, &symmat[j2 * (M+1) + j1], 0);
+    STORE_NOACK(symmat_idx, &symmat[j1 * (M+1) + j2], 0);
+    // symmat[j2 * (M+1) + j1] = symmat_idx;
+    // symmat[j1 * (M+1) + j2] = symmat_idx;
     PRED_EQ(j2, j2);
     j2+=VECTOR_LEN;
     asm("trillium vissue_delim end at_jump");
