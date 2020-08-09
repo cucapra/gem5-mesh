@@ -173,33 +173,33 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   for (int j = start; j < end; j+=VECTOR_LEN) {
 
     // initial prefetch
-    int init_i_dist = min(INIT_FRAMES_SUB, vectorLen);
+    int init_i_dist = min(INIT_OFFSET_SUB, vectorLen);
     for (int i = 0; i < init_i_dist; i++) {
       prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
     }
 
     ISSUE_VINST(vec_body_1_init_label);
-    for (int i = init_i_dist; i < vectorLen; i++) {
+    for (int i = init_i_dist; i < vectorLen; i+=UNROLL_LEN_SUB) {
       prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
       ISSUE_VINST(vec_body_1_label);
     }
 
-    for (int i = vectorLen - init_i_dist; i < vectorLen; i++) {
+    for (int i = vectorLen - init_i_dist; i < vectorLen; i+=UNROLL_LEN_SUB) {
       ISSUE_VINST(vec_body_1_label);
     }
 
-    for (int i = 0; i < init_i_dist; i++) {
+    for (int i = 0; i < init_i_dist; i+=UNROLL_LEN_SUB) {
       prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
     }
 
     ISSUE_VINST(vec_body_2_init_label);
 
-    for (int i = init_i_dist; i < vectorLen; i++) {
+    for (int i = init_i_dist; i < vectorLen; i+=UNROLL_LEN_SUB) {
       prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
       ISSUE_VINST(vec_body_2_label);
     }
 
-    for (int i = vectorLen - init_i_dist; i < vectorLen; i++) {
+    for (int i = vectorLen - init_i_dist; i < vectorLen; i+=UNROLL_LEN_SUB) {
       ISSUE_VINST(vec_body_2_label);
     }
 
@@ -222,19 +222,18 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     asm("trillium vissue_delim if_begin vec_body_1");
     // get data regardless of predication
     START_FRAME();
-    // volatile needed or else does fmadd with r_cache += val
-    volatile DTYPE val = sp_ptr[sp + 0]  * sp_ptr[sp + 1];
-    END_FRAME();
 
-    sp = (sp + FRAME_SIZE_SUB) % POST_FRAME_WORD_SUB;
-
-    // volatile int j_ = j;
+    // predicate loop
     int gt = (j >= end);
     PRED_EQ(gt, 0);
-    // r_cache += q[i * numVectors + k] * a[i * numVectors + j];
-    r_cache += val;
+    #pragma GCC unroll(8)
+    for (int u = 0; u < UNROLL_LEN_SUB; u++) {
+      DTYPE val = sp_ptr[sp + u]  * sp_ptr[sp + UNROLL_LEN_SUB + u];
+      r_cache += val;
+    }
     PRED_EQ(gt, gt);
-
+    END_FRAME();
+    sp = (sp + FRAME_SIZE_SUB) % POST_FRAME_WORD_SUB;
     asm("trillium vissue_delim end at_jump");
   } while(BH);
 #endif
@@ -253,16 +252,23 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     asm("trillium vissue_delim if_begin vec_body_2");
 
     START_FRAME();
-    volatile DTYPE val = sp_ptr[sp + 1] - sp_ptr[sp + 0] * r_cache;
-    END_FRAME();
-    sp = (sp + FRAME_SIZE_SUB) % POST_FRAME_WORD_SUB;
 
     int gt = (j >= end);
     PRED_EQ(gt, 0);
+    #pragma GCC unroll(8)
+    for (int u = 0; u < UNROLL_LEN_SUB; u++) {
+      DTYPE val = sp_ptr[sp + UNROLL_LEN_SUB + u] - sp_ptr[sp + u] * r_cache;
+      STORE_NOACK(val, &a[(i + u) * numVectors + j], 0);
+    }
+    PRED_EQ(gt, gt);
+
+    END_FRAME();
+    sp = (sp + FRAME_SIZE_SUB) % POST_FRAME_WORD_SUB;
+    i+=UNROLL_LEN_SUB;
+
     // DTYPE val = a[i * numVectors + j] - q[i * numVectors + k] * r_cache;
-    STORE_NOACK(val, &a[i * numVectors + j], 0);
-    i++;
-    PRED_EQ(i, i);
+
+  
     asm("trillium vissue_delim end at_jump");
   } while(BH2);
 

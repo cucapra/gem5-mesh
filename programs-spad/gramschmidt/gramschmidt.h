@@ -42,9 +42,10 @@
 #define INIT_OFFSET_NORM (INIT_FRAMES*STRIDE_NORM)
 
 #define POST_FRAME_WORD_SUB 256
-#define FRAME_SIZE_SUB 2
+#define UNROLL_LEN_SUB 2
+#define FRAME_SIZE_SUB (2*UNROLL_LEN_SUB)
 #define NUM_FRAMES_SUB (POST_FRAME_WORD_SUB / FRAME_SIZE_SUB)
-#define INIT_FRAMES_SUB INIT_FRAMES
+#define INIT_OFFSET_SUB (INIT_FRAMES*UNROLL_LEN_SUB)
 
 
 inline void prefetch_normalize_frame(DTYPE *a, int i, int k, int numVectors, int *sp) {
@@ -54,23 +55,31 @@ inline void prefetch_normalize_frame(DTYPE *a, int i, int k, int numVectors, int
       VPREFETCH_L(*sp + u, &a[i_idx * numVectors + k], core, PREFETCH_LEN_NORM, VERTICAL);
     }
   }
+
+  #ifndef MANYCORE_PREFETCH
   *sp = *sp + FRAME_SIZE_NORM;
   if (*sp == POST_FRAME_WORD_NORM) *sp = 0;
+  #endif
 }
 
 inline void prefetch_dot_frame(DTYPE *q, DTYPE *a, int i, int j, int k, int numVectors, int *sp) {
   // fetch the same q to each core
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp + 0, &q[i * numVectors + k], core, 1, VERTICAL);
+  for (int u = 0; u < UNROLL_LEN_SUB; u++) {
+    for (int core = 0; core < VECTOR_LEN; core++) {
+      VPREFETCH_L(*sp + u, &q[(i + u) * numVectors + k], core, 1, VERTICAL);
+    }
   }
 
-  VPREFETCH_LR(*sp + 1, &a[i * numVectors + j], 0, VECTOR_LEN, HORIZONTAL);
-  
+  for (int u = 0; u < UNROLL_LEN_SUB; u++) {
+    VPREFETCH_LR(*sp + UNROLL_LEN_SUB + u, &a[(i + u) * numVectors + j], 0, VECTOR_LEN, HORIZONTAL);
+  }
 
 // q[i * numVectors + k] * a[i * numVectors + j];
 
+  #ifndef MANYCORE_PREFETCH
   *sp = *sp + FRAME_SIZE_SUB;
   if (*sp == POST_FRAME_WORD_SUB) *sp = 0;
+  #endif
 }
 
 #endif

@@ -9,6 +9,7 @@
 #include "bind_defs.h"
 #include "group_templates.h"
 #include "gram_kernel.h"
+#include "util.h"
 
 /*
   Gram-Schmidt Orthonormalization
@@ -58,15 +59,37 @@ void u_normalize_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors,
   int start = ((tid + 0) * vectorLen) / dim;
   int end   = ((tid + 1) * vectorLen) / dim;
 
+  start = roundUp(start, UNROLL_LEN_NORM);
+  end   = roundUp(end  , UNROLL_LEN_NORM);
+
   // make sure r is cached
   DTYPE r_cache = r[k * numVectors + k];
 
+  #ifdef MANYCORE_PREFETCH
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+  for (int i = start; i < end; i+=UNROLL_LEN_NORM) {
+    prefetch_normalize_frame(a, i, k, numVectors, &sp);
+
+    START_FRAME();
+    #pragma GCC unroll(4)
+    for (int u = 0; u < UNROLL_LEN_NORM; u++) {
+      DTYPE val =  sp_ptr[sp + u] / r_cache;
+      STORE_NOACK(val, &q[(i + u) * numVectors + k], 0);
+    }
+    END_FRAME();
+    sp+=FRAME_SIZE_NORM;
+    sp = sp % POST_FRAME_WORD_NORM;
+  }
+  #else
+  #pragma GCC unroll(4)
   for (int i = start; i < end; i++) {
     // q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
 
     // NOTE this adds a fmv instruction. no way around this unless want to modify the compiler to treat instruction as floating point
     STORE_NOACK(a[i * numVectors + k] / r_cache, &q[i * numVectors + k], 0);
   }
+  #endif
 
   asm volatile("fence\n\t");
 }
@@ -126,12 +149,20 @@ void __attribute__((optimize("-fno-inline"))) gram_schmidt(DTYPE *a, DTYPE *r, D
       // compute magnitude of the vector
       u_magnitude_manycore_baseline(a, r, numVectors, vectorLen, k, ptid, dim);
 
+      #ifdef MANYCORE_PREFETCH
+      SET_PREFETCH_MASK(NUM_FRAMES_NORM, FRAME_SIZE_NORM, &start_barrier);
+      #else
       pthread_barrier_wait(&start_barrier);
+      #endif
 
       // normalize the vector
       u_normalize_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
 
+      #ifdef MANYCORE_PREFETCH
+      SET_PREFETCH_MASK(NUM_FRAMES_SUB, FRAME_SIZE_SUB, &start_barrier);
+      #else
       pthread_barrier_wait(&start_barrier);
+      #endif
 
       // apply projection of this vector onto each vector that hasn't been orthonormalized
       u_dot_subtract_manycore_baseline(a, r, q, numVectors, vectorLen, k, ptid, dim);
@@ -198,7 +229,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int used = 0;
 
   // group construction
-  #ifdef VECTOR_LEN
+  #ifdef USE_VEC
 
   #if VECTOR_LEN==4
   template_info_t tinfo = init_template_4x4_2x2();
@@ -239,8 +270,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim = vdim_x * vdim_y;
 
   // get behavior of each core
-  #ifdef USE_VEC
+  #ifdef NUM_FRAMES_NORM
+  // setup up self prefetch
+  #ifdef MANYCORE_PREFETCH
+  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
+  int mask = getDebugMask(&cinfo);
+  VECTOR_EPOCH(mask);
+  #else
   int mask = getSIMDMask(&cinfo);
+  #endif
   #else
   int mask = 0;
   #endif
