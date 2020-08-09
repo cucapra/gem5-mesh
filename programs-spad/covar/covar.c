@@ -80,7 +80,7 @@ void center_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, i
       END_FRAME();
       STORE_NOACK(dat, &data[i * (M+1) + j], 0);
 
-      sp += CENTER_PREFETCH_LEN;
+      sp += CENTER_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
     }
     #else
