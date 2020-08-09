@@ -33,6 +33,7 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
       // TODO not prefetching outframe but should be negligable
       DTYPE c_ij = c[i * N + j] * beta;
       
+      // TODO prob size needs to be greater than 64
       #ifdef MANYCORE_PREFETCH
       for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, i, j, k, &sp, M);

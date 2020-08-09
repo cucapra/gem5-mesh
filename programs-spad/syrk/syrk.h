@@ -76,7 +76,7 @@ inline void prefetch_inner_frame(DTYPE *a, int i, int j, int k, int *sp, int M) 
   }
 
   // will be done manually for manycore prefetch
-  #ifndef MANYCORE_PRFETCH
+  #ifndef MANYCORE_PREFETCH
   *sp = *sp + INNER_FRAME_SIZE;
   if (*sp == POST_FRAME_WORD) *sp = 0;
   #endif
