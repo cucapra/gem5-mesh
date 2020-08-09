@@ -20,15 +20,6 @@
 
 #ifdef USE_VEC
 
-inline void prefetch_normalize_frame(DTYPE *a, int i, int k, int numVectors, int *sp) {
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &a[(i + core) * numVectors + k], core, 1, VERTICAL);
-  }
-  *sp = *sp + FRAME_SIZE_NORM;
-  if (*sp == POST_FRAME_WORD_NORM) *sp = 0;
-}
-
-
 void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q, 
     int numVectors, int vectorLen, int k, int ptid, int groupId, int numGroups, int vtid) {
 
@@ -41,8 +32,8 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   int end   = ((groupId + 1) * vectorLen) / numGroups;
 
   // make it a factor of vector group mapping size
-  start = roundUp(start, VECTOR_LEN);
-  end   = roundUp(end  , VECTOR_LEN);
+  start = roundUp(start, STRIDE_NORM);
+  end   = roundUp(end  , STRIDE_NORM);
 
   // issue header block
   ISSUE_VINST(init_label);
@@ -51,7 +42,7 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
 #ifdef VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
   int start = ((groupId + 0) * vectorLen) / numGroups;
-  start = roundUp(start, VECTOR_LEN);
+  start = roundUp(start, STRIDE_NORM);
   int i = start + vtid;
   DTYPE r_cache = r[k * numVectors + k];
   int sp = 0;
@@ -61,17 +52,18 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
 #ifdef SCALAR_CORE
   int sp = 0;
 
-  int init_i_dist = min(end - start, INIT_FRAMES_NORM*VECTOR_LEN);
-  for (int i = start; i < start + init_i_dist; i+=VECTOR_LEN) {
+  int init_i_dist = min(end - start, INIT_OFFSET_NORM);
+
+  for (int i = start; i < start + init_i_dist; i+=STRIDE_NORM) {
     prefetch_normalize_frame(a, i, k, numVectors, &sp);
   }
 
-  for (int i = start + init_i_dist; i < end; i+=VECTOR_LEN) {
+  for (int i = start + init_i_dist; i < end; i+=STRIDE_NORM) {
     prefetch_normalize_frame(a, i, k, numVectors, &sp);
     ISSUE_VINST(vec_body_label);
   }
 
-  for (int i = end - init_i_dist; i < end; i+=VECTOR_LEN) {
+  for (int i = end - init_i_dist; i < end; i+=STRIDE_NORM) {
     ISSUE_VINST(vec_body_label);
   }
 
@@ -84,12 +76,15 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     asm("trillium vissue_delim if_begin vec_body");
     // q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
     START_FRAME();
-    DTYPE val =  sp_ptr[sp] / r_cache;
+    #pragma GCC unroll(4)
+    for (int u = 0; u < UNROLL_LEN_NORM; u++) {
+      DTYPE val =  sp_ptr[sp + u] / r_cache;
+      STORE_NOACK(val, &q[(i + u*VECTOR_LEN) * numVectors + k], 0);
+    }
     END_FRAME();
-    STORE_NOACK(val, &q[i * numVectors + k], 0);
-    i+=VECTOR_LEN;
+    i+=STRIDE_NORM;
     sp+=FRAME_SIZE_NORM;
-    if (sp == POST_FRAME_WORD_NORM) sp = 0;
+    sp = sp % POST_FRAME_WORD_NORM;
     asm("trillium vissue_delim end at_jump");
   } while(BH);
 
@@ -120,23 +115,6 @@ vec_body_label:
 vector_return_label:
   asm("trillium glue_point vector_return");
 #endif
-}
-
-
-inline void prefetch_dot_frame(DTYPE *q, DTYPE *a, int i, int j, int k, int numVectors, int *sp) {
-  // fetch the same q to each core
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp + 0, &q[i * numVectors + k], core, 1, VERTICAL);
-  }
-
-  VPREFETCH_L(*sp + 1, &a[i * numVectors + j], 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_R(*sp + 1, &a[i * numVectors + j], 0, VECTOR_LEN, HORIZONTAL);
-  
-
-// q[i * numVectors + k] * a[i * numVectors + j];
-
-  *sp = *sp + FRAME_SIZE_SUB;
-  if (*sp == POST_FRAME_WORD_SUB) *sp = 0;
 }
 
 void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q, 
