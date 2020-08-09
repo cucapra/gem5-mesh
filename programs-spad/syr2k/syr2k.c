@@ -25,19 +25,43 @@ void syr2k_manycore_baseline(DTYPE *a, DTYPE *b, DTYPE *c, int N, int M, int tid
   int start = ((tid + 0) * N) / dim;
   int end   = ((tid + 1) * N) / dim;
   
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+
   for (int i = start; i < end; i++) {
     for (int j = 0; j < M; j++) {
+      // TODO not prefetching outframe but should be negligable
       DTYPE c_ij = c[i * N + j] * beta;
       // c[i * N + j] *= beta;
 
+      #ifdef MANYCORE_PREFETCH
+      for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
+        prefetch_inner_frame(a, b, i, j, k, &sp, M);
+
+        FRAME_START();
+        #pragma GCC unroll(8)
+        for (int kin = 0; kin < INNER_PREFETCH_LEN; kin++) {
+          c_ij += alpha * sp_ptr[sp + INNER_PREFETCH_LEN*0 + kin] * 
+                          sp_ptr[sp + INNER_PREFETCH_LEN*3 + kin] + 
+                  alpha * sp_ptr[sp + INNER_PREFETCH_LEN*2 + kin] *
+                          sp_ptr[sp + INNER_PREFETCH_LEN*1 + kin];
+        }
+        END_FRAME();
+
+        sp += INNER_FRAME_SIZE;
+        sp = sp % POST_FRAME_WORD;
+      }
+      #else
       #pragma GCC unroll(8)
       for (int k = 0; k < M; k++) {
         // c[i * N + j] += ALPHA * a[i * M + k] * b[j * M + k] + ALPHA * b[i * M + k] * a[j * M + k];
         c_ij += alpha * a[i * M + k] * b[j * M + k] + alpha * b[i * M + k] * a[j * M + k];
       }
-      c[i * N + j] = c_ij;
+      #endif
+      STORE_NOACK(c_ij, &c[i * N + j], 0);
     }
   }
+  asm volatile("fence\n\t");
 }
 
 /*-----------------------------------------------------------------------------------
@@ -89,7 +113,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int used = 0;
 
   // group construction
-  #ifdef VECTOR_LEN
+  #ifdef USE_VEC
   #if VECTOR_LEN==4
   template_info_t tinfo = init_template_4x4_2x2();
   // template_info_t tinfo = init_template_debug();
@@ -129,8 +153,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim = vdim_x * vdim_y;
 
   // get behavior of each core
-  #ifdef USE_VEC
+  #ifdef NUM_FRAMES
+  // setup up self prefetch
+  #ifdef MANYCORE_PREFETCH
+  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
+  int mask = getDebugMask(&cinfo);
+  VECTOR_EPOCH(mask);
+  #else
   int mask = getSIMDMask(&cinfo);
+  #endif
   // int mask = getDebugMask(&cinfo);
   SET_PREFETCH_MASK(NUM_FRAMES, INNER_FRAME_SIZE, &start_barrier);
   #else
