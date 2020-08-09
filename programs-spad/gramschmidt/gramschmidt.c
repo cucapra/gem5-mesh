@@ -46,6 +46,7 @@
 void u_magnitude_manycore_baseline(DTYPE *a, DTYPE *r, int numVectors, int vectorLen, int k, int tid, int dim) {
   if (tid == 0) {
     DTYPE sqrMagnitude = 0;
+    #pragma GCC unroll(2);
     for (int i = 0; i < vectorLen; i++) {
       sqrMagnitude += a[i * numVectors + k] * a[i * numVectors + k];
     }
