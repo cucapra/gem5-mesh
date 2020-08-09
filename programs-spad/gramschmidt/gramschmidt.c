@@ -110,6 +110,39 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
     DTYPE r_cache = 0.0f;
 
     // do the dot product with j'th vector that needs the component of the k'th vector taken off
+    #ifdef MANYCORE_PREFETCH
+    int sp = 0;
+    DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+    for (int i = 0; i < vectorLen; i+=UNROLL_LEN_SUB) {
+      prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
+
+      START_FRAME();
+      #pragma GCC unroll(8)
+      for (int u = 0; u < UNROLL_LEN_SUB; u++) { 
+        DTYPE val = sp_ptr[sp + u]  * sp_ptr[sp + UNROLL_LEN_SUB + u];
+        r_cache += val;
+      }
+      END_FRAME();
+      sp = (sp + FRAME_SIZE_SUB) % POST_FRAME_WORD_SUB;
+    }
+
+    // take off the projection of the j'th vector onto orthornal k
+    // (we've just finished the computation of the projection after the dot product)
+    for (int i = 0; i < vectorLen; i+=UNROLL_LEN_SUB) {
+      prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
+
+      START_FRAME();
+      #pragma GCC unroll(8)
+      for (int u = 0; u < UNROLL_LEN_SUB; u++) { 
+        DTYPE val = sp_ptr[sp + UNROLL_LEN_SUB + u] - sp_ptr[sp + u] * r_cache;
+        STORE_NOACK(val, &a[(i + u) * numVectors + j], 0);
+      }
+      END_FRAME();
+      sp = (sp + FRAME_SIZE_SUB) % POST_FRAME_WORD_SUB;
+    }
+    
+    #else
+    #pragma GCC unroll(8)
     for (int i = 0; i < vectorLen; i++) {
       // r[k * numVectors + j] += q[i * numVectors + k] * a[i * numVectors + j];
       r_cache += q[i * numVectors + k] * a[i * numVectors + j];
@@ -117,12 +150,14 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
 
     // take off the projection of the j'th vector onto orthornal k
     // (we've just finished the computation of the projection after the dot product)
+    #pragma GCC unroll(8)
     for (int i = 0; i < vectorLen; i++) {
       // a[i * numVectors + j] -= q[i * numVectors + k] * r[k * numVectors + j];
       // a[i * numVectors + j] -= q[i * numVectors + k] * r_cache;
       DTYPE val = a[i * numVectors + j] - q[i * numVectors + k] * r_cache;
       STORE_NOACK(val, &a[i * numVectors + j], 0);
     }
+    #endif
   }
 
   asm volatile("fence\n\t");
