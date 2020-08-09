@@ -20,15 +20,12 @@
 // vector grouping directives
 #if defined(VEC_4_SIMD)
 #define VECTOR_LEN 4
-#define INIT_FRAMES 1
 #endif
 #if defined(VEC_16_SIMD)
 #define VECTOR_LEN 16
-#define INIT_FRAMES 1
 #endif
 #if defined(MANYCORE_PREFETCH)
 #define VECTOR_LEN 1
-#define INIT_FRAMES 0
 #endif
 
 // prefetch sizing
@@ -37,7 +34,7 @@
 #define POST_FRAME_WORD 256
 
 // number of frames to get ahead
-// #define INIT_FRAMES 1
+#define INIT_FRAMES 2
 
 // prefetch config for mean kernel
 #define MEAN_UNROLL_LEN 16

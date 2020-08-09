@@ -33,7 +33,7 @@ void mean_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int
     for (int i = 1; i < (N+1); i+=MEAN_UNROLL_LEN) {
       prefetch_mean_frame(data, i, j, &sp, M);
 
-      FRAME_START();
+      START_FRAME();
       #pragma GCC unroll(16)
       for (int iin = 0; iin < MEAN_UNROLL_LEN; iin++) {
         mean_j += sp_ptr[sp + iin];
@@ -44,6 +44,7 @@ void mean_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int
       sp = sp % POST_FRAME_WORD;
     }
     #else
+    #pragma GCC unroll(16)
     for (int i = 1; i < (N+1); i++) {
       mean_j += data[i * (M+1) + j];
     }
@@ -71,19 +72,18 @@ void center_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, i
     for (int j = 1; j < (M+1); j+=CENTER_PREFETCH_LEN) {
       prefetch_center_frame(data, mean, i, j, &sp, M);
 
-      FRAME_START();
-      // #pragma GCC unroll(16)
-      // for (int jin = 0; jin < CENTER_PREFETCH_LEN; jin++) {
-
-      // }
-      DTYPE dat = data[i * (M+1) + j] - mean[j];
+      START_FRAME();
+      #pragma GCC unroll(16)
+      for (int jin = 0; jin < CENTER_PREFETCH_LEN; jin++) {
+        DTYPE dat = sp_ptr[sp + jin] - sp_ptr[sp + CENTER_PREFETCH_LEN + jin];
+        STORE_NOACK(dat, &data[i * (M+1) + j + jin], 0);
+      }
       END_FRAME();
-      STORE_NOACK(dat, &data[i * (M+1) + j], 0);
-
       sp += CENTER_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
     }
     #else
+    #pragma GCC unroll(16)
     for (int j = 1; j < (M+1); j++) {
       DTYPE dat = data[i * (M+1) + j] - mean[j];
       STORE_NOACK(dat, &data[i * (M+1) + j], 0);
@@ -109,20 +109,20 @@ void covar_manycore_baseline(DTYPE *symmat, DTYPE *data, int N, int M, int tid, 
       DTYPE symmat_idx = 0.0f;
 
       #ifdef MANYCORE_PREFETCH
-      for (int i = 1; i < (N+1); i+=COVAR_J1_PREFETCH_LEN) {
+      for (int i = 1; i < (N+1); i+=COVAR_UNROLL_LEN) {
         prefetch_covar_frame(data, i, j1, j2, &sp, M);
 
-        FRAME_START();
-        #pragma GCC unroll(16)
-        for (int iin = 0; iin < COVAR_J1_PREFETCH_LEN; iin++) {
-          symmat_idx += sp_ptr[sp + 0] * sp_ptr[sp + 1];
+        START_FRAME();
+        #pragma GCC unroll(8)
+        for (int iin = 0; iin < COVAR_UNROLL_LEN; iin++) {
+          symmat_idx += sp_ptr[sp + iin] * sp_ptr[sp + COVAR_UNROLL_LEN + iin];
         }
         END_FRAME();
-
         sp += COVAR_FRAME_SIZE;
         sp = sp % POST_FRAME_WORD;
       }
       #else
+      #pragma GCC unroll(8)
       for (int i = 1; i < (N+1); i++) {
         symmat_idx += data[i *(M+1) + j1] * data[i *(M+1) + j2];
       }
@@ -204,8 +204,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef USE_VEC
 
   #if VECTOR_LEN==4
-  // template_info_t tinfo = init_template_4x4_2x2();
-  template_info_t tinfo = init_template_debug();
+  template_info_t tinfo = init_template_4x4_2x2();
+  // template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif

@@ -391,19 +391,13 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
     do {
       asm("trillium vissue_delim if_begin vec_body");
       FRAME_START(COVAR_FRAME_SIZE);
-      #pragma GCC unroll(16)
+      #pragma GCC unroll(8)
       for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
         symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_UNROLL_LEN + u];
       }
       REMEM(COVAR_FRAME_SIZE);
       sp+=COVAR_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
-      #if VECTOR_LEN==16
-      #pragma GCC unroll(16)
-      for (int u = 0; u < 5; u++) {
-        asm volatile("nop\n\t");
-      }
-      #endif
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
