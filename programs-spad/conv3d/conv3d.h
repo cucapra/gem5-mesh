@@ -76,7 +76,7 @@
 #if defined(USE_VEC)
 // can guarentee power of 2 works
 #define POST_REGION_WORD 121
-#define INIT_FRAMES 2
+#define INIT_FRAMES 5
 #define REGION_SIZE 11
 #define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
 

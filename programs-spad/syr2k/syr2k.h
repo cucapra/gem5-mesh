@@ -38,7 +38,7 @@
 #define POST_FRAME_WORD 256
 
 // number of frames to get ahead
-#define INIT_FRAMES 2
+#define INIT_FRAMES 5
 
 // prefetch config for inner kernel
 #define INNER_PREFETCH_LEN 8

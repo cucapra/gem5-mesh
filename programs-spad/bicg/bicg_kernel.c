@@ -42,6 +42,8 @@ void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int pti
 
   // issue header block
   ISSUE_VINST(init_label);
+
+  int startOffset = min(INIT_FRAMES*Q_PREFETCH_LEN, NX);
   #endif
 
   #ifdef VECTOR_CORE
@@ -60,18 +62,18 @@ void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int pti
   
   for (int j = start; j < end; j+=VECTOR_LEN) {
     // do initial prefetching for a small amount
-    for (int i = 0; i < INIT_FRAMES*Q_PREFETCH_LEN; i+=Q_PREFETCH_LEN) {
+    for (int i = 0; i < startOffset; i+=Q_PREFETCH_LEN) {
       prefetch_s_frame(a, r, i, j, &sp, NY);
     }
 
     // steady state
-    for (int i = INIT_FRAMES*Q_PREFETCH_LEN; i < NX; i+=Q_PREFETCH_LEN) {
+    for (int i = startOffset; i < NX; i+=Q_PREFETCH_LEN) {
       prefetch_s_frame(a, r, i, j, &sp, NY);
       ISSUE_VINST(vec_body_label);
     }
 
     // draining. do the last vissue corresponding to the initial round of prefetch
-    for (int i = NX - INIT_FRAMES*Q_PREFETCH_LEN; i < NX; i+=Q_PREFETCH_LEN) {
+    for (int i = NX - startOffset; i < NX; i+=Q_PREFETCH_LEN) {
       ISSUE_VINST(vec_body_label);
     }
 
@@ -161,6 +163,8 @@ void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int pti
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
   
+  int startOffset = min(INIT_FRAMES*Q_PREFETCH_LEN, NY);
+
   // issue header block
   ISSUE_VINST(init_label);
   #endif
@@ -189,18 +193,18 @@ void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int pti
 
   for (int i = start; i < end; i+=VECTOR_LEN) {
     // do initial prefetching for a small amount
-    for (int j = 0; j < INIT_FRAMES*Q_PREFETCH_LEN; j+=Q_PREFETCH_LEN) {
+    for (int j = 0; j < startOffset; j+=Q_PREFETCH_LEN) {
       prefetch_q_frame(a, p, i, j, &sp, NY);
     }
 
     // steady state
-    for (int j = INIT_FRAMES*Q_PREFETCH_LEN; j < NY; j+=Q_PREFETCH_LEN) {
+    for (int j = startOffset; j < NY; j+=Q_PREFETCH_LEN) {
       prefetch_q_frame(a, p, i, j, &sp, NY);
       ISSUE_VINST(vec_body_label);
     }
 
     // draining. do the last vissue corresponding to the initial round of prefetch
-    for (int j = NY - INIT_FRAMES*Q_PREFETCH_LEN; j < NY; j+=Q_PREFETCH_LEN) {
+    for (int j = NY - startOffset; j < NY; j+=Q_PREFETCH_LEN) {
       ISSUE_VINST(vec_body_label);
     }
 

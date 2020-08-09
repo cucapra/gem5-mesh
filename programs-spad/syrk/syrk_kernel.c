@@ -52,6 +52,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
 
+  int startOffset = min(INIT_OFFSET, M);
+
   ISSUE_VINST(init_label);
   #endif
 
@@ -77,18 +79,18 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       ISSUE_VINST(vec_body_init_label);
 
       // warmup 
-      for (int k = 0; k < INIT_OFFSET; k+=INNER_PREFETCH_LEN) {
+      for (int k = 0; k < startOffset; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
       }
 
       // steady-state
-      for (int k = INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
+      for (int k = startOffset; k < M; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
         ISSUE_VINST(vec_body_label);
       }
 
       // cooldown
-      for (int k = M - INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
+      for (int k = M - startOffset; k < M; k+=INNER_PREFETCH_LEN) {
         ISSUE_VINST(vec_body_label);
       }
 

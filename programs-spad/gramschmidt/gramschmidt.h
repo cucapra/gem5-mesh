@@ -17,12 +17,12 @@
 // vector grouping directives
 #if defined(VEC_4_SIMD)
 #define VECTOR_LEN 4
-#define INIT_FRAMES 1
+#define INIT_FRAMES 4
 #endif
 #if defined(VEC_16_SIMD)
 #define VECTOR_LEN 16
 // TODO 0 frames
-#define INIT_FRAMES 0
+#define INIT_FRAMES 3
 #endif
 
 // prefetch sizings
