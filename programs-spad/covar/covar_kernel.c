@@ -324,6 +324,8 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   int stride = numGroups; // * VECTOR_LEN;
   int end = M + 1;
 
+  int startOffset = min(INIT_COVAR_OFFSET, N);
+
   ISSUE_VINST(init_label);
   #endif
 
@@ -350,18 +352,18 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
       ISSUE_VINST(vec_body_init_label);
 
       // initial round
-      for (int i = 1; i < 1 + INIT_COVAR_OFFSET; i++) {
+      for (int i = 1; i < 1 + startOffset; i+=COVAR_UNROLL_LEN) {
         prefetch_covar_frame(data, i, j1, j2, &sp, M);
       }
 
        // steady state
-      for (int i = 1 + INIT_COVAR_OFFSET; i < (N+1); i++) {
+      for (int i = 1 + startOffset; i < (N+1); i+=COVAR_UNROLL_LEN) {
         prefetch_covar_frame(data, i, j1, j2, &sp, M);
         ISSUE_VINST(vec_body_label);
       }
 
       // cooldown
-      for (int i = (N+1) - INIT_COVAR_OFFSET; i < (N+1); i++) {
+      for (int i = (N+1) - startOffset; i < (N+1); i+=COVAR_UNROLL_LEN) {
         ISSUE_VINST(vec_body_label);
       }
 
@@ -389,7 +391,10 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
     do {
       asm("trillium vissue_delim if_begin vec_body");
       FRAME_START(COVAR_FRAME_SIZE);
-      symmat_idx += sp_ptr[sp + 0] * sp_ptr[sp + 1];
+      #pragma GCC unroll(16)
+      for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
+        symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_UNROLL_LEN + u];
+      }
       REMEM(COVAR_FRAME_SIZE);
       sp+=COVAR_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;

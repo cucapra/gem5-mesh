@@ -53,11 +53,12 @@
 #define INIT_CENTER_OFFSET (INIT_FRAMES * CENTER_PREFETCH_LEN)
 
 // prefetch config for covar kernel
-#define COVAR_FRAME_SIZE 2
-#define NUM_COVAR_FRAMES (POST_FRAME_WORD / COVAR_FRAME_SIZE)
+#define COVAR_UNROLL_LEN 8
 #define COVAR_J1_PREFETCH_LEN 1
+#define COVAR_FRAME_SIZE (2*COVAR_UNROLL_LEN)
+#define NUM_COVAR_FRAMES (POST_FRAME_WORD / COVAR_FRAME_SIZE)
 #define COVAR_J2_PREFETCH_LEN VECTOR_LEN
-#define INIT_COVAR_OFFSET (INIT_FRAMES * 1)
+#define INIT_COVAR_OFFSET (INIT_FRAMES * COVAR_UNROLL_LEN)
 
 
 inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
@@ -92,13 +93,18 @@ inline void prefetch_center_frame(DTYPE *data, DTYPE *mean, int i, int j, int *s
 
 inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, int M) {
   // everyone in groups gets the same j1. could share and/or do vertical
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &data[i * (M+1) + j1], core, COVAR_J1_PREFETCH_LEN, VERTICAL);
+  
+  for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
+    for (int core = 0; core < VECTOR_LEN; core++) {
+      VPREFETCH_LR(*sp + u, &data[(i + u) * (M+1) + j1], core, COVAR_J1_PREFETCH_LEN, VERTICAL);
+    }
   }
   // printf("%d %f\n", *sp, data[i * (M+1) + j1]);
   // *sp = *sp + COVAR_J1_PREFETCH_LEN;
 
-  VPREFETCH_LR(*sp + COVAR_J1_PREFETCH_LEN, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
+  for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
+    VPREFETCH_LR(*sp + COVAR_UNROLL_LEN + u, &data[(i + u) * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
+  }
   // VPREFETCH_R(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
   // printf("%d %f\n", *sp, data[i * (M+1) + j2]);
 
