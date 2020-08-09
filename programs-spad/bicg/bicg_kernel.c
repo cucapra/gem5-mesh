@@ -17,29 +17,6 @@
  *---------------------------------------------------------------------------------*/
 
 #ifdef USE_VEC
-
-// prefetch a and r
-inline void prefetch_s_frame(DTYPE *a, DTYPE *r, int i, int j, int *sp, int NY) {
-  // don't think need prefetch_R here?
-  for (int u = 0; u < Q_PREFETCH_LEN; u++) {
-    int iun = i + u;
-    VPREFETCH_L(*sp + u, &a[iun * NY + j], 0, S_PREFETCH_LEN, HORIZONTAL);
-  }
-  // VPREFETCH_R(*sp, &a[i * NY + j], 0, S_PREFETCH_LEN, HORIZONTAL);
-  // printf("horiz pf i %d j %d idx %d sp %d val %f %f %f %f\n", i, j, i * NY + j, *sp, a[i* NY + j], a[i*NY+j+1], a[i*NY+j+2], a[i*NY+j+3]);
-  *sp = *sp + Q_PREFETCH_LEN;
-
-  // TODO potentially some reuse here b/c fetch the same thing for everyone
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &r[i], core, Q_PREFETCH_LEN, VERTICAL);
-    // VPREFETCH_R(*sp, &r[i], core, Q_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + Q_PREFETCH_LEN;
-
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
 void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int ptid, int groupId, int numGroups, int vtid) {
 
   // CANT DO CODE HERE, also can't share code between scalar and vector here
@@ -160,28 +137,6 @@ vec_body_end_label:
 vector_return_label:
   asm("trillium glue_point vector_return");
 #endif
-}
-
-// prefetch a and p
-inline void prefetch_q_frame(DTYPE *a, DTYPE *p, int i, int j, int *sp, int NY) {
-  // don't think need prefetch R here?
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    int icore = i + core;
-    VPREFETCH_L(*sp, &a[icore * NY + j], core, Q_PREFETCH_LEN, VERTICAL);
-    VPREFETCH_R(*sp, &a[icore * NY + j], core, Q_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + Q_PREFETCH_LEN;
-
-  // TODO potentially some reuse here b/c fetch the same thing for everyone
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &p[j], core, Q_PREFETCH_LEN, VERTICAL);
-    VPREFETCH_R(*sp, &p[j], core, Q_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + Q_PREFETCH_LEN;
-
-  if (*sp == POST_FRAME_WORD) *sp = 0;
 }
 
 void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int ptid, int groupId, int numGroups, int vtid) {

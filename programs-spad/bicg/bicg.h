@@ -1,6 +1,8 @@
 #ifndef __BICG_H__
 #define __BICG_H__
 
+#include "bind_defs.h"
+
 // data type to do computation with
 #define DTYPE float
 
@@ -8,9 +10,10 @@
 // #define NO_VEC 1
 // #define VEC_4_SIMD 1
 // #define VEC_16_SIMD 1
+// #define MANYCORE_PREFETCH
 
 // vvadd_execute config directives
-#if !defined(NO_VEC)
+#if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH)
 #define USE_VEC 1
 #endif
 
@@ -21,9 +24,12 @@
 #if defined(VEC_16_SIMD)
 #define VECTOR_LEN 16
 #endif
+#if defined(MANYCORE_PREFETCH)
+#define VECTOR_LEN 1
+#endif
 
 // prefetch sizing
-#ifdef USE_VEC
+#if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
 
 // number of frames to get ahead
 #define INIT_FRAMES 2
@@ -38,6 +44,53 @@
 #define NUM_FRAMES 8
 // scratchpad offset after prefetch frames
 #define POST_FRAME_WORD (FRAME_SIZE * NUM_FRAMES)
+
+// prefetch a and r
+inline void prefetch_s_frame(DTYPE *a, DTYPE *r, int i, int j, int *sp, int NY) {
+  // don't think need prefetch_R here?
+  for (int u = 0; u < Q_PREFETCH_LEN; u++) {
+    int iun = i + u;
+    VPREFETCH_L(*sp + u, &a[iun * NY + j], 0, S_PREFETCH_LEN, HORIZONTAL);
+  }
+  // VPREFETCH_R(*sp, &a[i * NY + j], 0, S_PREFETCH_LEN, HORIZONTAL);
+  // printf("horiz pf i %d j %d idx %d sp %d val %f %f %f %f\n", i, j, i * NY + j, *sp, a[i* NY + j], a[i*NY+j+1], a[i*NY+j+2], a[i*NY+j+3]);
+  // *sp = *sp + Q_PREFETCH_LEN;
+
+  // TODO potentially some reuse here b/c fetch the same thing for everyone
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_L(*sp + Q_PREFETCH_LEN, &r[i], core, Q_PREFETCH_LEN, VERTICAL);
+    // VPREFETCH_R(*sp, &r[i], core, Q_PREFETCH_LEN, VERTICAL);
+  }
+
+  #ifndef MANYCORE_PREFETCH
+  *sp = *sp + FRAME_SIZE;
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+  #endif
+}
+
+// prefetch a and p
+inline void prefetch_q_frame(DTYPE *a, DTYPE *p, int i, int j, int *sp, int NY) {
+  // don't think need prefetch R here?
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    int icore = i + core;
+    VPREFETCH_LR(*sp, &a[icore * NY + j], core, Q_PREFETCH_LEN, VERTICAL);
+    // VPREFETCH_R(*sp, &a[icore * NY + j], core, Q_PREFETCH_LEN, VERTICAL);
+  }
+
+  // *sp = *sp + Q_PREFETCH_LEN;
+
+  // TODO potentially some reuse here b/c fetch the same thing for everyone
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_LR(*sp + Q_PREFETCH_LEN, &p[j], core, Q_PREFETCH_LEN, VERTICAL);
+    // VPREFETCH_R(*sp, &p[j], core, Q_PREFETCH_LEN, VERTICAL);
+  }
+
+  #ifndef MANYCORE_PREFETCH
+  *sp = *sp + FRAME_SIZE;
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+  #endif
+}
+
 #endif
 
 // grid dim xy assuming always a square

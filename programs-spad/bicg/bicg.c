@@ -25,19 +25,39 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
   int start = ((tid + 0) * NY) / dim;
   int end   = ((tid + 1) * NY) / dim;
 
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+
   for (int j = start; j < end; j++) {
     // s[j] = 0.0f;
     DTYPE s_local = 0.0f;
+
+    #ifdef MANYCORE_PREFETCH
+    for (int i = 0; i < NX; i+=Q_PREFETCH_LEN) {
+      prefetch_s_frame(a, r, i, j, &sp, NY);
+
+      FRAME_START();
+      #pragma GCC unroll(16)
+      for (int iin = 0; iin < Q_PREFETCH_LEN; iin++) {
+        s_local += sp_ptr[sp + iin] * sp_ptr[sp + Q_PREFETCH_LEN + iin];
+      }
+      END_FRAME();
+
+      sp += FRAME_SIZE;
+      sp = sp % POST_FRAME_WORD;
+    }
+    #else
     #pragma GCC unroll(16)
     for (int i = 0; i < NX; i++) {
       // s[j] += a[i * NY + j] * r[i];
       s_local += a[i * NY + j] * r[i];
     }
-    s[j] = s_local;
-    // STORE_NOACK(s_local, &s[j], 0);
+    #endif
+    // s[j] = s_local;
+    STORE_NOACK(s_local, &s[j], 0);
   }
 
-  // asm volatile("fence\n\t");
+  asm volatile("fence\n\t");
 }
 
 // compute q by paralleization outerloop around reduction (reduction done within a single core)
@@ -48,19 +68,39 @@ void compute_q_manycore_baseline(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, i
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+
   for (int i = start; i < end; i++) {
     // q[i] = 0.0f;
     DTYPE q_local = 0.0f;
+
+    #ifdef MANYCORE_PREFETCH
+    for (int j = 0; j < NY; j+=Q_PREFETCH_LEN) {
+      prefetch_q_frame(a, p, i, j, &sp, NY);
+
+      FRAME_START();
+      #pragma GCC unroll(16)
+      for (int jin = 0; jin < Q_PREFETCH_LEN; jin++) {
+        q_local += sp_ptr[sp + jin] * sp_ptr[sp + Q_PREFETCH_LEN + jin];
+      }
+      END_FRAME();
+
+      sp += FRAME_SIZE;
+      sp = sp % POST_FRAME_WORD;
+    }
+    #else
     #pragma GCC unroll(16)
     for (int j = 0; j < NY; j++) {
       // q[i] += a[i * NY + j] * p[j];
       q_local += a[i * NY + j] * p[j];
     }
-    q[i] = q_local;
-    // STORE_NOACK(q_local, &q[i], 0);
+    #endif
+    // q[i] = q_local;
+    STORE_NOACK(q_local, &q[i], 0);
   }
 
-  // asm volatile("fence\n\t");
+  asm volatile("fence\n\t");
 }
 
 /*-----------------------------------------------------------------------------------
@@ -76,6 +116,10 @@ void __attribute__((optimize("-fno-inline"))) bicg(
     #ifndef USE_VEC
     compute_s_manycore_baseline(a, r, s, NX, NY, ptid, dim);
     // don't need a barrier in between b/c s and q can be compute independently
+    #ifdef MANYCORE_PREFETCH
+    SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
+    #endif
+
     compute_q_manycore_baseline(a, p, q, NX, NY, ptid, dim);
     #else
     // if (groupId != 0) return;
@@ -122,7 +166,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int used = 0;
 
   // group construction
-  #ifdef VECTOR_LEN
+  #ifdef USE_VEC
 
   #if VECTOR_LEN==4
   template_info_t tinfo = init_template_4x4_2x2();
@@ -163,10 +207,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim = vdim_x * vdim_y;
 
   // get behavior of each core
-  #ifdef USE_VEC
+  #ifdef NUM_FRAMES
+  // setup up self prefetch
+  #ifdef MANYCORE_PREFETCH
+  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
+  int mask = getDebugMask(&cinfo);
+  VECTOR_EPOCH(mask);
+  #else
   int mask = getSIMDMask(&cinfo);
-  // if (ptid == 0)
-  //   printf("initial pf mask\n");
+  #endif
   SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
   #else
   int mask = 0;
