@@ -47,10 +47,10 @@
 #define INIT_MEAN_OFFSET (INIT_FRAMES * MEAN_FRAME_SIZE)
 
 // prefetch config for center kernel
-#define CENTER_FRAME_SIZE 2
+#define CENTER_PREFETCH_LEN 16
+#define CENTER_FRAME_SIZE (2*CENTER_PREFETCH_LEN)
 #define NUM_CENTER_FRAMES (POST_FRAME_WORD / CENTER_FRAME_SIZE)
-#define CENTER_PREFETCH_LEN 1
-#define INIT_CENTER_OFFSET (INIT_FRAMES * 1)
+#define INIT_CENTER_OFFSET (INIT_FRAMES * CENTER_PREFETCH_LEN)
 
 // prefetch config for covar kernel
 #define COVAR_FRAME_SIZE 2
@@ -76,12 +76,12 @@ inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
 inline void prefetch_center_frame(DTYPE *data, DTYPE *mean, int i, int j, int *sp, int M) {
   // fetch data
   for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &data[(i + core) * (M+1) + j], core, CENTER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp, &data[(i + core) * (M+1) + j], core, CENTER_PREFETCH_LEN, VERTICAL);
   }
 
   // TODO should do more than 1 here
   for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp + CENTER_PREFETCH_LEN, &mean[j], core, CENTER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + CENTER_PREFETCH_LEN, &mean[j], core, CENTER_PREFETCH_LEN, VERTICAL);
   }
 
   #ifndef MANYCORE_PREFETCH

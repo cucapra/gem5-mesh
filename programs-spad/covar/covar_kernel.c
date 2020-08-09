@@ -175,6 +175,8 @@ void tril_center(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   start = 1 + roundUp(start, VECTOR_LEN);
   end   = 1 + roundUp(end  , VECTOR_LEN);
 
+  int startOffset = min(INIT_CENTER_OFFSET, M);
+
   ISSUE_VINST(init_label);
   #endif
 
@@ -197,18 +199,21 @@ void tril_center(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     ISSUE_VINST(vec_body_init_label);
 
     // initial prefetching for the column
-    for (int j = 1; j < 1 + INIT_CENTER_OFFSET; j++) {
+    for (int j = 1; j < 1 + startOffset; j+=CENTER_PREFETCH_LEN) {
+      // printf("bpf %d %d\n", i, j);
       prefetch_center_frame(data, mean, i, j, &sp, M);
     }
 
     // steady state
-    for (int j = 1 + INIT_CENTER_OFFSET; j < (M+1); j++) {
+    for (int j = 1 + startOffset; j < (M+1); j+=CENTER_PREFETCH_LEN) {
       prefetch_center_frame(data, mean, i, j, &sp, M);
+      // printf("mpf %d %d\n", i, j);
       ISSUE_VINST(vec_body_label);  
     }
 
     // cooldown
-    for (int j = (M+1) - INIT_CENTER_OFFSET; j < (M+1); j++) {
+    for (int j = (M+1) - startOffset; j < (M+1); j+=CENTER_PREFETCH_LEN) {
+      // printf("epf %d %d\n", i, j);
       ISSUE_VINST(vec_body_label);
     }
 
@@ -228,18 +233,15 @@ void tril_center(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     do {
       asm("trillium vissue_delim if_begin vec_body");
       START_FRAME();
-      DTYPE dat = sp_ptr[sp + 0] - sp_ptr[sp + 1];
+      #pragma GCC unroll(16)
+      for (int u = 0; u < CENTER_PREFETCH_LEN; u++) {
+        DTYPE dat = sp_ptr[sp + u] - sp_ptr[sp + CENTER_PREFETCH_LEN + u];
+        STORE_NOACK(dat, &data[i * (M+1) + j + u], 0);
+      }
       END_FRAME();
-      STORE_NOACK(dat, &data[i * (M+1) + j], 0);
       sp+=CENTER_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
-      j++;
-      #if VECTOR_LEN==16
-      #pragma GCC unroll(16)
-      for (int u = 0; u < 5; u++) {
-        asm volatile("nop\n\t");
-      }
-      #endif
+      j+=CENTER_PREFETCH_LEN;
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
