@@ -30,13 +30,13 @@ void mean_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int
     DTYPE mean_j = 0.0f;
 
     #ifdef MANYCORE_PREFETCH
-    for (int i = 1; i < (N+1); i+=MEAN_PREFETCH_LEN) {
+    for (int i = 1; i < (N+1); i+=MEAN_UNROLL_LEN) {
       prefetch_mean_frame(data, i, j, &sp, M);
 
       FRAME_START();
       #pragma GCC unroll(16)
-      for (int iin = 0; iin < MEAN_PREFETCH_LEN; iin++) {
-        mean_j += sp_ptr[sp];
+      for (int iin = 0; iin < MEAN_UNROLL_LEN; iin++) {
+        mean_j += sp_ptr[sp + iin];
       }
       END_FRAME();
 
@@ -204,8 +204,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef USE_VEC
 
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
+  // template_info_t tinfo = init_template_4x4_2x2();
+  template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif

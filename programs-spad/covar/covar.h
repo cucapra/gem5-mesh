@@ -24,7 +24,7 @@
 #endif
 #if defined(VEC_16_SIMD)
 #define VECTOR_LEN 16
-#define INIT_FRAMES 0
+#define INIT_FRAMES 1
 #endif
 #if defined(MANYCORE_PREFETCH)
 #define VECTOR_LEN 1
@@ -40,10 +40,11 @@
 // #define INIT_FRAMES 1
 
 // prefetch config for mean kernel
-#define MEAN_FRAME_SIZE 1
+#define MEAN_UNROLL_LEN 16
+#define MEAN_FRAME_SIZE MEAN_UNROLL_LEN
 #define NUM_MEAN_FRAMES (POST_FRAME_WORD / MEAN_FRAME_SIZE)
 #define MEAN_PREFETCH_LEN VECTOR_LEN
-#define INIT_MEAN_OFFSET (INIT_FRAMES * 1)
+#define INIT_MEAN_OFFSET (INIT_FRAMES * MEAN_FRAME_SIZE)
 
 // prefetch config for center kernel
 #define CENTER_FRAME_SIZE 2
@@ -60,8 +61,11 @@
 
 
 inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
-  VPREFETCH_L(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_R(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
+  // can't merge into a vprefetch but can still unroll the old fashioned way
+  for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
+    VPREFETCH_LR(*sp + u, &data[(i + u) * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
+  }
+  // VPREFETCH_R(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
 
   #ifndef MANYCORE_PREFETCH
   *sp = *sp + MEAN_FRAME_SIZE;

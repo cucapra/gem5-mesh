@@ -32,6 +32,8 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   start = 1 + roundUp(start, VECTOR_LEN);
   end   = 1 + roundUp(end  , VECTOR_LEN);
 
+  int startOffset = min(INIT_MEAN_OFFSET, N);
+
   ISSUE_VINST(init_label);
   #endif
 
@@ -55,18 +57,21 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     ISSUE_VINST(vec_body_init_label);
 
     // initial round
-    for (int i = 1; i < 1 + INIT_MEAN_OFFSET; i++) {
+    for (int i = 1; i < 1 + startOffset; i+=MEAN_UNROLL_LEN) {
+      // printf("bpf %d %d\n", i, j);
       prefetch_mean_frame(data, i, start, &sp, M);
     }
 
     // steady state
-    for (int i = 1; i < (N+1); i++) {
+    for (int i = 1 + startOffset; i < (N+1); i+=MEAN_UNROLL_LEN) {
+      // printf("mpf %d %d\n", i, j);
       prefetch_mean_frame(data, i, j, &sp, M);
       ISSUE_VINST(vec_body_label);
     }
 
     //cooldown
-    for (int i = (N+1) - INIT_MEAN_OFFSET; i < (N+1); i++) {
+    for (int i = (N+1) - startOffset; i < (N+1); i+=MEAN_UNROLL_LEN) {
+      // printf("epf %d %d\n", i, j);
       ISSUE_VINST(vec_body_label);
     }
 
@@ -84,11 +89,11 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     do {
       asm("trillium vissue_delim if_begin vec_body");
       START_FRAME();
-      mean_j += sp_ptr[sp];
+      #pragma GCC unroll(16)
+      for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
+        mean_j += sp_ptr[sp + u];
+      }
       END_FRAME();
-      asm volatile("nop\n\t");
-      asm volatile("nop\n\t");
-      asm volatile("nop\n\t");
       sp+=MEAN_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
       asm("trillium vissue_delim end at_jump");
@@ -229,6 +234,12 @@ void tril_center(int mask, DTYPE *mean, DTYPE *data, int N, int M,
       sp+=CENTER_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
       j++;
+      #if VECTOR_LEN==16
+      #pragma GCC unroll(16)
+      for (int u = 0; u < 5; u++) {
+        asm volatile("nop\n\t");
+      }
+      #endif
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
@@ -348,7 +359,7 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
       }
 
       // cooldown
-      for (int i = (N+1) - INIT_MEAN_OFFSET; i < (N+1); i++) {
+      for (int i = (N+1) - INIT_COVAR_OFFSET; i < (N+1); i++) {
         ISSUE_VINST(vec_body_label);
       }
 
@@ -380,6 +391,12 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
       REMEM(COVAR_FRAME_SIZE);
       sp+=COVAR_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
+      #if VECTOR_LEN==16
+      #pragma GCC unroll(16)
+      for (int u = 0; u < 5; u++) {
+        asm volatile("nop\n\t");
+      }
+      #endif
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
