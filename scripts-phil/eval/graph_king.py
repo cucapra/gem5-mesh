@@ -248,9 +248,11 @@ def plot_inet_stalls(data, includeV4, includeV16):
   title = 'Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
   line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', title)
 
-
-  
-
+def plot_frame_stalls(data, includeV4, includeV16):
+  (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep')
+  (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, includeV4, includeV16)
+  title = 'Frame_Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
+  line_plot(xaxes, values, labels, 'Hops', 'Frame stalls relative to total vector cycles', title)
 
 # create specified barplot and write to file
 def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):

@@ -132,6 +132,11 @@ cpu_stats = OrderedDict([
     'formula_op' : lambda args: args[0] + args[1] + args[2] + args[3] 
   }),
 
+  ('token_stall_sep' , {
+    'regex' : re.compile('system.cpu[0-9]+.iew.stall_on_tokens\s*' + intRegexStr), 
+    'seperate-cores' : True,
+  }),
+
   ('mesh_stall_sep' , {
     'regex' : re.compile('system.cpu[0-9]+.vector.mesh_input_stalls\s*' + intRegexStr), 
     'seperate-cores' : True,
@@ -142,6 +147,11 @@ cpu_stats = OrderedDict([
   }),
   ('frac_mesh_stall_sep' , {
     'formula' : ['mesh_stall_sep', 'vec_cycles_sep'],
+    'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
+    'seperate-cores' : True,
+  }),
+  ('frac_token_stall_sep' , {
+    'formula' : ['token_stall_sep', 'vec_cycles_sep'],
     'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
     'seperate-cores' : True,
   }),

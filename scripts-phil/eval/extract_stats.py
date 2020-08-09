@@ -416,5 +416,6 @@ graph_king.plot_first_frame_rdy(all_data)
 graph_king.plot_cpi(all_data)
 graph_king.plot_inet_stalls(all_data, True, False)
 graph_king.plot_inet_stalls(all_data, False, True)
-
+graph_king.plot_frame_stalls(all_data, True, False)
+graph_king.plot_frame_stalls(all_data, False, True)
 
