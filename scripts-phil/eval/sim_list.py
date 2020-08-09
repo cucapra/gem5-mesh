@@ -23,7 +23,7 @@ sim_configs = {
   # Benchmarks
 
   'bicg'   : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['2048']
   },
   'gram'   : {
@@ -31,11 +31,11 @@ sim_configs = {
     'argv' : ['320']
   },
   'syrk'   : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['256']
   },
   'syr2k'  : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['256']
   },
   'covar'   : {
