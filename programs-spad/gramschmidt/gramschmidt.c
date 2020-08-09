@@ -46,7 +46,7 @@
 void u_magnitude_manycore_baseline(DTYPE *a, DTYPE *r, int numVectors, int vectorLen, int k, int tid, int dim) {
   if (tid == 0) {
     DTYPE sqrMagnitude = 0;
-    #pragma GCC unroll(2);
+    #pragma GCC unroll(2)
     for (int i = 0; i < vectorLen; i++) {
       sqrMagnitude += a[i * numVectors + k] * a[i * numVectors + k];
     }
@@ -60,13 +60,12 @@ void u_normalize_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors,
   int start = ((tid + 0) * vectorLen) / dim;
   int end   = ((tid + 1) * vectorLen) / dim;
 
-  start = roundUp(start, UNROLL_LEN_NORM);
-  end   = roundUp(end  , UNROLL_LEN_NORM);
-
   // make sure r is cached
   DTYPE r_cache = r[k * numVectors + k];
 
   #ifdef MANYCORE_PREFETCH
+  start = roundUp(start, UNROLL_LEN_NORM);
+  end   = roundUp(end  , UNROLL_LEN_NORM);
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
   for (int i = start; i < end; i+=UNROLL_LEN_NORM) {
