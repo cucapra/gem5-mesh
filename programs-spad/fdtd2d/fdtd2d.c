@@ -22,38 +22,108 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
+  #ifdef MANYCORE_PREFETCH
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
   for (int i = start; i < end; i++) {
     for (int j = 0; j < NY; j++) {
+      DTYPE out;
       if (i == 0) {
-        ey[i * NY + j] = fict[t];
+        prefetch_step1_frame_i0(fict, t, &sp);
+        START_FRAME();
+        out = sp_ptr[sp + 0];
+        END_FRAME();
+        sp += STEP1_REGION_SIZE;
+        sp = sp % POST_FRAME_WORD;
       }
       else {
-        ey[i * NY + j] = ey[i * NY + j] - 0.5f * (hz[i * NY + j] - hz[(i-1) * NY + j]);
+        prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp);
+        START_FRAME();
+        out = sp_ptr[sp + 0] - 0.5f * (sp_ptr[sp + 1] - sp_ptr[sp + 2]);
+        END_FRAME();
+        sp += STEP1_REGION_SIZE;
+        sp = sp % POST_FRAME_WORD;
       }
+      STORE_NOACK(out, &ey[i * NY + j], 0);
     }
   }
+  #else
+  for (int i = start; i < end; i++) {
+    for (int j = 0; j < NY; j++) {
+      DTYPE out;
+      if (i == 0) {
+        out = fict[t];
+      }
+      else {
+        out = ey[i * NY + j] - 0.5f * (hz[i * NY + j] - hz[(i-1) * NY + j]);
+      }
+      STORE_NOACK(out, &ey[i * NY + j], 0);
+    }
+  }
+  #endif
+  asm volatile("fence\n\t");
 }
 
 void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY, int tid, int dim) {
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
+  #ifdef MANYCORE_PREFETCH
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
   for (int i = start; i < end; i++) {
     for (int j = 1; j < NY; j++) {
-      ex[i * (NY+1) + j] = ex[i * (NY+1) + j] - 0.5f * (hz[i * NY + j] - hz[i * NY + (j-1)]);
+      prefetch_step2_frame(ex, hz, i, j, NY, &sp);
+
+      START_FRAME();
+      DTYPE out = sp_ptr[sp + 0] - 0.5f * (sp_ptr[sp + 1] - sp_ptr[sp + 2]);
+      END_FRAME();
+      STORE_NOACK(out, &ex[i * (NY+1) + j], 0); 
+      sp += STEP2_REGION_SIZE;
+      sp = sp % POST_FRAME_WORD;
     }
   }
+  #else
+  for (int i = start; i < end; i++) {
+    for (int j = 1; j < NY; j++) {
+      DTYPE out = ex[i * (NY+1) + j] - 0.5f * (hz[i * NY + j] - hz[i * NY + (j-1)]);
+      STORE_NOACK(out, &ex[i * (NY+1) + j], 0); 
+    }
+  }
+  #endif
+  asm volatile("fence\n\t");
 }
 
 void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY, int tid, int dim) {
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
+  #ifdef MANYCORE_PREFETCH
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
   for (int i = start; i < end; i++) {
     for (int j = 0; j < NY; j++) {
-      hz[i * NY + j] = hz[i * NY + j] - 0.7f * (ex[i * (NY+1) + (j+1)] - ex[i * (NY+1) + j] + ey[(i + 1) * NY + j] - ey[i * NY + j]);
+      prefetch_step3_frame(ex, ey, hz, i, j, NY, &sp);
+
+      START_FRAME();
+      DTYPE out = sp_ptr[sp + 0] - 0.7f * 
+        (sp_ptr[sp + 1] - sp_ptr[sp + 2] + sp_ptr[sp + 3] - sp_ptr[sp + 4]);
+      END_FRAME();
+      STORE_NOACK(out, &hz[i * NY + j], 0); 
+      sp += STEP3_REGION_SIZE;
+      sp = sp % POST_FRAME_WORD;
     }
   }
+  #else
+  for (int i = start; i < end; i++) {
+    for (int j = 0; j < NY; j++) {
+      DTYPE out = hz[i * NY + j] - 0.7f * (ex[i * (NY+1) + (j+1)] - ex[i * (NY+1) + j] + ey[(i + 1) * NY + j] - ey[i * NY + j]);
+      STORE_NOACK(out, &hz[i * NY + j], 0); 
+    }
+  }
+  #endif
+
+  asm volatile("fence\n\t");
 }
 
 
@@ -66,11 +136,23 @@ void __attribute__((optimize("-fno-inline"))) fdtd(
 
     for (int t = 0; t < tmax; t++) {
     #ifndef USE_VEC
+      #ifdef MANYCORE_PREFETCH
+      SET_PREFETCH_MASK(STEP1_NUM_REGIONS, STEP1_REGION_SIZE, &start_barrier);
+      #else
       pthread_barrier_wait(&start_barrier);
+      #endif
       fdtd_step1_manycore(fict, ex, ey, hz, t, NX, NY, ptid, dim);
+      #ifdef MANYCORE_PREFETCH
+      SET_PREFETCH_MASK(STEP2_NUM_REGIONS, STEP2_REGION_SIZE, &start_barrier);
+      #else
       pthread_barrier_wait(&start_barrier);
+      #endif
       fdtd_step2_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
+      #ifdef MANYCORE_PREFETCH
+      SET_PREFETCH_MASK(STEP3_NUM_REGIONS, STEP3_REGION_SIZE, &start_barrier);
+      #else
       pthread_barrier_wait(&start_barrier);
+      #endif
       fdtd_step3_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
 
     #else
@@ -116,7 +198,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int used = 0;
 
   // group construction
-  #ifdef VECTOR_LEN
+  #ifdef USE_VEC
 
   #if VECTOR_LEN==4
   template_info_t tinfo = init_template_4x4_2x2();
@@ -152,8 +234,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim = vdim_x * vdim_y;
 
   // get behavior of each core
-  #ifdef USE_VEC
+  #ifdef STEP1_NUM_REGIONS
+  // setup up self prefetch
+  #ifdef MANYCORE_PREFETCH
+  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
+  int mask = getDebugMask(&cinfo);
+  VECTOR_EPOCH(mask);
+  #else
   int mask = getSIMDMask(&cinfo);
+  #endif
   #else
   int mask = 0;
   #endif
