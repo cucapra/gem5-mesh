@@ -2,9 +2,9 @@ BENCHNAME := gramschmidt
 default: $(BENCHNAME)
 
 # run small sim for test
-PROB_SIZE := 16
+PROB_SIZE := 320
 N_SPS ?= 64
-EXTRA_FLAGS ?=-DMANYCORE_PREFETCH
+EXTRA_FLAGS ?=-DVEC_4_SIMD
 HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
 # GEM5_ARGS := --remote-gdb-port=0 --debug-flags=Mesh
 
