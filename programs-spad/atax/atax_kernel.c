@@ -3,10 +3,40 @@
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
+#ifdef _VEC
+
 static inline int _idx_(int y, int x, int width)
 {
   return (y * width) + x;
 }
+
+inline void prefetch_ax_frame(DTYPE *a, DTYPE *b, int i, int j, int n, int *spadRegion){
+
+  int sp_a_offset = *spadRegion * REGION_SIZE;
+  int sp_x_offset = sp_a_offset + REGION_SIZE/2;
+  
+  for (int d = 0; d < VEC_LEN; d++){
+    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, PREFETCH_LEN,1); //load A, hopefully cache alligned so no vprefetch_R
+    VPREFETCH_L(sp_x_offset, b + j, d, PREFETCH_LEN,1); //load x
+  }
+  *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
+}
+
+inline void prefetch_ay_frame(DTYPE *a, DTYPE *b, int i, int j, int n, int *ptid_group_sp, int *spadRegion){
+
+  int sp_a_offset = *spadRegion * REGION_SIZE;
+  int sp_ypart_offset = sp_a_offset + REGION_SIZE/2;
+  
+  for (int d = 0; d < VEC_LEN; d++){
+    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, PREFETCH_LEN ,1);
+    VPREFETCH_L(sp_ypart_offset, b + ptid_group_sp[d]*n +j, d, PREFETCH_LEN ,1); 
+  }
+  
+  *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
+}
+
+
+
 
 void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
       int nx_start, int nx_end, int ptid, int vtid, int dim, int* ptid_group)
@@ -24,38 +54,40 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
   int spadRegion = 0;
   int sp_a_offset, sp_x_offset, sp_ypart_offset;
 
+  int startOffset = INIT_FRAMES*PREFETCH_LEN;
+
   DTYPE temp;
   for (int i = nx_start; i < nx_end; i+=dim) {
     temp=0;
     ISSUE_VINST(hoist1);
-    for(int j=0; j<ny; j+=PREFETCH_LEN){
-      sp_a_offset = spadRegion * REGION_SIZE;
-      sp_x_offset = sp_a_offset + REGION_SIZE/2;
 
-      for (int d = 0; d < dim; d++){
-        VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,ny), d, PREFETCH_LEN,1); //load A, hopefully cache alligned so no vprefetch_R
-        VPREFETCH_L(sp_x_offset, _x + j, d, PREFETCH_LEN,1); //load x
-      }
+    //init
+    for (int j = 0; j < startOffset; j+=PREFETCH_LEN) prefetch_ax_frame(a,_x, i,j, ny, &spadRegion);
 
-      spadRegion = (spadRegion + 1) % NUM_REGIONS;
+    //steady state
+    for(int j=startOffset; j<ny; j+=PREFETCH_LEN){
+      prefetch_ax_frame(a,_x, i,j, ny, &spadRegion);
       ISSUE_VINST(dotprod);
     }
+
+    //final vissue
+    for (int j = 0; j < startOffset; j+=PREFETCH_LEN) ISSUE_VINST(dotprod);
+
     ISSUE_VINST(store_dp);
-    for(int j=0; j<ny; j+=PREFETCH_LEN){
 
-      sp_a_offset = spadRegion * REGION_SIZE;
-      sp_ypart_offset = sp_a_offset + REGION_SIZE/2;
+    //init
+    for(int j = 0; j < startOffset; j+=PREFETCH_LEN) prefetch_ay_frame(a, _y_partial, i, j, ny, ptid_group_sp, &spadRegion);
 
-      for (int d = 0; d < dim; d++){
-        VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,ny), d, PREFETCH_LEN ,1);
-        VPREFETCH_L(sp_ypart_offset, _y_partial + ptid_group_sp[d]*ny +j, d, PREFETCH_LEN ,1); 
-        //NOTE:in the worst case, there should be fence to stop prefetching before vector core writes to it, highly unlikely in this case
-        // if (ptid==0) printf("prefetching for ptid %d, vtid %d via core %d\n",ptid_group_sp[d],d,ptid);
-      }
-      
-      spadRegion = (spadRegion + 1) % NUM_REGIONS;
+    //steady state
+    for(int j=startOffset; j<ny; j+=PREFETCH_LEN){
+
+      prefetch_ay_frame(a, _y_partial, i, j, ny, ptid_group_sp, &spadRegion);
       ISSUE_VINST(transpose_dp);
     }
+
+    //final vissue
+    for(int j = 0; j < startOffset; j+=PREFETCH_LEN) ISSUE_VINST(transpose_dp);
+
     ISSUE_VINST(loop_end);
   }
 
@@ -153,3 +185,5 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
   
   
 }
+
+#endif
