@@ -76,7 +76,7 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     asm("trillium vissue_delim if_begin vec_body");
     // q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
     START_FRAME();
-    #pragma GCC unroll(4)
+    #pragma GCC unroll(2)
     for (int u = 0; u < UNROLL_LEN_NORM; u++) {
       DTYPE val =  sp_ptr[sp + u] / r_cache;
       STORE_NOACK(val, &q[(i + u*VECTOR_LEN) * numVectors + k], 0);
@@ -226,7 +226,7 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     // predicate loop
     int gt = (j >= end);
     PRED_EQ(gt, 0);
-    #pragma GCC unroll(8)
+    #pragma GCC unroll(4)
     for (int u = 0; u < UNROLL_LEN_SUB; u++) {
       DTYPE val = sp_ptr[sp + u]  * sp_ptr[sp + UNROLL_LEN_SUB + u];
       r_cache += val;
@@ -255,7 +255,7 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
 
     int gt = (j >= end);
     PRED_EQ(gt, 0);
-    #pragma GCC unroll(8)
+    #pragma GCC unroll(4)
     for (int u = 0; u < UNROLL_LEN_SUB; u++) {
       DTYPE val = sp_ptr[sp + UNROLL_LEN_SUB + u] - sp_ptr[sp + u] * r_cache;
       STORE_NOACK(val, &a[(i + u) * numVectors + j], 0);
