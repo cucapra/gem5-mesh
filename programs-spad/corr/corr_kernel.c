@@ -3,6 +3,8 @@
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
+#ifdef _VEC
+
 inline int _idx_(int y, int x, int width)
 {
   return (y * width) + x;
@@ -33,28 +35,23 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
   int spadRegion = 0;
   int sp_data_offset=0;
 
+  int prefetch_stride = REGION_SIZE;
+  int startOffset = INIT_FRAMES*prefetch_stride;
+
   for (int i = start; i < end; i+=vdim){
     ISSUE_VINST(hoist1_label);
     //mean
-    for (int j = 0; j < n; j+=REGION_SIZE){
-      prefetch_data_frame(data,i,j,n,vdim,&sp_data_offset);
-      ISSUE_VINST(mean_label);
-    }
+    PREFETCH_VISSUE(mean_label)
 
     ISSUE_VINST(hoist2_label);
     //stdev
-    for (int j = 0; j < n; j+=REGION_SIZE){
-      prefetch_data_frame(data,i,j,n,vdim,&sp_data_offset);
-      ISSUE_VINST(stddev_label);
-    }
+    PREFETCH_VISSUE(stddev_label)
 
     ISSUE_VINST(hoist3_label);
     //center
-    for (int j = 0; j < n; j+=REGION_SIZE){
-      prefetch_data_frame(data,i,j,n,vdim,&sp_data_offset);
-      ISSUE_VINST(center_label);
-    }
+    PREFETCH_VISSUE(center_label)
 
+    
     ISSUE_VINST(symmat1_label);
   }
 
@@ -183,6 +180,18 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
 
 }
 
+inline void prefetch_corr2(DTYPE *data, int i1, int i2, int j, int m, int n, int vdim, int *sp_data_offset) {
+
+  for (int d = 0; d < vdim; d++){
+    int vec1 = (i1+d)%m;
+    int vec2 = (i2+d)%m;
+    VPREFETCH_L(*sp_data_offset, data + _idx_(vec1,j,n), d, REGION_SIZE_K2/2,1);
+    VPREFETCH_L(*sp_data_offset+REGION_SIZE_K2/2, data + _idx_(vec2,j,n), d, REGION_SIZE_K2/2,1);
+  }
+
+  *sp_data_offset = *sp_data_offset + REGION_SIZE_K2;
+  if(*sp_data_offset==NUM_REGIONS_K2*REGION_SIZE_K2)*sp_data_offset=0;
+}
 
 void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
               int start, int stride, int vtid, int vdim, int ptid){
@@ -199,24 +208,28 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
   int spadRegion = 0;
   int sp_data_offset=0;
 
+  int prefetch_stride = REGION_SIZE_K2/2;
+  int startOffset = INIT_FRAMES*prefetch_stride;
+
   for (int i1 = start; i1 < m-1; i1+=stride){
     ISSUE_VINST(hoist1_label);
     for(int i2 = i1+1; i2<m; i2++){
 
       ISSUE_VINST(hoist2_label);
-      for(int j=0; j<n; j+=REGION_SIZE_K2/2){
-        
-        for (int d = 0; d < vdim; d++){
-          int vec1 = (i1+d)%m;
-          int vec2 = (i2+d)%m;
-          VPREFETCH_L(sp_data_offset, data + _idx_(vec1,j,n), d, REGION_SIZE_K2/2,1); //vertical loads
-          VPREFETCH_L(sp_data_offset+REGION_SIZE_K2/2, data + _idx_(vec2,j,n), d, REGION_SIZE_K2/2,1);
-        }
-        ISSUE_VINST(symmat_label);
-        sp_data_offset = sp_data_offset + REGION_SIZE_K2;
-        if(sp_data_offset==NUM_REGIONS_K2*REGION_SIZE_K2)sp_data_offset=0;
 
+      for (int j = 0; j < startOffset; j+=prefetch_stride) {
+        prefetch_corr2(data, i1, i2, j, m, n, vdim, &sp_data_offset);
       }
+
+      for(int j=startOffset; j<n; j+=prefetch_stride){        
+        prefetch_corr2(data, i1, i2, j, m, n, vdim, &sp_data_offset);
+        ISSUE_VINST(symmat_label);
+      }
+
+      for (int j = n - startOffset; j < n; j+=prefetch_stride) {
+        ISSUE_VINST(symmat_label);
+      }
+
       ISSUE_VINST(i2_label);
     }
     ISSUE_VINST(i1_label);
@@ -310,3 +323,5 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
 
 
 }
+
+#endif
