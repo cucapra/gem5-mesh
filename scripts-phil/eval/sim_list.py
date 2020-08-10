@@ -22,69 +22,69 @@ sim_configs = {
 
   # Benchmarks
 
-  'bicg'   : {
-    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
-    'argv' : ['2048']
-  },
+  # 'bicg'   : {
+  #   'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+  #   'argv' : ['2048']
+  # },
   'gram'   : {
     'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['320']
   },
-  'syrk'   : {
-    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
-    'argv' : ['256']
-  },
-  'syr2k'  : {
-    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
-    'argv' : ['256']
-  },
-  'covar'   : {
-    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
-    'argv' : ['512']
-  },
-  'conv2d' : {
-    'vec'  : ALL_CONFIGS + \
-      [ 'VEC_16_SIMD_VERTICAL', 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL' ] + \
-      [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
-    'argv' : ['2048']
-  },
-  'conv3d' : {
-    'vec'  : ALL_CONFIGS,
-    'argv' : ['256']
-  },
-  'fdtd' : {
-    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
-    'argv' : ['512', '60']
-  },
+  # 'syrk'   : {
+  #   'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+  #   'argv' : ['256']
+  # },
+  # 'syr2k'  : {
+  #   'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+  #   'argv' : ['256']
+  # },
+  # 'covar'   : {
+  #   'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+  #   'argv' : ['512']
+  # },
+  # 'conv2d' : {
+  #   'vec'  : ALL_CONFIGS + \
+  #     [ 'VEC_16_SIMD_VERTICAL', 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL' ] + \
+  #     [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+  #   'argv' : ['2048']
+  # },
+  # 'conv3d' : {
+  #   'vec'  : ALL_CONFIGS,
+  #   'argv' : ['256']
+  # },
+  # 'fdtd' : {
+  #   'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+  #   'argv' : ['512', '60']
+  # },
 
-  'atax'   : {
-    'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['2048'] # ['128']
-  },
-  'mvt'    : {
-    'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['4096'] # ['128']
-  },
-  'gemm'   : {
-    'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['256'] #['64']
-  },
-  'gesummv'   : {
-    'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['4096'] #['128'] 
-  },
-  'corr'   : {
-    'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['512'] #['64']
-  },
-  '2mm' : {
-    'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['256'] #['64']
-  },
-  '3mm' : {
-    'vec'  : ALL_NEIL_CONFIGS,
-    'argv' : ['256'] #['32']
-  },
+  # 'atax'   : {
+  #   'vec'  : ALL_NEIL_CONFIGS,
+  #   'argv' : ['2048'] # ['128']
+  # },
+  # 'mvt'    : {
+  #   'vec'  : ALL_NEIL_CONFIGS,
+  #   'argv' : ['4096'] # ['128']
+  # },
+  # 'gemm'   : {
+  #   'vec'  : ALL_NEIL_CONFIGS,
+  #   'argv' : ['256'] #['64']
+  # },
+  # 'gesummv'   : {
+  #   'vec'  : ALL_NEIL_CONFIGS,
+  #   'argv' : ['4096'] #['128'] 
+  # },
+  # 'corr'   : {
+  #   'vec'  : ALL_NEIL_CONFIGS,
+  #   'argv' : ['512'] #['64']
+  # },
+  # '2mm' : {
+  #   'vec'  : ALL_NEIL_CONFIGS,
+  #   'argv' : ['256'] #['64']
+  # },
+  # '3mm' : {
+  #   'vec'  : ALL_NEIL_CONFIGS,
+  #   'argv' : ['256'] #['32']
+  # },
 
 }
 
