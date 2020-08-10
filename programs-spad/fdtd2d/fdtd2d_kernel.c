@@ -111,6 +111,12 @@ void tril_fdtd_step1(int mask,
       idx += VECTOR_LEN;
       sp += STEP1_REGION_SIZE;
       sp = sp % POST_FRAME_WORD;
+      #if VECTOR_LEN==16
+      #pragma GCC unroll(3)
+      for (int n = 0; n < 3; n++) {
+        asm volatile("nop\n\t");
+      }
+      #endif
       // if (sp == POST_FRAME_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
 
