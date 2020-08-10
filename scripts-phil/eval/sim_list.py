@@ -3,7 +3,7 @@
 '''
 
 # helper set of vec configs you can use in a benchmark (assuming it supports)
-ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD', 'VEC_16_SIMD']
+ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
 ALL_NEIL_CONFIGS = ['NO_VEC', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_VEC', 'MANYCORE_PREFETCH' ]]
 
 
@@ -23,29 +23,28 @@ sim_configs = {
   # Benchmarks
 
   'bicg'   : {
-    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+    'vec'  : ALL_CONFIGS,
     'argv' : ['2048']
   },
   'gram'   : {
-    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+    'vec'  : ALL_CONFIGS,
     'argv' : ['320']
   },
   'syrk'   : {
-    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+    'vec'  : ALL_CONFIGS,
     'argv' : ['256']
   },
   'syr2k'  : {
-    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+    'vec'  : ALL_CONFIGS,
     'argv' : ['256']
   },
   'covar'   : {
-    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+    'vec'  : ALL_CONFIGS,
     'argv' : ['512']
   },
   'conv2d' : {
     'vec'  : ALL_CONFIGS + \
-      [ 'VEC_16_SIMD_VERTICAL', 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL' ] + \
-      [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+      [ 'VEC_16_SIMD_VERTICAL', 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL' ],
     'argv' : ['2048']
   },
   'conv3d' : {
@@ -53,7 +52,7 @@ sim_configs = {
     'argv' : ['256']
   },
   'fdtd' : {
-    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+    'vec'  : ALL_CONFIGS,
     'argv' : ['512', '60']
   },
 
