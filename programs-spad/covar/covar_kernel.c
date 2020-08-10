@@ -18,15 +18,6 @@
  *---------------------------------------------------------------------------------*/
 
 #ifdef USE_VEC
-
-inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
-  VPREFETCH_L(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_R(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
-
-  *sp = *sp + 1;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
 // compute each mean across each vector (single dimension)
 void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M, 
     int ptid, int groupId, int numGroups, int vtid) {
@@ -40,6 +31,8 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   // make it a factor of vector group mapping size
   start = 1 + roundUp(start, VECTOR_LEN);
   end   = 1 + roundUp(end  , VECTOR_LEN);
+
+  int startOffset = min(INIT_MEAN_OFFSET, N);
 
   ISSUE_VINST(init_label);
   #endif
@@ -64,18 +57,21 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     ISSUE_VINST(vec_body_init_label);
 
     // initial round
-    for (int i = 1; i < 1 + INIT_MEAN_OFFSET; i++) {
+    for (int i = 1; i < 1 + startOffset; i+=MEAN_UNROLL_LEN) {
+      // printf("bpf %d %d\n", i, j);
       prefetch_mean_frame(data, i, start, &sp, M);
     }
 
     // steady state
-    for (int i = 1; i < (N+1); i++) {
+    for (int i = 1 + startOffset; i < (N+1); i+=MEAN_UNROLL_LEN) {
+      // printf("mpf %d %d\n", i, j);
       prefetch_mean_frame(data, i, j, &sp, M);
       ISSUE_VINST(vec_body_label);
     }
 
     //cooldown
-    for (int i = (N+1) - INIT_MEAN_OFFSET; i < (N+1); i++) {
+    for (int i = (N+1) - startOffset; i < (N+1); i+=MEAN_UNROLL_LEN) {
+      // printf("epf %d %d\n", i, j);
       ISSUE_VINST(vec_body_label);
     }
 
@@ -93,13 +89,19 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     do {
       asm("trillium vissue_delim if_begin vec_body");
       START_FRAME();
-      mean_j += sp_ptr[sp];
+      #pragma GCC unroll(8)
+      for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
+        mean_j += sp_ptr[sp + u];
+      }
       END_FRAME();
-      asm volatile("nop\n\t");
-      asm volatile("nop\n\t");
-      asm volatile("nop\n\t");
-      sp+=1;
+      sp+=MEAN_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
+      #if VECTOR_LEN==16
+      #pragma GCC unroll(16)
+      for (int n = 0; n < 3; n++) {
+        asm volatile("nop\n\t");
+      }
+      #endif
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
@@ -165,22 +167,6 @@ vector_return_label:
   // }
 }
 
-inline void prefetch_center_frame(DTYPE *data, DTYPE *mean, int i, int j, int *sp, int M) {
-  // fetch data
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &data[(i + core) * (M+1) + j], core, CENTER_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + CENTER_PREFETCH_LEN;
-
-  // TODO should do more than 1 here
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &mean[j], core, CENTER_PREFETCH_LEN, VERTICAL);
-  }
-  *sp = *sp + CENTER_PREFETCH_LEN;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
 // subract mean from data to "center"
 void tril_center(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     int ptid, int groupId, int numGroups, int vtid) {
@@ -194,6 +180,8 @@ void tril_center(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   // make it a factor of vector group mapping size
   start = 1 + roundUp(start, VECTOR_LEN);
   end   = 1 + roundUp(end  , VECTOR_LEN);
+
+  int startOffset = min(INIT_CENTER_OFFSET, M);
 
   ISSUE_VINST(init_label);
   #endif
@@ -217,18 +205,21 @@ void tril_center(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     ISSUE_VINST(vec_body_init_label);
 
     // initial prefetching for the column
-    for (int j = 1; j < 1 + INIT_CENTER_OFFSET; j++) {
+    for (int j = 1; j < 1 + startOffset; j+=CENTER_PREFETCH_LEN) {
+      // printf("bpf %d %d\n", i, j);
       prefetch_center_frame(data, mean, i, j, &sp, M);
     }
 
     // steady state
-    for (int j = 1 + INIT_CENTER_OFFSET; j < (M+1); j++) {
+    for (int j = 1 + startOffset; j < (M+1); j+=CENTER_PREFETCH_LEN) {
       prefetch_center_frame(data, mean, i, j, &sp, M);
+      // printf("mpf %d %d\n", i, j);
       ISSUE_VINST(vec_body_label);  
     }
 
     // cooldown
-    for (int j = (M+1) - INIT_CENTER_OFFSET; j < (M+1); j++) {
+    for (int j = (M+1) - startOffset; j < (M+1); j+=CENTER_PREFETCH_LEN) {
+      // printf("epf %d %d\n", i, j);
       ISSUE_VINST(vec_body_label);
     }
 
@@ -248,11 +239,15 @@ void tril_center(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     do {
       asm("trillium vissue_delim if_begin vec_body");
       START_FRAME();
-      data[i * (M+1) + j] = sp_ptr[sp + 0] - sp_ptr[sp + 1];
+      #pragma GCC unroll(16)
+      for (int u = 0; u < CENTER_PREFETCH_LEN; u++) {
+        DTYPE dat = sp_ptr[sp + u] - sp_ptr[sp + CENTER_PREFETCH_LEN + u];
+        STORE_NOACK(dat, &data[i * (M+1) + j + u], 0);
+      }
       END_FRAME();
       sp+=CENTER_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
-      j++;
+      j+=CENTER_PREFETCH_LEN;
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
@@ -324,22 +319,6 @@ vector_return_label:
   // }
 }
 
-inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, int M) {
-  // everyone in groups gets the same j1. could share and/or do vertical
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &data[i * (M+1) + j1], core, COVAR_J1_PREFETCH_LEN, VERTICAL);
-  }
-  // printf("%d %f\n", *sp, data[i * (M+1) + j1]);
-  *sp = *sp + COVAR_J1_PREFETCH_LEN;
-
-  VPREFETCH_L(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_R(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
-  // printf("%d %f\n", *sp, data[i * (M+1) + j2]);
-  *sp = *sp + 1;
-
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
 // compute the covariance matrix
 void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M, 
     int ptid, int groupId, int numGroups, int vtid) {
@@ -350,6 +329,8 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   int start = 1 + groupId; // * VECTOR_LEN;
   int stride = numGroups; // * VECTOR_LEN;
   int end = M + 1;
+
+  int startOffset = min(INIT_COVAR_OFFSET, N);
 
   ISSUE_VINST(init_label);
   #endif
@@ -377,18 +358,18 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
       ISSUE_VINST(vec_body_init_label);
 
       // initial round
-      for (int i = 1; i < 1 + INIT_COVAR_OFFSET; i++) {
+      for (int i = 1; i < 1 + startOffset; i+=COVAR_UNROLL_LEN) {
         prefetch_covar_frame(data, i, j1, j2, &sp, M);
       }
 
        // steady state
-      for (int i = 1 + INIT_COVAR_OFFSET; i < (N+1); i++) {
+      for (int i = 1 + startOffset; i < (N+1); i+=COVAR_UNROLL_LEN) {
         prefetch_covar_frame(data, i, j1, j2, &sp, M);
         ISSUE_VINST(vec_body_label);
       }
 
       // cooldown
-      for (int i = (N+1) - INIT_MEAN_OFFSET; i < (N+1); i++) {
+      for (int i = (N+1) - startOffset; i < (N+1); i+=COVAR_UNROLL_LEN) {
         ISSUE_VINST(vec_body_label);
       }
 
@@ -416,10 +397,19 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
     do {
       asm("trillium vissue_delim if_begin vec_body");
       FRAME_START(COVAR_FRAME_SIZE);
-      symmat_idx += sp_ptr[sp + 0] * sp_ptr[sp + 1];
+      #pragma GCC unroll(8)
+      for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
+        symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_UNROLL_LEN + u];
+      }
       REMEM(COVAR_FRAME_SIZE);
-      sp+=2;
+      sp+=COVAR_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
+      #if VECTOR_LEN==16
+      #pragma GCC unroll(16)
+      for (int n = 0; n < 1; n++) {
+        asm volatile("nop\n\t");
+      }
+      #endif
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
@@ -427,8 +417,10 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
     asm("trillium vissue_delim if_begin vec_body_end");
     int gt = (j2 >= (M+1));
     PRED_EQ(gt, 0);
-    symmat[j2 * (M+1) + j1] = symmat_idx;
-    symmat[j1 * (M+1) + j2] = symmat_idx;
+    STORE_NOACK(symmat_idx, &symmat[j2 * (M+1) + j1], 0);
+    STORE_NOACK(symmat_idx, &symmat[j1 * (M+1) + j2], 0);
+    // symmat[j2 * (M+1) + j1] = symmat_idx;
+    // symmat[j1 * (M+1) + j2] = symmat_idx;
     PRED_EQ(j2, j2);
     j2+=VECTOR_LEN;
     asm("trillium vissue_delim end at_jump");

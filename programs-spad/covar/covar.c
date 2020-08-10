@@ -23,14 +23,36 @@ void mean_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int
   int start = ((tid + 0) * M) / dim;
   int end   = ((tid + 1) * M) / dim;
 
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+
   for (int j = start + 1; j < end + 1; j++) {
     DTYPE mean_j = 0.0f;
+
+    #ifdef MANYCORE_PREFETCH
+    for (int i = 1; i < (N+1); i+=MEAN_UNROLL_LEN) {
+      prefetch_mean_frame(data, i, j, &sp, M);
+
+      START_FRAME();
+      #pragma GCC unroll(8)
+      for (int iin = 0; iin < MEAN_UNROLL_LEN; iin++) {
+        mean_j += sp_ptr[sp + iin];
+      }
+      END_FRAME();
+
+      sp += MEAN_FRAME_SIZE;
+      sp = sp % POST_FRAME_WORD;
+    }
+    #else
+    #pragma GCC unroll(8)
     for (int i = 1; i < (N+1); i++) {
       mean_j += data[i * (M+1) + j];
     }
+    #endif
     mean_j /= (DTYPE)FLOAT_N;
-    mean[j] = mean_j;
+    STORE_NOACK(mean_j, &mean[j], 0);
   }
+  asm volatile("fence\n\t");
 }
 
 // subract mean from data to "center"
@@ -42,11 +64,33 @@ void center_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, i
   int start = ((tid + 0) * N) / dim;
   int end   = ((tid + 1) * N) / dim;
 
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+
   for (int i = start + 1; i < end + 1; i++) {
-    for (int j = 1; j < (M+1); j++) {
-      data[i * (M+1) + j] -= mean[j];	
+    #ifdef MANYCORE_PREFETCH
+    for (int j = 1; j < (M+1); j+=CENTER_PREFETCH_LEN) {
+      prefetch_center_frame(data, mean, i, j, &sp, M);
+
+      START_FRAME();
+      #pragma GCC unroll(16)
+      for (int jin = 0; jin < CENTER_PREFETCH_LEN; jin++) {
+        DTYPE dat = sp_ptr[sp + jin] - sp_ptr[sp + CENTER_PREFETCH_LEN + jin];
+        STORE_NOACK(dat, &data[i * (M+1) + j + jin], 0);
+      }
+      END_FRAME();
+      sp += CENTER_FRAME_SIZE;
+      sp = sp % POST_FRAME_WORD;
     }
+    #else
+    #pragma GCC unroll(16)
+    for (int j = 1; j < (M+1); j++) {
+      DTYPE dat = data[i * (M+1) + j] - mean[j];
+      STORE_NOACK(dat, &data[i * (M+1) + j], 0);
+    }
+    #endif
   }
+  asm volatile("fence\n\t");
 }
 
 // compute the covariance matrix
@@ -57,16 +101,40 @@ void covar_manycore_baseline(DTYPE *symmat, DTYPE *data, int N, int M, int tid, 
   int stride = dim;
   int end    = M;
 
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+
   for (int j1 = start + 1; j1 < (end+1); j1+=stride) {
     for (int j2 = j1; j2 < (M+1); j2++) {
       DTYPE symmat_idx = 0.0f;
+
+      #ifdef MANYCORE_PREFETCH
+      for (int i = 1; i < (N+1); i+=COVAR_UNROLL_LEN) {
+        prefetch_covar_frame(data, i, j1, j2, &sp, M);
+
+        START_FRAME();
+        #pragma GCC unroll(8)
+        for (int iin = 0; iin < COVAR_UNROLL_LEN; iin++) {
+          symmat_idx += sp_ptr[sp + iin] * sp_ptr[sp + COVAR_UNROLL_LEN + iin];
+        }
+        END_FRAME();
+        sp += COVAR_FRAME_SIZE;
+        sp = sp % POST_FRAME_WORD;
+      }
+      #else
+      #pragma GCC unroll(8)
       for (int i = 1; i < (N+1); i++) {
         symmat_idx += data[i *(M+1) + j1] * data[i *(M+1) + j2];
       }
-      symmat[j2 * (M+1) + j1] = symmat_idx;
-      symmat[j1 * (M+1) + j2] = symmat_idx;
+      #endif
+
+      STORE_NOACK(symmat_idx, &symmat[j2 * (M+1) + j1], 0);
+      STORE_NOACK(symmat_idx, &symmat[j1 * (M+1) + j2], 0);
+      // symmat[j2 * (M+1) + j1] = symmat_idx;
+      // symmat[j1 * (M+1) + j2] = symmat_idx;
     }
   }
+  asm volatile("fence\n\t");
 }
 
 void __attribute__((optimize("-fno-inline"))) covar(
@@ -76,10 +144,21 @@ void __attribute__((optimize("-fno-inline"))) covar(
   ) {
 
     #ifndef USE_VEC
+    #ifdef MANYCORE_PREFETCH
+    SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);  
+    #endif
     mean_manycore_baseline(mean, data, N, M, ptid, dim);
+    #ifdef MANYCORE_PREFETCH
+    SET_PREFETCH_MASK(NUM_CENTER_FRAMES, CENTER_FRAME_SIZE, &start_barrier);
+    #else
     pthread_barrier_wait(&start_barrier);
+    #endif
     center_manycore_baseline(mean, data, N, M, ptid, dim);
+    #ifdef MANYCORE_PREFETCH
+    SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
+    #else
     pthread_barrier_wait(&start_barrier);
+    #endif
     covar_manycore_baseline(symmat, data, N, M, ptid, dim);
     #else
     SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);
@@ -122,7 +201,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int used = 0;
 
   // group construction
-  #ifdef VECTOR_LEN
+  #ifdef USE_VEC
 
   #if VECTOR_LEN==4
   template_info_t tinfo = init_template_4x4_2x2();
@@ -158,8 +237,15 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vdim = vdim_x * vdim_y;
 
   // get behavior of each core
-  #ifdef USE_VEC
+  #ifdef MEAN_FRAME_SIZE
+  // setup up self prefetch
+  #ifdef MANYCORE_PREFETCH
+  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
+  int mask = getDebugMask(&cinfo);
+  VECTOR_EPOCH(mask);
+  #else
   int mask = getSIMDMask(&cinfo);
+  #endif
   #else
   int mask = 0;
   #endif

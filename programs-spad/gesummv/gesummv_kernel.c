@@ -1,4 +1,5 @@
 #include "gesummv_kernel.h"
+#include "util.h"
 
 // #define SCALAR_CORE
 // #define VECTOR_CORE
@@ -8,6 +9,22 @@
 inline int _idx_(int y, int x, int width)
 {
   return (y * width) + x;
+}
+
+inline void prefetch_gesummv_frame(DTYPE *a, DTYPE *b, DTYPE *x, int i, int j, int n, int *spadRegion) {
+  int sp_a_offset = *spadRegion * REGION_SIZE;
+  int sp_b_offset = sp_a_offset + REGION_SIZE/3;
+  int sp_x_offset = sp_b_offset + REGION_SIZE/3;
+
+  for (int d = 0; d < VEC_LEN; d++){
+    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/3,1); //load A
+    VPREFETCH_L(sp_b_offset, b + _idx_(i+d,j,n), d, REGION_SIZE/3,1); //load A
+    VPREFETCH_L(sp_x_offset, x + j, d, REGION_SIZE/3,1); //load x
+  }
+
+  // sp_a_offset += REGION_SIZE;
+  // if (sp_a_offset == NUM_REGIONS*REGION_SIZE) sp_a_offset=0;
+  *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
 }
 
 void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int start, int end, int ptid, int vtid)
@@ -25,26 +42,25 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
 
    //prefetch variables
   int spadRegion = 0;
-  int sp_a_offset, sp_b_offset, sp_x_offset, sp_y_offset, sp_tmp_offset;
+  // int sp_a_offset, sp_b_offset, sp_x_offset, sp_y_offset, sp_tmp_offset;
   // sp_a_offset=0;
+
+  int stride = REGION_SIZE/3;
+  int startOffset = INIT_FRAMES*stride;
 
   for (int i = start; i < end; i+=VEC_LEN) {
     ISSUE_VINST(hoist1_label);
+
+    for (int j = 0; j < startOffset; j+=stride) {
+      prefetch_gesummv_frame(a, b, x, i, j, n, &spadRegion);
+    }
     
-    for(int j=0; j<n; j+=REGION_SIZE/3){
-      sp_a_offset = spadRegion * REGION_SIZE;
-      sp_b_offset = sp_a_offset + REGION_SIZE/3;
-      sp_x_offset = sp_b_offset + REGION_SIZE/3;
+    for(int j=startOffset; j<n; j+=stride){
+      prefetch_gesummv_frame(a, b, x, i, j, n, &spadRegion);
+      ISSUE_VINST(dotprod_label);
+    }
 
-      for (int d = 0; d < VEC_LEN; d++){
-        VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/3,1); //load A
-        VPREFETCH_L(sp_b_offset, b + _idx_(i+d,j,n), d, REGION_SIZE/3,1); //load A
-        VPREFETCH_L(sp_x_offset, x + j, d, REGION_SIZE/3,1); //load x
-      }
-
-      // sp_a_offset += REGION_SIZE;
-      // if (sp_a_offset == NUM_REGIONS*REGION_SIZE) sp_a_offset=0;
-      spadRegion = (spadRegion + 1) % NUM_REGIONS;
+    for (int j = n - startOffset; j < n; j+=stride) {
       ISSUE_VINST(dotprod_label);
     }
 

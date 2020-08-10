@@ -20,32 +20,6 @@
 
 #ifdef USE_VEC
 
-// TODO put this in header
-#define VPREFETCH_LR(sp, memIdx, core, len, style)  \
-  VPREFETCH_L(sp, memIdx, core, len, style);        \
-  VPREFETCH_R(sp, memIdx, core, len, style)
-
-
-inline void prefetch_step1_frame_i0(DTYPE *fict, int t, int *sp) {
-  // pad out to region size (3). also only fetch one element
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp + 0, fict + t, core, 1, VERTICAL);
-    VPREFETCH_L(*sp + 1, fict + t, core, 1, VERTICAL);
-    VPREFETCH_L(*sp + 2, fict + t, core, 1, VERTICAL);
-  }
-  *sp += STEP1_REGION_SIZE;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
-inline void prefetch_step1_frame_in0(DTYPE *ey, DTYPE *hz, int i, int j, int NY, int *sp) {
-  VPREFETCH_LR(*sp + 0, ey + i     * NY + j, 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 1, hz + i     * NY + j, 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 2, hz + (i-1) * NY + j, 0, VECTOR_LEN, HORIZONTAL);
-
-  *sp += STEP1_REGION_SIZE;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
 void tril_fdtd_step1(int mask,
   DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   int ptid, int groupId, int numGroups, int vtid) {
@@ -136,7 +110,14 @@ void tril_fdtd_step1(int mask,
       STORE_NOACK(out, ey + idx, 0);
       idx += VECTOR_LEN;
       sp += STEP1_REGION_SIZE;
-      if (sp == POST_FRAME_WORD) sp = 0;
+      sp = sp % POST_FRAME_WORD;
+      #if VECTOR_LEN==16
+      #pragma GCC unroll(3)
+      for (int n = 0; n < 3; n++) {
+        asm volatile("nop\n\t");
+      }
+      #endif
+      // if (sp == POST_FRAME_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
 
     } while(BH);
@@ -153,7 +134,8 @@ void tril_fdtd_step1(int mask,
       STORE_NOACK(out, ey + idx, 0);
       idx += VECTOR_LEN;
       sp += STEP1_REGION_SIZE;
-      if (sp == POST_FRAME_WORD) sp = 0;
+      sp = sp % POST_FRAME_WORD;
+      // if (sp == POST_FRAME_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
 
     } while(BH);
@@ -197,18 +179,6 @@ vector_return_label:
 #endif
 
 }
-
-
-inline void prefetch_step2_frame(DTYPE *ex, DTYPE *hz, int i, int j, int NY, int *sp) {
-  VPREFETCH_LR(*sp + 0, ex + i * (NY+1) + j, 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 1, hz + i * NY + j    , 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 2, hz + i * NY + (j-1), 0, VECTOR_LEN, HORIZONTAL);
-
-  *sp += STEP2_REGION_SIZE;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
-
 
 // weird bounds so need to only do up to eff_NY
 void tril_fdtd_step2(int mask,
@@ -289,7 +259,8 @@ void tril_fdtd_step2(int mask,
       PRED_EQ(gt, gt);
       j += VECTOR_LEN;
       sp += STEP2_REGION_SIZE;
-      if (sp == POST_FRAME_WORD) sp = 0;
+      sp = sp % POST_FRAME_WORD;
+      // if (sp == POST_FRAME_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
 
     } while(BH);
@@ -330,19 +301,6 @@ vec_body_end_label:
 vector_return_label:
   asm("trillium glue_point vector_return");
 #endif
-}
-
-inline void prefetch_step3_frame(DTYPE *ex, DTYPE *ey, DTYPE *hz, 
-      int i, int j, int NY, int *sp) {
-
-  VPREFETCH_LR(*sp + 0, hz + i     * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 1, ex + i     * (NY+1) + (j+1), 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 2, ex + i     * (NY+1) + j    , 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 3, ey + (i+1) * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 4, ey + i     * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
-
-  *sp += STEP3_REGION_SIZE;
-  if (*sp == POST_FRAME_WORD) *sp = 0;      
 }
 
 void tril_fdtd_step3(int mask,
@@ -417,7 +375,8 @@ void tril_fdtd_step3(int mask,
       STORE_NOACK(out, hz + idx, 0);
       idx += VECTOR_LEN;
       sp += STEP3_REGION_SIZE;
-      if (sp == POST_FRAME_WORD) sp = 0;
+      sp = sp % POST_FRAME_WORD;
+      // if (sp == POST_FRAME_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
 
     } while(BH);

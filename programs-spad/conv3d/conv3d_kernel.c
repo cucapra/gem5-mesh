@@ -39,40 +39,6 @@
 // group parallel across i
 // j along for the ride?
 
-#define VPREFETCH_LR(sp, memIdx, core, len, style)  \
-  VPREFETCH_L(sp, memIdx, core, len, style);        \
-  VPREFETCH_R(sp, memIdx, core, len, style)
-
-
-inline void prefetch_horiz_frame(DTYPE *a, int i, int j, int k, int NJ, int NK, int *sp) {
-  // prefetch all 15 values required for computation
-            // a[IDX(i-1, j-1, k-1, NJ, NK)], a[IDX(i-1, j-1, k+1, NJ, NK)], 
-            // a[IDX(i-1, j+0, k+1, NJ, NK)], a[IDX(i-1, j+1, k+1, NJ, NK)], 
-            // a[IDX(i+0, j-1, k+0, NJ, NK)], a[IDX(i+0, j+0, k+0, NJ, NK)], 
-            // a[IDX(i+0, j+1, k+0, NJ, NK)], a[IDX(i+1, j-1, k-1, NJ, NK)], 
-            // a[IDX(i+1, j-1, k+1, NJ, NK)], a[IDX(i+1, j+0, k+1, NJ, NK)], 
-            // a[IDX(i+1, j+1, k+1, NJ, NK)];
-
-  VPREFETCH_LR(*sp + 0 , a + IDX(i-1, j-1, k-1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 1 , a + IDX(i-1, j-1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 2 , a + IDX(i-1, j+0, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 3 , a + IDX(i-1, j+1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 4 , a + IDX(i+0, j-1, k+0, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 5 , a + IDX(i+0, j+0, k+0, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 6 , a + IDX(i+0, j+1, k+0, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 7 , a + IDX(i+1, j-1, k-1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 8 , a + IDX(i+1, j-1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 9 , a + IDX(i+1, j+0, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 10, a + IDX(i+1, j+1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-
-  *sp = (*sp + REGION_SIZE);
-
-  // spad is circular buffer so do cheap mod here
-  if (*sp == POST_REGION_WORD) {
-    *sp = 0;
-  }
-}
-
 void tril_conv3d(int mask,
     DTYPE *a, DTYPE *b, int outer_start, int outer_end, int NJ, int NK, //int eff_NK,
     int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y) {
@@ -95,12 +61,15 @@ void tril_conv3d(int mask,
 
   int vtid = vtid_x + vtid_y * vdim_x;
 
-  int unmappedJ = (FILTER_DIM-1);
-  int unmappedK = (FILTER_DIM-1);//NK - eff_NK;
-  int bIdx = IDX(outer_start, 1, vtid + 1, NJ, NK) - 
-    unmappedK - unmappedJ * NK;
+  // int unmappedJ = (FILTER_DIM-1);
+  // int unmappedK = (FILTER_DIM-1);//NK - eff_NK;
+  // int bIdx = IDX(outer_start, 1, 0, NJ, NK) - 
+  //   NK /*unmappedK*/ - unmappedJ * NK;
 
   int sp = 0;
+  int i = outer_start;// * NJ * NK;// - (NJ * NK);
+  int j;
+  int k;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
   #endif
 
@@ -134,10 +103,10 @@ void tril_conv3d(int mask,
         ISSUE_VINST(vec_body_label);
       }
 
-      // ISSUE_VINST(k_body_end_label);
+      ISSUE_VINST(k_body_end_label);
     }
 
-    // ISSUE_VINST(j_body_end_label);
+    ISSUE_VINST(j_body_end_label);
   }
   // }
   #endif
@@ -180,12 +149,15 @@ void tril_conv3d(int mask,
 
     // TODO needed? check if empty
     asm("trillium vissue_delim until_next j_body_begin");
-    bIdx += unmappedJ * NK;
+    // bIdx += unmappedJ * NK;
+    j = 1;
 
     do {
 
       asm("trillium vissue_delim until_next k_body_begin");
-      bIdx += unmappedK;
+      // bIdx += unmappedK;
+      // bIdx += NK;
+      k = 1 + vtid;
 
       do {
       asm("trillium vissue_delim if_begin vec_body");
@@ -203,23 +175,33 @@ void tril_conv3d(int mask,
 
         END_FRAME();
 
-        STORE_NOACK(out, b + bIdx, 0);
-        bIdx += VECTOR_LEN;
+
+        int idx = IDX(i, j, k, NJ, NK);
+        int gt = (k >= NK);
+        PRED_EQ(gt, 0);
+        STORE_NOACK(out, b + idx, 0);
+        PRED_EQ(gt, gt);
+
+        k+=VECTOR_LEN; // this line getting group with bIdx
+        // bIdx += VECTOR_LEN;
         sp += REGION_SIZE;
-        if (sp == POST_REGION_WORD) sp = 0;
+        sp = sp % POST_REGION_WORD;
+        // if (sp == POST_REGION_WORD) sp = 0;
         asm("trillium vissue_delim end at_jump");
       } while (BH);
 
-      // asm("trillium vissue_delim if_begin k_body_end");
+      asm("trillium vissue_delim if_begin k_body_end");
       // // bIdx += unmappedK * NK;
-      // asm("trillium vissue_delim end at_jump");
+      j++;
+      asm("trillium vissue_delim end at_jump");
 
 
     } while (BHO);
 
-    // asm("trillium vissue_delim if_begin j_body_end");
-    // // bIdx += unmappedJ;
-    // asm("trillium vissue_delim end at_jump");
+    asm("trillium vissue_delim if_begin j_body_end");
+    // bIdx += unmappedJ;
+    i++;
+    asm("trillium vissue_delim end at_jump");
 
   } while (BHOO);
   #endif
@@ -249,12 +231,12 @@ exit(1);
 vec_body_label:
   asm("trillium glue_point vec_body");
 exit(1);
-// k_body_end_label:
-//   asm("trillium glue_point k_body_end");
-// exit(1);
-// j_body_end_label:
-//   asm("trillium glue_point j_body_end");
-// exit(1);
+k_body_end_label:
+  asm("trillium glue_point k_body_end");
+exit(1);
+j_body_end_label:
+  asm("trillium glue_point j_body_end");
+exit(1);
 k_body_begin_label:
   asm("trillium glue_point k_body_begin");
 exit(1);

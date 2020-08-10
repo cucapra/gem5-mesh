@@ -12,7 +12,7 @@
 
 import os, subprocess, time, argparse, re, random
 
-import multiprocessing
+import multiprocessing, time
 
 # include configs we want to run
 import sim_list
@@ -65,6 +65,10 @@ def run_prog(numCpus, prog_key, argv, extra_info):
   try:
     result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
   except:
+    try:
+      print(result)
+    except:
+      pass
     return False
   # print(result)
 
@@ -73,6 +77,7 @@ def run_prog(numCpus, prog_key, argv, extra_info):
   if (success):
     return True
   else:
+    print(result)
     return False
 
 # either array or single string
@@ -94,28 +99,44 @@ def strings_to_metadata(args):
     for a in args:
       # special interpretations
       arg = sim_list.abbreviate_config(a)
-      meta += arg + '_'
+      meta += arg
+      if (a != args[-1]):
+        meta += '_'
   else:
     meta = sim_list.abbreviate_config(args)
   return meta
 
+# # run all configuration for a single benchmark
+# # this must be done serially due to recompiling benchmark
+# # (but can parallize across benchmarks)
+# def run_all_configs(vec_configs, num_cpus, prog_key, argv):
+#   all_pass = True
+#   for vec_config in vec_configs:
+#     # compile program with the specificed vec config
+#     compile_prog(num_cpus, prog_key, strings_to_make_args(vec_config))
+
+#     ret = run_prog(num_cpus, prog_key, argv, strings_to_metadata(vec_config))
+#     if (not ret):
+#       print('-------------------------------------------------------------')
+#       print('{} failed w/ config {}'.format(prog_key, vec_config))
+#       print('-------------------------------------------------------------')
+#       all_pass = False
+
+#   return all_pass
+
 # run all configuration for a single benchmark
 # this must be done serially due to recompiling benchmark
 # (but can parallize across benchmarks)
-def run_all_configs(vec_configs, num_cpus, prog_key, argv):
+def run_config(vec_config, num_cpus, prog_key, argv):
   all_pass = True
-  for vec_config in vec_configs:
-    # compile program with the specificed vec config
-    compile_prog(num_cpus, prog_key, strings_to_make_args(vec_config))
 
-    ret = run_prog(num_cpus, prog_key, argv, strings_to_metadata(vec_config))
-    if (not ret):
-      print('-------------------------------------------------------------')
-      print('{} failed w/ config {}'.format(prog_key, vec_config))
-      print('-------------------------------------------------------------')
-      all_pass = False
+  ret = run_prog(num_cpus, prog_key, argv, strings_to_metadata(vec_config))
+  if (not ret):
+    print('-------------------------------------------------------------')
+    print('{} failed w/ config {}'.format(prog_key, vec_config))
+    print('-------------------------------------------------------------')
+    all_pass = False
 
-  return all_pass
 
 # MAIN
 # 
@@ -132,10 +153,18 @@ for k,v in sim_list.sim_configs.items():
   # prog_def  = sim_list.programs[prog_name] # TODO can't pass dicts?
   argv      = sim_config['argv']
   vec_configs = sim_config['vec']
+  for vec_config in vec_configs:
 
-  # the new file will have the same name as the old file, but also specify the new dir
-  proc = pool.apply_async(run_all_configs, args=(vec_configs, num_cpus, prog_key, argv, ))
-  jobs.append(proc)
+    # compile serially so can launch job with overwritting binary
+    compile_prog(num_cpus, prog_key, strings_to_make_args(vec_config))
+
+    # the new file will have the same name as the old file, but also specify the new dir
+    proc = pool.apply_async(run_config, args=(vec_config, num_cpus, prog_key, argv, ))
+    jobs.append(proc)
+
+    # sleep for some time to give time for gem5 to load the binary
+    time.sleep(11)
+    
 
 # Wait for jobs to complete before exiting
 while(not all([p.ready() for p in jobs])):

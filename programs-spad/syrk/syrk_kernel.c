@@ -18,35 +18,6 @@
 
 #ifdef USE_VEC
 
-// prefetch c
-// pad out to the frame size (1->2 currently)
-// maybe don't have to prefetch this
-inline void prefetch_outer_frame(DTYPE *c, int i, int j, int *sp, int N) {
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp + 0, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
-
-    // pad out
-    VPREFETCH_L(*sp + 1, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + 2*OUTER_PREFETCH_LEN;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
-// prefetch a
-inline void prefetch_inner_frame(DTYPE *a, int i, int j, int k, int *sp, int M) {
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    // TODO redundant
-    VPREFETCH_L(*sp + 0, &a[i * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
-
-    // TODO this can be horizontal?
-    VPREFETCH_L(*sp + 1, &a[(j + core) * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + 2*INNER_PREFETCH_LEN;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
 // TODO there are def oppurtuniteis to parallize inner loop instead of outer loop to get more horizontal prefetching
 //
 // for (int i = start + vtid; i < end; i+=VECTOR_LEN) {
@@ -81,6 +52,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
 
+  int startOffset = min(INIT_OFFSET, M);
+
   ISSUE_VINST(init_label);
   #endif
 
@@ -106,18 +79,18 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       ISSUE_VINST(vec_body_init_label);
 
       // warmup 
-      for (int k = 0; k < INIT_OFFSET; k+=INNER_PREFETCH_LEN) {
+      for (int k = 0; k < startOffset; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
       }
 
       // steady-state
-      for (int k = INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
+      for (int k = startOffset; k < M; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
         ISSUE_VINST(vec_body_label);
       }
 
       // cooldown
-      for (int k = M - INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
+      for (int k = M - startOffset; k < M; k+=INNER_PREFETCH_LEN) {
         ISSUE_VINST(vec_body_label);
       }
 
@@ -168,18 +141,33 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     // printf("c %f ?= %f\n", sp_ptr[sp], c[i*N+j]);
     c_ij = sp_ptr[sp + 0] * beta;
     REMEM(OUTER_FRAME_SIZE);
-    sp+=2;
+    // pad so num regions possible regions is lower
+    asm volatile("nop\n\t");
+    asm volatile("nop\n\t");
+    asm volatile("nop\n\t");
+    asm volatile("nop\n\t");
+    asm volatile("nop\n\t");
+    asm volatile("nop\n\t");
+    asm volatile("nop\n\t");
+    asm volatile("nop\n\t");
+    asm volatile("nop\n\t");
+    sp+=OUTER_FRAME_SIZE;
     sp = sp % POST_FRAME_WORD;
 
     do {
       asm("trillium vissue_delim if_begin vec_body");
       // do innermost loop body (k)
       FRAME_START(INNER_FRAME_SIZE);
+
+      #pragma GCC unroll(16)
+      for (int k = 0; k < INNER_PREFETCH_LEN; k++) {
+        c_ij += alpha * sp_ptr[sp + k] * sp_ptr[sp + INNER_PREFETCH_LEN + k];
+      }
       // printf("a %f ?= %f %f ?= %f\n", sp_ptr[sp + 0], a[i * M + k], sp_ptr[sp + 1], a[j * M +k]);
       // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
-      c_ij += alpha * sp_ptr[sp + 0] * sp_ptr[sp + 1];
+      // c_ij += alpha * sp_ptr[sp + 0] * sp_ptr[sp + 1];
       REMEM(INNER_FRAME_SIZE);
-      sp+=2;
+      sp+=INNER_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
       asm("trillium vissue_delim end at_jump");
     } while(BH);

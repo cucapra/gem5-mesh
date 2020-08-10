@@ -6,7 +6,7 @@ import os, subprocess, time, argparse, re, sys, math
 parser = argparse.ArgumentParser(description='Analyze stats file in a given directory')
 parser.add_argument('infile')
 parser.add_argument('--num-hardware-cntrs', default=5, help='Number of frame ctnrs in the hardware')
-parser.add_argument('--vec-dim', default=2, help='Vector dimension for square group')
+# parser.add_argument('--vec-dim', default=2, help='Vector dimension for square group')
 parser.add_argument('--mesh-queue-slots', default=2, help='Size of queues in mesh')
 parser.add_argument('--pipe-queue-slots', default=2, help='Size of queues between pipe stages')
 parser.add_argument('--rob-slots', default=8, help='ROB size')
@@ -391,10 +391,11 @@ if len(vissue_table.items()) == 0:
 for k,v in vissue_table.items():
     count_vissue(k)
 
-# # just print all
-# for k,v in vissue_table.items():
-#     print(k)
-#     print(vissue_table[k]['count'])
+# just print all
+for k,v in vissue_table.items():
+    print('{} {} {} {}'.format(
+        k, vissue_table[k]['label'], vissue_table[k]['count'], 
+        block_uses_frames(vissue_table[k]['label'])))
 
 # find minimum size of a vissue block that contains frames -> maximum number of open frames
 # TODO a real compiler would be able to figure out per prefetch/vissue block pair, but this prob good for now
@@ -406,17 +407,25 @@ for k,v in vissue_table.items():
 
 # print("min frame size: " + str(min_frame_size))
 
-# do sync calculation using mesh size, frame size, etc..
-init_frames = det_sync_frames(
-    int(args.vec_dim),
-    int(args.mesh_queue_slots),
-    int(args.rob_slots),
-    int(args.pipe_queue_slots),
-    int(args.pipe_stages_before_commit),
-    min_frame_size,
-    int(args.num_hardware_cntrs)
-    )
+# do for vlen4 vlen16 squares
 
-print("-------------------------------------------------------------")
-print("Guaranteed Synced if Init Frames <= " + str(init_frames) + " ... or your money back")
-print("-------------------------------------------------------------")
+vlen_side = [ 2 , 4 ]
+
+print("---------------------------------------------------------------------------\n")
+
+for sl in vlen_side:
+
+    # do sync calculation using mesh size, frame size, etc..
+    init_frames = det_sync_frames(
+        int(sl),
+        int(args.mesh_queue_slots),
+        int(args.rob_slots),
+        int(args.pipe_queue_slots),
+        int(args.pipe_stages_before_commit),
+        min_frame_size,
+        int(args.num_hardware_cntrs)
+        )
+
+    print("Vlen{}: Guaranteed Synced if Init Frames <= {} ... or your money back\n".format(str(sl*sl), str(init_frames)))
+
+print("---------------------------------------------------------------------------")

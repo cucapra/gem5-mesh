@@ -10,6 +10,48 @@ inline int _idx_(int y, int x, int width)
   return (y * width) + x;
 }
 
+inline void prefetch_mvt_frame_y1(DTYPE *a, DTYPE *y1, int i, int j, int n, int *spadRegion) {
+  int sp_a_offset = *spadRegion * REGION_SIZE;
+  int sp_y1_offset = sp_a_offset + REGION_SIZE/2;
+
+  for (int d = 0; d < VEC_LEN; d++){
+    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/2,1); //load A, hopefully cache alligned so no vprefetch_R
+    VPREFETCH_L(sp_y1_offset, y1 + j, d, REGION_SIZE/2,1); //load x
+  }
+
+  *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
+}
+
+inline void prefetch_mvt_frame_x1(DTYPE *x1, int i, int *spadRegion) {
+  int sp_x1_offset = *spadRegion * REGION_SIZE;
+  for (int d = 0; d < REGION_SIZE; d++){
+      VPREFETCH_L(sp_x1_offset+d, x1+i, 0, VEC_LEN ,0); //issue same request to fill region
+  }
+  *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
+}
+
+inline void prefetch_mvt_frame_y2(DTYPE *a, DTYPE *y2, int i, int j, int n, int *spadRegion) {
+  int sp_a_offset = *spadRegion * REGION_SIZE;
+  int sp_y2_offset = sp_a_offset + REGION_SIZE/2;
+
+  for(int ii=0; ii<REGION_SIZE/2; ii++){
+    VPREFETCH_L(sp_a_offset+ii, a+_idx_(j+ii,i,n), 0, VEC_LEN ,0);
+  }
+  for (int d = 0; d < VEC_LEN; d++){
+    VPREFETCH_L(sp_y2_offset, y2+j, d, REGION_SIZE/2 ,1); 
+  }
+
+  *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
+}
+
+inline void prefetch_mvt_frame_x2(DTYPE *x2, int i, int *spadRegion) {
+  int sp_x2_offset = *spadRegion * REGION_SIZE;
+  for (int d = 0; d < REGION_SIZE; d++){
+      VPREFETCH_L(sp_x2_offset+d, x2+i, 0, VEC_LEN ,0);
+  }
+  *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
+}
+
 void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, 
                   int start, int end, int ptid, int vtid)
 {
@@ -31,54 +73,47 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
   int* ptid_group_sp = getSpAddr(ptid,NUM_REGIONS*REGION_SIZE);
   // if(ptid==0)printf("ptid %d %d %d %d\n",ptid_group_sp[0],ptid_group_sp[1],ptid_group_sp[2],ptid_group_sp[3]);
 
+  int stride = REGION_SIZE/2;
+  int startOffset = INIT_FRAMES*stride;
+
   DTYPE temp;
   for (int i = start; i < end; i+=VEC_LEN) {
     temp=0;
     ISSUE_VINST(hoist1_label);
     
-    for(int j=0; j<n; j+=REGION_SIZE/2){
-      sp_a_offset = spadRegion * REGION_SIZE;
-      sp_y1_offset = sp_a_offset + REGION_SIZE/2;
+    for (int j = 0; j < startOffset; j+=stride) {
+      prefetch_mvt_frame_y1(a, y1, i, j, n, &spadRegion);   
+    }
 
-      for (int d = 0; d < VEC_LEN; d++){
-        VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/2,1); //load A, hopefully cache alligned so no vprefetch_R
-        VPREFETCH_L(sp_y1_offset, y1 + j, d, REGION_SIZE/2,1); //load x
-      }
+    for(int j=startOffset; j<n; j+=stride){
+      prefetch_mvt_frame_y1(a, y1, i, j, n, &spadRegion);   
+      ISSUE_VINST(dotprod_label);
+    }
 
-      spadRegion = (spadRegion + 1) % NUM_REGIONS;
+    for (int j = n - startOffset; j < n; j+=stride) {
       ISSUE_VINST(dotprod_label);
     }
 
     // ----- prefetch x1[i+vtid] -----
-    sp_x1_offset = spadRegion * REGION_SIZE;
-    for (int d = 0; d < REGION_SIZE; d++){
-        VPREFETCH_L(sp_x1_offset+d, x1+i, 0, VEC_LEN ,0); //issue same request to fill region
-    }
-    spadRegion = (spadRegion + 1) % NUM_REGIONS;
+    prefetch_mvt_frame_x1(x1, i, &spadRegion);
 
     ISSUE_VINST(store_dp_label);
 
-    for(int j=0; j<n; j+=REGION_SIZE/2){
-      sp_a_offset = spadRegion * REGION_SIZE;
-      sp_y2_offset = sp_a_offset + REGION_SIZE/2;
+    for (int j = 0; j < startOffset; j+=stride) {
+      prefetch_mvt_frame_y2(a, y2, i, j, n, &spadRegion); 
+    }
 
-      for(int ii=0; ii<REGION_SIZE/2; ii++){
-        VPREFETCH_L(sp_a_offset+ii, a+_idx_(j+ii,i,n), 0, VEC_LEN ,0);
-      }
-      for (int d = 0; d < VEC_LEN; d++){
-        VPREFETCH_L(sp_y2_offset, y2+j, d, REGION_SIZE/2 ,1); 
-      }
-
-      spadRegion = (spadRegion + 1) % NUM_REGIONS;
-      
+    for(int j=startOffset; j<n; j+=stride){
+      prefetch_mvt_frame_y2(a, y2, i, j, n, &spadRegion);
       ISSUE_VINST(transpose_dp_label);
     }
-    // ----- prefetch x2[i+vtid] -----
-    sp_x2_offset = spadRegion * REGION_SIZE;
-    for (int d = 0; d < REGION_SIZE; d++){
-        VPREFETCH_L(sp_x2_offset+d, x2+i, 0, VEC_LEN ,0);
+
+    for (int j = n - startOffset; j < n; j+=stride) {
+      ISSUE_VINST(transpose_dp_label);
     }
-    spadRegion = (spadRegion + 1) % NUM_REGIONS;
+
+    // ----- prefetch x2[i+vtid] -----
+    prefetch_mvt_frame_x2(x2, i, &spadRegion);
 
     ISSUE_VINST(loop_end_label);
   }
@@ -152,7 +187,14 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
     REMEM(REGION_SIZE);
     STORE_NOACK(temp, x1 + row_thread, 0);
     spadRegion = (spadRegion + 1) % NUM_REGIONS;
-    
+
+    // so can get 1 frame in for v16
+    #if VEC_LEN==16
+    #pragma GCC unroll(16)
+    for (int nop = 0; nop < 1; nop++) {
+      asm volatile("nop\n\t");
+    }
+    #endif
 
     col_thread=0;
     temp=0;
