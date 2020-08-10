@@ -73,7 +73,7 @@ inline void prefetch_q_frame(DTYPE *a, DTYPE *p, int i, int j, int *sp, int NY) 
   // don't think need prefetch R here?
   for (int core = 0; core < VECTOR_LEN; core++) {
     int icore = i + core;
-    VPREFETCH_L(*sp, &a[icore * NY + j], core, Q_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp, &a[icore * NY + j], core, Q_PREFETCH_LEN, VERTICAL);
     // VPREFETCH_R(*sp, &a[icore * NY + j], core, Q_PREFETCH_LEN, VERTICAL);
   }
 
