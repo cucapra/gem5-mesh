@@ -157,18 +157,18 @@ SwitchAllocator::wakeup()
     // }
 
     // print the trace for this wakeup
-    if (m_router->get_id() == 70) {
-        std::string trace = "";
-        for (int inport = 0; inport < m_num_inports; inport++) {
-            trace += port_to_dir_symbol(inport);
-            trace += " ";
-            for (int vc = 0; vc < m_num_vcs; vc++) {
-                trace += m_wakeup_info[inport * m_num_vcs + vc];
-            }
-            trace += " | ";
-        };
-        DPRINTF(Frame, "%s\n", trace.c_str());
-    }
+    // if (m_router->get_id() == 70) {
+    //     std::string trace = "";
+    //     for (int inport = 0; inport < m_num_inports; inport++) {
+    //         trace += port_to_dir_symbol(inport);
+    //         trace += " ";
+    //         for (int vc = 0; vc < m_num_vcs; vc++) {
+    //             trace += m_wakeup_info[inport * m_num_vcs + vc];
+    //         }
+    //         trace += " | ";
+    //     };
+    //     DPRINTF(Frame, "%s\n", trace.c_str());
+    // }
 
     clear_request_vector();
     check_for_wakeup();

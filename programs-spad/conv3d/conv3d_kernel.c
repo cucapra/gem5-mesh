@@ -39,35 +39,6 @@
 // group parallel across i
 // j along for the ride?
 
-inline void prefetch_horiz_frame(DTYPE *a, int i, int j, int k, int NJ, int NK, int *sp) {
-  // prefetch all 15 values required for computation
-            // a[IDX(i-1, j-1, k-1, NJ, NK)], a[IDX(i-1, j-1, k+1, NJ, NK)], 
-            // a[IDX(i-1, j+0, k+1, NJ, NK)], a[IDX(i-1, j+1, k+1, NJ, NK)], 
-            // a[IDX(i+0, j-1, k+0, NJ, NK)], a[IDX(i+0, j+0, k+0, NJ, NK)], 
-            // a[IDX(i+0, j+1, k+0, NJ, NK)], a[IDX(i+1, j-1, k-1, NJ, NK)], 
-            // a[IDX(i+1, j-1, k+1, NJ, NK)], a[IDX(i+1, j+0, k+1, NJ, NK)], 
-            // a[IDX(i+1, j+1, k+1, NJ, NK)];
-
-  VPREFETCH_LR(*sp + 0 , a + IDX(i-1, j-1, k-1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 1 , a + IDX(i-1, j-1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 2 , a + IDX(i-1, j+0, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 3 , a + IDX(i-1, j+1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 4 , a + IDX(i+0, j-1, k+0, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 5 , a + IDX(i+0, j+0, k+0, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 6 , a + IDX(i+0, j+1, k+0, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 7 , a + IDX(i+1, j-1, k-1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 8 , a + IDX(i+1, j-1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 9 , a + IDX(i+1, j+0, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 10, a + IDX(i+1, j+1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
-
-  *sp = (*sp + REGION_SIZE);
-
-  // spad is circular buffer so do cheap mod here
-  if (*sp == POST_REGION_WORD) {
-    *sp = 0;
-  }
-}
-
 void tril_conv3d(int mask,
     DTYPE *a, DTYPE *b, int outer_start, int outer_end, int NJ, int NK, //int eff_NK,
     int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y) {
@@ -214,7 +185,8 @@ void tril_conv3d(int mask,
         k+=VECTOR_LEN; // this line getting group with bIdx
         // bIdx += VECTOR_LEN;
         sp += REGION_SIZE;
-        if (sp == POST_REGION_WORD) sp = 0;
+        sp = sp % POST_REGION_WORD;
+        // if (sp == POST_REGION_WORD) sp = 0;
         asm("trillium vissue_delim end at_jump");
       } while (BH);
 

@@ -18,35 +18,6 @@
 
 #ifdef USE_VEC
 
-// prefetch c
-// pad out to the frame size (1->2 currently)
-// maybe don't have to prefetch this
-inline void prefetch_outer_frame(DTYPE *c, int i, int j, int *sp, int N) {
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_LR(*sp + 0, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
-
-    // pad out
-    VPREFETCH_LR(*sp + OUTER_PREFETCH_LEN, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + OUTER_FRAME_SIZE;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
-// prefetch a
-inline void prefetch_inner_frame(DTYPE *a, int i, int j, int k, int *sp, int M) {
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    // TODO redundant across cores
-    VPREFETCH_L(*sp + 0, &a[i * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
-
-    // TODO this can be horizontal?
-    VPREFETCH_L(*sp + INNER_PREFETCH_LEN, &a[(j + core) * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + INNER_FRAME_SIZE;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
 // TODO there are def oppurtuniteis to parallize inner loop instead of outer loop to get more horizontal prefetching
 //
 // for (int i = start + vtid; i < end; i+=VECTOR_LEN) {
@@ -81,6 +52,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
 
+  int startOffset = min(INIT_OFFSET, M);
+
   ISSUE_VINST(init_label);
   #endif
 
@@ -106,18 +79,18 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       ISSUE_VINST(vec_body_init_label);
 
       // warmup 
-      for (int k = 0; k < INIT_OFFSET; k+=INNER_PREFETCH_LEN) {
+      for (int k = 0; k < startOffset; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
       }
 
       // steady-state
-      for (int k = INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
+      for (int k = startOffset; k < M; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
         ISSUE_VINST(vec_body_label);
       }
 
       // cooldown
-      for (int k = M - INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
+      for (int k = M - startOffset; k < M; k+=INNER_PREFETCH_LEN) {
         ISSUE_VINST(vec_body_label);
       }
 

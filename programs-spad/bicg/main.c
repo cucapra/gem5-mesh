@@ -155,7 +155,7 @@ int main(int argc, char *argv[]) {
   bigc(a, r, s_exp, p, q_exp, NX, NY);
 
   for (int j = 0; j < NY; j++) {
-    if (s[j] != s_exp[j]) {
+    if (float_compare(s[j], s_exp[j], 0.0001f) == 0) {
       printf("j %d | %f != %f\n", j, s[j], s_exp[j]);
       printf("[[FAIL]]\n");
       return 1;      

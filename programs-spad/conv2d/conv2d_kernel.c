@@ -35,52 +35,6 @@
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
-#ifdef VERTICAL_LOADS
-inline void prefetch_vert_frame(DTYPE *a, int r, int c, int ncols, int dim, int *spadIdx) {
-  for (int k1 = -1; k1 <= 1; k1++) {
-    for (int core = 0; core < dim; core++) {
-      int aIdx = (r + k1) * ncols + c - 1 + core * CORE_STEP;
-      // int aIdx = core * 16; // at least for size 4, only use 4/8 caches so less bw
-      // printf("mid issue r %d c %d k1 %d core %d, depth %d, aIdx %d\n", r, c, k1, core, LOAD_DEPTH, aIdx);
-      VPREFETCH_L(*spadIdx, a + aIdx, core, LOAD_DEPTH, VERTICAL);
-      VPREFETCH_R(*spadIdx, a + aIdx, core, LOAD_DEPTH, VERTICAL);
-    }
-    (*spadIdx)+=LOAD_DEPTH;
-  }
-
-  if (*spadIdx == POST_REGION_WORD) *spadIdx = 0;
-}
-#else
-inline void prefetch_horiz_frame(DTYPE *a, int r, int c, int ncols, int pRatio, int *spadIdx) {
-  // prefetch all 9 values required for computation
-  // #pragma GCC unroll 3
-  for (int k1 = -1; k1 <= 1; k1++) {
-    // #pragma GCC unroll 3
-    for (int k2 = -1; k2 <= 1; k2++) {
-      int aIdx = (r + k1) * ncols + (c + k2);
-      
-      #if PREFETCH_LEN != VECTOR_LEN
-      for (int p = 0; p < pRatio; p++) {
-        VPREFETCH_L(*spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, HORIZONTAL);
-        VPREFETCH_R(*spadIdx, a + aIdx + p * PREFETCH_LEN, p * PREFETCH_LEN, PREFETCH_LEN, HORIZONTAL);
-      }
-      #else
-      VPREFETCH_L(*spadIdx, a + aIdx, 0, PREFETCH_LEN, HORIZONTAL);
-      VPREFETCH_R(*spadIdx, a + aIdx, 0, PREFETCH_LEN, HORIZONTAL);
-      #endif
-
-      (*spadIdx)++;
-      
-    }
-  }
-
-  // spad is circular buffer so do cheap mod here
-  if (*spadIdx == POST_REGION_WORD) {
-    *spadIdx = 0;
-  }
-}
-#endif
-
 void tril_conv2d(int mask,
     DTYPE *a, DTYPE *b, int outer_start, int outer_end, int inner_dim, int eff_inner_dim,
     int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y,
@@ -305,8 +259,8 @@ void tril_conv2d(int mask,
       #endif
 
       sp += REGION_SIZE;
-      // sp = sp % POST_REGION_WORD; // not a power of 2 --> if cheaper than mod
-      if (sp == POST_REGION_WORD) sp = 0;
+      sp = sp % POST_REGION_WORD; // not a power of 2 --> if cheaper than mod?
+      // if (sp == POST_REGION_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
     } while (BH);
 

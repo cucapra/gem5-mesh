@@ -17,27 +17,6 @@
  *---------------------------------------------------------------------------------*/
 
 #ifdef USE_VEC
-
-// prefetch a and r
-inline void prefetch_s_frame(DTYPE *a, DTYPE *r, int i, int j, int *sp, int NY) {
-  // don't think need prefetch_R here?
-  // for (int i = 0 )
-  VPREFETCH_L(*sp, &a[i * NY + j], 0, S_PREFETCH_LEN, HORIZONTAL);
-  // VPREFETCH_R(*sp, &a[i * NY + j], 0, S_PREFETCH_LEN, HORIZONTAL);
-  // printf("horiz pf i %d j %d idx %d sp %d val %f %f %f %f\n", i, j, i * NY + j, *sp, a[i* NY + j], a[i*NY+j+1], a[i*NY+j+2], a[i*NY+j+3]);
-  *sp = *sp + 1;
-
-  // TODO potentially some reuse here b/c fetch the same thing for everyone
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &r[i], core, Q_PREFETCH_LEN, VERTICAL);
-    // VPREFETCH_R(*sp, &r[i], core, Q_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + Q_PREFETCH_LEN;
-
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-}
-
 void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int ptid, int groupId, int numGroups, int vtid) {
 
   // CANT DO CODE HERE, also can't share code between scalar and vector here
@@ -63,6 +42,8 @@ void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int pti
 
   // issue header block
   ISSUE_VINST(init_label);
+
+  int startOffset = min(INIT_FRAMES*Q_PREFETCH_LEN, NX);
   #endif
 
   #ifdef VECTOR_CORE
@@ -70,7 +51,6 @@ void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int pti
   int start = ((groupId + 0) * NY) / numGroups;
   start = roundUp(start, VECTOR_LEN);
 
-  int i = 0;
   int j = start + vtid;
   DTYPE s_local = 0.0f;
   int sp = 0;
@@ -82,20 +62,22 @@ void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int pti
   
   for (int j = start; j < end; j+=VECTOR_LEN) {
     // do initial prefetching for a small amount
-    for (int i = 0; i < INIT_FRAMES*Q_PREFETCH_LEN; i+=Q_PREFETCH_LEN) {
+    for (int i = 0; i < startOffset; i+=Q_PREFETCH_LEN) {
       prefetch_s_frame(a, r, i, j, &sp, NY);
     }
 
     // steady state
-    for (int i = INIT_FRAMES*Q_PREFETCH_LEN; i < NX; i+=Q_PREFETCH_LEN) {
+    for (int i = startOffset; i < NX; i+=Q_PREFETCH_LEN) {
       prefetch_s_frame(a, r, i, j, &sp, NY);
       ISSUE_VINST(vec_body_label);
     }
 
     // draining. do the last vissue corresponding to the initial round of prefetch
-    for (int i = NX - INIT_FRAMES*Q_PREFETCH_LEN; i < NX; i+=Q_PREFETCH_LEN) {
+    for (int i = NX - startOffset; i < NX; i+=Q_PREFETCH_LEN) {
       ISSUE_VINST(vec_body_label);
     }
+
+    ISSUE_VINST(vec_body_end_label);
   }
 
 #endif
@@ -104,23 +86,25 @@ void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int pti
 
   volatile int BH;
   do {
-    asm("trillium vissue_delim if_begin vec_body");
-    FRAME_START(FRAME_SIZE);
-    // s_local += a[i * NY + j] * r[i];
-    s_local += sp_ptr[sp + 0] * sp_ptr[sp + 1];
-    i++; // TODO when this is inlined is the dereference removed?
-    // do loop check here, to take load off scalar core?
-    // does reduce vector core utilization
-    if (i == NX) {
-      STORE_NOACK(s_local, &s[j], 0);
-      i = 0;
-      j+=VECTOR_LEN;
-      s_local = 0.0f;
-    }
-    sp+=2;
-    if (sp == POST_FRAME_WORD) sp = 0;
-    REMEM(FRAME_SIZE);
-    asm("trillium vissue_delim end at_jump");
+    do {
+      asm("trillium vissue_delim if_begin vec_body");
+      FRAME_START(FRAME_SIZE);
+
+      #pragma GCC unroll(16)
+      for (int i = 0; i < Q_PREFETCH_LEN; i++) {
+        s_local += sp_ptr[sp + i] * sp_ptr[sp + Q_PREFETCH_LEN + i];
+      }
+      REMEM(FRAME_SIZE);
+      sp+=FRAME_SIZE;
+      sp = sp % POST_FRAME_WORD;
+      asm("trillium vissue_delim end at_jump");
+    } while(BH);
+
+    asm("trillium vissue_delim until_next vec_body_end");
+    STORE_NOACK(s_local, &s[j], 0);
+    j+=VECTOR_LEN;
+    s_local = 0.0f;
+
   } while(BH);
 
 #endif
@@ -150,31 +134,11 @@ init_label:
   asm("trillium glue_point vector_init");
 vec_body_label:
   asm("trillium glue_point vec_body");
+vec_body_end_label:
+  asm("trillium glue_point vec_body_end");
 vector_return_label:
   asm("trillium glue_point vector_return");
 #endif
-}
-
-// prefetch a and p
-inline void prefetch_q_frame(DTYPE *a, DTYPE *p, int i, int j, int *sp, int NY) {
-  // don't think need prefetch R here?
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    int icore = i + core;
-    VPREFETCH_L(*sp, &a[icore * NY + j], core, Q_PREFETCH_LEN, VERTICAL);
-    VPREFETCH_R(*sp, &a[icore * NY + j], core, Q_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + Q_PREFETCH_LEN;
-
-  // TODO potentially some reuse here b/c fetch the same thing for everyone
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L(*sp, &p[j], core, Q_PREFETCH_LEN, VERTICAL);
-    VPREFETCH_R(*sp, &p[j], core, Q_PREFETCH_LEN, VERTICAL);
-  }
-
-  *sp = *sp + Q_PREFETCH_LEN;
-
-  if (*sp == POST_FRAME_WORD) *sp = 0;
 }
 
 void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int ptid, int groupId, int numGroups, int vtid) {
@@ -199,6 +163,8 @@ void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int pti
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
   
+  int startOffset = min(INIT_FRAMES*Q_PREFETCH_LEN, NY);
+
   // issue header block
   ISSUE_VINST(init_label);
   #endif
@@ -209,7 +175,6 @@ void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int pti
     start = roundUp(start, VECTOR_LEN);
 
     int i = start + vtid;
-    int j = 0;
     DTYPE q_local = 0.0f;
     int sp = 0;
     DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
@@ -228,20 +193,22 @@ void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int pti
 
   for (int i = start; i < end; i+=VECTOR_LEN) {
     // do initial prefetching for a small amount
-    for (int j = 0; j < INIT_FRAMES*Q_PREFETCH_LEN; j+=Q_PREFETCH_LEN) {
+    for (int j = 0; j < startOffset; j+=Q_PREFETCH_LEN) {
       prefetch_q_frame(a, p, i, j, &sp, NY);
     }
 
     // steady state
-    for (int j = INIT_FRAMES*Q_PREFETCH_LEN; j < NY; j+=Q_PREFETCH_LEN) {
+    for (int j = startOffset; j < NY; j+=Q_PREFETCH_LEN) {
       prefetch_q_frame(a, p, i, j, &sp, NY);
       ISSUE_VINST(vec_body_label);
     }
 
     // draining. do the last vissue corresponding to the initial round of prefetch
-    for (int j = NY - INIT_FRAMES*Q_PREFETCH_LEN; j < NY; j+=Q_PREFETCH_LEN) {
+    for (int j = NY - startOffset; j < NY; j+=Q_PREFETCH_LEN) {
       ISSUE_VINST(vec_body_label);
     }
+
+    ISSUE_VINST(vec_body_end_label);
   }
 
   #endif
@@ -249,23 +216,26 @@ void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int pti
 #ifdef VECTOR_CORE
   volatile int BH;
   do {
-    asm("trillium vissue_delim if_begin vec_body");
-    FRAME_START(FRAME_SIZE);
-    // q_local += a[i * NY + j] * p[j];
-    q_local += sp_ptr[sp + 0] * sp_ptr[sp + 1];
-    j++;
-    // do loop check here, to take load off scalar core?
-    // does reduce vector core utilization
-    if (j == NY) {
-      STORE_NOACK(q_local, &q[i], 0);
-      i += VECTOR_LEN;
-      j = 0;
-      q_local = 0.0f;
-    }
-    sp += 2;
-    if (sp == POST_FRAME_WORD) sp = 0;
-    REMEM(FRAME_SIZE);
-    asm("trillium vissue_delim end at_jump");
+    do {
+      asm("trillium vissue_delim if_begin vec_body");
+      FRAME_START(FRAME_SIZE);
+
+      #pragma GCC unroll(16)
+      for (int j = 0; j < Q_PREFETCH_LEN; j++) { 
+        q_local += sp_ptr[sp + j] * sp_ptr[sp + Q_PREFETCH_LEN + j];
+      }
+      REMEM(FRAME_SIZE);
+      sp += FRAME_SIZE;
+      sp = sp % POST_FRAME_WORD;
+
+      asm("trillium vissue_delim end at_jump");
+    } while(BH);
+
+    asm("trillium vissue_delim until_next vec_body_end");
+    STORE_NOACK(q_local, &q[i], 0);
+    i += VECTOR_LEN;
+    q_local = 0.0f;
+
   } while(BH);
 #endif
 
@@ -293,6 +263,8 @@ init_label:
   asm("trillium glue_point vector_init");
 vec_body_label:
   asm("trillium glue_point vec_body");
+vec_body_end_label:
+  asm("trillium glue_point vec_body_end");
 vector_return_label:
   asm("trillium glue_point vector_return");
 #endif

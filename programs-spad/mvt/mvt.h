@@ -8,7 +8,7 @@
 
 // #define MANYCORE_PREFETCH
 
-
+#define INIT_FRAMES 1
 #define REGION_SIZE 16 //configure using LCM of required frame/region sizes
 #define NUM_REGIONS (512 / REGION_SIZE) // (0,512) in this case is the hardware region area 
 
