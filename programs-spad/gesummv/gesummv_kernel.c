@@ -1,4 +1,5 @@
 #include "gesummv_kernel.h"
+#include "util.h"
 
 // #define SCALAR_CORE
 // #define VECTOR_CORE
@@ -44,12 +45,22 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
   // int sp_a_offset, sp_b_offset, sp_x_offset, sp_y_offset, sp_tmp_offset;
   // sp_a_offset=0;
 
+  int stride = REGION_SIZE/3;
+  int startOffset = INIT_FRAMES*stride;
+
   for (int i = start; i < end; i+=VEC_LEN) {
     ISSUE_VINST(hoist1_label);
-    
-    for(int j=0; j<n; j+=REGION_SIZE/3){
-      prefetch_gesummv_frame(a, b, x, i, j, n, &spadRegion);
 
+    for (int j = 0; j < startOffset; j+=stride) {
+      prefetch_gesummv_frame(a, b, x, i, j, n, &spadRegion);
+    }
+    
+    for(int j=startOffset; j<n; j+=stride){
+      prefetch_gesummv_frame(a, b, x, i, j, n, &spadRegion);
+      ISSUE_VINST(dotprod_label);
+    }
+
+    for (int j = n - startOffset; j < n; j+=stride) {
       ISSUE_VINST(dotprod_label);
     }
 
