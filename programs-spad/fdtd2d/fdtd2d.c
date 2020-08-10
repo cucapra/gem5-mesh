@@ -49,6 +49,7 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
   }
   #else
   for (int i = start; i < end; i++) {
+    #pragma GCC unroll(4)
     for (int j = 0; j < NY; j++) {
       DTYPE out;
       if (i == 0) {
@@ -85,6 +86,7 @@ void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   }
   #else
   for (int i = start; i < end; i++) {
+    #pragma GCC unroll(4)
     for (int j = 1; j < NY; j++) {
       DTYPE out = ex[i * (NY+1) + j] - 0.5f * (hz[i * NY + j] - hz[i * NY + (j-1)]);
       STORE_NOACK(out, &ex[i * (NY+1) + j], 0); 
@@ -116,6 +118,7 @@ void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   }
   #else
   for (int i = start; i < end; i++) {
+    #pragma GCC unroll(4)
     for (int j = 0; j < NY; j++) {
       DTYPE out = hz[i * NY + j] - 0.7f * (ex[i * (NY+1) + (j+1)] - ex[i * (NY+1) + j] + ey[(i + 1) * NY + j] - ey[i * NY + j]);
       STORE_NOACK(out, &hz[i * NY + j], 0); 
