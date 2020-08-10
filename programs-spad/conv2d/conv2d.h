@@ -118,7 +118,7 @@ inline void prefetch_vert_frame(DTYPE *a, int r, int c, int ncols, int dim, int 
       // printf("mid issue r %d c %d k1 %d core %d, depth %d, aIdx %d\n", r, c, k1, core, LOAD_DEPTH, aIdx);
       VPREFETCH_LR(*spadIdx + (k1+1)*LOAD_DEPTH, a + aIdx, core, LOAD_DEPTH, VERTICAL);
     }
-    (*spadIdx)+=LOAD_DEPTH;
+    // (*spadIdx)+=LOAD_DEPTH;
   }
 
   #ifndef MANYCORE_PREFETCH

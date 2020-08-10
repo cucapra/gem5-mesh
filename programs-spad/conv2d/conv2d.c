@@ -84,7 +84,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int end = 0;
 
   // group construction
-  #ifdef VECTOR_LEN
+  #ifdef USE_VEC
 
   #if VECTOR_LEN==4
   template_info_t tinfo = init_template_4x4_2x2();
