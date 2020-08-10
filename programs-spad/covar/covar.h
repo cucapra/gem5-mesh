@@ -57,11 +57,19 @@
 #define COVAR_J2_PREFETCH_LEN VECTOR_LEN
 #define INIT_COVAR_OFFSET (INIT_FRAMES * COVAR_UNROLL_LEN)
 
+#ifdef MANYCORE_PREFETCH
+#define VPREFETCH_LR_FAIR(sp, memIdx, core, len, style)  \
+  VPREFETCH_L(sp, memIdx, core, len, style)
+#else
+#define VPREFETCH_LR_FAIR(sp, memIdx, core, len, style)  \
+  VPREFETCH_LR(sp, memIdx, core, len, style)
+#endif
+
 
 inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
   // can't merge into a vprefetch but can still unroll the old fashioned way
   for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
-    VPREFETCH_LR(*sp + u, &data[(i + u) * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
+    VPREFETCH_LR_FAIR(*sp + u, &data[(i + u) * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
   }
   // VPREFETCH_R(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
 
@@ -100,7 +108,7 @@ inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, in
   // *sp = *sp + COVAR_J1_PREFETCH_LEN;
 
   for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
-    VPREFETCH_LR(*sp + COVAR_UNROLL_LEN + u, &data[(i + u) * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
+    VPREFETCH_LR_FAIR(*sp + COVAR_UNROLL_LEN + u, &data[(i + u) * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
   }
   // VPREFETCH_R(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
   // printf("%d %f\n", *sp, data[i * (M+1) + j2]);

@@ -48,6 +48,15 @@
 #define INIT_OFFSET_SUB (INIT_FRAMES*UNROLL_LEN_SUB)
 
 
+#ifdef MANYCORE_PREFETCH
+#define VPREFETCH_LR_FAIR(sp, memIdx, core, len, style)  \
+  VPREFETCH_L(sp, memIdx, core, len, style)
+#else
+#define VPREFETCH_LR_FAIR(sp, memIdx, core, len, style)  \
+  VPREFETCH_LR(sp, memIdx, core, len, style)
+#endif
+
+
 inline void prefetch_normalize_frame(DTYPE *a, int i, int k, int numVectors, int *sp) {
   for (int u = 0; u < UNROLL_LEN_NORM; u++) {
     for (int core = 0; core < VECTOR_LEN; core++) {
@@ -71,7 +80,7 @@ inline void prefetch_dot_frame(DTYPE *q, DTYPE *a, int i, int j, int k, int numV
   }
 
   for (int u = 0; u < UNROLL_LEN_SUB; u++) {
-    VPREFETCH_LR(*sp + UNROLL_LEN_SUB + u, &a[(i + u) * numVectors + j], 0, VECTOR_LEN, HORIZONTAL);
+    VPREFETCH_LR_FAIR(*sp + UNROLL_LEN_SUB + u, &a[(i + u) * numVectors + j], 0, VECTOR_LEN, HORIZONTAL);
   }
 
 // q[i * numVectors + k] * a[i * numVectors + j];

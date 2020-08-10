@@ -30,6 +30,14 @@
 
 // prefetch sizing
 #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
+#ifdef MANYCORE_PREFETCH
+#define VPREFETCH_LR_FAIR(sp, memIdx, core, len, style)  \
+  VPREFETCH_L(sp, memIdx, core, len, style)
+#else
+#define VPREFETCH_LR_FAIR(sp, memIdx, core, len, style)  \
+  VPREFETCH_LR(sp, memIdx, core, len, style)
+#endif
+
 // dedicate a quarter of scratchpad to frames
 #define POST_FRAME_WORD 120
 
@@ -63,9 +71,9 @@ inline void prefetch_step1_frame_i0(DTYPE *fict, int t, int *sp) {
 }
 
 inline void prefetch_step1_frame_in0(DTYPE *ey, DTYPE *hz, int i, int j, int NY, int *sp) {
-  VPREFETCH_LR(*sp + 0, ey + i     * NY + j, 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 1, hz + i     * NY + j, 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 2, hz + (i-1) * NY + j, 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 0, ey + i     * NY + j, 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 1, hz + i     * NY + j, 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 2, hz + (i-1) * NY + j, 0, VECTOR_LEN, HORIZONTAL);
 
   #ifndef MANYCORE_PREFETCH
   *sp += STEP1_REGION_SIZE;
@@ -74,9 +82,9 @@ inline void prefetch_step1_frame_in0(DTYPE *ey, DTYPE *hz, int i, int j, int NY,
 }
 
 inline void prefetch_step2_frame(DTYPE *ex, DTYPE *hz, int i, int j, int NY, int *sp) {
-  VPREFETCH_LR(*sp + 0, ex + i * (NY+1) + j, 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 1, hz + i * NY + j    , 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 2, hz + i * NY + (j-1), 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 0, ex + i * (NY+1) + j, 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 1, hz + i * NY + j    , 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 2, hz + i * NY + (j-1), 0, VECTOR_LEN, HORIZONTAL);
 
   #ifndef MANYCORE_PREFETCH
   *sp += STEP2_REGION_SIZE;
@@ -87,11 +95,11 @@ inline void prefetch_step2_frame(DTYPE *ex, DTYPE *hz, int i, int j, int NY, int
 inline void prefetch_step3_frame(DTYPE *ex, DTYPE *ey, DTYPE *hz, 
       int i, int j, int NY, int *sp) {
 
-  VPREFETCH_LR(*sp + 0, hz + i     * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 1, ex + i     * (NY+1) + (j+1), 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 2, ex + i     * (NY+1) + j    , 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 3, ey + (i+1) * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
-  VPREFETCH_LR(*sp + 4, ey + i     * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 0, hz + i     * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 1, ex + i     * (NY+1) + (j+1), 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 2, ex + i     * (NY+1) + j    , 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 3, ey + (i+1) * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 4, ey + i     * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
 
   #ifndef MANYCORE_PREFETCH
   *sp += STEP3_REGION_SIZE;
