@@ -8,6 +8,7 @@
 
 // #define MANYCORE_PREFETCH
 
+#define INIT_FRAMES 2
 #define PREFETCH_LEN 16
 #define REGION_SIZE (PREFETCH_LEN * 2)
 #define NUM_REGIONS (512 / REGION_SIZE)
