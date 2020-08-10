@@ -246,13 +246,13 @@ def plot_inet_stalls(data, includeV4, includeV16):
   (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep')
   (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, includeV4, includeV16)
   title = 'Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
-  line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', title)
+  line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', title, False)
 
 def plot_frame_stalls(data, includeV4, includeV16):
   (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep')
   (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, includeV4, includeV16)
   title = 'Frame_Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
-  line_plot(xaxes, values, labels, 'Hops', 'Frame stalls relative to total vector cycles', title)
+  line_plot(xaxes, values, labels, 'Hops', 'Frame stalls relative to total vector cycles', title, False)
 
 # create specified barplot and write to file
 def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
@@ -305,7 +305,7 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
 
 # create specified lineplot and write to file
 # provide all y_axes and either a single or multiple x_axes
-def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, duplicate_x=False):
+def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, duplicate_x=False):
   mpl.rcParams['axes.prop_cycle'] = cycler(linestyle=['-', '--', '-.']) * default_prop_cycle
   fig, ax = plt.subplots()
 
@@ -317,6 +317,14 @@ def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, duplicate_x=False):
 
     y_axis = y_axes[i]
     ax.plot(x_axis, y_axis)
+
+  # find max number of ticks and set that
+  if (not infer_ticks):
+    xticks = []
+    for xax in x_axes:
+      if (len(xax) > len(xticks)):
+        xticks = xax
+    ax.set_xticks(xticks)
 
   ax.set_xlabel(xlabel)
   ax.set_ylabel(ylabel)
