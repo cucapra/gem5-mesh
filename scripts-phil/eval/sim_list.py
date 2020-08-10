@@ -27,7 +27,7 @@ sim_configs = {
     'argv' : ['2048']
   },
   'gram'   : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],,
     'argv' : ['320']
   },
   'syrk'   : {
@@ -39,11 +39,13 @@ sim_configs = {
     'argv' : ['256']
   },
   'covar'   : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['512']
   },
   'conv2d' : {
-    'vec'  : ALL_CONFIGS + [ 'VEC_16_SIMD_VERTICAL', 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL' ],
+    'vec'  : ALL_CONFIGS + \
+      [ 'VEC_16_SIMD_VERTICAL', 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL' ] + \
+      [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['2048']
   },
   'conv3d' : {
