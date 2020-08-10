@@ -80,7 +80,7 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   int level2_size = n/offset_x;
 
   /* ------------ prefetch ahead of issuing ----------*/
-  int iter_ahead = min(t,1);
+  int iter_ahead = min(t,INIT_FRAMES);
   for (int k = 0; k < iter_ahead; k++){
     #ifdef SHARING
     horiz_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, offset_y, offset_x,
