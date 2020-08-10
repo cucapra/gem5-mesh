@@ -96,6 +96,12 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
       END_FRAME();
       sp+=MEAN_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
+      #if VECTOR_LEN==16
+      #pragma GCC unroll(16)
+      for (int n = 0; n < 3; n++) {
+        asm volatile("nop\n\t");
+      }
+      #endif
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
@@ -398,6 +404,12 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
       REMEM(COVAR_FRAME_SIZE);
       sp+=COVAR_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
+      #if VECTOR_LEN==16
+      #pragma GCC unroll(16)
+      for (int n = 0; n < 1; n++) {
+        asm volatile("nop\n\t");
+      }
+      #endif
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
