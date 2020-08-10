@@ -53,7 +53,7 @@ sim_configs = {
     'argv' : ['256']
   },
   'fdtd' : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['512', '60']
   },
 
