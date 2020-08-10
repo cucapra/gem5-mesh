@@ -21,6 +21,8 @@
 // #define C_PREFETCH 
 // #define MANYCORE_PREFETCH
 
+#define INIT_FRAMES 2
+
 #ifdef SHARING
 #define REGION_SIZE (BLK_DIM*2)/DIM_X
 #define NUM_REGIONS (512 / REGION_SIZE)
