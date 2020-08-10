@@ -53,7 +53,7 @@ sim_configs = {
   },
   'fdtd' : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['512', '60']
+    'argv' : ['512', '30']
   },
 
   'atax'   : {
