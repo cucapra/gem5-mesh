@@ -1,6 +1,8 @@
 #ifndef __CONV3D_H__
 #define __CONV3D_H__
 
+#include "bind_defs.h"
+
 // filter size
 #define FILTER_DIM 3
 
@@ -33,6 +35,8 @@
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
+// #define MANYCORE_PREFETCH
+
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_REUSE_VERTICAL 1
@@ -42,7 +46,7 @@
 // #define VEC_16_REUSE_VERTICAL 1
 
 // vvadd_execute config directives
-#if !defined(NO_VEC)
+#if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH)
 #define USE_VEC 1
 #endif
 
@@ -53,6 +57,9 @@
 #endif
 #if defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_16_REUSE_VERTICAL)
 #define VECTOR_LEN 16
+#endif
+#if defined(MANYCORE_PREFETCH)
+#define VECTOR_LEN 1
 #endif
 
 // grid dim xy assuming always a square
@@ -73,14 +80,12 @@
 #endif
 
 // prefetch sizings
-#if defined(USE_VEC)
+#if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
 // can guarentee power of 2 works
 #define POST_REGION_WORD 121
 #define INIT_FRAMES 2
 #define REGION_SIZE 11
 #define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
-
-#endif
 
 // define prefetch len externally
 #ifdef PF
@@ -97,6 +102,47 @@
 #else
 #define CORE_STEP (LOAD_DEPTH - (FILTER_DIM - 1))
 #endif
+#endif
+
+#ifdef MANYCORE_PREFETCH
+#define VPREFETCH_LR_FAIR(sp, memIdx, core, len, style)  \
+  VPREFETCH_L(sp, memIdx, core, len, style)
+#else
+#define VPREFETCH_LR_FAIR(sp, memIdx, core, len, style)  \
+  VPREFETCH_LR(sp, memIdx, core, len, style)
+#endif
+
+inline void prefetch_horiz_frame(DTYPE *a, int i, int j, int k, int NJ, int NK, int *sp) {
+  // prefetch all 15 values required for computation
+            // a[IDX(i-1, j-1, k-1, NJ, NK)], a[IDX(i-1, j-1, k+1, NJ, NK)], 
+            // a[IDX(i-1, j+0, k+1, NJ, NK)], a[IDX(i-1, j+1, k+1, NJ, NK)], 
+            // a[IDX(i+0, j-1, k+0, NJ, NK)], a[IDX(i+0, j+0, k+0, NJ, NK)], 
+            // a[IDX(i+0, j+1, k+0, NJ, NK)], a[IDX(i+1, j-1, k-1, NJ, NK)], 
+            // a[IDX(i+1, j-1, k+1, NJ, NK)], a[IDX(i+1, j+0, k+1, NJ, NK)], 
+            // a[IDX(i+1, j+1, k+1, NJ, NK)];
+
+  VPREFETCH_LR_FAIR(*sp + 0 , a + IDX(i-1, j-1, k-1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 1 , a + IDX(i-1, j-1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 2 , a + IDX(i-1, j+0, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 3 , a + IDX(i-1, j+1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 4 , a + IDX(i+0, j-1, k+0, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 5 , a + IDX(i+0, j+0, k+0, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 6 , a + IDX(i+0, j+1, k+0, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 7 , a + IDX(i+1, j-1, k-1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 8 , a + IDX(i+1, j-1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 9 , a + IDX(i+1, j+0, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  VPREFETCH_LR_FAIR(*sp + 10, a + IDX(i+1, j+1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+
+  #ifndef MANYCORE_PREFETCH
+  *sp = (*sp + REGION_SIZE);
+
+  // spad is circular buffer so do cheap mod here
+  if (*sp == POST_REGION_WORD) {
+    *sp = 0;
+  }
+  #endif
+}
+
 #endif
 
 

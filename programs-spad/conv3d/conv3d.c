@@ -20,10 +20,16 @@ void conv3d_manycore(DTYPE *a, DTYPE *b, int NI, int NJ, int NK, int ptid, int p
 
   DEF_WEIGHTS();
 
+  #ifdef MANYCORE_PREFETCH
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
   for (int i = outer_start; i < outer_end; i++) {
     for (int j = 1; j < NJ - 1; j++) {
       for (int k = 1; k < NK - 1; k++) {
-        b[IDX(i, j, k, NJ, NK)] = 
+        prefetch_horiz_frame(a, i, j, k, NJ, NK, &sp);
+
+        START_FRAME();
+        DTYPE out = 
           CONV_15(
             a[IDX(i-1, j-1, k-1, NJ, NK)], a[IDX(i-1, j-1, k+1, NJ, NK)], 
             a[IDX(i-1, j+0, k+1, NJ, NK)], a[IDX(i-1, j+1, k+1, NJ, NK)], 
@@ -32,9 +38,32 @@ void conv3d_manycore(DTYPE *a, DTYPE *b, int NI, int NJ, int NK, int ptid, int p
             a[IDX(i+1, j-1, k+1, NJ, NK)], a[IDX(i+1, j+0, k+1, NJ, NK)], 
             a[IDX(i+1, j+1, k+1, NJ, NK)]
           );
+        END_FRAME();
+        sp += REGION_SIZE;
+        if (sp == POST_REGION_WORD) sp = 0;
+        STORE_NOACK(out, &b[IDX(i, j, k, NJ, NK)], 0);
       }
     }
   }
+  #else
+  for (int i = outer_start; i < outer_end; i++) {
+    for (int j = 1; j < NJ - 1; j++) {
+      for (int k = 1; k < NK - 1; k++) {
+        DTYPE out = 
+          CONV_15(
+            a[IDX(i-1, j-1, k-1, NJ, NK)], a[IDX(i-1, j-1, k+1, NJ, NK)], 
+            a[IDX(i-1, j+0, k+1, NJ, NK)], a[IDX(i-1, j+1, k+1, NJ, NK)], 
+            a[IDX(i+0, j-1, k+0, NJ, NK)], a[IDX(i+0, j+0, k+0, NJ, NK)], 
+            a[IDX(i+0, j+1, k+0, NJ, NK)], a[IDX(i+1, j-1, k-1, NJ, NK)], 
+            a[IDX(i+1, j-1, k+1, NJ, NK)], a[IDX(i+1, j+0, k+1, NJ, NK)], 
+            a[IDX(i+1, j+1, k+1, NJ, NK)]
+          );
+        STORE_NOACK(out, &b[IDX(i, j, k, NJ, NK)], 0);
+      }
+    }
+  }
+  #endif
+  asm volatile("fence\n\t");
 }
 
 
@@ -65,7 +94,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int end = 0;
 
   // group construction
-  #ifdef VECTOR_LEN
+  #ifdef USE_VEC
 
   #if VECTOR_LEN==4
   template_info_t tinfo = init_template_4x4_2x2();
@@ -107,17 +136,16 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // linearize some fields
   vdim = vdim_x * vdim_y;
 
-  #ifdef USE_VEC
-  // volatile so dont reorder this function call
-  int mask = getSIMDMask(&cinfo);
-  // int mask = 0;
-  // if (cinfo.is_scalar)
-  //   mask = getDebugMask(&cinfo);
-  #endif
-
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
   #ifdef NUM_REGIONS
+  #ifdef MANYCORE_PREFETCH
+  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
+  int mask = getDebugMask(&cinfo);
+  VECTOR_EPOCH(mask);
+  #else
+  int mask = getSIMDMask(&cinfo);
+  #endif
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   #endif
 
