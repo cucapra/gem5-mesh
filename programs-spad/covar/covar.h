@@ -37,7 +37,7 @@
 #define INIT_FRAMES 2
 
 // prefetch config for mean kernel
-#define MEAN_UNROLL_LEN 16
+#define MEAN_UNROLL_LEN 8
 #define MEAN_FRAME_SIZE MEAN_UNROLL_LEN
 #define NUM_MEAN_FRAMES (POST_FRAME_WORD / MEAN_FRAME_SIZE)
 #define MEAN_PREFETCH_LEN VECTOR_LEN

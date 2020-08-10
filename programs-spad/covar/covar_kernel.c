@@ -89,7 +89,7 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     do {
       asm("trillium vissue_delim if_begin vec_body");
       START_FRAME();
-      #pragma GCC unroll(16)
+      #pragma GCC unroll(8)
       for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
         mean_j += sp_ptr[sp + u];
       }

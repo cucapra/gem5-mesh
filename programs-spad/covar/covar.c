@@ -34,7 +34,7 @@ void mean_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int
       prefetch_mean_frame(data, i, j, &sp, M);
 
       START_FRAME();
-      #pragma GCC unroll(16)
+      #pragma GCC unroll(8)
       for (int iin = 0; iin < MEAN_UNROLL_LEN; iin++) {
         mean_j += sp_ptr[sp + iin];
       }
@@ -44,7 +44,7 @@ void mean_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int
       sp = sp % POST_FRAME_WORD;
     }
     #else
-    #pragma GCC unroll(16)
+    #pragma GCC unroll(8)
     for (int i = 1; i < (N+1); i++) {
       mean_j += data[i * (M+1) + j];
     }
