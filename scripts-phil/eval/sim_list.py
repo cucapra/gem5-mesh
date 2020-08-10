@@ -27,7 +27,7 @@ sim_configs = {
     'argv' : ['2048']
   },
   'gram'   : {
-    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],,
+    'vec'  : ALL_CONFIGS + [ [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['320']
   },
   'syrk'   : {
