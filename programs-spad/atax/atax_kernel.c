@@ -54,21 +54,40 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
   int spadRegion = 0;
   int sp_a_offset, sp_x_offset, sp_ypart_offset;
 
+  int startOffset = INIT_FRAMES*PREFETCH_LEN;
+
   DTYPE temp;
   for (int i = nx_start; i < nx_end; i+=dim) {
     temp=0;
     ISSUE_VINST(hoist1);
-    for(int j=0; j<ny; j+=PREFETCH_LEN){
 
+    //init
+    for (int j = 0; j < startOffset; j+=PREFETCH_LEN) prefetch_ax_frame(a,_x, i,j, ny, &spadRegion);
+
+    //steady state
+    for(int j=startOffset; j<ny; j+=PREFETCH_LEN){
       prefetch_ax_frame(a,_x, i,j, ny, &spadRegion);
       ISSUE_VINST(dotprod);
     }
+
+    //final vissue
+    for (int j = 0; j < startOffset; j+=PREFETCH_LEN) ISSUE_VINST(dotprod);
+
     ISSUE_VINST(store_dp);
-    for(int j=0; j<ny; j+=PREFETCH_LEN){
+
+    //init
+    for(int j = 0; j < startOffset; j+=PREFETCH_LEN) prefetch_ay_frame(a, _y_partial, i, j, ny, ptid_group_sp, &spadRegion);
+
+    //steady state
+    for(int j=startOffset; j<ny; j+=PREFETCH_LEN){
 
       prefetch_ay_frame(a, _y_partial, i, j, ny, ptid_group_sp, &spadRegion);
       ISSUE_VINST(transpose_dp);
     }
+
+    //final vissue
+    for(int j = 0; j < startOffset; j+=PREFETCH_LEN) ISSUE_VINST(transpose_dp);
+
     ISSUE_VINST(loop_end);
   }
 
