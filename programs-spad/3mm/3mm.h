@@ -10,6 +10,7 @@
 
 // #define MANYCORE_PREFETCH
 
+#define INIT_FRAMES 2
 #define REGION_SIZE (BLK_DIM * 2)
 #define NUM_REGIONS (512 / REGION_SIZE)
 
