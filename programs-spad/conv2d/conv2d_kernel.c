@@ -259,8 +259,8 @@ void tril_conv2d(int mask,
       #endif
 
       sp += REGION_SIZE;
-      // sp = sp % POST_REGION_WORD; // not a power of 2 --> if cheaper than mod
-      if (sp == POST_REGION_WORD) sp = 0;
+      sp = sp % POST_REGION_WORD; // not a power of 2 --> if cheaper than mod?
+      // if (sp == POST_REGION_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
     } while (BH);
 

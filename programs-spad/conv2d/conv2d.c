@@ -7,6 +7,7 @@
 #include "spad.h"
 #include "bind_defs.h"
 #include "conv2d_kernel.h"
+#include "util.h"
 
 /*
   3x3 stencil with a single 3x3 filter
@@ -40,20 +41,68 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
 
   int NJ = inner_dim;
 
+  #ifdef MANYCORE_PREFETCH
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
+  int cEnd = ((NJ-1) / CORE_STEP) * CORE_STEP;
 
-  for (int i = outer_start; i < outer_end; i++) {
-    for (int j = inner_start; j < NJ - 1; j++) {
-      // printf("%d->%d\n", inner_start, NJ-1);
-      // TODO order in gpu version is outer dim first for some reason,
-      // better to access in order below
-      b[i*NJ + j] = CONV_3x3(
+  for (int r = outer_start; r < outer_end; r++) {
+  
+
+    for (int c = inner_start; c < cEnd; c+=CORE_STEP) {
+      prefetch_vert_frame(a, r, c, inner_dim, 1, &sp);
+
+      FRAME_START();
+      // not actually 14iters, but like 6
+      #pragma GCC unroll(14)
+      for (int i = 0; i < CORE_STEP; i++) {
+        int sp0 = sp + i;
+        int sp1 = sp0 + LOAD_DEPTH;
+        int sp2 = sp1 + LOAD_DEPTH;
+        DTYPE out = CONV_3x3(
+          sp_ptr[sp0 + 0], sp_ptr[sp0 + 1], sp_ptr[sp0 + 2],
+          sp_ptr[sp1 + 0], sp_ptr[sp1 + 1], sp_ptr[sp1 + 2],
+          sp_ptr[sp2 + 0], sp_ptr[sp2 + 1], sp_ptr[sp2 + 2]
+        );
+        STORE_NOACK(out, &b[r*NJ + c + i], 0);
+      }
+      END_FRAME();
+      sp += REGION_SIZE;
+      sp = sp % POST_REGION_WORD; 
+    }
+
+    // TODO not clear how much this matters
+    // do rest that doesnt map into prefetch pattern
+    #pragma GCC unroll(6)
+    for (int c = cEnd; c < NJ-1; c++) {
+      int i = r;
+      int j = c;
+      DTYPE out = CONV_3x3(
         a[(i - 1)*NJ + (j - 1)], a[(i - 1)*NJ + (j + 0)], a[(i - 1)*NJ + (j + 1)],
         a[(i + 0)*NJ + (j - 1)], a[(i + 0)*NJ + (j + 0)], a[(i + 0)*NJ + (j + 1)],
         a[(i + 1)*NJ + (j - 1)], a[(i + 1)*NJ + (j + 0)], a[(i + 1)*NJ + (j + 1)]
       );
+      STORE_NOACK(out, &b[i*NJ + j], 0);
     }
   }
+  #else
+  for (int i = outer_start; i < outer_end; i++) {
+    #pragma GCC unroll(6)
+    for (int j = inner_start; j < NJ - 1; j++) {
+      // printf("%d->%d\n", inner_start, NJ-1);
+      // TODO order in gpu version is outer dim first for some reason,
+      // better to access in order below
+      DTYPE out = CONV_3x3(
+        a[(i - 1)*NJ + (j - 1)], a[(i - 1)*NJ + (j + 0)], a[(i - 1)*NJ + (j + 1)],
+        a[(i + 0)*NJ + (j - 1)], a[(i + 0)*NJ + (j + 0)], a[(i + 0)*NJ + (j + 1)],
+        a[(i + 1)*NJ + (j - 1)], a[(i + 1)*NJ + (j + 0)], a[(i + 1)*NJ + (j + 1)]
+      );
+      STORE_NOACK(out, &b[i*NJ + j], 0);
+    }
+  }
+  #endif
+  asm volatile("fence\n\t");
 }
 
 
@@ -127,14 +176,16 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // linearize some fields
   vdim = vdim_x * vdim_y;
 
-  #ifdef USE_VEC
-  // volatile so dont reorder this function call
-  int mask = getSIMDMask(&cinfo);
-  #endif
-
   // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
   #ifdef NUM_REGIONS
+  #ifdef MANYCORE_PREFETCH
+  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
+  int mask = getDebugMask(&cinfo);
+  VECTOR_EPOCH(mask);
+  #else
+  int mask = getSIMDMask(&cinfo);
+  #endif
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   #endif
 
