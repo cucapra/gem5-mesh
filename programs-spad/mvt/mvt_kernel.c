@@ -73,13 +73,24 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
   int* ptid_group_sp = getSpAddr(ptid,NUM_REGIONS*REGION_SIZE);
   // if(ptid==0)printf("ptid %d %d %d %d\n",ptid_group_sp[0],ptid_group_sp[1],ptid_group_sp[2],ptid_group_sp[3]);
 
+  int stride = REGION_SIZE/2;
+  int startOffset = INIT_FRAMES*stride;
+
   DTYPE temp;
   for (int i = start; i < end; i+=VEC_LEN) {
     temp=0;
     ISSUE_VINST(hoist1_label);
     
-    for(int j=0; j<n; j+=REGION_SIZE/2){
-      prefetch_mvt_frame_y1(a, y1, i, j, n, &spadRegion);
+    for (int j = 0; j < startOffset; j+=stride) {
+      prefetch_mvt_frame_y1(a, y1, i, j, n, &spadRegion);   
+    }
+
+    for(int j=startOffset; j<n; j+=stride){
+      prefetch_mvt_frame_y1(a, y1, i, j, n, &spadRegion);   
+      ISSUE_VINST(dotprod_label);
+    }
+
+    for (int j = n - startOffset; j < n; j+=stride) {
       ISSUE_VINST(dotprod_label);
     }
 
@@ -88,10 +99,19 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
 
     ISSUE_VINST(store_dp_label);
 
-    for(int j=0; j<n; j+=REGION_SIZE/2){
+    for (int j = 0; j < startOffset; j+=stride) {
+      prefetch_mvt_frame_y2(a, y2, i, j, n, &spadRegion); 
+    }
+
+    for(int j=startOffset; j<n; j+=stride){
       prefetch_mvt_frame_y2(a, y2, i, j, n, &spadRegion);
       ISSUE_VINST(transpose_dp_label);
     }
+
+    for (int j = n - startOffset; j < n; j+=stride) {
+      ISSUE_VINST(transpose_dp_label);
+    }
+
     // ----- prefetch x2[i+vtid] -----
     prefetch_mvt_frame_x2(x2, i, &spadRegion);
 
@@ -167,7 +187,14 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
     REMEM(REGION_SIZE);
     STORE_NOACK(temp, x1 + row_thread, 0);
     spadRegion = (spadRegion + 1) % NUM_REGIONS;
-    
+
+    // so can get 1 frame in for v16
+    #if VEC_LEN==16
+    #pragma GCC unroll(16)
+    for (int nop = 0; nop < 1; nop++) {
+      asm volatile("nop\n\t");
+    }
+    #endif
 
     col_thread=0;
     temp=0;
