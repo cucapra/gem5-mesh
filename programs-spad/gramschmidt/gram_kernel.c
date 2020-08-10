@@ -85,6 +85,12 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     i+=STRIDE_NORM;
     sp+=FRAME_SIZE_NORM;
     sp = sp % POST_FRAME_WORD_NORM;
+    #if VECTOR_LEN==16
+    #pragma GCC unroll(16)
+    for (int nop = 0; nop < 2; nop++) {
+      asm volatile("nop\n\t");
+    }
+    #endif
     asm("trillium vissue_delim end at_jump");
   } while(BH);
 
@@ -234,6 +240,12 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
     PRED_EQ(gt, gt);
     END_FRAME();
     sp = (sp + FRAME_SIZE_SUB) % POST_FRAME_WORD_SUB;
+    #if VECTOR_LEN==16
+    #pragma GCC unroll(16)
+    for (int nop = 0; nop < 2; nop++) {
+      asm volatile("nop\n\t");
+    }
+    #endif
     asm("trillium vissue_delim end at_jump");
   } while(BH);
 #endif
