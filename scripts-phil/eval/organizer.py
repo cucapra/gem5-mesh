@@ -8,6 +8,7 @@ from copy import deepcopy
 from graph_king import bar_plot, line_plot
 from table_king import make_table
 from layout_helper import get_mesh_dist_sequence
+from scipy.stats.mstats import gmean
 
 # extract all data for a specific field across all benchmarks
 # only get the yaxis data, assumed xaxis is trivial to get (i.e., arange or core_id)
@@ -160,9 +161,9 @@ def inverse(values):
       except:
         values[j][i] = 0
 
-def add_average(labels, values, include_zeros=False):
+def add_arith_mean(labels, values, include_zeros=False):
   # add an average column
-  labels.append("Average")
+  labels.append("ArithMean")
   for config in values:
     summ = 0
     nnz = 0
@@ -176,6 +177,18 @@ def add_average(labels, values, include_zeros=False):
     else:
       config.append(0)
 
+def add_geo_mean(labels, values):
+  # add an average column
+  labels.append("GeoMean")
+  for config in values:
+    flatVals = []
+    for v in config:
+      if (v > 0):
+        flatVals.append(v)
+
+    geomean = gmean(flatVals)
+    config.append(geomean)
+
 
 # plot speedup
 # group together same benchmark (if metadata the same)
@@ -185,28 +198,28 @@ def plot_speedup(data):
   # flip from cycles to speedup normalized to NV
   normalize(sub_labels, values)
   inverse(values)
-  add_average(labels, values)
+  add_geo_mean(labels, values)
 
   bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline Manycore (NV)', 'Speedup')
 
 def plot_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'energy-sum(nJ)')
   normalize(sub_labels, values)
-  add_average(labels, values)
+  add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'Energy', 'Energy', True)
   # need to have a buttom=[] when define bar. where bottom is sum of prev
 
 def plot_inst_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'inst-cnts-energy(nJ)')
   normalize(sub_labels, values)
-  add_average(labels, values)
+  add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'InstEnergy relative to Baseline Manycore', 'Instruction_Energy', True)
 
 def plot_icache_energy(data, norm = False):
   (labels, sub_labels, values) = group_bar_data(data, 'icache-access-energy(nJ)')
   if (norm):
     normalize(sub_labels, values)
-  add_average(labels, values)
+  add_geo_mean(labels, values)
   name = 'ICache_Energy'
   yaxis = 'Icache Energy(nJ)'
   if (norm):
@@ -217,23 +230,23 @@ def plot_icache_energy(data, norm = False):
 def plot_dmem_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'dmem-access-energy(nJ)')
   # normalize(sub_labels, values)
-  add_average(labels, values)
+  add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'DmemEnergy relative to Baseline Manycore', 'DMem_Energy', False)  
 
 def plot_llc_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'llc-access-energy(nJ)')
   # normalize(sub_labels, values)
-  add_average(labels, values)
+  add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'LLC Energy', 'LLC_Energy', False) 
 
 def plot_first_frame_rdy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'frame-occupancy1')
-  add_average(labels, values)
+  add_arith_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'Next frame ready on remem fraction', 'NextFrameRdy', False) 
 
 def plot_cpi(data):
   (labels, sub_labels, values) = group_bar_data(data, 'active-cpi')
-  add_average(labels, values)
+  add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
 
 def plot_inet_stalls(data, includeV4, includeV16):
@@ -276,24 +289,35 @@ def plot_prefetch_coverage(data):
   sub_labels = [ 'Vertical', 'Horizontal', 'Scalar' ]
   values = [ v_pfs, h_pfs, s_pfs ]
 
-  add_average(labels, values, True)
+  add_arith_mean(labels, values, True)
 
   bar_plot(labels, sub_labels, values, 'Fraction Coverage of Memory Loads', 'coverage', True) 
 
 
 
 def make_plots_and_tables(all_data):
+  print("Plot speedup")
   plot_speedup(all_data)
+  print("Plot energy")
   plot_energy(all_data)
+  print("Plot Inst Energy")
   plot_inst_energy(all_data)
+  print("Plot icache energy")
   plot_icache_energy(all_data)
   plot_icache_energy(all_data, True)
+  print("plot dmen energy")
   plot_dmem_energy(all_data)
+  print("Plot llc energy")
   plot_llc_energy(all_data)
+  print("Plot frame rdy")
   plot_first_frame_rdy(all_data)
+  print("Plot cpi")
   plot_cpi(all_data)
+  print("Plot inet stalls")
   plot_inet_stalls(all_data, True, False)
   plot_inet_stalls(all_data, False, True)
+  print("Plot frame stalls")
   plot_frame_stalls(all_data, True, False)
   plot_frame_stalls(all_data, False, True)
+  print("Plot prefetch coverage")
   plot_prefetch_coverage(all_data)
