@@ -248,6 +248,37 @@ def plot_frame_stalls(data, includeV4, includeV16):
   title = 'Frame_Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
   line_plot(xaxes, values, labels, 'Hops', 'Frame stalls relative to total vector cycles', title, False)
 
+def plot_prefetch_coverage(data):
+  (labels, sub_labels, values_v) = group_bar_data(data, 'vertical_pfs')
+  (labels, sub_labels, values_h) = group_bar_data(data, 'horizontal_pfs')
+  (labels, sub_labels, values_s) = group_bar_data(data, 'scalar_pfs')
+
+  # TODO stack the bars
+  # for now just show for v4 config
+  v_pfs = []
+  h_pfs = []
+  s_pfs = []
+  for j in range(len(labels)):
+    for i in range(len(sub_labels)):
+      if (sub_labels[i] == 'V4'):
+        v_pf = values_v[i][j]
+        h_pf = values_h[i][j]
+        s_pf = values_s[i][j]
+        total = v_pf + h_pf + s_pf
+        if (total > 0):
+          v_pf = float(v_pf) / float(total)
+          h_pf = float(h_pf) / float(total)
+          s_pf = float(s_pf) / float(total)
+        v_pfs.append(v_pf)
+        h_pfs.append(h_pf)
+        s_pfs.append(s_pf)
+
+  sub_labels = [ 'Vertical', 'Horizontal', 'Scalar' ]
+  values = [ v_pfs, h_pfs, s_pfs ]
+
+  bar_plot(labels, sub_labels, values, 'Fraction Coverage of Memory Loads', 'coverage', True) 
+
+
 
 def make_plots_and_tables(all_data):
   plot_speedup(all_data)
@@ -263,3 +294,4 @@ def make_plots_and_tables(all_data):
   plot_inet_stalls(all_data, False, True)
   plot_frame_stalls(all_data, True, False)
   plot_frame_stalls(all_data, False, True)
+  plot_prefetch_coverage(all_data)
