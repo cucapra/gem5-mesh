@@ -160,7 +160,7 @@ def inverse(values):
       except:
         values[j][i] = 0
 
-def add_average(labels, values):
+def add_average(labels, values, include_zeros=False):
   # add an average column
   labels.append("Average")
   for config in values:
@@ -168,7 +168,7 @@ def add_average(labels, values):
     nnz = 0
     for v in config:
       summ += v
-      if (v != 0):
+      if (v != 0 or include_zeros):
         nnz += 1
 
     if (nnz > 0):
@@ -275,6 +275,8 @@ def plot_prefetch_coverage(data):
 
   sub_labels = [ 'Vertical', 'Horizontal', 'Scalar' ]
   values = [ v_pfs, h_pfs, s_pfs ]
+
+  add_average(labels, values, True)
 
   bar_plot(labels, sub_labels, values, 'Fraction Coverage of Memory Loads', 'coverage', True) 
 
