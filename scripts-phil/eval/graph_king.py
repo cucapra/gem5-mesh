@@ -61,6 +61,7 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
   # plt.show()
 
   plt.savefig(str(title) + '.png')
+  plt.savefig(str(title) + '.pdf')
 
 # create specified lineplot and write to file
 # provide all y_axes and either a single or multiple x_axes
@@ -93,3 +94,4 @@ def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, d
   fig.tight_layout()
 
   plt.savefig(str(title) + '.png')
+  plt.savefig(str(title) + '.pdf')
