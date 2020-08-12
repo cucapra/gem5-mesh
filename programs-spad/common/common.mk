@@ -54,4 +54,4 @@ $(COMMON_OBJS): %.o: $(COMMON_DIR)/%.c
 	$(RV_CC) $(CFLAGS) -c $^ -o $@
 
 clean:
-	rm -rf *.o *.s $(BENCHNAME) m5out
+	rm -rf *.o *.s $(BINARY_NAME) m5out
