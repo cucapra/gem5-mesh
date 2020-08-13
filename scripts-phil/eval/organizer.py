@@ -3,12 +3,62 @@
 '''
 
 import numpy as np
-from math import floor, ceil
+from math import floor, ceil, isnan
 from copy import deepcopy
 from graph_king import bar_plot, line_plot
 from table_king import make_table
 from layout_helper import get_mesh_dist_sequence
 from scipy.stats.mstats import gmean
+
+# sort data according to specified order (for bar data)
+def sort_by_sub_label(cur_order, values, desired_order):
+  sorted_values = []
+  for i in range(len(desired_order)):
+    sorted_values.append([])
+
+  for i in range(len(desired_order)):
+    d = desired_order[i]
+    # find d
+    d_idx = -1
+    for j in range(len(cur_order)):
+      if cur_order[j] == d:
+        d_idx = j
+
+    if (d_idx >= 0):
+      sorted_values[i] = values[d_idx]
+
+  return (desired_order, sorted_values)
+
+# bar plot wrapper that sorts series 
+def sorted_bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
+  desired_order = [ 'NV', 'NV_PF', 'V4', 'V16' ]
+
+  # only add gpu series if has data in it
+  gpu_idx = -1
+  for i in range(len(sub_labels)):
+    if sub_labels[i] == 'GPU':
+      gpu_idx = i
+
+  gpu_has_nz = False
+  if (gpu_idx >= 0):
+    for v in values[gpu_idx]:
+      if (v != 0 and not isnan(v)):
+        gpu_has_nz = True
+
+  if (gpu_has_nz):
+    desired_order += [ 'GPU' ]
+
+  # sort sub bar series
+  if len(desired_order) > 0:
+    (sub_labels, values) = sort_by_sub_label(sub_labels, values, desired_order)
+
+  # TODO do we want to sort benchmarks as well?
+
+  # graph sorted
+  bar_plot(labels, sub_labels, values, ylabel, title, annotate)
+
+  
+
 
 # extract all data for a specific field across all benchmarks
 # only get the yaxis data, assumed xaxis is trivial to get (i.e., arange or core_id)
@@ -200,20 +250,20 @@ def plot_speedup(data):
   inverse(values)
   add_geo_mean(labels, values)
 
-  bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline Manycore (NV)', 'Speedup')
+  sorted_bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline Manycore (NV)', 'Speedup')
 
 def plot_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'energy-sum(nJ)')
   normalize(sub_labels, values)
   add_geo_mean(labels, values)
-  bar_plot(labels, sub_labels, values, 'Energy', 'Energy', True)
+  sorted_bar_plot(labels, sub_labels, values, 'Energy', 'Energy', True)
   # need to have a buttom=[] when define bar. where bottom is sum of prev
 
 def plot_inst_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'inst-cnts-energy(nJ)')
   normalize(sub_labels, values)
   add_geo_mean(labels, values)
-  bar_plot(labels, sub_labels, values, 'InstEnergy relative to Baseline Manycore', 'Instruction_Energy', True)
+  sorted_bar_plot(labels, sub_labels, values, 'InstEnergy relative to Baseline Manycore', 'Instruction_Energy', True)
 
 def plot_icache_energy(data, norm = False):
   (labels, sub_labels, values) = group_bar_data(data, 'icache-access-energy(nJ)')
@@ -225,29 +275,29 @@ def plot_icache_energy(data, norm = False):
   if (norm):
     name = 'ICache_Energy_Norm'
     yaxis = 'Icache Energy relative to Baseline Manycore'
-  bar_plot(labels, sub_labels, values, yaxis, name, norm)
+  sorted_bar_plot(labels, sub_labels, values, yaxis, name, norm)
 
 def plot_dmem_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'dmem-access-energy(nJ)')
   # normalize(sub_labels, values)
   add_geo_mean(labels, values)
-  bar_plot(labels, sub_labels, values, 'DmemEnergy relative to Baseline Manycore', 'DMem_Energy', False)  
+  sorted_bar_plot(labels, sub_labels, values, 'DmemEnergy relative to Baseline Manycore', 'DMem_Energy', False)  
 
 def plot_llc_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'llc-access-energy(nJ)')
   # normalize(sub_labels, values)
   add_geo_mean(labels, values)
-  bar_plot(labels, sub_labels, values, 'LLC Energy', 'LLC_Energy', False) 
+  sorted_bar_plot(labels, sub_labels, values, 'LLC Energy', 'LLC_Energy', False) 
 
 def plot_first_frame_rdy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'frame-occupancy1')
   add_arith_mean(labels, values)
-  bar_plot(labels, sub_labels, values, 'Next frame ready on remem fraction', 'NextFrameRdy', False) 
+  sorted_bar_plot(labels, sub_labels, values, 'Next frame ready on remem fraction', 'NextFrameRdy', False) 
 
 def plot_cpi(data):
   (labels, sub_labels, values) = group_bar_data(data, 'active-cpi')
   add_geo_mean(labels, values)
-  bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
+  sorted_bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
 
 def plot_inet_stalls(data, includeV4, includeV16):
   (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep')
@@ -294,8 +344,54 @@ def plot_prefetch_coverage(data):
   bar_plot(labels, sub_labels, values, 'Fraction Coverage of Memory Loads', 'coverage', True) 
 
 
+# substitue field in extracted data (do before analyses above)
+def substitute_field(data, prog, from_config, to_config):
+  # find field to replace
+  replace_idx = -1
+  for i in range(len(data)):
+    row = data[i]
+    if row['prog'] == prog and row['config'] == to_config:
+      replace_idx = i
+
+  if (replace_idx < 0):
+    return
+
+  # find field to move
+  move_idx = -1
+  for i in range(len(data)):
+    row = data[i]
+    if row['prog'] == prog and row['config'] == from_config:
+      move_idx = i
+
+  if (move_idx < 0):
+    return
+
+  # do replacement for bench
+  data[replace_idx] = data[move_idx]
+  data[replace_idx]['config'] = to_config
+
+  # delete moved
+  data.pop(move_idx)
+
+# delete field in extracted data (do before analyses above)
+def remove_field(data, prog, config):
+  # find field to delete
+  i = 0
+  while (i < len(data)):
+    row = data[i]
+    if row['prog'] == prog and row['config'] == config:
+      data.pop(i)
+      i -= 1
+    i += 1
 
 def make_plots_and_tables(all_data):
+  print("Removing unwanted series")
+  # use vertical for conv2d
+  substitute_field(all_data, 'conv2d', 'VEC_16_SIMD_VERTICAL', 'V16')
+  substitute_field(all_data, 'conv2d', 'VEC_4_SIMD_VERTICAL', 'V4')
+  # delete reuse
+  remove_field(all_data, 'conv2d', 'VEC_4_REUSE_VERTICAL')
+
   print("Plot speedup")
   plot_speedup(all_data)
   print("Plot energy")
