@@ -345,12 +345,12 @@ void kernel(DTYPE *data, DTYPE *dataT, DTYPE *symmat, DTYPE *mean, DTYPE *stddev
 
   unsigned long long *spTop = getSpTop(ptid);
   // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
-  spTop -= 40;
+  spTop -= 50;
 
   unsigned long long stackLoc;
   unsigned long long temp;
-  #pragma GCC unroll(40)
-  for(int i=0;i<40;i++){
+  #pragma GCC unroll(50)
+  for(int i=0;i<50;i++){
     asm volatile("ld t0, %[id](sp)\n\t"
                 "sd t0, %[id](%[spad])\n\t"
                 : "=r"(temp)

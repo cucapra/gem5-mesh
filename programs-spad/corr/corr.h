@@ -8,9 +8,9 @@
 #define _VEC
 #endif
 
-#define MANYCORE_PREFETCH
+// #define MANYCORE_PREFETCH
 
-#define POLYBENCH_VERSION
+// #define POLYBENCH_VERSION
 // #define OPTIMIZED_TRANSPOSE
 
 
@@ -77,7 +77,7 @@ typedef float DTYPE;
 // pthread argument for the kernel
 typedef struct Kern_Args
 {
-  DTYPE *data;
+  DTYPE *data,*dataT;
   DTYPE *symmat, *mean, *stddev;
   int m,n;
   int tid_x, tid_y;
@@ -86,7 +86,7 @@ typedef struct Kern_Args
 
 // helper to pack vvadd args
 Kern_Args *construct_args(
-    DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
+    DTYPE *data, DTYPE *dataT, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
     int tid_x, int tid_y, int dim_x, int dim_y);
 
 // pthread call
@@ -94,7 +94,7 @@ void *pthread_kernel(void *args);
 
 // vvadd kernel
 void kernel(
-    DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
+    DTYPE *data, DTYPE *dataT, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
     int tid_x, int tid_y, int dim_x, int dim_y);
 
 #endif
