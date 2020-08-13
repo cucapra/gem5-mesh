@@ -17,6 +17,7 @@ static inline int _idx_(int y, int x, int width)
   return (y * width) + x;
 }
 
+#ifdef OPTIMIZED_TRANSPOSE
 void __attribute__((optimize("-fno-inline")))
 corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
               int start, int end, int ptid, float eps)
@@ -133,6 +134,125 @@ corr_manycore_2(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
 
   asm volatile("fence\n\t");
 }
+
+#elif defined POLYBENCH_VERSION
+void __attribute__((optimize("-fno-inline")))
+corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
+              int start, int end, int ptid, float eps)
+{
+  // double eps = 0.1f;
+
+  DTYPE mean_temp=0;
+  DTYPE stddev_temp=0;
+  DTYPE data_temp;
+
+  #ifdef MANYCORE_PREFETCH
+  int spadRegion = 0;
+  DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
+  int sp_offset;
+  #endif
+
+  for (int j = start; j < end; j++){
+    //mean
+    mean_temp = 0;
+    #ifdef MANYCORE_PREFETCH
+    PF_BEGIN(REGION_SIZE)
+    PF1(sp_offset,i,j,m)
+    {
+      mean_temp += spAddr[sp_offset+jj];
+      if(data[(i+jj)*m+j]!=spAddr[sp_offset+jj]) printf("ptid:%d %f %f\n",ptid,data[(i+jj)*m+j],spAddr[sp_offset+jj]);
+    }
+    PF_END(NUM_REGIONS)
+    #else
+    for (int i = 0; i < n; i++)
+      mean_temp += data[i*m+j];
+    #endif
+    mean_temp /= n;
+    // mean[j]=mean_temp;
+    STORE_NOACK(mean_temp,mean+j,0);
+
+    //stddev
+    stddev_temp = 0;
+
+    #ifdef MANYCORE_PREFETCH
+    PF_BEGIN(REGION_SIZE)
+    PF1(sp_offset,i,j,m)
+    {
+      stddev_temp += (spAddr[sp_offset+jj]-mean_temp)*(spAddr[sp_offset+jj]-mean_temp);
+    }
+    PF_END(NUM_REGIONS)
+    #else
+    for (int i = 0; i < n; i++)
+      stddev_temp += (data[i*m+j]-mean_temp)*(data[i*m+j]-mean_temp);
+    #endif
+    stddev_temp = stddev_temp/n;
+    stddev_temp = sqrt(stddev_temp);
+    stddev_temp = stddev_temp <= eps ? 1.0 : stddev_temp;
+    // stddev[j] = stddev_temp;
+    STORE_NOACK(stddev_temp,stddev+j,0);
+
+    //center
+    #ifdef MANYCORE_PREFETCH
+    PF_BEGIN(REGION_SIZE)
+    PF1(sp_offset,i,j,m)
+    {
+      data_temp = spAddr[sp_offset+jj]-mean_temp;
+      data_temp = data_temp/(sqrt(n)*stddev_temp);
+      // data[i*m+(j+jj)] = data_temp;
+      STORE_NOACK(data_temp,data+(i*m)+(j+jj),0);
+    }
+    PF_END(NUM_REGIONS)
+    #else
+    for (int i = 0; i < n; i++){
+      data_temp = data[i*m+j]-mean_temp;
+      data[i*m+j] = data_temp/(sqrt(n)*stddev_temp);
+    }
+    #endif
+
+    symmat[j*m+j]=1; //make diagonal 1 for the vectors it is assigned
+    asm volatile("fence\n\t");
+  }
+    
+}
+
+void __attribute__((optimize("-fno-inline")))
+corr_manycore_2(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
+              int start, int stride, int ptid)
+{
+
+  #ifdef MANYCORE_PREFETCH
+  int spadRegion = 0;
+  DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
+  int sp_i1_offset,sp_i2_offset;
+  #endif
+
+  DTYPE sym_temp=0;
+  for (int j1 = start; j1 < m-1; j1+=stride){
+    for (int j2 = j1+1; j2 < m; j2++){
+      sym_temp=0;
+      #ifdef MANYCORE_PREFETCH
+      PF_BEGIN(REGION_SIZE_K2/2)
+      PF2(sp_i1_offset,sp_i2_offset,i, j1, j2, m)
+      {
+        sym_temp+=spAddr[sp_i1_offset+jj]*spAddr[sp_i2_offset+jj];
+      }
+      PF_END(NUM_REGIONS_K2)
+      #else
+      for(int i=0; i<n; i++){
+        sym_temp+=data[i*m+j1]*data[i*m+j2];
+      }
+      #endif
+      STORE_NOACK(sym_temp,symmat+(j1*m)+j2,0);
+      STORE_NOACK(sym_temp,symmat+(j2*m)+j1,0);
+      // symmat[j1*m+j2]=sym_temp;
+      // symmat[j2*m+j1]=sym_temp;
+    }
+  }
+  asm volatile("fence\n\t");
+}
+#endif
+
+
 
 void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
     int ptid_x, int ptid_y, int pdim_x, int pdim_y)
