@@ -18,6 +18,20 @@ static inline int _idx_(int y, int x, int width)
 }
 
 #ifdef OPTIMIZED_TRANSPOSE
+void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int pdim){
+
+  int start = (ptid + 0) * a_col / pdim;
+  int end = (ptid + 1) * a_col / pdim;
+
+  for(int i=start; i<end; i++){
+    for(int j=0; j<a_row; j++){
+      aT[i*a_row+j] = a[j*a_col+i];
+    }
+  }
+
+}
+
+
 void __attribute__((optimize("-fno-inline")))
 corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
               int start, int end, int ptid, float eps)
@@ -156,23 +170,12 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
     //mean
     mean_temp = 0;
     #ifdef MANYCORE_PREFETCH
-    // PF_BEGIN(REGION_SIZE)
-    for (int i = 0; i < n; i+=16){
-      // PF1(sp_offset,i,j,m)
-      sp_offset = spadRegion * REGION_SIZE; 
-      for (int u = 0; u < REGION_SIZE; u++){ 
-        VPREFETCH_L(sp_offset+u, data + (i+u)*m +j, 0, 1, 1); 
-      } 
-      FRAME_START(); 
-      for(int jj=0; jj<REGION_SIZE; jj++)
-      {
-        mean_temp += spAddr[sp_offset+jj];
-        // if(data[(i+jj)*m+j]!=spAddr[sp_offset+jj]) printf("ptid:%d %f %f\n",ptid,data[(i+jj)*m+j],spAddr[sp_offset+jj]);
-      }
-      // PF_END(NUM_REGIONS)
-      REMEM(); 
-      spadRegion = (spadRegion + 1) % (512 / 16); 
+    PF_BEGIN(REGION_SIZE)
+    PF1(sp_offset,i,j,m)
+    {
+      mean_temp += spAddr[sp_offset+jj];
     }
+    PF_END(NUM_REGIONS)
     #else
     for (int i = 0; i < n; i++)
       mean_temp += data[i*m+j];
@@ -208,8 +211,8 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
     {
       data_temp = spAddr[sp_offset+jj]-mean_temp;
       data_temp = data_temp/(sqrt(n)*stddev_temp);
-      // data[i*m+(j+jj)] = data_temp;
-      STORE_NOACK(data_temp,data+(i*m)+(j+jj),0);
+      // data[(i+jj)*m+(j)] = data_temp;
+      STORE_NOACK(data_temp,data+((i+jj)*m)+j,0);
     }
     PF_END(NUM_REGIONS)
     #else
@@ -264,7 +267,7 @@ corr_manycore_2(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
 
 
 
-void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
+void kernel(DTYPE *data, DTYPE *dataT, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
     int ptid_x, int ptid_y, int pdim_x, int pdim_y)
 {
 
@@ -274,6 +277,7 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
     stats_on();
   }
 
+  
 
   // linearize tid and dim
   int ptid = ptid_x + ptid_y * pdim_x;
@@ -282,6 +286,12 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
   int end = 0;
   float eps=0.1;
   template_info_t tinfo;
+
+  //transpose matrix
+  #ifdef OPTIMIZED_TRANSPOSE
+  transpose_manycore(data,n,m,dataT,ptid,pdim);
+  data=dataT;
+  #endif
 
   #ifdef _VEC
   #if VEC_LEN==4
@@ -399,13 +409,14 @@ void kernel(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n
 }
 
 // helper functions
-Kern_Args *construct_args(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
+Kern_Args *construct_args(DTYPE *data, DTYPE *dataT, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
                           int tid_x, int tid_y, int dim_x, int dim_y)
 {
 
   Kern_Args *args = (Kern_Args *)malloc(sizeof(Kern_Args));
 
   args->data = data;
+  args->dataT = dataT;
   args->symmat = symmat;
   args->mean = mean; 
   args->stddev = stddev;
@@ -429,7 +440,7 @@ void *pthread_kernel(void *args)
   // call the spmd kernel
   Kern_Args *a = (Kern_Args *)args;
 
-  kernel(a->data, a->symmat, a->mean, a->stddev, a->m, a->n,
+  kernel(a->data, a->dataT, a->symmat, a->mean, a->stddev, a->m, a->n,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
 

@@ -17,6 +17,16 @@ void fill_array(DTYPE *m, int n)
   }
 }
 
+void transpose(DTYPE *a, int row, int col, DTYPE *aT){
+
+  for(int i=0; i<row; i++){
+    for(int j=i; j<col; j++){
+      aT[i*col+j] = a[j*row+i];
+      aT[j*row+i] = a[i*col+j];
+    }
+  }
+}
+
 int check_mean (DTYPE* mean, DTYPE* data, int m, int n){
 
   DTYPE* tmp = (DTYPE*)malloc(m*sizeof(DTYPE));
@@ -194,14 +204,23 @@ int main(int argc, char *argv[])
   DTYPE *stddev = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), m, (void**)&stddev_ptr);
 
   
+  DTYPE *dataT_ptr;
+  DTYPE *dataT = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), m*n, (void**)&dataT_ptr);
+  
+  
 
   srand(0);
   // printf("matrix a\n");
   fill_array(data, m*n);
 
   DTYPE *data_copy = (DTYPE*)malloc(sizeof(DTYPE)* m*n);
-  for (int i = 0; i < m*n; i++) data_copy[i]=data[i];
+  
 
+  #ifdef OPTIMIZED_TRANSPOSE
+  transpose(data, n,m, data_copy);
+  #elif defined POLYBENCH_VERSION
+  for (int i = 0; i < m*n; i++) data_copy[i]=data[i];
+  #endif
 
   for (int i = 0; i < m*m; i++)
     symmat[i] = 0;
@@ -222,7 +241,7 @@ int main(int argc, char *argv[])
     for (int x = 0; x < cores_x; x++)
     {
       int i = x + y * cores_x;
-      kern_args[i] = construct_args(data, symmat, mean, stddev, m, n, x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(data, dataT, symmat, mean, stddev, m, n, x, y, cores_x, cores_y);
     }
   }
 
@@ -237,6 +256,10 @@ int main(int argc, char *argv[])
 /*--------------------------------------------------------------------
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
+
+  #ifdef OPTIMIZED_TRANSPOSE
+  data = dataT;
+  #endif
 
   int fail;
   fail = check_mean(mean,data_copy,m,n);
