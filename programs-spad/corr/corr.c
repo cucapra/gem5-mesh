@@ -156,13 +156,23 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
     //mean
     mean_temp = 0;
     #ifdef MANYCORE_PREFETCH
-    PF_BEGIN(REGION_SIZE)
-    PF1(sp_offset,i,j,m)
-    {
-      mean_temp += spAddr[sp_offset+jj];
-      if(data[(i+jj)*m+j]!=spAddr[sp_offset+jj]) printf("ptid:%d %f %f\n",ptid,data[(i+jj)*m+j],spAddr[sp_offset+jj]);
+    // PF_BEGIN(REGION_SIZE)
+    for (int i = 0; i < n; i+=16){
+      // PF1(sp_offset,i,j,m)
+      sp_offset = spadRegion * REGION_SIZE; 
+      for (int u = 0; u < REGION_SIZE; u++){ 
+        VPREFETCH_L(sp_offset+u, data + (i+u)*m +j, 0, 1, 1); 
+      } 
+      FRAME_START(); 
+      for(int jj=0; jj<REGION_SIZE; jj++)
+      {
+        mean_temp += spAddr[sp_offset+jj];
+        // if(data[(i+jj)*m+j]!=spAddr[sp_offset+jj]) printf("ptid:%d %f %f\n",ptid,data[(i+jj)*m+j],spAddr[sp_offset+jj]);
+      }
+      // PF_END(NUM_REGIONS)
+      REMEM(); 
+      spadRegion = (spadRegion + 1) % (512 / 16); 
     }
-    PF_END(NUM_REGIONS)
     #else
     for (int i = 0; i < n; i++)
       mean_temp += data[i*m+j];
