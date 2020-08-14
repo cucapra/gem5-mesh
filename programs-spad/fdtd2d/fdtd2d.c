@@ -190,13 +190,13 @@ void __attribute__((optimize("-fno-inline"))) fdtd(
       // if (used)
         // tril_fdtd_step1(mask, fict, ex, ey, hz, t, NX, NY, ptid, groupId, numGroups, vtid);
       SET_PREFETCH_MASK(STEP2_NUM_REGIONS, STEP2_REGION_SIZE, &start_barrier);
-      fdtd_step2_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
-      // if (used)
-        // tril_fdtd_step2(mask, ex, ey, hz, t, NX, NY, ptid, groupId, numGroups, vtid);
+      // fdtd_step2_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
+      if (used)
+        tril_fdtd_step2(mask, ex, ey, hz, t, NX, NY, ptid, groupId, numGroups, vtid);
       SET_PREFETCH_MASK(STEP3_NUM_REGIONS, STEP3_REGION_SIZE, &start_barrier);
-      fdtd_step3_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
-      // if (used)
-        // tril_fdtd_step3(mask, ex, ey, hz, t, NX, NY, ptid, groupId, numGroups, vtid);
+      // fdtd_step3_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
+      if (used)
+        tril_fdtd_step3(mask, ex, ey, hz, t, NX, NY, ptid, groupId, numGroups, vtid);
     #endif
     }
 
