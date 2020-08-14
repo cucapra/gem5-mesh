@@ -17,9 +17,20 @@ void fill_array(DTYPE *m, int n)
   }
 }
 
+void transpose(DTYPE *a, int row, int col, DTYPE *aT){
+
+  for(int i=0; i<row; i++){
+    for(int j=i; j<col; j++){
+      aT[i*col+j] = a[j*row+i];
+      aT[j*row+i] = a[i*col+j];
+    }
+  }
+}
+
 int check_mean (DTYPE* mean, DTYPE* data, int m, int n){
 
   DTYPE* tmp = (DTYPE*)malloc(m*sizeof(DTYPE));
+  #ifdef OPTIMIZED_TRANSPOSE
   for (int i = 0; i < m; i++){
     tmp[i] = 0;
     for (int j = 0; j < n; j++){
@@ -33,6 +44,20 @@ int check_mean (DTYPE* mean, DTYPE* data, int m, int n){
       return 1;
     }
   }
+  #elif defined POLYBENCH_VERSION
+  for (int j = 0; j < m; j++){
+    tmp[j] = 0;
+    for (int i = 0; i < n; i++){
+      tmp[j] += data[i*m+j];
+    }
+    tmp[j] = tmp[j]/n;
+    if (!float_compare(tmp[j], mean[j], 0.0001f)){
+      printf("[[FAIL]] for mean of A\n");
+      printf("kernel out:%f, actual out:%f, index:%d\n",mean[j],tmp[j],j);
+      return 1;
+    }
+  }
+  #endif
   return 0;
 }
 
@@ -42,8 +67,13 @@ int check_stddev(DTYPE* stddev, DTYPE* data, DTYPE* mean, int m, int n){
   DTYPE* tmp = (DTYPE*)malloc(m*sizeof(DTYPE));
   for (int i = 0; i < m; i++){
     tmp[i] = 0;
-    for (int j = 0; j < n; j++)
+    for (int j = 0; j < n; j++){
+      #ifdef OPTIMIZED_TRANSPOSE
       tmp[i] += (data[i*n+j]-mean[i])*(data[i*n+j]-mean[i]);
+      #elif defined POLYBENCH_VERSION
+      tmp[i] += (data[j*m+i]-mean[i])*(data[j*m+i]-mean[i]);
+      #endif
+    }
     tmp[i] = tmp[i]/n;
     tmp[i] = sqrt(tmp[i]);
     tmp[i] = tmp[i] <= eps ? 1.0 : tmp[i];
@@ -60,6 +90,7 @@ int check_stddev(DTYPE* stddev, DTYPE* data, DTYPE* mean, int m, int n){
 int check_center (DTYPE* kernel_data, DTYPE* orig_data, DTYPE* stddev, DTYPE* mean, int m, int n){
 
   DTYPE* tmp = (DTYPE*)malloc(m*n*sizeof(DTYPE));
+  #ifdef OPTIMIZED_TRANSPOSE
   for (int i = 0; i < m; i++){
     for (int j = 0; j < n; j++){
       tmp[i*n+j] = orig_data[i*n+j] - mean[i];
@@ -72,12 +103,27 @@ int check_center (DTYPE* kernel_data, DTYPE* orig_data, DTYPE* stddev, DTYPE* me
       }
     }
   }
+  #elif defined POLYBENCH_VERSION
+  for (int j = 0; j < m; j++){
+    for (int i = 0; i < n; i++){
+      tmp[i*m+j] = orig_data[i*m+j] - mean[j];
+      tmp[i*m+j] /= sqrt(n)*stddev[j];
+      // if(tmp[i*m+j]!=kernel_data[i*m+j]){
+      if (!float_compare(tmp[i*m+j], kernel_data[i*m+j], 0.0001f)){
+        printf("[[FAIL]] for centering of A\n");
+        printf("kernel out:%f, actual out:%f\n",kernel_data[i*n+j],tmp[i*n+j]);
+        return 1;
+      }
+    }
+  }
+  #endif
   return 0;
 }
 
 int check_corr (DTYPE* symmat, DTYPE* data, int m, int n){
 
   DTYPE* tmp = (DTYPE*)malloc(m*m*sizeof(DTYPE));
+  #ifdef OPTIMIZED_TRANSPOSE
   for (int i1 = 0; i1 < m-1; i1++){
     for (int i2 = i1+1; i2 < m; i2++){
       tmp[i1*m+i2]=0;
@@ -93,6 +139,23 @@ int check_corr (DTYPE* symmat, DTYPE* data, int m, int n){
       }
     }
   }
+  #elif defined POLYBENCH_VERSION
+  for (int j1 = 0; j1 < m-1; j1++){
+    for (int j2 = j1+1; j2 < m; j2++){
+      tmp[j1*m+j2]=0;
+      for(int i=0; i<n; i++){
+        tmp[j1*m+j2]+=data[i*m+j1]*data[i*m+j2];
+      }
+      tmp[j2*m+j1]=tmp[j1*m+j2];
+      // if(tmp[j1*m+j2]!=symmat[j1*m+j2]){
+      if (!float_compare(tmp[j1*m+j2], symmat[j1*m+j2], 0.0001f)){
+        printf("[[FAIL]] for corr\n");
+        printf("kernel out:%f, actual out:%f\n",symmat[j1*m+j2],tmp[j1*m+j2]);
+        return 1;
+      }
+    }
+  }
+  #endif
   return 0;
 }
 
@@ -141,14 +204,23 @@ int main(int argc, char *argv[])
   DTYPE *stddev = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), m, (void**)&stddev_ptr);
 
   
+  DTYPE *dataT_ptr;
+  DTYPE *dataT = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), m*n, (void**)&dataT_ptr);
+  
+  
 
   srand(0);
   // printf("matrix a\n");
   fill_array(data, m*n);
 
   DTYPE *data_copy = (DTYPE*)malloc(sizeof(DTYPE)* m*n);
-  for (int i = 0; i < m*n; i++) data_copy[i]=data[i];
+  
 
+  #ifdef OPTIMIZED_TRANSPOSE
+  transpose(data, n,m, data_copy);
+  #elif defined POLYBENCH_VERSION
+  for (int i = 0; i < m*n; i++) data_copy[i]=data[i];
+  #endif
 
   for (int i = 0; i < m*m; i++)
     symmat[i] = 0;
@@ -169,7 +241,7 @@ int main(int argc, char *argv[])
     for (int x = 0; x < cores_x; x++)
     {
       int i = x + y * cores_x;
-      kern_args[i] = construct_args(data, symmat, mean, stddev, m, n, x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(data, dataT, symmat, mean, stddev, m, n, x, y, cores_x, cores_y);
     }
   }
 
@@ -185,17 +257,21 @@ int main(int argc, char *argv[])
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
 
+  #ifdef OPTIMIZED_TRANSPOSE
+  data = dataT;
+  #endif
+
   int fail;
-  // fail = check_mean(mean,data_copy,m,n);
-  // if (fail)
-  //   return 1;
-  // printf("[[mini SUCCESS]] for mean\n");
+  fail = check_mean(mean,data_copy,m,n);
+  if (fail)
+    return 1;
+  printf("[[mini SUCCESS]] for mean\n");
 
-  // fail = check_stddev(stddev, data_copy, mean,  m, n);
-  // if (fail)
-  //   return 1;
+  fail = check_stddev(stddev, data_copy, mean,  m, n);
+  if (fail)
+    return 1;
 
-  // printf("[[mini SUCCESS]] for std dev\n");
+  printf("[[mini SUCCESS]] for std dev\n");
 
   fail = check_center(data, data_copy, stddev, mean, m, n);
   if (fail)
