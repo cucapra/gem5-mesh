@@ -2,7 +2,7 @@ BENCHNAME := fdtd2d
 default: $(BENCHNAME)
 
 # run small sim for test
-PROB_SIZE := 32 32 1
+PROB_SIZE := 32 32 2
 N_SPS ?= 64
 EXTRA_FLAGS ?= -DVEC_4_SIMD
 HB_ARGS := --options="$(PROB_SIZE)"

@@ -42,9 +42,10 @@ void tril_fdtd_step1(int mask,
   int start = ((groupId + 0) * NX) / numGroups;
   start = roundUp(start, VECTOR_LEN);
 
-  int stride = (VECTOR_LEN-1)*NY;
-  int idx = ((start + vtid) * NY);
-  if (start != 0) idx -= stride;
+  // int stride = (VECTOR_LEN-1)*NY;
+  // int idx = ((start + vtid) * NY);
+  int i = vtid + start;
+  int j;
 
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
@@ -52,17 +53,16 @@ void tril_fdtd_step1(int mask,
 
 
   #ifdef SCALAR_CORE
+  if (start != 0) ISSUE_VINST(init_2_label);
   int sp = 0;
   int init_len = min(INIT_FRAMES*STEP1_UNROLL_LEN, NY);
 
   for (int i = start; i < end; i+=VECTOR_LEN) {
 
-
-
     // i0
     if (i == 0) {
       ISSUE_VINST(vec_body_init_i0_label);
-      
+
       // warmup
       for (int j = 0; j < init_len; j+=STEP1_UNROLL_LEN) {
         prefetch_step1_frame_i0(fict, t, &sp);
@@ -78,6 +78,8 @@ void tril_fdtd_step1(int mask,
       for (int j = NY - init_len; j < NY; j+=STEP1_UNROLL_LEN) {
         ISSUE_VINST(vec_body_i0_label);
       }
+
+      ISSUE_VINST(vec_body_end_i0_label);
     }
     // in0
     else {
@@ -98,6 +100,8 @@ void tril_fdtd_step1(int mask,
       for (int j = NY - init_len; j < NY; j+=STEP1_UNROLL_LEN) {
         ISSUE_VINST(vec_body_in0_label);
       }
+
+      ISSUE_VINST(vec_body_end_in0_label);
     }
   }
   
@@ -112,6 +116,7 @@ void tril_fdtd_step1(int mask,
   do {
 
     asm("trillium vissue_delim until_next vec_body_init_i0");
+    j = 0;
 
     // i == 0
     do {
@@ -120,6 +125,7 @@ void tril_fdtd_step1(int mask,
       #pragma GCC unroll(4)
       for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
         DTYPE out = sp_ptr[sp + 0];
+        int idx = i * NY + j;
         PRED_EQ(vtid, 0);
         STORE_NOACK(out, ey + idx + u, 0);
         PRED_EQ(vtid, vtid);
@@ -131,13 +137,14 @@ void tril_fdtd_step1(int mask,
         int u1 = STEP1_UNROLL_LEN+u;
         int u2 = 2*STEP1_UNROLL_LEN+u;
         DTYPE out = sp_ptr[sp + u0] - 0.5f * (sp_ptr[sp + u1] - sp_ptr[sp + u2]);
+        int idx = i * NY + j;
         PRED_NEQ(vtid, 0);
         STORE_NOACK(out, ey + idx + u, 0);
         PRED_EQ(vtid, vtid);
       }
 
       END_FRAME();
-      idx += STEP1_UNROLL_LEN;
+      j += STEP1_UNROLL_LEN;
       sp += STEP1_REGION_SIZE;
       sp = sp % STEP1_POST_FRAME_WORD;
       // if (sp == POST_FRAME_WORD) sp = 0;
@@ -145,8 +152,17 @@ void tril_fdtd_step1(int mask,
 
     } while(BH);
 
+    asm("trillium vissue_delim if_begin vec_body_end_i0");
+    i += VECTOR_LEN;
+    asm("trillium vissue_delim end at_jump");
+
+  } while (BHO);
+
+  asm("trillium vissue_delim until_next init_block_2");
+
+  do {
     asm("trillium vissue_delim until_next vec_body_init_in0");
-    idx += stride;
+    j = 0;
 
     // i != 0
     do {
@@ -159,16 +175,21 @@ void tril_fdtd_step1(int mask,
         int u1 = STEP1_UNROLL_LEN+u;
         int u2 = 2*STEP1_UNROLL_LEN+u;
         DTYPE out = sp_ptr[sp + u0] - 0.5f * (sp_ptr[sp + u1] - sp_ptr[sp + u2]);
+        int idx = i * NY + j;
         STORE_NOACK(out, ey + idx + u, 0);
       }
       END_FRAME();
-      idx += STEP1_UNROLL_LEN;
+      j += STEP1_UNROLL_LEN;
       sp += STEP1_REGION_SIZE;
       sp = sp % STEP1_POST_FRAME_WORD;
       // if (sp == POST_FRAME_WORD) sp = 0;
       asm("trillium vissue_delim end at_jump");
 
     } while(BH);
+
+    asm("trillium vissue_delim if_begin vec_body_end_in0");
+    i += VECTOR_LEN;
+    asm("trillium vissue_delim end at_jump");
 
   } while(BHO);
   #endif
@@ -194,6 +215,8 @@ void tril_fdtd_step1(int mask,
 #ifdef SCALAR_CORE
 init_label:
   asm("trillium glue_point vector_init");
+init_2_label:
+  asm("trillium glue_point init_block_2");
 vec_body_init_i0_label:
   asm("trillium glue_point vec_body_init_i0");
 vec_body_init_in0_label:
@@ -202,6 +225,10 @@ vec_body_i0_label:
   asm("trillium glue_point vec_body_i0");
 vec_body_in0_label:
   asm("trillium glue_point vec_body_in0");
+vec_body_end_i0_label:
+  asm("trillium glue_point vec_body_end_i0");
+vec_body_end_in0_label:
+  asm("trillium glue_point vec_body_end_in0");
 // vec_body_end_label:
 //   asm("trillium glue_point vec_body_end");
 vector_return_label:
