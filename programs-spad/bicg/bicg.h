@@ -32,7 +32,9 @@
 #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
 
 // number of frames to get ahead
+#ifndef INIT_FRAMES
 #define INIT_FRAMES 2
+#endif
 #define INIT_SPM_OFFSET (INIT_FRAMES * FRAME_SIZE)
 // lenght of a prefetch
 #define Q_PREFETCH_LEN 16

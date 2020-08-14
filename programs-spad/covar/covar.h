@@ -34,7 +34,9 @@
 #define POST_FRAME_WORD 256
 
 // number of frames to get ahead
+#ifndef INIT_FRAMES
 #define INIT_FRAMES 1
+#endif
 
 // prefetch config for mean kernel
 #define MEAN_UNROLL_LEN 2
