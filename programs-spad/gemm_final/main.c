@@ -11,7 +11,7 @@
 #define CONST 5
 // #define PRINT_OUT
 
-#define TRANSPOSE
+// #define TRANSPOSE
 
 
 void fill_array(DTYPE *m, int n)
@@ -125,6 +125,9 @@ int main(int argc, char *argv[])
   DTYPE *b = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeB, (void**)&b_ptr);
   DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeC, (void**)&c_ptr);
 
+  DTYPE *aT_ptr;
+  DTYPE *aT = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeA, (void**)&aT_ptr);
+
   // initilaize arrays
   srand(0);
   printf("matrix a\n");
@@ -167,7 +170,7 @@ int main(int argc, char *argv[])
     for (int x = 0; x < cores_x; x++)
     {
       int i = x + y * cores_x;
-      kern_args[i] = construct_args(a, b, c, m, n, t, x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(a, aT, b, c, m, n, t, x, y, cores_x, cores_y);
     }
   }
 
