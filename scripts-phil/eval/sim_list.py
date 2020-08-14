@@ -5,6 +5,8 @@
 # helper set of vec configs you can use in a benchmark (assuming it supports)
 ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
 ALL_NEIL_CONFIGS = ['NO_VEC', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_VEC', 'MANYCORE_PREFETCH' ]]
+INIT0_CONFIGS = [ [ 'VEC_4_SIMD', 'INIT_FRAMES=0' ], [ 'VEC_16_SIMD', 'INIT_FRAMES=0' ] ]
+INIT0_NEIL_CONFIGS = [ [ 'VEC_LEN=4', 'INIT_FRAMES=0' ], [ 'VEC_LEN=16', 'INIT_FRAMES=0' ] ]
 
 
 # choose which programs to run via script and with what configs
@@ -102,6 +104,8 @@ def abbreviate_config(config):
     return 'R'
   elif (config == 'MANYCORE_PREFETCH'):
     return 'PF'
+  elif (config == 'INIT_FRAMES=0'):
+    return 'I0'
   elif (config[0:11] == 'VECTOR_LEN='):
     return a[11:len(a)]
   elif (config[0:3] == 'PF='):
