@@ -8,7 +8,7 @@
 #include "3mm.h"
 #include "util.h"
 
-#define TRANSPOSE
+// #define TRANSPOSE
 
 
 void fill_array(DTYPE *m, int n)
@@ -122,6 +122,11 @@ int main(int argc, char *argv[])
   DTYPE *f = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeF, (void**)&f_ptr);
   DTYPE *g = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeG, (void**)&g_ptr);
 
+  DTYPE *aT_ptr;
+  DTYPE *aT = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeA, (void**)&aT_ptr);
+  DTYPE *cT_ptr;
+  DTYPE *cT = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), sizeC, (void**)&cT_ptr);
+
   // initilaize arrays
   srand(0);
   printf("matrix a\n");
@@ -177,7 +182,7 @@ int main(int argc, char *argv[])
     for (int x = 0; x < cores_x; x++)
     {
       int i = x + y * cores_x;
-      kern_args[i] = construct_args(a,b,e,c,d,f,eT,g,m,t1,k,t2,n, x, y, cores_x, cores_y);
+      kern_args[i] = construct_args(a,aT,b,e,c,cT,d,f,eT,g,m,t1,k,t2,n, x, y, cores_x, cores_y);
     }
   }
 

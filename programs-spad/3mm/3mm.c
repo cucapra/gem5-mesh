@@ -37,7 +37,7 @@ void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int
 }
 
 
-void kernel(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *eT, DTYPE *g, 
+void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE *f, DTYPE *eT, DTYPE *g, 
             int m, int t1, int k, int t2, int n, int ptid_x, int ptid_y, int pdim_x, int pdim_y)
 {
 
@@ -55,6 +55,11 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *e
   int n_end = n;
   int vdim;
   template_info_t tinfo;
+
+  transpose_manycore(a,m,t1,aT,ptid,pdim);
+  a=aT;
+  transpose_manycore(c,k,t2,cT,ptid,pdim);
+  c=cT;
 
   #ifdef _VEC
   #if VEC_LEN==4
@@ -196,16 +201,18 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *e
 }
 
 // helper functions
-Kern_Args *construct_args(DTYPE *a, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *d, DTYPE *f, DTYPE *eT, DTYPE *g, 
+Kern_Args *construct_args(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE *f, DTYPE *eT, DTYPE *g, 
                           int m, int t1, int k, int t2, int n, int tid_x, int tid_y, int dim_x, int dim_y)
 {
 
   Kern_Args *args = (Kern_Args *)malloc(sizeof(Kern_Args));
 
   args->a = a;
+  args->aT = aT;
   args->b = b;
   args->e = e;
   args->c = c;
+  args->cT = cT;
   args->d = d;
   args->f = f;
   args->eT = eT;
@@ -233,7 +240,7 @@ void *pthread_kernel(void *args)
   // call the spmd kernel
   Kern_Args *a = (Kern_Args *)args;
 
-  kernel(a->a, a->b, a->e, a->c, a->d, a->f, a->eT, a->g, a->m, a->t1, a->k, a->t2, a->n,
+  kernel(a->a, a->aT, a->b, a->e, a->c, a->cT, a->d, a->f, a->eT, a->g, a->m, a->t1, a->k, a->t2, a->n,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
 
