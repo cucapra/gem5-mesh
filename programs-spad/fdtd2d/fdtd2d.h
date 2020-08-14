@@ -45,7 +45,7 @@
 #define INIT_FRAMES 1
 
 // prefetch sizings for step1
-#define STEP1_UNROLL_LEN 1
+#define STEP1_UNROLL_LEN 4
 #define STEP1_REGION_SIZE (3*STEP1_UNROLL_LEN)
 #define STEP1_NUM_REGIONS (8)
 #define STEP1_POST_FRAME_WORD (STEP1_REGION_SIZE*STEP1_NUM_REGIONS)
@@ -64,7 +64,7 @@
 
 inline void prefetch_step1_frame_i0(DTYPE *fict, int t, int *sp) {
   // pad out to region size (3). also only fetch one element
-  for (int core = 0; core < VECTOR_LEN; core++) {
+  for (int core = 0; core < 1; core++) {
     // VPREFETCH_L(*sp + 0, fict + t, core, 1, VERTICAL);
     // VPREFETCH_L(*sp + 1, fict + t, core, 1, VERTICAL);
     // VPREFETCH_L(*sp + 2, fict + t, core, 1, VERTICAL);

@@ -186,9 +186,14 @@ void __attribute__((optimize("-fno-inline"))) fdtd(
 
     #else
       SET_PREFETCH_MASK(STEP1_NUM_REGIONS, STEP1_REGION_SIZE, &start_barrier);
-      fdtd_step1_manycore(fict, ex, ey, hz, t, NX, NY, ptid, dim);
-      // if (used)
-        // tril_fdtd_step1(mask, fict, ex, ey, hz, t, NX, NY, ptid, groupId, numGroups, vtid);
+      // i == 0 on manycore
+      if (groupId == 0) {
+        fdtd_step1_manycore(fict, ex, ey, hz, t, VECTOR_LEN, NY, vtid, VECTOR_LEN);
+      }
+      // fdtd_step1_manycore(fict, ex, ey, hz, t, NX, NY, ptid, dim);
+      // do rest as vector
+      if (used)
+        tril_fdtd_step1(mask, fict, ex, ey, hz, t, NX - VECTOR_LEN, NY, ptid, groupId, numGroups, vtid);
       SET_PREFETCH_MASK(STEP2_NUM_REGIONS, STEP2_REGION_SIZE, &start_barrier);
       // fdtd_step2_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
       if (used)
