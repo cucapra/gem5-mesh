@@ -11,7 +11,7 @@
 // #define MANYCORE_PREFETCH
 
 // #define POLYBENCH_VERSION
-// #define OPTIMIZED_TRANSPOSE
+#define OPTIMIZED_TRANSPOSE
 
 
 #define REGION_SIZE 16 //configure using LCM of required frame/region sizes
