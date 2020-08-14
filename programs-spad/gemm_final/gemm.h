@@ -14,8 +14,8 @@
 #define DIM_X 4
 #endif
 
-#define ALPHA 4
-#define BETA 5
+#define ALPHA 32412.0f
+#define BETA 2123.0f
 
 // #define SHARING
 // #define C_PREFETCH 
