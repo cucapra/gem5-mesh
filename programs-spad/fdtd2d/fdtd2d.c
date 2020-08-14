@@ -26,29 +26,41 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
   for (int i = start; i < end; i++) {
-    for (int j = 0; j < NY; j++) {
-      DTYPE out;
-      if (i == 0) {
+    if (i == 0) {
+      for (int j = 0; j < NY; j+=STEP1_UNROLL_LEN) {     
         prefetch_step1_frame_i0(fict, t, &sp);
         START_FRAME();
-        out = sp_ptr[sp + 0];
+        #pragma GCC unroll(4)
+        for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
+          DTYPE out = sp_ptr[sp + 0];
+          STORE_NOACK(out, &ey[i * NY + j + u], 0);
+        }
         END_FRAME();
         sp += STEP1_REGION_SIZE;
-        sp = sp % POST_FRAME_WORD;
+        sp = sp % STEP1_POST_FRAME_WORD;
       }
-      else {
+    }
+    else {
+      for (int j = 0; j < NY; j+=STEP1_UNROLL_LEN) {   
         prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp);
         START_FRAME();
-        out = sp_ptr[sp + 0] - 0.5f * (sp_ptr[sp + 1] - sp_ptr[sp + 2]);
+        #pragma GCC unroll(4)
+        for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
+          int u0 = u;
+          int u1 = STEP1_UNROLL_LEN+u;
+          int u2 = 2*STEP1_UNROLL_LEN+u;
+          DTYPE out = sp_ptr[sp + u0] - 0.5f * (sp_ptr[sp + u1] - sp_ptr[sp + u2]);
+          STORE_NOACK(out, &ey[i * NY + j + u], 0);
+        }
         END_FRAME();
         sp += STEP1_REGION_SIZE;
-        sp = sp % POST_FRAME_WORD;
+        sp = sp % STEP1_POST_FRAME_WORD;
       }
-      STORE_NOACK(out, &ey[i * NY + j], 0);
     }
   }
   #else
   for (int i = start; i < end; i++) {
+    #pragma GCC unroll(4)
     for (int j = 0; j < NY; j++) {
       DTYPE out;
       if (i == 0) {
@@ -72,19 +84,28 @@ void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
   for (int i = start; i < end; i++) {
-    for (int j = 1; j < NY; j++) {
+    for (int j = 1; j < NY; j+=STEP2_UNROLL_LEN) {
       prefetch_step2_frame(ex, hz, i, j, NY, &sp);
 
       START_FRAME();
-      DTYPE out = sp_ptr[sp + 0] - 0.5f * (sp_ptr[sp + 1] - sp_ptr[sp + 2]);
+      #pragma GCC unroll(4)
+      for (int u = 0; u < STEP2_UNROLL_LEN; u++) {
+        int u0 = u;
+        int u1 = STEP2_UNROLL_LEN + u;
+        if (j + u < NY) {
+          DTYPE out = sp_ptr[sp + u0] - 
+            0.5f * (sp_ptr[sp + u1 + 1] - sp_ptr[sp + u1]);
+          STORE_NOACK(out, &ex[i * (NY+1) + j + u], 0);
+        }
+      }
       END_FRAME();
-      STORE_NOACK(out, &ex[i * (NY+1) + j], 0); 
       sp += STEP2_REGION_SIZE;
-      sp = sp % POST_FRAME_WORD;
+      sp = sp % STEP2_POST_FRAME_WORD;
     }
   }
   #else
   for (int i = start; i < end; i++) {
+    #pragma GCC unroll(4)
     for (int j = 1; j < NY; j++) {
       DTYPE out = ex[i * (NY+1) + j] - 0.5f * (hz[i * NY + j] - hz[i * NY + (j-1)]);
       STORE_NOACK(out, &ex[i * (NY+1) + j], 0); 
@@ -102,20 +123,28 @@ void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
   for (int i = start; i < end; i++) {
-    for (int j = 0; j < NY; j++) {
+    for (int j = 0; j < NY; j+=STEP3_UNROLL_LEN) {
       prefetch_step3_frame(ex, ey, hz, i, j, NY, &sp);
 
       START_FRAME();
-      DTYPE out = sp_ptr[sp + 0] - 0.7f * 
-        (sp_ptr[sp + 1] - sp_ptr[sp + 2] + sp_ptr[sp + 3] - sp_ptr[sp + 4]);
+      #pragma GCC unroll(4)
+      for (int u = 0; u < STEP3_UNROLL_LEN; u++) {
+        int u0 = u;
+        int u1 = STEP3_UNROLL_LEN + u;
+        int u2 = 2*STEP3_UNROLL_LEN+1 + u;
+        int u3 = 3*STEP3_UNROLL_LEN+1 + u;
+        DTYPE out = sp_ptr[sp + u0] - 0.7f * 
+          (sp_ptr[sp + u1+1] - sp_ptr[sp + u1] + sp_ptr[sp + u2] - sp_ptr[sp + u3]);
+        STORE_NOACK(out, &hz[i * NY + j + u], 0); 
+      }
       END_FRAME();
-      STORE_NOACK(out, &hz[i * NY + j], 0); 
       sp += STEP3_REGION_SIZE;
-      sp = sp % POST_FRAME_WORD;
+      sp = sp % STEP3_POST_FRAME_WORD;
     }
   }
   #else
   for (int i = start; i < end; i++) {
+    #pragma GCC unroll(4)
     for (int j = 0; j < NY; j++) {
       DTYPE out = hz[i * NY + j] - 0.7f * (ex[i * (NY+1) + (j+1)] - ex[i * (NY+1) + j] + ey[(i + 1) * NY + j] - ey[i * NY + j]);
       STORE_NOACK(out, &hz[i * NY + j], 0); 
@@ -157,9 +186,14 @@ void __attribute__((optimize("-fno-inline"))) fdtd(
 
     #else
       SET_PREFETCH_MASK(STEP1_NUM_REGIONS, STEP1_REGION_SIZE, &start_barrier);
+      // i == 0 on manycore
+      if (groupId == 0) {
+        fdtd_step1_manycore(fict, ex, ey, hz, t, VECTOR_LEN, NY, vtid, VECTOR_LEN);
+      }
       // fdtd_step1_manycore(fict, ex, ey, hz, t, NX, NY, ptid, dim);
+      // do rest as vector
       if (used)
-        tril_fdtd_step1(mask, fict, ex, ey, hz, t, NX, NY, ptid, groupId, numGroups, vtid);
+        tril_fdtd_step1(mask, fict, ex, ey, hz, t, NX - VECTOR_LEN, NY, ptid, groupId, numGroups, vtid);
       SET_PREFETCH_MASK(STEP2_NUM_REGIONS, STEP2_REGION_SIZE, &start_barrier);
       // fdtd_step2_manycore(ex, ey, hz, t, NX, NY, ptid, dim);
       if (used)
@@ -201,8 +235,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef USE_VEC
 
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
+  // template_info_t tinfo = init_template_4x4_2x2();
+  template_info_t tinfo = init_template_debug();
   #elif VECTOR_LEN==16
   template_info_t tinfo = init_template_8x8_4x4();
   #endif

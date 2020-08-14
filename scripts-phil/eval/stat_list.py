@@ -156,6 +156,19 @@ cpu_stats = OrderedDict([
     'seperate-cores' : True,
   }),
 
+  ('vertical_pfs' ,  {  
+    'regex' : re.compile('system.cpu[0-9]+.iew.Mem.vertical_prefetches\s*' + intRegexStr), 
+    'average' : False,
+  }),
+  ('horizontal_pfs' ,  {  
+    'regex' : re.compile('system.cpu[0-9]+.iew.Mem.horizontal_prefetches\s*' + intRegexStr), 
+    'average' : False,
+  }),
+  ('scalar_pfs' ,  {  
+    'regex' : re.compile('system.cpu[0-9]+.iew.Mem.scalar_prefetches\s*' + intRegexStr), 
+    'average' : False,
+  }),
+
 ])
 
 

@@ -7,7 +7,7 @@
 import os, subprocess, time, argparse, re
 from stat_list import cpu_stats, gpu_stats
 import get_energy
-import graph_king
+import organizer
 
 from collections import OrderedDict
 
@@ -403,19 +403,5 @@ with open(args.outfile, 'w+') as fout:
   #   fout.write(histCSV[i])
   #   fout.write('\n')
   
-
-# plot data to graphs
-graph_king.plot_speedup(all_data)
-graph_king.plot_energy(all_data)
-graph_king.plot_inst_energy(all_data)
-graph_king.plot_icache_energy(all_data)
-graph_king.plot_icache_energy(all_data, True)
-graph_king.plot_dmem_energy(all_data)
-graph_king.plot_llc_energy(all_data)
-graph_king.plot_first_frame_rdy(all_data)
-graph_king.plot_cpi(all_data)
-graph_king.plot_inet_stalls(all_data, True, False)
-graph_king.plot_inet_stalls(all_data, False, True)
-graph_king.plot_frame_stalls(all_data, True, False)
-graph_king.plot_frame_stalls(all_data, False, True)
-
+# plot data to graphs and tables
+organizer.make_plots_and_tables(all_data)
