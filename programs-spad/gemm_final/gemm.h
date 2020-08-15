@@ -6,7 +6,10 @@
 #define _VEC
 #endif
 
+#ifndef BLK_DIM
 #define BLK_DIM 4 //tile size
+#endif
+
 
 #if VEC_LEN==4
 #define DIM_X 2
