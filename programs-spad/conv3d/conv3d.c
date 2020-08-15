@@ -29,15 +29,12 @@ void conv3d_manycore(DTYPE *a, DTYPE *b, int NI, int NJ, int NK, int ptid, int p
         prefetch_horiz_frame(a, i, j, k, NJ, NK, &sp);
 
         START_FRAME();
-        DTYPE out = 
-          CONV_15(
-            a[IDX(i-1, j-1, k-1, NJ, NK)], a[IDX(i-1, j-1, k+1, NJ, NK)], 
-            a[IDX(i-1, j+0, k+1, NJ, NK)], a[IDX(i-1, j+1, k+1, NJ, NK)], 
-            a[IDX(i+0, j-1, k+0, NJ, NK)], a[IDX(i+0, j+0, k+0, NJ, NK)], 
-            a[IDX(i+0, j+1, k+0, NJ, NK)], a[IDX(i+1, j-1, k-1, NJ, NK)], 
-            a[IDX(i+1, j-1, k+1, NJ, NK)], a[IDX(i+1, j+0, k+1, NJ, NK)], 
-            a[IDX(i+1, j+1, k+1, NJ, NK)]
-          );
+        DTYPE out = CONV_15(
+          sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
+          sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
+          sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8],
+          sp_ptr[sp + 9], sp_ptr[sp + 10]
+        );
         END_FRAME();
         sp += REGION_SIZE;
         if (sp == POST_REGION_WORD) sp = 0;
