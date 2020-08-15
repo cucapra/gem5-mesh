@@ -8,6 +8,9 @@
 
 // #define MANYCORE_PREFETCH
 
+// #define POLYBENCH_VERSION
+// #define REDUCE_VERSION
+
 #define INIT_FRAMES 2
 #define PREFETCH_LEN 16
 #define REGION_SIZE (PREFETCH_LEN * 2)

@@ -244,6 +244,7 @@ void *pthread_kernel(void *args)
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
 
+  pthread_barrier_wait(&start_barrier);
   if (a->tid_x == 0 && a->tid_y == 0)
   {
     stats_off();

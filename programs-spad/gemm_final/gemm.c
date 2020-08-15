@@ -116,7 +116,6 @@ if (cinfo.used){
   gemm_manycore(a, b, c, m, n, t, m_start, n_start, ptid, pdim_x, pdim_y);
 }
 #endif
-  pthread_barrier_wait(&start_barrier);
   RECOVER_DRAM_STACK();
 }
 
@@ -155,7 +154,7 @@ void *pthread_kernel(void *args)
   kernel(a->a, a->aT, a->b, a->c, a->m, a->n, a->t,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-
+  pthread_barrier_wait(&start_barrier);
   if (a->tid_x == 1 && a->tid_y == 1)
   {
     stats_off();
