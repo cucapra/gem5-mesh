@@ -57,6 +57,7 @@ int check_mean (DTYPE* mean, DTYPE* data, int m, int n){
       return 1;
     }
   }
+
   #endif
   return 0;
 }
@@ -104,8 +105,8 @@ int check_center (DTYPE* kernel_data, DTYPE* orig_data, DTYPE* stddev, DTYPE* me
     }
   }
   #elif defined POLYBENCH_VERSION
-  for (int j = 0; j < m; j++){
-    for (int i = 0; i < n; i++){
+  for (int i = 0; i < n; i++){
+    for (int j = 0; j < m; j++){
       tmp[i*m+j] = orig_data[i*m+j] - mean[j];
       tmp[i*m+j] /= sqrt(n)*stddev[j];
       // if(tmp[i*m+j]!=kernel_data[i*m+j]){
@@ -116,6 +117,7 @@ int check_center (DTYPE* kernel_data, DTYPE* orig_data, DTYPE* stddev, DTYPE* me
       }
     }
   }
+
   #endif
   return 0;
 }
