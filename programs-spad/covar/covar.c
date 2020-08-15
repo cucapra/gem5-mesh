@@ -47,7 +47,7 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
       prefetch_mean_frame(data, i, j, &sp, M);
 
       START_FRAME();
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(16)
       for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
         mean_i += sp_ptr[sp + u];
       }
@@ -59,7 +59,7 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
     #else
 
     // compute mean
-    #pragma GCC unroll(8)
+    #pragma GCC unroll(16)
     for (int j = 0; j < M; j++) {
       mean_i += data[i * N + j];
     }
@@ -69,20 +69,28 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
     // TODO dont need this
     STORE_NOACK(mean_i, &mean[i], 0);
 
+    #ifdef MANYCORE_PREFETCH
     for (int j = 0; j < M; j+=MEAN_UNROLL_LEN) {
       prefetch_mean_frame(data, i, j, &sp, M);
 
       START_FRAME();
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(16)
       for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
         DTYPE dat = sp_ptr[sp + u] - mean_i;
-        STORE_NOACK(dat, &data[i * N + j], 0);
+        STORE_NOACK(dat, &data[i * N + j + u], 0);
       }
       END_FRAME();
 
       sp += MEAN_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
     }
+    #else
+    #pragma GCC unroll(16)
+    for (int j = 0; j < M; j++) {
+      DTYPE dat = data[i * M + j] - mean_i;
+      STORE_NOACK(dat, &data[i * M + j], 0);
+    }
+    #endif
   }
   asm volatile("fence\n\t");
 }
@@ -106,7 +114,7 @@ void covar_manycore(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) 
         prefetch_covar_frame(data, i1, i2, j, &sp, M);
 
         START_FRAME();
-        #pragma GCC unroll(8)
+        #pragma GCC unroll(16)
         for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
           symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_UNROLL_LEN + u];
         }
@@ -115,7 +123,7 @@ void covar_manycore(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) 
         sp = sp % POST_FRAME_WORD;
       }
       #else
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(16)
       for (int j = 0; j < M; j++) {
         symmat_idx += data[i1 * N + j] * data[i2 * N + j];
       }
@@ -154,15 +162,11 @@ void __attribute__((optimize("-fno-inline"))) covar(
     #else
     SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);
     if (used)
-      tril_mean(mask, mean, data, N, M, ptid, groupId, numGroups, vtid);
-    
-    SET_PREFETCH_MASK(NUM_CENTER_FRAMES, CENTER_FRAME_SIZE, &start_barrier);
-    if (used)
-      tril_center(mask, mean, data, N, M, ptid, groupId, numGroups, vtid);
+      tril_mean(mask, mean, dataT, N, M, ptid, groupId, numGroups, vtid);
     
     SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
     if (used)
-      tril_covar(mask, symmat, data, N, M, ptid, groupId, numGroups, vtid);
+      tril_covar(mask, symmat, dataT, N, M, ptid, groupId, numGroups, vtid);
     #endif
 
 }
