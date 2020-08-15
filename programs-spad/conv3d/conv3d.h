@@ -33,7 +33,7 @@
 
 
 // #define AUDIT
-// #define AUDIT2
+#define AUDIT2
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
@@ -136,7 +136,7 @@ inline void prefetch_horiz_frame(DTYPE *a, int i, int j, int k, int NJ, int NK, 
             // a[IDX(i+1, j-1, k+1, NJ, NK)], a[IDX(i+1, j+0, k+1, NJ, NK)], 
             // a[IDX(i+1, j+1, k+1, NJ, NK)];
 
-  #ifdef AUDIT
+  #if defined(AUDIT) && defined(MANYCORE_PREFETCH)
   int ul = UNROLL_LEN;
   for (int core = 0; core < VECTOR_LEN; core++) {
     VPREFETCH_LR(*sp + 0*ul , a + IDX(i-1, j-1+core, k-1, NJ, NK), core, PREFETCH_LEN, VERTICAL); // merge
@@ -151,7 +151,7 @@ inline void prefetch_horiz_frame(DTYPE *a, int i, int j, int k, int NJ, int NK, 
     VPREFETCH_LR(*sp + 9*ul , a + IDX(i+1, j+0+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL);
     VPREFETCH_LR(*sp + 10*ul, a + IDX(i+1, j+1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL);
   }
-  #elif defined(AUDIT2)
+  #elif defined(AUDIT2) && defined(MANYCORE_PREFETCH)
   int ul = UNROLL_LEN;
   int ml = ul + 2;
   for (int core = 0; core < VECTOR_LEN; core++) {

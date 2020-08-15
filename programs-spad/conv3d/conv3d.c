@@ -33,7 +33,7 @@ void conv3d_manycore(DTYPE *a, DTYPE *b, int NI, int NJ, int NK, int ptid, int p
         // #pragma GCC unroll(8)
         for (int u = 0; u < UNROLL_LEN; u++) {
           #ifdef AUDIT
-          if (k + u >= NK - 1) continue;
+          if (k + u >= NK - 1) break;
           int ul = UNROLL_LEN;
           DTYPE out = CONV_15(
             sp_ptr[sp + 0*ul + u], 
@@ -49,7 +49,7 @@ void conv3d_manycore(DTYPE *a, DTYPE *b, int NI, int NJ, int NK, int ptid, int p
             sp_ptr[sp + 10*ul + u]
           );
           #elif defined(AUDIT2)
-          if (k + u >= NK - 1) continue;
+          if (k + u >= NK - 1) break;
           int ul = UNROLL_LEN;
           int ml = UNROLL_LEN + 2;
           DTYPE out = CONV_15(
