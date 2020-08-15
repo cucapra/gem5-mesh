@@ -39,24 +39,19 @@
 #endif
 
 // prefetch config for mean kernel
-#define MEAN_UNROLL_LEN 2
+#define MEAN_UNROLL_LEN 1
 #define MEAN_FRAME_SIZE MEAN_UNROLL_LEN
 #define NUM_MEAN_FRAMES (POST_FRAME_WORD / MEAN_FRAME_SIZE)
-#define MEAN_PREFETCH_LEN VECTOR_LEN
+#define MEAN_PREFETCH_LEN (MEAN_UNROLL_LEN)
 #define INIT_MEAN_OFFSET (INIT_FRAMES * MEAN_FRAME_SIZE)
 
-// prefetch config for center kernel
-#define CENTER_PREFETCH_LEN 16
-#define CENTER_FRAME_SIZE (2*CENTER_PREFETCH_LEN)
-#define NUM_CENTER_FRAMES (POST_FRAME_WORD / CENTER_FRAME_SIZE)
-#define INIT_CENTER_OFFSET (INIT_FRAMES * CENTER_PREFETCH_LEN)
-
 // prefetch config for covar kernel
-#define COVAR_UNROLL_LEN 2
-#define COVAR_J1_PREFETCH_LEN 1
+#define COVAR_UNROLL_LEN 1
+#define COVAR_I1_PREFETCH_LEN (COVAR_UNROLL_LEN)
+#define COVAR_I2_PREFETCH_LEN (COVAR_UNROLL_LEN)
 #define COVAR_FRAME_SIZE (2*COVAR_UNROLL_LEN)
 #define NUM_COVAR_FRAMES (POST_FRAME_WORD / COVAR_FRAME_SIZE)
-#define COVAR_J2_PREFETCH_LEN VECTOR_LEN
+
 #define INIT_COVAR_OFFSET (INIT_FRAMES * COVAR_UNROLL_LEN)
 
 #ifdef MANYCORE_PREFETCH
@@ -69,11 +64,9 @@
 
 
 inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
-  // can't merge into a vprefetch but can still unroll the old fashioned way
-  for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
-    VPREFETCH_LR_FAIR(*sp + u, &data[(i + u) * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_LR(*sp + 0, &data[(i + core) * M + j], core, MEAN_PREFETCH_LEN, VERTICAL);
   }
-  // VPREFETCH_R(*sp, &data[i * (M+1) + j], 0, MEAN_PREFETCH_LEN, HORIZONTAL);
 
   #ifndef MANYCORE_PREFETCH
   *sp = *sp + MEAN_FRAME_SIZE;
@@ -81,37 +74,24 @@ inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
   #endif
 }
 
-inline void prefetch_center_frame(DTYPE *data, DTYPE *mean, int i, int j, int *sp, int M) {
-  // fetch data
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_LR(*sp, &data[(i + core) * (M+1) + j], core, CENTER_PREFETCH_LEN, VERTICAL);
-  }
-
-  // TODO should do more than 1 here
-  for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_LR(*sp + CENTER_PREFETCH_LEN, &mean[j], core, CENTER_PREFETCH_LEN, VERTICAL);
-  }
-
-  #ifndef MANYCORE_PREFETCH
-  *sp = *sp + CENTER_FRAME_SIZE;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
-  #endif
-}
-
-inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, int M) {
+inline void prefetch_covar_frame(DTYPE *data, int i1, int i2, int j, int *sp, int M) {
   // everyone in groups gets the same j1. could share and/or do vertical
   
-  for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
-    for (int core = 0; core < VECTOR_LEN; core++) {
-      VPREFETCH_LR(*sp + u, &data[(i + u) * (M+1) + j1], core, COVAR_J1_PREFETCH_LEN, VERTICAL);
-    }
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_LR(*sp + 0, &data[i1 * M + j], core, COVAR_I1_PREFETCH_LEN, VERTICAL);
   }
+
   // printf("%d %f\n", *sp, data[i * (M+1) + j1]);
   // *sp = *sp + COVAR_J1_PREFETCH_LEN;
 
-  for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
-    VPREFETCH_LR_FAIR(*sp + COVAR_UNROLL_LEN + u, &data[(i + u) * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
+  // for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
+  //   VPREFETCH_LR_FAIR(*sp + COVAR_UNROLL_LEN + u, &data[(i + u) * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
+  // }
+
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_LR(*sp + COVAR_I1_PREFETCH_LEN, &data[(i2 + core) * M + j], core, COVAR_I2_PREFETCH_LEN, VERTICAL);
   }
+
   // VPREFETCH_R(*sp, &data[i * (M+1) + j2], 0, COVAR_J2_PREFETCH_LEN, HORIZONTAL);
   // printf("%d %f\n", *sp, data[i * (M+1) + j2]);
 
@@ -139,7 +119,7 @@ inline void prefetch_covar_frame(DTYPE *data, int i, int j1, int j2, int *sp, in
 
 // pthread argument for the kernel
 typedef struct Kern_Args {
-  DTYPE *data, *mean, *symmat;
+  DTYPE *data, *dataT, *mean, *symmat;
   int N, M;
   int tid_x, tid_y;
   int dim_x, dim_y;
@@ -147,7 +127,7 @@ typedef struct Kern_Args {
 
 // helper to pack args
 Kern_Args *construct_args(
-    DTYPE *data, DTYPE *mean, DTYPE *symmat,
+    DTYPE *data, DTYPE *dataT, DTYPE *mean, DTYPE *symmat,
     int N, int M,
     int tid_x, int tid_y, int dim_x, int dim_y
   );
@@ -157,7 +137,7 @@ void *pthread_kernel(void *args);
 
 // kernel
 void kernel(
-    DTYPE *data, DTYPE *mean, DTYPE *symmat,
+    DTYPE *data, DTYPE *dataT, DTYPE *mean, DTYPE *symmat,
     int N, int M,
     int tid_x, int tid_y, int dim_x, int dim_y
   );

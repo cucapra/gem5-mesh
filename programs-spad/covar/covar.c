@@ -18,25 +18,38 @@
  * Manycore. Using PolyBench GPU parallelization strategy. No scratchpad use
  *---------------------------------------------------------------------------------*/
 
+void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int pdim){
+
+  int start = ((ptid + 0) * a_col) / pdim;
+  int end = ((ptid + 1) * a_col) / pdim;
+
+  for(int i=start; i<end; i++){
+    for(int j=0; j<a_row; j++){
+      aT[i*a_row+j] = a[j*a_col+i];
+    }
+  }
+}
+
+
 // compute each mean across each vector (single dimension)
-void mean_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
-  int start = ((tid + 0) * M) / dim;
-  int end   = ((tid + 1) * M) / dim;
+void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
+  int start = ((tid + 0) * N) / dim;
+  int end   = ((tid + 1) * N) / dim;
 
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
 
-  for (int j = start + 1; j < end + 1; j++) {
-    DTYPE mean_j = 0.0f;
+  for (int i = start; i < end; i++) { // TODO remove +1, keep for now for eq
+    DTYPE mean_i = 0.0f;
 
     #ifdef MANYCORE_PREFETCH
-    for (int i = 1; i < (N+1); i+=MEAN_UNROLL_LEN) {
+    for (int j = 0; j < M; j+=MEAN_UNROLL_LEN) {
       prefetch_mean_frame(data, i, j, &sp, M);
 
       START_FRAME();
       #pragma GCC unroll(8)
-      for (int iin = 0; iin < MEAN_UNROLL_LEN; iin++) {
-        mean_j += sp_ptr[sp + iin];
+      for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
+        mean_i += sp_ptr[sp + u];
       }
       END_FRAME();
 
@@ -44,78 +57,58 @@ void mean_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int
       sp = sp % POST_FRAME_WORD;
     }
     #else
+
+    // compute mean
     #pragma GCC unroll(8)
-    for (int i = 1; i < (N+1); i++) {
-      mean_j += data[i * (M+1) + j];
+    for (int j = 0; j < M; j++) {
+      mean_i += data[i * N + j];
     }
     #endif
-    mean_j /= (DTYPE)FLOAT_N;
-    STORE_NOACK(mean_j, &mean[j], 0);
-  }
-  asm volatile("fence\n\t");
-}
+    mean_i /= (DTYPE)FLOAT_N;
 
-// subract mean from data to "center"
-void center_manycore_baseline(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
-  // unlike gpu version only parallelize outer loop? find if N dimension big enough which prob is
-  // or should we use same method as gpu to be fair?
+    // TODO dont need this
+    STORE_NOACK(mean_i, &mean[i], 0);
 
-  // I think just paralleize outer here? and maybe optimize gpu later?
-  int start = ((tid + 0) * N) / dim;
-  int end   = ((tid + 1) * N) / dim;
-
-  int sp = 0;
-  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
-
-  for (int i = start + 1; i < end + 1; i++) {
-    #ifdef MANYCORE_PREFETCH
-    for (int j = 1; j < (M+1); j+=CENTER_PREFETCH_LEN) {
-      prefetch_center_frame(data, mean, i, j, &sp, M);
+    for (int j = 0; j < M; j+=MEAN_UNROLL_LEN) {
+      prefetch_mean_frame(data, i, j, &sp, M);
 
       START_FRAME();
-      #pragma GCC unroll(16)
-      for (int jin = 0; jin < CENTER_PREFETCH_LEN; jin++) {
-        DTYPE dat = sp_ptr[sp + jin] - sp_ptr[sp + CENTER_PREFETCH_LEN + jin];
-        STORE_NOACK(dat, &data[i * (M+1) + j + jin], 0);
+      #pragma GCC unroll(8)
+      for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
+        DTYPE dat = sp_ptr[sp + u] - mean_i;
+        STORE_NOACK(dat, &data[i * N + j], 0);
       }
       END_FRAME();
-      sp += CENTER_FRAME_SIZE;
+
+      sp += MEAN_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
     }
-    #else
-    #pragma GCC unroll(16)
-    for (int j = 1; j < (M+1); j++) {
-      DTYPE dat = data[i * (M+1) + j] - mean[j];
-      STORE_NOACK(dat, &data[i * (M+1) + j], 0);
-    }
-    #endif
   }
   asm volatile("fence\n\t");
 }
 
 // compute the covariance matrix
-void covar_manycore_baseline(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) {
+void covar_manycore(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) {
   // if chunk then load balancing problem
   // opt for strided load balancing
   int start  = tid;
   int stride = dim;
-  int end    = M;
 
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
 
-  for (int j1 = start + 1; j1 < (end+1); j1+=stride) {
-    for (int j2 = j1; j2 < (M+1); j2++) {
+  for (int i1 = start; i1 < N; i1+=stride) {
+    for (int i2 = i1; i2 < N; i2++) {
       DTYPE symmat_idx = 0.0f;
 
       #ifdef MANYCORE_PREFETCH
-      for (int i = 1; i < (N+1); i+=COVAR_UNROLL_LEN) {
-        prefetch_covar_frame(data, i, j1, j2, &sp, M);
+      for (int j = 0; j < M; j+=COVAR_UNROLL_LEN) {
+        prefetch_covar_frame(data, i1, i2, j, &sp, M);
 
         START_FRAME();
         #pragma GCC unroll(8)
-        for (int iin = 0; iin < COVAR_UNROLL_LEN; iin++) {
-          symmat_idx += sp_ptr[sp + iin] * sp_ptr[sp + COVAR_UNROLL_LEN + iin];
+        for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
+          symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_UNROLL_LEN + u];
         }
         END_FRAME();
         sp += COVAR_FRAME_SIZE;
@@ -123,13 +116,13 @@ void covar_manycore_baseline(DTYPE *symmat, DTYPE *data, int N, int M, int tid, 
       }
       #else
       #pragma GCC unroll(8)
-      for (int i = 1; i < (N+1); i++) {
-        symmat_idx += data[i *(M+1) + j1] * data[i *(M+1) + j2];
+      for (int j = 0; j < M; j++) {
+        symmat_idx += data[i1 * N + j] * data[i2 * N + j];
       }
       #endif
 
-      STORE_NOACK(symmat_idx, &symmat[j2 * (M+1) + j1], 0);
-      STORE_NOACK(symmat_idx, &symmat[j1 * (M+1) + j2], 0);
+      STORE_NOACK(symmat_idx, &symmat[i2 * N + i1], 0);
+      STORE_NOACK(symmat_idx, &symmat[i1 * N + i2], 0);
       // symmat[j2 * (M+1) + j1] = symmat_idx;
       // symmat[j1 * (M+1) + j2] = symmat_idx;
     }
@@ -138,28 +131,26 @@ void covar_manycore_baseline(DTYPE *symmat, DTYPE *data, int N, int M, int tid, 
 }
 
 void __attribute__((optimize("-fno-inline"))) covar(
-    DTYPE *data, DTYPE *mean, DTYPE *symmat,
+    DTYPE *data, DTYPE *dataT, DTYPE *mean, DTYPE *symmat,
     int ptid, int vtid, int dim, int N, int M, int groupId, int numGroups,
     int mask, int used
   ) {
 
+    transpose_manycore(data, M, N, dataT, ptid, dim);
+
     #ifndef USE_VEC
     #ifdef MANYCORE_PREFETCH
-    SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);  
-    #endif
-    mean_manycore_baseline(mean, data, N, M, ptid, dim);
-    #ifdef MANYCORE_PREFETCH
-    SET_PREFETCH_MASK(NUM_CENTER_FRAMES, CENTER_FRAME_SIZE, &start_barrier);
+    SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);
     #else
     pthread_barrier_wait(&start_barrier);
     #endif
-    center_manycore_baseline(mean, data, N, M, ptid, dim);
+    mean_manycore(mean, dataT, N, M, ptid, dim);
     #ifdef MANYCORE_PREFETCH
     SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
     #else
     pthread_barrier_wait(&start_barrier);
     #endif
-    covar_manycore_baseline(symmat, data, N, M, ptid, dim);
+    covar_manycore(symmat, dataT, N, M, ptid, dim);
     #else
     SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);
     if (used)
@@ -177,7 +168,7 @@ void __attribute__((optimize("-fno-inline"))) covar(
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
-    DTYPE *data, DTYPE *mean, DTYPE *symmat, int N, int M,
+    DTYPE *data, DTYPE *dataT, DTYPE *mean, DTYPE *symmat, int N, int M,
     int ptid_x, int ptid_y, int pdim_x, int pdim_y) {
   
   // start recording all stats (all cores)
@@ -253,7 +244,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   MOVE_STACK_ONTO_SCRATCHPAD();
 
   // compute covariance
-  covar(data, mean, symmat, ptid, vtid, pdim, N, M, unique_id, total_groups, mask, used);
+  covar(data, dataT, mean, symmat, ptid, vtid, pdim, N, M, unique_id, total_groups, mask, used);
 
   // restore stack pointer
   RECOVER_DRAM_STACK();
@@ -262,12 +253,13 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
 
 // helper functions
-Kern_Args *construct_args(DTYPE *data, DTYPE *mean, DTYPE *symmat, int N, int M,
+Kern_Args *construct_args(DTYPE *data, DTYPE *dataT, DTYPE *mean, DTYPE *symmat, int N, int M,
   int tid_x, int tid_y, int dim_x, int dim_y) {
 
   Kern_Args *args = (Kern_Args*)malloc(sizeof(Kern_Args));
   
   args->data = data;
+  args->dataT = dataT;
   args->mean = mean;
   args->symmat = symmat;
   args->N = N;
@@ -289,7 +281,7 @@ void *pthread_kernel(void *args) {
   // call the spmd kernel
   Kern_Args *a = (Kern_Args*)args;
   
-  kernel(a->data, a->mean, a->symmat, a->N, a->M,
+  kernel(a->data, a->dataT, a->mean, a->symmat, a->N, a->M,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
   pthread_barrier_wait(&start_barrier);
