@@ -117,7 +117,7 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
       sp = sp % POST_FRAME_WORD;
       // #if VECTOR_LEN==16
       // #pragma GCC unroll(16)
-      // for (int n = 0; n < 3; n++) {
+      // for (int n = 0; n < 1; n++) {
       //   asm volatile("nop\n\t");
       // }
       // #endif
@@ -285,7 +285,7 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
     do {
       asm("trillium vissue_delim if_begin vec_body");
       FRAME_START(COVAR_FRAME_SIZE);
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(16)
       for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
         symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_UNROLL_LEN + u];
       }
