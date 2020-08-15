@@ -25,20 +25,59 @@ void conv3d_manycore(DTYPE *a, DTYPE *b, int NI, int NJ, int NK, int ptid, int p
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
   for (int i = outer_start; i < outer_end; i++) {
     for (int j = 1; j < NJ - 1; j++) {
-      for (int k = 1; k < NK - 1; k++) {
+      for (int k = 1; k < NK - 1; k+=UNROLL_LEN) {
         prefetch_horiz_frame(a, i, j, k, NJ, NK, &sp);
 
         START_FRAME();
-        DTYPE out = CONV_15(
-          sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
-          sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
-          sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8],
-          sp_ptr[sp + 9], sp_ptr[sp + 10]
-        );
+        // unroll doesn't seem to help here
+        // #pragma GCC unroll(8)
+        for (int u = 0; u < UNROLL_LEN; u++) {
+          #ifdef AUDIT
+          if (k + u >= NK - 1) continue;
+          int ul = UNROLL_LEN;
+          DTYPE out = CONV_15(
+            sp_ptr[sp + 0*ul + u], 
+            sp_ptr[sp + 1*ul + u], 
+            sp_ptr[sp + 2*ul + u],
+            sp_ptr[sp + 3*ul + u], 
+            sp_ptr[sp + 4*ul + u],
+            sp_ptr[sp + 5*ul + u],
+            sp_ptr[sp + 6*ul + u], 
+            sp_ptr[sp + 7*ul + u], 
+            sp_ptr[sp + 8*ul + u],
+            sp_ptr[sp + 9*ul + u], 
+            sp_ptr[sp + 10*ul + u]
+          );
+          #elif defined(AUDIT2)
+          if (k + u >= NK - 1) continue;
+          int ul = UNROLL_LEN;
+          int ml = UNROLL_LEN + 2;
+          DTYPE out = CONV_15(
+            sp_ptr[sp + 0*ul + u], 
+            sp_ptr[sp + 0*ul + u + 2], 
+            sp_ptr[sp + 1*ml + u],
+            sp_ptr[sp + 1*ul+1*ml + u], 
+            sp_ptr[sp + 2*ul+1*ml + u],
+            sp_ptr[sp + 3*ul+1*ml + u],
+            sp_ptr[sp + 4*ul+1*ml + u], 
+            sp_ptr[sp + 5*ul+1*ml + u], 
+            sp_ptr[sp + 5*ul+1*ml + u + 2],
+            sp_ptr[sp + 5*ul+2*ml + u], 
+            sp_ptr[sp + 6*ul+2*ml + u]
+          );
+          #else
+          DTYPE out = CONV_15(
+            sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
+            sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
+            sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8],
+            sp_ptr[sp + 9], sp_ptr[sp + 10]
+          );
+          #endif
+          STORE_NOACK(out, &b[IDX(i, j, k + u, NJ, NK)], 0);
+        }
         END_FRAME();
         sp += REGION_SIZE;
         if (sp == POST_REGION_WORD) sp = 0;
-        STORE_NOACK(out, &b[IDX(i, j, k, NJ, NK)], 0);
       }
     }
   }
