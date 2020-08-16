@@ -2,9 +2,9 @@ BENCHNAME := conv3d
 default: $(BENCHNAME)
 
 # run small sim for test
-PROB_SIZE := 16 16 16
+PROB_SIZE := 32 32 32
 N_SPS ?= 64
-EXTRA_FLAGS ?= -DVEC_16_SIMD
+EXTRA_FLAGS ?= -DMANYCORE_PREFETCH
 HB_ARGS := --options="$(PROB_SIZE)"
 # GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Frame
 

@@ -2,7 +2,7 @@ BENCHNAME := covar
 default: $(BENCHNAME)
 
 # run small sim for test
-PROB_SIZE := 16
+PROB_SIZE := 64
 N_SPS ?= 64
 EXTRA_FLAGS ?= -DVEC_16_SIMD
 HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"

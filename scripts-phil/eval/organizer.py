@@ -30,8 +30,11 @@ def sort_by_sub_label(cur_order, values, desired_order):
   return (desired_order, sorted_values)
 
 # bar plot wrapper that sorts series 
-def sorted_bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
-  desired_order = [ 'NV', 'NV_PF', 'V4', 'V16' ]
+def sorted_bar_plot(labels, sub_labels, values, ylabel, title, annotate=True, compare_initframes=False):
+  if (compare_initframes):
+    desired_order = [ 'V4', 'V4_I0']
+  else:
+    desired_order = [ 'NV', 'NV_PF', 'V4', 'V16', 'GPU' ]
 
   # only add gpu series if has data in it
   gpu_idx = -1
@@ -45,8 +48,8 @@ def sorted_bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
       if (v != 0 and not isnan(v)):
         gpu_has_nz = True
 
-  if (gpu_has_nz):
-    desired_order += [ 'GPU' ]
+  if (not gpu_has_nz):
+    desired_order.remove('GPU')
 
   # sort sub bar series
   if len(desired_order) > 0:
@@ -62,13 +65,15 @@ def sorted_bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
 
 # extract all data for a specific field across all benchmarks
 # only get the yaxis data, assumed xaxis is trivial to get (i.e., arange or core_id)
-def group_line_data(data, desired_field):
+def group_line_data(data, desired_field, desired_configs=[]):
   labels = []
   configs = []
   values = []
 
   for row in data:
     if (not desired_field in row):
+      continue
+    if (not (len(desired_configs) == 0 or row['config'] in desired_configs)):
       continue
     labels.append('{}_{}'.format(row['prog'], row['config']))
     configs.append(row['config'])
@@ -300,13 +305,13 @@ def plot_cpi(data):
   sorted_bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
 
 def plot_inet_stalls(data, includeV4, includeV16):
-  (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep')
+  (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=['V4', 'V16'])
   (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, includeV4, includeV16)
   title = 'Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
   line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', title, False)
 
 def plot_frame_stalls(data, includeV4, includeV16):
-  (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep')
+  (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep', desired_configs=['V4', 'V16'])
   (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, includeV4, includeV16)
   title = 'Frame_Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
   line_plot(xaxes, values, labels, 'Hops', 'Frame stalls relative to total vector cycles', title, False)
@@ -343,18 +348,18 @@ def plot_prefetch_coverage(data):
 
   bar_plot(labels, sub_labels, values, 'Fraction Coverage of Memory Loads', 'coverage', True) 
 
+def plot_init_frames(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'cycles')
+
+  # flip from cycles to speedup normalized to NV
+  normalize(sub_labels, values, pref_base='V4_I0')
+  inverse(values)
+  add_geo_mean(labels, values)
+
+  sorted_bar_plot(labels, sub_labels, values, 'Speedup Relative to V4', 'Init_Frame_Speedup', compare_initframes=True)
 
 # substitue field in extracted data (do before analyses above)
 def substitute_field(data, prog, from_config, to_config):
-  # find field to replace
-  replace_idx = -1
-  for i in range(len(data)):
-    row = data[i]
-    if row['prog'] == prog and row['config'] == to_config:
-      replace_idx = i
-
-  if (replace_idx < 0):
-    return
 
   # find field to move
   move_idx = -1
@@ -365,6 +370,21 @@ def substitute_field(data, prog, from_config, to_config):
 
   if (move_idx < 0):
     return
+
+  # find field to replace
+  replace_idx = -1
+  for i in range(len(data)):
+    row = data[i]
+    if row['prog'] == prog and row['config'] == to_config:
+      replace_idx = i
+
+  # if cant replace just change the config
+  if (replace_idx < 0):
+    data[move_idx]['config'] = to_config
+    print('rename {} {}->{}'.format(prog, from_config, to_config))
+    return
+
+  print('replaced {} {}->{}'.format(prog, from_config, to_config))
 
   # do replacement for bench
   data[replace_idx] = data[move_idx]
@@ -389,6 +409,8 @@ def make_plots_and_tables(all_data):
   # use vertical for conv2d
   substitute_field(all_data, 'conv2d', 'VEC_16_SIMD_VERTICAL', 'V16')
   substitute_field(all_data, 'conv2d', 'VEC_4_SIMD_VERTICAL', 'V4')
+  substitute_field(all_data, 'conv2d', 'VEC_4_SIMD_VERTICAL_I0', 'V4_I0')
+
   # delete reuse
   remove_field(all_data, 'conv2d', 'VEC_4_REUSE_VERTICAL')
 
@@ -417,3 +439,5 @@ def make_plots_and_tables(all_data):
   plot_frame_stalls(all_data, False, True)
   print("Plot prefetch coverage")
   plot_prefetch_coverage(all_data)
+  print("Plot init frames")
+  plot_init_frames(all_data)

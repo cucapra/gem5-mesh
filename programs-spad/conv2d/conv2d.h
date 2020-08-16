@@ -75,7 +75,11 @@
 #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
 // can guarentee power of 2 works
 #define POST_REGION_WORD 288
+
+#ifndef INIT_FRAMES
 #define INIT_FRAMES 2
+#endif
+
 #if defined(REUSE)
 #define LOAD_DEPTH 3
 #define REGION_SIZE (LOAD_DEPTH*FILTER_DIM)

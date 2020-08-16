@@ -42,7 +42,9 @@
 // #define POST_FRAME_WORD 120
 
 // number of frames to get ahead
+#ifndef INIT_FRAMES
 #define INIT_FRAMES 1
+#endif
 
 // prefetch sizings for step1
 #define STEP1_UNROLL_LEN 4
