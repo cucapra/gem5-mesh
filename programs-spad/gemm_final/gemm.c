@@ -24,6 +24,90 @@ void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int
 
 }
 
+static inline int _idx_(int y, int x, int width)
+{
+  return (y * width) + x;
+}
+
+void __attribute__((optimize("-fno-inline")))
+gemm_unused_cores(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
+     int m_start, int m_end, int n_start, int n_end, int ptid, int ptid_new)
+{
+  DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
+  DTYPE *sp_c = spAddr + NUM_REGIONS * REGION_SIZE;
+  int spadRegion = 0;
+
+  int offset_x, offset_y;
+
+  offset_x = BLK_DIM;
+  offset_y = BLK_DIM;
+
+  int sp_a_offset,sp_b_offset;
+  int sp_c_offset[2];
+
+  //assuming m_start-m_end is divisble by BLK_DIM
+  for (int i0 = m_start; i0 < m_end; i0 += offset_x)
+  {
+    for (int j0 = n_start; j0 < n_end; j0 += offset_y)
+    {
+      for (int k = 0; k < t; k++)
+      {
+        #ifdef MANYCORE_PREFETCH
+        sp_a_offset = spadRegion * REGION_SIZE;
+        sp_b_offset = sp_a_offset + BLK_DIM;
+
+        // fetch a in scratchpad
+        VPREFETCH_L(sp_a_offset, aT + _idx_(k, i0, m), 0, BLK_DIM,1);
+        // fetch b in scratchpad
+        VPREFETCH_L(sp_b_offset, b + _idx_(k, j0, n), 0, BLK_DIM,1);
+        FRAME_START(REGION_SIZE);
+        #endif
+
+        #pragma GCC unroll(16)
+        for (int i = 0; i < BLK_DIM; i++)
+        {
+          #pragma GCC unroll(16)
+          for (int j = 0; j < BLK_DIM; j++)
+          {
+            DTYPE a_, b_;
+            #ifdef MANYCORE_PREFETCH
+            a_ = spAddr[sp_a_offset+i];
+            b_ = spAddr[sp_b_offset+j];
+            #else
+            a_ = aT[_idx_(k,i + i0, m)];
+            b_ = b[_idx_(k, j + j0, n)];
+            #endif
+            sp_c[_idx_(i, j, BLK_DIM)] += ALPHA* a_ * b_;
+            // c[_idx_(i + i0, j + j0, n)] += a_ * b_;
+          }
+        }
+        #ifdef MANYCORE_PREFETCH
+        spadRegion = (spadRegion + 1) % NUM_REGIONS;
+        REMEM(REGION_SIZE);
+        #endif
+      }
+
+      #pragma GCC unroll(16)
+      for (int ii = 0; ii < BLK_DIM; ii+=2)
+      {
+        #pragma GCC unroll(16)
+        for (int i=ii; i<ii+2; i++){
+          #pragma GCC unroll(16)
+          for (int j = 0; j < BLK_DIM; j++)
+          {
+            DTYPE temp;
+            temp = c[_idx_(i + i0, j + j0, n)]*BETA;
+            temp += sp_c[_idx_(i, j, BLK_DIM)];
+            // c[_idx_(i + i0, j + j0, n)] = temp;
+            STORE_NOACK(temp, c + _idx_(i + i0, j + j0, n), 0);
+            sp_c[_idx_(i, j, BLK_DIM)] = 0;
+          }
+        }
+      }
+
+    }
+  }
+}
 
 // actual kernel
 void kernel(
@@ -48,7 +132,7 @@ void kernel(
   template_info_t tinfo;
 
   transpose_manycore(a,m,t,aT,ptid,pdim);
-  a=aT;
+  // a=aT;
 
   #ifdef _VEC
   #if VEC_LEN==4
@@ -61,7 +145,31 @@ void kernel(
   vdim = cinfo.vdim_x*cinfo.vdim_y;
   int *ptid_group = getSpAddr(ptid,NUM_REGIONS * REGION_SIZE + BLK_DIM*BLK_DIM + 10);
 
+  int ptid_new;
+  int m_manycore = 0; //usually no work assigned to manycore if vec present
+
+  #if VEC_LEN==4
   WORK_DIV(m,n)
+  #elif VEC_LEN==16
+
+    #ifdef VEC_MANYCORE_OPT
+    if(!cinfo.used){
+      PTID_FINDER(ptid)
+      #ifdef MANYCORE_PREFETCH
+      cinfo.orig_x = ptid_x;
+      cinfo.orig_y = ptid_y;
+      cinfo.vdim_x = 1;
+      cinfo.vdim_y = 1;
+      #endif
+    }
+    WORK_DIV_OPT(m,n)
+    #else
+    WORK_DIV(m,n)
+    #endif
+
+  #endif
+
+
 
   #ifdef SHARING
   if(cinfo.used){
@@ -74,20 +182,34 @@ void kernel(
   }
   #endif
 
+  
 
+  // if (ptid==38) printf("mvec %d m manycore %d, weighted avergae %d\n",m_vec,m_manycore,(cinfo.total_groups*VEC_LEN*m)/total_compute_cores);
+  // if(cinfo.used && cinfo.is_scalar) printf("used ptid:%d, start=%d end=%d\n",ptid,m_start,m_end);
+  // if(!cinfo.used) printf("ptid:%d, start=%d end=%d\n",ptid,m_start,m_end);
   
 #else
   core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
   
   //do work division here
 
-  int m_start  = ptid_y * BLK_DIM;
-  int n_start  = ptid_x * BLK_DIM;
+  m_start  = ptid_y * BLK_DIM;
+  n_start  = ptid_x * BLK_DIM;
 #endif
 
 // get behavior of each core
   #ifdef _VEC
-  int mask = getSIMDMask(&cinfo);
+  int mask;
+  if(cinfo.used){
+    mask = getSIMDMask(&cinfo);
+  }
+  else if (m_manycore>0){
+    #ifdef MANYCORE_PREFETCH
+    mask = getDebugMask(&cinfo);
+    #else
+    mask = 0;
+    #endif
+  }
   #elif defined MANYCORE_PREFETCH
   int mask = getDebugMask(&cinfo);
   #else
@@ -109,12 +231,17 @@ MOVE_STACK_ONTO_SCRATCHPAD();
 
 
 #if defined _VEC
-if (cinfo.used)
-  tril_gemm_vec(mask, a, b, c, m, n, t, m_start, m_end, n_start, n_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
+if (cinfo.used){
+  tril_gemm_vec(mask, aT, b, c, m, n, t, m_start, m_end, n_start, n_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
+}
+else if (m_manycore>0){
+  VECTOR_EPOCH(mask);
+  gemm_unused_cores(aT,b,c,m,n,t,m_start,m_end,n_start,n_end,ptid,ptid_new);
+}
 #else
 if (cinfo.used){
   VECTOR_EPOCH(mask);
-  gemm_manycore(a, b, c, m, n, t, m_start, n_start, ptid, pdim_x, pdim_y);
+  gemm_manycore(aT, b, c, m, n, t, m_start, n_start, ptid, pdim_x, pdim_y);
 }
 #endif
   RECOVER_DRAM_STACK();

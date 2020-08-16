@@ -1,12 +1,12 @@
 BENCHNAME := gemm
 default: $(BENCHNAME)
 
-SIZE := 64
+SIZE := 80
 # Specify number of CPUs. (TODO: rename to NUM_CPUS)
 N_SPS ?= 64
-EXTRA_FLAGS ?= -DVEC_LEN=4
+EXTRA_FLAGS ?= -DVEC_LEN=16
 HB_ARGS := --options="$(SIZE) $(SIZE) $(SIZE)"
-# DEBUG_FLAGS := --debug-flags=Mesh
+# DEBUG_FLAGS := --debug-flags=Frame
 
 # Build the kernel with trilliasm.
 TRILLIASM_KERNEL := gemm_kernel.c
