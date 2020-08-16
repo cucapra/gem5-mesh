@@ -49,8 +49,10 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
         VPREFETCH_L(sp_b_offset, b + _idx_(k, j0, n), 0, BLK_DIM,1);
         FRAME_START(REGION_SIZE);
         #endif
+        #pragma GCC unroll(16)
         for (int i = 0; i < BLK_DIM; i++)
         {
+          #pragma GCC unroll(16)
           for (int j = 0; j < BLK_DIM; j++)
           {
             DTYPE a_, b_;
@@ -72,7 +74,7 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
         #endif
       }
 
-      
+      #pragma GCC unroll(16)
       for (int ii = 0; ii < BLK_DIM; ii+=2)
       {
         #ifdef C_PREFETCH
@@ -83,7 +85,9 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
         VPREFETCH_L(sp_c_offset[1], c + _idx_(ii+1 + i0, j0, n), 0, BLK_DIM,1);
         FRAME_START(REGION_SIZE);
         #endif
+        #pragma GCC unroll(16)
         for (int i=ii; i<ii+2; i++){
+          #pragma GCC unroll(16)
           for (int j = 0; j < BLK_DIM; j++)
           {
             DTYPE temp;

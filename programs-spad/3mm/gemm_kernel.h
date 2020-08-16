@@ -11,6 +11,6 @@
 #include "util.h"
 
 void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
-                   int m_start, int m_end, int vtid_x, int vtid_y, int vtid, int ptid);
+                   int m_start, int m_end, int n_start, int n_end, int vtid_x, int vtid_y, int vtid, int ptid);
 
 #endif

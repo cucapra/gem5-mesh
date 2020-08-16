@@ -8,6 +8,10 @@
 
 // #define MANYCORE_PREFETCH
 
+
+// #define POLYBENCH_VERSION
+// #define REDUCE_VERSION
+
 #ifndef INIT_FRAMES
 #define INIT_FRAMES 2
 #endif
