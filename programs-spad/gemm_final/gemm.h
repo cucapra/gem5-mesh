@@ -6,8 +6,9 @@
 #define _VEC
 #endif
 
+//tile size
 #ifndef BLK_DIM
-#define BLK_DIM 4 //tile size
+#define BLK_DIM 4
 #endif
 
 #ifndef _N_SPS
