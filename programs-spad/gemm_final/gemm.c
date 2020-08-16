@@ -81,8 +81,8 @@ void kernel(
   
   //do work division here
 
-  int m_start  = ptid_y * BLK_DIM;
-  int n_start  = ptid_x * BLK_DIM;
+  m_start  = ptid_y * BLK_DIM;
+  n_start  = ptid_x * BLK_DIM;
 #endif
 
 // get behavior of each core
