@@ -100,9 +100,8 @@ typedef float DTYPE;
   int total_groups = 3; \
   int unused = _N_SPS - (total_groups*(VEC_LEN+1)); \
   int total_compute_cores = (total_groups*VEC_LEN) + unused; \
-  int alignment = BLK_DIM * DIM_X * total_groups; \
+  int alignment = BLK_DIM * DIM_X; \
   int m_vec = roundUp((total_groups*VEC_LEN*m)/total_compute_cores, alignment);\
-  if(m_vec>m) m_vec=m;\
   m_manycore = m-m_vec; \
   if(cinfo.used) { \
     alignment = BLK_DIM * DIM_X; \
