@@ -8,9 +8,12 @@
 
 // #define MANYCORE_PREFETCH
 
-
-// #define POLYBENCH_VERSION
-// #define REDUCE_VERSION
+// only v16 better this way so use it
+#if VEC_LEN==16
+#define POLYBENCH_VERSION
+#else
+#define REDUCE_VERSION
+#endif
 
 #ifndef INIT_FRAMES
 #define INIT_FRAMES 2
