@@ -33,7 +33,7 @@
 
 // number of frames to get ahead
 #ifndef INIT_FRAMES
-#define INIT_FRAMES 2
+#define INIT_FRAMES 1
 #endif
 #define INIT_SPM_OFFSET (INIT_FRAMES * FRAME_SIZE)
 // lenght of a prefetch
