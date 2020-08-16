@@ -112,29 +112,32 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *cT, DTYPE 
 
   
 #ifdef _VEC
-
+  int uid_x,uid_y;
+  int tg_x,tg_y;
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   // E = A(m,t1).B(t1,k)
+  WORK_DIV(m,k)
   if(cinfo.used) {
-    //do work division here
-    int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
-    m_start = roundUp((cinfo.unique_id + 0) * m / cinfo.total_groups, alignment); 
-    m_end = roundUp((cinfo.unique_id + 1) * m / cinfo.total_groups, alignment);
+    // //do work division here
+    // int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
+    // m_start = roundUp((cinfo.unique_id + 0) * m / cinfo.total_groups, alignment); 
+    // m_end = roundUp((cinfo.unique_id + 1) * m / cinfo.total_groups, alignment);
 
-    tril_gemm_vec(mask, a, b, e, m, k, t1, m_start, m_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
+    tril_gemm_vec(mask, a, b, e, m, k, t1, m_start, m_end, n_start, n_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
   }
 
   // if(ptid==0)printf("Done 1MM\n");
 
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   // F = C(k,t2).D(t2,n)
+  WORK_DIV(k,n)
   if(cinfo.used) {
     //do work division here
-    int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
-    m_start = roundUp((cinfo.unique_id + 0) * k / cinfo.total_groups, alignment); 
-    m_end = roundUp((cinfo.unique_id + 1) * k / cinfo.total_groups, alignment);
+    // int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
+    // m_start = roundUp((cinfo.unique_id + 0) * k / cinfo.total_groups, alignment); 
+    // m_end = roundUp((cinfo.unique_id + 1) * k / cinfo.total_groups, alignment);
     
-    tril_gemm_vec(mask, c, d, f, k, n, t2, m_start, m_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
+    tril_gemm_vec(mask, c, d, f, k, n, t2, m_start, m_end, n_start, n_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
   }
   // if(ptid==0)printf("Done 2MM\n");
   pthread_barrier_wait(&start_barrier);
@@ -145,13 +148,14 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *cT, DTYPE 
   // if(ptid==0)printf("Done tranpose\n");
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   // G = E(m,k).F(k,n)
+  WORK_DIV(m,n)
   if(cinfo.used) {
     //do work division here
-    int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
-    m_start = roundUp((cinfo.unique_id + 0) * m / cinfo.total_groups, alignment); 
-    m_end = roundUp((cinfo.unique_id + 1) * m / cinfo.total_groups, alignment);
+    // int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
+    // m_start = roundUp((cinfo.unique_id + 0) * m / cinfo.total_groups, alignment); 
+    // m_end = roundUp((cinfo.unique_id + 1) * m / cinfo.total_groups, alignment);
     
-    tril_gemm_vec(mask, eT, f, g, m, n, k, m_start, m_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
+    tril_gemm_vec(mask, eT, f, g, m, n, k, m_start, m_end, n_start, n_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
   }
   // if(ptid==0)printf("Done 3MM\n");
 #elif defined MANYCORE_PREFETCH
@@ -244,6 +248,7 @@ void *pthread_kernel(void *args)
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
 
+  pthread_barrier_wait(&start_barrier);
   if (a->tid_x == 0 && a->tid_y == 0)
   {
     stats_off();

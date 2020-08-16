@@ -102,7 +102,9 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
     #else
     for (int j = 0; j < n; j++){
       data_temp = data[i*n+j]-mean_temp;
-      data[i*n+j] = data_temp/(sqrt(n)*stddev_temp);
+      data_temp = data_temp/(sqrt(n)*stddev_temp);
+      // data[i*n+j] = data_temp/(sqrt(n)*stddev_temp);
+      STORE_NOACK(data_temp,data+(i*n)+j,0);
     }
     #endif
 
@@ -443,7 +445,7 @@ void *pthread_kernel(void *args)
   kernel(a->data, a->dataT, a->symmat, a->mean, a->stddev, a->m, a->n,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-
+  pthread_barrier_wait(&start_barrier);
   if (a->tid_x == 0 && a->tid_y == 0)
   {
     stats_off();

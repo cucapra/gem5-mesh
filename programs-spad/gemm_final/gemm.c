@@ -40,8 +40,10 @@ void kernel(
 
   int ptid = ptid_x + ptid_y * pdim_x;
   int pdim = pdim_x * pdim_y;
-  int start = 0;
-  int end = 0;
+  int m_start = 0;
+  int m_end = 0;
+  int n_start = 0;
+  int n_end = 0;
   int vdim;
   template_info_t tinfo;
 
@@ -59,20 +61,19 @@ void kernel(
   vdim = cinfo.vdim_x*cinfo.vdim_y;
   int *ptid_group = getSpAddr(ptid,NUM_REGIONS * REGION_SIZE + BLK_DIM*BLK_DIM + 10);
 
-  if(cinfo.used){
-    //do work division here
-    int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
-    start = roundUp((cinfo.unique_id + 0) * m / cinfo.total_groups, alignment); 
-    end = roundUp((cinfo.unique_id + 1) * m / cinfo.total_groups, alignment); 
+  WORK_DIV(m,n)
 
+  #ifdef SHARING
+  if(cinfo.used){
     for(int i=0; i<cinfo.vdim_y;i++){
       for(int j=0; j<cinfo.vdim_x; j++){
         ptid_group[i*cinfo.vdim_x+j] = get_ptid_from_group(&tinfo, cinfo.unique_id,j,i,pdim_x);
         // if (ptid==0) printf("Ptid: %d\n", ptid_group_[i*vdim_x+j]);
       }
     }
-
   }
+  #endif
+
 
   
 #else
@@ -109,14 +110,13 @@ MOVE_STACK_ONTO_SCRATCHPAD();
 
 #if defined _VEC
 if (cinfo.used)
-  tril_gemm_vec(mask, a, b, c, m, n, t, start, end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
+  tril_gemm_vec(mask, a, b, c, m, n, t, m_start, m_end, n_start, n_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
 #else
 if (cinfo.used){
   VECTOR_EPOCH(mask);
   gemm_manycore(a, b, c, m, n, t, m_start, n_start, ptid, pdim_x, pdim_y);
 }
 #endif
-  pthread_barrier_wait(&start_barrier);
   RECOVER_DRAM_STACK();
 }
 
@@ -155,7 +155,7 @@ void *pthread_kernel(void *args)
   kernel(a->a, a->aT, a->b, a->c, a->m, a->n, a->t,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-
+  pthread_barrier_wait(&start_barrier);
   if (a->tid_x == 1 && a->tid_y == 1)
   {
     stats_off();

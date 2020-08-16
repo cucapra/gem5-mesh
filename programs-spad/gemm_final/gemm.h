@@ -6,7 +6,10 @@
 #define _VEC
 #endif
 
+#ifndef BLK_DIM
 #define BLK_DIM 4 //tile size
+#endif
+
 
 #if VEC_LEN==4
 #define DIM_X 2
@@ -16,6 +19,8 @@
 
 #define ALPHA 32412.0f
 #define BETA 2123.0f
+
+
 
 // #define SHARING
 // #define C_PREFETCH 
@@ -32,6 +37,42 @@
 #endif
 
 typedef float DTYPE;
+
+
+#if VEC_LEN==4 && _N_SPS==64
+#define WORK_DIV(m,n) \
+  int uid_x,uid_y; \
+  int tg_x,tg_y; \
+  tg_x = 4; \
+  tg_y = 3; \
+  uid_x = cinfo.unique_id%tg_x; \
+  uid_y = cinfo.unique_id/tg_x; \
+  if(cinfo.used) { \
+    int alignment = BLK_DIM * cinfo.vdim_x; \
+    m_start = roundUp((uid_y + 0) * m / tg_y, alignment); \
+    m_end = roundUp((uid_y + 1) * m / tg_y, alignment); \
+    n_start = roundUp((uid_x + 0) * n / tg_x, alignment); \
+    n_end = roundUp((uid_x + 1) * n / tg_x, alignment); \
+  }
+
+#else
+
+#define WORK_DIV(m,n) \
+  int uid_x,uid_y; \
+  int tg_x,tg_y; \
+  tg_x = 3; \
+  tg_y = 1; \
+  uid_x = cinfo.unique_id%tg_x; \
+  uid_y = cinfo.unique_id/tg_x; \
+  if(cinfo.used) { \
+    int alignment = BLK_DIM * cinfo.vdim_x; \
+    m_start = roundUp((uid_y + 0) * m / tg_y, alignment); \
+    m_end = roundUp((uid_y + 1) * m / tg_y, alignment); \
+    n_start = roundUp((uid_x + 0) * n / tg_x, alignment); \
+    n_end = roundUp((uid_x + 1) * n / tg_x, alignment); \
+  }
+
+#endif
 
 // pthread argument for the kernel
 typedef struct Kern_Args

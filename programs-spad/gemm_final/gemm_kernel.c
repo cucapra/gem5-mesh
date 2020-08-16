@@ -50,7 +50,7 @@ inline void horiz_prefetch(int *sp_a_offset, int *sp_b_offset, int *spadRegion, 
 }
 
 void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
-                   int m_start, int m_end, int vtid_x, int vtid_y, int vtid, int ptid)
+                   int m_start, int m_end, int n_start, int n_end, int vtid_x, int vtid_y, int vtid, int ptid)
 {
 
   
@@ -77,17 +77,17 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
 
   int vector_iter=0;
   int level3_size = t;
-  int level2_size = n/offset_x;
+  int level2_size = (n_end-n_start)/offset_x;
 
   /* ------------ prefetch ahead of issuing ----------*/
   int iter_ahead = min(t,INIT_FRAMES);
   for (int k = 0; k < iter_ahead; k++){
     #ifdef SHARING
     horiz_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, offset_y, offset_x,
-                    k, m_start, 0, m, n, a, b);
+                    k, m_start, n_start, m, n, a, b);
     #else
     vert_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, dim_y, dim_x, k, 
-                  a, m_start, m , b, 0, n);
+                  a, m_start, m , b, n_start, n);
     #endif
   }
   /* ------------ initial prefetch end ----------*/
@@ -96,10 +96,10 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   //assuming m_start-m_end is divisble by BLK_DIM
   for (int i0 = m_start; i0 < m_end; i0 += offset_y)
   {
-    for (int j0 = 0; j0 < n; j0 += offset_x)
+    for (int j0 = n_start; j0 < n_end; j0 += offset_x)
     {
       int start_k=0;
-      if(i0== m_start && j0==0) start_k = iter_ahead; // due to prefetch earlier
+      if(i0== m_start && j0==n_start) start_k = iter_ahead; // due to prefetch earlier
 
       for (int k = start_k; k < t; k++)
       {
@@ -118,7 +118,7 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         vert_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, dim_y, dim_x, k, 
                   a, i0, m , b, j0, n);
         #endif
-        // ----------------prefetch end --------------------
+        // ----------------prefetch end -------------------- 
 
         if(vector_iter%level3_size ==0) ISSUE_VINST(fable4567);
         if(vector_iter%(level2_size*level3_size)==0) ISSUE_VINST(fable8);
@@ -203,17 +203,19 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   do
   {
     asm("trillium vissue_delim until_next hoist1");
-    j_st = (vtid_x * BLK_DIM);
+    j_st = n_start + (vtid_x * BLK_DIM);
     do
     {
       asm("trillium vissue_delim until_next hoist2");
       do
       {
-        asm("trillium vissue_delim until_next fable123");
+        // asm("trillium vissue_delim until_next fable123");
+        asm("trillium vissue_delim if_begin fable123");
         FRAME_START(REGION_SIZE);
         #pragma GCC unroll(16)
         for (int i = 0; i < BLK_DIM; i++)
         {
+          #pragma GCC unroll(16)
           for (int j = 0; j < BLK_DIM; j++)
           {
             #ifdef SHARING
@@ -237,11 +239,13 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         }
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
         REMEM(REGION_SIZE); //need to do this collectively for all vector cores if values shared!!
+        asm("trillium vissue_delim end at_jump");
       }while (bh3);
     asm("trillium vissue_delim until_next fable4567");
-    #pragma GCC unroll(16)
+      #pragma GCC unroll(16)
       for (int i = 0; i < BLK_DIM; i++)
       {
+        #pragma GCC unroll(16)
         for (int j = 0; j < BLK_DIM; j++)
         {
           DTYPE temp = c[_idx_(i+i_st, j+j_st, n)]*BETA;

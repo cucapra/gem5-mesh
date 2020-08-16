@@ -16,7 +16,7 @@ static inline int _idx_(int y, int x, int width)
   return (y * width) + x;
 }
 
-
+#ifdef REDUCE_VERSION
 void __attribute__((optimize("-fno-inline")))
 atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
       int nx_start, int nx_end, int ptid)
@@ -119,6 +119,64 @@ void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int pdim, int 
 
 }
 
+#elif defined POLYBENCH_VERSION
+
+void __attribute__((optimize("-fno-inline")))
+atax_manycore1(DTYPE *a, DTYPE *_x, DTYPE *ax, int nx, int ny,
+      int nx_start, int nx_end, int ptid)
+{
+    DTYPE temp;
+
+    #ifdef MANYCORE_PREFETCH
+    int spadRegion = 0;
+    DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
+    int sp_a_offset,sp_x_offset,sp_partial_offset;
+    #endif
+
+    for (int i = nx_start; i < nx_end; i++) {
+      temp=0;
+      #ifdef MANYCORE_PREFETCH
+      for(int j=0; j<ny; j+=PREFETCH_LEN){
+        sp_a_offset = spadRegion * REGION_SIZE;
+        sp_x_offset = sp_a_offset + PREFETCH_LEN;
+
+        VPREFETCH_L(sp_a_offset, a + _idx_(i, j, ny), 0, PREFETCH_LEN,1);
+        VPREFETCH_L(sp_x_offset, _x + j, 0, PREFETCH_LEN,1);
+        FRAME_START(REGION_SIZE);
+        for(int jj=0; jj<PREFETCH_LEN; jj++){
+          temp+=spAddr[sp_a_offset+jj]*spAddr[sp_x_offset+jj];
+        }
+        spadRegion = (spadRegion + 1) % NUM_REGIONS;
+        REMEM(REGION_SIZE);
+      }
+      #else
+      for(int j=0; j<ny; j++){
+        temp += a[i*ny+j] * _x[j];
+      }
+      #endif
+      STORE_NOACK(temp, ax + i, 0);
+    }
+}
+
+void __attribute__((optimize("-fno-inline")))
+atax_manycore2(DTYPE *a, DTYPE *ax, DTYPE *_y, int nx, int ny,
+      int ny_start, int ny_end, int ptid)
+{
+    DTYPE temp;
+
+    for (int j = ny_start; j < ny_end; j++) {
+      temp=0;
+      for(int i=0; i<nx; i++){
+        temp += a[i*ny+j]*ax[i];
+      }
+      STORE_NOACK(temp, _y + j, 0);
+    }
+    
+}
+
+
+
+#endif
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, DTYPE *_y_partial, int nx, int ny,
@@ -224,6 +282,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // TODO needs 60, but default is 30
   // MOVE_STACK_ONTO_SCRATCHPAD();
 
+  #ifdef REDUCE_VERSION
   if(cinfo.used!=0){
     #if defined _VEC
       tril_atax(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,cinfo.vtid,vdim,ptid_group);
@@ -247,6 +306,37 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   reduce_parallel(_y_partial, _y, ny, ptid, pdim, cinfo.unique_id, cinfo.total_groups, cinfo.vtid,
                       cinfo.vdim_x, cinfo.vdim_y, pdim_x, &tinfo);
 
+  #elif defined POLYBENCH_VERSION
+
+  if(cinfo.used!=0){
+    #if defined _VEC
+      tril_atax1(mask,a,_x,ax,nx,ny,start,end,ptid,cinfo.vtid,vdim);
+    #else
+      VECTOR_EPOCH(mask);
+      atax_manycore1(a,_x,ax,nx,ny,start,end,ptid);
+    #endif
+
+  }
+
+  #ifdef _VEC
+  SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
+  #elif defined MANYCORE_PREFETCH
+  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+  #else
+  pthread_barrier_wait(&start_barrier);
+  #endif
+
+  if(cinfo.used!=0){
+    #if defined _VEC
+      tril_atax2(mask,a,ax,_y,nx,ny,start,end,ptid,cinfo.vtid,vdim);
+    #else
+      VECTOR_EPOCH(mask);
+      atax_manycore2(a,ax,_y,nx,ny,start,end,ptid);
+    #endif
+
+  }
+
+  #endif
 
   stack_end:
   // restore stack pointer to DRAM
@@ -293,7 +383,7 @@ void *pthread_kernel(void *args)
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
 
-  // pthread_barrier_wait(&start_barrier);
+  pthread_barrier_wait(&start_barrier);
 
   if (a->tid_x == 1 && a->tid_y == 0)
   {
