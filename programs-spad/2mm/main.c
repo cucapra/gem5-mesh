@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
   * Data initialization
   *-------------------------------------------------------------------*/
 
-  size_t sizeA = t1 * m;
+  size_t sizeA = m *t1;
   size_t sizeB = t1 * t2;
   size_t sizeC = m * t2;
   size_t sizeD = t2 * n;

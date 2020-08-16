@@ -18,6 +18,42 @@
 #define ALPHA 1
 #define BETA 0
 
+#if VEC_LEN==4 && _N_SPS==64
+#define WORK_DIV(m,n) \
+  int uid_x,uid_y; \
+  int tg_x,tg_y; \
+  tg_x = 4; \
+  tg_y = 3; \
+  uid_x = cinfo.unique_id%tg_x; \
+  uid_y = cinfo.unique_id/tg_x; \
+  if(cinfo.used) { \
+    int alignment = BLK_DIM * cinfo.vdim_x; \
+    m_start = roundUp((uid_y + 0) * m / tg_y, alignment); \
+    m_end = roundUp((uid_y + 1) * m / tg_y, alignment); \
+    n_start = roundUp((uid_x + 0) * n / tg_x, alignment); \
+    n_end = roundUp((uid_x + 1) * n / tg_x, alignment); \
+  }
+
+#else
+
+#define WORK_DIV(m,n) \
+  int uid_x,uid_y; \
+  int tg_x,tg_y; \
+  tg_x = 3; \
+  tg_y = 1; \
+  uid_x = cinfo.unique_id%tg_x; \
+  uid_y = cinfo.unique_id/tg_x; \
+  if(cinfo.used) { \
+    int alignment = BLK_DIM * cinfo.vdim_x; \
+    m_start = roundUp((uid_y + 0) * m / tg_y, alignment); \
+    m_end = roundUp((uid_y + 1) * m / tg_y, alignment); \
+    n_start = roundUp((uid_x + 0) * n / tg_x, alignment); \
+    n_end = roundUp((uid_x + 1) * n / tg_x, alignment); \
+  }
+
+#endif
+
+
 typedef float DTYPE;
 
 // pthread argument for the kernel

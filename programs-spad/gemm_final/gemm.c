@@ -61,51 +61,18 @@ void kernel(
   vdim = cinfo.vdim_x*cinfo.vdim_y;
   int *ptid_group = getSpAddr(ptid,NUM_REGIONS * REGION_SIZE + BLK_DIM*BLK_DIM + 10);
 
-  int uid_x,uid_y;
-  int tg_x,tg_y;
-  
-  if (cinfo.total_groups==12){
-    tg_x = 4;
-    tg_y = 3;
+  WORK_DIV(m,n)
 
-    uid_x = cinfo.unique_id%tg_x;
-    uid_y = cinfo.unique_id/tg_x;
-  }
-  else if(cinfo.total_groups==3){
-    tg_x = 3;
-    tg_y = 1;
-
-    uid_x = cinfo.unique_id%tg_x;
-    uid_y = cinfo.unique_id/tg_x;
-  }
-
+  #ifdef SHARING
   if(cinfo.used){
-    //do work division here
-    int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
-    // m_start = roundUp((cinfo.unique_id + 0) * m / cinfo.total_groups, alignment); 
-    // m_end = roundUp((cinfo.unique_id + 1) * m / cinfo.total_groups, alignment); 
-
-    m_start = roundUp((uid_y + 0) * m / tg_y, alignment); 
-    m_end = roundUp((uid_y + 1) * m / tg_y, alignment); 
-
-    n_start = roundUp((uid_x + 0) * n / tg_x, alignment); 
-    n_end = roundUp((uid_x + 1) * n / tg_x, alignment); 
-
-    // if(cinfo.is_scalar){
-    //   printf("ptid: %d, m start: %d, m_end: %d n start: %d, n end: %d\n"
-    //   ,ptid, m_start,m_end, n_start, n_end);
-    // }
-    
-    #ifdef SHARING
     for(int i=0; i<cinfo.vdim_y;i++){
       for(int j=0; j<cinfo.vdim_x; j++){
         ptid_group[i*cinfo.vdim_x+j] = get_ptid_from_group(&tinfo, cinfo.unique_id,j,i,pdim_x);
         // if (ptid==0) printf("Ptid: %d\n", ptid_group_[i*vdim_x+j]);
       }
     }
-    #endif
-
   }
+  #endif
 
 
   
