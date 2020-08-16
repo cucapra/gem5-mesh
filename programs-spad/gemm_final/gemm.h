@@ -105,6 +105,7 @@ typedef float DTYPE;
   if(m_vec>m) m_vec=m;\
   m_manycore = m-m_vec; \
   if(cinfo.used) { \
+    alignment = BLK_DIM * DIM_X; \
     m_start = roundUp((cinfo.unique_id + 0) * m_vec / total_groups, alignment); \
     m_end = roundUp((cinfo.unique_id + 1) * m_vec / total_groups, alignment); \
     n_start = 0; \
