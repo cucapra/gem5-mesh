@@ -20,7 +20,7 @@
 #define DIM_X 4
 #endif
 
-#define VEC_MANYCORE_OPT
+// #define VEC_MANYCORE_OPT
 
 #if defined VEC_MANYCORE_OPT && defined _VEC
 #define MANYCORE_PREFETCH
