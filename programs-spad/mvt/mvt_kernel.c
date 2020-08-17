@@ -168,7 +168,7 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
       FRAME_START(REGION_SIZE);
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(16)
       for(int jj=0; jj<REGION_SIZE/2; jj++){
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *y1_on_sp = a_on_sp + REGION_SIZE/2;
@@ -203,7 +203,7 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
       // transpose_dp:
       asm("trillium vissue_delim until_next transpose_dp");
       FRAME_START(REGION_SIZE);
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(16)
       for(int jj=0; jj<REGION_SIZE/2; jj++){
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *y2_on_sp = a_on_sp + REGION_SIZE/2;
