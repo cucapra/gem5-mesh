@@ -32,6 +32,8 @@
   ((i) * NK * NJ + (j) * NK + (k))                     
 
 
+// #define AUDIT
+#define AUDIT2
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
@@ -81,19 +83,32 @@
 
 // prefetch sizings
 #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
-// can guarentee power of 2 works
-#define POST_REGION_WORD 121
+#ifndef INIT_FRAMES
 #define INIT_FRAMES 2
-#define REGION_SIZE 11
-#define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
+#endif
 
 // define prefetch len externally
-#ifdef PF
-#define PREFETCH_LEN PF
-#elif defined(VECTOR_LEN)
-// default size is the vlen
+#ifdef AUDIT
+#define UNROLL_LEN 16
+#define PREFETCH_LEN (UNROLL_LEN)
+#define REGION_SIZE (11*UNROLL_LEN)
+#define NUM_REGIONS 2
+#elif defined(AUDIT2)
+#define UNROLL_LEN 14
+#define PREFETCH_LEN (UNROLL_LEN)
+#define REGION_SIZE (7*UNROLL_LEN+2*(UNROLL_LEN+2))
+#define NUM_REGIONS 2
+#else
+#define UNROLL_LEN 1
 #define PREFETCH_LEN VECTOR_LEN
+#define REGION_SIZE 11
+#define NUM_REGIONS 11
 #endif
+
+
+#define POST_REGION_WORD (REGION_SIZE * NUM_REGIONS)
+
+
 
 #ifdef VERTICAL_LOADS
 // number of filters done per iteration per core
@@ -121,6 +136,43 @@ inline void prefetch_horiz_frame(DTYPE *a, int i, int j, int k, int NJ, int NK, 
             // a[IDX(i+1, j-1, k+1, NJ, NK)], a[IDX(i+1, j+0, k+1, NJ, NK)], 
             // a[IDX(i+1, j+1, k+1, NJ, NK)];
 
+  #if defined(AUDIT) && defined(MANYCORE_PREFETCH)
+  int ul = UNROLL_LEN;
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    VPREFETCH_LR(*sp + 0*ul , a + IDX(i-1, j-1+core, k-1, NJ, NK), core, PREFETCH_LEN, VERTICAL); // merge
+    VPREFETCH_LR(*sp + 1*ul , a + IDX(i-1, j-1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL); //
+    VPREFETCH_LR(*sp + 2*ul , a + IDX(i-1, j+0+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 3*ul , a + IDX(i-1, j+1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 4*ul , a + IDX(i+0, j-1+core, k+0, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 5*ul , a + IDX(i+0, j+0+core, k+0, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 6*ul , a + IDX(i+0, j+1+core, k+0, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 7*ul , a + IDX(i+1, j-1+core, k-1, NJ, NK), core, PREFETCH_LEN, VERTICAL); // merge
+    VPREFETCH_LR(*sp + 8*ul , a + IDX(i+1, j-1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL); // 
+    VPREFETCH_LR(*sp + 9*ul , a + IDX(i+1, j+0+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 10*ul, a + IDX(i+1, j+1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+  }
+  #elif defined(AUDIT2) && defined(MANYCORE_PREFETCH)
+  int ul = UNROLL_LEN;
+  int ml = ul + 2;
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    // VPREFETCH_LR(*sp + 0*ul , a + IDX(i-1, j-1+core, k-1, NJ, NK), core, PREFETCH_LEN, VERTICAL); // merge
+    // VPREFETCH_LR(*sp + 1*ul , a + IDX(i-1, j-1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL); //
+    VPREFETCH_LR(*sp + 0*ul   , a + IDX(i-1, j-1+core, k-1, NJ, NK), core, PREFETCH_LEN + 2, VERTICAL); // merge
+
+    VPREFETCH_LR(*sp + 1*ml   , a + IDX(i-1, j+0+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + ul+ml  , a + IDX(i-1, j+1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 2*ul+ml, a + IDX(i+0, j-1+core, k+0, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 3*ul+ml, a + IDX(i+0, j+0+core, k+0, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 4*ul+ml, a + IDX(i+0, j+1+core, k+0, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+
+    // VPREFETCH_LR(*sp + 7*ul , a + IDX(i+1, j-1+core, k-1, NJ, NK), core, PREFETCH_LEN, VERTICAL); // merge
+    // VPREFETCH_LR(*sp + 8*ul , a + IDX(i+1, j-1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL); // 
+    VPREFETCH_LR(*sp + 5*ul+ml, a + IDX(i+1, j-1+core, k-1, NJ, NK), core, PREFETCH_LEN + 2, VERTICAL);
+
+    VPREFETCH_LR(*sp + 5*ul+2*ml , a + IDX(i+1, j+0+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 6*ul+2*ml, a + IDX(i+1, j+1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL);
+  }
+  #else
   VPREFETCH_LR_FAIR(*sp + 0 , a + IDX(i-1, j-1, k-1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
   VPREFETCH_LR_FAIR(*sp + 1 , a + IDX(i-1, j-1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
   VPREFETCH_LR_FAIR(*sp + 2 , a + IDX(i-1, j+0, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
@@ -132,6 +184,8 @@ inline void prefetch_horiz_frame(DTYPE *a, int i, int j, int k, int NJ, int NK, 
   VPREFETCH_LR_FAIR(*sp + 8 , a + IDX(i+1, j-1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
   VPREFETCH_LR_FAIR(*sp + 9 , a + IDX(i+1, j+0, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
   VPREFETCH_LR_FAIR(*sp + 10, a + IDX(i+1, j+1, k+1, NJ, NK), 0, PREFETCH_LEN, HORIZONTAL);
+  #endif
+
 
   #ifndef MANYCORE_PREFETCH
   *sp = (*sp + REGION_SIZE);

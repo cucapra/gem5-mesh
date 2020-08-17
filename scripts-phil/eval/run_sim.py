@@ -33,21 +33,25 @@ gem5_cmd = lambda program, options, result, cpus, vec: \
 # compile command that chooses whether to use scratchpad optimizations
 # how many cores/sps are present, and whether to use vector mode
 def compile_cmd(program_dir, cpus, extra_flags):
-  cmd = 'make clean -C {}'.format(program_dir)
+  cmd = extra_flags + ' make clean -C {}'.format(program_dir)
   cmd += ' && '
   cmd += extra_flags + ' N_SPS={} make -C {}'.format(cpus, program_dir)
   return cmd
 
 # just compile with args needed for makefile (#cores, and whether vec enabled...etc)
-def compile_prog(numCpus, prog_key, extra_flags):
+def compile_prog(numCpus, prog_key, vec_config):
+  extra_flags = sim_list.strings_to_make_args(vec_config)
+  binary_name = sim_list.get_binary_name(prog_key, vec_config)
+  extra_flags += ' BINARY_NAME=' + binary_name
   program = sim_list.programs[prog_key]
   cmplCmd = compile_cmd(os.path.dirname(program['path']), numCpus, extra_flags)
   result = subprocess.check_output(cmplCmd, shell=True, stderr=subprocess.STDOUT)
   # result = subprocess.check_output(cmplCmd, shell=True)
   # print(result)
 
-def run_prog(numCpus, prog_key, argv, extra_info):
+def run_prog(numCpus, prog_key, argv, vec_config):
   program = sim_list.programs[prog_key]
+
   # check if the success flag was asserted using regex checking on the gem5 output
   if (not 'success' in program):
     program['success'] = '\[\[SUCCESS\]\]'
@@ -57,10 +61,12 @@ def run_prog(numCpus, prog_key, argv, extra_info):
   optionsStr = program['options'].format(*argv)
   
   # serialize arguments
+  extra_info = sim_list.strings_to_metadata(vec_config)
   serialArgs = program['serialize'].format(*argv)
   resultsAnno = '-' + extra_info + serialArgs
   resultsDir = program['name'] + resultsAnno
-  cmd = gem5_cmd(program['path'], optionsStr, resultsDir, numCpus, True)
+  progName = os.path.join(os.path.dirname(program['path']),sim_list.get_binary_name(prog_key, vec_config))
+  cmd = gem5_cmd(progName, optionsStr, resultsDir, numCpus, True)
   print(cmd)
   try:
     result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -80,57 +86,13 @@ def run_prog(numCpus, prog_key, argv, extra_info):
     print(result)
     return False
 
-# either array or single string
-def strings_to_make_args(args):
-  # cmd_line = 'ENV_EXTRA_MAKE_FLAGS=\''
-  cmd_line = 'EXTRA_FLAGS=\''
-  if (isinstance(args, list)):
-    for a in args:
-      cmd_line += '-D' + a + ' '
-    cmd_line += '\''
-  else:
-    cmd_line += '-D' + args + '\''
-  return cmd_line
-
-# turn config into metadata to make which run was used
-def strings_to_metadata(args):
-  meta = ''
-  if (isinstance(args, list)):
-    for a in args:
-      # special interpretations
-      arg = sim_list.abbreviate_config(a)
-      meta += arg
-      if (a != args[-1]):
-        meta += '_'
-  else:
-    meta = sim_list.abbreviate_config(args)
-  return meta
-
-# # run all configuration for a single benchmark
-# # this must be done serially due to recompiling benchmark
-# # (but can parallize across benchmarks)
-# def run_all_configs(vec_configs, num_cpus, prog_key, argv):
-#   all_pass = True
-#   for vec_config in vec_configs:
-#     # compile program with the specificed vec config
-#     compile_prog(num_cpus, prog_key, strings_to_make_args(vec_config))
-
-#     ret = run_prog(num_cpus, prog_key, argv, strings_to_metadata(vec_config))
-#     if (not ret):
-#       print('-------------------------------------------------------------')
-#       print('{} failed w/ config {}'.format(prog_key, vec_config))
-#       print('-------------------------------------------------------------')
-#       all_pass = False
-
-#   return all_pass
-
 # run all configuration for a single benchmark
 # this must be done serially due to recompiling benchmark
 # (but can parallize across benchmarks)
 def run_config(vec_config, num_cpus, prog_key, argv):
   all_pass = True
 
-  ret = run_prog(num_cpus, prog_key, argv, strings_to_metadata(vec_config))
+  ret = run_prog(num_cpus, prog_key, argv, vec_config)
   if (not ret):
     print('-------------------------------------------------------------')
     print('{} failed w/ config {}'.format(prog_key, vec_config))
@@ -156,14 +118,14 @@ for k,v in sim_list.sim_configs.items():
   for vec_config in vec_configs:
 
     # compile serially so can launch job with overwritting binary
-    compile_prog(num_cpus, prog_key, strings_to_make_args(vec_config))
+    compile_prog(num_cpus, prog_key, vec_config)
 
     # the new file will have the same name as the old file, but also specify the new dir
     proc = pool.apply_async(run_config, args=(vec_config, num_cpus, prog_key, argv, ))
     jobs.append(proc)
 
     # sleep for some time to give time for gem5 to load the binary
-    time.sleep(11)
+    # time.sleep(11)
     
 
 # Wait for jobs to complete before exiting

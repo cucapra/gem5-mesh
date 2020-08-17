@@ -14,6 +14,9 @@ EXTRA_FLAGS ?=
 GEM5_ARGS ?= --remote-gdb-port=0
 HB_ARGS ?= --options=""
 
+# unique binary id to differentiate
+BINARY_NAME ?= $(BENCHNAME) 
+
 # Find the repository's base directory.
 COMMON_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 BASE_DIR := $(COMMON_DIR)/../..
@@ -32,7 +35,7 @@ COMMON_SRCS := $(wildcard $(COMMON_DIR)/*.c)
 COMMON_OBJS := $(notdir $(COMMON_SRCS:.c=.o))
 
 $(BENCHNAME) : $(TRILLIASM_OBJS) $(C_DEPS_NOKERN) $(COMMON_OBJS)
-	$(RV_CC) $(TRILLIASM_OBJS) $(C_DEPS_NOKERN) $(COMMON_OBJS) $(CFLAGS) -o $@
+	$(RV_CC) $(TRILLIASM_OBJS) $(C_DEPS_NOKERN) $(COMMON_OBJS) $(CFLAGS) -o $(BINARY_NAME)
 
 run: $(BENCHNAME)
 	$(BASE_DIR)/build/RVSP/gem5.opt \
@@ -51,4 +54,4 @@ $(COMMON_OBJS): %.o: $(COMMON_DIR)/%.c
 	$(RV_CC) $(CFLAGS) -c $^ -o $@
 
 clean:
-	rm -rf *.o *.s $(BENCHNAME) m5out
+	rm -rf *.o *.s $(BINARY_NAME) m5out

@@ -31,7 +31,14 @@
 // prefetch sizings
 #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
 
+#ifndef INIT_FRAMES
+#if VECTOR_LEN==16
+// fails if INIT_FRAMES 1, due to cache overload
+#define INIT_FRAMES 0
+#else
 #define INIT_FRAMES 1
+#endif
+#endif
 
 #define POST_FRAME_WORD_NORM 256
 #define PREFETCH_LEN_NORM 1

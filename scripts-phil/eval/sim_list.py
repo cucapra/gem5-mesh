@@ -5,6 +5,8 @@
 # helper set of vec configs you can use in a benchmark (assuming it supports)
 ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
 ALL_NEIL_CONFIGS = ['NO_VEC', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_VEC', 'MANYCORE_PREFETCH' ]]
+INIT0_CONFIGS = [ [ 'VEC_4_SIMD', 'INIT_FRAMES=0' ] ]
+INIT0_NEIL_CONFIGS = [ [ 'VEC_LEN=4', 'INIT_FRAMES=0' ] ]
 
 
 # choose which programs to run via script and with what configs
@@ -53,7 +55,7 @@ sim_configs = {
   },
   'fdtd' : {
     'vec'  : ALL_CONFIGS,
-    'argv' : ['512', '60']
+    'argv' : ['512', '30']
   },
 
   'atax'   : {
@@ -87,6 +89,9 @@ sim_configs = {
 
 }
 
+
+
+
 # make a shorthand to represent the config output name
 def abbreviate_config(config):
   if (config == 'VEC_4_SIMD' or config == 'VEC_LEN=4'):
@@ -99,12 +104,43 @@ def abbreviate_config(config):
     return 'R'
   elif (config == 'MANYCORE_PREFETCH'):
     return 'PF'
+  elif (config == 'INIT_FRAMES=0'):
+    return 'I0'
   elif (config[0:11] == 'VECTOR_LEN='):
     return a[11:len(a)]
   elif (config[0:3] == 'PF='):
     return a[3:len(a)]
   else:
     return config
+
+# either array or single string
+def strings_to_make_args(args):
+  # cmd_line = 'ENV_EXTRA_MAKE_FLAGS=\''
+  cmd_line = 'EXTRA_FLAGS=\''
+  if (isinstance(args, list)):
+    for a in args:
+      cmd_line += '-D' + a + ' '
+    cmd_line += '\''
+  else:
+    cmd_line += '-D' + args + '\''
+  return cmd_line
+
+# turn config into metadata to make which run was used
+def strings_to_metadata(args):
+  meta = ''
+  if (isinstance(args, list)):
+    for a in args:
+      # special interpretations
+      arg = abbreviate_config(a)
+      meta += arg
+      if (a != args[-1]):
+        meta += '_'
+  else:
+    meta = abbreviate_config(args)
+  return meta
+
+def get_binary_name(prog_key, vec_config):
+  return prog_key + '_' + strings_to_metadata(vec_config)
 
 
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful (opt)

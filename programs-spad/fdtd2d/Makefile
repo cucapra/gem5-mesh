@@ -2,11 +2,11 @@ BENCHNAME := fdtd2d
 default: $(BENCHNAME)
 
 # run small sim for test
-PROB_SIZE := 16 16 2
+PROB_SIZE := 32 32 2
 N_SPS ?= 64
-EXTRA_FLAGS ?= -DVEC_16_SIMD
+EXTRA_FLAGS ?= -DVEC_4_SIMD
 HB_ARGS := --options="$(PROB_SIZE)"
-# GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Frame
+# GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Frame,Mesh
 
 # Build the kernel with trilliasm.
 TRILLIASM_KERNEL := fdtd2d_kernel.c

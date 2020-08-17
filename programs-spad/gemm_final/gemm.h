@@ -33,7 +33,9 @@
 // #define C_PREFETCH 
 // #define MANYCORE_PREFETCH
 
+#ifndef INIT_FRAMES
 #define INIT_FRAMES 2
+#endif
 
 #ifdef SHARING
 #define REGION_SIZE (BLK_DIM*2)/DIM_X

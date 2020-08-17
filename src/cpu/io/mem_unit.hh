@@ -130,6 +130,8 @@ class MemUnit : public ExecUnit
 
     uint getNumOutstandingAcks() { return m_store_diff_reg; }
 
+    void regStats();
+
   private:
     enum Status {
       Squashed,
@@ -233,6 +235,9 @@ class MemUnit : public ExecUnit
     /** Diff of sent stores to acked stores */
     uint m_store_diff_reg;
 
+    Stats::Scalar m_vertical_prefetches;
+    Stats::Scalar m_horizontal_prefetches;
+    Stats::Scalar m_scalar_prefetches;
 
 #ifdef DEBUG
     /** Unit's status */

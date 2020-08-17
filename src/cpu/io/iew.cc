@@ -169,6 +169,8 @@ IEW::regStats()
       .desc("Number of instruction executed by class")
       .flags(Stats::total | Stats::pdf | Stats::dist);
   executed_insts.ysubnames(Enums::OpClassStrings);
+
+  m_mem_unit_p->regStats();
 }
 
 void

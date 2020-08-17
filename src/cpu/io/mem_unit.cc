@@ -367,6 +367,31 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
             m_scoreboard_p->setReg(inst->renamedDestRegIdx(i));
           }
         }
+
+        // record stat about prefetch sent to memory
+        // only include left prefetch
+        if (inst->static_inst_p->isSpadPrefetch() && inst->static_inst_p->isLeftSide()) {
+          auto upper7 = bits((uint32_t)inst->static_inst_p->machInst, 31, 25);
+          auto lower5 = bits((uint32_t)inst->static_inst_p->machInst, 11, 7);
+          uint32_t imm = (upper7 << 5) | lower5;
+          int config = bits(imm, 1, 0);
+          size_t count = bits(imm, 11, 2);
+
+          if (count == 1) {
+            m_scalar_prefetches++;
+          }
+          else if (count > 1) {
+            if (config == 0) {
+              m_horizontal_prefetches++;
+            }
+            else {
+              m_vertical_prefetches++;
+            }
+          }
+          else {
+            assert(false);
+          }
+        }
         
 #ifdef DEBUG
         m_issued_insts.push_back(inst);
@@ -835,6 +860,22 @@ MemUnit::clearPortRetry() {
   if (CpuPort *slaveSpadPort = dynamic_cast<CpuPort*>(slave_port)) {
     return slaveSpadPort->clearRetry();
   }*/
+}
+
+void
+MemUnit::regStats() {
+  m_vertical_prefetches
+    .name(name() + ".vertical_prefetches")
+    .desc("number of vertical prefetches (left) with length greater than one")
+  ;
+  m_horizontal_prefetches
+    .name(name() + ".horizontal_prefetches")
+    .desc("number of horizontal prefetches (left) with length greater than one")
+  ;
+  m_scalar_prefetches
+    .name(name() + ".scalar_prefetches")
+    .desc("number of prefetches with length one")
+  ;
 }
 
 void
