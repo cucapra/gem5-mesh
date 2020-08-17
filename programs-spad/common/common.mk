@@ -22,7 +22,7 @@ COMMON_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 BASE_DIR := $(COMMON_DIR)/../..
 
 # installed cross compiler gcc for riscv
-RV_CC=/scratch/pbb59/rv64g/bin/riscv64-unknown-linux-gnu-gcc
+RV_CC=/data/phil/riscv-rv64g/bin/riscv64-unknown-linux-gnu-gcc
 
 CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 
