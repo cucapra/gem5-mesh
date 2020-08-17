@@ -30,7 +30,7 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
       for (int j = 0; j < NY; j+=STEP1_UNROLL_LEN) {     
         prefetch_step1_frame_i0(fict, t, &sp);
         START_FRAME();
-        #pragma GCC unroll(4)
+        #pragma GCC unroll(16)
         for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
           DTYPE out = sp_ptr[sp + 0];
           STORE_NOACK(out, &ey[i * NY + j + u], 0);
@@ -44,7 +44,7 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
       for (int j = 0; j < NY; j+=STEP1_UNROLL_LEN) {   
         prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp);
         START_FRAME();
-        #pragma GCC unroll(4)
+        #pragma GCC unroll(16)
         for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
           int u0 = u;
           int u1 = STEP1_UNROLL_LEN+u;
@@ -60,7 +60,7 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
   }
   #else
   for (int i = start; i < end; i++) {
-    #pragma GCC unroll(4)
+    #pragma GCC unroll(16)
     for (int j = 0; j < NY; j++) {
       DTYPE out;
       if (i == 0) {
@@ -88,7 +88,7 @@ void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
       prefetch_step2_frame(ex, hz, i, j, NY, &sp);
 
       START_FRAME();
-      #pragma GCC unroll(4)
+      #pragma GCC unroll(16)
       for (int u = 0; u < STEP2_UNROLL_LEN; u++) {
         int u0 = u;
         int u1 = STEP2_UNROLL_LEN + u;
@@ -105,7 +105,7 @@ void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   }
   #else
   for (int i = start; i < end; i++) {
-    #pragma GCC unroll(4)
+    #pragma GCC unroll(16)
     for (int j = 1; j < NY; j++) {
       DTYPE out = ex[i * (NY+1) + j] - 0.5f * (hz[i * NY + j] - hz[i * NY + (j-1)]);
       STORE_NOACK(out, &ex[i * (NY+1) + j], 0); 
@@ -127,7 +127,7 @@ void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
       prefetch_step3_frame(ex, ey, hz, i, j, NY, &sp);
 
       START_FRAME();
-      #pragma GCC unroll(4)
+      #pragma GCC unroll(16)
       for (int u = 0; u < STEP3_UNROLL_LEN; u++) {
         int u0 = u;
         int u1 = STEP3_UNROLL_LEN + u;
@@ -144,7 +144,7 @@ void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   }
   #else
   for (int i = start; i < end; i++) {
-    #pragma GCC unroll(4)
+    #pragma GCC unroll(16)
     for (int j = 0; j < NY; j++) {
       DTYPE out = hz[i * NY + j] - 0.7f * (ex[i * (NY+1) + (j+1)] - ex[i * (NY+1) + j] + ey[(i + 1) * NY + j] - ey[i * NY + j]);
       STORE_NOACK(out, &hz[i * NY + j], 0); 

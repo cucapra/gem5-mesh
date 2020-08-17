@@ -74,7 +74,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
 
     // TODO not clear how much this matters
     // do rest that doesnt map into prefetch pattern
-    #pragma GCC unroll(6)
+    #pragma GCC unroll(16)
     for (int c = cEnd; c < NJ-1; c++) {
       int i = r;
       int j = c;
@@ -88,7 +88,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
   }
   #else
   for (int i = outer_start; i < outer_end; i++) {
-    #pragma GCC unroll(6)
+    #pragma GCC unroll(16)
     for (int j = inner_start; j < NJ - 1; j++) {
       // printf("%d->%d\n", inner_start, NJ-1);
       // TODO order in gpu version is outer dim first for some reason,

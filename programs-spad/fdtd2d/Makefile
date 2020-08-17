@@ -4,7 +4,7 @@ default: $(BENCHNAME)
 # run small sim for test
 PROB_SIZE := 32 32 2
 N_SPS ?= 64
-EXTRA_FLAGS ?= -DVEC_4_SIMD
+EXTRA_FLAGS ?= -DMANYCORE_PREFETCH
 HB_ARGS := --options="$(PROB_SIZE)"
 # GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Frame,Mesh
 
