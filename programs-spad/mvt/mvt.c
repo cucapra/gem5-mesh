@@ -36,6 +36,7 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, int st
       }
       PF_END(NUM_REGIONS)
       #else
+      #pragma GCC unroll(16)
       for(int j=0; j<n; j++){
         temp += a[i*n+j] * y1[j];
       }
@@ -50,6 +51,7 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, int st
       }
       PF_END(NUM_REGIONS)
       #else
+      #pragma GCC unroll(16)
       for(int j=0; j<n; j++){
         temp+= a[j*n+i] * y2[j];
       }

@@ -43,6 +43,7 @@
   off = spadRegion * REGION_SIZE; \
   VPREFETCH_L(off, data + idx, 0, REGION_SIZE,1); \
   FRAME_START(); \
+  _Pragma("GCC unroll(16)") \
   for(int jj=0; jj<REGION_SIZE; jj++)
 
 #define PF2(off1,off2,idx1,idx2) \
@@ -51,6 +52,7 @@
   VPREFETCH_L(off1, data + idx1, 0, REGION_SIZE_K2/2,1); \
   VPREFETCH_L(off2, data + idx2, 0, REGION_SIZE_K2/2,1); \
   FRAME_START(); \
+  _Pragma("GCC unroll(16)") \
   for(int jj=0; jj<REGION_SIZE_K2/2; jj++)
 
 #elif defined POLYBENCH_VERSION
@@ -60,6 +62,7 @@
     VPREFETCH_L(off+u, data + (i+u)*m +j, 0, 1, 0); \
   } \
   FRAME_START(); \
+  _Pragma("GCC unroll(16)") \
   for(int jj=0; jj<REGION_SIZE; jj++)
 
 #define PF2(off1,off2,i,j1,j2,m) \
@@ -70,6 +73,7 @@
     VPREFETCH_L(off2+u, data + (i+u)*m + j2, 0, 1,0); \
   } \
   FRAME_START(); \
+  _Pragma("GCC unroll(16)") \
   for(int jj=0; jj<REGION_SIZE_K2/2; jj++)
 
 #endif

@@ -40,6 +40,7 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         VPREFETCH_L(sp_a_offset, a + _idx_(i, j, ny), 0, PREFETCH_LEN,1);
         VPREFETCH_L(sp_x_offset, _x + j, 0, PREFETCH_LEN,1);
         FRAME_START(REGION_SIZE);
+        #pragma GCC unroll(16)
         for(int jj=0; jj<PREFETCH_LEN; jj++){
           temp+=spAddr[sp_a_offset+jj]*spAddr[sp_x_offset+jj];
         }
@@ -47,6 +48,7 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         REMEM(REGION_SIZE);
       }
       #else
+      #pragma GCC unroll(16)
       for(int j=0; j<ny; j++){
         temp += a[i*ny+j] * _x[j];
       }
@@ -61,6 +63,7 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         VPREFETCH_L(sp_a_offset, a + _idx_(i, j, ny), 0, PREFETCH_LEN,1);
         VPREFETCH_L(sp_partial_offset, partial_prod + j, 0, PREFETCH_LEN,1);
         FRAME_START(REGION_SIZE);
+        #pragma GCC unroll(16)
         for(int jj=0; jj<PREFETCH_LEN; jj++){
           DTYPE partial_temp= spAddr[sp_partial_offset+jj] + spAddr[sp_a_offset+jj]*temp;
           STORE_NOACK(partial_temp, partial_prod + j+jj, 0);
@@ -69,6 +72,7 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         REMEM(REGION_SIZE);
       }
       #else
+      #pragma GCC unroll(16)
       for(int j=0; j<ny; j++){
         partial_prod[j] += a[i*ny+j] * temp;
       }

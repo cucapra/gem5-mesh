@@ -116,7 +116,7 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
       asm("trillium vissue_delim until_next dotprod");
       // asm("trillium vissue_delim if_begin dotprod");
       FRAME_START(REGION_SIZE);
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(16)
       for(int jj=0; jj<REGION_SIZE/3; jj++){
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         // DTYPE *a_on_sp = spAddr + sp_offset + jj;
