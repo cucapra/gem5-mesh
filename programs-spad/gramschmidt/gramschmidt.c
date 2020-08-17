@@ -49,7 +49,7 @@
 void u_magnitude_manycore_baseline(DTYPE *a, DTYPE *r, int numVectors, int vectorLen, int k, int tid, int dim) {
   if (tid == 0) {
     DTYPE sqrMagnitude = 0;
-    #pragma GCC unroll(2)
+    #pragma GCC unroll(16)
     for (int i = 0; i < vectorLen; i++) {
       sqrMagnitude += a[i * numVectors + k] * a[i * numVectors + k];
     }
@@ -75,7 +75,7 @@ void u_normalize_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors,
     prefetch_normalize_frame(a, i, k, numVectors, &sp);
 
     START_FRAME();
-    #pragma GCC unroll(2)
+    #pragma GCC unroll(16)
     for (int u = 0; u < UNROLL_LEN_NORM; u++) {
       DTYPE val =  sp_ptr[sp + u] / r_cache;
       STORE_NOACK(val, &q[(i + u) * numVectors + k], 0);
@@ -85,7 +85,7 @@ void u_normalize_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors,
     sp = sp % POST_FRAME_WORD_NORM;
   }
   #else
-  #pragma GCC unroll(2)
+  #pragma GCC unroll(16)
   for (int i = start; i < end; i++) {
     // q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
 
@@ -120,7 +120,7 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
       prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
 
       START_FRAME();
-      #pragma GCC unroll(4)
+      #pragma GCC unroll(16)
       for (int u = 0; u < UNROLL_LEN_SUB; u++) { 
         DTYPE val = sp_ptr[sp + u]  * sp_ptr[sp + UNROLL_LEN_SUB + u];
         r_cache += val;
@@ -135,7 +135,7 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
       prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
 
       START_FRAME();
-      #pragma GCC unroll(4)
+      #pragma GCC unroll(16)
       for (int u = 0; u < UNROLL_LEN_SUB; u++) { 
         DTYPE val = sp_ptr[sp + UNROLL_LEN_SUB + u] - sp_ptr[sp + u] * r_cache;
         STORE_NOACK(val, &a[(i + u) * numVectors + j], 0);
@@ -145,7 +145,7 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
     }
     
     #else
-    #pragma GCC unroll(4)
+    #pragma GCC unroll(16)
     for (int i = 0; i < vectorLen; i++) {
       // r[k * numVectors + j] += q[i * numVectors + k] * a[i * numVectors + j];
       r_cache += q[i * numVectors + k] * a[i * numVectors + j];
@@ -153,7 +153,7 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
 
     // take off the projection of the j'th vector onto orthornal k
     // (we've just finished the computation of the projection after the dot product)
-    #pragma GCC unroll(4)
+    #pragma GCC unroll(16)
     for (int i = 0; i < vectorLen; i++) {
       // a[i * numVectors + j] -= q[i * numVectors + k] * r[k * numVectors + j];
       // a[i * numVectors + j] -= q[i * numVectors + k] * r_cache;

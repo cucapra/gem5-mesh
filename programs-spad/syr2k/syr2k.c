@@ -39,7 +39,7 @@ void syr2k_manycore_baseline(DTYPE *a, DTYPE *b, DTYPE *c, int N, int M, int tid
         prefetch_inner_frame(a, b, i, j, k, &sp, M);
 
         FRAME_START();
-        #pragma GCC unroll(8)
+        #pragma GCC unroll(16)
         for (int kin = 0; kin < INNER_PREFETCH_LEN; kin++) {
           c_ij += alpha * sp_ptr[sp + INNER_PREFETCH_LEN*0 + kin] * 
                           sp_ptr[sp + INNER_PREFETCH_LEN*3 + kin] + 
@@ -52,7 +52,7 @@ void syr2k_manycore_baseline(DTYPE *a, DTYPE *b, DTYPE *c, int N, int M, int tid
         sp = sp % POST_FRAME_WORD;
       }
       #else
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(16)
       for (int k = 0; k < M; k++) {
         // c[i * N + j] += ALPHA * a[i * M + k] * b[j * M + k] + ALPHA * b[i * M + k] * a[j * M + k];
         c_ij += alpha * a[i * M + k] * b[j * M + k] + alpha * b[i * M + k] * a[j * M + k];
