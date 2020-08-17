@@ -60,6 +60,7 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
     }
     PF_END(NUM_REGIONS)
     #else
+    _Pragma("GCC unroll(16)")
     for (int j = 0; j < n; j++)
       mean_temp += data[i*n+j];
     #endif
@@ -78,6 +79,7 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
     }
     PF_END(NUM_REGIONS)
     #else
+    _Pragma("GCC unroll(16)")
     for (int j = 0; j < n; j++)
       stddev_temp += (data[i*n+j]-mean_temp)*(data[i*n+j]-mean_temp);
     #endif
@@ -100,6 +102,7 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
     }
     PF_END(NUM_REGIONS)
     #else
+    _Pragma("GCC unroll(16)")
     for (int j = 0; j < n; j++){
       data_temp = data[i*n+j]-mean_temp;
       data_temp = data_temp/(sqrt(n)*stddev_temp);
@@ -137,6 +140,7 @@ corr_manycore_2(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       }
       PF_END(NUM_REGIONS_K2)
       #else
+      _Pragma("GCC unroll(16)")
       for(int j=0; j<n; j++){
         sym_temp+=data[i1*n+j]*data[i2*n+j];
       }

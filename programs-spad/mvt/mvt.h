@@ -9,7 +9,7 @@
 // #define MANYCORE_PREFETCH
 
 #define INIT_FRAMES 1
-#define REGION_SIZE 16 //configure using LCM of required frame/region sizes
+#define REGION_SIZE 32 //configure using LCM of required frame/region sizes
 #define NUM_REGIONS (512 / REGION_SIZE) // (0,512) in this case is the hardware region area 
 
 #define PF_BEGIN(pf_len) \
@@ -26,12 +26,14 @@
   VPREFETCH_L(off1, data1 + idx1, 0, REGION_SIZE/2,1); \
   VPREFETCH_L(off2, data2 + idx2, 0, REGION_SIZE/2,1); \
   FRAME_START(); \
+  _Pragma("GCC unroll(16)") \
   for(int jj=0; jj<REGION_SIZE/2; jj++)
 
 #define PF1(off,data,idx) \
   off = spadRegion * REGION_SIZE; \
   VPREFETCH_L(off, data + idx, 0, REGION_SIZE,1); \
   FRAME_START(); \
+  _Pragma("GCC unroll(16)") \
   for(int jj=0; jj<REGION_SIZE; jj++)
 
 typedef float DTYPE;

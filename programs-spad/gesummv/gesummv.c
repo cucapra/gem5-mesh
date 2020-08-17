@@ -41,6 +41,7 @@ gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int 
         VPREFETCH_L(sp_x_offset, x+j, 0, REGION_SIZE/3,1);
 
         FRAME_START();
+        #pragma GCC unroll(8)
         for(int jj=0; jj<REGION_SIZE/3; jj++){
           temp1 += spAddr[sp_a_offset+jj]*spAddr[sp_x_offset+jj];
           temp2 += spAddr[sp_b_offset+jj]*spAddr[sp_x_offset+jj];
@@ -49,6 +50,7 @@ gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int 
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
       }
       #else
+      #pragma GCC unroll(8)
       for(int j=0; j<n; j++){
         temp1 += a[i*n+j] * x[j];
         temp2 += b[i*n+j] * x[j];
