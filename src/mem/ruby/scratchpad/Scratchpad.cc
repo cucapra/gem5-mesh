@@ -1223,9 +1223,9 @@ Scratchpad::setWordRdy(Addr addr) {
   // if reaches number of expected then reset and move to next region 
   // publish group of tokens to be accessed/
   // NOTE need a while loop here b/c possible the next region is also full and needs to be swapped
-  while (m_region_cntrs[0] == getRegionElements()) {
-    resetRdyArray();
-  }
+  // while (m_region_cntrs[0] == getRegionElements()) {
+  //   resetRdyArray();
+  // }
 
   // m_last_word_recv = (getLocalAddr(addr) / sizeof(uint32_t)) - SPM_DATA_WORD_OFFSET;
   // m_cpu_p->produceMemTokens(1);
@@ -1271,11 +1271,12 @@ Scratchpad::resetRdyArray() {
 bool
 Scratchpad::isNextConsumerFrameRdy() {
   // DPRINTF(Frame, "check frames %d ?= %d\n", m_cur_consumer_region, m_cur_prefetch_region);
-  return (m_cur_consumer_region != m_cur_prefetch_region);
+  return (m_cur_consumer_region == m_cur_prefetch_region) && (m_region_cntrs[0] == getRegionElements());
 }
 
 void
 Scratchpad::incConsumerFrame() {
+  resetRdyArray();
   m_cur_consumer_region = getCurConsumerRegion(1);
   DPRINTF(Frame, "inc consumer frame %d\n", m_cur_consumer_region);
 }
