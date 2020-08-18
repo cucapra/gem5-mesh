@@ -280,6 +280,10 @@ Scratchpad::processRespToSpad() {
       // }
       /*else*/ if (memDiv) {
         
+        // just immedieatly fail now
+        DPRINTF(Frame, "[[WARNING]] must diverge now\n");
+        assert(false);
+
         // place packet into buffer to use later
         // assure that this is a very small buffer otherwise actually diverge
         // in wakeup check this buffer too to see if rdy and can place into queue (or maybe somehwere else
@@ -1134,7 +1138,10 @@ Scratchpad::isPrefetchAhead(Addr addr) {
   // // int nextPrefectchRegion = (m_cur_prefetch_region + 1) % getNumRegions();
   // // TODO issue if don't consume the whole mem token frame
   // bool wouldOverlap = m_cpu_p->getMemTokens() + getRegionElements() >= getAllRegionSize();
-  bool wouldOverlap = (getCurPrefetchRegion(1) == getCurConsumerRegion(0));
+
+  // TODO i dont think this does anything anymore
+  // might need to use max(m_num_frame_cntrs, and num_regions) here
+  bool wouldOverlap = (getCurPrefetchRegion(m_num_frame_cntrs) == getCurConsumerRegion(0));
 
   DPRINTF(Frame, "wouldOverlap %d ahead %d pktEpoch %d consumerRegion %d prefetchRegion %d region cntr %d\n", 
     wouldOverlap, aheadCntr, pktEpochMod, m_cur_consumer_region, m_cur_prefetch_region, m_region_cntrs[0]);
