@@ -48,7 +48,7 @@ def sorted_bar_plot(labels, sub_labels, values, ylabel, title, annotate=True, co
       if (v != 0 and not isnan(v)):
         gpu_has_nz = True
 
-  if (not gpu_has_nz):
+  if (not gpu_has_nz and 'GPU' in desired_order):
     desired_order.remove('GPU')
 
   # sort sub bar series
@@ -350,6 +350,9 @@ def plot_prefetch_coverage(data):
 
 def plot_init_frames(data):
   (labels, sub_labels, values) = group_bar_data(data, 'cycles')
+
+  if not 'V4_I0' in sub_labels:
+    return
 
   # flip from cycles to speedup normalized to NV
   normalize(sub_labels, values, pref_base='V4_I0')

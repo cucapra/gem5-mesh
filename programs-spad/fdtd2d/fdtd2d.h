@@ -47,19 +47,19 @@
 #endif
 
 // prefetch sizings for step1
-#define STEP1_UNROLL_LEN 4
+#define STEP1_UNROLL_LEN 16
 #define STEP1_REGION_SIZE (3*STEP1_UNROLL_LEN)
 #define STEP1_NUM_REGIONS (8)
 #define STEP1_POST_FRAME_WORD (STEP1_REGION_SIZE*STEP1_NUM_REGIONS)
 
 // prefetch sizings for step2
-#define STEP2_UNROLL_LEN 4
+#define STEP2_UNROLL_LEN 8
 #define STEP2_REGION_SIZE (2*STEP2_UNROLL_LEN+1)
 #define STEP2_NUM_REGIONS (8)
 #define STEP2_POST_FRAME_WORD (STEP2_REGION_SIZE*STEP2_NUM_REGIONS)
 
 // prefetch sizings for step3
-#define STEP3_UNROLL_LEN 4
+#define STEP3_UNROLL_LEN 8
 #define STEP3_REGION_SIZE (4*STEP3_UNROLL_LEN+1)
 #define STEP3_NUM_REGIONS (8)
 #define STEP3_POST_FRAME_WORD (STEP3_REGION_SIZE*STEP3_NUM_REGIONS)
@@ -70,7 +70,9 @@ inline void prefetch_step1_frame_i0(DTYPE *fict, int t, int *sp) {
     // VPREFETCH_L(*sp + 0, fict + t, core, 1, VERTICAL);
     // VPREFETCH_L(*sp + 1, fict + t, core, 1, VERTICAL);
     // VPREFETCH_L(*sp + 2, fict + t, core, 1, VERTICAL);
-    VPREFETCH_LR(*sp + 0, fict + t, core, STEP1_REGION_SIZE, VERTICAL);
+    VPREFETCH_LR(*sp + 0*STEP1_UNROLL_LEN, fict + t, core, STEP1_UNROLL_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 1*STEP1_UNROLL_LEN, fict + t, core, STEP1_UNROLL_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 2*STEP1_UNROLL_LEN, fict + t, core, STEP1_UNROLL_LEN, VERTICAL);
   }
 
   #ifndef MANYCORE_PREFETCH

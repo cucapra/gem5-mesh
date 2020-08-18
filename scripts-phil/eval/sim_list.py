@@ -25,65 +25,64 @@ sim_configs = {
   # Benchmarks
 
   'bicg'   : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['2048']
   },
   'gram'   : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['320']
   },
   'syrk'   : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['256']
   },
   'syr2k'  : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['256']
   },
   'covar'   : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['512']
   },
   'conv2d' : {
-    'vec'  : ALL_CONFIGS + \
-      [ 'VEC_16_SIMD_VERTICAL', 'VEC_4_SIMD_VERTICAL', 'VEC_4_REUSE_VERTICAL' ],
+    'vec'  : [ 'NO_VEC', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], ['VEC_4_SIMD_VERTICAL', 'INIT_FRAMES=0' ] ],
     'argv' : ['2048']
   },
   'conv3d' : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['256']
   },
   'fdtd' : {
-    'vec'  : ALL_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['512', '30']
   },
 
   'atax'   : {
-    'vec'  : ALL_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['2048'] # ['128']
   },
   'mvt'    : {
-    'vec'  : ALL_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['4096'] # ['128']
   },
   'gemm'   : {
-    'vec'  : ALL_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['256'] #['64']
   },
   'gesummv'   : {
-    'vec'  : ALL_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['4096'] #['128'] 
   },
   'corr'   : {
-    'vec'  : ALL_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['512'] #['64']
   },
   '2mm' : {
-    'vec'  : ALL_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['256'] #['64']
   },
   '3mm' : {
-    'vec'  : ALL_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['256'] #['32']
   },
 

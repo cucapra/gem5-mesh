@@ -171,7 +171,7 @@ void tril_fdtd_step1(int mask,
 
       asm("trillium vissue_delim if_begin vec_body_in0");
       START_FRAME();
-      #pragma GCC unroll(4)
+      #pragma GCC unroll(16)
       for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
         int u0 = u;
         int u1 = STEP1_UNROLL_LEN+u;
@@ -311,7 +311,7 @@ void tril_fdtd_step2(int mask,
 
       asm("trillium vissue_delim if_begin vec_body");
       START_FRAME();
-      #pragma GCC unroll(4)
+      #pragma GCC unroll(16)
       for (int u = 0; u < STEP2_UNROLL_LEN; u++) {
         int u0 = u;
         int u1 = STEP2_UNROLL_LEN + u;
@@ -443,7 +443,7 @@ void tril_fdtd_step3(int mask,
 
       asm("trillium vissue_delim if_begin vec_body");
       START_FRAME();
-      #pragma GCC unroll(4)
+      #pragma GCC unroll(16)
       for (int u = 0; u < STEP3_UNROLL_LEN; u++) {
         int u0 = u;
         int u1 = STEP3_UNROLL_LEN + u;

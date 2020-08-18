@@ -134,7 +134,7 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
       FRAME_START(INNER_FRAME_SIZE);
       // printf("a %f ?= %f %f ?= %f\n", sp_ptr[sp + 0], a[i * M + k], sp_ptr[sp + 1], a[j * M +k]);
       // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
-      #pragma GCC unroll(8)
+      #pragma GCC unroll(16)
       for (int k = 0; k < INNER_PREFETCH_LEN; k++) {
         c_ij += alpha * sp_ptr[sp + INNER_PREFETCH_LEN*0 + k] * 
                         sp_ptr[sp + INNER_PREFETCH_LEN*3 + k] + 

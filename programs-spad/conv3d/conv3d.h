@@ -88,12 +88,12 @@
 #endif
 
 // define prefetch len externally
-#ifdef AUDIT
+#if defined(AUDIT) && defined(MANYCORE_PREFETCH)
 #define UNROLL_LEN 16
 #define PREFETCH_LEN (UNROLL_LEN)
 #define REGION_SIZE (11*UNROLL_LEN)
 #define NUM_REGIONS 2
-#elif defined(AUDIT2)
+#elif defined(AUDIT2) && defined(MANYCORE_PREFETCH)
 #define UNROLL_LEN 14
 #define PREFETCH_LEN (UNROLL_LEN)
 #define REGION_SIZE (7*UNROLL_LEN+2*(UNROLL_LEN+2))

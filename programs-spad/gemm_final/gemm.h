@@ -6,8 +6,9 @@
 #define _VEC
 #endif
 
+//tile size
 #ifndef BLK_DIM
-#define BLK_DIM 4 //tile size
+#define BLK_DIM 4
 #endif
 
 #ifndef _N_SPS
@@ -20,7 +21,7 @@
 #define DIM_X 4
 #endif
 
-#define VEC_MANYCORE_OPT
+// #define VEC_MANYCORE_OPT
 
 #if defined VEC_MANYCORE_OPT && defined _VEC
 #define MANYCORE_PREFETCH

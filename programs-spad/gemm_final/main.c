@@ -24,6 +24,41 @@ void fill_array(DTYPE *m, int n)
 }
 
 
+float absVal(float a)
+{
+	if(a < 0)
+	{
+		return (a * -1);
+	}
+   	else
+	{ 
+		return a;
+	}
+}
+
+
+#define SMALL_FLOAT_VAL 0.00000001f
+float percentDiff(float val1, float val2)
+{
+	if ((absVal(val1) < 0.01) && (absVal(val2) < 0.01))
+	{
+		return 0.0f;
+	}
+
+	else
+	{
+    		return 100.0f * (absVal(absVal(val1 - val2) / absVal(val1 + SMALL_FLOAT_VAL)));
+	}
+} 
+
+//define the error threshold for the results "not matching"
+#define PERCENT_DIFF_ERROR_THRESHOLD 0.05
+// ret 1 if fail
+// ret 0 if sucess
+int polybenchCompare(float val1, float val2) {
+  return (percentDiff(val1, val2) > PERCENT_DIFF_ERROR_THRESHOLD);
+}
+
 int check_matmul(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t)
 {
 
@@ -64,7 +99,7 @@ int check_matmul(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t)
         c_temp += ALPHA* a[i * t + k] * b[k * n + j];
       }
       // if (c[i * n + j] != c_temp)
-      if (!float_compare(c[i * n + j], c_temp, 0.0001f))
+      if (polybenchCompare(c[i * n + j], c_temp))
       {
         printf("%f %f at i:%d, j:%d\n",c[i * n + j],c_temp, i,j);
         printf("[[FAIL]]\n");
