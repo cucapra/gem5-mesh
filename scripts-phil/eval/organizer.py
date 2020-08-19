@@ -29,39 +29,59 @@ def sort_by_sub_label(cur_order, values, desired_order):
 
   return (desired_order, sorted_values)
 
-# bar plot wrapper that sorts series 
-def sorted_bar_plot(labels, sub_labels, values, ylabel, title, annotate=True, compare_initframes=False):
-  if (compare_initframes):
-    desired_order = [ 'V4', 'V4_I0']
-  else:
-    desired_order = [ 'NV', 'NV_PF', 'V4', 'V16', 'GPU' ]
+def format_bar_series(labels, sub_labels, values, desired_order):
+  labels = deepcopy(labels)
+  sub_labels = deepcopy(sub_labels)
+  desired_order = deepcopy(desired_order)
 
-  # only add gpu series if has data in it
-  gpu_idx = -1
-  for i in range(len(sub_labels)):
-    if sub_labels[i] == 'GPU':
-      gpu_idx = i
+  # remove any labels that have no fields
+  j = 0
+  while (j < len(desired_order)):
+    l = desired_order[j]
+    idx = -1
+    for i in range(len(sub_labels)):
+      if sub_labels[i] == l:
+        idx = i
 
-  gpu_has_nz = False
-  if (gpu_idx >= 0):
-    for v in values[gpu_idx]:
-      if (v != 0 and not isnan(v)):
-        gpu_has_nz = True
+    has_nz = False
+    if (idx >= 0):
+      for v in values[idx]:
+        if (v != 0 and not isnan(v)):
+          has_nz = True
 
-  if (not gpu_has_nz and 'GPU' in desired_order):
-    desired_order.remove('GPU')
+    if (not has_nz):
+      desired_order.remove(l)
+      j -= 1
+
+    j += 1
 
   # sort sub bar series
   if len(desired_order) > 0:
     (sub_labels, values) = sort_by_sub_label(sub_labels, values, desired_order)
+  else:
+    sub_labels = []
+    values = []
 
-  # TODO do we want to sort benchmarks as well?
-
-  # graph sorted
-  bar_plot(labels, sub_labels, values, ylabel, title, annotate)
-
+  # sort benchmarks alphabetically with python built-in
+  old_labels = deepcopy(labels)
+  labels = sorted(labels)
   
+  # figure out where each bench went
+  label_map = []
+  for l in labels:
+    for i in range(len(old_labels)):
+      if (l == old_labels[i]):
+        label_map.append(i)
+        break
 
+  # move fields based on sorting map
+  old_values = deepcopy(values)
+  for j in range(len(values)):
+    for i in range(len(values[j])):
+      values[j][i] = old_values[j][label_map[i]]
+
+
+  return (labels, sub_labels, values)
 
 # extract all data for a specific field across all benchmarks
 # only get the yaxis data, assumed xaxis is trivial to get (i.e., arange or core_id)
@@ -142,7 +162,7 @@ def avg_by_hops(labels, configs, values, include_v4, include_v16):
 
 # group together similar series and get preferred field
 # expects 3 meta fields(prog, config, meta) along with desired_field
-def group_bar_data(data, desired_field):
+def group_bar_data(data, desired_field, desired_config_order= [ 'NV', 'NV_PF', 'V4', 'V16', 'GPU' ]):
   # hash of hash
   values = {}
 
@@ -188,7 +208,10 @@ def group_bar_data(data, desired_field):
       else:
         flat_values[i].append(0)
 
-  return (labels, config_map, flat_values)
+  # format
+  (labels, sub_labels, values) = format_bar_series(labels, config_map, flat_values, desired_config_order)
+
+  return (labels, sub_labels, values)
 
 # try to normalize to NV otherwise do from first value
 def normalize(sub_labels, values, pref_base='NV'):
@@ -255,20 +278,20 @@ def plot_speedup(data):
   inverse(values)
   add_geo_mean(labels, values)
 
-  sorted_bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline Manycore (NV)', 'Speedup')
+  bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline Manycore (NV)', 'Speedup', ylim=[0, 15], horiz_line=1)
 
 def plot_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'energy-sum(nJ)')
   normalize(sub_labels, values)
   add_geo_mean(labels, values)
-  sorted_bar_plot(labels, sub_labels, values, 'Energy', 'Energy', True)
+  bar_plot(labels, sub_labels, values, 'Energy', 'Energy', horiz_line=1)
   # need to have a buttom=[] when define bar. where bottom is sum of prev
 
 def plot_inst_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'inst-cnts-energy(nJ)')
   normalize(sub_labels, values)
   add_geo_mean(labels, values)
-  sorted_bar_plot(labels, sub_labels, values, 'InstEnergy relative to Baseline Manycore', 'Instruction_Energy', True)
+  bar_plot(labels, sub_labels, values, 'InstEnergy relative to Baseline Manycore', 'Instruction_Energy', True)
 
 def plot_icache_energy(data, norm = False):
   (labels, sub_labels, values) = group_bar_data(data, 'icache-access-energy(nJ)')
@@ -280,29 +303,29 @@ def plot_icache_energy(data, norm = False):
   if (norm):
     name = 'ICache_Energy_Norm'
     yaxis = 'Icache Energy relative to Baseline Manycore'
-  sorted_bar_plot(labels, sub_labels, values, yaxis, name, norm)
+  bar_plot(labels, sub_labels, values, yaxis, name, horiz_line=1)
 
 def plot_dmem_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'dmem-access-energy(nJ)')
   # normalize(sub_labels, values)
   add_geo_mean(labels, values)
-  sorted_bar_plot(labels, sub_labels, values, 'DmemEnergy relative to Baseline Manycore', 'DMem_Energy', False)  
+  bar_plot(labels, sub_labels, values, 'DmemEnergy relative to Baseline Manycore', 'DMem_Energy', False)  
 
 def plot_llc_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'llc-access-energy(nJ)')
   # normalize(sub_labels, values)
   add_geo_mean(labels, values)
-  sorted_bar_plot(labels, sub_labels, values, 'LLC Energy', 'LLC_Energy', False) 
+  bar_plot(labels, sub_labels, values, 'LLC Energy', 'LLC_Energy', False) 
 
 def plot_first_frame_rdy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'frame-occupancy1')
   add_arith_mean(labels, values)
-  sorted_bar_plot(labels, sub_labels, values, 'Next frame ready on remem fraction', 'NextFrameRdy', False) 
+  bar_plot(labels, sub_labels, values, 'Next frame ready on remem fraction', 'NextFrameRdy', False) 
 
 def plot_cpi(data):
   (labels, sub_labels, values) = group_bar_data(data, 'active-cpi')
   add_geo_mean(labels, values)
-  sorted_bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
+  bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
 
 def plot_inet_stalls(data, includeV4, includeV16):
   (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=['V4', 'V16'])
@@ -346,10 +369,10 @@ def plot_prefetch_coverage(data):
 
   add_arith_mean(labels, values, True)
 
-  bar_plot(labels, sub_labels, values, 'Fraction Coverage of Memory Loads', 'coverage', True) 
+  bar_plot(labels, sub_labels, values, 'Fraction Coverage of Memory Loads', 'coverage_v4', True) 
 
 def plot_init_frames(data):
-  (labels, sub_labels, values) = group_bar_data(data, 'cycles')
+  (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=['V4', 'V4_I0'])
 
   if not 'V4_I0' in sub_labels:
     return
@@ -359,7 +382,7 @@ def plot_init_frames(data):
   inverse(values)
   add_geo_mean(labels, values)
 
-  sorted_bar_plot(labels, sub_labels, values, 'Speedup Relative to V4', 'Init_Frame_Speedup', compare_initframes=True)
+  bar_plot(labels, sub_labels, values, 'Speedup Relative to V4', 'Init_Frame_Speedup', horiz_line=1)
 
 # substitue field in extracted data (do before analyses above)
 def substitute_field(data, prog, from_config, to_config):
@@ -407,6 +430,14 @@ def remove_field(data, prog, config):
       i -= 1
     i += 1
 
+# rename program names
+def rename_prog(data, prog_name, new_name):
+  for row in data:
+    if row['prog'] == prog_name:
+      print('rename {} -> {}'.format(row['prog'], new_name))
+      row['prog'] = new_name
+
+# top level for analysis passes. generates all plots sequentially
 def make_plots_and_tables(all_data):
   print("Removing unwanted series")
   # use vertical for conv2d
@@ -416,6 +447,13 @@ def make_plots_and_tables(all_data):
 
   # delete reuse
   remove_field(all_data, 'conv2d', 'VEC_4_REUSE_VERTICAL')
+
+  # rename programs to fancier name
+  rename_prog(all_data, 'conv2d', '2dconv')
+  rename_prog(all_data, 'conv3d', '3dconv')
+  rename_prog(all_data, 'fdtd', 'fdtd-2d')
+  rename_prog(all_data, 'gram_schmidt', 'gramschm')
+
 
   print("Plot speedup")
   plot_speedup(all_data)
