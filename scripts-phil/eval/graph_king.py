@@ -123,14 +123,14 @@ def single_label(x_axes, infer_ticks, xlabel, ylabel, ax, plot_id=-1):
 
 # create specified lineplot and write to file
 # provide all y_axes and either a single or multiple x_axes
-def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, duplicate_x=False, sub_plots_x=1):
+def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, duplicate_x=False, sub_plots_x=1, bbox='', legend_loc='', width_ratio=[1,1]):
   mpl.rcParams['axes.prop_cycle'] = cycler(linestyle=['-', '--', '-.']) * default_prop_cycle
 
   if (sub_plots_x == 1):
     fig, ax = plt.subplots()
   else:
     # todo fixing relative sizes
-    fig, ax = plt.subplots(1, sub_plots_x, sharey='row', gridspec_kw={'width_ratios' : [1, 3]})
+    fig, ax = plt.subplots(1, sub_plots_x, sharey='row', gridspec_kw={'width_ratios' : width_ratio})
 
   # make sure list of list for subplots
   if (sub_plots_x == 1):
@@ -150,7 +150,8 @@ def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, d
 
 
   # ax.set_title(title)
-  fig.legend(labels, loc='lower right', ncol = 2, bbox_to_anchor=(0.925, 0.15))
+  # if bbox(x,y) included then loc specifies which corner your moving
+  fig.legend(labels, loc=legend_loc, ncol = 2, bbox_to_anchor=bbox)
 
   fig.tight_layout()
 

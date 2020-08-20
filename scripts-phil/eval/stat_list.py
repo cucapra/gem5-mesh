@@ -142,6 +142,19 @@ cpu_stats = OrderedDict([
     'regex' : re.compile('system.cpu[0-9]+.vector.mesh_input_stalls\s*' + intRegexStr), 
     'seperate-cores' : True,
   }),
+  ('vector_backpressure_stall_sep' , {
+    'regex' : re.compile('system.cpu[0-9]+.vector.backpressure_stalls\s*' + intRegexStr), 
+    'seperate-cores' : True,
+  }),
+  ('scalar_backpressure_stall_sep' , {
+    'regex' : re.compile('system.cpu[0-9]+.late_vector.backpressure_stalls\s*' + intRegexStr), 
+    'seperate-cores' : True,
+  }),
+  ('merged_backpressure_stall_sep', {
+    'formula' : ['vector_backpressure_stall_sep', 'scalar_backpressure_stall_sep'],
+    'formula_op' : lambda args: args[0] if args[0] > 0 else args[1],
+    'seperate-cores' : True,
+  }),
   ('vec_cycles_sep' , {
     'regex' : re.compile('system.cpu[0-9]+.vector.vec_cycles\s*' + intRegexStr), 
     'seperate-cores' : True,
@@ -157,6 +170,11 @@ cpu_stats = OrderedDict([
   ('frac_token_stalls' , {
     'formula' : ['token_stalls', 'vec_cycles'],
     'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
+  }),
+  ('frac_backpressure_stall_sep' , {
+    'formula' : ['merged_backpressure_stall_sep', 'vec_cycles_sep'],
+    'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
+    'seperate-cores' : True,
   }),
 
   ('vertical_pfs' ,  {  

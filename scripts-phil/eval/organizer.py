@@ -127,7 +127,7 @@ def group_line_data(data, desired_field, desired_configs=[], label_with_config=F
 
   return (labels, configs, values)
 
-def avg_by_hops(labels, configs, values, include_v4, include_v16):
+def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar=False):
   # figure out xaxis (#hops) depending on config. 
   # remove certain values if scalar or inactive core
   v4_hops = get_mesh_dist_sequence('V4')
@@ -156,25 +156,35 @@ def avg_by_hops(labels, configs, values, include_v4, include_v16):
       hop_avgs = []
       hop_cnts = []
       max_hops = 7 if configs[i] in v16_configs else 3
-      for j in range(1, max_hops+1):
+      min_cnt = 1
+      max_cnt = max_hops+1
+      if include_scalar:
+        max_hops += 1
+        min_cnt = 0
+        max_cnt = max_hops
+      for j in range(min_cnt, max_cnt):
         hop_avgs.append(0)
         hop_cnts.append(0)
 
-      xaxes.append(np.arange(1, max_hops+1))
+      xaxes.append(np.arange(min_cnt, max_cnt))
 
       hop_list = v16_hops if (configs[i] in v16_configs) else v4_hops
       for j in range(len(hop_list)):
         # avg >0
         hops = hop_list[j]
-        if (hops > 0):
-          hop_avgs[hops - 1] += values[i][j]
-          hop_cnts[hops - 1] += 1
+        hop_idx = hops - 1
+        if (include_scalar):
+          hop_idx = hops
+        if (hops > 0 or include_scalar):
+          hop_avgs[hop_idx] += values[i][j]
+          hop_cnts[hop_idx] += 1
 
       for j in range(len(hop_avgs)):
         hop_avgs[j] = float(hop_avgs[j]) / float(hop_cnts[j])
 
       values[i] = hop_avgs
 
+    # TODO should have been sorted already befoer this so prob dont need
     # delete non vector series
     else:
       labels.pop(i)
@@ -383,7 +393,25 @@ def plot_inet_stalls(data):
   labels = labels_v4
   xlabels = ['V4 Hops', 'V16 Hops']
 
-  line_plot(xaxes, values, labels, xlabels, 'inet stalls relative to total vector cycles', 'inet_stalls', False, sub_plots_x=2)
+  line_plot(xaxes, values, labels, xlabels, 'Input inet stalls relative to total vector cycles', 'inet_stalls', False, sub_plots_x=2, bbox=(0.925, 0.15), legend_loc='lower right', width_ratio=[1, 3])
+
+
+def plot_backpressure(data):
+  # generate v4 plot
+  (labels, configs, values) = group_line_data(data, 'frac_backpressure_stall_sep', desired_configs=['V4'])
+  (labels_v4, configs_v4, values_v4, xaxes_v4) = avg_by_hops(labels, configs, values, True, False, True)
+  # generate v16 plot
+  (labels, configs, values) = group_line_data(data, 'frac_backpressure_stall_sep', desired_configs=['V16'])
+  (labels_v16, configs_v16, values_v16, xaxes_v16) = avg_by_hops(labels, configs, values, False, True, True)
+
+  # merge for multiple plots
+  xaxes  = [ xaxes_v4 , xaxes_v16 ]
+  values = [ values_v4, values_v16 ]
+  # use the same labels for both, the above function gaurentee alphabetical so will be the same
+  labels = labels_v4
+  xlabels = ['V4 Hops', 'V16 Hops']
+
+  line_plot(xaxes, values, labels, xlabels, 'Backpressure stalls relative to total vector cycles', 'backpressure_stalls', False, sub_plots_x=2, bbox=(0.925, 0.5), legend_loc='lower right', width_ratio=[1, 2])
 
 def plot_frame_stalls(data):
   # (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep', desired_configs=['V4', 'V16'])
@@ -539,3 +567,5 @@ def make_plots_and_tables(all_data):
   plot_prefetch_coverage(all_data)
   print("Plot init frames")
   plot_init_frames(all_data)
+  print("Plot backpressure")
+  plot_backpressure(all_data)
