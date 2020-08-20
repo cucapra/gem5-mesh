@@ -80,7 +80,7 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   int level2_size = (n_end-n_start)/offset_x;
 
   /* ------------ prefetch ahead of issuing ----------*/
-  int iter_ahead = min(t,INIT_FRAMES);
+  int iter_ahead = INIT_FRAMES;
   for (int k = 0; k < iter_ahead; k++){
     #ifdef SHARING
     horiz_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, offset_y, offset_x,
@@ -107,8 +107,6 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         //first thing to do is issue vector cores to compute (don't want to starve them) if scalar core is ahead, if not then send after prefetch
         if(vector_iter%(level2_size*level3_size)==0) ISSUE_VINST(hoist1);
         if(vector_iter%level3_size ==0) ISSUE_VINST(hoist2);
-        ISSUE_VINST(fable123);
-        vector_iter++;
 
         // ---------------prefetch region ------------------
         #ifdef SHARING
@@ -120,10 +118,15 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         #endif
         // ----------------prefetch end -------------------- 
 
+        ISSUE_VINST(fable123);
+        vector_iter++;
+
         if(vector_iter%level3_size ==0) ISSUE_VINST(fable4567);
         if(vector_iter%(level2_size*level3_size)==0) ISSUE_VINST(fable8);
         
       }
+
+      
 
     }
   }
