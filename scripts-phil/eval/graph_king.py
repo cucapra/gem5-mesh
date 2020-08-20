@@ -13,8 +13,11 @@ from copy import deepcopy
 
 default_prop_cycle = mpl.rcParams['axes.prop_cycle']
 
+def is_number(obj):
+  return (isinstance(obj, (int, float)) and not isinstance(obj, bool))
+
 # create specified barplot and write to file
-def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
+def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[], horiz_line=''):
   mpl.rcParams['axes.prop_cycle'] = default_prop_cycle
   # labels = ['G1', 'G2', 'G3', 'G4', 'G5']
   # men_means = [20, 34, 30, 35, 27]
@@ -37,25 +40,48 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
   # rects2 = ax.bar(x + width/2, women_means, width, label='Women')
   # Add some text for labels, title and custom x-axis tick labels, etc.
   ax.set_ylabel(ylabel)
-  ax.set_title(title)
+  # ax.set_title(title)
   ax.set_xticks(x)
   ax.set_xticklabels(labels, rotation=45, ha='right')
   ax.legend()
-  def autolabel(rects):
+  def autolabel(rects, height=''):
       """Attach a text label above each bar in *rects*, displaying its height."""
       for rect in rects:
-          height = rect.get_height()
+          orig_height = rect.get_height()
+          if (not is_number(height)):
+            height = orig_height
           if (height == 0.0):
             continue
-          ax.annotate('{:.1f}'.format(height),
+          ax.annotate('{:.0f}'.format(orig_height),
                       xy=(rect.get_x() + rect.get_width() / 2, height),
                       xytext=(0, 3),  # 3 points vertical offset
                       textcoords="offset points",
                       ha='center', va='bottom')
-                
+
   if (annotate):
     for r in rects:
       autolabel(r)
+
+  if (len(ylim) > 0):
+    (cur_bot, cur_top) = ax.get_ylim()
+    max_top = ylim[1]
+    if (cur_top > max_top):
+
+      # either all annotated or there is a bound that is cutting off
+      if (not annotate):
+        for r in rects:
+          for rect in r:
+            if (rect.get_height() > max_top):
+              autolabel([rect], max_top)
+
+      ax.set_ylim(top=max_top)
+
+
+  
+
+  # add horizontal line if requested
+  if (is_number(horiz_line)):
+    ax.axhline(y=horiz_line, linewidth=1, color='black', linestyle='dashed')
 
   fig.tight_layout()
   # plt.show()
@@ -63,12 +89,8 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=True):
   plt.savefig(str(title) + '.png')
   plt.savefig(str(title) + '.pdf')
 
-# create specified lineplot and write to file
-# provide all y_axes and either a single or multiple x_axes
-def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, duplicate_x=False):
-  mpl.rcParams['axes.prop_cycle'] = cycler(linestyle=['-', '--', '-.']) * default_prop_cycle
-  fig, ax = plt.subplots()
 
+def single_plot(x_axes, y_axes, duplicate_x, ax, plot_id=-1):
   for i in range(len(y_axes)):
     if (duplicate_x):
       x_axis = x_axes
@@ -76,7 +98,17 @@ def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, d
       x_axis = x_axes[i]
 
     y_axis = y_axes[i]
-    ax.plot(x_axis, y_axis)
+
+    if (plot_id >= 0):
+      ax[plot_id].plot(x_axis, y_axis)
+    else:
+      ax.plot(x_axis, y_axis)
+
+def single_label(x_axes, infer_ticks, xlabel, ylabel, ax, plot_id=-1):
+  if (plot_id >= 0):
+    a = ax[plot_id]
+  else:
+    a = ax
 
   # find max number of ticks and set that
   if (not infer_ticks):
@@ -84,12 +116,42 @@ def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, d
     for xax in x_axes:
       if (len(xax) > len(xticks)):
         xticks = xax
-    ax.set_xticks(xticks)
+    a.set_xticks(xticks)
 
-  ax.set_xlabel(xlabel)
-  ax.set_ylabel(ylabel)
-  ax.set_title(title)
-  ax.legend(labels)
+  a.set_xlabel(xlabel)
+  a.set_ylabel(ylabel)
+
+# create specified lineplot and write to file
+# provide all y_axes and either a single or multiple x_axes
+def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, duplicate_x=False, sub_plots_x=1, bbox='', legend_loc='', width_ratio=[1,1]):
+  mpl.rcParams['axes.prop_cycle'] = cycler(linestyle=['-', '--', '-.']) * default_prop_cycle
+
+  if (sub_plots_x == 1):
+    fig, ax = plt.subplots()
+  else:
+    # todo fixing relative sizes
+    fig, ax = plt.subplots(1, sub_plots_x, sharey='row', gridspec_kw={'width_ratios' : width_ratio})
+
+  # make sure list of list for subplots
+  if (sub_plots_x == 1):
+    single_plot(x_axes, y_axes, duplicate_x, ax)
+
+    single_label(x_axes, infer_ticks, xlabel, ylabel, ax)
+  else:
+    for i in range(len(ax.flat)):
+      single_plot(x_axes[i], y_axes[i], duplicate_x, ax, i)
+
+    for i in range(len(ax.flat)):
+      single_label(x_axes[i], infer_ticks, xlabel[i], ylabel, ax, i)
+
+    for a in ax.flat:
+      a.label_outer()
+      
+
+
+  # ax.set_title(title)
+  # if bbox(x,y) included then loc specifies which corner your moving
+  fig.legend(labels, loc=legend_loc, ncol = 2, bbox_to_anchor=bbox)
 
   fig.tight_layout()
 

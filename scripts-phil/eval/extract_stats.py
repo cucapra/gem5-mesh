@@ -335,8 +335,9 @@ for data in all_data:
     if (k in data):
       dat = ''
       if (isinstance(data[k], list)):
-        for d in data[k]:
-          dat += '{} '.format(d)
+        # for d in data[k]:
+        #   dat += '{} '.format(d)
+        dat = 'not shown due to space'
       else:
         dat = data[k]
       print('\t{0}: {1}'.format(k, dat))
