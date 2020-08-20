@@ -15,6 +15,7 @@ cpu_stats = OrderedDict([
   ('icache_access' , { 
     'regex' : re.compile('system.cpu[0-9]+.fetch.icache_word_accesses\s*' + intRegexStr),
     'ignore-zero' : False,
+    'average' : False,
   }), 
   ('local_sp_access'  , { 
     'regex' : re.compile('system.scratchpads[0-9]+.local_accesses\s*' + intRegexStr),
@@ -132,9 +133,8 @@ cpu_stats = OrderedDict([
     'formula_op' : lambda args: args[0] + args[1] + args[2] + args[3] 
   }),
 
-  ('token_stall_sep' , {
+  ('token_stalls' , {
     'regex' : re.compile('system.cpu[0-9]+.iew.stall_on_tokens\s*' + intRegexStr), 
-    'seperate-cores' : True,
   }),
 
   ('mesh_stall_sep' , {
@@ -145,15 +145,17 @@ cpu_stats = OrderedDict([
     'regex' : re.compile('system.cpu[0-9]+.vector.vec_cycles\s*' + intRegexStr), 
     'seperate-cores' : True,
   }),
+  ('vec_cycles' , {
+    'regex' : re.compile('system.cpu[0-9]+.vector.vec_cycles\s*' + intRegexStr),
+  }),
   ('frac_mesh_stall_sep' , {
     'formula' : ['mesh_stall_sep', 'vec_cycles_sep'],
     'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
     'seperate-cores' : True,
   }),
-  ('frac_token_stall_sep' , {
-    'formula' : ['token_stall_sep', 'vec_cycles_sep'],
+  ('frac_token_stalls' , {
+    'formula' : ['token_stalls', 'vec_cycles'],
     'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
-    'seperate-cores' : True,
   }),
 
   ('vertical_pfs' ,  {  

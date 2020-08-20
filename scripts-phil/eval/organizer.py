@@ -278,13 +278,13 @@ def plot_speedup(data):
   inverse(values)
   add_geo_mean(labels, values)
 
-  bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline Manycore (NV)', 'Speedup', ylim=[0, 15], horiz_line=1)
+  bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline (NV)', 'Speedup', ylim=[0, 15], horiz_line=1)
 
 def plot_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'energy-sum(nJ)')
   normalize(sub_labels, values)
   add_geo_mean(labels, values)
-  bar_plot(labels, sub_labels, values, 'Energy', 'Energy', horiz_line=1)
+  bar_plot(labels, sub_labels, values, 'Total On-Chip Energy Relative to Baseline (NV)', 'Energy', horiz_line=1)
   # need to have a buttom=[] when define bar. where bottom is sum of prev
 
 def plot_inst_energy(data):
@@ -299,11 +299,17 @@ def plot_icache_energy(data, norm = False):
     normalize(sub_labels, values)
   add_geo_mean(labels, values)
   name = 'ICache_Energy'
-  yaxis = 'Icache Energy(nJ)'
+  yaxis = 'I-Cache Energy(nJ)'
   if (norm):
     name = 'ICache_Energy_Norm'
     yaxis = 'Icache Energy relative to Baseline Manycore'
   bar_plot(labels, sub_labels, values, yaxis, name, horiz_line=1)
+
+def plot_icache_access(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'icache_access')
+  normalize(sub_labels, values)
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'I-Cache Accesses Relative to Baseline (NV)', 'icache_accesses', horiz_line=1)
 
 def plot_dmem_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'dmem-access-energy(nJ)')
@@ -333,11 +339,17 @@ def plot_inet_stalls(data, includeV4, includeV16):
   title = 'Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
   line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', title, False)
 
-def plot_frame_stalls(data, includeV4, includeV16):
-  (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep', desired_configs=['V4', 'V16'])
-  (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, includeV4, includeV16)
-  title = 'Frame_Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
-  line_plot(xaxes, values, labels, 'Hops', 'Frame stalls relative to total vector cycles', title, False)
+def plot_frame_stalls(data):
+  # (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep', desired_configs=['V4', 'V16'])
+  # (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, includeV4, includeV16)
+  # title = 'Frame_Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
+  # line_plot(xaxes, values, labels, 'Hops', 'Frame stalls relative to total vector cycles', title, False)
+
+  (labels, sub_labels, values) = group_bar_data(data, 'frac_token_stalls', desired_config_order=['V4', 'V4_I0'])
+  add_geo_mean(labels, values)
+
+  bar_plot(labels, sub_labels, values, 'Fraction of Vector Cycles Waiting for a Frame', 'Frame_Stalls_v4')
+
 
 def plot_prefetch_coverage(data):
   (labels, sub_labels, values_v) = group_bar_data(data, 'vertical_pfs')
@@ -369,7 +381,7 @@ def plot_prefetch_coverage(data):
 
   add_arith_mean(labels, values, True)
 
-  bar_plot(labels, sub_labels, values, 'Fraction Coverage of Memory Loads', 'coverage_v4', True) 
+  bar_plot(labels, sub_labels, values, 'Number of Decoupled Access Insts. Relative to Total', 'coverage_v4') 
 
 def plot_init_frames(data):
   (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=['V4', 'V4_I0'])
@@ -463,7 +475,8 @@ def make_plots_and_tables(all_data):
   plot_inst_energy(all_data)
   print("Plot icache energy")
   plot_icache_energy(all_data)
-  plot_icache_energy(all_data, True)
+  print("Plot icache access")
+  plot_icache_access(all_data)
   print("plot dmen energy")
   plot_dmem_energy(all_data)
   print("Plot llc energy")
@@ -476,8 +489,7 @@ def make_plots_and_tables(all_data):
   plot_inet_stalls(all_data, True, False)
   plot_inet_stalls(all_data, False, True)
   print("Plot frame stalls")
-  plot_frame_stalls(all_data, True, False)
-  plot_frame_stalls(all_data, False, True)
+  plot_frame_stalls(all_data)
   print("Plot prefetch coverage")
   plot_prefetch_coverage(all_data)
   print("Plot init frames")
