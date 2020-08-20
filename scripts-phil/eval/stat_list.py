@@ -134,7 +134,8 @@ cpu_stats = OrderedDict([
   }),
 
   ('token_stalls' , {
-    'regex' : re.compile('system.cpu[0-9]+.iew.stall_on_tokens\s*' + intRegexStr), 
+    'regex' : re.compile('system.cpu[0-9]+.iew.stall_on_tokens\s*' + intRegexStr),
+    'ignore-zero' : True,
   }),
 
   ('mesh_stall_sep' , {

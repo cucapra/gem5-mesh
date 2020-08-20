@@ -85,7 +85,7 @@ def format_bar_series(labels, sub_labels, values, desired_order):
 
 # extract all data for a specific field across all benchmarks
 # only get the yaxis data, assumed xaxis is trivial to get (i.e., arange or core_id)
-def group_line_data(data, desired_field, desired_configs=[]):
+def group_line_data(data, desired_field, desired_configs=[], label_with_config=False):
   labels = []
   configs = []
   values = []
@@ -95,9 +95,35 @@ def group_line_data(data, desired_field, desired_configs=[]):
       continue
     if (not (len(desired_configs) == 0 or row['config'] in desired_configs)):
       continue
-    labels.append('{}_{}'.format(row['prog'], row['config']))
+    if (label_with_config):
+      labels.append('{}_{}'.format(row['prog'], row['config']))
+    else:
+      labels.append(row['prog'])
     configs.append(row['config'])
     values.append(row[desired_field])
+
+  # alphabetize!
+  # TODO factor the nexst two sections out b/c shared with bargraph sort
+  # sort benchmarks alphabetically with python built-in
+  old_labels = deepcopy(labels)
+  old_configs = deepcopy(configs)
+  labels = sorted(labels)
+  
+  # figure out where each bench went
+  label_map = []
+  for l in labels:
+    for i in range(len(old_labels)):
+      if (l == old_labels[i]):
+        label_map.append(i)
+        break
+
+  # move fields based on sorting map
+  old_values = deepcopy(values)
+  for i in range(len(values)):
+    values[i] = old_values[label_map[i]]
+
+  for i in range(len(configs)):
+    configs[i] = old_configs[label_map[i]]
 
   return (labels, configs, values)
 
@@ -333,11 +359,31 @@ def plot_cpi(data):
   add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
 
-def plot_inet_stalls(data, includeV4, includeV16):
-  (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=['V4', 'V16'])
-  (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, includeV4, includeV16)
-  title = 'Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
-  line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', title, False)
+def plot_inet_stalls(data):
+  # # generate v4 plot
+  # (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=['V4'])
+  # (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, True, False)
+  # line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', 'Stalls_v4', False)
+  # # generate v16 plot
+  # (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=['V16'])
+  # (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, False, True)
+  # line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', 'Stalls_v16', False)
+
+  # generate v4 plot
+  (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=['V4'])
+  (labels_v4, configs_v4, values_v4, xaxes_v4) = avg_by_hops(labels, configs, values, True, False)
+  # generate v16 plot
+  (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=['V16'])
+  (labels_v16, configs_v16, values_v16, xaxes_v16) = avg_by_hops(labels, configs, values, False, True)
+
+  # merge for multiple plots
+  xaxes  = [ xaxes_v4 , xaxes_v16 ]
+  values = [ values_v4, values_v16 ]
+  # use the same labels for both, the above function gaurentee alphabetical so will be the same
+  labels = labels_v4
+  xlabels = ['V4 Hops', 'V16 Hops']
+
+  line_plot(xaxes, values, labels, xlabels, 'inet stalls relative to total vector cycles', 'inet_stalls', False, sub_plots_x=2)
 
 def plot_frame_stalls(data):
   # (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep', desired_configs=['V4', 'V16'])
@@ -486,8 +532,7 @@ def make_plots_and_tables(all_data):
   print("Plot cpi")
   plot_cpi(all_data)
   print("Plot inet stalls")
-  plot_inet_stalls(all_data, True, False)
-  plot_inet_stalls(all_data, False, True)
+  plot_inet_stalls(all_data)
   print("Plot frame stalls")
   plot_frame_stalls(all_data)
   print("Plot prefetch coverage")

@@ -89,12 +89,8 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
   plt.savefig(str(title) + '.png')
   plt.savefig(str(title) + '.pdf')
 
-# create specified lineplot and write to file
-# provide all y_axes and either a single or multiple x_axes
-def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, duplicate_x=False):
-  mpl.rcParams['axes.prop_cycle'] = cycler(linestyle=['-', '--', '-.']) * default_prop_cycle
-  fig, ax = plt.subplots()
 
+def single_plot(x_axes, y_axes, duplicate_x, ax, plot_id=-1):
   for i in range(len(y_axes)):
     if (duplicate_x):
       x_axis = x_axes
@@ -102,7 +98,17 @@ def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, d
       x_axis = x_axes[i]
 
     y_axis = y_axes[i]
-    ax.plot(x_axis, y_axis)
+
+    if (plot_id >= 0):
+      ax[plot_id].plot(x_axis, y_axis)
+    else:
+      ax.plot(x_axis, y_axis)
+
+def single_label(x_axes, infer_ticks, xlabel, ylabel, ax, plot_id=-1):
+  if (plot_id >= 0):
+    a = ax[plot_id]
+  else:
+    a = ax
 
   # find max number of ticks and set that
   if (not infer_ticks):
@@ -110,12 +116,41 @@ def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, d
     for xax in x_axes:
       if (len(xax) > len(xticks)):
         xticks = xax
-    ax.set_xticks(xticks)
+    a.set_xticks(xticks)
 
-  ax.set_xlabel(xlabel)
-  ax.set_ylabel(ylabel)
-  ax.set_title(title)
-  ax.legend(labels)
+  a.set_xlabel(xlabel)
+  a.set_ylabel(ylabel)
+
+# create specified lineplot and write to file
+# provide all y_axes and either a single or multiple x_axes
+def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, duplicate_x=False, sub_plots_x=1):
+  mpl.rcParams['axes.prop_cycle'] = cycler(linestyle=['-', '--', '-.']) * default_prop_cycle
+
+  if (sub_plots_x == 1):
+    fig, ax = plt.subplots()
+  else:
+    # todo fixing relative sizes
+    fig, ax = plt.subplots(1, sub_plots_x, sharey='row', gridspec_kw={'width_ratios' : [1, 3]})
+
+  # make sure list of list for subplots
+  if (sub_plots_x == 1):
+    single_plot(x_axes, y_axes, duplicate_x, ax)
+
+    single_label(x_axes, infer_ticks, xlabel, ylabel, ax)
+  else:
+    for i in range(len(ax.flat)):
+      single_plot(x_axes[i], y_axes[i], duplicate_x, ax, i)
+
+    for i in range(len(ax.flat)):
+      single_label(x_axes[i], infer_ticks, xlabel[i], ylabel, ax, i)
+
+    for a in ax.flat:
+      a.label_outer()
+      
+
+
+  # ax.set_title(title)
+  fig.legend(labels, loc='lower right', ncol = 2, bbox_to_anchor=(0.925, 0.15))
 
   fig.tight_layout()
 
