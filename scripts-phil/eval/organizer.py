@@ -419,8 +419,9 @@ def plot_frame_stalls(data):
   # title = 'Frame_Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
   # line_plot(xaxes, values, labels, 'Hops', 'Frame stalls relative to total vector cycles', title, False)
 
-  (labels, sub_labels, values) = group_bar_data(data, 'frac_token_stalls', desired_config_order=['V4', 'V4_I0'])
-  add_geo_mean(labels, values)
+  (labels, sub_labels, values) = group_bar_data(data, 'frac_token_stalls', desired_config_order=['V4'])
+  # dont do geomean b/c some values are 0
+  add_arith_mean(labels, values)
 
   bar_plot(labels, sub_labels, values, 'Fraction of Vector Cycles Waiting for a Frame', 'Frame_Stalls_v4')
 
@@ -523,6 +524,27 @@ def rename_prog(data, prog_name, new_name):
       print('rename {} -> {}'.format(row['prog'], new_name))
       row['prog'] = new_name
 
+def plot_llc_request_stalls(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'llcRequestStallTime')
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'reqstall', 'reqstall', False) 
+
+def plot_llc_response_stalls(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'llcResponseStallTime')
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'respstall', 'respstall', False) 
+
+def plot_mem_response_stalls(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'memResponseStallTime')
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'memrespstall', 'memrespstall', False) 
+
+def plot_llc_busy_cycles(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'frac_LLC_Busy_Cycles')
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'fracllcbusy', 'fracllcbusy', False) 
+
+
 # top level for analysis passes. generates all plots sequentially
 def make_plots_and_tables(all_data):
   print("Removing unwanted series")
@@ -569,3 +591,8 @@ def make_plots_and_tables(all_data):
   plot_init_frames(all_data)
   print("Plot backpressure")
   plot_backpressure(all_data)
+  print("Plot llc stalls")
+  plot_llc_request_stalls(all_data)
+  plot_llc_response_stalls(all_data)
+  plot_mem_response_stalls(all_data)
+  plot_llc_busy_cycles(all_data)
