@@ -190,6 +190,25 @@ cpu_stats = OrderedDict([
     'average' : False,
   }),
 
+
+  ('llcRequestStallTime' , {
+    'regex' : re.compile('system.l2_cntrls[0-9]+.requestToLLC.avg_stall_time\s*' + floatRegexStr), 
+  }),
+  ('llcResponseStallTime' , {
+    'regex' : re.compile('system.l2_cntrls[0-9]+.responseFromLLC.avg_stall_time\s*' + floatRegexStr), 
+  }),
+  ('memResponseStallTime' , {
+    'regex' : re.compile('system.l2_cntrls[0-9]+.responseFromMemory.avg_stall_time\s*' + floatRegexStr), 
+  }),
+  ('llcBusyCycles' , {
+    'regex' : re.compile('system.l2_cntrls[0-9]+.fully_busy_cycles\s*' + intRegexStr), 
+  }),
+  ('frac_LLC_Busy_Cycles' , {
+    'formula' : ['llcBusyCycles', 'cycles'],
+    'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
+  }),
+
+
 ])
 
 
