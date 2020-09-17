@@ -175,7 +175,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
   int_links = []
 
   # will try to take minimum weight path
-  horiz_weight = 2
+  horiz_weight = 1
   verti_weight = 2
 
   # East output to West input links (weight = 1)
