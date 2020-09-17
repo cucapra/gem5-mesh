@@ -389,9 +389,9 @@ NetworkInterface::flitisizeMessage(MsgPtr msg_ptr, int vnet)
         int vc = calculateVC(vnet);
 
         if (vc == -1) {
-            auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
-            if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
-                DPRINTF(Frame, "Network interface no free output virtual channel (vcs) for flit addr %#x\n", mem_msg->getLineAddress());
+            // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
+            // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+            //     DPRINTF(Frame, "Network interface no free output virtual channel (vcs) for flit addr %#x\n", mem_msg->getLineAddress());
             return false ;
         }
         MsgPtr new_msg_ptr = msg_ptr->clone();
@@ -432,6 +432,11 @@ NetworkInterface::flitisizeMessage(MsgPtr msg_ptr, int vnet)
         // initialize hops_traversed to -1
         // so that the first router increments it to 0
         route.hops_traversed = -1;
+
+        // determine whether req or resp based on destination
+        bool isMemResp = ((destID >= MachineType_base_number((MachineType_Scratchpad)) &&
+                    destID < MachineType_base_number((MachineType) ((int)MachineType_Scratchpad+1))));
+        route.req = !isMemResp;
 
         m_net_ptr->increment_injected_packets(vnet);
         for (int i = 0; i < num_flits; i++) {

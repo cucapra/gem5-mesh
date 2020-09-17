@@ -56,7 +56,7 @@ class RoutingUnit
     void addWeight(int link_weight);
 
     // get output port from routing table
-    int  lookupRoutingTable(int vnet, NetDest net_dest);
+    int  lookupRoutingTable(int vnet, NetDest net_dest, bool isReq);
 
     // Topology-specific direction based routing
     void addInDirection(PortDirection inport_dirn, int inport);
@@ -73,11 +73,14 @@ class RoutingUnit
                              PortDirection inport_dirn);
 
   private:
+    int getLinkWeight(int link, bool isReq);
+
     Router *m_router;
 
     // Routing Table
     std::vector<NetDest> m_routing_table;
-    std::vector<int> m_weight_table;
+    std::vector<int> m_req_weight_table;
+    std::vector<int> m_resp_weight_table;
 
     // Inport and Outport direction to idx maps
     std::map<PortDirection, int> m_inports_dirn2idx;
