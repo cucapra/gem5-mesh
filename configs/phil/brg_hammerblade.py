@@ -420,7 +420,7 @@ network = NetworkClass (ruby_system = system.ruby,
                         int_links = [],
                         netifs = [],
                         number_of_virtual_networks = 2, # what does it mean to have two networks??
-                        #vcs_per_vnet=virt_channels
+                        # vcs_per_vnet=32
                         )
                         
 
@@ -441,7 +441,7 @@ for i in xrange(n_scratchpads):
                   # store noacks like it does for prefetch
                   maxNumPendingReqs = options.stream_width,
                   prefetchBufSize   = 0, # don't allow to go over
-                  numFrameCntrs     = 5,
+                  numFrameCntrs     = 10,
                   cpu               = system.cpu[i])
 
   sp.memReqBuffer             = MessageBuffer(ordered = True)

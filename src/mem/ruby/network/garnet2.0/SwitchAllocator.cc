@@ -208,6 +208,31 @@ SwitchAllocator::arbitrate_inports()
                     send_allowed(inport, invc, outport, outvc);
 
                 if (make_request) {
+
+                    // if do make the request see if any other vcs could have gone
+                    int invc2 = 0;
+                    for (int invc_iter2 = 0; invc_iter2 < m_num_vcs; invc_iter2++) {
+                        if (invc2 != invc) {
+                            if (m_input_unit[inport]->need_stage(invc2, SA_, m_router->curCycle())) { // is this an issue? whats this checking?
+                                int  outport2 = m_input_unit[inport]->get_outport(invc2);
+                                int  outvc2   = m_input_unit[inport]->get_outvc(invc2);
+                                bool make_request2 =
+                                    send_allowed(inport, invc2, outport2, outvc2);
+
+                                if (make_request2) {
+                                    m_router->updateVcsRouterStall(inport);
+                                    break;
+                                }
+
+                                
+                            }
+                        }
+
+                        invc2++;
+                        if (invc2 >= m_num_vcs)
+                            invc2 = 0;
+                    }
+
                     m_input_arbiter_activity++;
                     m_port_requests[outport][inport] = true;
                     m_vc_winners[outport][inport]= invc;
@@ -217,13 +242,13 @@ SwitchAllocator::arbitrate_inports()
                     if (m_round_robin_invc[inport] >= m_num_vcs)
                         m_round_robin_invc[inport] = 0;
 
-                    // m_router->updateRouterDecision(inport, outport);
+                    
                     break; // got one vc winner for this port
                 }
                 // does nt seem like major contrib
-                // else {
-                //     m_router->updateRouterStall(inport, outport);
-                // }
+                else {
+                    m_router->updateInRouterStall(inport);
+                }
             }
 
             invc++;
@@ -346,7 +371,7 @@ SwitchAllocator::arbitrate_outports()
                 int inport2 = 0;
                 for (int inport_iter2 = 0; inport_iter2 < m_num_inports; inport_iter2++) {
                     if (m_port_requests[outport][inport2] && inport != inport2) {
-                        m_router->updateRouterStall(inport2, outport);
+                        m_router->updateOutRouterStall(inport2, outport);
                     }
 
                     inport2++;

@@ -522,7 +522,7 @@ System::cmplPrefetch(Addr spadAddr) {
 
         // if latency is large print out information about the packet so
         // that we can do tracing of debug log to see where the hold up was
-        if (cycles > 2000) {
+        if (cycles > 500) {
             DPRINTF(Frame, "prefetch resp %#x with trip %llu cycles\n", spadAddr, cycles);
             // assert(false);
         }

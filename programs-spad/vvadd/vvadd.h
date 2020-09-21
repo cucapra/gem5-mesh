@@ -41,7 +41,7 @@
 
 // prefetch sizings
 #define POST_REGION_WORD 512
-#define INIT_FRAMES 1
+#define INIT_FRAMES 5
 #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
 // load 16 words (whole cacheline at a time)
 #define LOAD_LEN 16

@@ -121,7 +121,9 @@ class Router : public BasicRouter, public Consumer
     // log that we sent something this way this cycle
     void updateRouterDecision(int inport, int outport);
     // stalls trying to push inport to outport (really b/c outport stalled)
-    void updateRouterStall(int inport, int outport);
+    void updateOutRouterStall(int inport, int outport);
+    void updateVcsRouterStall(int inport);
+    void updateInRouterStall(int inport);
 
   private:
     Cycles m_latency;
@@ -146,7 +148,11 @@ class Router : public BasicRouter, public Consumer
     // sent packets
     Stats::Vector m_router_descisions;
     // stalls trying to push inport to outport (really b/c outport stalled)
-    Stats::Vector m_router_stalls;
+    Stats::Vector m_router_out_stalls;
+
+    // if a flit is held back in inport selection
+    Stats::Vector m_router_other_vcs;
+    Stats::Vector m_router_cant_request;
 };
 
 #endif // __MEM_RUBY_NETWORK_GARNET2_0_ROUTER_HH__
