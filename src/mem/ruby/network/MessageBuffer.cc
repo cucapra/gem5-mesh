@@ -238,15 +238,19 @@ MessageBuffer::dequeue(Tick current_time, bool decrement_messages)
 
     DPRINTF(RubyNetwork, "Popping msg %p\n", message.get());
 
-    auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(message);
-    if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
-        DPRINTF(Frame, "Message buffer dequeue addr %#x\n", mem_msg->getLineAddress());
+    // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(message);
+    // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+    //     DPRINTF(Frame, "Message buffer dequeue addr %#x\n", mem_msg->getLineAddress());
 
     // get the delay cycles
     message->updateDelayedTicks(current_time);
     Tick delay = message->getDelayedTicks();
 
     m_stall_time = curTick() - message->getTime();
+
+    // if (curTick() - message->getTime() > 5000) {
+    //     DPRINTF(Frame, "stalled for %llu cycles in queue, buf size %d\n", curTick() - message->getTime(), m_prio_heap.size());
+    // }
 
     // record previous size and time so the current buffer size isn't
     // adjusted until schd cycle

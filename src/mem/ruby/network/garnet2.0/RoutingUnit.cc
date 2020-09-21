@@ -39,6 +39,8 @@
 #include "mem/ruby/network/garnet2.0/Router.hh"
 #include "mem/ruby/slicc_interface/Message.hh"
 
+#include "debug/Frame.hh"
+
 RoutingUnit::RoutingUnit(Router *router)
 {
     m_router = router;
@@ -69,6 +71,20 @@ RoutingUnit::addWeight(int link_weight)
     else
         fatal("Doesn't support weight %d must be 1 or 2\n", link_weight);
     m_resp_weight_table.push_back(link_weight);
+
+    std::string str = "";
+
+
+    if(m_req_weight_table.size() == 6) {
+        for (int i = 0; i < m_req_weight_table.size(); i++) {
+            str += std::to_string(m_req_weight_table[i]) + " ";
+        }
+        DPRINTF(Frame, "req %s\n", str.c_str());
+    }
+    // if(m_resp_weight_table.size() == m_router->get_num_outports())DPRINTF(Frame, "resp %d %d %d %d\n", m_resp_weight_table[0], m_resp_weight_table[1], m_resp_weight_table[2], m_resp_weight_table[3]);
+
+    // DPRINTF(Frame, "%d\n", m_req_weight_table.size());
+
 }
 
 int

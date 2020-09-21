@@ -118,6 +118,11 @@ class Router : public BasicRouter, public Consumer
     uint32_t functionalWrite(Packet *);
     bool functionalRead(Packet*);
 
+    // log that we sent something this way this cycle
+    void updateRouterDecision(int inport, int outport);
+    // stalls trying to push inport to outport (really b/c outport stalled)
+    void updateRouterStall(int inport, int outport);
+
   private:
     Cycles m_latency;
     int m_virtual_networks, m_num_vcs, m_vc_per_vnet;
@@ -137,6 +142,11 @@ class Router : public BasicRouter, public Consumer
     Stats::Scalar m_sw_output_arbiter_activity;
 
     Stats::Scalar m_crossbar_activity;
+
+    // sent packets
+    Stats::Vector m_router_descisions;
+    // stalls trying to push inport to outport (really b/c outport stalled)
+    Stats::Vector m_router_stalls;
 };
 
 #endif // __MEM_RUBY_NETWORK_GARNET2_0_ROUTER_HH__

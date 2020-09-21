@@ -205,9 +205,9 @@ NetworkInterface::wakeup()
             // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
             //     DPRINTF(Mesh, "Net interface %d Router %d push pkt %#x\n", m_id, m_router_id, mem_msg->getPacket()->getAddr());
 
-            auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
-            if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
-                DPRINTF(Frame, "Network interface wakeup addr %#x\n", mem_msg->getLineAddress());
+            // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
+            // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+            //     DPRINTF(Frame, "Network interface wakeup addr %#x\n", mem_msg->getLineAddress());
 
             if (flitisizeMessage(msg_ptr, vnet)) {
                 DPRINTF(RubyNetwork, "send message %p\n", msg_ptr.get());
@@ -389,6 +389,7 @@ NetworkInterface::flitisizeMessage(MsgPtr msg_ptr, int vnet)
         int vc = calculateVC(vnet);
 
         if (vc == -1) {
+            m_no_channel_avail++;
             // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
             // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
             //     DPRINTF(Frame, "Network interface no free output virtual channel (vcs) for flit addr %#x\n", mem_msg->getLineAddress());
@@ -611,6 +612,15 @@ NetworkInterface::functionalRead(Packet* pkt)
         return true;
 
     return false;
+}
+
+void
+NetworkInterface::regStats() {
+    ClockedObject::regStats();
+
+    m_no_channel_avail
+        .name(name() + ".no_channel_to_inject")
+    ;
 }
 
 NetworkInterface *

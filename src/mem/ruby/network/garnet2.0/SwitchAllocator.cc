@@ -111,33 +111,33 @@ static char port_to_dir_symbol(int port) {
 void
 SwitchAllocator::wakeup()
 {
-    // reset the array
-    for (int i = 0; i < m_wakeup_info.size(); i++) {
-        m_wakeup_info[i] = '-';
-    }
+    // // reset the array
+    // for (int i = 0; i < m_wakeup_info.size(); i++) {
+    //     m_wakeup_info[i] = '-';
+    // }
 
-    for (int inport = 0; inport < m_num_inports; inport++) {
-        // if (m_router->get_id() == 70) DPRINTF(Frame, "%s %d\n", m_router->getInportDirection(inport), inport);
-        if (m_input_unit.size() > inport) {
-            for (int v = 0; v < m_num_vcs; v++) {
-                if (m_input_unit[inport]->isReady(v, m_router->curCycle()) && m_input_unit[inport]->peekTopFlit(v)) {
-                    m_wakeup_info[inport * m_num_vcs + v] = '0';
-                }
-            }
-        }
-    }
+    // for (int inport = 0; inport < m_num_inports; inport++) {
+    //     // if (m_router->get_id() == 70) DPRINTF(Frame, "%s %d\n", m_router->getInportDirection(inport), inport);
+    //     if (m_input_unit.size() > inport) {
+    //         for (int v = 0; v < m_num_vcs; v++) {
+    //             if (m_input_unit[inport]->isReady(v, m_router->curCycle()) && m_input_unit[inport]->peekTopFlit(v)) {
+    //                 m_wakeup_info[inport * m_num_vcs + v] = '0';
+    //             }
+    //         }
+    //     }
+    // }
 
     arbitrate_inports(); // First stage of allocation
 
-    // check which one got input arbiration
-    for (int outport = 0; outport < m_num_outports; outport++) {
-        for (int inport = 0; inport < m_num_inports; inport++) {
-            if (m_port_requests[outport][inport]) {
-                int vc = m_vc_winners[outport][inport];
-                m_wakeup_info[inport * m_num_vcs + vc] = '1';
-            }
-        }
-    }
+    // // check which one got input arbiration
+    // for (int outport = 0; outport < m_num_outports; outport++) {
+    //     for (int inport = 0; inport < m_num_inports; inport++) {
+    //         if (m_port_requests[outport][inport]) {
+    //             int vc = m_vc_winners[outport][inport];
+    //             m_wakeup_info[inport * m_num_vcs + vc] = '1';
+    //         }
+    //     }
+    // }
 
     arbitrate_outports(); // Second stage of allocation
 
@@ -217,8 +217,13 @@ SwitchAllocator::arbitrate_inports()
                     if (m_round_robin_invc[inport] >= m_num_vcs)
                         m_round_robin_invc[inport] = 0;
 
+                    // m_router->updateRouterDecision(inport, outport);
                     break; // got one vc winner for this port
                 }
+                // does nt seem like major contrib
+                // else {
+                //     m_router->updateRouterStall(inport, outport);
+                // }
             }
 
             invc++;
@@ -335,6 +340,20 @@ SwitchAllocator::arbitrate_outports()
                 // debug
                 char out_dir = port_to_dir_symbol(outport);
                 m_wakeup_info[inport * m_num_vcs + invc] = out_dir;
+
+                m_router->updateRouterDecision(inport, outport);
+                // check if any other ports wanted to use, and count as stall if cant
+                int inport2 = 0;
+                for (int inport_iter2 = 0; inport_iter2 < m_num_inports; inport_iter2++) {
+                    if (m_port_requests[outport][inport2] && inport != inport2) {
+                        m_router->updateRouterStall(inport2, outport);
+                    }
+
+                    inport2++;
+                    if (inport2 >= m_num_inports)
+                        inport2 = 0;
+                }
+
 
                 break; // got a input winner for this outport
             }
