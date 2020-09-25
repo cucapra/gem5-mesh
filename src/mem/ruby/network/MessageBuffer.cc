@@ -214,11 +214,17 @@ MessageBuffer::enqueue(MsgPtr message, Tick current_time, Tick delta)
     DPRINTF(RubyQueue, "Enqueue arrival_time: %lld, Message: %s\n",
             arrival_time, *(message.get()));
 
-    DPRINTF(RubyQueue, "Enqueue arrival_time: %lld, Message: %p %s\n",
-            arrival_time, message.get(), *(message.get()));
+    // DPRINTF(RubyQueue, "Enqueue arrival_time: %lld, Message: %p %s\n",
+    //         arrival_time, message.get(), *(message.get()));
 
     auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(message);
-    if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+
+    if (mem_msg != nullptr && m_prio_heap.size() == 2) {
+        DPRINTF(Frame, "Message buffer enqueue addr %#x arrival %lld queue size %d\n", mem_msg->getLineAddress(), arrival_time, m_prio_heap.size());
+    }
+
+
+    if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
         DPRINTF(Frame, "Message buffer enqueue addr %#x arrival %lld queue size %d\n", mem_msg->getLineAddress(), arrival_time, m_prio_heap.size());
 
     // Schedule the wakeup
@@ -238,19 +244,21 @@ MessageBuffer::dequeue(Tick current_time, bool decrement_messages)
 
     DPRINTF(RubyNetwork, "Popping msg %p\n", message.get());
 
-    // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(message);
-    // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
-    //     DPRINTF(Frame, "Message buffer dequeue addr %#x\n", mem_msg->getLineAddress());
-
     // get the delay cycles
     message->updateDelayedTicks(current_time);
     Tick delay = message->getDelayedTicks();
 
     m_stall_time = curTick() - message->getTime();
 
-    // if (curTick() - message->getTime() > 5000) {
-    //     DPRINTF(Frame, "stalled for %llu cycles in queue, buf size %d\n", curTick() - message->getTime(), m_prio_heap.size());
-    // }
+    auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(message);
+    if (mem_msg != nullptr)
+        if (curTick() - message->getTime() > 5000 && mem_msg->getLineAddress() == 0x40032038) {
+            DPRINTF(Frame, "msg %#x stalled for %llu cycles in queue, buf size %d\n", mem_msg->getLineAddress(), curTick() - message->getTime(), m_prio_heap.size());
+        }
+
+    // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(message);
+    // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40034144) 
+    //     DPRINTF(Frame, "Message buffer dequeue addr %#x %llu\n", mem_msg->getLineAddress(), curTick() - message->getTime());
 
     // record previous size and time so the current buffer size isn't
     // adjusted until schd cycle

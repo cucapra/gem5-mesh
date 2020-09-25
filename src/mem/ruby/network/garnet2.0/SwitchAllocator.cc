@@ -39,6 +39,7 @@
 #include "mem/ruby/network/garnet2.0/OutputUnit.hh"
 #include "mem/ruby/network/garnet2.0/Router.hh"
 
+#include "mem/protocol/LLCResponseMsg.hh"
 #include "debug/Frame.hh"
 
 SwitchAllocator::SwitchAllocator(Router *router)
@@ -214,15 +215,15 @@ SwitchAllocator::arbitrate_inports()
                     for (int invc_iter2 = 0; invc_iter2 < m_num_vcs; invc_iter2++) {
                         if (invc2 != invc) {
                             if (m_input_unit[inport]->need_stage(invc2, SA_, m_router->curCycle())) { // is this an issue? whats this checking?
-                                int  outport2 = m_input_unit[inport]->get_outport(invc2);
-                                int  outvc2   = m_input_unit[inport]->get_outvc(invc2);
-                                bool make_request2 =
-                                    send_allowed(inport, invc2, outport2, outvc2);
+                                // int  outport2 = m_input_unit[inport]->get_outport(invc2);
+                                // int  outvc2   = m_input_unit[inport]->get_outvc(invc2);
+                                // bool make_request2 =
+                                    // send_allowed(inport, invc2, outport2, outvc2);
 
-                                if (make_request2) {
+                                // if (make_request2) {
                                     m_router->updateVcsRouterStall(inport);
                                     break;
-                                }
+                                // }
 
                                 
                             }
@@ -311,6 +312,11 @@ SwitchAllocator::arbitrate_outports()
                             m_input_unit[inport]->get_direction()),
                             *t_flit,
                         m_router->curCycle());
+
+                auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(t_flit->get_msg_ptr());
+                if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
+                    DPRINTF(Frame, "Switch Allocator Router %d do route %#x in %s out %s\n", m_router->get_id(), mem_msg->getLineAddress(),
+                        m_router->getPortDirectionName(m_input_unit[inport]->get_direction()), m_router->getPortDirectionName(m_output_unit[outport]->get_direction()));
 
 
                 // Update outport field in the flit since this is

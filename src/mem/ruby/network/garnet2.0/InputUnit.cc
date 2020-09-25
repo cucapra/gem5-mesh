@@ -133,7 +133,7 @@ InputUnit::wakeup()
             //     DPRINTF(Mesh, "InputUnit %d Router %d single-cycle buffer %#x\n", m_id, m_router->get_id(), mem_msg->getPacket()->getAddr());
 
             auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(t_flit->get_msg_ptr());
-            if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+            if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
                 DPRINTF(Frame, "InputUnit %d Router %d single-cycle buffer %#x\n", m_id, m_router->get_id(), mem_msg->getLineAddress());
 
 
@@ -164,6 +164,7 @@ InputUnit::increment_credit(int in_vc, bool free_signal, Cycles curTime)
     Credit *t_credit = new Credit(in_vc, free_signal, curTime);
     creditQueue->insert(t_credit);
     m_credit_link->scheduleEventAbsolute(m_router->clockEdge(Cycles(1)));
+    // m_credit_link->scheduleEventAbsolute(curTick() + 1);
 }
 
 

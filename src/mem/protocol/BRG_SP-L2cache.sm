@@ -14,6 +14,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
       MessageBuffer* requestToLLC,    network = "From", virtual_network = "1", vnet_type = "request";
       MessageBuffer* responseFromLLC, network = "To",   virtual_network = "0", vnet_type = "response";
+      // MessageBuffer* responseFromMemLLC, network = "From", virtual_network = "0", vnet_type = "response";
       MessageBuffer* responseFromMemory;
 
       int meshDimX := 2;
