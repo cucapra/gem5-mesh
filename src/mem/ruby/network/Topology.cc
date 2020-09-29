@@ -36,6 +36,7 @@
 #include "mem/ruby/network/BasicLink.hh"
 #include "mem/ruby/network/Network.hh"
 #include "mem/ruby/slicc_interface/AbstractController.hh"
+#include "mem/ruby/network/garnet2.0/GarnetLink.hh"
 
 using namespace std;
 
@@ -66,9 +67,11 @@ Topology::Topology(uint32_t num_routers,
     // one for each direction.
     //
     // External Links
+    // volatile int numDebug = 0;
     for (vector<BasicExtLink*>::const_iterator i = ext_links.begin();
          i != ext_links.end(); ++i) {
         BasicExtLink *ext_link = (*i);
+
         AbstractController *abs_cntrl = ext_link->params()->ext_node;
         BasicRouter *router = ext_link->params()->int_node;
 
@@ -77,11 +80,29 @@ Topology::Topology(uint32_t num_routers,
         int ext_idx2 = ext_idx1 + m_nodes;
         int int_idx = router->params()->router_id + 2*m_nodes;
 
+        // single directional links
+        if (dynamic_cast<GarnetExtUniLink*>(ext_link) != nullptr) {
+            // TODO somehow need to modify to get diffrent ext_idx1...
+            // not sure how to do that, in which case should make one 
+            // netinferace all handle both..?? i..e, make vector in/out ports for everything
+            
+            // hack to get the right netifs. TODO requires uni links to be declared at the end
+            // 144 - 8 + abs_cntrl->getVersion()
+            // ext_idx1 = 144 - 8 + abs_cntrl->getVersion(); 
+            
+            // ext to int
+            addLink(ext_idx1, int_idx, ext_link);
+        }
+        else {
+
         // create the internal uni-directional links in both directions
         // ext to int
         addLink(ext_idx1, int_idx, ext_link);
         // int to ext
         addLink(int_idx, ext_idx2, ext_link);
+        }
+
+        // numDebug++;
     }
 
     // Internal Links
@@ -156,6 +177,18 @@ Topology::createLinks(Network *net)
             }
         }
     }
+
+    // add uni directional external links
+    for (auto& v : m_ext_uni_ptrs) {
+        NetDest unused;
+        // makeLink(net, v.first, v.second, unused);
+
+        std::pair<int, int> src_dest = v;
+        LinkEntry link_entry;
+        link_entry = m_link_map[src_dest];
+        net->makeExtInLink(v.first, v.second - (2 * m_nodes), link_entry.link, unused);
+    }
+    
 }
 
 void
@@ -175,6 +208,11 @@ Topology::addLink(SwitchID src, SwitchID dest, BasicLink* link,
     link_entry.src_outport_dirn = src_outport_dirn;
     link_entry.dst_inport_dirn  = dst_inport_dirn;
     m_link_map[src_dest_pair] = link_entry;
+
+    // remember this if its uni directional
+    if (dynamic_cast<GarnetExtUniLink*>(link) != nullptr) {
+        m_ext_uni_ptrs.push_back(src_dest_pair);
+    }
 }
 
 void

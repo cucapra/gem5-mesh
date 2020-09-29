@@ -82,16 +82,22 @@ class NetworkInterface : public ClockedObject, public Consumer
     const NodeID m_id;
     const int m_virtual_networks, m_vc_per_vnet, m_num_vcs;
     int m_router_id; // id of my router
-    std::vector<OutVcState *> m_out_vc_state;
-    std::vector<int> m_vc_allocator;
-    int m_vc_round_robin; // For round robin scheduling
-    flitBuffer *outFlitQueue; // For modeling link contention
+    // std::vector<OutVcState *> m_out_vc_state;
+    // std::vector<int> m_vc_allocator;
+    std::vector<std::vector<OutVcState *>> m_out_vc_state;
+    std::vector<std::vector<int>> m_vc_allocator;
+    // int m_vc_round_robin; // For round robin scheduling
+    std::vector<int> m_vc_round_robin;
+    // flitBuffer *outFlitQueue; // For modeling link contention
+    std::vector<flitBuffer*> outFlitQueue; // For modeling link contention
     flitBuffer *outCreditQueue;
     int m_deadlock_threshold;
 
     NetworkLink *inNetLink;
-    NetworkLink *outNetLink;
-    CreditLink *inCreditLink;
+    // NetworkLink *outNetLink;
+    // CreditLink *inCreditLink;
+    std::vector<NetworkLink*> outNetLink;
+    std::vector<CreditLink*> inCreditLink;
     CreditLink *outCreditLink;
 
     // Queue for stalled flits
@@ -100,7 +106,7 @@ class NetworkInterface : public ClockedObject, public Consumer
 
     // Input Flit Buffers
     // The flit buffers which will serve the Consumer
-    std::vector<flitBuffer *>  m_ni_out_vcs;
+    std::vector<std::vector<flitBuffer *>>  m_ni_out_vcs;
     std::vector<Cycles> m_ni_out_vcs_enqueue_time;
 
     // The Message buffers that takes messages from the protocol
@@ -111,12 +117,13 @@ class NetworkInterface : public ClockedObject, public Consumer
     std::vector<int> vc_busy_counter;
 
     bool checkStallQueue();
-    bool flitisizeMessage(MsgPtr msg_ptr, int vnet);
-    int calculateVC(int vnet);
+    bool flitisizeMessage(MsgPtr msg_ptr, int vnet, int idx);
+    int calculateVC(int vnet, int idx);
 
-    void scheduleOutputLink();
+    void scheduleOutputLink(int idx);
     void checkReschedule();
     void sendCredit(flit *t_flit, bool is_free);
+    int vnetToLink(int vnet);
 
     void incrementStats(flit *t_flit);
 

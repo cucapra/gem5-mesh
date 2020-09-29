@@ -92,3 +92,15 @@ GarnetExtLinkParams::create()
 {
     return new GarnetExtLink(this);
 }
+
+GarnetExtUniLink::GarnetExtUniLink(const Params *p)
+    : GarnetExtLink(p)
+{
+}
+
+
+GarnetExtUniLink *
+GarnetExtUniLinkParams::create()
+{
+    return new GarnetExtUniLink(this);
+}

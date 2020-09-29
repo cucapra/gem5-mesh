@@ -43,6 +43,7 @@
 #include "mem/ruby/network/garnet2.0/NetworkLink.hh"
 #include "params/GarnetExtLink.hh"
 #include "params/GarnetIntLink.hh"
+#include "params/GarnetExtUniLink.hh"
 
 class GarnetIntLink : public BasicIntLink
 {
@@ -85,6 +86,16 @@ class GarnetExtLink : public BasicExtLink
     NetworkLink* m_network_links[2];
     CreditLink* m_credit_links[2];
 };
+
+
+// add uni directional
+class GarnetExtUniLink : public GarnetExtLink
+{
+  public:
+    typedef GarnetExtUniLinkParams Params;
+    GarnetExtUniLink(const Params *p);
+};
+
 
 inline std::ostream&
 operator<<(std::ostream& out, const GarnetExtLink& obj)

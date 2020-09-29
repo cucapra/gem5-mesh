@@ -166,6 +166,18 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
       link_count += 1
       ext_links.append(l2_ext_link)
 
+  # also add l2s to routers a few hops aways?
+  l2_idx = 0
+  for i in xrange(n_cols * (n_rows - 3), n_cols * (n_rows - 2)):
+    if l2_idx < len(l2s):
+      l2_ext_link = GarnetExtUniLink(link_id   = link_count,
+                            ext_node  = l2s[l2_idx],
+                            int_node  = routers[i],
+                            latency   = link_latency)
+      l2_idx += 1
+      link_count += 1
+      ext_links.append(l2_ext_link)
+
   network.ext_links = ext_links
 
   #--------------------------
@@ -420,7 +432,8 @@ network = NetworkClass (ruby_system = system.ruby,
                         int_links = [],
                         netifs = [],
                         number_of_virtual_networks = 2, # what does it mean to have two networks??
-                        # vcs_per_vnet=32
+                        # vcs_per_vnet=2048,
+                        # buffers_per_data_vc=1024
                         )
                         
 
@@ -531,6 +544,9 @@ for i in xrange(n_l2s):
 
   l2_cntrl.responseFromLLC        = MessageBuffer(ordered = True)
   l2_cntrl.responseFromLLC.master = network.slave
+
+  l2_cntrl.responseFromMemLLC     = MessageBuffer(ordered = True)
+  l2_cntrl.responseFromMemLLC.master = network.slave
 
   l2_cntrl.responseFromMemory     = MessageBuffer(ordered = True)
 

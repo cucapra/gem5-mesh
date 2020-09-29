@@ -99,6 +99,8 @@ class Topology
     std::vector<BasicExtLink*> m_ext_link_vector;
     std::vector<BasicIntLink*> m_int_link_vector;
 
+    std::vector<std::pair<int, int>> m_ext_uni_ptrs;
+
     LinkMap m_link_map;
 };
 

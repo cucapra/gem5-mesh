@@ -77,3 +77,7 @@ class GarnetExtLink(BasicExtLink):
     # Out uni-directional link
     _cls.append(CreditLink());
     credit_links = VectorParam.CreditLink(_cls, "backward flow-control links")
+
+class GarnetExtUniLink(GarnetExtLink):
+    type = "GarnetExtUniLink"
+    cxx_header = "mem/ruby/network/garnet2.0/GarnetLink.hh"

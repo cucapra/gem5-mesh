@@ -114,6 +114,8 @@ def init_network(options, network, InterfaceClass):
     if options.network == "simple":
         network.setup_buffers()
 
+
+    # make multiple network interfaces per controller
     if InterfaceClass != None:
         netifs = [InterfaceClass(id=i) \
                   for (i,n) in enumerate(network.ext_links)]
