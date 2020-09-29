@@ -534,10 +534,28 @@ for i in xrange(n_l2s):
 
   l2_cntrl.responseFromMemory     = MessageBuffer(ordered = True)
 
+  l2_cntrl.responseFromMemLLC     = MessageBuffer(ordered = True)
+
   l2_cntrls.append(l2_cntrl)
 
 
 system.l2_cntrls = l2_cntrls
+
+l2_forwards = []
+for i in xrange(n_l2s):
+  l2_forward = Forwarder(version = i,
+                          ruby_system = system.ruby)
+  
+  l2_forward.netResponseBuffer = MessageBuffer(ordered = True)
+  l2_forward.netResponseBuffer.master = network.slave
+
+  # share ptr for l2 MessageBuffer
+  l2_forward.cacheForwardBuffer = system.l2_cntrls[i].responseFromMemLLC
+
+  l2_forwards.append(l2_forward)
+
+system.l2_forwards = l2_forwards
+
 
 #------------------------------------------------------------------------------
 # Connect all controllers to network

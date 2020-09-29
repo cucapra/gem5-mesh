@@ -1,6 +1,8 @@
 Import('*')
 
 SimObject('Scratchpad.py')
+SimObject('Forwarder.py')
 
 Source('Scratchpad.cc')
 Source('MemMessage.cc')
+Source('Forwarder.cc')
