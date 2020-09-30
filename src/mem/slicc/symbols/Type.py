@@ -202,6 +202,7 @@ class Type(Symbol):
 
 #include "mem/ruby/slicc_interface/RubySlicc_Util.hh"
 #include "mem/ruby/scratchpad/Scratchpad.hh"
+#include "mem/ruby/scratchpad/Forwarder.hh"
 ''')
 
         for dm in self.data_members.values():
@@ -731,6 +732,8 @@ ${{self.c_ident}}_base_number(const ${{self.c_ident}}& obj)
                     code('    base += ${{enum.ident}}_Controller::getNumControllers();')
                 elif enum.ident == 'Scratchpad':
                     code('    base += Scratchpad::getNumControllers();')
+                elif enum.ident == 'Forwarder':
+                    code('    base += Forwarder::getNumControllers();')
                 else:
                     code('    base += 0;')
                 code('    M5_FALLTHROUGH;')
@@ -762,6 +765,8 @@ ${{self.c_ident}}_base_count(const ${{self.c_ident}}& obj)
                     code('return ${{enum.ident}}_Controller::getNumControllers();')
                 elif enum.ident == 'Scratchpad':
                     code('return Scratchpad::getNumControllers();')
+                elif enum.ident == 'Forwarder':
+                    code('return Forwarder::getNumControllers();')
                 else:
                     code('return 0;')
 

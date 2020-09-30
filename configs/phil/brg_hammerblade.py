@@ -104,6 +104,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
   cpu_sps   = system.scratchpads[:n_cpus]
   xcel_sps  = system.scratchpads[n_cpus:]
   l2s       = system.l2_cntrls
+  l2fs      = system.l2_forwards
 
 
   print('cpu {} router {} pad {} l2s {}'.format(
@@ -163,6 +164,19 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                             int_node  = routers[i],
                             latency   = link_latency)
       l2_idx += 1
+      link_count += 1
+      ext_links.append(l2_ext_link)
+
+  # add links to later row of routers
+  l2f_idx = 0
+  skip_len = 2
+  for i in xrange(n_cols * (n_rows - 1 - skip_len), n_cols * (n_rows - skip_len)):
+    if l2f_idx < len(l2fs):
+      l2_ext_link = ExtLink(link_id   = link_count,
+                            ext_node  = l2fs[l2f_idx],
+                            int_node  = routers[i],
+                            latency   = link_latency)
+      l2f_idx += 1
       link_count += 1
       ext_links.append(l2_ext_link)
 

@@ -14,12 +14,16 @@
 #include "debug/LoadTrack.hh"
 #include "debug/RubyNetwork.hh"
 
+int Forwarder::m_num_forwarders = 0; 
+
 Forwarder::Forwarder(const Params* p)
     : AbstractController(p),
       m_ruby_system_p(p->ruby_system),
       m_cache_forward_buffer_p(p->cacheForwardBuffer),
       m_net_response_buffer_p(p->netResponseBuffer)
 {
+  m_num_forwarders++;
+
   // init AbstractController fields
   m_machineID.type = MachineType_Forwarder;
   m_machineID.num = m_version;

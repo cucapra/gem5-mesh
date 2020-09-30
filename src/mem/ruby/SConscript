@@ -149,3 +149,4 @@ MakeInclude('system/VIPERCoalescer.hh')
 
 MakeInclude('scratchpad/MemMessage.hh')
 MakeInclude('scratchpad/Scratchpad.hh')
+MakeInclude('scratchpad/Forwarder.hh')

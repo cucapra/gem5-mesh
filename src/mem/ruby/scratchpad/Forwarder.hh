@@ -79,6 +79,11 @@ class Forwarder : public AbstractController
     void collateStats() override
     { warn("Forwarder does not support collateStats()\n"); }
 
+    /**
+     * return number of forwarders
+     */
+    static int getNumControllers() { return m_num_forwarders; }
+
   private:
     /**
      * Pointer to Ruby system
@@ -90,6 +95,11 @@ class Forwarder : public AbstractController
      */
     MessageBuffer* m_cache_forward_buffer_p;   // cache to this
     MessageBuffer* m_net_response_buffer_p;    // this to network
+
+    /**
+     * Number of forwarders
+     */
+    static int m_num_forwarders;
 
 };
 
