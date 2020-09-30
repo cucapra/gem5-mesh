@@ -7,12 +7,8 @@
 #include "mem/protocol/LLCResponseMsg.hh"
 #include "mem/ruby/network/Network.hh"
 #include "mem/ruby/scratchpad/MemMessage.hh"
-#include "arch/registers.hh"
-#include "cpu/io/cpu.hh"
 
 #include "debug/Frame.hh"
-#include "debug/LoadTrack.hh"
-#include "debug/RubyNetwork.hh"
 
 int Forwarder::m_num_forwarders = 0; 
 
@@ -67,11 +63,13 @@ Forwarder::wakeup()
     //   dynamic_cast<const LLCResponseMsg*>(m_cache_forward_buffer_p->peek());
     auto msg_p = m_cache_forward_buffer_p->peekMsgPtr();
 
-    m_net_response_buffer_p->enqueue(msg_p,
-                            clockEdge(),
-                            cyclesToTicks(Cycles(1)));
+    // DPRINTF(Frame, "forward msg enqueued at %llu\n", msg_p->getLastEnqueueTime());
     
     m_cache_forward_buffer_p->dequeue(clockEdge());
+
+    m_net_response_buffer_p->enqueue(msg_p,
+                        clockEdge(),
+                        cyclesToTicks(Cycles(1)));
 
     // if input buffers are not empty, schedule an event in the next cycle
     if (!m_cache_forward_buffer_p->isEmpty())

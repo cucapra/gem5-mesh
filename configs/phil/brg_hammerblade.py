@@ -169,7 +169,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
 
   # add links to later row of routers
   l2f_idx = 0
-  skip_len = 2
+  skip_len = 8
   for i in xrange(n_cols * (n_rows - 1 - skip_len), n_cols * (n_rows - skip_len)):
     if l2f_idx < len(l2fs):
       l2_ext_link = ExtLink(link_id   = link_count,
@@ -190,7 +190,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
 
   # will try to take minimum weight path
   horiz_weight = 1
-  verti_weight = 2
+  verti_weight = 1
 
   # East output to West input links (weight = 1)
   for row in xrange(n_rows):
