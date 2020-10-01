@@ -14,7 +14,6 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
       MessageBuffer* requestToLLC,    network = "From", virtual_network = "1", vnet_type = "request";
       MessageBuffer* responseFromLLC, network = "To",   virtual_network = "0", vnet_type = "response";
-      MessageBuffer* responseFromMemLLC;
       MessageBuffer* responseFromMemory;
 
       int meshDimX := 2;
@@ -422,7 +421,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   // Responses to CPU side
   out_port(responseNetwork_out, LLCResponseMsg, responseFromLLC);
-  out_port(responseNetwork_outFar, LLCResponseMsg, responseFromMemLLC);
+  //out_port(responseNetwork_outFar, LLCResponseMsg, responseFromMemLLC);
 
   // Requests coming from CPU side
   in_port(requestNetwork_in, LLCRequestMsg, requestToLLC) {
@@ -637,7 +636,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   action(sdm_sendDataFromMem, "sdm", desc = "Send response data to CPU side from mem") {
     peek(memQueue_in, MemoryMsg) {
-      enqueue(responseNetwork_outFar, LLCResponseMsg, mem_to_cpu_latency) {
+      enqueue(responseNetwork_out, LLCResponseMsg, mem_to_cpu_latency) {
         assert(is_valid(tbe));
         out_msg.Type        := LLCResponseType:DATA;
         out_msg.LineAddress := in_msg.addr;
@@ -761,7 +760,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d core offset %d\n", 
         spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.CoreOffset);
       
-      enqueue(responseNetwork_outFar, LLCResponseMsg, mem_to_cpu_latency) {
+      enqueue(responseNetwork_out, LLCResponseMsg, mem_to_cpu_latency) {
         assert(is_valid(tbe));
         out_msg.Type        := respType;
         out_msg.LineAddress := spadAddr;
@@ -860,7 +859,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
 
   action(swa_sendWriteAck, "swa", desc = "Send write ack") {
-    enqueue(responseNetwork_outFar, LLCResponseMsg, cache_resp_latency) {
+    enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
       assert(is_valid(tbe));
       out_msg.Type        := LLCResponseType:ACK;
       out_msg.LineAddress := address;
