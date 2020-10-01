@@ -86,9 +86,12 @@ def get_processes(options):
 # The first (n_rows - 1) rows are connected to either CPUs and/or xcels
 # The last row is connected to L2 banks
 
-def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
+def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_l2,
                      IntLink, ExtLink, Router):
-  assert(n_rows >= 2)
+  if (double_l2):
+    assert(n_rows >= 3)
+  else:
+    assert(n_rows >= 2)
   assert(n_cols >= 1)
 
   num_routers = n_rows * n_cols;
@@ -113,7 +116,11 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
   assert(len(cpu_sps) == n_cpus)
   assert(n_cpus <= num_routers)
   assert(n_xcels <= num_routers)
-  assert(len(l2s) <= n_cols)
+
+  if (double_l2):
+    assert(len(l2s) <= n_cols*2)
+  else:
+    assert(len(l2s) <= n_cols)
   #assert(len(l2s) + n_cpus + n_xcels == num_routers)
 
   # create all routers
@@ -130,18 +137,34 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
 
   ext_links = []
 
+  router_idx = 0
+  l2_idx = 0
+
+  # l2s to first row of l2s if duplicationg
+  if (double_l2):
+    for i in xrange(len(l2s)/2):
+      if l2_idx < len(l2s)/2:
+        l2_ext_link = ExtLink(link_id   = link_count,
+                              ext_node  = l2s[l2_idx],
+                              int_node  = routers[i],
+                              latency   = link_latency)
+        l2_idx += 1
+        link_count += 1
+        router_idx += 1
+        ext_links.append(l2_ext_link)
+
   # add all CPU I-caches and SPs to the first few routers
   for i in xrange(n_cpus):
     icache_ext_link = ExtLink(link_id   = link_count,
                               ext_node  = icaches[i],
-                              int_node  = routers[i],
+                              int_node  = routers[i + router_idx],
                               latency   = link_latency)
     link_count += 1
     ext_links.append(icache_ext_link)
 
     cpu_sp_ext_link = ExtLink(link_id   = link_count,
                               ext_node  = cpu_sps[i],
-                              int_node  = routers[i],
+                              int_node  = routers[i + router_idx],
                               latency   = link_latency)
     link_count += 1
     ext_links.append(cpu_sp_ext_link)
@@ -150,13 +173,12 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
   for i in xrange(n_xcels):
     xcel_ext_link = ExtLink(link_id   = link_count,
                             ext_node  = xcel_sps[i],
-                            int_node  = routers[i],
+                            int_node  = routers[i + router_idx],
                             latency   = link_latency)
     link_count += 1
     ext_links.append(xcel_ext_link)
 
   # add all l2s to bottom routers
-  l2_idx = 0
   for i in xrange(n_cols * (n_rows - 1), num_routers):
     if l2_idx < len(l2s):
       l2_ext_link = ExtLink(link_id   = link_count,
@@ -190,7 +212,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
 
   # will try to take minimum weight path
   horiz_weight = 1
-  verti_weight = 1
+  verti_weight = 2
 
   # East output to West input links (weight = 1)
   for row in xrange(n_rows):
@@ -356,6 +378,8 @@ n_cpus  = options.num_cpus
 n_xcels = 0 #options.num_xcels
 n_tiles = n_cpus + n_xcels
 
+double_L2 = True
+
 # mesh size is determined by the number of xcels and device cpus
 n_cols  = int(math.sqrt(n_tiles))
 
@@ -363,6 +387,12 @@ n_cols  = int(math.sqrt(n_tiles))
 n_rows  = n_cols + 1
 
 n_l2s   = n_cols
+
+# add another row if doing 2nd row on edge
+if (double_L2):
+  n_rows += 1
+  n_l2s += n_cols
+
 
 # network classes
 #assert(options.network == "garnet2.0")
@@ -522,6 +552,8 @@ elif n_l2s == 4:
   l2_size = '64kB'
 elif n_l2s == 8:
   l2_size = '32kB'
+elif n_l2s % n_cols == 0:
+  l2_size = '32kB'
 else:
   fatal("Invalid number of L2 banks")
 
@@ -575,7 +607,7 @@ system.l2_cntrls = l2_cntrls
 # Connect all controllers to network
 #------------------------------------------------------------------------------
 
-makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
+makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_L2,
                  IntLinkClass, ExtLinkClass, RouterClass)
 
 init_network(options, network, InterfaceClass)
@@ -590,7 +622,10 @@ system.system_port = system.ruby.sys_port_proxy.slave
 #------------------------------------------------------------------------------
 
 if (options.vector):
-  makeSystolicTopology(system, n_rows - 1, n_cols)
+  eff_rows = n_rows - 1
+  if (double_L2):
+    eff_rows = n_rows - 2
+  makeSystolicTopology(system, eff_rows, n_cols)
 
 #------------------------------------------------------------------------------
 # Construct memory controller
