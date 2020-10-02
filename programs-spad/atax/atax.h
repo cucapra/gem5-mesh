@@ -16,7 +16,7 @@
 #endif
 
 #ifndef INIT_FRAMES
-#define INIT_FRAMES 2
+#define INIT_FRAMES 6
 #endif
 
 #define PREFETCH_LEN 16

@@ -43,7 +43,7 @@
 
 // number of frames to get ahead
 #ifndef INIT_FRAMES
-#define INIT_FRAMES 1
+#define INIT_FRAMES 5
 #endif
 
 // prefetch sizings for step1

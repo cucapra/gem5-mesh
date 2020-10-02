@@ -84,7 +84,7 @@
 // prefetch sizings
 #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
 #ifndef INIT_FRAMES
-#define INIT_FRAMES 2
+#define INIT_FRAMES 6
 #endif
 
 // define prefetch len externally
