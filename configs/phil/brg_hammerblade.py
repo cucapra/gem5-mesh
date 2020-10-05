@@ -636,8 +636,8 @@ system.mem_ranges = [ AddrRange(options.mem_size) ]
 
 system.mem_ctrl = SimpleMemory()
 system.mem_ctrl.range = system.mem_ranges[0]
-system.mem_ctrl.latency = '60ns'
-system.mem_ctrl.bandwidth = '16GB/s'
+system.mem_ctrl.latency = '1ns'
+system.mem_ctrl.bandwidth = '32GB/s'
 
 # TODO need to config this more like in MemConfig.py?
 # I don't think need to do when only one address range?
