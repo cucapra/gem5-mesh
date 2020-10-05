@@ -544,6 +544,17 @@ def plot_llc_busy_cycles(data):
   add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'fracllcbusy', 'fracllcbusy', False) 
 
+def plot_llc_miss_rate(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'llcMissRate')
+  # normalize(sub_labels, values)
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'LLC Misses', 'LLC_Misses', False) 
+
+def plot_llc_access_rate(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'llcAccessRate')
+  # normalize(sub_labels, values)
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'LLC Access Rate', 'LLC_Access_Rate', False) 
 
 # top level for analysis passes. generates all plots sequentially
 def make_plots_and_tables(all_data):
@@ -596,3 +607,5 @@ def make_plots_and_tables(all_data):
   plot_llc_response_stalls(all_data)
   plot_mem_response_stalls(all_data)
   plot_llc_busy_cycles(all_data)
+  plot_llc_miss_rate(all_data)
+  plot_llc_access_rate(all_data)

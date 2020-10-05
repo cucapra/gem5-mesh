@@ -208,6 +208,15 @@ cpu_stats = OrderedDict([
     'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
   }),
 
+  ('llcMissRate', {
+    'formula' : ['llc-misses', 'llc_access'],
+    'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
+  }),
+  ('llcAccessRate', {
+    'formula' : ['llc_access', 'cycles'],
+    'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
+  })
+
 
 ])
 
