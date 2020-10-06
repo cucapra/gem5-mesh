@@ -153,6 +153,8 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_l2
         link_count += 1
         router_idx += 1
         ext_links.append(l2_ext_link)
+  elif(inject_bot):
+    router_idx += n_cols
 
   # add all CPU I-caches and SPs to the first few routers
   for i in xrange(n_cpus):
