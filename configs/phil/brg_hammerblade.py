@@ -86,9 +86,9 @@ def get_processes(options):
 # The first (n_rows - 1) rows are connected to either CPUs and/or xcels
 # The last row is connected to L2 banks
 
-def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_l2,
+def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_l2, inject_bot,
                      IntLink, ExtLink, Router):
-  if (double_l2):
+  if (double_l2 or inject_bot):
     assert(n_rows >= 3)
   else:
     assert(n_rows >= 2)
@@ -107,7 +107,8 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_l2
   cpu_sps   = system.scratchpads[:n_cpus]
   xcel_sps  = system.scratchpads[n_cpus:]
   l2s       = system.l2_cntrls
-  # l2fs      = system.l2_forwards
+  if (inject_bot):
+    l2fs      = system.l2_forwards
 
 
   print('cpu {} router {} pad {} l2s {}'.format(
@@ -189,18 +190,19 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_l2
       link_count += 1
       ext_links.append(l2_ext_link)
 
-  # # add links to later row of routers
-  # l2f_idx = 0
-  # skip_len = 8
-  # for i in xrange(n_cols * (n_rows - 1 - skip_len), n_cols * (n_rows - skip_len)):
-  #   if l2f_idx < len(l2fs):
-  #     l2_ext_link = ExtLink(link_id   = link_count,
-  #                           ext_node  = l2fs[l2f_idx],
-  #                           int_node  = routers[i],
-  #                           latency   = link_latency)
-  #     l2f_idx += 1
-  #     link_count += 1
-  #     ext_links.append(l2_ext_link)
+  # add links to later row of routers
+  if (inject_bot):
+    l2f_idx = 0
+    skip_len = 8
+    for i in xrange(n_cols * (n_rows - 1 - 1 - skip_len), n_cols * (n_rows - 1 - skip_len)):
+      if l2f_idx < len(l2fs):
+        l2_ext_link = ExtLink(link_id   = link_count,
+                              ext_node  = l2fs[l2f_idx],
+                              int_node  = routers[i],
+                              latency   = link_latency)
+        l2f_idx += 1
+        link_count += 1
+        ext_links.append(l2_ext_link)
 
   network.ext_links = ext_links
 
@@ -213,6 +215,9 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_l2
   # will try to take minimum weight path
   horiz_weight = 1
   verti_weight = 2
+
+
+  # add another row of routers at bottom to connect
 
   # East output to West input links (weight = 1)
   for row in xrange(n_rows):
@@ -378,7 +383,8 @@ n_cpus  = options.num_cpus
 n_xcels = 0 #options.num_xcels
 n_tiles = n_cpus + n_xcels
 
-double_L2 = True
+double_L2 = False
+inject_bot = True
 
 # mesh size is determined by the number of xcels and device cpus
 n_cols  = int(math.sqrt(n_tiles))
@@ -389,8 +395,10 @@ n_rows  = n_cols + 1
 n_l2s   = n_cols
 
 # add another row if doing 2nd row on edge
-if (double_L2):
+if (double_L2 or inject_bot):
   n_rows += 1
+
+if (double_L2):
   n_l2s += n_cols
 
 
@@ -580,34 +588,36 @@ for i in xrange(n_l2s):
 
   l2_cntrl.responseFromMemory     = MessageBuffer(ordered = True)
 
-  # l2_cntrl.responseFromMemLLC     = MessageBuffer(ordered = True)
+  if (inject_bot):
+    l2_cntrl.responseFromMemLLC   = MessageBuffer(ordered = True)
 
   l2_cntrls.append(l2_cntrl)
 
 
 system.l2_cntrls = l2_cntrls
 
-# l2_forwards = []
-# for i in xrange(n_l2s):
-#   l2_forward = Forwarder(version = i,
-#                           ruby_system = system.ruby)
-  
-#   l2_forward.netResponseBuffer = MessageBuffer(ordered = True)
-#   l2_forward.netResponseBuffer.master = network.slave
+if (inject_bot):
+  l2_forwards = []
+  for i in xrange(n_l2s):
+    l2_forward = Forwarder(version = i,
+                            ruby_system = system.ruby)
+    
+    l2_forward.netResponseBuffer = MessageBuffer(ordered = True)
+    l2_forward.netResponseBuffer.master = network.slave
 
-#   # share ptr for l2 MessageBuffer
-#   l2_forward.cacheForwardBuffer = system.l2_cntrls[i].responseFromMemLLC
+    # share ptr for l2 MessageBuffer
+    l2_forward.cacheForwardBuffer = system.l2_cntrls[i].responseFromMemLLC
 
-#   l2_forwards.append(l2_forward)
+    l2_forwards.append(l2_forward)
 
-# system.l2_forwards = l2_forwards
+  system.l2_forwards = l2_forwards
 
 
 #------------------------------------------------------------------------------
 # Connect all controllers to network
 #------------------------------------------------------------------------------
 
-makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_L2,
+makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_L2, inject_bot,
                  IntLinkClass, ExtLinkClass, RouterClass)
 
 init_network(options, network, InterfaceClass)
@@ -623,7 +633,7 @@ system.system_port = system.ruby.sys_port_proxy.slave
 
 if (options.vector):
   eff_rows = n_rows - 1
-  if (double_L2):
+  if (double_L2 or inject_bot):
     eff_rows = n_rows - 2
   makeSystolicTopology(system, eff_rows, n_cols)
 
@@ -636,8 +646,8 @@ system.mem_ranges = [ AddrRange(options.mem_size) ]
 
 system.mem_ctrl = SimpleMemory()
 system.mem_ctrl.range = system.mem_ranges[0]
-system.mem_ctrl.latency = '1ns'
-system.mem_ctrl.bandwidth = '32GB/s'
+system.mem_ctrl.latency = '60ns'
+system.mem_ctrl.bandwidth = '16GB/s'
 
 # TODO need to config this more like in MemConfig.py?
 # I don't think need to do when only one address range?
