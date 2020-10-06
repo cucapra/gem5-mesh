@@ -18,7 +18,7 @@
 #define NUM_REGIONS (512 / REGION_SIZE) // (0,512) in this case is the hardware region area 
 
 #ifndef INIT_FRAMES
-#define INIT_FRAMES 6
+#define INIT_FRAMES 2
 #endif
 
 #define REGION_SIZE_K2 32 //region size for kernel 2

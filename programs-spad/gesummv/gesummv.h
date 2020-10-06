@@ -9,7 +9,7 @@
 // #define MANYCORE_PREFETCH
 
 #ifndef INIT_FRAMES
-#define INIT_FRAMES 6
+#define INIT_FRAMES 2
 #endif
 
 #define REGION_SIZE 24 //configure using LCM of required frame/region sizes, multiple of 3(loading 3 arrays) and 4(cache aligned acccess)

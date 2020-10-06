@@ -39,7 +39,7 @@
 
 // number of frames to get ahead
 #ifndef INIT_FRAMES
-#define INIT_FRAMES 5
+#define INIT_FRAMES 1
 #endif
 
 // prefetch config for inner kernel
