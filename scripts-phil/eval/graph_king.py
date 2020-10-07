@@ -157,3 +157,27 @@ def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, d
 
   plt.savefig(str(title) + '.png')
   plt.savefig(str(title) + '.pdf')
+
+
+def heatmap(data_matrix, x_labels, y_labels, title):
+  fig, ax = plt.subplots()
+
+  # load data into heatmap
+  im = ax.imshow(data_matrix)
+
+  # set dim of heatmap
+  ax.set_xticks(np.arange(len(x_labels)))
+  ax.set_yticks(np.arange(len(y_labels)))
+
+  # label
+  ax.set_xticklabels(x_labels)
+  ax.set_yticklabels(y_labels)
+
+  # add legend bar
+  cbar = ax.figure.colorbar(im, ax=ax)
+  # cbar.ax.set_ylabel
+
+  fig.tight_layout()
+
+  plt.savefig(str(title) + '.png')
+
