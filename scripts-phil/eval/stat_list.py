@@ -214,6 +214,23 @@ cpu_stats = OrderedDict([
     'average' : False
   }),
 
+  ('router_out_stalls' , {
+    'regex' : re.compile('system.network.routers([0-9]+).out_stalls::[a-zA-Z\->]+\s*' + intRegexStr), 
+    'seperate-cores' : True,
+    'average' : False
+  }),
+
+  ('router_in_stalls_all' , {
+    'regex' : re.compile('system.network.routers[0-9]+.other_vcs_rdy::[a-zA-Z\->]+\s*' + intRegexStr), 
+  }),
+  ('router_in_no_req_stalls_all' , {
+    'regex' : re.compile('system.network.routers[0-9]+.in_cant_request::[a-zA-Z\->]+\s*' + intRegexStr), 
+  }),
+  ('router_out_stalls_all' , {
+    'regex' : re.compile('system.network.routers[0-9]+.out_stalls::[a-zA-Z\->]+\s*' + intRegexStr), 
+  }),
+
+
 
   ('llcMissRate', {
     'formula' : ['llc-misses', 'llc_access'],

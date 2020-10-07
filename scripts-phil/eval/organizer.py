@@ -593,9 +593,25 @@ def plot_llc_access_rate(data):
 
 def plot_router_in_heatmap(data):
   (mdata, xlabel, ylabel) = group_heatmap_data(data, 'V4', 'router_in_stalls', 'bicg', 8)
-
   heatmap(mdata, xlabel, ylabel, 'routerin')
+  (mdata, xlabel, ylabel) = group_heatmap_data(data, 'NV', 'router_in_stalls', 'bicg', 8)
+  heatmap(mdata, xlabel, ylabel, 'routerin_nv')
 
+def plot_router_out_heatmap(data):
+  (mdata, xlabel, ylabel) = group_heatmap_data(data, 'V4', 'router_out_stalls', 'bicg', 8)
+  heatmap(mdata, xlabel, ylabel, 'routerout')
+  (mdata, xlabel, ylabel) = group_heatmap_data(data, 'NV', 'router_out_stalls', 'bicg', 8)
+  heatmap(mdata, xlabel, ylabel, 'routerout_nv')
+
+def plot_all_router_stalls(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'router_in_stalls_all')
+  bar_plot(labels, sub_labels, values, 'RouteVCSstalls', 'RouteVCSstalls', False)
+
+  (labels, sub_labels, values) = group_bar_data(data, 'router_in_no_req_stalls_all')
+  bar_plot(labels, sub_labels, values, 'RouteReqStall', 'RouteReqStall', False)
+
+  (labels, sub_labels, values) = group_bar_data(data, 'router_out_stalls_all')
+  bar_plot(labels, sub_labels, values, 'RouteOutStall', 'RouteOutStall', False)
 
 # top level for analysis passes. generates all plots sequentially
 def make_plots_and_tables(all_data):
@@ -650,4 +666,7 @@ def make_plots_and_tables(all_data):
   plot_llc_busy_cycles(all_data)
   plot_llc_miss_rate(all_data)
   plot_llc_access_rate(all_data)
+  print("Plot router stalls")
   plot_router_in_heatmap(all_data)
+  plot_router_out_heatmap(all_data)
+  plot_all_router_stalls(all_data)
