@@ -14,11 +14,13 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
       MessageBuffer* requestToLLC,    network = "From", virtual_network = "1", vnet_type = "request";
       MessageBuffer* responseFromLLC, network = "To",   virtual_network = "0", vnet_type = "response";
-      MessageBuffer* responseFromMemLLC;
+      // MessageBuffer* responseFromMemLLC;
       MessageBuffer* responseFromMemory;
 
       int meshDimX := 2;
       int meshDimY := 2;
+
+      bool useWideLoads := 1;
       
 {
   //---------------------------------------------------------------------------
@@ -83,6 +85,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
     VData2,       desc = "Fetched data from memory arrives and do vec op";
     SP_Mem_Data,  desc = "Fetched data from memory arrives and single sp load";
     Memory_Ack,   desc = "Writeback Ack from memory arrives";
+    VREAD_WIDE,   desc = "Fake a wide response network, to see effect";
+    VREAD_MEM_WIDE, desc = "Fake a wide response network, to see effect. mem side";
   }
 
   //---------------------------------------------------------------------------
@@ -245,6 +249,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return (config == 1);
   }
 
+  bool isWideLoad(int config) {
+    return isVerticalLoad(config) && useWideLoads;
+  }
 
   // get the count we want to use depending on which port in progress
   int getPortVecCnt(bool isCpuSide) {
@@ -422,7 +429,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   // Responses to CPU side
   out_port(responseNetwork_out, LLCResponseMsg, responseFromLLC);
-  out_port(responseNetwork_outFar, LLCResponseMsg, responseFromMemLLC);
+  // out_port(responseNetwork_outFar, LLCResponseMsg, responseFromMemLLC);
 
   // Requests coming from CPU side
   in_port(requestNetwork_in, LLCRequestMsg, requestToLLC) {
@@ -492,6 +499,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
                 }
                 
                 if (canIssueVecLoad(true)) {
+                  if (isWideLoad(in_msg.PrefetchConfig)) {
+                    trigger(Event:VREAD_WIDE, LineAddress, cache_entry, tbe);
+                  } else {
                   if (!isVector(in_msg.RespCnt)) {
                     trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
                   }
@@ -503,6 +513,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
                   }
                   else {
                     trigger(Event:VREAD2, LineAddress, cache_entry, tbe);
+                  }
                   }
                 } else {
                   DPRINTF(Frame, "stall req addr %#x line %#x curCnt %d to cnt %d\n", 
@@ -563,6 +574,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
               DPRINTF(Frame, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", 
                   canIssueVecLoad(false), getState(tbe, cache_entry, in_msg.addr), 
                   tbe.WordAddress, in_msg.addr, getPortVecCnt(false), tbe.RespCnt);
+              if (isWideLoad(tbe.PrefetchConfig)) {
+                trigger(Event:VREAD_MEM_WIDE, in_msg.addr, cache_entry, tbe);
+              } else {
               if (!isVector(tbe.RespCnt)) {
                 trigger(Event:SP_Mem_Data, in_msg.addr, cache_entry, tbe);
               }
@@ -574,6 +588,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
               }
               else {
                 trigger(Event:VData2, in_msg.addr, cache_entry, tbe);
+              }
               }
             }
             else {
@@ -637,7 +652,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   action(sdm_sendDataFromMem, "sdm", desc = "Send response data to CPU side from mem") {
     peek(memQueue_in, MemoryMsg) {
-      enqueue(responseNetwork_outFar, LLCResponseMsg, mem_to_cpu_latency) {
+      enqueue(responseNetwork_out, LLCResponseMsg, mem_to_cpu_latency) {
         assert(is_valid(tbe));
         out_msg.Type        := LLCResponseType:DATA;
         out_msg.LineAddress := in_msg.addr;
@@ -711,6 +726,11 @@ machine(MachineType:L2Cache, "SP LLC cache")
       else {
         respType := LLCResponseType:REDATA;
       }
+
+      int wideCnt := 1;
+      if (isWideLoad(in_msg.PrefetchConfig)) {
+        wideCnt := in_msg.RespCnt;
+      }
       
       // This functionally sends the whole packet, but the ruby network (garnet)
       // acutally looks at MessageSize to deteremine how many flits are needed
@@ -727,7 +747,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         // this is gem5 only meta-data, in reality would just send the single
         // word, so no need to pick out the element from the whole block
         out_msg.BlkIdx      := wordOffset;
-        // out_msg.Epoch       := in_msg.Epoch;
+        out_msg.Epoch       := wideCnt; // temp encode resp size
       }
     }
   }
@@ -758,10 +778,15 @@ machine(MachineType:L2Cache, "SP LLC cache")
         respType := LLCResponseType:REDATA;
       }
       
+      int wideCnt := 1;
+      if (isWideLoad(tbe.PrefetchConfig)) {
+        wideCnt := tbe.RespCnt;
+      }
+
       DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d core offset %d\n", 
         spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.CoreOffset);
-      
-      enqueue(responseNetwork_outFar, LLCResponseMsg, mem_to_cpu_latency) {
+
+      enqueue(responseNetwork_out, LLCResponseMsg, mem_to_cpu_latency) {
         assert(is_valid(tbe));
         out_msg.Type        := respType;
         out_msg.LineAddress := spadAddr;
@@ -770,7 +795,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
         out_msg.BlkIdx      := wordOffset;
-        // out_msg.Epoch       := tbe.Epoch;
+        out_msg.Epoch       := wideCnt; // temp encode resp size
       }
     }
   }
@@ -1061,7 +1086,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   // READ requests
 
-  transition(I, { READ, SPLOAD, VREAD0 }, IV) {
+  transition(I, { READ, SPLOAD, VREAD0, VREAD_WIDE }, IV) {
     atb_allocateTBE;
     art_addRequestorToTBE;
     avt_addVecInfoToTBE;
@@ -1114,6 +1139,16 @@ machine(MachineType:L2Cache, "SP LLC cache")
     wua_wakeupAllDependents;
   }
   
+  transition({ V, M }, VREAD_WIDE) {
+    smu_setMRU; 
+    rsc_remoteStoreFromCache;
+    mvl_markVectorRespThisCycleLLC;
+    pht_profileHitAccess;
+    rvl_resetVectorFromLLC;
+    prq_popRequestQueue;
+    // wua_wakeupAllDependents;
+  }
+
 // vector sends, go to vector, only last request is a non-vector one (like original read)
 // TODO might want to have real op go first, but then the other port might mode while going
 // ... both have pro-cons, but saved by serialization of message in toSPAD outport (presumably serialized)
@@ -1166,6 +1201,19 @@ machine(MachineType:L2Cache, "SP LLC cache")
     wua_wakeupAllDependents;
   }
   
+  transition(IV, VREAD_MEM_WIDE, V) {
+    wdc_writeDataToCache
+    smu_setMRU;
+    rsm_remoteStoreFromMem;
+    mvm_markVectorRespThisCycleMem;
+    rvm_resetVectorFromMem;
+    dtb_deallocateTBE;
+    pms_profileMissAccess; // count the final one as the miss
+    pmq_popMemResponseQueue;
+    wua_wakeupAllDependents;
+  }
+
+
   transition(IV, VData0) {
     vem_checkVectorErrorMem;
     wdc_writeDataToCache
@@ -1195,7 +1243,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     wua_wakeupAllDependents;
   }
 
-  transition({IV, MI, IM, IV_LL, IA}, { READ, SPLOAD, VREAD0, VREAD1, VREAD2 }) {
+  transition({IV, MI, IM, IV_LL, IA}, { READ, SPLOAD, VREAD0, VREAD1, VREAD2, VREAD_WIDE }) {
     z_stallAndWait;
   }
 

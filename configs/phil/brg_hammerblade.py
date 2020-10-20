@@ -386,7 +386,7 @@ n_xcels = 0 #options.num_xcels
 n_tiles = n_cpus + n_xcels
 
 double_L2 = False
-inject_bot = True
+inject_bot = False
 
 # mesh size is determined by the number of xcels and device cpus
 n_cols  = int(math.sqrt(n_tiles))
@@ -579,6 +579,8 @@ for i in xrange(n_l2s):
                                 cache_resp_latency = 1,
                                 to_memory_controller_latency = 1,
                                 mem_to_cpu_latency = 1 # TODO this needs to be the same as cache_resp_latency b/c same ordered queue?
+                                ,
+                                useWideLoads = True
                                 )
                                 #number_of_TBEs = 1)
 

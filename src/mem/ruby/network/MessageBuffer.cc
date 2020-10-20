@@ -219,9 +219,9 @@ MessageBuffer::enqueue(MsgPtr message, Tick current_time, Tick delta)
 
     auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(message);
 
-    if (mem_msg != nullptr && m_prio_heap.size() == 2) {
-        DPRINTF(Frame, "Message buffer enqueue addr %#x arrival %lld queue size %d\n", mem_msg->getLineAddress(), arrival_time, m_prio_heap.size());
-    }
+    // if (mem_msg != nullptr && m_prio_heap.size() == 2) {
+    //     DPRINTF(Frame, "Message buffer enqueue addr %#x arrival %lld queue size %d\n", mem_msg->getLineAddress(), arrival_time, m_prio_heap.size());
+    // }
 
 
     if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 

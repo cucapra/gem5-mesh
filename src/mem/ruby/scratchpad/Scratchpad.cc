@@ -318,27 +318,48 @@ Scratchpad::processRespToSpad() {
         }
       }
       else {
-      // profile, TODO should classify different than just remote load/store?
-      if (pkt_p->isRead())
-        m_remote_loads++;
-      else if (pkt_p->isWrite())
-        m_remote_stores++;
+        uint8_t *allData = pkt_p->getPtr<uint8_t>();
+        // if allow wide resps then do something else
+        for (int i = 0; i < pkt_p->getRespCnt(); i++) {
 
-      // access data array
-      accessDataArray(pkt_p);
+        // profile, TODO should classify different than just remote load/store?
+        if (pkt_p->isRead())
+          m_remote_loads++;
+        else if (pkt_p->isWrite())
+          m_remote_stores++;
 
-      DPRINTF(Frame, "store spec prefetch %#x\n", pkt_p->getAddr());
-        // if (isRegionAccess(pkt_p)){
-        //   uint32_t *local_data_p = (uint32_t*)(m_data_array + getLocalAddr(pkt_p->getAddr()));
-        //   float data = *(float*)local_data_p;
-        //   DPRINTF(Mesh, "writing packet in Scratchpad addr %#x -- %f \n", pkt_p->getAddr(), data);
-        // }
+        // set the write single word as data ptr
+        // pkt_p->clearDataFlags();
+        // pkt_p->dataStatic(&allData[i * sizeof(uint32_t)]);
 
-      // set the word as ready for future packets
-      setWordRdy(pkt_p->getAddr());
-      delete pkt_p;
-      pkt_p = nullptr;
-    }
+        PacketPtr tpkt_p = new Packet(pkt_p, true, false);
+        tpkt_p->dataStatic(&allData[i * sizeof(uint32_t)]);
+        Addr effAddr = pkt_p->getAddr() + i * sizeof(uint32_t);
+        tpkt_p->setAddr(effAddr);
+        // tpkt_p->setSize()
+
+        // access data array
+        accessDataArray(tpkt_p);
+
+        DPRINTF(Frame, "store spec prefetch %#x | %llu\n", tpkt_p->getAddr(), tpkt_p->getSize());
+
+        delete tpkt_p;
+
+
+          // if (isRegionAccess(pkt_p)){
+          //   uint32_t *local_data_p = (uint32_t*)(m_data_array + getLocalAddr(pkt_p->getAddr()));
+          //   float data = *(float*)local_data_p;
+          //   DPRINTF(Mesh, "writing packet in Scratchpad addr %#x -- %f \n", pkt_p->getAddr(), data);
+          // }
+
+        // set the word as ready for future packets
+        setWordRdy(effAddr);
+        }
+        // pkt_p->clearDataFlags();
+        // pkt_p->dataDynamic(allData);
+        delete pkt_p;
+        pkt_p = nullptr;
+      }
     break;
   }
     default: {
@@ -451,6 +472,9 @@ Scratchpad::wakeup()
                                           0, 0);
         
         // req->epoch = llc_msg_p->m_Epoch;
+
+        req->respCnt = llc_msg_p->m_Epoch;
+        size_t buf_size = sizeof(uint32_t) * req->respCnt;
         
         PacketPtr pkt_p = Packet::createWrite(req);
 
@@ -458,11 +482,11 @@ Scratchpad::wakeup()
         
         // we really only sent a word of data, so extract that
         int blkIdx = llc_msg_p->m_BlkIdx;
-        uint8_t *buff = new uint8_t[sizeof(uint32_t)];
-        const uint8_t *data = llc_msg_p->m_DataBlk.getData(sizeof(uint32_t) * blkIdx, sizeof(uint32_t));
-        memcpy(buff, data, sizeof(uint32_t));
+        uint8_t *buff = new uint8_t[buf_size];
+        const uint8_t *data = llc_msg_p->m_DataBlk.getData(sizeof(uint32_t) * blkIdx, buf_size);
+        memcpy(buff, data, buf_size);
         pkt_p->dataDynamic(buff);
-        
+
         DPRINTF(Frame, "Recv remote store %#x from cache epoch %d data %d %d %d %d\n", 
           llc_msg_p->m_LineAddress, llc_msg_p->m_Epoch, data[3], data[2], data[1], data[0]);
         
