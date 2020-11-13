@@ -104,6 +104,8 @@ Router::wakeup()
     // Switch Allocation
     m_sw_alloc->wakeup();
 
+    // log direction for switch
+
     // Switch Traversal
     m_switch->wakeup();
 }
@@ -196,6 +198,29 @@ Router::getPortDirectionName(PortDirection direction)
     return direction;
 }
 
+
+void
+Router::updateRouterDecision(int inport, int outport) {
+    int idx = inport * get_num_outports() + outport;
+    m_router_descisions[idx]++;
+}
+
+void
+Router::updateOutRouterStall(int inport, int outport) {
+    int idx = inport * get_num_outports() + outport;
+    m_router_out_stalls[idx]++;
+}
+
+void
+Router::updateInRouterStall(int inport) {
+    m_router_cant_request[inport]++;
+}
+
+void
+Router::updateVcsRouterStall(int inport) {
+    m_router_other_vcs[inport]++;
+}
+
 void
 Router::regStats()
 {
@@ -225,6 +250,38 @@ Router::regStats()
         .name(name() + ".sw_output_arbiter_activity")
         .flags(Stats::nozero)
     ;
+
+    m_router_descisions
+        .init(get_num_inports() * get_num_outports())
+        .name(name() + ".local_route")
+    ;
+
+    m_router_out_stalls
+        .init(get_num_inports() * get_num_outports())
+        .name(name() + ".out_stalls")
+    ;
+    for (int i = 0; i < get_num_inports(); i++) { 
+        for (int o = 0; o < get_num_outports(); o++) {
+            int idx = i * get_num_outports() + o;
+            auto dir_name = getPortDirectionName(getInportDirection(i)) + "->" + getPortDirectionName(getOutportDirection(o));
+            m_router_descisions.subname(idx, dir_name);
+            m_router_out_stalls.subname(idx, dir_name);
+        }
+    }
+
+    m_router_cant_request
+        .init(get_num_inports())
+        .name(name() + ".in_cant_request")
+    ;
+    m_router_other_vcs
+        .init(get_num_inports())
+        .name(name() + ".other_vcs_rdy")
+    ;
+    for (int i = 0; i < get_num_inports(); i++) { 
+        auto dir_name = getPortDirectionName(getInportDirection(i));
+        m_router_cant_request.subname(i, dir_name);
+        m_router_other_vcs.subname(i, dir_name);
+    }
 }
 
 void

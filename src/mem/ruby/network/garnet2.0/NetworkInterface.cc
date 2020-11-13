@@ -205,14 +205,17 @@ NetworkInterface::wakeup()
             // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
             //     DPRINTF(Mesh, "Net interface %d Router %d push pkt %#x\n", m_id, m_router_id, mem_msg->getPacket()->getAddr());
 
-            auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
-            if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
-                DPRINTF(Frame, "Network interface wakeup addr %#x\n", mem_msg->getLineAddress());
+            // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
+            // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+            //     DPRINTF(Frame, "Network interface wakeup addr %#x\n", mem_msg->getLineAddress());
 
             if (flitisizeMessage(msg_ptr, vnet)) {
                 DPRINTF(RubyNetwork, "send message %p\n", msg_ptr.get());
                 b->dequeue(curTime);
             }
+        }
+        else if (!b->isEmpty()) {
+            m_msg_queued_not_ready++;
         }
     }
 
@@ -378,19 +381,20 @@ NetworkInterface::flitisizeMessage(MsgPtr msg_ptr, int vnet)
     int num_flits = (int) ceil((double) m_net_ptr->MessageSizeType_to_int(
         net_msg_ptr->getMessageSize())/m_net_ptr->getNiFlitSize());
 
-    // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
-    // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
-    //     DPRINTF(Frame, "Network interface flit addr %#x to %d flits\n", mem_msg->getLineAddress(), num_flits);
+    auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
+    if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
+        DPRINTF(Frame, "Network interface flit addr %#x to %d flits\n", mem_msg->getLineAddress(), num_flits);
 
     // loop to convert all multicast messages into unicast messages
-    for (int ctr = 0; ctr < dest_nodes.size(); ctr++) {
+    for (int ctr = 0; ctr < dest_nodes.size(); ctr++) { // dest nodes is 1 for most partp
 
         // this will return a free output virtual channel
         int vc = calculateVC(vnet);
 
         if (vc == -1) {
+            m_no_channel_avail++;
             auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
-            if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+            if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
                 DPRINTF(Frame, "Network interface no free output virtual channel (vcs) for flit addr %#x\n", mem_msg->getLineAddress());
             return false ;
         }
@@ -433,6 +437,11 @@ NetworkInterface::flitisizeMessage(MsgPtr msg_ptr, int vnet)
         // so that the first router increments it to 0
         route.hops_traversed = -1;
 
+        // determine whether req or resp based on destination
+        bool isMemResp = ((destID >= MachineType_base_number((MachineType_Scratchpad)) &&
+                    destID < MachineType_base_number((MachineType) ((int)MachineType_Scratchpad+1))));
+        route.req = !isMemResp;
+
         m_net_ptr->increment_injected_packets(vnet);
         for (int i = 0; i < num_flits; i++) {
             m_net_ptr->increment_injected_flits(vnet);
@@ -461,7 +470,7 @@ NetworkInterface::calculateVC(int vnet)
 
         if (m_out_vc_state[(vnet*m_vc_per_vnet) + delta]->isInState(
                     IDLE_, curCycle())) {
-            vc_busy_counter[vnet] = 0;
+            vc_busy_counter[vnet] = 0; // counts how we've been stalling on a port, reset to 0 b/c we can send now
             return ((vnet*m_vc_per_vnet) + delta);
         }
     }
@@ -507,6 +516,7 @@ NetworkInterface::scheduleOutputLink()
                         if (m_ni_out_vcs_enqueue_time[t_vc] <
                             m_ni_out_vcs_enqueue_time[vc]) {
                             is_candidate_vc = false;
+                            m_order_violation_stall++;
                             break;
                         }
                     }
@@ -520,10 +530,15 @@ NetworkInterface::scheduleOutputLink()
             m_out_vc_state[vc]->decrement_credit();
             // Just removing the flit
             flit *t_flit = m_ni_out_vcs[vc]->getTopFlit();
-            t_flit->set_time(curCycle() + Cycles(1)); // potentially incorrect?
+            t_flit->set_time(curCycle() + Cycles(1)); // potentially incorrect? // TODO this is 2cycles, maybe thats delayed credit return???
             // t_flit->set_time(curTick() + (Tick)1);
 
             DPRINTF(RubyNetwork, "Net interface %d Router %d net push flit %p @time %llu\n", m_id, m_router_id, t_flit, t_flit->get_time_ticks());
+
+            auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(t_flit->get_msg_ptr());
+            if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
+                DPRINTF(Frame, "Schedule out link flit addr %#x to %d flits\n", mem_msg->getLineAddress());
+
 
             outFlitQueue->insert(t_flit);
             // schedule the out link
@@ -535,6 +550,15 @@ NetworkInterface::scheduleOutputLink()
                 m_ni_out_vcs_enqueue_time[vc] = Cycles(INFINITE_);
             }
             return;
+        }
+        else if(m_ni_out_vcs[vc]->isReady(curCycle())) {
+            m_no_credit_avail++;
+        }
+        else if (m_out_vc_state[vc]->has_credit() && m_ni_out_vcs[vc]->getSize() > 0) {
+            m_not_ready_vc++;
+        }
+        else if (m_ni_out_vcs[vc]->getSize() > 0) {
+            m_no_credit_vc++;
         }
     }
 }
@@ -606,6 +630,34 @@ NetworkInterface::functionalRead(Packet* pkt)
         return true;
 
     return false;
+}
+
+void
+NetworkInterface::regStats() {
+    ClockedObject::regStats();
+
+    m_no_channel_avail
+        .name(name() + ".no_channel_to_inject")
+    ;
+    m_no_credit_avail
+        .name(name() + ".no_credit_avail")
+    ;
+
+    m_order_violation_stall
+        .name(name() + ".order_viol_stall")
+    ;
+
+    m_not_ready_vc
+            .name(name() + ".out_vc_not_ready")
+    ;
+
+    m_no_credit_vc
+        .name(name() + ".out_vc_nr_and_nocred")
+    ;
+
+    m_msg_queued_not_ready
+        .name(name() + ".msg_not_rdy")
+    ;
 }
 
 NetworkInterface *

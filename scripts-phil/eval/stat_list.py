@@ -139,15 +139,15 @@ cpu_stats = OrderedDict([
   }),
 
   ('mesh_stall_sep' , {
-    'regex' : re.compile('system.cpu[0-9]+.vector.mesh_input_stalls\s*' + intRegexStr), 
+    'regex' : re.compile('system.cpu([0-9]+).vector.mesh_input_stalls\s*' + intRegexStr), 
     'seperate-cores' : True,
   }),
   ('vector_backpressure_stall_sep' , {
-    'regex' : re.compile('system.cpu[0-9]+.vector.backpressure_stalls\s*' + intRegexStr), 
+    'regex' : re.compile('system.cpu([0-9]+).vector.backpressure_stalls\s*' + intRegexStr), 
     'seperate-cores' : True,
   }),
   ('scalar_backpressure_stall_sep' , {
-    'regex' : re.compile('system.cpu[0-9]+.late_vector.backpressure_stalls\s*' + intRegexStr), 
+    'regex' : re.compile('system.cpu([0-9]+).late_vector.backpressure_stalls\s*' + intRegexStr), 
     'seperate-cores' : True,
   }),
   ('merged_backpressure_stall_sep', {
@@ -156,7 +156,7 @@ cpu_stats = OrderedDict([
     'seperate-cores' : True,
   }),
   ('vec_cycles_sep' , {
-    'regex' : re.compile('system.cpu[0-9]+.vector.vec_cycles\s*' + intRegexStr), 
+    'regex' : re.compile('system.cpu([0-9]+).vector.vec_cycles\s*' + intRegexStr), 
     'seperate-cores' : True,
   }),
   ('vec_cycles' , {
@@ -207,6 +207,39 @@ cpu_stats = OrderedDict([
     'formula' : ['llcBusyCycles', 'cycles'],
     'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
   }),
+
+  ('router_in_stalls' , {
+    'regex' : re.compile('system.network.routers([0-9]+).other_vcs_rdy::[a-zA-Z\->]+\s*' + intRegexStr), 
+    'seperate-cores' : True,
+    'average' : False
+  }),
+
+  ('router_out_stalls' , {
+    'regex' : re.compile('system.network.routers([0-9]+).out_stalls::[a-zA-Z\->]+\s*' + intRegexStr), 
+    'seperate-cores' : True,
+    'average' : False
+  }),
+
+  ('router_in_stalls_all' , {
+    'regex' : re.compile('system.network.routers[0-9]+.other_vcs_rdy::[a-zA-Z\->]+\s*' + intRegexStr), 
+  }),
+  ('router_in_no_req_stalls_all' , {
+    'regex' : re.compile('system.network.routers[0-9]+.in_cant_request::[a-zA-Z\->]+\s*' + intRegexStr), 
+  }),
+  ('router_out_stalls_all' , {
+    'regex' : re.compile('system.network.routers[0-9]+.out_stalls::[a-zA-Z\->]+\s*' + intRegexStr), 
+  }),
+
+
+
+  ('llcMissRate', {
+    'formula' : ['llc-misses', 'llc_access'],
+    'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
+  }),
+  ('llcAccessRate', {
+    'formula' : ['llc_access', 'cycles'],
+    'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
+  })
 
 
 ])
