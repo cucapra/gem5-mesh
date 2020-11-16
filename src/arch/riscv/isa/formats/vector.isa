@@ -1,0 +1,878 @@
+// -*- mode:c++ -*-
+
+// Authors: Khalid Al-Hawaj
+
+////////////////////////////////////////////////////////////////////
+//
+// Standard Vector Extension Format
+//
+
+def template VectorDeclare {{
+    /**
+     * Static instruction class for "%(mnemonic)s".
+     */
+    class %(class_name)s : public %(base_class)s
+    {
+      public:
+        /// Constructor.
+        %(class_name)s(ExtMachInst machInst);
+
+        Fault execute(ExecContext *, Trace::InstRecord *) const override;
+
+        std::string
+            generateDisassembly(Addr pc, const SymbolTable *symtab) const override;
+
+    };
+}};
+
+def template VectorMemDeclare {{
+    /**
+     * Static instruction class for "%(mnemonic)s".
+     */
+    class %(class_name)s : public %(base_class)s
+    {
+      public:
+        /// Constructor.
+        %(class_name)s(ExtMachInst machInst);
+
+        Fault execute(ExecContext *, Trace::InstRecord *) const override;
+        Fault initiateAcc(ExecContext *, Trace::InstRecord *) const override;
+        Fault completeAcc(PacketPtr, ExecContext *,
+                          Trace::InstRecord *) const override;
+
+        std::string
+            generateDisassembly(Addr pc, const SymbolTable *symtab) const override;
+
+    };
+}};
+
+def template VectorConstructor {{
+    %(class_name)s::%(class_name)s(ExtMachInst machInst)
+        : %(base_class)s("%(mnemonic)s", machInst, %(op_class)s)
+    {
+        %(constructor)s;
+
+        // Instruction flags
+        xd  = (%(rd_x)s);
+        xs1 = (%(rs1_x)s);
+        xs2 = (%(rs2_x)s);
+
+        // Register Specifiers
+        rd  = VD;
+        rs1 = VS1;
+        rs2 = VS2;
+
+        // Other stuff ... :)
+        opcode = VS3;
+
+        // Funct
+        funct  = %(funct)s & ((1ULL << 16) - 1);
+        funct |= (VM << 16);
+
+        // Misc.
+        csr = FUNCT12;
+
+        // Masked Operations
+        vmop = MOP;
+
+        // Immediate
+        imm    = SIMM5;
+        if (SIMM5 & (1 << 5))
+            imm |= ~((int64_t)0x1F);
+    }
+}};
+
+def template VectorDecode {{
+    return new %(class_name)s(machInst);
+}};
+
+def template VLoadExecute {{
+    Fault
+    %(class_name)s::execute(
+        ExecContext *xc, Trace::InstRecord *traceData) const
+    {
+        Addr EA;
+        Fault fault = NoFault;
+
+        %(op_decl)s;
+        %(op_rd)s;
+
+        if (fault == NoFault) {
+            size_t elem_sz M5_VAR_USED = sizeof(VMem) / VMem.size();
+
+            // Effictive stride
+            Addr es M5_VAR_USED = %(stride)s;
+
+            for (auto i = 0; i < VLEN; i++) {
+                if (%(mask)s) {
+                    EA = %(addr_base)s;
+                    EA   %(addr_gen)s;
+
+                    fault = readMemAtomic(xc, traceData, EA, VMem[i],
+                              /*memAccessFlags*/ 0);
+                }
+            }
+
+            %(code)s;
+        }
+
+        if (fault == NoFault) {
+            %(op_wb)s;
+        }
+
+        return fault;
+    }
+}};
+
+def template VLoadInitiateAcc {{
+    Fault
+    %(class_name)s::initiateAcc(ExecContext *xc,
+        Trace::InstRecord *traceData) const
+    {
+        Addr EA;
+        Fault fault = NoFault;
+
+        %(op_src_decl)s;
+        %(op_rd)s;
+        EA = %(addr_base)s;
+
+        if (fault == NoFault) {
+            fault = initiateMemRead(xc, traceData, EA, VMem, /*memAccessFlags*/ 0);
+        }
+
+        return fault;
+    }
+}};
+
+def template VLoadCompleteAcc {{
+    Fault
+    %(class_name)s::completeAcc(PacketPtr pkt, ExecContext *xc,
+        Trace::InstRecord *traceData) const
+    {
+        Fault fault = NoFault;
+
+        %(op_decl)s;
+        %(op_rd)s;
+
+        getMem(pkt, VMem, traceData);
+
+        if (fault == NoFault) {
+            %(code)s;
+        }
+
+        if (fault == NoFault) {
+            %(op_wb)s;
+        }
+
+        return fault;
+    }
+}};
+
+def template VStoreExecute {{
+    Fault
+    %(class_name)s::execute(ExecContext *xc,
+        Trace::InstRecord *traceData) const
+    {
+        Addr EA;
+        Fault fault = NoFault;
+
+        %(op_decl)s;
+        %(op_rd)s;
+
+        if (fault == NoFault) {
+            %(code)s;
+        }
+
+        if (fault == NoFault) {
+            size_t elem_sz M5_VAR_USED = sizeof(VMem) / VMem.size();
+
+            // Effictive stride
+            Addr es M5_VAR_USED = %(stride)s;
+
+            for (auto i = 0; i < VLEN; i++) {
+                if (%(mask)s) {
+                    EA = %(addr_base)s;
+                    EA   %(addr_gen)s;
+
+                    fault = writeMemAtomic(xc, traceData, VMem[i],
+                             EA, /*memAccessFlags*/ 0, nullptr);
+                }
+            }
+        }
+
+        if (fault == NoFault) {
+            %(op_wb)s;
+        }
+
+        return fault;
+    }
+}};
+
+def template VStoreInitiateAcc {{
+    Fault
+    %(class_name)s::initiateAcc(ExecContext *xc,
+        Trace::InstRecord *traceData) const
+    {
+        Addr EA;
+        Fault fault = NoFault;
+
+        %(op_decl)s;
+        %(op_rd)s;
+        EA = %(addr_base)s;
+
+        if (fault == NoFault) {
+            %(code)s;
+        }
+
+        if (fault == NoFault) {
+            fault = writeMemTiming(xc, traceData, VMem, EA,
+                /*memAccessFlags*/ 0, nullptr);
+        }
+
+        if (fault == NoFault) {
+            %(op_wb)s;
+        }
+
+        return fault;
+    }
+}};
+
+def template VStoreCompleteAcc {{
+    Fault
+    %(class_name)s::completeAcc(PacketPtr pkt, ExecContext *xc,
+        Trace::InstRecord *traceData) const
+    {
+        return NoFault;
+    }
+}};
+
+// Vector Formats
+def template VDisassemblyDefault {{
+    std::string
+    %(class_name)s::generateDisassembly(Addr pc,
+            const SymbolTable *symtab) const
+    {
+        std::vector<RegId> indices = {%(regs)s};
+        std::stringstream ss;
+
+        /* Print mnemonic */
+        ss << mnemonic;
+
+        /* Get the maximum number of registers */
+        auto tregs = numDestRegs() + numSrcRegs() - 1;
+
+        /* Print all registers in the order */
+        auto i = 0;
+
+        for (const RegId& idx: indices) {
+            if (i < tregs) {
+                if (i == 0) ss << " " ;
+                else        ss << ", ";
+
+                ss << registerName(idx);
+            }
+
+            i++;
+        }
+
+        return ss.str();
+    }
+}};
+
+def format VOp(code, rs1_x   ={{   0   }},
+                     rs1_data={{   0   }},
+                     rs2_x   ={{   0   }},
+                     rs2_data={{   0   }},
+                     rs3_data={{   0   }},
+                     rd_x    ={{   0   }}, funct=0, flags=[]) {{
+    regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs)},
+                        flags)
+    header_output = VectorDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (BasicExecute.subst(iop) +
+                   VDisassemblyDefault.subst(iop))
+}};
+
+// Vector Formats
+def template VDisassemblyIVV {{
+    std::string
+    %(class_name)s::generateDisassembly(Addr pc,
+            const SymbolTable *symtab) const
+    {
+        std::vector<RegId> indices = {%(regs)s};
+        std::stringstream ss;
+
+        /* Print mnemonic */
+        ss << mnemonic;
+
+        /* Get the maximum number of registers */
+        auto tregs = numDestRegs() + numSrcRegs() - 1;
+
+        /* Print all registers in the order */
+        auto i = 0;
+
+        for (const RegId& idx: indices) {
+            if (i < tregs) {
+                if (i == 0) ss << " " ;
+                else        ss << ", ";
+
+                ss << registerName(idx);
+            }
+
+            i++;
+        }
+
+        return ss.str();
+    }
+}};
+
+def format VOPIVV(code, rs1_x   ={{   0   }},
+                        rs1_data={{   0   }},
+                        rs2_x   ={{   0   }},
+                        rs2_data={{   0   }},
+                        rs3_data={{   0   }},
+                        rd_x    ={{   0   }}, funct=0, flags=[]) {{
+    regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs)},
+                        flags)
+    header_output = VectorDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (BasicExecute.subst(iop) +
+                   VDisassemblyIVV.subst(iop))
+}};
+
+// Vector Formats
+def template VDisassemblyIVX {{
+    std::string
+    %(class_name)s::generateDisassembly(Addr pc,
+            const SymbolTable *symtab) const
+    {
+        std::vector<RegId> indices = {%(regs)s};
+        std::stringstream ss;
+
+        /* Print mnemonic */
+        ss << mnemonic;
+
+        /* Get the maximum number of registers */
+        auto tregs = numDestRegs() + numSrcRegs() - 1;
+
+        /* Print all registers in the order */
+        auto i = 0;
+
+        for (const RegId& idx: indices) {
+            if (i < tregs) {
+                if (i == 0) ss << " " ;
+                else        ss << ", ";
+
+                ss << registerName(idx);
+            }
+
+            i++;
+        }
+
+        return ss.str();
+    }
+}};
+
+def format VOPIVX(code, rs1_x   ={{   1   }},
+                        rs1_data={{  Rs1  }},
+                        rs2_x   ={{   0   }},
+                        rs2_data={{   0   }},
+                        rs3_data={{   0   }},
+                        rd_x    ={{   0   }}, funct=0, flags=[]) {{
+    regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs)},
+                        flags)
+    header_output = VectorDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (BasicExecute.subst(iop) +
+                   VDisassemblyIVX.subst(iop))
+}};
+
+// Vector Formats
+def template VDisassemblyIVI {{
+    std::string
+    %(class_name)s::generateDisassembly(Addr pc,
+            const SymbolTable *symtab) const
+    {
+        std::vector<RegId> indices = {%(regs)s};
+        std::stringstream ss;
+
+        /* Print mnemonic */
+        ss << mnemonic;
+
+        /* Get the maximum number of registers */
+        auto tregs = numDestRegs() + numSrcRegs() - 1;
+
+        /* Print all registers in the order */
+        auto i = 0;
+
+        for (const RegId& idx: indices) {
+            if (i < tregs) {
+                if (i == 0) ss << " " ;
+                else        ss << ", ";
+
+                ss << registerName(idx);
+            }
+
+            i++;
+        }
+
+        /* Print Immediate */
+        ss << ", " << imm;
+
+        return ss.str();
+    }
+}};
+
+def format VOPIVI(code, rs1_x   ={{   1   }},
+                        rs1_data={{  imm  }},
+                        rs2_x   ={{   0   }},
+                        rs2_data={{   0   }},
+                        rs3_data={{   0   }},
+                        rd_x    ={{   0   }}, funct=0, flags=[]) {{
+    regs = ['_destRegIdx[0]','_srcRegIdx[0]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs)},
+                        flags)
+    header_output = VectorDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (BasicExecute.subst(iop) +
+                   VDisassemblyIVI.subst(iop))
+}};
+
+// Vector Formats
+def template VDisassemblyMVV {{
+    std::string
+    %(class_name)s::generateDisassembly(Addr pc,
+            const SymbolTable *symtab) const
+    {
+        std::vector<RegId> indices = {%(regs)s};
+        std::stringstream ss;
+
+        /* Print mnemonic */
+        ss << mnemonic;
+
+        /* Get the maximum number of registers */
+        auto tregs = numDestRegs() + numSrcRegs() - 1;
+
+        /* Print all registers in the order */
+        auto i = 0;
+
+        for (const RegId& idx: indices) {
+            if (i < tregs) {
+                if (i == 0) ss << " " ;
+                else        ss << ", ";
+
+                ss << registerName(idx);
+            }
+
+            i++;
+        }
+
+        /* Print Immediate */
+        ss << ", " << imm;
+
+        return ss.str();
+    }
+}};
+
+def format VOPMVV(code, rs1_x   ={{   0   }},
+                        rs1_data={{   0   }},
+                        rs2_x   ={{   0   }},
+                        rs2_data={{   0   }},
+                        rs3_data={{   0   }},
+                        rd_x    ={{   1   }}, funct=0, flags=[]) {{
+    regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs)},
+                        flags)
+    header_output = VectorDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (BasicExecute.subst(iop) +
+                   VDisassemblyMVV.subst(iop))
+}};
+
+// Vector Formats
+def template VDisassemblyMVX {{
+    std::string
+    %(class_name)s::generateDisassembly(Addr pc,
+            const SymbolTable *symtab) const
+    {
+        std::vector<RegId> indices = {%(regs)s};
+        std::stringstream ss;
+
+        /* Print mnemonic */
+        ss << mnemonic;
+
+        /* Get the maximum number of registers */
+        auto tregs = numDestRegs() + numSrcRegs() - 1;
+
+        /* Print all registers in the order */
+        auto i = 0;
+
+        for (const RegId& idx: indices) {
+            if (i < tregs) {
+                if (i == 0) ss << " " ;
+                else        ss << ", ";
+
+                ss << registerName(idx);
+            }
+
+            i++;
+        }
+
+        /* Print Immediate */
+        ss << ", " << imm;
+
+        return ss.str();
+    }
+}};
+
+def format VOPMVX(code, rs1_x   ={{   1   }},
+                        rs1_data={{  Rs1  }},
+                        rs2_x   ={{   0   }},
+                        rs2_data={{   0   }},
+                        rs3_data={{   0   }},
+                        rd_x    ={{   1   }}, funct=0, flags=[]) {{
+    regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs)},
+                        flags)
+    header_output = VectorDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (BasicExecute.subst(iop) +
+                   VDisassemblyMVX.subst(iop))
+}};
+
+// Vector Formats
+def template VDisassemblyMem {{
+    std::string
+    %(class_name)s::generateDisassembly(Addr pc,
+            const SymbolTable *symtab) const
+    {
+        std::vector<RegId> indices = {%(regs)s};
+        std::stringstream ss;
+
+        /* Print mnemonic */
+        ss << mnemonic;
+
+        /* Get the maximum number of registers */
+        auto tregs = numDestRegs() + numSrcRegs() - 1;
+
+        /* Print all registers in the order */
+        auto i = 0;
+
+        for (const RegId& idx: indices) {
+            if (i < tregs) {
+                if (i == 0) ss << " " ;
+                else        ss << ", ";
+
+                if (i == 1)
+                  ss << "0(" << registerName(idx) << ")";
+                else
+                  ss << registerName(idx);
+            }
+
+            i++;
+        }
+
+        return ss.str();
+    }
+}};
+
+def format VMLOp(code, rs1_x    ={{    1    }},
+                       rs1_data ={{ Rs1_ud  }},
+                       rs2_x    ={{    0    }},
+                       rs2_data ={{    0    }},
+                       rs3_data ={{    0    }},
+                       rd_x     ={{    0    }},
+                       addr_base={{ Rs1_ud  }},
+                       stride   ={{ elem_sz }},
+                       mask     ={{  true   }},
+                       addr_gen ={{ += i*es }}, funct=0, flags=[]) {{
+    regs = ['_destRegIdx[0]','_srcRegIdx[0]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs),
+                             'addr_base':addr_base,
+                             'stride':stride,
+                             'mask':mask,
+                             'addr_gen':addr_gen },
+                        flags)
+    header_output = VectorMemDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (VLoadExecute.subst(iop) +
+                   VLoadInitiateAcc.subst(iop) +
+                   VLoadCompleteAcc.subst(iop) +
+                   VDisassemblyMem.subst(iop))
+}};
+
+def format VMLSOp(code, rs1_x    ={{    1    }},
+                        rs1_data ={{ Rs1_ud  }},
+                        rs2_x    ={{    1    }},
+                        rs2_data ={{ Rs2_ud  }},
+                        rs3_data ={{    0    }},
+                        rd_x     ={{    0    }},
+                        addr_base={{ Rs1_ud  }},
+                        stride   ={{ Rs2_ud  }},
+                        mask     ={{  true   }},
+                        addr_gen ={{ += i*es }}, funct=0, flags=[]) {{
+    regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs),
+                             'addr_base':addr_base,
+                             'stride':stride,
+                             'mask':mask,
+                             'addr_gen':addr_gen },
+                        flags)
+    header_output = VectorMemDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (VLoadExecute.subst(iop) +
+                   VLoadInitiateAcc.subst(iop) +
+                   VLoadCompleteAcc.subst(iop) +
+                   VDisassemblyMem.subst(iop))
+}};
+
+def format VMLXOp(code, rs1_x    ={{    1    }},
+                        rs1_data ={{ Rs1_ud  }},
+                        rs2_x    ={{    0    }},
+                        rs2_data ={{    0    }},
+                        rs3_data ={{    0    }},
+                        rd_x     ={{    0    }},
+                        addr_base={{ Rs1_ud  }},
+                        stride   ={{    0    }},
+                        mask     ={{  true   }},
+                        addr_gen ={{ += i*es }}, funct=0, flags=[]) {{
+    regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs),
+                             'addr_base':addr_base,
+                             'stride':stride,
+                             'mask':mask,
+                             'addr_gen':addr_gen },
+                        flags)
+    header_output = VectorMemDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (VLoadExecute.subst(iop) +
+                   VLoadInitiateAcc.subst(iop) +
+                   VLoadCompleteAcc.subst(iop) +
+                   VDisassemblyMem.subst(iop))
+}};
+
+// Vector Formats
+def format VMSOp(code, rs1_x    ={{    1    }},
+                       rs1_data ={{ Rs1_ud  }},
+                       rs2_x    ={{    0    }},
+                       rs2_data ={{    0    }},
+                       rs3_data ={{    0    }},
+                       rd_x     ={{    0    }},
+                       addr_base={{ Rs1_ud  }},
+                       stride   ={{ elem_sz }},
+                       mask     ={{  true   }},
+                       addr_gen ={{ += i*es }}, funct=0, flags=[]) {{
+    regs = ['_srcRegIdx[1]','_srcRegIdx[0]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs),
+                             'addr_base':addr_base,
+                             'stride':stride,
+                             'mask':mask,
+                             'addr_gen':addr_gen },
+                        flags)
+    header_output = VectorMemDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (VStoreExecute.subst(iop) +
+                   VStoreInitiateAcc.subst(iop) +
+                   VStoreCompleteAcc.subst(iop) +
+                   VDisassemblyMem.subst(iop))
+}};
+
+def format VMSSOp(code, rs1_x    ={{    1    }},
+                        rs1_data ={{ Rs1_ud  }},
+                        rs2_x    ={{    1    }},
+                        rs2_data ={{ Rs2_ud  }},
+                        rs3_data ={{    0    }},
+                        rd_x     ={{    0    }},
+                        addr_base={{ Rs1_ud  }},
+                        stride   ={{ elem_sz }},
+                        mask     ={{  true   }},
+                        addr_gen ={{ += i*es }}, funct=0, flags=[]) {{
+    regs = ['_srcRegIdx[1]','_srcRegIdx[0]', '_srcRegIdx[2]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs),
+                             'addr_base':addr_base,
+                             'stride':stride,
+                             'mask':mask,
+                             'addr_gen':addr_gen },
+                        flags)
+    header_output = VectorMemDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (VStoreExecute.subst(iop) +
+                   VStoreInitiateAcc.subst(iop) +
+                   VStoreCompleteAcc.subst(iop) +
+                   VDisassemblyMem.subst(iop))
+}};
+
+def format VMSXOp(code, rs1_x    ={{    1    }},
+                        rs1_data ={{ Rs1_ud  }},
+                        rs2_x    ={{    0    }},
+                        rs2_data ={{    0    }},
+                        rs3_data ={{    0    }},
+                        rd_x     ={{    0    }},
+                        addr_base={{ Rs1_ud  }},
+                        stride   ={{    0    }},
+                        mask     ={{  true   }},
+                        addr_gen ={{ += i*es }}, funct=0, flags=[]) {{
+    regs = ['_srcRegIdx[1]','_srcRegIdx[0]', '_srcRegIdx[2]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs),
+                             'addr_base':addr_base,
+                             'stride':stride,
+                             'mask':mask,
+                             'addr_gen':addr_gen },
+                        flags)
+    header_output = VectorMemDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (VStoreExecute.subst(iop) +
+                   VStoreInitiateAcc.subst(iop) +
+                   VStoreCompleteAcc.subst(iop) +
+                   VDisassemblyMem.subst(iop))
+}};
+
+// Vector Formats
+def format VCSROp(code, rs1_x   ={{   1   }},
+                        rs1_data={{  Rs1  }},
+                        rs2_x   ={{   0   }},
+                        rs2_data={{  csr  }},
+                        rs3_data={{   0   }},
+                        rd_x    ={{   1   }}, funct=0, flags=[]) {{
+    regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'rs1_x':rs1_x,
+                             'rs1_data':rs1_data,
+                             'rs2_x':rs2_x,
+                             'rs2_data':rs2_data,
+                             'rs3_data':rs3_data,
+                             'rd_x':rd_x,
+                             'funct':funct,
+                             'regs':','.join(regs),
+                             'funct':funct},
+                        flags)
+    header_output = VectorDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (BasicExecute.subst(iop) +
+                   VDisassemblyDefault.subst(iop))
+}};

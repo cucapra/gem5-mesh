@@ -118,3 +118,17 @@ def bitfield CIMM5 <6:2>;
 def bitfield CIMM3 <12:10>;
 def bitfield CIMM2 <6:5>;
 def bitfield CIMM1 <12>;
+
+// V-Type
+def bitfield FUNCT6 <31:26>;
+def bitfield FUNCT3 <14:12>;
+def bitfield VD     <11:07>;
+def bitfield VS1    <19:15>;
+def bitfield VS2    <24:20>;
+def bitfield VS3    <11:07>;
+def bitfield SIMM5  <19:15>;
+def bitfield MOP    <27:26>;
+def bitfield MWIDTH <14:12>;
+def bitfield VM     <25>;
+def bitfield VMSB   <31>;
+def bitfield VSETVL <30:25>;

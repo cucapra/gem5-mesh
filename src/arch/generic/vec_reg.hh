@@ -518,12 +518,26 @@ class VecLaneT
 
     /*template <size_t Sz>
     friend class VecRegContainer;*/
-    friend class VecRegContainer<8>;
-    friend class VecRegContainer<16>;
-    friend class VecRegContainer<32>;
-    friend class VecRegContainer<64>;
-    friend class VecRegContainer<128>;
-    friend class VecRegContainer<MaxVecRegLenInBytes>;
+    friend class VecRegContainer<  1 *    1>;
+    friend class VecRegContainer<  2 *    1>;
+    friend class VecRegContainer<  4 *    1>;
+    friend class VecRegContainer<  8 *    1>;
+    friend class VecRegContainer< 16 *    1>;
+    friend class VecRegContainer< 32 *    1>;
+    friend class VecRegContainer< 64 *    1>;
+    friend class VecRegContainer<128 *    1>;
+    friend class VecRegContainer<256 *    1>;
+    friend class VecRegContainer<512 *    1>;
+    friend class VecRegContainer<  1 * 1024>;
+    friend class VecRegContainer<  2 * 1024>;
+    friend class VecRegContainer<  4 * 1024>;
+    friend class VecRegContainer<  8 * 1024>;
+    friend class VecRegContainer< 16 * 1024>;
+    friend class VecRegContainer< 32 * 1024>;
+    friend class VecRegContainer< 64 * 1024>;
+    friend class VecRegContainer<128 * 1024>;
+    friend class VecRegContainer<256 * 1024>;
+    friend class VecRegContainer<512 * 1024>;
 
     /** My type alias. */
     using MyClass = VecLaneT<VecElem, Const>;

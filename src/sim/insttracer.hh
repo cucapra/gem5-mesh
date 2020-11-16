@@ -213,6 +213,13 @@ class InstRecord
         data_status = DataVecPred;
     }
 
+    template<typename T>
+    void
+    setData(T &val)
+    {
+        warn_once("setData is not supported for the provided type.");
+    }
+
     void setFetchSeq(InstSeqNum seq)
     { fetch_seq = seq; fetch_seq_valid = true; }
 

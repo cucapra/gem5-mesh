@@ -399,19 +399,251 @@ decode QUADRANT default Unknown::unknown() {
                 0x3: fld({{
                     Fd_bits = Mem;
                 }}, inst_flags=FloatMemReadOp);
-                // not floats, but put here to make sure compiler has some idea
-                // these are loads
-                // TODO will compiler treat these as float registers??? and not track deps?
-                // speculative loads, these are issue without knowing whether
-                // data has arrived in spads. wait until it does
-                // this does not reset there recv flag
-                //0x5: lwspec({{
-                    //Rd_sd = Mem_sw;
-                //}}, inst_flags=IsSpadSpeculative);
-                //// this does reset the recv flag
-                //0x6: lwspecr({{
-                    //Rd_sd = Mem_sw;
-                //}}, inst_flags=[IsSpadSpeculative, IsSpadReset]);
+            }
+
+            // OP-V VLOAD
+            // 8b
+            0x0: decode MOP {
+                // vle8
+                0x0: decode VM {
+                    // vle8.v
+                    0x1: VMLOp::vle8_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = VMem_sB[i];
+                        }
+                    }}, funct=86);
+
+                    // vle8.vm
+                    0x0: VMLOp::vle8_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                Vd_sd[i] = VMem_sB[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, funct=86);
+                }
+
+                // vlse8
+                0x2: decode VM {
+                    // vlse8.v
+                    0x1: VMLSOp::vlse8_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = VMem_sB[i];
+                        }
+                    }}, stride=Rs2_ud, funct=90);
+
+                    // vlse8.vm
+                    0x0: VMLSOp::vlse8_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                Vd_sd[i] = VMem_sB[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=90);
+                }
+
+                // vlxe8
+                0x3: decode VM {
+                    // vlxe8.v
+                    0x1: VMLXOp::vlxe8_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = VMem_sB[i];
+                        }
+                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=94);
+
+                    // vlxe8.vm
+                    0x0: VMLXOp::vlxe8_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                Vd_sd[i] = VMem_sB[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}},
+                        addr_gen={{ += Vs2_ud[i] }}, funct=94);
+                }
+            }
+
+            // 16b
+            0x5: decode MOP {
+                // vle16
+                0x0: decode VM {
+                    // vle16.v
+                    0x1: VMLOp::vle16_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = VMem_sH[i];
+                        }
+                    }}, funct=87);
+
+                    // vle16.vm
+                    0x0: VMLOp::vle16_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                Vd_sd[i] = VMem_sH[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, funct=87);
+                }
+
+                // vlse16
+                0x2: decode VM {
+                    // vlse16.v
+                    0x1: VMLSOp::vlse16_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = VMem_sH[i];
+                        }
+                    }}, stride=Rs2_ud, funct=91);
+
+                    // vlse16.vm
+                    0x0: VMLSOp::vlse16_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                Vd_sd[i] = VMem_sH[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=91);
+                }
+
+                // vlxe16
+                0x3: decode VM {
+                    // vlxe16.v
+                    0x1: VMLXOp::vlxe16_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = VMem_sH[i];
+                        }
+                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=95);
+
+                    // vlxe16.vm
+                    0x0: VMLXOp::vlxe16_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                Vd_sd[i] = VMem_sH[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}},
+                        addr_gen={{ += Vs2_ud[i] }}, funct=95);
+                }
+            }
+
+            // 32b
+            0x6: decode MOP {
+                // vle32
+                0x0: decode VM {
+                    // vle32.v
+                    0x1: VMLOp::vle32_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = VMem_sW[i];
+                        }
+                    }}, funct=88);
+
+                    // vle32.vm
+                    0x0: VMLOp::vle32_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                Vd_sd[i] = VMem_sW[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, funct=88);
+                }
+
+                // vlse32
+                0x2: decode VM {
+                    // vlse32.v
+                    0x1: VMLSOp::vlse32_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = VMem_sW[i];
+                        }
+                    }}, stride=Rs2_ud, funct=92);
+
+                    // vlse32.vm
+                    0x0: VMLSOp::vlse32_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                Vd_sd[i] = VMem_sW[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=92);
+                }
+
+                // vlxe32
+                0x3: decode VM {
+                    // vlxe32.v
+                    0x1: VMLXOp::vlxe32_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = VMem_sW[i];
+                        }
+                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=96);
+
+                    // vlxe32.vm
+                    0x0: VMLXOp::vlxe32_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                Vd_sd[i] = VMem_sW[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}},
+                        addr_gen={{ += Vs2_ud[i] }}, funct=96);
+                }
+            }
+
+            // 64b
+            0x7: decode MOP {
+                // vle64
+                0x0: decode VM {
+                    // vle64.v
+                    0x1: VMLOp::vle64_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = VMem_sD[i];
+                        }
+                    }}, funct=89);
+
+                    // vle64.vm
+                    0x0: VMLOp::vle64_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                Vd_sd[i] = VMem_sD[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, funct=89);
+                }
+
+                // vlse64
+                0x2: decode VM {
+                    // vlse64.v
+                    0x1: VMLSOp::vlse64_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = VMem_sD[i];
+                        }
+                    }}, stride=Rs2_ud, funct=93);
+
+                    // vlse64.vm
+                    0x0: VMLSOp::vlse64_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                Vd_sd[i] = VMem_sD[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=93);
+                }
+
+                // vlxe64
+                0x3: decode VM {
+                    // vlxe64.v
+                    0x1: VMLXOp::vlxe64_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = VMem_sD[i];
+                        }
+                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=97);
+
+                    // vlxe64.vm
+                    0x0: VMLXOp::vlxe64_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                Vd_sd[i] = VMem_sD[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}},
+                        addr_gen={{ += Vs2_ud[i] }}, funct=97);
+                }
             }
         }
 
@@ -535,6 +767,251 @@ decode QUADRANT default Unknown::unknown() {
                 0x3: fsd({{
                     Mem_ud = Fs2_bits;
                 }}, inst_flags=FloatMemWriteOp);
+            }
+
+            // +--> OP-V VSTORE
+            // 8b
+            0x0: decode MOP {
+                // vse8
+                0x0: decode VM {
+                    // vse8.v
+                    0x1: VMSOp::vse8_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            VMem_uB[i] = Vs3_ud[i];
+                        }
+                    }}, funct=98);
+
+                    // vse8.vm
+                    0x0: VMSOp::vse8_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                VMem_uB[i] = Vs3_ud[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, funct=98);
+                }
+
+                // vsse8
+                0x2: decode VM {
+                    // vsse8.v
+                    0x1: VMSSOp::vsse8_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            VMem_uB[i] = Vs3_ud[i];
+                        }
+                    }}, stride=Rs2_ud, funct=102);
+
+                    // vsse8.vm
+                    0x0: VMSSOp::vsse8_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                VMem_uB[i] = Vs3_ud[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=102);
+                }
+
+                // vsxe8
+                0x3: decode VM {
+                    // vsxe8.v
+                    0x1: VMSXOp::vsxe8_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            VMem_uB[i] = Vs3_ud[i];
+                        }
+                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=106);
+
+                    // vsxe8.vm
+                    0x0: VMSXOp::vsxe8_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                VMem_uB[i] = Vs3_ud[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}},
+                        addr_gen={{ += Vs2_ud[i] }}, funct=106);
+                }
+            }
+
+            // 16b
+            0x5: decode MOP {
+                // vse16
+                0x0: decode VM {
+                    // vse16.v
+                    0x1: VMSOp::vse16_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            VMem_uH[i] = Vs3_ud[i];
+                        }
+                    }}, funct=99);
+
+                    // vse16.vm
+                    0x0: VMSOp::vse16_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                VMem_uH[i] = Vs3_ud[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, funct=99);
+                }
+
+                // vsse16
+                0x2: decode VM {
+                    // vsse16.v
+                    0x1: VMSSOp::vsse16_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            VMem_uH[i] = Vs3_ud[i];
+                        }
+                    }}, stride=Rs2_ud, funct=103);
+
+                    // vsse16.vm
+                    0x0: VMSSOp::vsse16_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                VMem_uH[i] = Vs3_ud[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=103);
+                }
+
+                // vsxe16
+                0x3: decode VM {
+                    // vsxe16.v
+                    0x1: VMSXOp::vsxe16_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            VMem_uH[i] = Vs3_ud[i];
+                        }
+                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=107);
+
+                    // vsxe16.vm
+                    0x0: VMSXOp::vsxe16_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                VMem_uH[i] = Vs3_ud[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}},
+                        addr_gen={{ += Vs2_ud[i] }}, funct=107);
+                }
+            }
+
+            // 32b
+            0x6: decode MOP {
+                // vse32
+                0x0: decode VM {
+                    // vse32.v
+                    0x1: VMSOp::vse32_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            VMem_uW[i] = Vs3_ud[i];
+                        }
+                    }}, funct=100);
+
+                    // vse32.vm
+                    0x0: VMSOp::vse32_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                VMem_uW[i] = Vs3_ud[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, funct=100);
+                }
+
+                // vsse32
+                0x2: decode VM {
+                    // vsse32.v
+                    0x1: VMSSOp::vsse32_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            VMem_uW[i] = Vs3_ud[i];
+                        }
+                    }}, stride=Rs2_ud, funct=104);
+
+                    // vsse32.vm
+                    0x0: VMSSOp::vsse32_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                VMem_uW[i] = Vs3_ud[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=104);
+                }
+
+                // vsxe32
+                0x3: decode VM {
+                    // vsxe32.v
+                    0x1: VMSXOp::vsxe32_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            VMem_uW[i] = Vs3_ud[i];
+                        }
+                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=108);
+
+                    // vsxe32.vm
+                    0x0: VMSXOp::vsxe32_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                VMem_uW[i] = Vs3_ud[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}},
+                        addr_gen={{ += Vs2_ud[i] }}, funct=108);
+                }
+            }
+
+            // 64b
+            0x7: decode MOP {
+                // vse64
+                0x0: decode VM {
+                    // vse64.v
+                    0x1: VMSOp::vse64_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            VMem_uD[i] = Vs3_ud[i];
+                        }
+                    }}, funct=101);
+
+                    // vse64.vm
+                    0x0: VMSOp::vse64_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                VMem_uD[i] = Vs3_ud[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, funct=101);
+                }
+
+                // vsse64
+                0x2: decode VM {
+                    // vsse64.v
+                    0x1: VMSSOp::vsse64_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            VMem_uD[i] = Vs3_ud[i];
+                        }
+                    }}, stride=Rs2_ud, funct=105);
+
+                    // vsse64.vm
+                    0x0: VMSSOp::vsse64_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                VMem_uD[i] = Vs3_ud[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=105);
+                }
+
+                // vsxe64
+                0x3: decode VM {
+                    // vsxe64.v
+                    0x1: VMSXOp::vsxe64_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            VMem_uD[i] = Vs3_ud[i];
+                        }
+                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=109);
+
+                    // vsxe64.vm
+                    0x0: VMSXOp::vsxe64_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1) {
+                                VMem_uD[i] = Vs3_ud[i];
+                            }
+                        }
+                    }}, mask={{Vm_ud[i] & 0x1}},
+                        addr_gen={{ += Vs2_ud[i] }}, funct=109);
+                }
             }
         }
 
@@ -1738,6 +2215,1443 @@ decode QUADRANT default Unknown::unknown() {
                 0x79: fmv_d_x({{
                     Fd_bits = Rs1;
                 }}, FloatCvtOp);
+            }
+        }
+
+        // +--> VINT
+        0x15: decode FUNCT3 {
+            // OPIVV
+            0x0: decode FUNCT6 {
+                // vadd
+                0x0: decode VM {
+                    // vadd_vv
+                    0x1: VOPIVV::vadd_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] + Vs1_ud[i];
+                        }
+                    }}, funct=0);
+
+                    // vadd_vvm
+                    0x0: VOPIVV::vadd_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] + Vs1_ud[i];
+                            }
+                        }
+                    }}, funct=0);
+                }
+
+                // vsub
+                0x2: decode VM {
+                    // vsub_vv
+                    0x1: VOPIVV::vsub_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] - Vs1_ud[i];
+                        }
+                    }}, funct=3);
+
+                    // vsub_vvm
+                    0x0: VOPIVV::vsub_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] - Vs1_ud[i];
+                            }
+                        }
+                    }}, funct=3);
+                }
+
+                // vminu
+                0x4: decode VM {
+                    // vminu_vv
+                    0x1: VOPIVV::vminu_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = std::min(Vs2_ud[i] , Vs1_ud[i]);
+                        }
+                    }}, funct=6);
+
+                    // vminu_vvm
+                    0x0: VOPIVV::vminu_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = std::min(Vs2_ud[i] , Vs1_ud[i]);
+                            }
+                        }
+                    }}, funct=6);
+                }
+
+                // vmin
+                0x5: decode VM {
+                    // vmin_vv
+                    0x1: VOPIVV::vmin_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = std::min(Vs2_sd[i] , Vs1_sd[i]);
+                        }
+                    }}, funct=9);
+
+                    // vmin_vvm
+                    0x0: VOPIVV::vmin_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = std::min(Vs2_sd[i] , Vs1_sd[i]);
+                            }
+                        }
+                    }}, funct=9);
+                }
+
+                // vmaxu
+                0x6: decode VM {
+                    // vmaxu_vv
+                    0x1: VOPIVV::vmaxu_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = std::max(Vs2_ud[i] , Vs1_ud[i]);
+                        }
+                     }}, funct=12);
+
+                    // vmaxu_vvm
+                    0x0: VOPIVV::vmaxu_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = std::max(Vs2_ud[i] , Vs1_ud[i]);
+                            }
+                        }
+                    }}, funct=12);
+                }
+
+                // vmax
+                0x7: decode VM {
+                    // vmax_vv
+                    0x1: VOPIVV::vmax_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = std::max(Vs2_sd[i] , Vs1_sd[i]);
+                        }
+                    }}, funct=15);
+
+                    // vmax_vvm
+                    0x0: VOPIVV::vmax_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = std::max(Vs2_sd[i] , Vs1_sd[i]);
+                            }
+                        }
+                    }}, funct=15);
+                }
+
+                // vand
+                0x9: decode VM {
+                    // vand_vv
+                    0x1: VOPIVV::vand_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] & Vs1_ud[i];
+                        }
+                    }}, funct=18);
+
+                    // vand_vvm
+                    0x0: VOPIVV::vand_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] & Vs1_ud[i];
+                            }
+                        }
+                    }}, funct=18);
+                }
+
+                // vor
+                0xa: decode VM {
+                    // vor_vv
+                    0x1: VOPIVV::vor_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] | Vs1_ud[i];
+                        }
+                    }}, funct=21);
+
+                    // vor_vvm
+                    0x0: VOPIVV::vor_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] | Vs1_ud[i];
+                            }
+                        }
+                    }}, funct=21);
+                }
+
+                // vxor
+                0x0b: decode VM {
+                    // vxor_vv
+                    0x1: VOPIVV::vxor_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] ^ Vs1_ud[i];
+                        }
+                    }}, funct=24);
+
+                    // vxor_vvm
+                    0x0: VOPIVV::vxor_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] ^ Vs1_ud[i];
+                            }
+                        }
+                    }}, funct=24);
+                }
+
+                // vmerge/vmv
+                0x17: decode VM {
+                    // vmv
+                    0x1: VOPIVV::vmv_v_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs1_ud[i];
+                        }
+                    }}, funct=27);
+
+                    // vmerge_vv
+                    0x0: VOPIVV::vmerge_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs1_ud[i];
+                            } else {
+                                Vd_ud[i] = Vs2_ud[i];
+                            }
+                        }
+                    }}, funct=30);
+                }
+
+                // vmseq
+                0x18: decode VM {
+                    // vmseq_vv
+                    0x1: VOPIVV::vmseq_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] == Vs1_ud[i];
+                        }
+                    }}, funct=33);
+
+                    // vmseq_vvm
+                    0x0: VOPIVV::vmseq_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] == Vs1_ud[i];
+                            }
+                        }
+                    }}, funct=33);
+                }
+
+                // vmsne
+                0x19: decode VM {
+                    // vmsne_vv
+                    0x1: VOPIVV::vmsne_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] != Vs1_ud[i];
+                        }
+                    }}, funct=36);
+
+                    // vmsne_vvm
+                    0x0: VOPIVV::vmsne_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] != Vs1_ud[i];
+                            }
+                        }
+                    }}, funct=36);
+                }
+
+                // vmsltu
+                0x1a: decode VM {
+                    // vmsltu_vv
+                    0x1: VOPIVV::vmsltu_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] < Vs1_ud[i];
+                        }
+                    }}, funct=39);
+
+                    // vmsltu_vvm
+                    0x0: VOPIVV::vmsltu_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] < Vs1_ud[i];
+                            }
+                        }
+                    }}, funct=39);
+                }
+
+                // vmslt
+                0x1b: decode VM {
+                    // vmslt_vv
+                    0x1: VOPIVV::vmslt_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] < Vs1_sd[i];
+                        }
+                    }}, funct=42);
+
+                    // vmslt_vvm
+                    0x0: VOPIVV::vmslt_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] < Vs1_sd[i];
+                            }
+                        }
+                    }}, funct=42);
+                }
+
+                // vmsleu
+                0x1c: decode VM {
+                    // vmsleu_vv
+                    0x1: VOPIVV::vmsleu_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] <= Vs1_ud[i];
+                        }
+                    }}, funct=39);
+
+                    // vmsleu_vvm
+                    0x0: VOPIVV::vmsleu_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] <= Vs1_ud[i];
+                            }
+                        }
+                    }}, funct=39);
+                }
+
+                // vmsle
+                0x1d: decode VM {
+                    // vmsle_vv
+                    0x1: VOPIVV::vmsle_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] <= Vs1_sd[i];
+                        }
+                    }}, funct=42);
+
+                    // vmsle_vvm
+                    0x0: VOPIVV::vmsle_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] <= Vs1_sd[i];
+                            }
+                        }
+                    }}, funct=42);
+                }
+
+                // vmsgtu
+                0x1e: decode VM {
+                    // vmsgtu_vv
+                    0x1: VOPIVV::vmsgtu_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] > Vs1_ud[i];
+                        }
+                    }}, funct=51);
+
+                    // vmsgtu_vvm
+                    0x0: VOPIVV::vmsgtu_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] > Vs1_ud[i];
+                            }
+                        }
+                    }}, funct=51);
+                }
+
+                // vmsgt
+                0x1f: decode VM {
+                    // vmsgt_vv
+                    0x1: VOPIVV::vmsgt_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] > Vs1_sd[i];
+                        }
+                    }}, funct=54);
+
+                    // vmsgt_vvm
+                    0x0: VOPIVV::vmsgt_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] > Vs1_sd[i];
+                            }
+                        }
+                    }}, funct=54);
+                }
+
+                // vsll
+                0x25: decode VM {
+                    // vsll_vv
+                    0x1: VOPIVV::vsll_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] << (Vs1_ud[i] & (64 - 1));
+                        }
+                    }}, funct=57);
+
+                    // vsll_vvm
+                    0x0: VOPIVV::vsll_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] << (Vs1_ud[i] & (64 - 1));
+                            }
+                        }
+                    }}, funct=57);
+                }
+
+                // vsrl
+                0x28: decode VM {
+                    // vsrl_vv
+                    0x1: VOPIVV::vsrl_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] >> (Vs1_ud[i] & (64 - 1));
+                        }
+                    }}, funct=60);
+
+                    // vsrl_vvm
+                    0x0: VOPIVV::vsrl_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] >> (Vs1_ud[i] & (64 - 1));
+                            }
+                        }
+                    }}, funct=60);
+                }
+
+                // vsra
+                0x29: decode VM {
+                    // vsra_vv
+                    0x1: VOPIVV::vsra_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] >> (Vs1_sd[i] & (64 - 1));
+                        }
+                    }}, funct=63);
+
+                    // vsra_vvm
+                    0x0: VOPIVV::vsra_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_sd[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] >> (Vs1_sd[i] & (64 - 1));
+                            }
+                        }
+                    }}, funct=63);
+                }
+            }
+
+            //// OPFVV
+            //0x1: decode FUNCT6 {
+            //}
+
+            // OPMVV
+            0x2: decode FUNCT6 {
+                // vredsum
+                0x00: decode VM {
+                    // vredsum
+                    0x1: VOPIVV::vredsum({{
+                        auto res = Vs1_ud[0];
+                        for (auto i = 0; i < VLEN; i++) {
+                            res += Vs2_ud[i];
+                        }
+                        Vd_ud[0] = res;
+                    }}, funct=71);
+
+                    // vredsum_m
+                    0x0: VOPIVV::vredsum_m({{
+                        auto res = Vs1_ud[0];
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                res += Vs2_ud[i];
+                            }
+                        }
+                        Vd_ud[0] = res;
+                    }}, funct=71);
+                }
+
+                // VWXUNARY0
+                0x10: decode VS1 {
+                    0x00: VOPMVV::vmv_x_s({{
+                        Rd_ud = Vs2_ud[0];
+                    }}, funct=69);
+
+                    0x10: decode VM {
+                        0x1: VOPMVV::vpopc({{
+                            auto res = 0;
+                            for (auto i = 0; i < VLEN; i++) {
+                                res += (Vs2_ud[i] & 0x1);
+                            }
+                            Rd_ud = res;
+                        }}, funct=72);
+
+                        0x0: VOPMVV::vpopc_m({{
+                            auto res = 0;
+                            for (auto i = 0; i < VLEN; i++) {
+                                res += (Vs2_ud[i] & Vm_ud[i] & 0x1);
+                            }
+                            Rd_ud = res;
+                        }}, funct=72);
+                    }
+                }
+
+                // vmul
+                0x25: decode VM {
+                    // vmul_vv
+                    0x1: VOPIVV::vmul_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] * Vs1_sd[i];
+                        }
+                    }}, funct=66);
+
+                    // vmul_vvm
+                    0x0: VOPIVV::vmul_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] * Vs1_sd[i];
+                            }
+                        }
+                    }}, funct=66);
+                }
+            }
+
+            // OPIVI
+            0x3: decode FUNCT6 {
+                // vadd
+                0x0: decode VM {
+                    // vadd_vi
+                    0x1: VOPIVI::vadd_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] + imm;
+                        }
+                    }}, funct=2);
+
+                    // vadd_vim
+                    0x0: VOPIVI::vadd_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] + imm;
+                            }
+                        }
+                    }}, funct=2);
+                }
+
+                // vrsub
+                0x3: decode VM {
+                    // vrsub_vi
+                    0x1: VOPIVI::vrsub_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = imm - Vs2_sd[i];
+                        }
+                    }}, funct=1);
+
+                    // vrsub_vim
+                    0x0: VOPIVI::vrsub_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = imm - Vs2_sd[i];
+                            }
+                        }
+                    }}, funct=1);
+                }
+
+                // vand
+                0x9: decode VM {
+                    // vand_vi
+                    0x1: VOPIVI::vand_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] & imm;
+                        }
+                    }}, funct=9);
+
+                    // vand_vim
+                    0x0: VOPIVI::vand_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] & imm;
+                            }
+                        }
+                    }}, funct=9);
+                }
+
+                // vor
+                0xa: decode VM {
+                    // vor_vi
+                    0x1: VOPIVI::vor_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] | imm;
+                        }
+                    }}, funct=10);
+
+                    // vor_vim
+                    0x0: VOPIVI::vor_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] | imm;
+                            }
+                        }
+                    }}, funct=10);
+                }
+
+                // vxor
+                0x0b: decode VM {
+                    // vxor_vi
+                    0x1: VOPIVI::vxor_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] ^ imm;
+                        }
+                    }}, funct=26);
+
+                    // vxor_vim
+                    0x0: VOPIVI::vxor_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] ^ imm;
+                            }
+                        }
+                    }}, funct=26);
+                }
+
+                // vslideup
+                0x0e: decode VM {
+                    // vslideup_vi
+                    0x1: VOPIVI::vslideup_vi({{
+                        for (auto i = imm; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i - imm];
+                        }
+                    }}, funct=73);
+
+                    // vslideup_vim
+                    0x0: VOPIVI::vslideup_vim({{
+                        for (auto i = imm; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i - imm];
+                            }
+                        }
+                    }}, funct=73);
+                }
+
+                // vslidedown
+                0x0f: decode VM {
+                    // vslidedown_vi
+                    0x1: VOPIVI::vslidedown_vi({{
+                        auto max = xc->maxVectorLength();
+                        for (auto i = 0; i < VLEN; i++) {
+                            if ((i + imm) > max) {
+                                Vd_ud[i] = Vs2_ud[i + imm];
+                            } else {
+                                Vd_ud[i] = 0;
+                            }
+                        }
+                    }}, funct=75);
+
+                    // vslidedown_vim
+                    0x0: VOPIVI::vslidedown_vim({{
+                        auto max = xc->maxVectorLength();
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                if ((i + imm) > max) {
+                                    Vd_ud[i] = Vs2_ud[i + imm];
+                                } else {
+                                    Vd_ud[i] = 0;
+                                }
+                            }
+                        }
+                    }}, funct=75);
+                }
+
+                // vmerge/vmv
+                0x17: decode VM {
+                    // vmv
+                    0x1: VOPIVI::vmv_v_i({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = imm;
+                        }
+                    }}, funct=29);
+
+                    // vmerge_vi
+                    0x0: VOPIVI::vmerge_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = imm;
+                            } else {
+                                Vd_ud[i] = Vs2_ud[i];
+                            }
+                        }
+                    }}, funct=32);
+                }
+
+                // vmseq
+                0x18: decode VM {
+                    // vmseq_vi
+                    0x1: VOPIVI::vmseq_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] == imm;
+                        }
+                    }}, funct=34);
+
+                    // vmseq_vim
+                    0x0: VOPIVI::vmseq_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_sd[i] == imm;
+                            }
+                        }
+                    }}, funct=34);
+                }
+
+                // vmsne
+                0x19: decode VM {
+                    // vmsne_vi
+                    0x1: VOPIVI::vmsne_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] != imm;
+                        }
+                    }}, funct=38);
+
+                    // vmsne_vim
+                    0x0: VOPIVI::vmsne_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] != imm;
+                            }
+                        }
+                    }}, funct=38);
+                }
+
+                // vmsltu
+                0x1a: decode VM {
+                    // vmsltu_vi
+                    0x1: VOPIVI::vmsltu_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] < imm;
+                        }
+                    }}, funct=41);
+
+                    // vmsltu_vim
+                    0x0: VOPIVI::vmsltu_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] < imm;
+                            }
+                        }
+                    }}, funct=41);
+                }
+
+                // vmslt
+                0x1b: decode VM {
+                    // vmslt_vi
+                    0x1: VOPIVI::vmslt_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] < imm;
+                        }
+                    }}, funct=44);
+
+                    // vmslt_vim
+                    0x0: VOPIVI::vmslt_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] < imm;
+                            }
+                        }
+                    }}, funct=44);
+                }
+
+                // vmsleu
+                0x1c: decode VM {
+                    // vmsleu_vi
+                    0x1: VOPIVI::vmsleu_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] <= imm;
+                        }
+                    }}, funct=28);
+
+                    // vmsleu_vim
+                    0x0: VOPIVI::vmsleu_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] <= imm;
+                            }
+                        }
+                    }}, funct=28);
+                }
+
+                // vmsle
+                0x1d: decode VM {
+                    // vmsle_vi
+                    0x1: VOPIVI::vmsle_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] <= imm;
+                        }
+                    }}, funct=29);
+
+                    // vmsle_vim
+                    0x0: VOPIVI::vmsle_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] <= imm;
+                            }
+                        }
+                    }}, funct=29);
+                }
+
+                // vmsgtu
+                0x1e: decode VM {
+                    // vmsgtu_vi
+                    0x1: VOPIVI::vmsgtu_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] >  imm;
+                        }
+                    }}, funct=53);
+
+                    // vmsgtu_vim
+                    0x0: VOPIVI::vmsgtu_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] >  imm;
+                            }
+                        }
+                    }}, funct=53);
+                }
+
+                // vmsgt
+                0x1f: decode VM {
+                    // vmsgt_vi
+                    0x1: VOPIVI::vmsgt_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] >  imm;
+                        }
+                    }}, funct=56);
+
+                    // vmsgt_vim
+                    0x0: VOPIVI::vmsgt_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] >  imm;
+                            }
+                        }
+                    }}, funct=56);
+                }
+
+                // vsll
+                0x25: decode VM {
+                    // vsll_vi
+                    0x1: VOPIVI::vsll_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] << (imm & (64 - 1));
+                        }
+                    }}, funct=59);
+
+                    // vsll_vim
+                    0x0: VOPIVI::vsll_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] << (imm & (64 - 1));
+                            }
+                        }
+                    }}, funct=59);
+                }
+
+                // vsrl
+                0x28: decode VM {
+                    // vsrl_vi
+                    0x1: VOPIVI::vsrl_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] >> (imm & (64 - 1));
+                        }
+                    }}, funct=62);
+
+                    // vsrl_vim
+                    0x0: VOPIVI::vsrl_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] >> (imm & (64 - 1));
+                            }
+                        }
+                    }}, funct=62);
+                }
+
+                // vsra
+                0x29: decode VM {
+                    // vsra_vi
+                    0x1: VOPIVI::vsra_vi({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] >> (imm & (64 - 1));
+                        }
+                    }}, funct=65);
+
+                    // vsra_vim
+                    0x0: VOPIVI::vsra_vim({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] >> (imm & (64 - 1));
+                            }
+                        }
+                    }}, funct=65);
+                }
+            }
+
+            // OPIVX
+            0x4: decode FUNCT6 {
+                // vadd
+                0x0: decode VM {
+                    // vadd_vx
+                    0x1: VOPIVX::vadd_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] + Rs1_sd;
+                        }
+                    }}, funct=1);
+
+                    // vadd_vxm
+                    0x0: VOPIVX::vadd_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] + Rs1_sd;
+                            }
+                        }
+                    }}, funct=1);
+                }
+
+                // vsub
+                0x2: decode VM {
+                    // vsub_vx
+                    0x1: VOPIVX::vsub_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] - Rs1_sd;
+                        }
+                    }}, funct=4);
+
+                    // vsub_vxm
+                    0x0: VOPIVX::vsub_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] - Rs1_sd;
+                            }
+                        }
+                    }}, funct=4);
+                }
+
+                // vrsub
+                0x3: decode VM {
+                    // vrsub_vx
+                    0x1: VOPIVX::vrsub_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Rs1_sd - Vs2_sd[i];
+                        }
+                    }}, funct=1);
+
+                    // vrsub_vxm
+                    0x0: VOPIVX::vrsub_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Rs1_sd - Vs2_sd[i];
+                            }
+                        }
+                    }}, funct=1);
+                }
+
+                // vminu
+                0x4: decode VM {
+                    // vminu_vx
+                    0x1: VOPIVX::vminu_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = std::min(Vs2_ud[i] , Rs1_ud);
+                        }
+                    }}, funct=7);
+
+                    // vminu_vxm
+                    0x0: VOPIVX::vminu_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = std::min(Vs2_ud[i] , Rs1_ud);
+                            }
+                        }
+                    }}, funct=7);
+                }
+
+                // vmin
+                0x5: decode VM {
+                    // vmin_vx
+                    0x1: VOPIVX::vmin_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = std::min(Vs2_sd[i] , Rs1_sd);
+                        }
+                    }}, funct=10);
+
+                    // vmin_vxm
+                    0x0: VOPIVX::vmin_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = std::min(Vs2_sd[i] , Rs1_sd);
+                            }
+                        }
+                    }}, funct=10);
+                }
+
+                // vmaxu
+                0x6: decode VM {
+                    // vmaxu_vx
+                    0x1: VOPIVX::vmaxu_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = std::max(Vs2_ud[i] , Rs1_ud);
+                        }
+                    }}, funct=13);
+
+                    // vmaxu_vxm
+                    0x0: VOPIVX::vmaxu_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = std::max(Vs2_ud[i] , Rs1_ud);
+                            }
+                        }
+                    }}, funct=13);
+                }
+
+                // vmax
+                0x7: decode VM {
+                    // vmax_vx
+                    0x1: VOPIVX::vmax_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = std::max(Vs2_sd[i] , Rs1_sd);
+                        }
+                    }}, funct=16);
+
+                    // vmax_vxm
+                    0x0: VOPIVX::vmax_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = std::max(Vs2_sd[i] , Rs1_sd);
+                            }
+                        }
+                    }}, funct=16);
+                }
+
+                // vand
+                0x9: decode VM {
+                    // vand_vx
+                    0x1: VOPIVX::vand_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] & Rs1_ud;
+                        }
+                    }}, funct=19);
+
+                    // vand_vxm
+                    0x0: VOPIVX::vand_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] & Rs1_ud;
+                            }
+                        }
+                    }}, funct=19);
+                }
+
+                // vor
+                0xa: decode VM {
+                    // vor_vx
+                    0x1: VOPIVX::vor_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] | Rs1_ud;
+                        }
+                    }}, funct=22);
+
+                    // vor_vxm
+                    0x0: VOPIVX::vor_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] | Rs1_ud;
+                            }
+                        }
+                    }}, funct=22);
+                }
+
+                // vxor
+                0x0b: decode VM {
+                    // vxor_vx
+                    0x1: VOPIVX::vxor_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] ^ Rs1_ud;
+                        }
+                    }}, funct=25);
+
+                    // vxor_vxm
+                    0x0: VOPIVX::vxor_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] ^ Rs1_ud;
+                            }
+                        }
+                    }}, funct=25);
+                }
+
+                // vslideup
+                0x0e: decode VM {
+                    // vslideup_vx
+                    0x1: VOPIVX::vslideup_vx({{
+                        for (auto i = Rs1_ud; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i - Rs1_ud];
+                        }
+                    }}, funct=73);
+
+                    // vslideup_vxm
+                    0x0: VOPIVX::vslideup_vxm({{
+                        for (auto i = Rs1_ud; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i - Rs1_ud];
+                            }
+                        }
+                    }}, funct=73);
+                }
+
+                // vslidedown
+                0x0f: decode VM {
+                    // vslidedown_vx
+                    0x1: VOPIVX::vslidedown_vx({{
+                        auto max = xc->maxVectorLength();
+                        for (auto i = Rs1_ud; i < VLEN; i++) {
+                            if ((i + Rs1_ud) > max) {
+                                Vd_ud[i] = Vs2_ud[i + Rs1_ud];
+                            } else {
+                                Vd_ud[i] = 0;
+                            }
+                        }
+                    }}, funct=75);
+
+                    // vslidedown_vxm
+                    0x0: VOPIVX::vslidedown_vxm({{
+                        auto max = xc->maxVectorLength();
+                        for (auto i = Rs1_ud; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                if ((i + Rs1_ud) > max) {
+                                    Vd_ud[i] = Vs2_ud[i + Rs1_ud];
+                                } else {
+                                    Vd_ud[i] = 0;
+                                }
+                            }
+                        }
+                    }}, funct=75);
+                }
+
+                // vmerge/vmv
+                0x17: decode VM {
+                    // vmv
+                    0x1: VOPIVX::vmv_v_x({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Rs1_ud;
+                        }
+                    }}, funct=28);
+
+                    // vmerge_vx
+                    0x0: VOPIVX::vmerge_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Rs1_ud;
+                            } else {
+                                Vd_ud[i] = Vs2_ud[i];
+                            }
+                        }
+                    }}, funct=31);
+                }
+
+                // vmseq
+                0x18: decode VM {
+                    // vmseq_vx
+                    0x1: VOPIVX::vmseq_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] == Rs1_ud;
+                        }
+                    }}, funct=35);
+
+                    // vmseq_vxm
+                    0x0: VOPIVX::vmseq_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_sd[i] == Rs1_ud;
+                            }
+                        }
+                    }}, funct=35);
+                }
+
+                // vmsne
+                0x19: decode VM {
+                    // vmsne_vx
+                    0x1: VOPIVX::vmsne_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] != Rs1_ud;
+                        }
+                    }}, funct=37);
+
+                    // vmsne_vxm
+                    0x0: VOPIVX::vmsne_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] != Rs1_ud;
+                            }
+                        }
+                    }}, funct=37);
+                }
+
+                // vmsltu
+                0x1a: decode VM {
+                    // vmsltu_vx
+                    0x1: VOPIVX::vmsltu_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] < Rs1_ud;
+                        }
+                    }}, funct=40);
+
+                    // vmsltu_vxm
+                    0x0: VOPIVX::vmsltu_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] < Rs1_ud;
+                            }
+                        }
+                    }}, funct=40);
+                }
+
+                // vmslt
+                0x1b: decode VM {
+                    // vmslt_vx
+                    0x1: VOPIVX::vmslt_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] < Rs1_sd;
+                        }
+                    }}, funct=43);
+
+                    // vmslt_vxm
+                    0x0: VOPIVX::vmslt_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] < Rs1_sd;
+                            }
+                        }
+                    }}, funct=43);
+                }
+
+                // vmsleu
+                0x1c: decode VM {
+                    // vmsleu_vx
+                    0x1: VOPIVX::vmsleu_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] <= Rs1_ud;
+                        }
+                    }}, funct=40);
+
+                    // vmsleu_vxm
+                    0x0: VOPIVX::vmsleu_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] <= Rs1_ud;
+                            }
+                        }
+                    }}, funct=40);
+                }
+
+                // vmsle
+                0x1d: decode VM {
+                    // vmsle_vx
+                    0x1: VOPIVX::vmsle_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] <= Rs1_sd;
+                        }
+                    }}, funct=43);
+
+                    // vmsle_vxm
+                    0x0: VOPIVX::vmsle_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] <= Rs1_sd;
+                            }
+                        }
+                    }}, funct=43);
+                }
+
+                // vmsgtu
+                0x1e: decode VM {
+                    // vmsgtu_vx
+                    0x1: VOPIVX::vmsgtu_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] >  Rs1_ud;
+                        }
+                    }}, funct=52);
+
+                    // vmsgtu_vxm
+                    0x0: VOPIVX::vmsgtu_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] >  Rs1_ud;
+                            }
+                        }
+                    }}, funct=52);
+                }
+
+                // vmsgt
+                0x1f: decode VM {
+                    // vmsgt_vx
+                    0x1: VOPIVX::vmsgt_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] >  Rs1_sd;
+                        }
+                    }}, funct=55);
+
+                    // vmsgt_vxm
+                    0x0: VOPIVX::vmsgt_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] >  Rs1_sd;
+                            }
+                        }
+                    }}, funct=55);
+                }
+
+                // vsll
+                0x25: decode VM {
+                    // vsll_vx
+                    0x1: VOPIVX::vsll_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] << (Rs1_ud & (64 - 1));
+                        }
+                    }}, funct=58);
+
+                    // vsll_vxm
+                    0x0: VOPIVX::vsll_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] << (Rs1_ud & (64 - 1));
+                            }
+                        }
+                    }}, funct=58);
+                }
+
+                // vsrl
+                0x28: decode VM {
+                    // vsrl_vx
+                    0x1: VOPIVX::vsrl_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = Vs2_ud[i] >> (Rs1_ud & (64 - 1));
+                        }
+                    }}, funct=61);
+
+                    // vsrl_vxm
+                    0x0: VOPIVX::vsrl_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_ud[i] = Vs2_ud[i] >> (Rs1_ud & (64 - 1));
+                            }
+                        }
+                    }}, funct=61);
+                }
+
+                // vsra
+                0x29: decode VM {
+                    // vsra_vx
+                    0x1: VOPIVX::vsra_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] >> (Rs1_sd & (64 - 1));
+                        }
+                    }}, funct=64);
+
+                    // vsra_vxm
+                    0x0: VOPIVX::vsra_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] >> (Rs1_sd & (64 - 1));
+                            }
+                        }
+                    }}, funct=64);
+                }
+            }
+
+            //// OPFVF
+            //0x5: decode FUNCT6 {
+            //}
+
+            // OPMVX
+            0x6: decode FUNCT6 {
+                0x10: decode VS2 {
+                    0x00: VOPIVX::vmv_s_x({{
+                        Vd_ud[0] = Rs1_ud;
+                    }}, funct=70);
+                }
+
+                // vslide1up
+                0x0e: decode VM {
+                    // vslide1up_vx
+                    0x1: VOPIVX::vslide1up_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (i == 0) {
+                                Vd_ud[i] = Rs1_ud;
+                            } else {
+                                Vd_ud[i] = Vs2_ud[i - 1];
+                            }
+                        }
+                    }}, funct=77);
+
+                    // vslide1up_vxm
+                    0x0: VOPIVX::vslide1up_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                if (i == 0) {
+                                    Vd_ud[i] = Rs1_ud;
+                                } else {
+                                    Vd_ud[i] = Vs2_ud[i - 1];
+                                }
+                            }
+                        }
+                    }}, funct=77);
+                }
+
+                // vslide1down
+                0x0f: decode VM {
+                    // vslide1down_vx
+                    0x1: VOPIVX::vslide1down_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (i == (VLEN - 1)) {
+                                Vd_ud[i] = Rs1_ud;
+                            } else {
+                                Vd_ud[i] = Vs2_ud[i + 1];
+                            }
+                        }
+                    }}, funct=78);
+
+                    // vslide1down_vxm
+                    0x0: VOPIVX::vslide1down_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                if (i == (VLEN - 1)) {
+                                    Vd_ud[i] = Rs1_ud;
+                                } else {
+                                    Vd_ud[i] = Vs2_ud[i + 1];
+                                }
+                            }
+                        }
+                    }}, funct=78);
+                }
+
+                // vmul
+                0x25: decode VM {
+                    // vmul_vx
+                    0x1: VOPIVX::vmul_vx({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] * Rs1_sd;
+                        }
+                    }}, funct=67);
+
+                    // vmul_vxm
+                    0x0: VOPIVX::vmul_vxm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] * Rs1_sd;
+                            }
+                        }
+                    }}, funct=67);
+                }
+            }
+
+            // vsetvl
+            0x7: decode VMSB {
+                0x1: decode VSETVL {
+                    // setvl
+                    0x0: VCSROp::vsetvl({{
+                        auto max = xc->maxVectorLength();
+                        auto rVL = (RS1 == 0)? max: Rs1_ud;
+                        auto gVL = (rVL > max)? max: rVL;
+                        VLEN = gVL;
+                        Rd = gVL;
+                    }}, funct=110, flags=[]);
+                }
+
+                // setvli
+                0x0: VCSROp::vsetvli({{
+                    auto max = xc->maxVectorLength();
+                    auto rVL = (RS1 == 0)? max: Rs1_ud;
+                    auto gVL = (rVL > max)? max: rVL;
+                    VLEN = gVL;
+                    Rd = gVL;
+                }}, funct=110, flags=[]);
             }
         }
 

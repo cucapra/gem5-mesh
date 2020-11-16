@@ -152,13 +152,22 @@ registerName(RegId reg)
             return str.str();
         }
         return IntRegNames[reg.index()];
-    } else {
+    } else if (reg.isFloatReg()) {
         if (reg.index() >= NumFloatRegs) {
             std::stringstream str;
             str << "?? (f" << reg.index() << ')';
             return str.str();
         }
         return FloatRegNames[reg.index()];
+    } else if (reg.isVecReg()) {
+        if (reg.index() >= NumVecRegs) {
+            std::stringstream str;
+            str << "?? (v" << reg.index() << ')';
+            return str.str();
+        }
+        return VectorRegNames[reg.index()];
+    } else {
+        panic("Unknown register type.");
     }
 }
 

@@ -125,6 +125,13 @@ class ExecContext {
     virtual void
     setVecRegOperand(const StaticInst *si, int idx,
                      const VecRegContainer& val) = 0;
+
+
+    virtual unsigned
+    maxVectorLength()
+    {
+        return tcBase()->getCpuPtr()->maxVectorLength();
+    }
     /** @} */
 
     /** Vector Register Lane Interfaces. */
