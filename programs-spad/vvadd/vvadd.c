@@ -18,37 +18,29 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
   
   // #ifdef PACKED_SIMD
   // // https://github.com/riscv/rvv-intrinsic-doc/blob/master/rvv_saxpy.c
-  size_t l;
+  // size_t l;
 
-  vfloat32m8_t va, vb, vc;
+  // vfloat32m8_t va, vb, vc;
 
-  for (; (l = vsetvl_e32m8(dim)) > 0; dim -= l) {
-    va = vle32_v_f32m8(a);
-    a += l;
-    vb = vle32_v_f32m8(b);
-    b += l;
-    vc = vfmacc_vf_f32m8(va, 1, vb);
-    vse32_v_f32m8 (c, vc);
-    c += l;
-  }
+  // for (; (l = vsetvl_e32m8(dim)) > 0; dim -= l) {
+  //   va = vle32_v_f32m8(a);
+  //   a += l;
+  //   vb = vle32_v_f32m8(b);
+  //   b += l;
+  //   vc = vfmacc_vf_f32m8(va, 1, vb);
+  //   vse32_v_f32m8 (c, vc);
+  //   c += l;
+  // }
 
   // #else
-
-  VECTOR_EPOCH(0); // i -- works
-  PRED_EQ(0, 0);   // r -- works
-  PRED_NEQ(0, 0);  // r -- works
-  ISSUE_VINST(label); label: ;// uj -- works
-  VPREFETCH_L(0, 0, 0, 0, 0); // sb -- fails
-  // VPREFETCH_R(0, 0, 0, 0, 0); // sb -- fails
-  
   for (int i = start + vtid; i < end; i+=unroll_len*dim) {
       DTYPE a_, b_, c_;
       a_ = a[i];
       b_ = b[i];
       // add and then store
       c_ = a_ + b_;
-      c[i] = c_;
-      // STORE_NOACK(c_, c + i, 0); // UH OH Not working with new compiler, others or just this? maybe a op code conflict??
+      // c[i] = c_;
+      STORE_NOACK(c_, c + i, 0); // UH OH Not working with new compiler, others or just this? maybe a op code conflict??
   }
   // #endif
 }
