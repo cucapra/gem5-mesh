@@ -16,23 +16,23 @@
 void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, 
     int ptid, int vtid, int dim, int unroll_len) {
   
-  // #ifdef PACKED_SIMD
-  // // https://github.com/riscv/rvv-intrinsic-doc/blob/master/rvv_saxpy.c
-  // size_t l;
+  #ifdef PACKED_SIMD
+  // https://github.com/riscv/rvv-intrinsic-doc/blob/master/rvv_saxpy.c
+  size_t l;
 
-  // vfloat32m8_t va, vb, vc;
+  vfloat32m8_t va, vb, vc;
 
-  // for (; (l = vsetvl_e32m8(dim)) > 0; dim -= l) {
-  //   va = vle32_v_f32m8(a);
-  //   a += l;
-  //   vb = vle32_v_f32m8(b);
-  //   b += l;
-  //   vc = vfmacc_vf_f32m8(va, 1, vb);
-  //   vse32_v_f32m8 (c, vc);
-  //   c += l;
-  // }
+  for (; (l = vsetvl_e32m8(dim)) > 0; dim -= l) {
+    va = vle32_v_f32m8(a);
+    a += l;
+    vb = vle32_v_f32m8(b);
+    b += l;
+    vc = vfmacc_vf_f32m8(va, 1, vb);
+    vse32_v_f32m8 (c, vc);
+    c += l;
+  }
 
-  // #else
+  #else
   for (int i = start + vtid; i < end; i+=unroll_len*dim) {
       DTYPE a_, b_, c_;
       a_ = a[i];
@@ -42,7 +42,7 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
       // c[i] = c_;
       STORE_NOACK(c_, c + i, 0); // UH OH Not working with new compiler, others or just this? maybe a op code conflict??
   }
-  // #endif
+  #endif
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(

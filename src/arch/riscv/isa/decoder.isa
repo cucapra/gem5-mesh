@@ -411,7 +411,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = VMem_sB[i];
                         }
-                    }}, funct=86);
+                    }});
 
                     // vle8.vm
                     0x0: VMLOp::vle8_vm({{
@@ -420,7 +420,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = VMem_sB[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, funct=86);
+                    }}, mask={{Vm_ud[i] & 0x1}});
                 }
 
                 // vlse8
@@ -430,7 +430,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = VMem_sB[i];
                         }
-                    }}, stride=Rs2_ud, funct=90);
+                    }}, stride=Rs2_ud);
 
                     // vlse8.vm
                     0x0: VMLSOp::vlse8_vm({{
@@ -439,7 +439,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = VMem_sB[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=90);
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud);
                 }
 
                 // vlxe8
@@ -449,7 +449,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = VMem_sB[i];
                         }
-                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=94);
+                    }}, addr_gen={{ += Vs2_ud[i] }});
 
                     // vlxe8.vm
                     0x0: VMLXOp::vlxe8_vm({{
@@ -459,7 +459,7 @@ decode QUADRANT default Unknown::unknown() {
                             }
                         }
                     }}, mask={{Vm_ud[i] & 0x1}},
-                        addr_gen={{ += Vs2_ud[i] }}, funct=94);
+                        addr_gen={{ += Vs2_ud[i] }});
                 }
             }
 
@@ -472,7 +472,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = VMem_sH[i];
                         }
-                    }}, funct=87);
+                    }});
 
                     // vle16.vm
                     0x0: VMLOp::vle16_vm({{
@@ -481,7 +481,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = VMem_sH[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, funct=87);
+                    }}, mask={{Vm_ud[i] & 0x1}});
                 }
 
                 // vlse16
@@ -491,7 +491,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = VMem_sH[i];
                         }
-                    }}, stride=Rs2_ud, funct=91);
+                    }}, stride=Rs2_ud);
 
                     // vlse16.vm
                     0x0: VMLSOp::vlse16_vm({{
@@ -500,7 +500,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = VMem_sH[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=91);
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud);
                 }
 
                 // vlxe16
@@ -510,7 +510,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = VMem_sH[i];
                         }
-                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=95);
+                    }}, addr_gen={{ += Vs2_ud[i] }});
 
                     // vlxe16.vm
                     0x0: VMLXOp::vlxe16_vm({{
@@ -520,7 +520,7 @@ decode QUADRANT default Unknown::unknown() {
                             }
                         }
                     }}, mask={{Vm_ud[i] & 0x1}},
-                        addr_gen={{ += Vs2_ud[i] }}, funct=95);
+                        addr_gen={{ += Vs2_ud[i] }});
                 }
             }
 
@@ -533,7 +533,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = VMem_sW[i];
                         }
-                    }}, funct=88);
+                    }});
 
                     // vle32.vm
                     0x0: VMLOp::vle32_vm({{
@@ -542,7 +542,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = VMem_sW[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, funct=88);
+                    }}, mask={{Vm_ud[i] & 0x1}});
                 }
 
                 // vlse32
@@ -552,7 +552,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = VMem_sW[i];
                         }
-                    }}, stride=Rs2_ud, funct=92);
+                    }}, stride=Rs2_ud);
 
                     // vlse32.vm
                     0x0: VMLSOp::vlse32_vm({{
@@ -561,7 +561,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = VMem_sW[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=92);
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud);
                 }
 
                 // vlxe32
@@ -571,7 +571,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = VMem_sW[i];
                         }
-                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=96);
+                    }}, addr_gen={{ += Vs2_ud[i] }});
 
                     // vlxe32.vm
                     0x0: VMLXOp::vlxe32_vm({{
@@ -581,7 +581,7 @@ decode QUADRANT default Unknown::unknown() {
                             }
                         }
                     }}, mask={{Vm_ud[i] & 0x1}},
-                        addr_gen={{ += Vs2_ud[i] }}, funct=96);
+                        addr_gen={{ += Vs2_ud[i] }});
                 }
             }
 
@@ -594,7 +594,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = VMem_sD[i];
                         }
-                    }}, funct=89);
+                    }});
 
                     // vle64.vm
                     0x0: VMLOp::vle64_vm({{
@@ -603,7 +603,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = VMem_sD[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, funct=89);
+                    }}, mask={{Vm_ud[i] & 0x1}});
                 }
 
                 // vlse64
@@ -613,7 +613,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = VMem_sD[i];
                         }
-                    }}, stride=Rs2_ud, funct=93);
+                    }}, stride=Rs2_ud);
 
                     // vlse64.vm
                     0x0: VMLSOp::vlse64_vm({{
@@ -622,7 +622,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = VMem_sD[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=93);
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud);
                 }
 
                 // vlxe64
@@ -632,7 +632,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = VMem_sD[i];
                         }
-                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=97);
+                    }}, addr_gen={{ += Vs2_ud[i] }});
 
                     // vlxe64.vm
                     0x0: VMLXOp::vlxe64_vm({{
@@ -642,7 +642,7 @@ decode QUADRANT default Unknown::unknown() {
                             }
                         }
                     }}, mask={{Vm_ud[i] & 0x1}},
-                        addr_gen={{ += Vs2_ud[i] }}, funct=97);
+                        addr_gen={{ += Vs2_ud[i] }});
                 }
             }
         }
@@ -779,7 +779,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uB[i] = Vs3_ud[i];
                         }
-                    }}, funct=98);
+                    }});
 
                     // vse8.vm
                     0x0: VMSOp::vse8_vm({{
@@ -788,7 +788,7 @@ decode QUADRANT default Unknown::unknown() {
                                 VMem_uB[i] = Vs3_ud[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, funct=98);
+                    }}, mask={{Vm_ud[i] & 0x1}});
                 }
 
                 // vsse8
@@ -798,7 +798,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uB[i] = Vs3_ud[i];
                         }
-                    }}, stride=Rs2_ud, funct=102);
+                    }}, stride=Rs2_ud);
 
                     // vsse8.vm
                     0x0: VMSSOp::vsse8_vm({{
@@ -807,7 +807,7 @@ decode QUADRANT default Unknown::unknown() {
                                 VMem_uB[i] = Vs3_ud[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=102);
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud);
                 }
 
                 // vsxe8
@@ -817,7 +817,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uB[i] = Vs3_ud[i];
                         }
-                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=106);
+                    }}, addr_gen={{ += Vs2_ud[i] }});
 
                     // vsxe8.vm
                     0x0: VMSXOp::vsxe8_vm({{
@@ -827,7 +827,7 @@ decode QUADRANT default Unknown::unknown() {
                             }
                         }
                     }}, mask={{Vm_ud[i] & 0x1}},
-                        addr_gen={{ += Vs2_ud[i] }}, funct=106);
+                        addr_gen={{ += Vs2_ud[i] }});
                 }
             }
 
@@ -840,7 +840,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uH[i] = Vs3_ud[i];
                         }
-                    }}, funct=99);
+                    }});
 
                     // vse16.vm
                     0x0: VMSOp::vse16_vm({{
@@ -849,7 +849,7 @@ decode QUADRANT default Unknown::unknown() {
                                 VMem_uH[i] = Vs3_ud[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, funct=99);
+                    }}, mask={{Vm_ud[i] & 0x1}});
                 }
 
                 // vsse16
@@ -859,7 +859,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uH[i] = Vs3_ud[i];
                         }
-                    }}, stride=Rs2_ud, funct=103);
+                    }}, stride=Rs2_ud);
 
                     // vsse16.vm
                     0x0: VMSSOp::vsse16_vm({{
@@ -868,7 +868,7 @@ decode QUADRANT default Unknown::unknown() {
                                 VMem_uH[i] = Vs3_ud[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=103);
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud);
                 }
 
                 // vsxe16
@@ -878,7 +878,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uH[i] = Vs3_ud[i];
                         }
-                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=107);
+                    }}, addr_gen={{ += Vs2_ud[i] }});
 
                     // vsxe16.vm
                     0x0: VMSXOp::vsxe16_vm({{
@@ -888,7 +888,7 @@ decode QUADRANT default Unknown::unknown() {
                             }
                         }
                     }}, mask={{Vm_ud[i] & 0x1}},
-                        addr_gen={{ += Vs2_ud[i] }}, funct=107);
+                        addr_gen={{ += Vs2_ud[i] }});
                 }
             }
 
@@ -901,7 +901,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uW[i] = Vs3_ud[i];
                         }
-                    }}, funct=100);
+                    }});
 
                     // vse32.vm
                     0x0: VMSOp::vse32_vm({{
@@ -910,7 +910,7 @@ decode QUADRANT default Unknown::unknown() {
                                 VMem_uW[i] = Vs3_ud[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, funct=100);
+                    }}, mask={{Vm_ud[i] & 0x1}});
                 }
 
                 // vsse32
@@ -920,7 +920,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uW[i] = Vs3_ud[i];
                         }
-                    }}, stride=Rs2_ud, funct=104);
+                    }}, stride=Rs2_ud);
 
                     // vsse32.vm
                     0x0: VMSSOp::vsse32_vm({{
@@ -929,7 +929,7 @@ decode QUADRANT default Unknown::unknown() {
                                 VMem_uW[i] = Vs3_ud[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=104);
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud);
                 }
 
                 // vsxe32
@@ -939,7 +939,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uW[i] = Vs3_ud[i];
                         }
-                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=108);
+                    }}, addr_gen={{ += Vs2_ud[i] }});
 
                     // vsxe32.vm
                     0x0: VMSXOp::vsxe32_vm({{
@@ -949,7 +949,7 @@ decode QUADRANT default Unknown::unknown() {
                             }
                         }
                     }}, mask={{Vm_ud[i] & 0x1}},
-                        addr_gen={{ += Vs2_ud[i] }}, funct=108);
+                        addr_gen={{ += Vs2_ud[i] }});
                 }
             }
 
@@ -962,7 +962,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uD[i] = Vs3_ud[i];
                         }
-                    }}, funct=101);
+                    }});
 
                     // vse64.vm
                     0x0: VMSOp::vse64_vm({{
@@ -971,7 +971,7 @@ decode QUADRANT default Unknown::unknown() {
                                 VMem_uD[i] = Vs3_ud[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, funct=101);
+                    }}, mask={{Vm_ud[i] & 0x1}});
                 }
 
                 // vsse64
@@ -981,7 +981,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uD[i] = Vs3_ud[i];
                         }
-                    }}, stride=Rs2_ud, funct=105);
+                    }}, stride=Rs2_ud);
 
                     // vsse64.vm
                     0x0: VMSSOp::vsse64_vm({{
@@ -990,7 +990,7 @@ decode QUADRANT default Unknown::unknown() {
                                 VMem_uD[i] = Vs3_ud[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, funct=105);
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud);
                 }
 
                 // vsxe64
@@ -1000,7 +1000,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uD[i] = Vs3_ud[i];
                         }
-                    }}, addr_gen={{ += Vs2_ud[i] }}, funct=109);
+                    }}, addr_gen={{ += Vs2_ud[i] }});
 
                     // vsxe64.vm
                     0x0: VMSXOp::vsxe64_vm({{
@@ -1010,7 +1010,7 @@ decode QUADRANT default Unknown::unknown() {
                             }
                         }
                     }}, mask={{Vm_ud[i] & 0x1}},
-                        addr_gen={{ += Vs2_ud[i] }}, funct=109);
+                        addr_gen={{ += Vs2_ud[i] }});
                 }
             }
         }
@@ -2229,7 +2229,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] + Vs1_ud[i];
                         }
-                    }}, funct=0);
+                    }}, flags=['SimdAddOp']);
 
                     // vadd_vvm
                     0x0: VOPIVV::vadd_vvm({{
@@ -2238,7 +2238,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] + Vs1_ud[i];
                             }
                         }
-                    }}, funct=0);
+                    }}, flags=['SimdAddOp']);
                 }
 
                 // vsub
@@ -2248,7 +2248,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] - Vs1_ud[i];
                         }
-                    }}, funct=3);
+                    }}, flags=['SimdAddOp']);
 
                     // vsub_vvm
                     0x0: VOPIVV::vsub_vvm({{
@@ -2257,7 +2257,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] - Vs1_ud[i];
                             }
                         }
-                    }}, funct=3);
+                    }}, flags=['SimdAddOp']);
                 }
 
                 // vminu
@@ -2267,7 +2267,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = std::min(Vs2_ud[i] , Vs1_ud[i]);
                         }
-                    }}, funct=6);
+                    }}, flags=['SimdCmpOp']);
 
                     // vminu_vvm
                     0x0: VOPIVV::vminu_vvm({{
@@ -2276,7 +2276,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = std::min(Vs2_ud[i] , Vs1_ud[i]);
                             }
                         }
-                    }}, funct=6);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmin
@@ -2286,7 +2286,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = std::min(Vs2_sd[i] , Vs1_sd[i]);
                         }
-                    }}, funct=9);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmin_vvm
                     0x0: VOPIVV::vmin_vvm({{
@@ -2295,7 +2295,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = std::min(Vs2_sd[i] , Vs1_sd[i]);
                             }
                         }
-                    }}, funct=9);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmaxu
@@ -2305,7 +2305,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = std::max(Vs2_ud[i] , Vs1_ud[i]);
                         }
-                     }}, funct=12);
+                     }}, flags=['SimdCmpOp']);
 
                     // vmaxu_vvm
                     0x0: VOPIVV::vmaxu_vvm({{
@@ -2314,7 +2314,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = std::max(Vs2_ud[i] , Vs1_ud[i]);
                             }
                         }
-                    }}, funct=12);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmax
@@ -2324,7 +2324,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = std::max(Vs2_sd[i] , Vs1_sd[i]);
                         }
-                    }}, funct=15);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmax_vvm
                     0x0: VOPIVV::vmax_vvm({{
@@ -2333,7 +2333,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = std::max(Vs2_sd[i] , Vs1_sd[i]);
                             }
                         }
-                    }}, funct=15);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vand
@@ -2343,7 +2343,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] & Vs1_ud[i];
                         }
-                    }}, funct=18);
+                    }}, flags=['SimdAluOp']);
 
                     // vand_vvm
                     0x0: VOPIVV::vand_vvm({{
@@ -2352,7 +2352,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] & Vs1_ud[i];
                             }
                         }
-                    }}, funct=18);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vor
@@ -2362,7 +2362,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] | Vs1_ud[i];
                         }
-                    }}, funct=21);
+                    }}, flags=['SimdAluOp']);
 
                     // vor_vvm
                     0x0: VOPIVV::vor_vvm({{
@@ -2371,7 +2371,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] | Vs1_ud[i];
                             }
                         }
-                    }}, funct=21);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vxor
@@ -2381,7 +2381,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] ^ Vs1_ud[i];
                         }
-                    }}, funct=24);
+                    }}, flags=['SimdAluOp']);
 
                     // vxor_vvm
                     0x0: VOPIVV::vxor_vvm({{
@@ -2390,7 +2390,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] ^ Vs1_ud[i];
                             }
                         }
-                    }}, funct=24);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vmerge/vmv
@@ -2400,7 +2400,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs1_ud[i];
                         }
-                    }}, funct=27);
+                    }}, flags=['SimdAluOp']);
 
                     // vmerge_vv
                     0x0: VOPIVV::vmerge_vvm({{
@@ -2411,7 +2411,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i];
                             }
                         }
-                    }}, funct=30);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vmseq
@@ -2421,7 +2421,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] == Vs1_ud[i];
                         }
-                    }}, funct=33);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmseq_vvm
                     0x0: VOPIVV::vmseq_vvm({{
@@ -2430,7 +2430,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] == Vs1_ud[i];
                             }
                         }
-                    }}, funct=33);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsne
@@ -2440,7 +2440,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] != Vs1_ud[i];
                         }
-                    }}, funct=36);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsne_vvm
                     0x0: VOPIVV::vmsne_vvm({{
@@ -2449,7 +2449,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] != Vs1_ud[i];
                             }
                         }
-                    }}, funct=36);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsltu
@@ -2459,7 +2459,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] < Vs1_ud[i];
                         }
-                    }}, funct=39);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsltu_vvm
                     0x0: VOPIVV::vmsltu_vvm({{
@@ -2468,7 +2468,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] < Vs1_ud[i];
                             }
                         }
-                    }}, funct=39);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmslt
@@ -2478,7 +2478,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] < Vs1_sd[i];
                         }
-                    }}, funct=42);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmslt_vvm
                     0x0: VOPIVV::vmslt_vvm({{
@@ -2487,7 +2487,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] < Vs1_sd[i];
                             }
                         }
-                    }}, funct=42);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsleu
@@ -2497,7 +2497,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] <= Vs1_ud[i];
                         }
-                    }}, funct=39);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsleu_vvm
                     0x0: VOPIVV::vmsleu_vvm({{
@@ -2506,7 +2506,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] <= Vs1_ud[i];
                             }
                         }
-                    }}, funct=39);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsle
@@ -2516,7 +2516,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] <= Vs1_sd[i];
                         }
-                    }}, funct=42);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsle_vvm
                     0x0: VOPIVV::vmsle_vvm({{
@@ -2525,7 +2525,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] <= Vs1_sd[i];
                             }
                         }
-                    }}, funct=42);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsgtu
@@ -2535,7 +2535,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] > Vs1_ud[i];
                         }
-                    }}, funct=51);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsgtu_vvm
                     0x0: VOPIVV::vmsgtu_vvm({{
@@ -2544,7 +2544,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] > Vs1_ud[i];
                             }
                         }
-                    }}, funct=51);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsgt
@@ -2554,7 +2554,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] > Vs1_sd[i];
                         }
-                    }}, funct=54);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsgt_vvm
                     0x0: VOPIVV::vmsgt_vvm({{
@@ -2563,7 +2563,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] > Vs1_sd[i];
                             }
                         }
-                    }}, funct=54);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vsll
@@ -2573,7 +2573,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] << (Vs1_ud[i] & (64 - 1));
                         }
-                    }}, funct=57);
+                    }}, flags=['SimdShiftOp']);
 
                     // vsll_vvm
                     0x0: VOPIVV::vsll_vvm({{
@@ -2582,7 +2582,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] << (Vs1_ud[i] & (64 - 1));
                             }
                         }
-                    }}, funct=57);
+                    }}, flags=['SimdShiftOp']);
                 }
 
                 // vsrl
@@ -2592,7 +2592,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] >> (Vs1_ud[i] & (64 - 1));
                         }
-                    }}, funct=60);
+                    }}, flags=['SimdShiftOp']);
 
                     // vsrl_vvm
                     0x0: VOPIVV::vsrl_vvm({{
@@ -2601,7 +2601,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] >> (Vs1_ud[i] & (64 - 1));
                             }
                         }
-                    }}, funct=60);
+                    }}, flags=['SimdShiftOp']);
                 }
 
                 // vsra
@@ -2611,7 +2611,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] >> (Vs1_sd[i] & (64 - 1));
                         }
-                    }}, funct=63);
+                    }}, flags=['SimdShiftOp']);
 
                     // vsra_vvm
                     0x0: VOPIVV::vsra_vvm({{
@@ -2620,7 +2620,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] >> (Vs1_sd[i] & (64 - 1));
                             }
                         }
-                    }}, funct=63);
+                    }}, flags=['SimdShiftOp']);
                 }
             }
 
@@ -2639,7 +2639,7 @@ decode QUADRANT default Unknown::unknown() {
                             res += Vs2_ud[i];
                         }
                         Vd_ud[0] = res;
-                    }}, funct=71);
+                    }}, flags=['SimdReduceAddOp']);
 
                     // vredsum_m
                     0x0: VOPIVV::vredsum_m({{
@@ -2650,14 +2650,14 @@ decode QUADRANT default Unknown::unknown() {
                             }
                         }
                         Vd_ud[0] = res;
-                    }}, funct=71);
+                    }}, flags=['SimdReduceAddOp']);
                 }
 
                 // VWXUNARY0
                 0x10: decode VS1 {
                     0x00: VOPMVV::vmv_x_s({{
                         Rd_ud = Vs2_ud[0];
-                    }}, funct=69);
+                    }}, flags=['SimdAluOp']);
 
                     0x10: decode VM {
                         0x1: VOPMVV::vpopc({{
@@ -2666,7 +2666,7 @@ decode QUADRANT default Unknown::unknown() {
                                 res += (Vs2_ud[i] & 0x1);
                             }
                             Rd_ud = res;
-                        }}, funct=72);
+                        }}, flags=['SimdReduceAddOp']);
 
                         0x0: VOPMVV::vpopc_m({{
                             auto res = 0;
@@ -2674,7 +2674,7 @@ decode QUADRANT default Unknown::unknown() {
                                 res += (Vs2_ud[i] & Vm_ud[i] & 0x1);
                             }
                             Rd_ud = res;
-                        }}, funct=72);
+                        }}, flags=['SimdReduceAddOp']);
                     }
                 }
 
@@ -2685,7 +2685,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] * Vs1_sd[i];
                         }
-                    }}, funct=66);
+                    }}, flags=['SimdMultOp']);
 
                     // vmul_vvm
                     0x0: VOPIVV::vmul_vvm({{
@@ -2694,7 +2694,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] * Vs1_sd[i];
                             }
                         }
-                    }}, funct=66);
+                    }}, flags=['SimdMultOp']);
                 }
             }
 
@@ -2707,7 +2707,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] + imm;
                         }
-                    }}, funct=2);
+                    }}, flags=['SimdAddOp']);
 
                     // vadd_vim
                     0x0: VOPIVI::vadd_vim({{
@@ -2716,7 +2716,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] + imm;
                             }
                         }
-                    }}, funct=2);
+                    }}, flags=['SimdAddOp']);
                 }
 
                 // vrsub
@@ -2726,7 +2726,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = imm - Vs2_sd[i];
                         }
-                    }}, funct=1);
+                    }}, flags=['SimdAddOp']);
 
                     // vrsub_vim
                     0x0: VOPIVI::vrsub_vim({{
@@ -2735,7 +2735,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = imm - Vs2_sd[i];
                             }
                         }
-                    }}, funct=1);
+                    }}, flags=['SimdAddOp']);
                 }
 
                 // vand
@@ -2745,7 +2745,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] & imm;
                         }
-                    }}, funct=9);
+                    }}, flags=['SimdAluOp']);
 
                     // vand_vim
                     0x0: VOPIVI::vand_vim({{
@@ -2754,7 +2754,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] & imm;
                             }
                         }
-                    }}, funct=9);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vor
@@ -2764,7 +2764,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] | imm;
                         }
-                    }}, funct=10);
+                    }}, flags=['SimdAluOp']);
 
                     // vor_vim
                     0x0: VOPIVI::vor_vim({{
@@ -2773,7 +2773,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] | imm;
                             }
                         }
-                    }}, funct=10);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vxor
@@ -2783,7 +2783,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] ^ imm;
                         }
-                    }}, funct=26);
+                    }}, flags=['SimdAluOp']);
 
                     // vxor_vim
                     0x0: VOPIVI::vxor_vim({{
@@ -2792,7 +2792,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] ^ imm;
                             }
                         }
-                    }}, funct=26);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vslideup
@@ -2802,7 +2802,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = imm; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i - imm];
                         }
-                    }}, funct=73);
+                    }}, flags=['SimdAluOp']);
 
                     // vslideup_vim
                     0x0: VOPIVI::vslideup_vim({{
@@ -2811,7 +2811,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i - imm];
                             }
                         }
-                    }}, funct=73);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vslidedown
@@ -2826,7 +2826,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = 0;
                             }
                         }
-                    }}, funct=75);
+                    }}, flags=['SimdAluOp']);
 
                     // vslidedown_vim
                     0x0: VOPIVI::vslidedown_vim({{
@@ -2840,7 +2840,7 @@ decode QUADRANT default Unknown::unknown() {
                                 }
                             }
                         }
-                    }}, funct=75);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vmerge/vmv
@@ -2850,7 +2850,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = imm;
                         }
-                    }}, funct=29);
+                    }}, flags=['SimdAluOp']);
 
                     // vmerge_vi
                     0x0: VOPIVI::vmerge_vim({{
@@ -2861,7 +2861,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i];
                             }
                         }
-                    }}, funct=32);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vmseq
@@ -2871,7 +2871,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] == imm;
                         }
-                    }}, funct=34);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmseq_vim
                     0x0: VOPIVI::vmseq_vim({{
@@ -2880,7 +2880,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_sd[i] == imm;
                             }
                         }
-                    }}, funct=34);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsne
@@ -2890,7 +2890,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] != imm;
                         }
-                    }}, funct=38);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsne_vim
                     0x0: VOPIVI::vmsne_vim({{
@@ -2899,7 +2899,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] != imm;
                             }
                         }
-                    }}, funct=38);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsltu
@@ -2909,7 +2909,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] < imm;
                         }
-                    }}, funct=41);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsltu_vim
                     0x0: VOPIVI::vmsltu_vim({{
@@ -2918,7 +2918,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] < imm;
                             }
                         }
-                    }}, funct=41);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmslt
@@ -2928,7 +2928,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] < imm;
                         }
-                    }}, funct=44);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmslt_vim
                     0x0: VOPIVI::vmslt_vim({{
@@ -2937,7 +2937,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] < imm;
                             }
                         }
-                    }}, funct=44);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsleu
@@ -2947,7 +2947,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] <= imm;
                         }
-                    }}, funct=28);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsleu_vim
                     0x0: VOPIVI::vmsleu_vim({{
@@ -2956,7 +2956,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] <= imm;
                             }
                         }
-                    }}, funct=28);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsle
@@ -2966,7 +2966,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] <= imm;
                         }
-                    }}, funct=29);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsle_vim
                     0x0: VOPIVI::vmsle_vim({{
@@ -2975,7 +2975,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] <= imm;
                             }
                         }
-                    }}, funct=29);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsgtu
@@ -2985,7 +2985,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] >  imm;
                         }
-                    }}, funct=53);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsgtu_vim
                     0x0: VOPIVI::vmsgtu_vim({{
@@ -2994,7 +2994,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] >  imm;
                             }
                         }
-                    }}, funct=53);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsgt
@@ -3004,7 +3004,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] >  imm;
                         }
-                    }}, funct=56);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsgt_vim
                     0x0: VOPIVI::vmsgt_vim({{
@@ -3013,7 +3013,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] >  imm;
                             }
                         }
-                    }}, funct=56);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vsll
@@ -3023,7 +3023,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] << (imm & (64 - 1));
                         }
-                    }}, funct=59);
+                    }}, flags=['SimdShiftOp']);
 
                     // vsll_vim
                     0x0: VOPIVI::vsll_vim({{
@@ -3032,7 +3032,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] << (imm & (64 - 1));
                             }
                         }
-                    }}, funct=59);
+                    }}, flags=['SimdShiftOp']);
                 }
 
                 // vsrl
@@ -3042,7 +3042,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] >> (imm & (64 - 1));
                         }
-                    }}, funct=62);
+                    }}, flags=['SimdShiftOp']);
 
                     // vsrl_vim
                     0x0: VOPIVI::vsrl_vim({{
@@ -3051,7 +3051,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] >> (imm & (64 - 1));
                             }
                         }
-                    }}, funct=62);
+                    }}, flags=['SimdShiftOp']);
                 }
 
                 // vsra
@@ -3061,7 +3061,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] >> (imm & (64 - 1));
                         }
-                    }}, funct=65);
+                    }}, flags=['SimdShiftOp']);
 
                     // vsra_vim
                     0x0: VOPIVI::vsra_vim({{
@@ -3070,7 +3070,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] >> (imm & (64 - 1));
                             }
                         }
-                    }}, funct=65);
+                    }}, flags=['SimdShiftOp']);
                 }
             }
 
@@ -3083,7 +3083,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] + Rs1_sd;
                         }
-                    }}, funct=1);
+                    }}, flags=['SimdAluOp']);
 
                     // vadd_vxm
                     0x0: VOPIVX::vadd_vxm({{
@@ -3092,7 +3092,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] + Rs1_sd;
                             }
                         }
-                    }}, funct=1);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vsub
@@ -3102,7 +3102,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] - Rs1_sd;
                         }
-                    }}, funct=4);
+                    }}, flags=['SimdAluOp']);
 
                     // vsub_vxm
                     0x0: VOPIVX::vsub_vxm({{
@@ -3111,7 +3111,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] - Rs1_sd;
                             }
                         }
-                    }}, funct=4);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vrsub
@@ -3121,7 +3121,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Rs1_sd - Vs2_sd[i];
                         }
-                    }}, funct=1);
+                    }}, flags=['SimdAluOp']);
 
                     // vrsub_vxm
                     0x0: VOPIVX::vrsub_vxm({{
@@ -3130,7 +3130,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Rs1_sd - Vs2_sd[i];
                             }
                         }
-                    }}, funct=1);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vminu
@@ -3140,7 +3140,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = std::min(Vs2_ud[i] , Rs1_ud);
                         }
-                    }}, funct=7);
+                    }}, flags=['SimdCmpOp']);
 
                     // vminu_vxm
                     0x0: VOPIVX::vminu_vxm({{
@@ -3149,7 +3149,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = std::min(Vs2_ud[i] , Rs1_ud);
                             }
                         }
-                    }}, funct=7);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmin
@@ -3159,7 +3159,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = std::min(Vs2_sd[i] , Rs1_sd);
                         }
-                    }}, funct=10);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmin_vxm
                     0x0: VOPIVX::vmin_vxm({{
@@ -3168,7 +3168,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = std::min(Vs2_sd[i] , Rs1_sd);
                             }
                         }
-                    }}, funct=10);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmaxu
@@ -3178,7 +3178,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = std::max(Vs2_ud[i] , Rs1_ud);
                         }
-                    }}, funct=13);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmaxu_vxm
                     0x0: VOPIVX::vmaxu_vxm({{
@@ -3187,7 +3187,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = std::max(Vs2_ud[i] , Rs1_ud);
                             }
                         }
-                    }}, funct=13);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmax
@@ -3197,7 +3197,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = std::max(Vs2_sd[i] , Rs1_sd);
                         }
-                    }}, funct=16);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmax_vxm
                     0x0: VOPIVX::vmax_vxm({{
@@ -3206,7 +3206,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = std::max(Vs2_sd[i] , Rs1_sd);
                             }
                         }
-                    }}, funct=16);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vand
@@ -3216,7 +3216,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] & Rs1_ud;
                         }
-                    }}, funct=19);
+                    }}, flags=['SimdAluOp']);
 
                     // vand_vxm
                     0x0: VOPIVX::vand_vxm({{
@@ -3225,7 +3225,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] & Rs1_ud;
                             }
                         }
-                    }}, funct=19);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vor
@@ -3235,7 +3235,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] | Rs1_ud;
                         }
-                    }}, funct=22);
+                    }}, flags=['SimdAluOp']);
 
                     // vor_vxm
                     0x0: VOPIVX::vor_vxm({{
@@ -3244,7 +3244,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] | Rs1_ud;
                             }
                         }
-                    }}, funct=22);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vxor
@@ -3254,7 +3254,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] ^ Rs1_ud;
                         }
-                    }}, funct=25);
+                    }}, flags=['SimdAluOp']);
 
                     // vxor_vxm
                     0x0: VOPIVX::vxor_vxm({{
@@ -3263,7 +3263,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] ^ Rs1_ud;
                             }
                         }
-                    }}, funct=25);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vslideup
@@ -3273,7 +3273,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = Rs1_ud; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i - Rs1_ud];
                         }
-                    }}, funct=73);
+                    }}, flags=['SimdAluOp']);
 
                     // vslideup_vxm
                     0x0: VOPIVX::vslideup_vxm({{
@@ -3282,7 +3282,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i - Rs1_ud];
                             }
                         }
-                    }}, funct=73);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vslidedown
@@ -3297,7 +3297,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = 0;
                             }
                         }
-                    }}, funct=75);
+                    }}, flags=['SimdAluOp']);
 
                     // vslidedown_vxm
                     0x0: VOPIVX::vslidedown_vxm({{
@@ -3311,7 +3311,7 @@ decode QUADRANT default Unknown::unknown() {
                                 }
                             }
                         }
-                    }}, funct=75);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vmerge/vmv
@@ -3321,7 +3321,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Rs1_ud;
                         }
-                    }}, funct=28);
+                    }}, flags=['SimdAluOp']);
 
                     // vmerge_vx
                     0x0: VOPIVX::vmerge_vxm({{
@@ -3332,7 +3332,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i];
                             }
                         }
-                    }}, funct=31);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vmseq
@@ -3342,7 +3342,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] == Rs1_ud;
                         }
-                    }}, funct=35);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmseq_vxm
                     0x0: VOPIVX::vmseq_vxm({{
@@ -3351,7 +3351,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_sd[i] == Rs1_ud;
                             }
                         }
-                    }}, funct=35);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsne
@@ -3361,7 +3361,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] != Rs1_ud;
                         }
-                    }}, funct=37);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsne_vxm
                     0x0: VOPIVX::vmsne_vxm({{
@@ -3370,7 +3370,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] != Rs1_ud;
                             }
                         }
-                    }}, funct=37);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsltu
@@ -3380,7 +3380,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] < Rs1_ud;
                         }
-                    }}, funct=40);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsltu_vxm
                     0x0: VOPIVX::vmsltu_vxm({{
@@ -3389,7 +3389,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] < Rs1_ud;
                             }
                         }
-                    }}, funct=40);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmslt
@@ -3399,7 +3399,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] < Rs1_sd;
                         }
-                    }}, funct=43);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmslt_vxm
                     0x0: VOPIVX::vmslt_vxm({{
@@ -3408,7 +3408,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] < Rs1_sd;
                             }
                         }
-                    }}, funct=43);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsleu
@@ -3418,7 +3418,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] <= Rs1_ud;
                         }
-                    }}, funct=40);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsleu_vxm
                     0x0: VOPIVX::vmsleu_vxm({{
@@ -3427,7 +3427,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] <= Rs1_ud;
                             }
                         }
-                    }}, funct=40);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsle
@@ -3437,7 +3437,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] <= Rs1_sd;
                         }
-                    }}, funct=43);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsle_vxm
                     0x0: VOPIVX::vmsle_vxm({{
@@ -3446,7 +3446,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] <= Rs1_sd;
                             }
                         }
-                    }}, funct=43);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsgtu
@@ -3456,7 +3456,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] >  Rs1_ud;
                         }
-                    }}, funct=52);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsgtu_vxm
                     0x0: VOPIVX::vmsgtu_vxm({{
@@ -3465,7 +3465,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] >  Rs1_ud;
                             }
                         }
-                    }}, funct=52);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vmsgt
@@ -3475,7 +3475,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] >  Rs1_sd;
                         }
-                    }}, funct=55);
+                    }}, flags=['SimdCmpOp']);
 
                     // vmsgt_vxm
                     0x0: VOPIVX::vmsgt_vxm({{
@@ -3484,7 +3484,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] >  Rs1_sd;
                             }
                         }
-                    }}, funct=55);
+                    }}, flags=['SimdCmpOp']);
                 }
 
                 // vsll
@@ -3494,7 +3494,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] << (Rs1_ud & (64 - 1));
                         }
-                    }}, funct=58);
+                    }}, flags=['SimdShiftOp']);
 
                     // vsll_vxm
                     0x0: VOPIVX::vsll_vxm({{
@@ -3503,7 +3503,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] << (Rs1_ud & (64 - 1));
                             }
                         }
-                    }}, funct=58);
+                    }}, flags=['SimdShiftOp']);
                 }
 
                 // vsrl
@@ -3513,7 +3513,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_ud[i] = Vs2_ud[i] >> (Rs1_ud & (64 - 1));
                         }
-                    }}, funct=61);
+                    }}, flags=['SimdShiftOp']);
 
                     // vsrl_vxm
                     0x0: VOPIVX::vsrl_vxm({{
@@ -3522,7 +3522,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i] >> (Rs1_ud & (64 - 1));
                             }
                         }
-                    }}, funct=61);
+                    }}, flags=['SimdShiftOp']);
                 }
 
                 // vsra
@@ -3532,7 +3532,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] >> (Rs1_sd & (64 - 1));
                         }
-                    }}, funct=64);
+                    }}, flags=['SimdShiftOp']);
 
                     // vsra_vxm
                     0x0: VOPIVX::vsra_vxm({{
@@ -3541,7 +3541,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] >> (Rs1_sd & (64 - 1));
                             }
                         }
-                    }}, funct=64);
+                    }}, flags=['SimdShiftOp']);
                 }
             }
 
@@ -3554,7 +3554,7 @@ decode QUADRANT default Unknown::unknown() {
                 0x10: decode VS2 {
                     0x00: VOPIVX::vmv_s_x({{
                         Vd_ud[0] = Rs1_ud;
-                    }}, funct=70);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vslide1up
@@ -3568,7 +3568,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i - 1];
                             }
                         }
-                    }}, funct=77);
+                    }}, flags=['SimdAluOp']);
 
                     // vslide1up_vxm
                     0x0: VOPIVX::vslide1up_vxm({{
@@ -3581,7 +3581,7 @@ decode QUADRANT default Unknown::unknown() {
                                 }
                             }
                         }
-                    }}, funct=77);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vslide1down
@@ -3595,7 +3595,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_ud[i] = Vs2_ud[i + 1];
                             }
                         }
-                    }}, funct=78);
+                    }}, flags=['SimdAluOp']);
 
                     // vslide1down_vxm
                     0x0: VOPIVX::vslide1down_vxm({{
@@ -3608,7 +3608,7 @@ decode QUADRANT default Unknown::unknown() {
                                 }
                             }
                         }
-                    }}, funct=78);
+                    }}, flags=['SimdAluOp']);
                 }
 
                 // vmul
@@ -3618,7 +3618,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] * Rs1_sd;
                         }
-                    }}, funct=67);
+                    }}, flags=['SimdMultOp']);
 
                     // vmul_vxm
                     0x0: VOPIVX::vmul_vxm({{
@@ -3627,7 +3627,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] * Rs1_sd;
                             }
                         }
-                    }}, funct=67);
+                    }}, flags=['SimdMultOp']);
                 }
             }
 
@@ -3641,7 +3641,7 @@ decode QUADRANT default Unknown::unknown() {
                         auto gVL = (rVL > max)? max: rVL;
                         VLEN = gVL;
                         Rd = gVL;
-                    }}, funct=110, flags=[]);
+                    }}, flags=['SimdMiscOp']);
                 }
 
                 // setvli
@@ -3651,7 +3651,7 @@ decode QUADRANT default Unknown::unknown() {
                     auto gVL = (rVL > max)? max: rVL;
                     VLEN = gVL;
                     Rd = gVL;
-                }}, funct=110, flags=[]);
+                }}, flags=['SimdMiscOp']);
             }
         }
 

@@ -52,23 +52,6 @@ def template VectorConstructor {{
     {
         %(constructor)s;
 
-        // Instruction flags
-        xd  = (%(rd_x)s);
-        xs1 = (%(rs1_x)s);
-        xs2 = (%(rs2_x)s);
-
-        // Register Specifiers
-        rd  = VD;
-        rs1 = VS1;
-        rs2 = VS2;
-
-        // Other stuff ... :)
-        opcode = VS3;
-
-        // Funct
-        funct  = %(funct)s & ((1ULL << 16) - 1);
-        funct |= (VM << 16);
-
         // Misc.
         csr = FUNCT12;
 
@@ -279,22 +262,11 @@ def template VDisassemblyDefault {{
     }
 }};
 
-def format VOp(code, rs1_x   ={{   0   }},
-                     rs1_data={{   0   }},
-                     rs2_x   ={{   0   }},
-                     rs2_data={{   0   }},
-                     rs3_data={{   0   }},
-                     rd_x    ={{   0   }}, funct=0, flags=[]) {{
+def format VOp(code, flags=[]) {{
+    flags += ['IsVector']
     regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
                              'regs':','.join(regs)},
                         flags)
     header_output = VectorDeclare.subst(iop)
@@ -337,22 +309,11 @@ def template VDisassemblyIVV {{
     }
 }};
 
-def format VOPIVV(code, rs1_x   ={{   0   }},
-                        rs1_data={{   0   }},
-                        rs2_x   ={{   0   }},
-                        rs2_data={{   0   }},
-                        rs3_data={{   0   }},
-                        rd_x    ={{   0   }}, funct=0, flags=[]) {{
+def format VOPIVV(code, flags=[]) {{
+    flags += ['IsVector']
     regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
                              'regs':','.join(regs)},
                         flags)
     header_output = VectorDeclare.subst(iop)
@@ -395,23 +356,12 @@ def template VDisassemblyIVX {{
     }
 }};
 
-def format VOPIVX(code, rs1_x   ={{   1   }},
-                        rs1_data={{  Rs1  }},
-                        rs2_x   ={{   0   }},
-                        rs2_data={{   0   }},
-                        rs3_data={{   0   }},
-                        rd_x    ={{   0   }}, funct=0, flags=[]) {{
+def format VOPIVX(code, flags=[]) {{
+    flags += ['IsVector']
     regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
-                             'regs':','.join(regs)},
+                            'regs':','.join(regs)},
                         flags)
     header_output = VectorDeclare.subst(iop)
     decoder_output = VectorConstructor.subst(iop)
@@ -456,22 +406,11 @@ def template VDisassemblyIVI {{
     }
 }};
 
-def format VOPIVI(code, rs1_x   ={{   1   }},
-                        rs1_data={{  imm  }},
-                        rs2_x   ={{   0   }},
-                        rs2_data={{   0   }},
-                        rs3_data={{   0   }},
-                        rd_x    ={{   0   }}, funct=0, flags=[]) {{
+def format VOPIVI(code, flags=[]) {{
+    flags += ['IsVector']
     regs = ['_destRegIdx[0]','_srcRegIdx[0]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
                              'regs':','.join(regs)},
                         flags)
     header_output = VectorDeclare.subst(iop)
@@ -517,22 +456,11 @@ def template VDisassemblyMVV {{
     }
 }};
 
-def format VOPMVV(code, rs1_x   ={{   0   }},
-                        rs1_data={{   0   }},
-                        rs2_x   ={{   0   }},
-                        rs2_data={{   0   }},
-                        rs3_data={{   0   }},
-                        rd_x    ={{   1   }}, funct=0, flags=[]) {{
+def format VOPMVV(code, flags=[]) {{
+    flags += ['IsVector']
     regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
                              'regs':','.join(regs)},
                         flags)
     header_output = VectorDeclare.subst(iop)
@@ -578,22 +506,11 @@ def template VDisassemblyMVX {{
     }
 }};
 
-def format VOPMVX(code, rs1_x   ={{   1   }},
-                        rs1_data={{  Rs1  }},
-                        rs2_x   ={{   0   }},
-                        rs2_data={{   0   }},
-                        rs3_data={{   0   }},
-                        rd_x    ={{   1   }}, funct=0, flags=[]) {{
+def format VOPMVX(code, flags=[]) {{
+    flags += ['IsVector']
     regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
                              'regs':','.join(regs)},
                         flags)
     header_output = VectorDeclare.subst(iop)
@@ -603,7 +520,7 @@ def format VOPMVX(code, rs1_x   ={{   1   }},
                    VDisassemblyMVX.subst(iop))
 }};
 
-// Vector Formats
+// Vector Mem Formats
 def template VDisassemblyMem {{
     std::string
     %(class_name)s::generateDisassembly(Addr pc,
@@ -639,26 +556,16 @@ def template VDisassemblyMem {{
     }
 }};
 
-def format VMLOp(code, rs1_x    ={{    1    }},
-                       rs1_data ={{ Rs1_ud  }},
-                       rs2_x    ={{    0    }},
-                       rs2_data ={{    0    }},
-                       rs3_data ={{    0    }},
-                       rd_x     ={{    0    }},
-                       addr_base={{ Rs1_ud  }},
+def format VMLOp(code, addr_base={{ Rs1_ud  }},
                        stride   ={{ elem_sz }},
                        mask     ={{  true   }},
-                       addr_gen ={{ += i*es }}, funct=0, flags=[]) {{
+                       addr_gen ={{ += i*es }}, flags=[]) {{
+    flags += ['IsVector']
+    flags += ['IsMemRef']
+    flags += ['IsLoad']
     regs = ['_destRegIdx[0]','_srcRegIdx[0]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
                              'regs':','.join(regs),
                              'addr_base':addr_base,
                              'stride':stride,
@@ -674,26 +581,16 @@ def format VMLOp(code, rs1_x    ={{    1    }},
                    VDisassemblyMem.subst(iop))
 }};
 
-def format VMLSOp(code, rs1_x    ={{    1    }},
-                        rs1_data ={{ Rs1_ud  }},
-                        rs2_x    ={{    1    }},
-                        rs2_data ={{ Rs2_ud  }},
-                        rs3_data ={{    0    }},
-                        rd_x     ={{    0    }},
-                        addr_base={{ Rs1_ud  }},
+def format VMLSOp(code, addr_base={{ Rs1_ud  }},
                         stride   ={{ Rs2_ud  }},
                         mask     ={{  true   }},
-                        addr_gen ={{ += i*es }}, funct=0, flags=[]) {{
+                        addr_gen ={{ += i*es }}, flags=[]) {{
+    flags += ['IsVector']
+    flags += ['IsMemRef']
+    flags += ['IsLoad']
     regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
                              'regs':','.join(regs),
                              'addr_base':addr_base,
                              'stride':stride,
@@ -709,26 +606,16 @@ def format VMLSOp(code, rs1_x    ={{    1    }},
                    VDisassemblyMem.subst(iop))
 }};
 
-def format VMLXOp(code, rs1_x    ={{    1    }},
-                        rs1_data ={{ Rs1_ud  }},
-                        rs2_x    ={{    0    }},
-                        rs2_data ={{    0    }},
-                        rs3_data ={{    0    }},
-                        rd_x     ={{    0    }},
-                        addr_base={{ Rs1_ud  }},
+def format VMLXOp(code, addr_base={{ Rs1_ud  }},
                         stride   ={{    0    }},
                         mask     ={{  true   }},
-                        addr_gen ={{ += i*es }}, funct=0, flags=[]) {{
+                        addr_gen ={{ += i*es }}, flags=[]) {{
+    flags += ['IsVector']
+    flags += ['IsMemRef']
+    flags += ['IsLoad']
     regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
                              'regs':','.join(regs),
                              'addr_base':addr_base,
                              'stride':stride,
@@ -744,27 +631,16 @@ def format VMLXOp(code, rs1_x    ={{    1    }},
                    VDisassemblyMem.subst(iop))
 }};
 
-// Vector Formats
-def format VMSOp(code, rs1_x    ={{    1    }},
-                       rs1_data ={{ Rs1_ud  }},
-                       rs2_x    ={{    0    }},
-                       rs2_data ={{    0    }},
-                       rs3_data ={{    0    }},
-                       rd_x     ={{    0    }},
-                       addr_base={{ Rs1_ud  }},
+def format VMSOp(code, addr_base={{ Rs1_ud  }},
                        stride   ={{ elem_sz }},
                        mask     ={{  true   }},
-                       addr_gen ={{ += i*es }}, funct=0, flags=[]) {{
+                       addr_gen ={{ += i*es }}, flags=[]) {{
+    flags += ['IsVector']
+    flags += ['IsMemRef']
+    flags += ['IsStore']
     regs = ['_srcRegIdx[1]','_srcRegIdx[0]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
                              'regs':','.join(regs),
                              'addr_base':addr_base,
                              'stride':stride,
@@ -780,26 +656,16 @@ def format VMSOp(code, rs1_x    ={{    1    }},
                    VDisassemblyMem.subst(iop))
 }};
 
-def format VMSSOp(code, rs1_x    ={{    1    }},
-                        rs1_data ={{ Rs1_ud  }},
-                        rs2_x    ={{    1    }},
-                        rs2_data ={{ Rs2_ud  }},
-                        rs3_data ={{    0    }},
-                        rd_x     ={{    0    }},
-                        addr_base={{ Rs1_ud  }},
+def format VMSSOp(code, addr_base={{ Rs1_ud  }},
                         stride   ={{ elem_sz }},
                         mask     ={{  true   }},
-                        addr_gen ={{ += i*es }}, funct=0, flags=[]) {{
+                        addr_gen ={{ += i*es }}, flags=[]) {{
+    flags += ['IsVector']
+    flags += ['IsMemRef']
+    flags += ['IsStore']
     regs = ['_srcRegIdx[1]','_srcRegIdx[0]', '_srcRegIdx[2]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
                              'regs':','.join(regs),
                              'addr_base':addr_base,
                              'stride':stride,
@@ -815,26 +681,16 @@ def format VMSSOp(code, rs1_x    ={{    1    }},
                    VDisassemblyMem.subst(iop))
 }};
 
-def format VMSXOp(code, rs1_x    ={{    1    }},
-                        rs1_data ={{ Rs1_ud  }},
-                        rs2_x    ={{    0    }},
-                        rs2_data ={{    0    }},
-                        rs3_data ={{    0    }},
-                        rd_x     ={{    0    }},
-                        addr_base={{ Rs1_ud  }},
+def format VMSXOp(code, addr_base={{ Rs1_ud  }},
                         stride   ={{    0    }},
                         mask     ={{  true   }},
-                        addr_gen ={{ += i*es }}, funct=0, flags=[]) {{
+                        addr_gen ={{ += i*es }}, flags=[]) {{
+    flags += ['IsVector']
+    flags += ['IsMemRef']
+    flags += ['IsStore']
     regs = ['_srcRegIdx[1]','_srcRegIdx[0]', '_srcRegIdx[2]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
                              'regs':','.join(regs),
                              'addr_base':addr_base,
                              'stride':stride,
@@ -850,25 +706,15 @@ def format VMSXOp(code, rs1_x    ={{    1    }},
                    VDisassemblyMem.subst(iop))
 }};
 
-// Vector Formats
-def format VCSROp(code, rs1_x   ={{   1   }},
-                        rs1_data={{  Rs1  }},
-                        rs2_x   ={{   0   }},
-                        rs2_data={{  csr  }},
-                        rs3_data={{   0   }},
-                        rd_x    ={{   1   }}, funct=0, flags=[]) {{
+// Vector CSR Formats
+def format VCSROp(code, flags=[]) {{
+    flags += ['IsVector']
+    flags += ['IsNonSpeculative']
+    flags += ['IsSerializeAfter']
     regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,
-                             'rs1_x':rs1_x,
-                             'rs1_data':rs1_data,
-                             'rs2_x':rs2_x,
-                             'rs2_data':rs2_data,
-                             'rs3_data':rs3_data,
-                             'rd_x':rd_x,
-                             'funct':funct,
-                             'regs':','.join(regs),
-                             'funct':funct},
+                             'regs':','.join(regs)},
                         flags)
     header_output = VectorDeclare.subst(iop)
     decoder_output = VectorConstructor.subst(iop)

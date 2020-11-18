@@ -65,6 +65,34 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
   m_op_to_unit_map[Enums::FloatMultAcc] = idx;
   m_op_to_unit_map[Enums::FloatMisc]    = idx;
 
+  // create FP SIMD unit
+  idx++;
+  m_exec_units.push_back(new PipelinedExecUnit(this->name().c_str(), "FpSIMD",
+                                               params->fpMulOpLatency));
+  m_op_to_unit_map[Enums::SimdFloatAdd]  = idx;
+  m_op_to_unit_map[Enums::SimdFloatAlu]  = idx;
+  m_op_to_unit_map[Enums::SimdFloatCmp]  = idx;
+  m_op_to_unit_map[Enums::SimdFloatCvt]  = idx;
+  m_op_to_unit_map[Enums::SimdFloatMisc] = idx;
+  m_op_to_unit_map[Enums::SimdFloatMultAcc] = idx;
+
+  m_op_to_unit_map[Enums::SimdFloatMult] = idx; // longer lat
+  m_op_to_unit_map[Enums::SimdFloatSqrt] = idx;
+
+  m_op_to_unit_map[Enums::SimdFloatDiv] = idx; // should be unpipelined
+
+  m_op_to_unit_map[Enums::SimdAdd]  = idx; // should have int unit
+  m_op_to_unit_map[Enums::SimdAddAcc]  = idx;
+  m_op_to_unit_map[Enums::SimdAlu]  = idx;
+  m_op_to_unit_map[Enums::SimdCmp]  = idx;
+  m_op_to_unit_map[Enums::SimdCvt] = idx;
+  m_op_to_unit_map[Enums::SimdMisc] = idx;
+  m_op_to_unit_map[Enums::SimdMult]  = idx;
+  m_op_to_unit_map[Enums::SimdMultAcc] = idx;
+  m_op_to_unit_map[Enums::SimdShift] = idx;
+  m_op_to_unit_map[Enums::SimdShiftAcc] = idx;
+  m_op_to_unit_map[Enums::SimdSqrt] = idx;
+
   // create memory unit
   idx++;
   m_exec_units.push_back(new MemUnit(this->name().c_str(), "Mem", m_cpu_p,
