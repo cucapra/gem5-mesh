@@ -439,6 +439,7 @@ for cpu in system.cpu:
 # Assign workload to CPUs
 for i in xrange(n_cpus):
   system.cpu[i].workload = process
+  system.cpu[i].workload[0].release = '99.99.99'
   system.cpu[i].createThreads()
 
 #------------------------------------------------------------------------------

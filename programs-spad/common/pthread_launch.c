@@ -4,6 +4,8 @@
 #include <math.h>
 #include <sys/sysinfo.h>
  
+pthread_barrier_t start_barrier;
+
 void launch_kernel(void* (*kernel)(void*), void **args, int cores_x, int cores_y) {
   
   // device threads will be pthreads

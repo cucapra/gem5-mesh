@@ -106,7 +106,7 @@ def run_config(vec_config, num_cpus, prog_key, argv):
 num_cpus = args.num_cpus
 
 # limit to 16 threads, each benchmark in parallel, but configs are serial
-pool = multiprocessing.Pool(processes=16)
+pool = multiprocessing.Pool(processes=60)
 jobs = []
 
 for k,v in sim_list.sim_configs.items():
