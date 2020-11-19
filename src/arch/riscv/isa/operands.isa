@@ -85,6 +85,8 @@ def operands {{
 
 #Vector CSR
     'VLEN': ('ControlReg', 'ud', 'MISCREG_VL', (None, None, 'IsControl'), 6),
+    'VTYPE': ('ControlReg', 'ud', 'MISCREG_VTYPE', (None, None, 'IsControl'), 6),
+    'VLENB': ('ControlReg', 'ud', 'MISCREG_VLENB', (None, None, 'IsControl'), 6),
 
 #Program Counter Operands
     'PC': ('PCState', 'ud', 'pc', (None, None, 'IsControl'), 7),

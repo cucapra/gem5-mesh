@@ -130,7 +130,7 @@ class ExecContext {
     virtual unsigned
     maxVectorLength()
     {
-        return tcBase()->getCpuPtr()->maxVectorLength();
+        return tcBase()->getCpuPtr()->getHardwareVectorLength();
     }
     /** @} */
 

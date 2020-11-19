@@ -2,7 +2,7 @@
 #define __VVADD_H__
 
 // data type to do computation with
-#define DTYPE float
+#define DTYPE int
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1

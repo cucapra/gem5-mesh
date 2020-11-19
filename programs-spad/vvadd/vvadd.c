@@ -20,17 +20,39 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
   // https://github.com/riscv/rvv-intrinsic-doc/blob/master/rvv_saxpy.c
   size_t l;
 
-  vfloat32m8_t va, vb, vc;
+  vint32m8_t va, vb, vc;
+
+  // dont try to do loads now
+  // just do vmerge to create a vector
+  // vbool4_t mask = 
+  // vint32m8_t vmerge_vxm_i32m8 (vbool4_t mask, vint32m8_t op1, int32_t op2);
+
+  // vmv_v_i (immediate to vector)
+  // vmv_v_x (scalar to vector)
+
+  // vslide1up_vx (push scalar onto vector and shift vector to the left)
+  // for (int i = 0; i < 8; i++) {
+  //   va = vslide1up_vx_i32m8(va, i);
+  //   vb = vslide1up_vx_i32m8(vb, i);
+  //   vc = vslide1up_vx_i32m8(vc, 0);
+  // }
 
   for (; (l = vsetvl_e32m8(dim)) > 0; dim -= l) {
-    va = vle32_v_f32m8(a);
-    a += l;
-    vb = vle32_v_f32m8(b);
-    b += l;
-    vc = vfmacc_vf_f32m8(va, 1, vb);
-    vse32_v_f32m8 (c, vc);
-    c += l;
+    va = vmv_v_x_i32m8(1);
+    vb = vmv_v_x_i32m8(2);
+    vc = vmv_v_x_i32m8(7);
+    
+    // va = vle32_v_i32m8(a);
+    // a += l;
+    // vb = vle32_v_i32m8(b);
+    // b += l;
+    vc = vadd_vv_i32m8(va, vb);
+    // vse32_v_i32m8 (c, vc);
+    // c += l;
   }
+
+  int res = vmv_x_s_i32m8_i32(vc);
+  c[0] = res;
 
   #else
   for (int i = start + vtid; i < end; i+=unroll_len*dim) {
@@ -112,6 +134,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int vtid = get_vtid(&cinfo);
   int vdim = get_vdim(&cinfo);
   int is_da = cinfo.is_scalar;
+
+  // // for some reason 0xc22 specifically is problematic, even though have defined in gem5?
+  // asm volatile ("csrw vlenb, 0\n\t");
 
   // move stack onto scratchpad for faster local access than default on DRAM
   MOVE_STACK_ONTO_SCRATCHPAD();

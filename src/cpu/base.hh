@@ -616,12 +616,13 @@ class BaseCPU : public ClockedObject
         return total;
     }
   
-  public:
+  protected:
     // hardware vector length
     unsigned hardwareVectorLength;
 
+  public:
     // get the hardware vector length
-    unsigned maxVectorLength() {
+    unsigned getHardwareVectorLength() {
       return hardwareVectorLength;
     }
 

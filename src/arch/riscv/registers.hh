@@ -259,6 +259,8 @@ enum MiscRegIndex {
 
     MISCREG_UTVEC,
     MISCREG_VL,
+    MISCREG_VTYPE,
+    MISCREG_VLENB,
     MISCREG_USCRATCH,
     MISCREG_UEPC,
     MISCREG_UCAUSE,
@@ -284,7 +286,6 @@ enum CSRIndex {
     CSR_USTATUS = 0x000,
     CSR_UIE = 0x004,
     CSR_UTVEC = 0x005,
-    CSR_VL = 0xC20,
     CSR_USCRATCH = 0x040,
     CSR_UEPC = 0x041,
     CSR_UCAUSE = 0x042,
@@ -405,6 +406,12 @@ enum CSRIndex {
     CSR_MHPMCOUNTER29 = 0xC1D,
     CSR_MHPMCOUNTER30 = 0xC1E,
     CSR_MHPMCOUNTER31 = 0xC1F,
+
+    CSR_VL = 0xC20,
+    CSR_VTYPE = 0xC21,
+    CSR_VLENB = 0xC22,
+
+
     // MHPMCOUNTERH rv32 only
     CSR_MHPMEVENT03 = 0x323,
     CSR_MHPMEVENT04 = 0x324,
@@ -630,6 +637,8 @@ const std::map<int, CSRMetadata> CSRData = {
     {CSR_PREFETCH, {"padprefetch", MISCREG_PREFETCH}},
 
     {CSR_VL, {"vl", MISCREG_VL}},
+    {CSR_VTYPE, {"vtype", MISCREG_VTYPE}},
+    {CSR_VLENB, {"vlenb", MISCREG_VLENB}},
 };
 
 /**
