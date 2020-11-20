@@ -65,7 +65,9 @@ using RiscvISAInst::MaxInstDestRegs;
 const int MaxMiscDestRegs = 1;
 
 // Not applicable to RISC-V
-constexpr unsigned NumVecElemPerVecReg = 32;
+// this doesnt have to match the compiler because rvv is supposed to be arch agnostic
+// if exceed this idx, then will just wrap around back to 0 (wont go to next register or assert fail)
+constexpr unsigned NumVecElemPerVecReg = 16;
 using VecElem = uint64_t;
 using VecReg = ::VecRegT<VecElem, NumVecElemPerVecReg, false>;
 using ConstVecReg = ::VecRegT<VecElem, NumVecElemPerVecReg, true>;

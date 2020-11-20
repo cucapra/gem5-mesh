@@ -20,7 +20,7 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
   // https://github.com/riscv/rvv-intrinsic-doc/blob/master/rvv_saxpy.c
   size_t l;
 
-  vint32m8_t va, vb, vc;
+  vint32m1_t va, vb, vc;
 
   // dont try to do loads now
   // just do vmerge to create a vector
@@ -30,29 +30,52 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
   // vmv_v_i (immediate to vector)
   // vmv_v_x (scalar to vector)
 
-  // vslide1up_vx (push scalar onto vector and shift vector to the left)
-  // for (int i = 0; i < 8; i++) {
-  //   va = vslide1up_vx_i32m8(va, i);
-  //   vb = vslide1up_vx_i32m8(vb, i);
-  //   vc = vslide1up_vx_i32m8(vc, 0);
+    // this chunks based on hardware vector length (set in BaseCPU.py) i.e., 16 % hw_vlen
+    // only support LMUL=1 (no vector stored across registers), strikes me that if wanted to use in trillium, then could illustrate as increasing LMUL
+    l = vsetvl_e32m1(16);
+
+    va = vmv_v_x_i32m1(1);
+    vb = vmv_v_x_i32m1(2);
+    vc = vmv_v_x_i32m1(7);
+    vc = vadd_vv_i32m1(va, vb);
+    vc = vadd_vv_i32m1(vc, va);
+    for (int i = 0; i < l; i++) {
+      int res = vmv_x_s_i32m1_i32(vc);
+      c[i] = res;
+      vc = vslidedown_vx_i32m1(vc, vc, 1);
+    }
+
+
+  // for (; (l = vsetvl_e32m8(dim)) > 0; dim -= l) {
+  //   // splat single value across eachc element
+  //   va = vmv_v_x_i32m8(1);
+  //   vb = vmv_v_x_i32m8(2);
+  //   vc = vmv_v_x_i32m8(7);
+
+  //   // vslide1up_vx (push scalar onto vector and shift vector to the left)
+  //   // for (int i = 0; i < l; i++) {
+  //   //   va = vslide1up_vx_i32m8(va, i);
+  //   //   vb = vslide1up_vx_i32m8(vb, i);
+  //   //   vc = vslide1up_vx_i32m8(vc, 0);
+  //   // }
+
+
+  //   // va = vle32_v_i32m8(a);
+  //   // a += l;
+  //   // vb = vle32_v_i32m8(b);
+  //   // b += l;
+  //   vc = vadd_vv_i32m8(va, vb);
+  //   // vse32_v_i32m8 (c, vc);
+  //   // c += l;
+
+  //   for (int i = 0; i < l; i++) {
+  //     int res = vmv_x_s_i32m8_i32(vc);
+  //     c[i] = res;
+  //     vc = vslidedown_vx_i32m8(vc, vc, 1);
+  //   }
   // }
-
-  for (; (l = vsetvl_e32m8(dim)) > 0; dim -= l) {
-    va = vmv_v_x_i32m8(1);
-    vb = vmv_v_x_i32m8(2);
-    vc = vmv_v_x_i32m8(7);
-    
-    // va = vle32_v_i32m8(a);
-    // a += l;
-    // vb = vle32_v_i32m8(b);
-    // b += l;
-    vc = vadd_vv_i32m8(va, vb);
-    // vse32_v_i32m8 (c, vc);
-    // c += l;
-  }
-
-  int res = vmv_x_s_i32m8_i32(vc);
-  c[0] = res;
+  // // int res = vmv_x_s_i32m8_i32(vc);
+  // // c[0] = res;
 
   #else
   for (int i = start + vtid; i < end; i+=unroll_len*dim) {

@@ -711,6 +711,7 @@ def format VCSROp(code, flags=[]) {{
     flags += ['IsVector']
     flags += ['IsNonSpeculative']
     flags += ['IsSerializeAfter']
+    flags += ['IsSquashAfter']
     regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
     iop = InstObjParams(name, Name, 'VOp',
                             {'code':code,

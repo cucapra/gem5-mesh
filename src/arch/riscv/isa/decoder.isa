@@ -2226,8 +2226,11 @@ decode QUADRANT default Unknown::unknown() {
                 0x0: decode VM {
                     // vadd_vv
                     0x1: VOPIVV::vadd_vv({{
+                        DPRINTF(RiscvVector, "vadd_vv len %d\n", VLEN);
                         for (auto i = 0; i < VLEN; i++) {
+                            DPRINTF(RiscvVector, "vecops %llu + %llu\n", Vs2_ud[i], Vs1_ud[i]);
                             Vd_ud[i] = Vs2_ud[i] + Vs1_ud[i];
+                            
                         }
                     }}, flags=['SimdAddOp']);
 
@@ -3033,6 +3036,40 @@ decode QUADRANT default Unknown::unknown() {
                             }
                         }
                     }}, flags=['SimdShiftOp']);
+                }
+
+                // vmv<1,2,4,8>r.v
+                0x27: decode VM {
+                    0x1: decode SIMM5 {
+                        0x0: VOPIVI::vmv1r_v({{
+                            //assert(false); // LMUL=1 supported
+                            for (auto i = 0; i < VLEN; i++) {
+                                Vd_ud[i] = Vs2_ud[i];
+                            }
+                        }}, flags=['SimdAluOp']);
+
+                        0x1: VOPIVI::vmv2r_v({{
+                            assert(false); // TODO LMUL not support
+                            for (auto i = 0; i < VLEN; i++) {
+                                Vd_ud[i] = Vs2_ud[i];
+                            }
+                        }}, flags=['SimdAluOp']);
+
+                        0x3: VOPIVI::vmv4r_v({{
+                            assert(false); // TODO LMUL not support
+                            for (auto i = 0; i < VLEN; i++) {
+                                Vd_ud[i] = Vs2_ud[i];
+                            }
+                        }}, flags=['SimdAluOp']);
+
+
+                        0x7: VOPIVI::vmv8r_v({{
+                            assert(false); // TODO LMUL not support
+                            for (auto i = 0; i < VLEN; i++) {
+                                Vd_ud[i] = Vs2_ud[i];
+                            }
+                        }}, flags=['SimdAluOp']);
+                    }
                 }
 
                 // vsrl

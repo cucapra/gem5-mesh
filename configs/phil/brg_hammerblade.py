@@ -405,9 +405,10 @@ process = get_processes(options)[0]
 # CPU class
 CPUClass = IOCPU (
   includeVector = options.vector,
-  meshBufferSize = 2
-  ,
-  numROBEntries = 8
+  meshBufferSize = 2,
+  numROBEntries = 8,
+  hw_vector_length = 16
+
 )
 
 # Create top-level system
