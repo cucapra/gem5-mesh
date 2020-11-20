@@ -2822,8 +2822,10 @@ decode QUADRANT default Unknown::unknown() {
                     // vslidedown_vi
                     0x1: VOPIVI::vslidedown_vi({{
                         auto max = xc->maxVectorLength();
+                        DPRINTF(RiscvVector, "vslidedown_vi max %d\n", max);
                         for (auto i = 0; i < VLEN; i++) {
-                            if ((i + imm) > max) {
+                            if ((i + imm) < max) {
+                                DPRINTF(RiscvVector, "slidedown %d <- %d\n", i, i+imm);
                                 Vd_ud[i] = Vs2_ud[i + imm];
                             } else {
                                 Vd_ud[i] = 0;
@@ -2836,7 +2838,7 @@ decode QUADRANT default Unknown::unknown() {
                         auto max = xc->maxVectorLength();
                         for (auto i = 0; i < VLEN; i++) {
                             if (Vm_ud[i] & 0x1llu) {
-                                if ((i + imm) > max) {
+                                if ((i + imm) < max) {
                                     Vd_ud[i] = Vs2_ud[i + imm];
                                 } else {
                                     Vd_ud[i] = 0;
@@ -3328,7 +3330,7 @@ decode QUADRANT default Unknown::unknown() {
                     0x1: VOPIVX::vslidedown_vx({{
                         auto max = xc->maxVectorLength();
                         for (auto i = Rs1_ud; i < VLEN; i++) {
-                            if ((i + Rs1_ud) > max) {
+                            if ((i + Rs1_ud) < max) {
                                 Vd_ud[i] = Vs2_ud[i + Rs1_ud];
                             } else {
                                 Vd_ud[i] = 0;
@@ -3341,7 +3343,7 @@ decode QUADRANT default Unknown::unknown() {
                         auto max = xc->maxVectorLength();
                         for (auto i = Rs1_ud; i < VLEN; i++) {
                             if (Vm_ud[i] & 0x1llu) {
-                                if ((i + Rs1_ud) > max) {
+                                if ((i + Rs1_ud) < max) {
                                     Vd_ud[i] = Vs2_ud[i + Rs1_ud];
                                 } else {
                                     Vd_ud[i] = 0;
