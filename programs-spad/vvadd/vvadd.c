@@ -34,11 +34,17 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
     // only support LMUL=1 (no vector stored across registers), strikes me that if wanted to use in trillium, then could illustrate as increasing LMUL
     l = vsetvl_e32m1(16);
 
-    va = vmv_v_x_i32m1(1);
-    vb = vmv_v_x_i32m1(2);
-    vc = vmv_v_x_i32m1(7);
+    // vslide1up_vx (push scalar onto vector and shift vector to the left)
+    for (int i = 0; i < l; i++) {
+      va = vslide1up_vx_i32m1(va, i);
+      vb = vslide1up_vx_i32m1(vb, i);
+      vc = vslide1up_vx_i32m1(vc, 0);
+    }
+
+    // va = vmv_v_x_i32m1(1);
+    // vb = vmv_v_x_i32m1(2);
+    // vc = vmv_v_x_i32m1(7);
     vc = vadd_vv_i32m1(va, vb);
-    vc = vadd_vv_i32m1(vc, va);
     for (int i = 0; i < l; i++) {
       int res = vmv_x_s_i32m1_i32(vc);
       c[i] = res;
