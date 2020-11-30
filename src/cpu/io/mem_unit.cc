@@ -771,10 +771,10 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->prefetchConfig = 1; // vertical
       m_s1_inst->mem_req_p->xOrigin = m_cpu_p->cpuId(); // flattened so just set as full idx
       m_s1_inst->mem_req_p->yOrigin = 0; // flattened so just set to 0
-      m_s1_inst->mem_req_p->coreOffset;
+      m_s1_inst->mem_req_p->coreOffset = 0;
       m_s1_inst->mem_req_p->xDim = 1;
       m_s1_inst->mem_req_p->yDim = 1;
-      DPRINTF(RiscvVector, "send vector load request of size %d\n", m_s1_inst->mem_req_p->respCnt);
+      DPRINTF(RiscvVector, "send vector request of size %d load ? %d\n", m_s1_inst->mem_req_p->respCnt, is_load);
     }
 
 

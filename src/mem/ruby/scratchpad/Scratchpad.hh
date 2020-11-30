@@ -43,6 +43,7 @@
 #include "debug/RiscvVector.hh"
 
 class IOCPU;
+class LLCRequestMsg;
 
 //-----------------------------------------------------------------------------
 // CpuPort
@@ -305,6 +306,8 @@ class Scratchpad : public AbstractController
     void resetAllRegionCntrs();
 
     int getNumClosedFrames();
+
+    std::shared_ptr<LLCRequestMsg> createLLCReqPacket(Packet* pkt_p, Addr wordAddr);
 
   private:
     /**

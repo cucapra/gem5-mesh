@@ -526,6 +526,10 @@ Scratchpad::wakeup()
       //        llc_msg_p->m_LineAddress ==
       //                       makeLineAddress(pending_mem_pkt_p->getAddr()));
       assert(pending_mem_pkt_p);
+      if (pending_mem_pkt_p->getRespCnt() == 1) {
+        assert(llc_msg_p->m_LineAddress ==
+                      makeLineAddress(pending_mem_pkt_p->getAddr()));
+      }
 
       m_pending_pkt_map[llc_msg_p->m_SeqNum]->recvMemResp();
 
@@ -539,11 +543,6 @@ Scratchpad::wakeup()
 
 
       } else if (llc_msg_p->m_Type == LLCResponseType_ACK) {
-
-      assert(llc_msg_p->m_LineAddress ==
-                            makeLineAddress(pending_mem_pkt_p->getAddr()));
-
-
         if (pending_mem_pkt_p->isLLSC()) {
           assert(pending_mem_pkt_p->req);
           pending_mem_pkt_p->req->
@@ -607,6 +606,99 @@ Scratchpad::wakeup()
   // if input buffers are not empty, schedule an event in the next cycle
   if (!m_mem_resp_buffer_p->isEmpty() || !m_remote_req_buffer_p->isEmpty())
     scheduleEvent(Cycles(1));
+}
+
+std::shared_ptr<LLCRequestMsg>
+Scratchpad::createLLCReqPacket(Packet* pkt_p, Addr addr) {
+  Addr baseAddr = pkt_p->getAddr();
+
+  bool isPrefetch = pkt_p->isSpadPrefetch();
+  bool noAckStore = pkt_p->isStoreNoAck();
+  bool noLLCAck = isPrefetch || noAckStore;
+
+  MachineID dst_port = { MachineType_L2Cache, getL2BankFromAddr(addr) };
+
+  // make and queue an LLCRequest message
+  std::shared_ptr<LLCRequestMsg> msg_p
+                            = std::make_shared<LLCRequestMsg>(clockEdge());
+  msg_p->m_LineAddress = makeLineAddress(addr); // TODO don't really need this?
+  msg_p->m_Requestor = m_machineID;
+  msg_p->m_MessageSize = MessageSizeType_Request_Control;
+  (msg_p->m_Destination).add(dst_port);
+  
+  if (noLLCAck)
+    msg_p->m_SeqNum = -1;
+  else
+    msg_p->m_SeqNum = m_cur_seq_num;
+
+  // access length in x,y -- prob always linearized
+  msg_p->m_XDim = pkt_p->getXDim();
+  msg_p->m_YDim = pkt_p->getYDim();
+  // msg_p->m_FromDA = pkt_p->getFromDecoupledAccess();
+  // msg_p->m_VecOffset = pkt_p->getVecOffset();
+  // can't just use line address when doing vec load, need to know start and offsets from it
+  msg_p->m_WordAddress = addr;
+  // for prefetches instead of sending data blk we send an address
+  // pre-interpret it here, but not actually an additional field
+  msg_p->m_PrefetchAddress = pkt_p->getPrefetchAddr();
+  msg_p->m_CoreOffset = pkt_p->getCoreOffset();
+  msg_p->m_RespCnt = pkt_p->getRespCnt();
+  msg_p->m_PrefetchConfig = pkt_p->getPrefetchConfig();
+  // msg_p->m_InstSeqNum = pkt_p->getCoreOffset(); // temp for debug
+  // send local epoch so mem can sync
+  // msg_p->m_Epoch = pkt_p->getEpoch();
+  // whether a store requires an ack
+  // msg_p->m_AckFree = pkt_p->getStoreAckFree();
+
+  // fake this to another scratchpad if decoupled access prefetch
+  // m_machineID.num is just the flat scratchpad idx (0-numCores)
+  // you also need to change PrefetchAddr to appropriate spad location of that core
+  if (isPrefetch) {
+    int padOriginIdx = pkt_p->getXOrigin() + pkt_p->getYOrigin() * m_grid_dim_x;
+    msg_p->m_Requestor.num = padOriginIdx;
+    // add coreOffset << 12 to get the right spad address
+    int coreOffset = padOriginIdx - m_machineID.num;
+    msg_p->m_PrefetchAddress += (coreOffset << 12);
+    // DPRINTF(Mesh, "send prelw from spad %d to origin %d offset %d\n", m_machineID.num, padOriginIdx, coreOffset << 12);
+  }
+
+  if (pkt_p->isAtomicOp()) {  // Atomic ops
+    msg_p->m_Type = LLCRequestType_ATOMIC;
+
+    int offset = addr - makeLineAddress(addr);
+    int len = pkt_p->getSize();
+    (msg_p->m_writeMask).setMask(offset, len);
+    (msg_p->m_writeMask).addAtomicOp(offset, pkt_p->getAtomicOp());
+  } else if (pkt_p->isLLSC()) {   // LL/SC ops
+    if (pkt_p->isRead()) {
+      msg_p->m_Type = LLCRequestType_LL;
+    } else if (pkt_p->isWrite()) {
+      msg_p->m_Type = LLCRequestType_SC;
+
+      int offset = addr - makeLineAddress(addr);
+      int len = pkt_p->getSize();
+      (msg_p->m_DataBlk).setData(pkt_p->getConstPtr<uint8_t>(), offset,
+                                  len);
+      (msg_p->m_writeMask).setMask(offset, len);
+    } else {
+      panic("Invalid LLSC packet\n");
+    }
+  } else if (pkt_p->isSpadPrefetch()) {
+    msg_p->m_Type = LLCRequestType_SPLOAD;
+  } else if (pkt_p->isRead()) {   // Read
+    assert(!pkt_p->isWrite());
+    msg_p->m_Type = LLCRequestType_READ;
+  } else if (pkt_p->isWrite()) {  // Write
+    msg_p->m_Type = LLCRequestType_WRITE;
+
+    int offset = addr - makeLineAddress(addr);
+    int len = pkt_p->getSize() / pkt_p->getRespCnt();
+    int regOffset = addr - baseAddr;
+    (msg_p->m_DataBlk).setData(&pkt_p->getConstPtr<uint8_t>()[regOffset], offset, len);
+    (msg_p->m_writeMask).setMask(offset, len);
+  }
+
+  return msg_p;
 }
 
 bool
@@ -696,7 +788,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
   }
 
   MachineID src_port = m_machineID;
-  MachineID dst_port;
+  // MachineID dst_port;
 
   if (dst_sp_id == m_num_scratchpads) {
     // this packet can be modified to not access global memory in case of slave
@@ -750,92 +842,30 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       m_exceed_stream_width++;
       return false;
     } else {
-      dst_port = { MachineType_L2Cache, getL2BankFromAddr(pkt_p->getAddr()) };
 
-      // make and queue an LLCRequest message
-      std::shared_ptr<LLCRequestMsg> msg_p
-                                = std::make_shared<LLCRequestMsg>(clockEdge());
-      msg_p->m_LineAddress = makeLineAddress(pkt_p->getAddr()); // TODO don't really need this?
-      msg_p->m_Requestor = m_machineID;
-      msg_p->m_MessageSize = MessageSizeType_Request_Control;
-      (msg_p->m_Destination).add(dst_port);
-      
-      if (noLLCAck)
-        msg_p->m_SeqNum = -1;
-      else
-        msg_p->m_SeqNum = m_cur_seq_num;
+      // TODO kind of cheat if vector store and enqueu multiple requests to go off
+      // assume that network will serialize
+      Addr baseAddr = pkt_p->getAddr();
+      int numReqs = pkt_p->isWrite() ? pkt_p->getRespCnt() : 1;
+      for (int i = 0; i < numReqs; i++) {
+        int wordSize = pkt_p->getSize() / pkt_p->getRespCnt();
+        Addr wordAddr = baseAddr + i * wordSize; // todo maybe should use instruction def for this
 
-      // access length in x,y -- prob always linearized
-      msg_p->m_XDim = pkt_p->getXDim();
-      msg_p->m_YDim = pkt_p->getYDim();
-      // msg_p->m_FromDA = pkt_p->getFromDecoupledAccess();
-      // msg_p->m_VecOffset = pkt_p->getVecOffset();
-      // can't just use line address when doing vec load, need to know start and offsets from it
-      msg_p->m_WordAddress = pkt_p->getAddr();
-      // for prefetches instead of sending data blk we send an address
-      // pre-interpret it here, but not actually an additional field
-      msg_p->m_PrefetchAddress = pkt_p->getPrefetchAddr();
-      msg_p->m_CoreOffset = pkt_p->getCoreOffset();
-      msg_p->m_RespCnt = pkt_p->getRespCnt();
-      msg_p->m_PrefetchConfig = pkt_p->getPrefetchConfig();
-      // msg_p->m_InstSeqNum = pkt_p->getCoreOffset(); // temp for debug
-      // send local epoch so mem can sync
-      // msg_p->m_Epoch = pkt_p->getEpoch();
-      // whether a store requires an ack
-      // msg_p->m_AckFree = pkt_p->getStoreAckFree();
+        // make and queue an LLCRequest message
+        std::shared_ptr<LLCRequestMsg> msg_p = createLLCReqPacket(pkt_p, wordAddr);
 
-      // fake this to another scratchpad if decoupled access prefetch
-      // m_machineID.num is just the flat scratchpad idx (0-numCores)
-      // you also need to change PrefetchAddr to appropriate spad location of that core
-      if (isPrefetch) {
-        int padOriginIdx = pkt_p->getXOrigin() + pkt_p->getYOrigin() * m_grid_dim_x;
-        msg_p->m_Requestor.num = padOriginIdx;
-        // add coreOffset << 12 to get the right spad address
-        int coreOffset = padOriginIdx - m_machineID.num;
-        msg_p->m_PrefetchAddress += (coreOffset << 12);
-        // DPRINTF(Mesh, "send prelw from spad %d to origin %d offset %d\n", m_machineID.num, padOriginIdx, coreOffset << 12);
+        DPRINTF(RubyNetwork, "spad push msg %p @addr %#x\n", msg_p.get(), pkt_p->getAddr());
+
+        m_mem_req_buffer_p->enqueue(msg_p,
+                                    clockEdge(),
+                                    cyclesToTicks(Cycles(1/* + i*/)));
       }
 
-      if (pkt_p->isAtomicOp()) {  // Atomic ops
-        msg_p->m_Type = LLCRequestType_ATOMIC;
-
-        int offset = pkt_p->getAddr() - makeLineAddress(pkt_p->getAddr());
-        int len = pkt_p->getSize();
-        (msg_p->m_writeMask).setMask(offset, len);
-        (msg_p->m_writeMask).addAtomicOp(offset, pkt_p->getAtomicOp());
-      } else if (pkt_p->isLLSC()) {   // LL/SC ops
-        if (pkt_p->isRead()) {
-          msg_p->m_Type = LLCRequestType_LL;
-        } else if (pkt_p->isWrite()) {
-          msg_p->m_Type = LLCRequestType_SC;
-
-          int offset = pkt_p->getAddr() - makeLineAddress(pkt_p->getAddr());
-          int len = pkt_p->getSize();
-          (msg_p->m_DataBlk).setData(pkt_p->getConstPtr<uint8_t>(), offset,
-                                     len);
-          (msg_p->m_writeMask).setMask(offset, len);
-        } else {
-          panic("Invalid LLSC packet\n");
-        }
-      } else if (pkt_p->isSpadPrefetch()) {
-        msg_p->m_Type = LLCRequestType_SPLOAD;
-      } else if (pkt_p->isRead()) {   // Read
-        assert(!pkt_p->isWrite());
-        msg_p->m_Type = LLCRequestType_READ;
-      } else if (pkt_p->isWrite()) {  // Write
-        msg_p->m_Type = LLCRequestType_WRITE;
-
-        int offset = pkt_p->getAddr() - makeLineAddress(pkt_p->getAddr());
-        int len = pkt_p->getSize();
-        (msg_p->m_DataBlk).setData(pkt_p->getConstPtr<uint8_t>(), offset, len);
-        (msg_p->m_writeMask).setMask(offset, len);
-      }
-
-      DPRINTF(RubyNetwork, "spad push msg %p @addr %#x\n", msg_p.get(), pkt_p->getAddr());
-
-      m_mem_req_buffer_p->enqueue(msg_p,
-                                  clockEdge(),
-                                  cyclesToTicks(Cycles(1)));
+      // std::shared_ptr<LLCRequestMsg> msg_p = createLLCReqPacket(pkt_p);
+      // DPRINTF(RubyNetwork, "spad push msg %p @addr %#x\n", msg_p.get(), pkt_p->getAddr());
+      // m_mem_req_buffer_p->enqueue(msg_p,
+      //                             clockEdge(),
+      //                             cyclesToTicks(Cycles(1)));
 
       // set the pending packet only if requires an ack (prefetch does not)
       if (!noLLCAck) {
@@ -858,7 +888,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     }
   } else if (dst_sp_id != m_version) {
     // This packet will be delivered to a remote scratchpad
-    dst_port = { MachineType_Scratchpad, dst_sp_id };
+    MachineID dst_port = { MachineType_Scratchpad, dst_sp_id };
 
     DPRINTF(Scratchpad, "Sending pkt %s to %s\n", pkt_p->print(), dst_port);
     if (pkt_p->isRead())

@@ -49,11 +49,12 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
     vb = vmv_v_x_i32m1(2);
     vc = vmv_v_x_i32m1(7);
     vc = vadd_vv_i32m1(va, vb);
-    for (int i = 0; i < l; i++) {
-      int res = vmv_x_s_i32m1_i32(vc);
-      c[i] = res;
-      vc = vslidedown_vx_i32m1(vc, vc, 1);
-    }
+    vse32_v_i32m1(c, vc);
+    // for (int i = 0; i < l; i++) {
+    //   int res = vmv_x_s_i32m1_i32(vc);
+    //   c[i] = res;
+    //   vc = vslidedown_vx_i32m1(vc, vc, 1);
+    // }
 
   // for (; (l = vsetvl_e32m8(dim)) > 0; dim -= l) {
   //   // splat single value across eachc element
