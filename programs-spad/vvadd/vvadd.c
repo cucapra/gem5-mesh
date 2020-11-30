@@ -18,74 +18,44 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
     int ptid, int vtid, int dim, int unroll_len) {
   
   #ifdef PACKED_SIMD
-  if (ptid != 0) return;
-  
-  // https://github.com/riscv/rvv-intrinsic-doc/blob/master/rvv_saxpy.c
-  size_t l;
+  // based on https://github.com/riscv/rvv-intrinsic-doc/blob/master/rvv_saxpy.c
 
+  // chunk of array to do
+  int chunk = end - start;
+
+  printf("ptid %d chunk %d\n", ptid, chunk);
+
+  // starting array idx
+  a += start;
+  b += start;
+  c += start;
+
+  // declare vector integers (int) of size (32) , that all fit in one (m1) vec register
   vint32m1_t va, vb, vc;
 
-  // dont try to do loads now
-  // just do vmerge to create a vector
-  // vbool4_t mask = 
-  // vint32m8_t vmerge_vxm_i32m8 (vbool4_t mask, vint32m8_t op1, int32_t op2);
+  // stripmine over hardware vector length, l <= hw_vlen
+  for (size_t l = vsetvl_e32m1(chunk); l > 0; chunk -= l) {
+    // for (; (l = vsetvl_e32m1(chunk) > 0; chunk -= l)) ...
+    // compiler will insert a 'setvli max_vlen' here if you dont and will mess up stripmine
+    // even though seems obvious should need with the above???
+    l = vsetvl_e32m1(chunk);
 
-  // vmv_v_i (immediate to vector)
-  // vmv_v_x (scalar to vector)
-
-    // this chunks based on hardware vector length (set in BaseCPU.py) i.e., 16 % hw_vlen
-    // only support LMUL=1 (no vector stored across registers), strikes me that if wanted to use in trillium, then could illustrate as increasing LMUL
-    l = vsetvl_e32m1(16);
-
-    // vslide1up_vx (push scalar onto vector and shift vector to the left)
-    // for (int i = 0; i < l; i++) {
-    //   va = vslide1up_vx_i32m1(va, i);
-    //   vb = vslide1up_vx_i32m1(vb, i);
-    //   vc = vslide1up_vx_i32m1(vc, 0);
-    // }
-
-    // va = vmv_v_x_i32m1(1);
+    // load vectors
     va = vle32_v_i32m1(a);
-    vb = vmv_v_x_i32m1(2);
-    vc = vmv_v_x_i32m1(7);
+    vb = vle32_v_i32m1(b);
+
+    // vector add
     vc = vadd_vv_i32m1(va, vb);
+
+    // store vectors
     vse32_v_i32m1(c, vc);
-    // for (int i = 0; i < l; i++) {
-    //   int res = vmv_x_s_i32m1_i32(vc);
-    //   c[i] = res;
-    //   vc = vslidedown_vx_i32m1(vc, vc, 1);
-    // }
 
-  // for (; (l = vsetvl_e32m8(dim)) > 0; dim -= l) {
-  //   // splat single value across eachc element
-  //   va = vmv_v_x_i32m8(1);
-  //   vb = vmv_v_x_i32m8(2);
-  //   vc = vmv_v_x_i32m8(7);
+    // increment pointers by stripmined length
+    a += l;
+    b += l;
+    c += l;
 
-  //   // vslide1up_vx (push scalar onto vector and shift vector to the left)
-  //   // for (int i = 0; i < l; i++) {
-  //   //   va = vslide1up_vx_i32m8(va, i);
-  //   //   vb = vslide1up_vx_i32m8(vb, i);
-  //   //   vc = vslide1up_vx_i32m8(vc, 0);
-  //   // }
-
-
-  //   // va = vle32_v_i32m8(a);
-  //   // a += l;
-  //   // vb = vle32_v_i32m8(b);
-  //   // b += l;
-  //   vc = vadd_vv_i32m8(va, vb);
-  //   // vse32_v_i32m8 (c, vc);
-  //   // c += l;
-
-  //   for (int i = 0; i < l; i++) {
-  //     int res = vmv_x_s_i32m8_i32(vc);
-  //     c[i] = res;
-  //     vc = vslidedown_vx_i32m8(vc, vc, 1);
-  //   }
-  // }
-  // // int res = vmv_x_s_i32m8_i32(vc);
-  // // c[0] = res;
+  }
 
   #else
   for (int i = start + vtid; i < end; i+=unroll_len*dim) {

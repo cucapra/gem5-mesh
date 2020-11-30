@@ -767,7 +767,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // handle packed simd vec request, TODO not sure how to handle, need to serialize similarly to cur vec requests 
     // but wont be noack, and should come directly into register rather than spad
     if (m_s1_inst->isVector()) {
-      m_s1_inst->mem_req_p->respCnt = m_cpu_p->getHardwareVectorLength();
+      m_s1_inst->mem_req_p->respCnt = m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
       m_s1_inst->mem_req_p->prefetchConfig = 1; // vertical
       m_s1_inst->mem_req_p->xOrigin = m_cpu_p->cpuId(); // flattened so just set as full idx
       m_s1_inst->mem_req_p->yOrigin = 0; // flattened so just set to 0
