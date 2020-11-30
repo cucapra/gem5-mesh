@@ -628,9 +628,16 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     addr = addr - imm;
   }
 
+  // vector loads have larger full size, but in some case only a subset will be executed
+  // make sure that is considered before detecting a misaligned address fault
+  size_t effReqSize = size;
+  if (m_s1_inst->isVector()) {
+    effReqSize = (size / m_cpu_p->getHardwareVectorLength()) * m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
+  }
+
   // check if the request is spanning across two cache lines
   size_t line_size = m_cpu_p->getCacheLineSize();
-  if ((addr & (line_size - 1)) + size > line_size) {
+  if ((addr & (line_size - 1)) + effReqSize > line_size) {
 #if THE_ISA == RISCV_ISA
     DPRINTFN("Fault: inst %s\n", inst->toString());
     if (is_load) {
@@ -768,6 +775,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // but wont be noack, and should come directly into register rather than spad
     if (m_s1_inst->isVector()) {
       m_s1_inst->mem_req_p->respCnt = m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
+      assert(m_s1_inst->mem_req_p->respCnt > 0);
       m_s1_inst->mem_req_p->prefetchConfig = 1; // vertical
       m_s1_inst->mem_req_p->xOrigin = m_cpu_p->cpuId(); // flattened so just set as full idx
       m_s1_inst->mem_req_p->yOrigin = 0; // flattened so just set to 0

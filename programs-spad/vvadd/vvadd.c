@@ -34,8 +34,8 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
   vint32m1_t va, vb, vc;
 
   // stripmine over hardware vector length, l <= hw_vlen
-  for (size_t l = vsetvl_e32m1(chunk); l > 0; chunk -= l) {
-    // for (; (l = vsetvl_e32m1(chunk) > 0; chunk -= l)) ...
+  for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+    // NOTE
     // compiler will insert a 'setvli max_vlen' here if you dont and will mess up stripmine
     // even though seems obvious should need with the above???
     l = vsetvl_e32m1(chunk);
