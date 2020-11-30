@@ -13,10 +13,13 @@
 #include <riscv_vector.h>
 #endif
 
+
 void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, 
     int ptid, int vtid, int dim, int unroll_len) {
   
   #ifdef PACKED_SIMD
+  if (ptid != 0) return;
+  
   // https://github.com/riscv/rvv-intrinsic-doc/blob/master/rvv_saxpy.c
   size_t l;
 
@@ -35,22 +38,22 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
     l = vsetvl_e32m1(16);
 
     // vslide1up_vx (push scalar onto vector and shift vector to the left)
-    for (int i = 0; i < l; i++) {
-      va = vslide1up_vx_i32m1(va, i);
-      vb = vslide1up_vx_i32m1(vb, i);
-      vc = vslide1up_vx_i32m1(vc, 0);
-    }
+    // for (int i = 0; i < l; i++) {
+    //   va = vslide1up_vx_i32m1(va, i);
+    //   vb = vslide1up_vx_i32m1(vb, i);
+    //   vc = vslide1up_vx_i32m1(vc, 0);
+    // }
 
     // va = vmv_v_x_i32m1(1);
-    // vb = vmv_v_x_i32m1(2);
-    // vc = vmv_v_x_i32m1(7);
+    va = vle32_v_i32m1(a);
+    vb = vmv_v_x_i32m1(2);
+    vc = vmv_v_x_i32m1(7);
     vc = vadd_vv_i32m1(va, vb);
     for (int i = 0; i < l; i++) {
       int res = vmv_x_s_i32m1_i32(vc);
       c[i] = res;
       vc = vslidedown_vx_i32m1(vc, vc, 1);
     }
-
 
   // for (; (l = vsetvl_e32m8(dim)) > 0; dim -= l) {
   //   // splat single value across eachc element

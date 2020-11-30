@@ -2822,10 +2822,8 @@ decode QUADRANT default Unknown::unknown() {
                     // vslidedown_vi
                     0x1: VOPIVI::vslidedown_vi({{
                         auto max = xc->maxVectorLength();
-                        DPRINTF(RiscvVector, "vslidedown_vi max %d\n", max);
                         for (auto i = 0; i < VLEN; i++) {
                             if ((i + imm) < max) {
-                                DPRINTF(RiscvVector, "slidedown %d <- %d\n", i, i+imm);
                                 Vd_ud[i] = Vs2_ud[i + imm];
                             } else {
                                 Vd_ud[i] = 0;

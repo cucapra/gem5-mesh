@@ -40,6 +40,8 @@
 #include "mem/ruby/system/RubySystem.hh"
 #include "params/Scratchpad.hh"
 
+#include "debug/RiscvVector.hh"
+
 class IOCPU;
 
 //-----------------------------------------------------------------------------
@@ -356,7 +358,53 @@ class Scratchpad : public AbstractController
     /**
      * List of all pending memory packets
      */
-    std::unordered_map<uint64_t, Packet*> m_pending_pkt_map;
+    class pkt_map_entry_t {
+      private:
+      Packet* pkt;
+      int recvResps;
+
+      public:
+      pkt_map_entry_t(Packet* pkt) {
+        this->pkt = pkt;
+        recvResps = 0;
+      }
+
+      void recvMemResp() {
+        recvResps++;
+      }
+
+      bool allRespRecv() {
+        return recvResps == pkt->getRespCnt();
+      }
+
+      Packet* getPacket() {
+        return pkt;
+      }
+
+      // set word of data packet to be return as a whole
+      void setData(Addr addr, const uint8_t *incData) {
+        if (pkt->getRespCnt() == 1) { // for scalar loads just write data (also the addr is the line addr is his case)
+          pkt->setData(incData);
+          return;
+        }
+
+        int word = (int)(addr - pkt->getAddr());
+        int wordSize = pkt->getSize() / pkt->getRespCnt();
+
+        // printf("set data %lx word %d word size %d tot size %u cnt %d\n", 
+        //   addr, word, wordSize, pkt->getSize(), pkt->getRespCnt());
+
+        auto data = pkt->getPtr<uint8_t>();
+        std::memcpy(&data[word], incData, wordSize);
+        // for (int i = 0; i < wordSize; i++) {
+          // data[word * wordSize + i] = incData[i];
+        // }
+      }
+
+      // ~pkt_map_entry_t() {
+      // }
+    };
+    std::unordered_map<uint64_t, std::shared_ptr<pkt_map_entry_t>> m_pending_pkt_map;
     uint64_t m_cur_seq_num;
     const uint64_t m_max_num_pending_pkts;
 

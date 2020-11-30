@@ -46,7 +46,7 @@ int main(int argc, char *argv[]) {
   DTYPE *c = (DTYPE*)malloc_cache_aligned(sizeof(DTYPE), size, (void**)&c_ptr);
 
   for (int i = 0; i < size; i++) {
-    a[i] = i + 1;
+    a[i] = i * 100 + 1;
     b[i] = i + 1;
     c[i] = 0;
   }

@@ -477,7 +477,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
             // being worse than the baseline because blocking mem reqs more due to
             // multiple reqs.... 
             // See transitions_per_cycle in Controller.py
-            if (in_msg.Type == LLCRequestType:SPLOAD) {
+            if (in_msg.Type == LLCRequestType:SPLOAD ||
+                  (in_msg.Type == LLCRequestType:READ && isVector(in_msg.RespCnt))) {
               // if (isVector(in_msg.RespCnt)) {
                 DPRINTF(Frame, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", 
                     canIssueVecLoad(true), getState(tbe, cache_entry, LineAddress), 
@@ -547,7 +548,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
         Entry cache_entry := getCacheEntry(in_msg.addr);
 
-        if (tbe.InType == LLCRequestType:SPLOAD) {
+        if (tbe.InType == LLCRequestType:SPLOAD ||
+              tbe.InType == LLCRequestType:READ && isVector(tbe.RespCnt)) {
 
           if (otherVecLoadInProgress(in_msg.addr, false)) {
             DPRINTF(Frame, "stall and wait other vec load in progess addr %#x line %#x curCnt %d to cnt %d\n", 
@@ -693,22 +695,32 @@ machine(MachineType:L2Cache, "SP LLC cache")
       
       //DPRINTF(Mesh, "offset %d line %d addr %d\n", wordOffset, lineAddr, wordAddr);
       
-      // because this mimics a remote store, the return address should be
-      // the storage address in the spad
-      Addr spadAddr := getSpadIdx(in_msg.PrefetchAddress, coreOffset, in_msg.PrefetchConfig, true);
-      
-      DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d\n", 
-        spadIdx, coreIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset);
-      
       // if vector then send REVDATA, otherwise REDATA
       // TODO maybe should just be seperate
+      Addr baseCntAddr := in_msg.PrefetchAddress;
       LLCResponseType respType;
       if (isVector(in_msg.RespCnt)) {
-        respType := LLCResponseType:REVDATA;
+        if (in_msg.Type == LLCRequestType:SPLOAD) {
+          respType := LLCResponseType:REVDATA;
+        }
+        else {
+          respType := LLCResponseType:DATA;
+          baseCntAddr := in_msg.WordAddress;
+        }
       }
       else {
         respType := LLCResponseType:REDATA;
       }
+
+
+      // because this mimics a remote store, the return address should be
+      // the storage address in the spad
+      Addr spadAddr := getSpadIdx(baseCntAddr, coreOffset, in_msg.PrefetchConfig, true);
+      
+      DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d\n", 
+        spadIdx, coreIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset);
+      
+
       
       // This functionally sends the whole packet, but the ruby network (garnet)
       // acutally looks at MessageSize to deteremine how many flits are needed
@@ -750,7 +762,12 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // if vector then send REVDATA, otherwise REDATA
       LLCResponseType respType;
       if (isVector(tbe.RespCnt)) {
-        respType := LLCResponseType:REVDATA;
+        if (tbe.InType == LLCRequestType:SPLOAD) {
+          respType := LLCResponseType:REVDATA;
+        }
+        else {
+          respType := LLCResponseType:DATA;
+        }
       }
       else {
         respType := LLCResponseType:REDATA;

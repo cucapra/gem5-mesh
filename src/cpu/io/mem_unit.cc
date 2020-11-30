@@ -13,6 +13,7 @@
 #include "mem/page_table.hh"
 #include "mem/ruby/scratchpad/Scratchpad.hh"
 #include "debug/Mesh.hh"
+#include "debug/RiscvVector.hh"
 
 MemUnit::MemUnit(const char* _iew_name, const char* _name,
                  IOCPU* _cpu_p, IOCPUParams* params)
@@ -767,7 +768,14 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // but wont be noack, and should come directly into register rather than spad
     if (m_s1_inst->isVector()) {
       m_s1_inst->mem_req_p->respCnt = m_cpu_p->getHardwareVectorLength();
-    } 
+      m_s1_inst->mem_req_p->prefetchConfig = 1; // vertical
+      m_s1_inst->mem_req_p->xOrigin = m_cpu_p->cpuId(); // flattened so just set as full idx
+      m_s1_inst->mem_req_p->yOrigin = 0; // flattened so just set to 0
+      m_s1_inst->mem_req_p->coreOffset;
+      m_s1_inst->mem_req_p->xDim = 1;
+      m_s1_inst->mem_req_p->yDim = 1;
+      DPRINTF(RiscvVector, "send vector load request of size %d\n", m_s1_inst->mem_req_p->respCnt);
+    }
 
 
     // this memory will be deleted together with the dynamic instruction

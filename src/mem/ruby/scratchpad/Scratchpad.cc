@@ -393,6 +393,24 @@ Scratchpad::enqueueStallRespToSp(PacketPtr pkt_p) {
 Scratchpad::arbitrate() {
 }*/
 
+// helper to figure out where the response word is (and maybe the address)
+const uint8_t *decodeRespWord(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_msg_p) {
+  if (pending_pkt_p->getRespCnt() > 1 || llc_msg_p->m_Type == LLCResponseType_REVDATA) {
+    int blkIdx = llc_msg_p->m_BlkIdx;
+    const uint8_t *data = llc_msg_p->m_DataBlk.getData(sizeof(uint32_t) * blkIdx, sizeof(uint32_t));
+    return data;
+  }
+  else {
+    assert(llc_msg_p->m_LineAddress ==
+                          makeLineAddress(pending_pkt_p->getAddr()));
+
+    int offset = pending_pkt_p->getAddr() - llc_msg_p->m_LineAddress;
+    int len = pending_pkt_p->getSize() / pending_pkt_p->getRespCnt();
+    const uint8_t* data_p = (llc_msg_p->m_DataBlk).getData(offset, len);
+    return data_p;
+  }
+}
+
 // Handles response from LLC or remote load
 // NOTE memory loads through the spad go directly to the CPU and not to the scratchpad
 // you need to add an explicit write to the spad afterwards in order to get from CPU to spad
@@ -457,9 +475,8 @@ Scratchpad::wakeup()
         DPRINTF(RubyNetwork, "spad pull msg %p @addr %#x\n", llc_msg_p, pkt_p->getAddr());
         
         // we really only sent a word of data, so extract that
-        int blkIdx = llc_msg_p->m_BlkIdx;
+        const uint8_t *data = decodeRespWord(pkt_p, llc_msg_p);
         uint8_t *buff = new uint8_t[sizeof(uint32_t)];
-        const uint8_t *data = llc_msg_p->m_DataBlk.getData(sizeof(uint32_t) * blkIdx, sizeof(uint32_t));
         memcpy(buff, data, sizeof(uint32_t));
         pkt_p->dataDynamic(buff);
         
@@ -501,23 +518,32 @@ Scratchpad::wakeup()
       // sanity check: make sure this is the response we're waiting for
       assert(m_pending_pkt_map.count(llc_msg_p->m_SeqNum) == 1);
 
-      Packet* pending_mem_pkt_p = m_pending_pkt_map[llc_msg_p->m_SeqNum];
+      Packet* pending_mem_pkt_p = m_pending_pkt_map[llc_msg_p->m_SeqNum]->getPacket();
 
       DPRINTF(RubyNetwork, "spad pull msg %p @addr %#x\n", llc_msg_p, pending_mem_pkt_p->getAddr());
 
-      assert(pending_mem_pkt_p &&
-             llc_msg_p->m_LineAddress ==
-                            makeLineAddress(pending_mem_pkt_p->getAddr()));
+      // assert(pending_mem_pkt_p &&
+      //        llc_msg_p->m_LineAddress ==
+      //                       makeLineAddress(pending_mem_pkt_p->getAddr()));
+      assert(pending_mem_pkt_p);
+
+      m_pending_pkt_map[llc_msg_p->m_SeqNum]->recvMemResp();
 
       if (llc_msg_p->m_Type == LLCResponseType_DATA) {
         // copy data from DataBlock to pending_mem_pkt_p
         // just pulls out a single word from the block and discards the rest?
-        int offset = pending_mem_pkt_p->getAddr() - llc_msg_p->m_LineAddress;
-        int len = pending_mem_pkt_p->getSize();
-        const uint8_t* data_p = (llc_msg_p->m_DataBlk).getData(offset, len);
         //DPRINTF(Mesh, "%d %d %#x %#x\n", offset, len, pending_mem_pkt_p->getAddr(), llc_msg_p->m_LineAddress);
-        pending_mem_pkt_p->setData(data_p);
+        const uint8_t* data_p = decodeRespWord(pending_mem_pkt_p, llc_msg_p);
+        // pending_mem_pkt_p->setData(data_p);
+        m_pending_pkt_map[llc_msg_p->m_SeqNum]->setData(llc_msg_p->m_LineAddress, data_p);
+
+
       } else if (llc_msg_p->m_Type == LLCResponseType_ACK) {
+
+      assert(llc_msg_p->m_LineAddress ==
+                            makeLineAddress(pending_mem_pkt_p->getAddr()));
+
+
         if (pending_mem_pkt_p->isLLSC()) {
           assert(pending_mem_pkt_p->req);
           pending_mem_pkt_p->req->
@@ -527,19 +553,23 @@ Scratchpad::wakeup()
         panic("Received wrong LLCResponseType");
       }
 
-      // turn around the request packet
-      pending_mem_pkt_p->makeResponse();
-
-      DPRINTF(Scratchpad, "Handling mem resp pkt %s from LLC seq_num %d\n",
-                          pending_mem_pkt_p->print(), llc_msg_p->m_SeqNum);
-
       // remove pending_mem_pkt_p from the pending pkt map
-      m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
+      bool allRecv = m_pending_pkt_map[llc_msg_p->m_SeqNum]->allRespRecv();
+      if (allRecv) {
+        // turn around the request packet
+        pending_mem_pkt_p->makeResponse();
+
+        DPRINTF(Scratchpad, "Handling mem resp pkt %s from LLC seq_num %d\n",
+                            pending_mem_pkt_p->print(), llc_msg_p->m_SeqNum);
+
+        m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
+      }
 
       // Pop the message from mem_resp_buffer
       m_mem_resp_buffer_p->dequeue(clockEdge());
       
-      enqueueRubyRespToSp(pending_mem_pkt_p, Packet::RespPktType::LLC_Data_Resp);
+      if (allRecv)
+        enqueueRubyRespToSp(pending_mem_pkt_p, Packet::RespPktType::LLC_Data_Resp);
     }
   }
 
@@ -809,7 +839,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 
       // set the pending packet only if requires an ack (prefetch does not)
       if (!noLLCAck) {
-        m_pending_pkt_map[m_cur_seq_num] = pkt_p;
+        m_pending_pkt_map[m_cur_seq_num] = std::make_shared<pkt_map_entry_t>(pkt_p);
         m_cur_seq_num++;
       }
 
