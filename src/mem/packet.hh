@@ -831,6 +831,12 @@ class Packet : public Printable
      */ 
     bool isStoreNoAck() const { return req->isStoreNoAck; }
 
+    /**
+     * Whether this is a vector request
+     * TODO not explicit field b/c lazy
+     */ 
+    bool isVector() const { return getPrefetchConfig() == 1 || getRespCnt() > 1; }
+
     // packet type for processing scratchpad
     typedef enum RespPktType {
         NotVal = 0,

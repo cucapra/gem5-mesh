@@ -394,7 +394,8 @@ Scratchpad::arbitrate() {
 }*/
 
 // helper to figure out where the response word is (and maybe the address)
-const uint8_t *decodeRespWord(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_msg_p) {
+const uint8_t*
+Scratchpad::decodeRespWord(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_msg_p) {
   if (pending_pkt_p->getRespCnt() > 1 || llc_msg_p->m_Type == LLCResponseType_REVDATA) {
     int blkIdx = llc_msg_p->m_BlkIdx;
     const uint8_t *data = llc_msg_p->m_DataBlk.getData(sizeof(uint32_t) * blkIdx, sizeof(uint32_t));
@@ -405,10 +406,18 @@ const uint8_t *decodeRespWord(PacketPtr pending_pkt_p, const LLCResponseMsg* llc
                           makeLineAddress(pending_pkt_p->getAddr()));
 
     int offset = pending_pkt_p->getAddr() - llc_msg_p->m_LineAddress;
-    int len = pending_pkt_p->getSize() / pending_pkt_p->getRespCnt();
+    int len = getWordSize(pending_pkt_p);
     const uint8_t* data_p = (llc_msg_p->m_DataBlk).getData(offset, len);
     return data_p;
   }
+}
+
+unsigned int
+Scratchpad::getWordSize(Packet* pkt_p) {
+  unsigned size = pkt_p->getSize();
+  if (pkt_p->isVector())
+    size /= m_cpu_p->getHardwareVectorLength();
+  return size;
 }
 
 // Handles response from LLC or remote load
@@ -539,7 +548,7 @@ Scratchpad::wakeup()
         //DPRINTF(Mesh, "%d %d %#x %#x\n", offset, len, pending_mem_pkt_p->getAddr(), llc_msg_p->m_LineAddress);
         const uint8_t* data_p = decodeRespWord(pending_mem_pkt_p, llc_msg_p);
         // pending_mem_pkt_p->setData(data_p);
-        m_pending_pkt_map[llc_msg_p->m_SeqNum]->setData(llc_msg_p->m_LineAddress, data_p);
+        m_pending_pkt_map[llc_msg_p->m_SeqNum]->setData(llc_msg_p->m_LineAddress, data_p, getWordSize(pending_mem_pkt_p));
 
 
       } else if (llc_msg_p->m_Type == LLCResponseType_ACK) {
@@ -690,9 +699,9 @@ Scratchpad::createLLCReqPacket(Packet* pkt_p, Addr addr) {
     msg_p->m_Type = LLCRequestType_READ;
   } else if (pkt_p->isWrite()) {  // Write
     msg_p->m_Type = LLCRequestType_WRITE;
-
+    msg_p->m_RespCnt = 1; // stores are processed one at a time
     int offset = addr - makeLineAddress(addr);
-    int len = pkt_p->getSize() / pkt_p->getRespCnt();
+    int len = getWordSize(pkt_p);
     int regOffset = addr - baseAddr;
     (msg_p->m_DataBlk).setData(&pkt_p->getConstPtr<uint8_t>()[regOffset], offset, len);
     (msg_p->m_writeMask).setMask(offset, len);
@@ -848,7 +857,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       Addr baseAddr = pkt_p->getAddr();
       int numReqs = pkt_p->isWrite() ? pkt_p->getRespCnt() : 1;
       for (int i = 0; i < numReqs; i++) {
-        int wordSize = pkt_p->getSize() / pkt_p->getRespCnt();
+        int wordSize = getWordSize(pkt_p);
         Addr wordAddr = baseAddr + i * wordSize; // todo maybe should use instruction def for this
 
         // make and queue an LLCRequest message

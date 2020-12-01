@@ -44,6 +44,7 @@
 
 class IOCPU;
 class LLCRequestMsg;
+class LLCResponseMsg;
 
 //-----------------------------------------------------------------------------
 // CpuPort
@@ -309,6 +310,9 @@ class Scratchpad : public AbstractController
 
     std::shared_ptr<LLCRequestMsg> createLLCReqPacket(Packet* pkt_p, Addr wordAddr);
 
+    const uint8_t* decodeRespWord(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_msg_p);
+    unsigned int getWordSize(Packet* pkt_p);
+
   private:
     /**
      * Pointer to Ruby system
@@ -385,14 +389,13 @@ class Scratchpad : public AbstractController
       }
 
       // set word of data packet to be return as a whole
-      void setData(Addr addr, const uint8_t *incData) {
-        if (pkt->getRespCnt() == 1) { // for scalar loads just write data (also the addr is the line addr is his case)
+      void setData(Addr addr, const uint8_t *incData, int wordSize) {
+        if (!pkt->isVector()) { // for scalar loads just write data (also the addr is the line addr is his case)
           pkt->setData(incData);
           return;
         }
 
         int word = (int)(addr - pkt->getAddr());
-        int wordSize = pkt->getSize() / pkt->getRespCnt();
 
         // printf("set data %lx word %d word size %d tot size %u cnt %d\n", 
         //   addr, word, wordSize, pkt->getSize(), pkt->getRespCnt());
