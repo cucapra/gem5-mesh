@@ -402,7 +402,8 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false)
+          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
+          isNormVector(false)
     {}
 
     Request(Addr paddr, unsigned size, Flags flags, MasterID mid,
@@ -413,7 +414,8 @@ class Request
           _reqInstSeqNum(seq_num), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false)
+          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
+          isNormVector(false)
     {
         setPhys(paddr, size, flags, mid, curTick());
         setContext(cid);
@@ -432,7 +434,8 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false)
+          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
+          isNormVector(false)
     {
         setPhys(paddr, size, flags, mid, curTick());
     }
@@ -444,7 +447,8 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false)
+          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
+          isNormVector(false)
     {
         setPhys(paddr, size, flags, mid, time);
     }
@@ -457,7 +461,8 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false)
+          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
+          isNormVector(false)
     {
         setPhys(paddr, size, flags, mid, time);
         privateFlags.set(VALID_PC);
@@ -471,7 +476,8 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false), 
-          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false)
+          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
+          isNormVector(false)
     {
         setVirt(asid, vaddr, size, flags, mid, pc);
         setContext(cid);
@@ -499,7 +505,8 @@ class Request
           accessDelta(other.accessDelta), depth(other.depth), xDim(other.xDim), yDim(other.yDim), 
           xOrigin(other.xOrigin), yOrigin(other.yOrigin),
           prefetchAddr(other.prefetchAddr), spadSpec(other.spadSpec), isSpadPrefetch(other.isSpadPrefetch), 
-          coreOffset(other.coreOffset), respCnt(other.respCnt), prefetchConfig(other.prefetchConfig), isStoreNoAck(other.isStoreNoAck)
+          coreOffset(other.coreOffset), respCnt(other.respCnt), prefetchConfig(other.prefetchConfig), isStoreNoAck(other.isStoreNoAck),
+          isNormVector(other.isNormVector)
     {
         if (other.atomicOpFunctor)
             atomicOpFunctor = (other.atomicOpFunctor)->clone();
@@ -685,6 +692,11 @@ class Request
      * However, we do still need an ack just to know how many have been recveived
      */
     bool isStoreNoAck;
+
+    /**
+     * whether this is a rvv vector memory op
+     */ 
+    bool isNormVector;
 
     /**
      *  Accessor for size.

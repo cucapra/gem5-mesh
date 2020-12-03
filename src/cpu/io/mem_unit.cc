@@ -765,6 +765,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->xOrigin = 0;
       m_s1_inst->mem_req_p->yOrigin = 0;
       m_s1_inst->mem_req_p->respCnt = 1;
+      m_s1_inst->mem_req_p->isNormVector = false;
       // m_s1_inst->mem_req_p->coreOffset = m_s1_inst->seq_num; // for debugging normal loads and stores
     }
     
@@ -782,6 +783,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->coreOffset = 0;
       m_s1_inst->mem_req_p->xDim = 1;
       m_s1_inst->mem_req_p->yDim = 1;
+      m_s1_inst->mem_req_p->isNormVector = true;
       DPRINTF(RiscvVector, "send vector request of size %d load ? %d\n", m_s1_inst->mem_req_p->respCnt, is_load);
     }
 

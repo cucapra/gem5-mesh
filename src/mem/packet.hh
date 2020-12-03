@@ -832,10 +832,9 @@ class Packet : public Printable
     bool isStoreNoAck() const { return req->isStoreNoAck; }
 
     /**
-     * Whether this is a vector request
-     * TODO not explicit field b/c lazy
+     * Whether this is a vector request (normal blocking vector load)
      */ 
-    bool isVector() const { return getPrefetchConfig() == 1 || getRespCnt() > 1; }
+    bool isVector() const { return req->isNormVector; }
 
     // packet type for processing scratchpad
     typedef enum RespPktType {
