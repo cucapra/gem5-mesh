@@ -699,7 +699,7 @@ Scratchpad::createLLCReqPacket(Packet* pkt_p, Addr addr) {
     msg_p->m_Type = LLCRequestType_READ;
   } else if (pkt_p->isWrite()) {  // Write
     msg_p->m_Type = LLCRequestType_WRITE;
-    msg_p->m_RespCnt = 1; // stores are processed one at a time
+    msg_p->m_RespCnt = 1; // vector stores are processed one at a time
     int offset = addr - makeLineAddress(addr);
     int len = getWordSize(pkt_p);
     int regOffset = addr - baseAddr;
@@ -855,7 +855,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       // TODO kind of cheat if vector store and enqueu multiple requests to go off
       // assume that network will serialize
       Addr baseAddr = pkt_p->getAddr();
-      int numReqs = pkt_p->isWrite() ? pkt_p->getRespCnt() : 1;
+      int numReqs = (pkt_p->isVector() && pkt_p->isWrite()) ? pkt_p->getRespCnt() : 1;
       for (int i = 0; i < numReqs; i++) {
         int wordSize = getWordSize(pkt_p);
         Addr wordAddr = baseAddr + i * wordSize; // todo maybe should use instruction def for this
