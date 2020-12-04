@@ -23,8 +23,6 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
   // chunk of array to do
   int chunk = end - start;
 
-  printf("ptid %d chunk %d\n", ptid, chunk);
-
   // starting array idx
   a += start;
   b += start;
