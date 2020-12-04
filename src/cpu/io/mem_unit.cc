@@ -321,6 +321,9 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
       pkt->dataStatic(inst->mem_data_p);
       pkt->pushSenderState(new MemUnit::SenderState(inst));
 
+      // save address b/c the packet can be deleted if noack
+      Addr addr = pkt->getAddr();
+
       // send request
       if (!m_cpu_p->getDataPort().sendTimingReq(pkt)) {
         DPRINTF(LSQ, "dcache is busy\n");
@@ -335,9 +338,9 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
       } else {
         // an outstanding memory request to track
         m_store_diff_reg++;
-        DPRINTF(LSQ, "Sent request to memory for inst %s with addr %#x\n", inst->toString(true), pkt->getAddr());
+        DPRINTF(LSQ, "Sent request to memory for inst %s with addr %#x\n", inst->toString(true), addr);
         if (m_cpu_p->getEarlyVector()->getConfigured()) 
-          DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
+          DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), addr, m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
 
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
