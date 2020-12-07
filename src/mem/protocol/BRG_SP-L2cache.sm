@@ -699,19 +699,13 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // TODO maybe should just be seperate
       Addr baseCntAddr := in_msg.PrefetchAddress;
       LLCResponseType respType;
-      if (isVector(in_msg.RespCnt)) {
-        if (in_msg.Type == LLCRequestType:SPLOAD) {
-          respType := LLCResponseType:REVDATA;
-        }
-        else {
-          respType := LLCResponseType:DATA;
-          baseCntAddr := in_msg.WordAddress;
-        }
+      if (in_msg.Type == LLCRequestType:SPLOAD) {
+        respType := LLCResponseType:REVDATA;
       }
       else {
-        respType := LLCResponseType:REDATA;
+        respType := LLCResponseType:DATA;
+        baseCntAddr := in_msg.WordAddress;
       }
-
 
       // because this mimics a remote store, the return address should be
       // the storage address in the spad
@@ -760,19 +754,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
       // if vector then send REVDATA, otherwise REDATA
       LLCResponseType respType;
       Addr baseCntAddr := tbe.PrefetchAddress;
-      if (isVector(tbe.RespCnt)) {
-        if (tbe.InType == LLCRequestType:SPLOAD) {
-          respType := LLCResponseType:REVDATA;
-        }
-        else {
-          respType := LLCResponseType:DATA;
-          baseCntAddr := tbe.WordAddress;
-        }
+      if (tbe.InType == LLCRequestType:SPLOAD) {
+        respType := LLCResponseType:REVDATA;
       }
       else {
-        respType := LLCResponseType:REDATA;
+        respType := LLCResponseType:DATA;
+        baseCntAddr := tbe.WordAddress;
       }
-      
+    
       Addr spadAddr := getSpadIdx(baseCntAddr, coreOffset, tbe.PrefetchConfig, false);
 
       DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d core offset %d\n", 
