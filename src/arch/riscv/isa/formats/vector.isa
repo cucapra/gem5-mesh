@@ -723,3 +723,33 @@ def format VCSROp(code, flags=[]) {{
     exec_output = (BasicExecute.subst(iop) +
                    VDisassemblyDefault.subst(iop))
 }};
+
+// like VOPIVX
+def format VOPFVF(code, flags=[]) {{
+    flags += ['IsVector']
+    regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                            'regs':','.join(regs)},
+                        flags)
+    header_output = VectorDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (BasicExecute.subst(iop) +
+                   VDisassemblyIVX.subst(iop))
+}};
+
+// like VOPIVV
+def format VOPFVV(code, flags=[]) {{
+    flags += ['IsVector']
+    regs = ['_destRegIdx[0]','_srcRegIdx[0]', '_srcRegIdx[1]']
+    iop = InstObjParams(name, Name, 'VOp',
+                            {'code':code,
+                             'regs':','.join(regs)},
+                        flags)
+    header_output = VectorDeclare.subst(iop)
+    decoder_output = VectorConstructor.subst(iop)
+    decode_block = VectorDecode.subst(iop)
+    exec_output = (BasicExecute.subst(iop) +
+                   VDisassemblyIVV.subst(iop))
+}};

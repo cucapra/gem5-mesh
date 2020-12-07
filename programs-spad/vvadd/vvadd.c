@@ -29,7 +29,7 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
   c += start;
 
   // declare vector integers (int) of size (32) , that all fit in one (m1) vec register
-  vint32m1_t va, vb, vc;
+  vfloat32m1_t va, vb, vc;
 
   // stripmine over hardware vector length, l <= hw_vlen
   for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -39,14 +39,14 @@ void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end,
     l = vsetvl_e32m1(chunk);
 
     // load vectors
-    va = vle32_v_i32m1(a);
-    vb = vle32_v_i32m1(b);
+    va = vle32_v_f32m1(a);
+    vb = vle32_v_f32m1(b);
 
     // vector add
-    vc = vadd_vv_i32m1(va, vb);
+    vc = vfadd_vv_f32m1(va, vb);
 
     // store vectors
-    vse32_v_i32m1(c, vc);
+    vse32_v_f32m1(c, vc);
 
     // increment pointers by stripmined length
     a += l;

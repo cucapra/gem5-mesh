@@ -2,14 +2,14 @@
 #define __VVADD_H__
 
 // data type to do computation with
-#define DTYPE int
+#define DTYPE float
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
-// #define PACKED_SIMD 1
+#define PACKED_SIMD 1
 
 // in current system cacheline size is 16 so doesn't make sense to go beyond this for now
 // #define VEC_16_SIMD 1

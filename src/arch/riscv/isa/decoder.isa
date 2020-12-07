@@ -2627,9 +2627,312 @@ decode QUADRANT default Unknown::unknown() {
                 }
             }
 
-            //// OPFVV
-            //0x1: decode FUNCT6 {
-            //}
+            // OPFVV
+            0x1: decode FUNCT6 {
+                // vfadd
+                0x0: decode VM {
+                    // vfadd_vv
+                    0x1: VOPFVV::vfadd_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            uint32_t temp;
+                            float fs1 = reinterpret_cast<float&>(temp = Vs1_ud[i]);
+                            float fs2 = reinterpret_cast<float&>(temp = Vs2_ud[i]);
+                            // DPRINTF(RiscvVector, "%f %f\n", fs1, fs2);
+                            float res = fs2 + fs1;
+                            Vd_ud[i] = reinterpret_cast<uint32_t&>(res);
+                        }
+                    }}, flags=['SimdFloatAddOp']);
+
+                    // vfadd_vvm
+                    0x0: VOPFVV::vfadd_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                uint32_t temp;
+                                float fs1 = reinterpret_cast<float&>(temp = Vs1_ud[i]);
+                                float fs2 = reinterpret_cast<float&>(temp = Vs2_ud[i]);
+                                float res = fs2 + fs1;
+                                Vd_ud[i] = reinterpret_cast<uint32_t&>(res);
+                            }
+                        }
+                    }}, flags=['SimdFloatAddOp']);
+                }
+
+                // vfsub
+                0x2: decode VM {
+                    // vfsub_vv
+                    0x1: VOPFVV::vfsub_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            uint32_t temp;
+                            float fs1 = reinterpret_cast<float&>(temp = Vs1_ud[i]);
+                            float fs2 = reinterpret_cast<float&>(temp = Vs2_ud[i]);
+                            float res = fs2 - fs1;
+                            Vd_ud[i] = reinterpret_cast<uint32_t&>(res);
+                        }
+                    }}, flags=['SimdFloatAddOp']);
+
+                    // vfsub_vvm
+                    0x0: VOPFVV::vfsub_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                uint32_t temp;
+                                float fs1 = reinterpret_cast<float&>(temp = Vs1_ud[i]);
+                                float fs2 = reinterpret_cast<float&>(temp = Vs2_ud[i]);
+                                float res = fs2 - fs1;
+                                Vd_ud[i] = reinterpret_cast<uint32_t&>(res);
+                            }
+                        }
+                    }}, flags=['SimdFloatAddOp']);
+                }
+
+                // // vminu
+                // 0x4: decode VM {
+                //     // vminu_vv
+                //     0x1: VOPIVV::vminu_vv({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = std::min(Vs2_ud[i] , Vs1_ud[i]);
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vminu_vvm
+                //     0x0: VOPIVV::vminu_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = std::min(Vs2_ud[i] , Vs1_ud[i]);
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmin
+                // 0x5: decode VM {
+                //     // vmin_vv
+                //     0x1: VOPIVV::vmin_vv({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_sd[i] = std::min(Vs2_sd[i] , Vs1_sd[i]);
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmin_vvm
+                //     0x0: VOPIVV::vmin_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_sd[i] = std::min(Vs2_sd[i] , Vs1_sd[i]);
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmaxu
+                // 0x6: decode VM {
+                //     // vmaxu_vv
+                //     0x1: VOPIVV::vmaxu_vv({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = std::max(Vs2_ud[i] , Vs1_ud[i]);
+                //         }
+                //      }}, flags=['SimdCmpOp']);
+
+                //     // vmaxu_vvm
+                //     0x0: VOPIVV::vmaxu_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = std::max(Vs2_ud[i] , Vs1_ud[i]);
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmax
+                // 0x7: decode VM {
+                //     // vmax_vv
+                //     0x1: VOPIVV::vmax_vv({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_sd[i] = std::max(Vs2_sd[i] , Vs1_sd[i]);
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmax_vvm
+                //     0x0: VOPIVV::vmax_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_sd[i] = std::max(Vs2_sd[i] , Vs1_sd[i]);
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmerge/vmv
+                // 0x17: decode VM {
+                //     // vmv
+                //     0x1: VOPIVV::vmv_v_v({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = Vs1_ud[i];
+                //         }
+                //     }}, flags=['SimdAluOp']);
+
+                //     // vmerge_vv
+                //     0x0: VOPIVV::vmerge_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Vs1_ud[i];
+                //             } else {
+                //                 Vd_ud[i] = Vs2_ud[i];
+                //             }
+                //         }
+                //     }}, flags=['SimdAluOp']);
+                // }
+
+                // // vmseq
+                // 0x18: decode VM {
+                //     // vmseq_vv
+                //     0x1: VOPIVV::vmseq_vv({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = Vs2_ud[i] == Vs1_ud[i];
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmseq_vvm
+                //     0x0: VOPIVV::vmseq_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Vs2_ud[i] == Vs1_ud[i];
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmsne
+                // 0x19: decode VM {
+                //     // vmsne_vv
+                //     0x1: VOPIVV::vmsne_vv({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = Vs2_ud[i] != Vs1_ud[i];
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmsne_vvm
+                //     0x0: VOPIVV::vmsne_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Vs2_ud[i] != Vs1_ud[i];
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmsltu
+                // 0x1a: decode VM {
+                //     // vmsltu_vv
+                //     0x1: VOPIVV::vmsltu_vv({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = Vs2_ud[i] < Vs1_ud[i];
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmsltu_vvm
+                //     0x0: VOPIVV::vmsltu_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Vs2_ud[i] < Vs1_ud[i];
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmslt
+                // 0x1b: decode VM {
+                //     // vmslt_vv
+                //     0x1: VOPIVV::vmslt_vv({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_sd[i] = Vs2_sd[i] < Vs1_sd[i];
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmslt_vvm
+                //     0x0: VOPIVV::vmslt_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_sd[i] = Vs2_sd[i] < Vs1_sd[i];
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmsleu
+                // 0x1c: decode VM {
+                //     // vmsleu_vv
+                //     0x1: VOPIVV::vmsleu_vv({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = Vs2_ud[i] <= Vs1_ud[i];
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmsleu_vvm
+                //     0x0: VOPIVV::vmsleu_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Vs2_ud[i] <= Vs1_ud[i];
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmsle
+                // 0x1d: decode VM {
+                //     // vmsle_vv
+                //     0x1: VOPIVV::vmsle_vv({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_sd[i] = Vs2_sd[i] <= Vs1_sd[i];
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmsle_vvm
+                //     0x0: VOPIVV::vmsle_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_sd[i] = Vs2_sd[i] <= Vs1_sd[i];
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmsgtu
+                // 0x1e: decode VM {
+                //     // vmsgtu_vv
+                //     0x1: VOPIVV::vmsgtu_vv({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = Vs2_ud[i] > Vs1_ud[i];
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmsgtu_vvm
+                //     0x0: VOPIVV::vmsgtu_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Vs2_ud[i] > Vs1_ud[i];
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmsgt
+                // 0x1f: decode VM {
+                //     // vmsgt_vv
+                //     0x1: VOPIVV::vmsgt_vv({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_sd[i] = Vs2_sd[i] > Vs1_sd[i];
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmsgt_vvm
+                //     0x0: VOPIVV::vmsgt_vvm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_sd[i] = Vs2_sd[i] > Vs1_sd[i];
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+            }
 
             // OPMVV
             0x2: decode FUNCT6 {
@@ -3120,7 +3423,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] + Rs1_sd;
                         }
-                    }}, flags=['SimdAluOp']);
+                    }}, flags=['SimdAddOp']);
 
                     // vadd_vxm
                     0x0: VOPIVX::vadd_vxm({{
@@ -3129,7 +3432,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] + Rs1_sd;
                             }
                         }
-                    }}, flags=['SimdAluOp']);
+                    }}, flags=['SimdAddOp']);
                 }
 
                 // vsub
@@ -3139,7 +3442,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Vs2_sd[i] - Rs1_sd;
                         }
-                    }}, flags=['SimdAluOp']);
+                    }}, flags=['SimdAddOp']);
 
                     // vsub_vxm
                     0x0: VOPIVX::vsub_vxm({{
@@ -3148,7 +3451,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Vs2_sd[i] - Rs1_sd;
                             }
                         }
-                    }}, flags=['SimdAluOp']);
+                    }}, flags=['SimdAddOp']);
                 }
 
                 // vrsub
@@ -3158,7 +3461,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             Vd_sd[i] = Rs1_sd - Vs2_sd[i];
                         }
-                    }}, flags=['SimdAluOp']);
+                    }}, flags=['SimdAddOp']);
 
                     // vrsub_vxm
                     0x0: VOPIVX::vrsub_vxm({{
@@ -3167,7 +3470,7 @@ decode QUADRANT default Unknown::unknown() {
                                 Vd_sd[i] = Rs1_sd - Vs2_sd[i];
                             }
                         }
-                    }}, flags=['SimdAluOp']);
+                    }}, flags=['SimdAddOp']);
                 }
 
                 // vminu
@@ -3582,9 +3885,360 @@ decode QUADRANT default Unknown::unknown() {
                 }
             }
 
-            //// OPFVF
-            //0x5: decode FUNCT6 {
-            //}
+            // OPFVF
+            // TODO doesnt check for NAN in any of these, teehee
+            0x5: decode FUNCT6 {
+                // vfadd
+                0x0: decode VM {
+                    // vfadd_vf
+                    0x1: VOPFVF::vfadd_vf({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            uint32_t temp;
+                            float rs1 = reinterpret_cast<float&>(temp = Rs1_sd);
+                            float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                            float res = fs2 + rs1;
+                            Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                        }
+                    }}, flags=['SimdFloatAddOp']);
+
+                    // vfadd_vfm
+                    0x0: VOPFVF::vfadd_vfm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                uint32_t temp;
+                                float rs1 = reinterpret_cast<float&>(temp = Rs1_sd);
+                                float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                                float res = fs2 + rs1;
+                                Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                            }
+                        }
+                    }}, flags=['SimdFloatAddOp']);
+                }
+
+                // vfsub
+                0x2: decode VM {
+                    // vfsub_vf
+                    0x1: VOPFVF::vfsub_vf({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            uint32_t temp;
+                            float rs1 = reinterpret_cast<float&>(temp = Rs1_sd);
+                            float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                            float res = fs2 - rs1;
+                            Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                        }
+                    }}, flags=['SimdFloatAddOp']);
+
+                    // vfsub_vfm
+                    0x0: VOPIVX::vfsub_vfm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                uint32_t temp;
+                                float rs1 = reinterpret_cast<float&>(temp = Rs1_sd);
+                                float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                                float res = fs2 - rs1;
+                                Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                            }
+                        }
+                    }}, flags=['SimdFloatAddOp']);
+                }
+
+                // // vminu
+                // 0x4: decode VM {
+                //     // vminu_vx
+                //     0x1: VOPIVX::vminu_vx({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = std::min(Vs2_ud[i] , Rs1_ud);
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vminu_vxm
+                //     0x0: VOPIVX::vminu_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = std::min(Vs2_ud[i] , Rs1_ud);
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmin
+                // 0x5: decode VM {
+                //     // vmin_vx
+                //     0x1: VOPIVX::vmin_vx({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_sd[i] = std::min(Vs2_sd[i] , Rs1_sd);
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmin_vxm
+                //     0x0: VOPIVX::vmin_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_sd[i] = std::min(Vs2_sd[i] , Rs1_sd);
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmaxu
+                // 0x6: decode VM {
+                //     // vmaxu_vx
+                //     0x1: VOPIVX::vmaxu_vx({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = std::max(Vs2_ud[i] , Rs1_ud);
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmaxu_vxm
+                //     0x0: VOPIVX::vmaxu_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = std::max(Vs2_ud[i] , Rs1_ud);
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmax
+                // 0x7: decode VM {
+                //     // vmax_vx
+                //     0x1: VOPIVX::vmax_vx({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_sd[i] = std::max(Vs2_sd[i] , Rs1_sd);
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmax_vxm
+                //     0x0: VOPIVX::vmax_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_sd[i] = std::max(Vs2_sd[i] , Rs1_sd);
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vslideup
+                // 0x0e: decode VM {
+                //     // vslideup_vx
+                //     0x1: VOPIVX::vslideup_vx({{
+                //         for (auto i = Rs1_ud; i < VLEN; i++) {
+                //             Vd_ud[i] = Vs2_ud[i - Rs1_ud];
+                //         }
+                //     }}, flags=['SimdAluOp']);
+
+                //     // vslideup_vxm
+                //     0x0: VOPIVX::vslideup_vxm({{
+                //         for (auto i = Rs1_ud; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Vs2_ud[i - Rs1_ud];
+                //             }
+                //         }
+                //     }}, flags=['SimdAluOp']);
+                // }
+
+                // // vslidedown
+                // 0x0f: decode VM {
+                //     // vslidedown_vx
+                //     0x1: VOPIVX::vslidedown_vx({{
+                //         auto max = xc->maxVectorLength();
+                //         for (auto i = Rs1_ud; i < VLEN; i++) {
+                //             if ((i + Rs1_ud) < max) {
+                //                 Vd_ud[i] = Vs2_ud[i + Rs1_ud];
+                //             } else {
+                //                 Vd_ud[i] = 0;
+                //             }
+                //         }
+                //     }}, flags=['SimdAluOp']);
+
+                //     // vslidedown_vxm
+                //     0x0: VOPIVX::vslidedown_vxm({{
+                //         auto max = xc->maxVectorLength();
+                //         for (auto i = Rs1_ud; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 if ((i + Rs1_ud) < max) {
+                //                     Vd_ud[i] = Vs2_ud[i + Rs1_ud];
+                //                 } else {
+                //                     Vd_ud[i] = 0;
+                //                 }
+                //             }
+                //         }
+                //     }}, flags=['SimdAluOp']);
+                // }
+
+                // // vmerge/vmv
+                // 0x17: decode VM {
+                //     // vmv
+                //     0x1: VOPIVX::vmv_v_x({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = Rs1_ud;
+                //         }
+                //     }}, flags=['SimdAluOp']);
+
+                //     // vmerge_vx
+                //     0x0: VOPIVX::vmerge_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Rs1_ud;
+                //             } else {
+                //                 Vd_ud[i] = Vs2_ud[i];
+                //             }
+                //         }
+                //     }}, flags=['SimdAluOp']);
+                // }
+
+                // // vmseq
+                // 0x18: decode VM {
+                //     // vmseq_vx
+                //     0x1: VOPIVX::vmseq_vx({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = Vs2_ud[i] == Rs1_ud;
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmseq_vxm
+                //     0x0: VOPIVX::vmseq_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Vs2_sd[i] == Rs1_ud;
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmsne
+                // 0x19: decode VM {
+                //     // vmsne_vx
+                //     0x1: VOPIVX::vmsne_vx({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = Vs2_ud[i] != Rs1_ud;
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmsne_vxm
+                //     0x0: VOPIVX::vmsne_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Vs2_ud[i] != Rs1_ud;
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmsltu
+                // 0x1a: decode VM {
+                //     // vmsltu_vx
+                //     0x1: VOPIVX::vmsltu_vx({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = Vs2_ud[i] < Rs1_ud;
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmsltu_vxm
+                //     0x0: VOPIVX::vmsltu_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Vs2_ud[i] < Rs1_ud;
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmslt
+                // 0x1b: decode VM {
+                //     // vmslt_vx
+                //     0x1: VOPIVX::vmslt_vx({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_sd[i] = Vs2_sd[i] < Rs1_sd;
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmslt_vxm
+                //     0x0: VOPIVX::vmslt_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_sd[i] = Vs2_sd[i] < Rs1_sd;
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmsleu
+                // 0x1c: decode VM {
+                //     // vmsleu_vx
+                //     0x1: VOPIVX::vmsleu_vx({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = Vs2_ud[i] <= Rs1_ud;
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmsleu_vxm
+                //     0x0: VOPIVX::vmsleu_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Vs2_ud[i] <= Rs1_ud;
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmsle
+                // 0x1d: decode VM {
+                //     // vmsle_vx
+                //     0x1: VOPIVX::vmsle_vx({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_sd[i] = Vs2_sd[i] <= Rs1_sd;
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmsle_vxm
+                //     0x0: VOPIVX::vmsle_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_sd[i] = Vs2_sd[i] <= Rs1_sd;
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmsgtu
+                // 0x1e: decode VM {
+                //     // vmsgtu_vx
+                //     0x1: VOPIVX::vmsgtu_vx({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_ud[i] = Vs2_ud[i] >  Rs1_ud;
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmsgtu_vxm
+                //     0x0: VOPIVX::vmsgtu_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_ud[i] = Vs2_ud[i] >  Rs1_ud;
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+
+                // // vmsgt
+                // 0x1f: decode VM {
+                //     // vmsgt_vx
+                //     0x1: VOPIVX::vmsgt_vx({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             Vd_sd[i] = Vs2_sd[i] >  Rs1_sd;
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+
+                //     // vmsgt_vxm
+                //     0x0: VOPIVX::vmsgt_vxm({{
+                //         for (auto i = 0; i < VLEN; i++) {
+                //             if (Vm_ud[i] & 0x1llu) {
+                //                 Vd_sd[i] = Vs2_sd[i] >  Rs1_sd;
+                //             }
+                //         }
+                //     }}, flags=['SimdCmpOp']);
+                // }
+            }
 
             // OPMVX
             0x6: decode FUNCT6 {
