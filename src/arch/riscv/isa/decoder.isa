@@ -2932,6 +2932,60 @@ decode QUADRANT default Unknown::unknown() {
                 //         }
                 //     }}, flags=['SimdCmpOp']);
                 // }
+
+                // vfdiv
+                0x20: decode VM {
+                    // vfdiv_vv
+                    0x1: VOPFVV::vfdiv_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            uint32_t temp;
+                            float fs1 = reinterpret_cast<float&>(temp = Vs1_sd[i]);
+                            float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                            float res = fs2 / fs1;
+                            Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                        }
+                    }}, flags=['SimdFloatDivOp']);
+
+                    // vfdiv_vvm
+                    0x0: VOPFVV::vfdiv_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                uint32_t temp;
+                                float fs1 = reinterpret_cast<float&>(temp = Vs1_sd[i]);
+                                float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                                float res = fs2 / fs1;
+                                Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                            }
+                        }
+                    }}, flags=['SimdFloatDivOp']);
+                }
+
+                // vfmul
+                0x24: decode VM {
+                    // vfmul_vf
+                    0x1: VOPFVV::vfmul_vv({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            uint32_t temp;
+                            float fs1 = reinterpret_cast<float&>(temp = Vs1_sd[i]);
+                            float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                            float res = fs2 * fs1;
+                            Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                        }
+                    }}, flags=['SimdFloatMultOp']);
+
+                    // vfmul_vvm
+                    0x0: VOPFVV::vfmul_vvm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                uint32_t temp;
+                                float fs1 = reinterpret_cast<float&>(temp = Vs1_sd[i]);
+                                float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                                float res = fs2 * fs1;
+                                Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                            }
+                        }
+                    }}, flags=['SimdFloatMultOp']);
+                }
             }
 
             // OPMVV
@@ -3929,7 +3983,7 @@ decode QUADRANT default Unknown::unknown() {
                     }}, flags=['SimdFloatAddOp']);
 
                     // vfsub_vfm
-                    0x0: VOPIVX::vfsub_vfm({{
+                    0x0: VOPFVF::vfsub_vfm({{
                         for (auto i = 0; i < VLEN; i++) {
                             if (Vm_ud[i] & 0x1llu) {
                                 uint32_t temp;
@@ -4238,6 +4292,115 @@ decode QUADRANT default Unknown::unknown() {
                 //         }
                 //     }}, flags=['SimdCmpOp']);
                 // }
+
+                // vfdiv
+                0x20: decode VM {
+                    // vfdiv_vf
+                    0x1: VOPFVF::vfdiv_vf({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            uint32_t temp;
+                            float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                            float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                            float res = fs2 / rs1;
+                            DPRINTF(RiscvVector, "%f = %f / %f\n", res, fs2, rs1);
+                            Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                        }
+                    }}, flags=['SimdFloatDivOp']);
+
+                    // vfdiv_vfm
+                    0x0: VOPFVF::vfdiv_vfm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                uint32_t temp;
+                                float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                                float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                                float res = fs2 / rs1;
+                                Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                            }
+                        }
+                    }}, flags=['SimdFloatDivOp']);
+                }
+
+                // vfrdiv (reverse div order)
+                0x21: decode VM {
+                    // vfrdiv_vf
+                    0x1: VOPFVF::vfrdiv_vf({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            uint32_t temp;
+                            float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                            float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                            float res = rs1 / fs2;
+                            Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                        }
+                    }}, flags=['SimdFloatDivOp']);
+
+                    // vfdiv_vfm
+                    0x0: VOPFVF::vfrdiv_vfm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                uint32_t temp;
+                                float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                                float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                                float res = rs1 / fs2;
+                                Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                            }
+                        }
+                    }}, flags=['SimdFloatDivOp']);
+                }
+
+                // vfmul
+                0x24: decode VM {
+                    // vfmul_vf
+                    0x1: VOPFVF::vfmul_vf({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            uint32_t temp;
+                            float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                            float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                            float res = fs2 * rs1;
+                            Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                        }
+                    }}, flags=['SimdFloatMultOp']);
+
+                    // vfmul_vfm
+                    0x0: VOPFVF::vfmul_vfm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                uint32_t temp;
+                                float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                                float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                                float res = fs2 * rs1;
+                                Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                            }
+                        }
+                    }}, flags=['SimdFloatMultOp']);
+                }
+
+                // vfrsub
+                0x27: decode VM {
+                    // vfrsub_vf
+                    0x1: VOPFVF::vfrsub_vf({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            uint32_t temp;
+                            float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                            float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                            float res = rs1 - fs2;
+                            Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                        }
+                    }}, flags=['SimdFloatAddOp']);
+
+                    // vfrsub_vfm
+                    0x0: VOPFVF::vfrsub_vfm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                uint32_t temp;
+                                float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                                float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                                float res = rs1 - fs2;
+                                Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                            }
+                        }
+                    }}, flags=['SimdFloatAddOp']);
+                }
             }
 
             // OPMVX
