@@ -2789,6 +2789,15 @@ decode QUADRANT default Unknown::unknown() {
                 //     }}, flags=['SimdCmpOp']);
                 // }
 
+                // vmv
+                0x10: decode VM {
+                    // vmv
+                    0x1: VOPFVV::vfmv_f_s({{
+                        uint32_t temp;
+                        Fd = reinterpret_cast<float&>(temp = Vs2_ud[0]);
+                    }}, flags=['SimdFloatAluOp']);
+                }
+
                 // // vmerge/vmv
                 // 0x17: decode VM {
                 //     // vmv
@@ -4166,9 +4175,10 @@ decode QUADRANT default Unknown::unknown() {
                 // vmv
                 0x10: decode VM {
                     // vmv
-                    0x1: VOPFVF::vfmv_f_s({{
+                    0x1: VOPFVF::vfmv_s_f({{
                         uint32_t temp;
-                        Fd = reinterpret_cast<float&>(temp = Vs2_ud[0]);
+                        float fs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                        Vd_ud[0] = reinterpret_cast<uint32_t&>(temp = fs1);
                     }}, flags=['SimdFloatAluOp']);
                 }
 

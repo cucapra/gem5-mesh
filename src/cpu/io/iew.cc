@@ -93,6 +93,9 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
   m_op_to_unit_map[Enums::SimdShiftAcc] = idx;
   m_op_to_unit_map[Enums::SimdSqrt] = idx;
 
+  // should be way longer lat
+  m_op_to_unit_map[Enums::SimdFloatReduceAdd] = idx;
+
   // create memory unit
   idx++;
   m_exec_units.push_back(new MemUnit(this->name().c_str(), "Mem", m_cpu_p,
