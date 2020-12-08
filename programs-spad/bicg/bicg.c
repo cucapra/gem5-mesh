@@ -10,6 +10,10 @@
 #include "group_templates.h"
 #include "bicg_kernel.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 /*
   big c
 */
@@ -25,6 +29,43 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
   int start = ((tid + 0) * NY) / dim;
   int end   = ((tid + 1) * NY) / dim;
 
+  #ifdef PACKED_SIMD
+  for (int j = start; j < end; j++) {
+    DTYPE s_local = 0.0f;
+    int chunk = NX;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+
+      int base_i = NX - chunk;
+
+      // TODO should we try to do prefetching here??
+
+      // scalar load needed for each value, and then have to slide into vec reg
+      vfloat32m1_t va;
+      for (int i = 0; i < l; i++) { // TODO maybe can do a gather here?
+        int i_idx = i + base_i;
+        float a_val = a[i_idx * NY + j];
+        va = vfslide1up_vf_f32m1(va, a_val);
+      }
+
+      // can vectorize load to r
+      vfloat32m1_t vr = vle32_v_f32m1(&r[base_i]);
+
+      // multiple together
+      vfloat32m1_t vs = vfmul_vv_f32m1(va, vr);
+
+      // sum
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+      vs = vfredsum_vs_f32m1_f32m1(vs, vzero, vs);
+
+      // update the accumulation
+      float single_val = vfmv_f_s_f32m1_f32(vs);
+      s_local += single_val;
+    }
+    STORE_NOACK(s_local, &s[j], 0);
+  }
+
+  #else
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
 
@@ -56,6 +97,7 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
     // s[j] = s_local;
     STORE_NOACK(s_local, &s[j], 0);
   }
+  #endif
 
   asm volatile("fence\n\t");
 }

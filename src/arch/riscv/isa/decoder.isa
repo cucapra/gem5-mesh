@@ -2657,6 +2657,35 @@ decode QUADRANT default Unknown::unknown() {
                     }}, flags=['SimdFloatAddOp']);
                 }
 
+                // vfredsum
+                0x01: decode VM {
+                    // vfredsum_vs
+                    0x1: VOPFVV::vfredsum_vs({{
+                        uint32_t temp;
+                        float fs1 = reinterpret_cast<float&>(temp = Vs1_ud[0]);
+                        float res = fs1;
+                        for (auto i = 0; i < VLEN; i++) {
+                            float fs2 = reinterpret_cast<float&>(temp = Vs2_ud[i]);
+                            res += fs2;
+                        }
+                        Vd_ud[0] = reinterpret_cast<uint32_t&>(res);
+                    }}, flags=['SimdFloatReduceAddOp']);
+
+                    // vfredsum_vsm
+                    0x0: VOPFVV::vfredsum_vsm({{
+                        uint32_t temp;
+                        float fs1 = reinterpret_cast<float&>(temp = Vs1_ud[0]);
+                        float res = fs1;
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                float fs2 = reinterpret_cast<float&>(temp = Vs2_ud[i]);
+                                res += fs2;
+                            }
+                        }
+                        Vd_ud[0] = reinterpret_cast<uint32_t&>(res);
+                    }}, flags=['SimdFloatReduceAddOp']);
+                }
+
                 // vfsub
                 0x2: decode VM {
                     // vfsub_vv
@@ -4072,74 +4101,100 @@ decode QUADRANT default Unknown::unknown() {
                 //     }}, flags=['SimdCmpOp']);
                 // }
 
-                // // vslideup
-                // 0x0e: decode VM {
-                //     // vslideup_vx
-                //     0x1: VOPIVX::vslideup_vx({{
-                //         for (auto i = Rs1_ud; i < VLEN; i++) {
-                //             Vd_ud[i] = Vs2_ud[i - Rs1_ud];
-                //         }
-                //     }}, flags=['SimdAluOp']);
+                // vfslide1up
+                0x0e: decode VM {
+                    // vfslide1up_vf
+                    0x1: VOPFVF::vfslide1up_vf({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (i == 0) {
+                                uint32_t temp;
+                                float fs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                                Vd_ud[i] = reinterpret_cast<uint32_t&>(temp = fs1);
+                            } else {
+                                Vd_ud[i] = Vs2_ud[i - 1];
+                            }
+                        }
+                    }}, flags=['SimdFloatAluOp']);
 
-                //     // vslideup_vxm
-                //     0x0: VOPIVX::vslideup_vxm({{
-                //         for (auto i = Rs1_ud; i < VLEN; i++) {
-                //             if (Vm_ud[i] & 0x1llu) {
-                //                 Vd_ud[i] = Vs2_ud[i - Rs1_ud];
-                //             }
-                //         }
-                //     }}, flags=['SimdAluOp']);
-                // }
+                    // vfslide1up_vfm
+                    0x0: VOPFVF::vfslide1up_vfm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                if (i == 0) {
+                                    uint32_t temp;
+                                    float fs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                                    Vd_ud[i] = reinterpret_cast<uint32_t&>(temp = fs1);
+                                } else {
+                                    Vd_ud[i] = Vs2_ud[i - 1];
+                                }
+                            }
+                        }
+                    }}, flags=['SimdFloatAluOp']);
+                }
 
-                // // vslidedown
-                // 0x0f: decode VM {
-                //     // vslidedown_vx
-                //     0x1: VOPIVX::vslidedown_vx({{
-                //         auto max = xc->maxVectorLength();
-                //         for (auto i = Rs1_ud; i < VLEN; i++) {
-                //             if ((i + Rs1_ud) < max) {
-                //                 Vd_ud[i] = Vs2_ud[i + Rs1_ud];
-                //             } else {
-                //                 Vd_ud[i] = 0;
-                //             }
-                //         }
-                //     }}, flags=['SimdAluOp']);
+                // vfslide1down
+                0x0f: decode VM {
+                    // vfslide1down_vf
+                    0x1: VOPFVF::vfslide1down_vf({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (i == (VLEN - 1)) {
+                                uint32_t temp;
+                                float fs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                                Vd_ud[i] = reinterpret_cast<uint32_t&>(temp = fs1);
+                            } else {
+                                Vd_ud[i] = Vs2_ud[i + 1];
+                            }
+                        }
+                    }}, flags=['SimdFloatAluOp']);
 
-                //     // vslidedown_vxm
-                //     0x0: VOPIVX::vslidedown_vxm({{
-                //         auto max = xc->maxVectorLength();
-                //         for (auto i = Rs1_ud; i < VLEN; i++) {
-                //             if (Vm_ud[i] & 0x1llu) {
-                //                 if ((i + Rs1_ud) < max) {
-                //                     Vd_ud[i] = Vs2_ud[i + Rs1_ud];
-                //                 } else {
-                //                     Vd_ud[i] = 0;
-                //                 }
-                //             }
-                //         }
-                //     }}, flags=['SimdAluOp']);
-                // }
+                    // vfslide1down_vxm
+                    0x0: VOPFVF::vfslide1down_vfm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                if (i == (VLEN - 1)) {
+                                    uint32_t temp;
+                                    float fs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                                    Vd_ud[i] = reinterpret_cast<uint32_t&>(temp = fs1);
+                                } else {
+                                    Vd_ud[i] = Vs2_ud[i + 1];
+                                }
+                            }
+                        }
+                    }}, flags=['SimdFloatAluOp']);
+                }
 
-                // // vmerge/vmv
-                // 0x17: decode VM {
-                //     // vmv
-                //     0x1: VOPIVX::vmv_v_x({{
-                //         for (auto i = 0; i < VLEN; i++) {
-                //             Vd_ud[i] = Rs1_ud;
-                //         }
-                //     }}, flags=['SimdAluOp']);
+                // vmv
+                0x10: decode VM {
+                    // vmv
+                    0x1: VOPFVF::vfmv_f_s({{
+                        uint32_t temp;
+                        Fd = reinterpret_cast<float&>(temp = Vs2_ud[0]);
+                    }}, flags=['SimdFloatAluOp']);
+                }
 
-                //     // vmerge_vx
-                //     0x0: VOPIVX::vmerge_vxm({{
-                //         for (auto i = 0; i < VLEN; i++) {
-                //             if (Vm_ud[i] & 0x1llu) {
-                //                 Vd_ud[i] = Rs1_ud;
-                //             } else {
-                //                 Vd_ud[i] = Vs2_ud[i];
-                //             }
-                //         }
-                //     }}, flags=['SimdAluOp']);
-                // }
+
+                // vmerge/vmv
+                0x17: decode VM {
+                    // vmv
+                    0x1: VOPFVF::vfmv_v_f({{
+                        uint32_t temp;
+                        float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_ud[i] = reinterpret_cast<uint32_t&>(temp = rs1);
+                        }
+                    }}, flags=['SimdFloatAluOp']);
+
+                    // // vmerge_vx
+                    // 0x0: VOPIVX::vmerge_vxm({{
+                    //     for (auto i = 0; i < VLEN; i++) {
+                    //         if (Vm_ud[i] & 0x1llu) {
+                    //             Vd_ud[i] = Rs1_ud;
+                    //         } else {
+                    //             Vd_ud[i] = Vs2_ud[i];
+                    //         }
+                    //     }
+                    // }}, flags=['SimdAluOp']);
+                }
 
                 // // vmseq
                 // 0x18: decode VM {
