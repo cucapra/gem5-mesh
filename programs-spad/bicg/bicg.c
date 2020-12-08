@@ -42,10 +42,11 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
 
       // scalar load needed for each value, and then have to slide into vec reg
       vfloat32m1_t va;
-      for (int i = 0; i < l; i++) { // TODO maybe can do a gather here?
+      for (int i = 0; i < l; i++) { // TODO maybe can do a strided load or gather here?
+        vsetvl_e32m1(chunk);
         int i_idx = i + base_i;
         float a_val = a[i_idx * NY + j];
-        va = vfslide1up_vf_f32m1(va, a_val);
+        va = vfslide1up_vf_f32m1(va, a_val); // doesnt seem to work maybe punt and try other...
       }
 
       // can vectorize load to r

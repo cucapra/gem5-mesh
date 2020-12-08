@@ -304,6 +304,12 @@ class StaticInst : public RefCounted, public StaticInstFlags
 
     virtual void advancePC(TheISA::PCState &pcState) const = 0;
 
+    // mainly for vector requests, get singular addresses to split up seperate requests
+    virtual std::vector<Addr> generateAddresses(ExecContext *xc) const 
+    {
+      panic("generateAddresses not defined!");
+    }
+
     /**
      * Return the microop that goes with a particular micropc. This should
      * only be defined/used in macroops which will contain microops

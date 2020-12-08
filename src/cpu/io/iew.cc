@@ -12,6 +12,7 @@
 #include "debug/IEW.hh"
 
 #include "debug/Mesh.hh"
+#include "debug/RiscvVector.hh"
 
 //-----------------------------------------------------------------------------
 // IEW
@@ -326,6 +327,11 @@ IEW::doWriteback()
               inst->renamedDestRegIdx(i)->index(), inst->renamedDestRegIdx(i)->className(), inst->toString(true));
             assert(0);
           }
+        }
+
+
+        if (inst->isVector()) {
+          DPRINTF(RiscvVector, "%s\n", inst->toString(true));
         }
 
         // // debug during vec sections

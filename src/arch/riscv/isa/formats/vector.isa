@@ -39,6 +39,7 @@ def template VectorMemDeclare {{
         Fault initiateAcc(ExecContext *, Trace::InstRecord *) const override;
         Fault completeAcc(PacketPtr, ExecContext *,
                           Trace::InstRecord *) const override;
+        std::vector<Addr> generateAddresses(ExecContext *) const override;
 
         std::string
             generateDisassembly(Addr pc, const SymbolTable *symtab) const override;
@@ -226,6 +227,37 @@ def template VStoreCompleteAcc {{
         Trace::InstRecord *traceData) const
     {
         return NoFault;
+    }
+}};
+
+def template VectorMemAddresses {{
+    std::vector<Addr>
+    %(class_name)s::generateAddresses(ExecContext *xc) const
+    { 
+        std::vector<Addr> addrs;
+        Addr EA;
+        Fault fault = NoFault;
+
+        %(op_decl)s;
+        %(op_rd)s;
+
+        if (fault == NoFault) {
+            size_t elem_sz M5_VAR_USED = sizeof(VMem) / VMem.size();
+
+            // Effictive stride
+            Addr es M5_VAR_USED = %(stride)s;
+
+            for (auto i = 0; i < VLEN; i++) {
+                if (%(mask)s) {
+                    EA = %(addr_base)s;
+                    EA   %(addr_gen)s;
+
+                    addrs.push_back(EA);
+                }
+            }
+        }
+
+        return addrs;
     }
 }};
 
@@ -578,6 +610,7 @@ def format VMLOp(code, addr_base={{ Rs1_ud  }},
     exec_output = (VLoadExecute.subst(iop) +
                    VLoadInitiateAcc.subst(iop) +
                    VLoadCompleteAcc.subst(iop) +
+                   VectorMemAddresses.subst(iop) +
                    VDisassemblyMem.subst(iop))
 }};
 
@@ -603,6 +636,7 @@ def format VMLSOp(code, addr_base={{ Rs1_ud  }},
     exec_output = (VLoadExecute.subst(iop) +
                    VLoadInitiateAcc.subst(iop) +
                    VLoadCompleteAcc.subst(iop) +
+                   VectorMemAddresses.subst(iop) +
                    VDisassemblyMem.subst(iop))
 }};
 
@@ -628,6 +662,7 @@ def format VMLXOp(code, addr_base={{ Rs1_ud  }},
     exec_output = (VLoadExecute.subst(iop) +
                    VLoadInitiateAcc.subst(iop) +
                    VLoadCompleteAcc.subst(iop) +
+                   VectorMemAddresses.subst(iop) +
                    VDisassemblyMem.subst(iop))
 }};
 
@@ -653,6 +688,7 @@ def format VMSOp(code, addr_base={{ Rs1_ud  }},
     exec_output = (VStoreExecute.subst(iop) +
                    VStoreInitiateAcc.subst(iop) +
                    VStoreCompleteAcc.subst(iop) +
+                   VectorMemAddresses.subst(iop) +
                    VDisassemblyMem.subst(iop))
 }};
 
@@ -678,6 +714,7 @@ def format VMSSOp(code, addr_base={{ Rs1_ud  }},
     exec_output = (VStoreExecute.subst(iop) +
                    VStoreInitiateAcc.subst(iop) +
                    VStoreCompleteAcc.subst(iop) +
+                   VectorMemAddresses.subst(iop) +
                    VDisassemblyMem.subst(iop))
 }};
 
@@ -703,6 +740,7 @@ def format VMSXOp(code, addr_base={{ Rs1_ud  }},
     exec_output = (VStoreExecute.subst(iop) +
                    VStoreInitiateAcc.subst(iop) +
                    VStoreCompleteAcc.subst(iop) +
+                   VectorMemAddresses.subst(iop) +
                    VDisassemblyMem.subst(iop))
 }};
 
