@@ -611,9 +611,7 @@ Scratchpad::wakeup()
 }
 
 std::shared_ptr<LLCRequestMsg>
-Scratchpad::createLLCReqPacket(Packet* pkt_p, Addr addr) {
-  Addr baseAddr = pkt_p->getAddr();
-
+Scratchpad::createLLCReqPacket(Packet* pkt_p, Addr addr, int respCnt) {
   bool isPrefetch = pkt_p->isSpadPrefetch();
   bool noAckStore = pkt_p->isStoreNoAck();
   bool noLLCAck = isPrefetch || noAckStore;
@@ -644,7 +642,7 @@ Scratchpad::createLLCReqPacket(Packet* pkt_p, Addr addr) {
   // pre-interpret it here, but not actually an additional field
   msg_p->m_PrefetchAddress = pkt_p->getPrefetchAddr();
   msg_p->m_CoreOffset = pkt_p->getCoreOffset();
-  msg_p->m_RespCnt = pkt_p->getRespCnt();
+  msg_p->m_RespCnt = respCnt;
   msg_p->m_PrefetchConfig = pkt_p->getPrefetchConfig();
   // msg_p->m_InstSeqNum = pkt_p->getCoreOffset(); // temp for debug
   // send local epoch so mem can sync
@@ -695,12 +693,73 @@ Scratchpad::createLLCReqPacket(Packet* pkt_p, Addr addr) {
     msg_p->m_RespCnt = 1; // vector stores are processed one at a time
     int offset = addr - makeLineAddress(addr);
     int len = pkt_p->getWordSize();
-    int regOffset = addr - baseAddr;
+    int regOffset = pkt_p->getWordOffset(addr);
+    if (pkt_p->isVector()) DPRINTF(RiscvVector, "writing offset %d to addr %#x %d\n", regOffset, addr, offset);
     (msg_p->m_DataBlk).setData(&pkt_p->getConstPtr<uint8_t>()[regOffset], offset, len);
     (msg_p->m_writeMask).setMask(offset, len);
   }
 
   return msg_p;
+}
+
+typedef struct WordAndCnt_t {
+  Addr baseAddr;
+  int respCnt;
+
+  WordAndCnt_t(Addr baseAddr, int respCnt) {
+    this->baseAddr = baseAddr;
+    this->respCnt =  respCnt;
+  }
+} WordAndCnt_t;
+
+// determine number of packets and word addresses that we need to send
+std::vector<WordAndCnt_t> getNeededReqs(Packet* pkt_p) {
+  std::vector<WordAndCnt_t> reqs;
+
+  if (!pkt_p->isVector()) reqs.push_back(WordAndCnt_t(pkt_p->getAddr(), 1));
+  // try to merge loads into single vector if possible
+  else {
+    auto vecAddrs = pkt_p->getVecAddrs();
+    // writes must be split always
+    if (pkt_p->isWrite()) {
+      for (auto& a : vecAddrs) {
+        reqs.push_back(WordAndCnt_t(a, 1));
+      }
+    }
+    // loads can be merged under to conditions
+    // 1) contigous
+    // 2) within same cache line
+    else {
+      // check if words are contigious
+      // TODO check cache line breaks
+      int numContigReqs = 1;
+      Addr baseAddr = vecAddrs[0];
+      for (int i = numContigReqs; i < vecAddrs.size(); i++) {
+        // break up if not true
+        Addr prevAddr = vecAddrs[i - 1];
+        Addr nextAddr = vecAddrs[i];
+        if ((nextAddr != (prevAddr + pkt_p->getWordSize())) ||
+            (makeLineAddress(nextAddr) != makeLineAddress(prevAddr))) {
+          // commit the prev request
+          // DPRINTF(RiscvVector, "create req %#x size %d\n", baseAddr, numContigReqs);
+          reqs.push_back(WordAndCnt_t(baseAddr, numContigReqs));
+
+          // restart the count
+          baseAddr = nextAddr;
+          numContigReqs = 0;
+        }
+
+        numContigReqs++;
+      }
+
+      // log last req
+      // DPRINTF(RiscvVector, "create req %#x size %d\n", baseAddr, numContigReqs);
+      reqs.push_back(WordAndCnt_t(baseAddr, numContigReqs));
+    }
+  }
+
+
+  return reqs;
 }
 
 bool
@@ -847,14 +906,12 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
 
       // TODO kind of cheat if vector store and enqueu multiple requests to go off
       // assume that network will serialize
-      Addr baseAddr = pkt_p->getAddr();
-      int numReqs = (pkt_p->isVector() && pkt_p->isWrite()) ? pkt_p->getRespCnt() : 1;
-      for (int i = 0; i < numReqs; i++) {
-        int wordSize = pkt_p->getWordSize();
-        Addr wordAddr = baseAddr + i * wordSize; // todo maybe should use instruction def for this
-
+      auto reqFrags = getNeededReqs(pkt_p);
+      for (int i = 0; i < reqFrags.size(); i++) {
+        Addr wordAddr = reqFrags[i].baseAddr;
+        Addr respCnt = reqFrags[i].respCnt;
         // make and queue an LLCRequest message
-        std::shared_ptr<LLCRequestMsg> msg_p = createLLCReqPacket(pkt_p, wordAddr);
+        std::shared_ptr<LLCRequestMsg> msg_p = createLLCReqPacket(pkt_p, wordAddr, respCnt);
 
         DPRINTF(RubyNetwork, "spad push msg %p @addr %#x\n", msg_p.get(), pkt_p->getAddr());
 

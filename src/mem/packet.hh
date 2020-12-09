@@ -846,6 +846,16 @@ class Packet : public Printable
      */ 
     std::vector<Addr> getVecAddrs() const { return req->vecAddrs; }
 
+    // figure out which word this was for
+    int getWordOffset(Addr addr) {
+        if (!isVector()) return 0;
+        for (int i = 0; i < getVecAddrs().size(); i++) {
+            if (addr == getVecAddrs()[i])
+            return i * getWordSize();
+        }
+        assert(false);
+    }
+
     // packet type for processing scratchpad
     typedef enum RespPktType {
         NotVal = 0,

@@ -308,7 +308,7 @@ class Scratchpad : public AbstractController
 
     int getNumClosedFrames();
 
-    std::shared_ptr<LLCRequestMsg> createLLCReqPacket(Packet* pkt_p, Addr wordAddr);
+    std::shared_ptr<LLCRequestMsg> createLLCReqPacket(Packet* pkt_p, Addr wordAddr, int respCnt);
 
     const uint8_t* decodeRespWord(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_msg_p);
 
@@ -395,7 +395,7 @@ class Scratchpad : public AbstractController
         }
 
         // int word = (int)(addr - pkt->getAddr());
-        int word = getWordOffset(addr);
+        int word = pkt->getWordOffset(addr);
 
         // printf("set data %lx word %d word size %d tot size %u cnt %d\n", 
           // addr, word, wordSize, pkt->getSize(), pkt->getRespCnt());
@@ -405,15 +405,6 @@ class Scratchpad : public AbstractController
         // for (int i = 0; i < wordSize; i++) {
           // data[word * wordSize + i] = incData[i];
         // }
-      }
-
-      // figure out which word this was for
-      int getWordOffset(Addr addr) {
-        for (int i = 0; i < pkt->getVecAddrs().size(); i++) {
-          if (addr == pkt->getVecAddrs()[i])
-            return i * pkt->getWordSize();
-        }
-        assert(false);
       }
 
       // ~pkt_map_entry_t() {
