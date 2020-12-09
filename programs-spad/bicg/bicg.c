@@ -41,13 +41,15 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
       // TODO should we try to do prefetching here??
 
       // scalar load needed for each value, and then have to slide into vec reg
-      vfloat32m1_t va;
-      for (int i = 0; i < l; i++) { // TODO maybe can do a strided load or gather here?
-        vsetvl_e32m1(chunk);
-        int i_idx = i + base_i;
-        float a_val = a[i_idx * NY + j];
-        va = vfslide1up_vf_f32m1(va, a_val); // doesnt seem to work maybe punt and try other...
-      }
+      // vfloat32m1_t va;
+      // for (int i = 0; i < l; i++) { // TODO maybe can do a strided load or gather here?
+      //   vsetvl_e32m1(chunk);
+      //   int i_idx = i + base_i;
+      //   float a_val = a[i_idx * NY + j];
+      //   va = vfslide1up_vf_f32m1(va, a_val); // doesnt seem to work maybe punt and try other...
+      // }
+      // TODO is sizeof needed, should it know size of elements?)
+      vfloat32m1_t va = vlse32_v_f32m1(&a[base_i * NY + j], NY * sizeof(float));
 
       // can vectorize load to r
       vfloat32m1_t vr = vle32_v_f32m1(&r[base_i]);

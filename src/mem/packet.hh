@@ -836,6 +836,16 @@ class Packet : public Printable
      */ 
     bool isVector() const { return req->isNormVector; }
 
+    /**
+     * Get word size which might be different than full size
+     */ 
+    unsigned int getWordSize() const { return req->wordSize; }
+
+    /**
+     * Get addrs
+     */ 
+    std::vector<Addr> getVecAddrs() const { return req->vecAddrs; }
+
     // packet type for processing scratchpad
     typedef enum RespPktType {
         NotVal = 0,

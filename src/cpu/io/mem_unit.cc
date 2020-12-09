@@ -786,6 +786,23 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->xDim = 1;
       m_s1_inst->mem_req_p->yDim = 1;
       m_s1_inst->mem_req_p->isNormVector = true;
+
+      std::vector<Addr> vecAddrs = m_s1_inst->generateAddresses();
+      // do functional translation of every address
+      for (int i = 0; i < vecAddrs.size(); i++) {
+        Addr vAddr = vecAddrs[i];
+        Addr pAddr;
+        // can prob just do based on relative address of base offset b/c likely
+        // in same page, but dont do b/c overoptimization that could mess us up!
+        assert(m_cpu_p->tcBase(tid)->getProcessPtr()->
+          pTable->translate(vAddr, pAddr));
+
+        vecAddrs[i] = pAddr;
+        // DPRINTF(RiscvVector, "vec addr (%d) %#x\n", i, pAddr);
+      }
+      m_s1_inst->mem_req_p->vecAddrs = vecAddrs;
+      m_s1_inst->mem_req_p->wordSize /= m_cpu_p->getHardwareVectorLength();
+
       DPRINTF(RiscvVector, "send vector request of size %d load ? %d\n", m_s1_inst->mem_req_p->respCnt, is_load);
     }
     else {

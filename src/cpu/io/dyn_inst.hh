@@ -45,6 +45,9 @@ class IODynInst : public ExecContext
     /** Complete an access */
     Fault completeAcc(PacketPtr pkt);
 
+    /** Generate vector access list*/
+    std::vector<Addr> generateAddresses();
+
   /**
    * Functions returning status of instruction
    */

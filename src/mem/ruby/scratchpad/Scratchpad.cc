@@ -406,18 +406,10 @@ Scratchpad::decodeRespWord(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_ms
                           makeLineAddress(pending_pkt_p->getAddr()));
 
     int offset = pending_pkt_p->getAddr() - llc_msg_p->m_LineAddress;
-    int len = getWordSize(pending_pkt_p);
+    int len = pending_pkt_p->getWordSize();
     const uint8_t* data_p = (llc_msg_p->m_DataBlk).getData(offset, len);
     return data_p;
   }
-}
-
-unsigned int
-Scratchpad::getWordSize(Packet* pkt_p) {
-  unsigned size = pkt_p->getSize();
-  if (pkt_p->isVector())
-    size /= m_cpu_p->getHardwareVectorLength();
-  return size;
 }
 
 // Handles response from LLC or remote load
@@ -548,7 +540,8 @@ Scratchpad::wakeup()
         //DPRINTF(Mesh, "%d %d %#x %#x\n", offset, len, pending_mem_pkt_p->getAddr(), llc_msg_p->m_LineAddress);
         const uint8_t* data_p = decodeRespWord(pending_mem_pkt_p, llc_msg_p);
         // pending_mem_pkt_p->setData(data_p);
-        m_pending_pkt_map[llc_msg_p->m_SeqNum]->setData(llc_msg_p->m_LineAddress, data_p, getWordSize(pending_mem_pkt_p));
+        m_pending_pkt_map[llc_msg_p->m_SeqNum]->setData(
+          llc_msg_p->m_LineAddress, data_p, pending_mem_pkt_p->getWordSize());
 
 
       } else if (llc_msg_p->m_Type == LLCResponseType_ACK) {
@@ -701,7 +694,7 @@ Scratchpad::createLLCReqPacket(Packet* pkt_p, Addr addr) {
     msg_p->m_Type = LLCRequestType_WRITE;
     msg_p->m_RespCnt = 1; // vector stores are processed one at a time
     int offset = addr - makeLineAddress(addr);
-    int len = getWordSize(pkt_p);
+    int len = pkt_p->getWordSize();
     int regOffset = addr - baseAddr;
     (msg_p->m_DataBlk).setData(&pkt_p->getConstPtr<uint8_t>()[regOffset], offset, len);
     (msg_p->m_writeMask).setMask(offset, len);
@@ -857,7 +850,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       Addr baseAddr = pkt_p->getAddr();
       int numReqs = (pkt_p->isVector() && pkt_p->isWrite()) ? pkt_p->getRespCnt() : 1;
       for (int i = 0; i < numReqs; i++) {
-        int wordSize = getWordSize(pkt_p);
+        int wordSize = pkt_p->getWordSize();
         Addr wordAddr = baseAddr + i * wordSize; // todo maybe should use instruction def for this
 
         // make and queue an LLCRequest message

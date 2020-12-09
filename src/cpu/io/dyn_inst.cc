@@ -71,6 +71,12 @@ IODynInst::completeAcc(PacketPtr pkt)
   return static_inst_p->completeAcc(pkt, this, nullptr);
 }
 
+std::vector<Addr>
+IODynInst::generateAddresses()
+{
+  return static_inst_p->generateAddresses(this);
+}
+
 bool
 IODynInst::isFault() const
 {
