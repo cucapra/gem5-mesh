@@ -75,6 +75,13 @@ intToAddress(int addr)
 }
 
 inline int
+AddrOffset(Addr a, Addr b) {
+    Addr res = a - b;
+    assert(!(res & 0xffffffff00000000));
+    return (int)res;
+}
+
+inline int
 mod(int val, int mod)
 {
     return val % mod;

@@ -635,7 +635,11 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
   // make sure that is considered before detecting a misaligned address fault
   size_t effReqSize = size;
   if (m_s1_inst->isVector()) {
-    effReqSize = (size / m_cpu_p->getHardwareVectorLength()) * m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
+    // effReqSize = (size / m_cpu_p->getHardwareVectorLength()) * m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
+    
+    // only make sure one word doesnt go off for vector
+    // will automatically split words in scratchpad
+    effReqSize = (size / m_cpu_p->getHardwareVectorLength());
   }
 
   // check if the request is spanning across two cache lines

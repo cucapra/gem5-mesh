@@ -2637,7 +2637,7 @@ decode QUADRANT default Unknown::unknown() {
                             uint32_t temp;
                             float fs1 = reinterpret_cast<float&>(temp = Vs1_ud[i]);
                             float fs2 = reinterpret_cast<float&>(temp = Vs2_ud[i]);
-                            // DPRINTF(RiscvVector, "%f %f\n", fs1, fs2);
+                            DPRINTF(RiscvVector, "%f %f\n", fs1, fs2);
                             float res = fs2 + fs1;
                             Vd_ud[i] = reinterpret_cast<uint32_t&>(res);
                         }

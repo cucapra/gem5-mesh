@@ -396,21 +396,40 @@ Scratchpad::arbitrate() {
 // helper to figure out where the response word is (and maybe the address)
 const uint8_t*
 Scratchpad::decodeRespWord(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_msg_p) {
-  if (pending_pkt_p->getRespCnt() > 1 || llc_msg_p->m_Type == LLCResponseType_REVDATA) {
-    int blkIdx = llc_msg_p->m_BlkIdx;
-    const uint8_t *data = llc_msg_p->m_DataBlk.getData(sizeof(uint32_t) * blkIdx, sizeof(uint32_t));
-    return data;
+  int len = pending_pkt_p->getWordSize();
+  int offset = llc_msg_p->m_BlkIdx;
+  
+  if (llc_msg_p->m_Type == LLCResponseType_REVDATA ||
+        llc_msg_p->m_Type == LLCResponseType_REDATA) {
+    offset *= len; // blk idx is / sizeof(int) here
   }
-  else {
+  else if (!pending_pkt_p->isVector()) {
     assert(llc_msg_p->m_LineAddress ==
                           makeLineAddress(pending_pkt_p->getAddr()));
+  }
 
-    int offset = pending_pkt_p->getAddr() - llc_msg_p->m_LineAddress;
-    int len = pending_pkt_p->getWordSize();
-    const uint8_t* data_p = (llc_msg_p->m_DataBlk).getData(offset, len);
-    return data_p;
+  const uint8_t* data_p = (llc_msg_p->m_DataBlk).getData(offset, len);
+  return data_p;
+}
+
+Addr
+Scratchpad::decodeRespAddr(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_msg_p) {
+  if (llc_msg_p->m_Type == LLCResponseType_REVDATA ||
+        llc_msg_p->m_Type == LLCResponseType_REDATA) {
+    return llc_msg_p->m_LineAddress; // word address is encoded in line address for these
+  }// above clause if problematic
+  else {
+    // cant encode word address in line address otherwise theres an error
+    if (!pending_pkt_p->isVector()) {
+      return pending_pkt_p->getAddr();
+    }
+    else {
+      DPRINTF(RiscvVector, "resp addr %#x\n", llc_msg_p->m_LineAddress + (Addr)llc_msg_p->m_BlkIdx);
+      return llc_msg_p->m_LineAddress + (Addr)llc_msg_p->m_BlkIdx;
+    }
   }
 }
+
 
 // Handles response from LLC or remote load
 // NOTE memory loads through the spad go directly to the CPU and not to the scratchpad
@@ -455,8 +474,7 @@ Scratchpad::wakeup()
       
       enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Remote_Resp);
       
-    } else if (llc_msg_p && ((llc_msg_p->m_Type == LLCResponseType_REVDATA) || 
-        (llc_msg_p->m_Type == LLCResponseType_REDATA))) {
+    } else if (llc_msg_p && ((llc_msg_p->m_Type == LLCResponseType_REVDATA))) {
         // data from a vector request on this scratchpads behalf
         // mimic as a remote store from the master core
         
@@ -486,10 +504,7 @@ Scratchpad::wakeup()
         
         assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
       
-        if (llc_msg_p->m_Type == LLCResponseType_REDATA)
-          enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Self_Resp);
-        else
-          enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Patron_Resp);
+        enqueueRubyRespToSp(pkt_p, Packet::RespPktType::Prefetch_Patron_Resp);
       
         // delete the pending packet // why would there be a pending pkt for this?
         // m_pending_pkt_map.erase(llc_msg_p->m_SeqNum);
@@ -534,14 +549,20 @@ Scratchpad::wakeup()
 
       m_pending_pkt_map[llc_msg_p->m_SeqNum]->recvMemResp();
 
-      if (llc_msg_p->m_Type == LLCResponseType_DATA) {
+      if (llc_msg_p->m_Type == LLCResponseType_DATA || 
+            llc_msg_p->m_Type == LLCResponseType_REDATA) {
         // copy data from DataBlock to pending_mem_pkt_p
         // just pulls out a single word from the block and discards the rest?
         //DPRINTF(Mesh, "%d %d %#x %#x\n", offset, len, pending_mem_pkt_p->getAddr(), llc_msg_p->m_LineAddress);
         const uint8_t* data_p = decodeRespWord(pending_mem_pkt_p, llc_msg_p);
+        Addr wordAddr = decodeRespAddr(pending_mem_pkt_p, llc_msg_p);
         // pending_mem_pkt_p->setData(data_p);
+        if (pending_mem_pkt_p->isVector()) {
+          DPRINTF(RiscvVector, "load resp %#x(%#x), offset %d\n", 
+            wordAddr, llc_msg_p->m_LineAddress, llc_msg_p->m_BlkIdx);
+        }
         m_pending_pkt_map[llc_msg_p->m_SeqNum]->setData(
-          llc_msg_p->m_LineAddress, data_p, pending_mem_pkt_p->getWordSize());
+          wordAddr, data_p, pending_mem_pkt_p->getWordSize());
 
 
       } else if (llc_msg_p->m_Type == LLCResponseType_ACK) {
@@ -716,7 +737,8 @@ typedef struct WordAndCnt_t {
 std::vector<WordAndCnt_t> getNeededReqs(Packet* pkt_p) {
   std::vector<WordAndCnt_t> reqs;
 
-  if (!pkt_p->isVector()) reqs.push_back(WordAndCnt_t(pkt_p->getAddr(), 1));
+  if (!pkt_p->isVector()) 
+    reqs.push_back(WordAndCnt_t(pkt_p->getAddr(), pkt_p->getRespCnt()));
   // try to merge loads into single vector if possible
   else {
     auto vecAddrs = pkt_p->getVecAddrs();
@@ -741,7 +763,7 @@ std::vector<WordAndCnt_t> getNeededReqs(Packet* pkt_p) {
         if ((nextAddr != (prevAddr + pkt_p->getWordSize())) ||
             (makeLineAddress(nextAddr) != makeLineAddress(prevAddr))) {
           // commit the prev request
-          // DPRINTF(RiscvVector, "create req %#x size %d\n", baseAddr, numContigReqs);
+          DPRINTF(RiscvVector, "create req %#x size %d\n", baseAddr, numContigReqs);
           reqs.push_back(WordAndCnt_t(baseAddr, numContigReqs));
 
           // restart the count
@@ -753,7 +775,7 @@ std::vector<WordAndCnt_t> getNeededReqs(Packet* pkt_p) {
       }
 
       // log last req
-      // DPRINTF(RiscvVector, "create req %#x size %d\n", baseAddr, numContigReqs);
+      DPRINTF(RiscvVector, "create req %#x size %d\n", baseAddr, numContigReqs);
       reqs.push_back(WordAndCnt_t(baseAddr, numContigReqs));
     }
   }
@@ -913,7 +935,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
         // make and queue an LLCRequest message
         std::shared_ptr<LLCRequestMsg> msg_p = createLLCReqPacket(pkt_p, wordAddr, respCnt);
 
-        DPRINTF(RubyNetwork, "spad push msg %p @addr %#x\n", msg_p.get(), pkt_p->getAddr());
+        DPRINTF(RubyNetwork, "spad push msg %p @addr %#x %#x\n", msg_p.get(), pkt_p->getAddr(), wordAddr);
 
         m_mem_req_buffer_p->enqueue(msg_p,
                                     clockEdge(),

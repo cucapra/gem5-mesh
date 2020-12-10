@@ -637,6 +637,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   action(sdm_sendDataFromMem, "sdm", desc = "Send response data to CPU side from mem") {
     peek(memQueue_in, MemoryMsg) {
+      int blkIdx := AddrOffset(tbe.WordAddress, in_msg.addr);
       enqueue(responseNetwork_out, LLCResponseMsg, mem_to_cpu_latency) {
         assert(is_valid(tbe));
         out_msg.Type        := LLCResponseType:DATA;
@@ -645,16 +646,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.DataBlk     := cache_entry.DataBlk;
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
+        out_msg.BlkIdx      := blkIdx;
       }
     }
   }
 
   action(sdc_sendDataFromCache, "sdc", desc = "Send response data to CPU side from cache") {
     peek(requestNetwork_in, LLCRequestMsg) {
-      if (in_msg.XDim > 1) {
-        DPRINTF(Mesh, "resp to addr %#x\n", in_msg.LineAddress);
-      }
-      
+      int blkIdx := AddrOffset(in_msg.WordAddress, in_msg.LineAddress);
       enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
         out_msg.Type        := LLCResponseType:DATA;
         out_msg.LineAddress := in_msg.LineAddress;
@@ -662,6 +661,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.DataBlk     := cache_entry.DataBlk;
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := in_msg.SeqNum;
+        out_msg.BlkIdx      := blkIdx;
       }
     }
   }
@@ -703,7 +703,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         respType := LLCResponseType:REVDATA;
       }
       else {
-        respType := LLCResponseType:DATA;
+        respType := LLCResponseType:REDATA;
         baseCntAddr := in_msg.WordAddress;
       }
 
@@ -758,7 +758,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         respType := LLCResponseType:REVDATA;
       }
       else {
-        respType := LLCResponseType:DATA;
+        respType := LLCResponseType:REDATA;
         baseCntAddr := tbe.WordAddress;
       }
     
@@ -824,6 +824,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       assert(is_valid(tbe));
       tbe.Requestor := in_msg.Requestor;
       tbe.SeqNum := in_msg.SeqNum;
+      tbe.WordAddress := in_msg.WordAddress;
     }
   }
 
@@ -840,7 +841,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       assert(is_valid(tbe));
       tbe.XDim := in_msg.XDim;
       tbe.YDim := in_msg.YDim;
-      tbe.WordAddress := in_msg.WordAddress;
+      // tbe.WordAddress := in_msg.WordAddress; // moved
       tbe.PrefetchAddress := in_msg.PrefetchAddress;
       tbe.CoreOffset := in_msg.CoreOffset;
       tbe.RespCnt := in_msg.RespCnt;
@@ -914,6 +915,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
     assert(is_valid(cache_entry));
 
     peek(requestNetwork_in, LLCRequestMsg) {
+      int blkIdx := AddrOffset(in_msg.WordAddress, in_msg.LineAddress);
+
       if (in_msg.Requestor == cache_entry.LLSC_owner) {
         cache_entry.DataBlk.copyPartial(in_msg.DataBlk, in_msg.writeMask);
         cache_entry.writeMask.orMask(in_msg.writeMask);
@@ -927,6 +930,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
           out_msg.SC_Success  := true;
           out_msg.MessageSize := MessageSizeType:Response_Control;
           out_msg.SeqNum      := in_msg.SeqNum;
+          out_msg.BlkIdx      := blkIdx;
         }
 
         // set MRU
@@ -942,6 +946,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
           out_msg.SC_Success  := false;
           out_msg.MessageSize := MessageSizeType:Response_Control;
           out_msg.SeqNum      := in_msg.SeqNum;
+          out_msg.BlkIdx      := blkIdx;
         }
       }
     }
@@ -955,6 +960,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
     cache_entry.DataBlk.atomicPartial(cache_entry.DataBlk, tbe.writeMask);
     cache_entry.writeMask.orMask(tbe.writeMask);
 
+    int blkIdx := AddrOffset(tbe.WordAddress, address);
+
     // Make a response with old data
     enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
       out_msg.Type := LLCResponseType:DATA;
@@ -963,6 +970,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       out_msg.DataBlk := tbe.DataBlk;
       out_msg.MessageSize := MessageSizeType:SingleWordData;
       out_msg.SeqNum := tbe.SeqNum;
+      out_msg.BlkIdx := blkIdx;
     }
   }
 
