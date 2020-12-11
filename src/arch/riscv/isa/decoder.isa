@@ -2637,7 +2637,7 @@ decode QUADRANT default Unknown::unknown() {
                             uint32_t temp;
                             float fs1 = reinterpret_cast<float&>(temp = Vs1_ud[i]);
                             float fs2 = reinterpret_cast<float&>(temp = Vs2_ud[i]);
-                            DPRINTF(RiscvVector, "%f %f\n", fs1, fs2);
+                            // DPRINTF(RiscvVector, "%f %f\n", fs1, fs2);
                             float res = fs2 + fs1;
                             Vd_ud[i] = reinterpret_cast<uint32_t&>(res);
                         }
@@ -2667,6 +2667,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             float fs2 = reinterpret_cast<float&>(temp = Vs2_ud[i]);
                             res += fs2;
+                            // DPRINTF(RiscvVector, "sum now %f\n", res);
                         }
                         Vd_ud[0] = reinterpret_cast<uint32_t&>(res);
                     }}, flags=['SimdFloatReduceAddOp']);
@@ -2794,7 +2795,9 @@ decode QUADRANT default Unknown::unknown() {
                     // vmv
                     0x1: VOPFVV::vfmv_f_s({{
                         uint32_t temp;
-                        Fd = reinterpret_cast<float&>(temp = Vs2_ud[0]);
+                        float fd = reinterpret_cast<float&>(temp = Vs2_ud[0]);
+                        Fd_bits = (uint64_t)reinterpret_cast<uint32_t&>(fd);
+                        // DPRINTF(RiscvVector, "mv %f\n", reinterpret_cast<float&>(temp = Vs2_ud[0]));
                     }}, flags=['SimdFloatAluOp']);
                 }
 
@@ -3007,7 +3010,7 @@ decode QUADRANT default Unknown::unknown() {
                             float fs1 = reinterpret_cast<float&>(temp = Vs1_sd[i]);
                             float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
                             float res = fs2 * fs1;
-                            DPRINTF(RiscvVector, "%f = %f * %f\n", res, fs1, fs2);
+                            // DPRINTF(RiscvVector, "%f = %f * %f\n", res, fs1, fs2);
                             Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
                         }
                     }}, flags=['SimdFloatMultOp']);
@@ -3438,13 +3441,13 @@ decode QUADRANT default Unknown::unknown() {
                 0x27: decode VM {
                     0x1: decode SIMM5 {
                         0x0: VOPIVI::vmv1r_v({{
-                            DPRINTF(RiscvVector, "start vmv1r len %d\n", VLEN);
+                            // DPRINTF(RiscvVector, "start vmv1r len %d\n", VLEN);
                             //assert(false); // LMUL=1 supported
                             for (auto i = 0; i < VLEN; i++) {
                                 Vd_ud[i] = Vs2_ud[i];
-                                uint32_t temp;
-                                float vs2f = reinterpret_cast<float&>(temp = Vs2_ud[i]);
-                                DPRINTF(RiscvVector, "mv %f\n", vs2f);
+                                // uint32_t temp;
+                                // float vs2f = reinterpret_cast<float&>(temp = Vs2_ud[i]);
+                                // DPRINTF(RiscvVector, "mv %f\n", vs2f);
                             }
                         }}, flags=['SimdAluOp']);
 

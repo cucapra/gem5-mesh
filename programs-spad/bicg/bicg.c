@@ -59,7 +59,7 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
 
       // sum
       vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
-      vs = vfredsum_vs_f32m1_f32m1(vs, vzero, vs);
+      vs = vfredsum_vs_f32m1_f32m1(vs, vs, vzero);
 
       // update the accumulation
       float single_val = vfmv_f_s_f32m1_f32(vs);
