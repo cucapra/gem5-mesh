@@ -10,6 +10,10 @@
 #include "group_templates.h"
 #include "syrk_kernel.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 /*
   syrk kernel
 */
@@ -33,8 +37,30 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
       // TODO not prefetching outframe but should be negligable
       DTYPE c_ij = c[i * N + j] * beta;
       
+      #ifdef PACKED_SIMD
+      int chunk = M;
+      for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+        l = vsetvl_e32m1(chunk);
+
+        int base_k = M - chunk;
+
+        vfloat32m1_t vai = vle32_v_f32m1(&a[i * M + base_k]);
+        vfloat32m1_t vaj = vle32_v_f32m1(&a[j * M + base_k]);
+
+        // alpha * a[i*M+k] * a[j*M+k]
+        vfloat32m1_t vaa = vfmul_vv_f32m1(vai, vaj);
+        vfloat32m1_t vaaa = vfmul_vf_f32m1(vaa, alpha);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vfloat32m1_t vcij = vfredsum_vs_f32m1_f32m1(vaaa, vaaa, vzero);
+
+        // update the accumulation
+        c_ij += vfmv_f_s_f32m1_f32(vcij);
+      }
+
       // TODO prob size needs to be greater than 64
-      #ifdef MANYCORE_PREFETCH
+      #elif defined(MANYCORE_PREFETCH)
       for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
 
