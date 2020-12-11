@@ -10,6 +10,10 @@
 #include "group_templates.h"
 #include "syr2k_kernel.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 /*
   syrk kernel
 */
@@ -34,7 +38,37 @@ void syr2k_manycore_baseline(DTYPE *a, DTYPE *b, DTYPE *c, int N, int M, int tid
       DTYPE c_ij = c[i * N + j] * beta;
       // c[i * N + j] *= beta;
 
-      #ifdef MANYCORE_PREFETCH
+      #ifdef PACKED_SIMD
+
+      int chunk = M;
+      for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+        l = vsetvl_e32m1(chunk);
+
+        int base_k = M - chunk;
+
+        vfloat32m1_t vai = vle32_v_f32m1(&a[i * M + base_k]);
+        vfloat32m1_t vaj = vle32_v_f32m1(&a[j * M + base_k]);
+
+        vfloat32m1_t vbi = vle32_v_f32m1(&b[i * M + base_k]);
+        vfloat32m1_t vbj = vle32_v_f32m1(&b[j * M + base_k]);
+
+        vfloat32m1_t vac = vfmul_vv_f32m1(vai, vbj);
+        vac = vfmul_vf_f32m1(vac, alpha);
+
+        vfloat32m1_t vbc = vfmul_vv_f32m1(vbi, vaj);
+        vbc = vfmul_vf_f32m1(vbc, alpha);
+
+        vfloat32m1_t vcij = vfadd_vv_f32m1(vac, vbc);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vcij = vfredsum_vs_f32m1_f32m1(vcij, vcij, vzero);
+
+        // update the accumulation
+        c_ij += vfmv_f_s_f32m1_f32(vcij);
+      }
+
+      #elif defined(MANYCORE_PREFETCH)
       for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, b, i, j, k, &sp, M);
 
