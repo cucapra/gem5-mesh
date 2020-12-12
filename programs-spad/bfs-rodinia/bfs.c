@@ -79,12 +79,10 @@ bfs_main(core_config_info_t cinfo, int mask, Node* h_graph_nodes, char *h_graph_
 
       #ifdef _VEC
       SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
-      if (ptid==0) printf("Applied mask\n");
       if (cinfo.used) {
         tril_bfs_vec1(mask, h_graph_nodes, h_graph_edges, h_graph_mask, h_updating_graph_mask,
                  h_graph_visited, h_cost, max_edges, start, end, ptid, cinfo.vtid);
       }
-      if (ptid==0) printf("Kernel 1 completed\n");
       #else
       bfs_manycore1(h_graph_nodes, h_graph_edges, h_graph_mask, h_updating_graph_mask, h_graph_visited, h_cost, start, end, ptid);
       #endif
@@ -94,7 +92,7 @@ bfs_main(core_config_info_t cinfo, int mask, Node* h_graph_nodes, char *h_graph_
       #ifdef _VEC
       SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
       if (cinfo.used) {
-        // tril_bfs_vec2(mask, h_graph_mask, h_updating_graph_mask, h_graph_visited, stop, start, end, ptid, cinfo.vtid);
+        tril_bfs_vec2(mask, h_graph_mask, h_updating_graph_mask, h_graph_visited, stop, start, end, ptid, cinfo.vtid);
       }
       #else
       bfs_manycore2(h_graph_mask, h_updating_graph_mask, h_graph_visited, stop, start, end, ptid);
@@ -154,6 +152,7 @@ void kernel(Node* h_graph_nodes, char *h_graph_mask, char *h_updating_graph_mask
   // get behavior of each core
   #ifdef _VEC
   int mask = getSIMDMask(&cinfo);
+  // int mask = getDebugMask(&cinfo);
   #else
   int mask = 0;
   #endif
