@@ -10,6 +10,10 @@
 #include "group_templates.h"
 #include "covar_kernel.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 /*
   Covariance
 */
@@ -36,13 +40,31 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
   int start = ((tid + 0) * N) / dim;
   int end   = ((tid + 1) * N) / dim;
 
+  #ifdef MANYCORE_PREFETCH
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+  #endif
 
   for (int i = start; i < end; i++) { // TODO remove +1, keep for now for eq
     DTYPE mean_i = 0.0f;
 
-    #ifdef MANYCORE_PREFETCH
+    #ifdef PACKED_SIMD
+    int chunk = M;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+
+      int base_j = M - chunk;
+
+      vfloat32m1_t vdata = vle32_v_f32m1(&data[i * M + base_j]);
+
+      // sum
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+      vfloat32m1_t vsum = vfredsum_vs_f32m1_f32m1(vdata, vdata, vzero);
+
+      // update the accumulation
+      mean_i += vfmv_f_s_f32m1_f32(vsum);
+    }
+    #elif defined(MANYCORE_PREFETCH)
     for (int j = 0; j < M; j+=MEAN_UNROLL_LEN) {
       prefetch_mean_frame(data, i, j, &sp, M);
 
@@ -69,7 +91,20 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
     // TODO dont need this
     STORE_NOACK(mean_i, &mean[i], 0);
 
-    #ifdef MANYCORE_PREFETCH
+    #ifdef PACKED_SIMD
+    chunk = M;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+
+      int base_j = M - chunk;
+
+      vfloat32m1_t vdata = vle32_v_f32m1(&data[i * M + base_j]);
+
+      vdata = vfsub_vf_f32m1(vdata, mean_i);
+
+      vse32_v_f32m1(&data[i * M + base_j], vdata);
+    }
+    #elif defined(MANYCORE_PREFETCH)
     for (int j = 0; j < M; j+=MEAN_UNROLL_LEN) {
       prefetch_mean_frame(data, i, j, &sp, M);
 
@@ -109,7 +144,28 @@ void covar_manycore(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) 
     for (int i2 = i1; i2 < N; i2++) {
       DTYPE symmat_idx = 0.0f;
 
-      #ifdef MANYCORE_PREFETCH
+      #ifdef PACKED_SIMD
+      int chunk = M;
+      for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+        l = vsetvl_e32m1(chunk);
+
+        int base_j = M - chunk;
+
+        // vec loads
+        vfloat32m1_t vi1 = vle32_v_f32m1(&data[i1 * N + base_j]);
+        vfloat32m1_t vi2 = vle32_v_f32m1(&data[i2 * N + base_j]);
+
+        // multiple together
+        vfloat32m1_t vs = vfmul_vv_f32m1(vi1, vi2);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vs = vfredsum_vs_f32m1_f32m1(vs, vs, vzero);
+
+        // update the accumulation
+        symmat_idx += vfmv_f_s_f32m1_f32(vs);;
+      }
+      #elif defined(MANYCORE_PREFETCH)
       for (int j = 0; j < M; j+=COVAR_UNROLL_LEN) {
         prefetch_covar_frame(data, i1, i2, j, &sp, M);
 
