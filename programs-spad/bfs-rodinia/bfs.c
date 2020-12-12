@@ -30,6 +30,7 @@ bfs_manycore1(Node *h_graph_nodes, int *h_graph_edges, char *h_graph_mask, char 
       }
     }
   }
+  // if (ptid==0) printf("End of first kernel\n");
 }
 
 void __attribute__((optimize("-fno-inline")))
@@ -43,6 +44,67 @@ bfs_manycore2(char *h_graph_mask, char *h_updating_graph_mask, char *h_graph_vis
       h_updating_graph_mask[tid]=false;
     }
   }
+  // if (ptid==0) printf("End of second kernel\n");
+}
+
+int find_max_edges(Node* h_graph_nodes, int total_nodes){
+  int max=0;
+  for (int i = 0; i < total_nodes; i++){
+    if (h_graph_nodes[i].no_of_edges>max){
+      max = h_graph_nodes[i].no_of_edges;
+    }
+  }
+  return max;
+}
+
+void __attribute__((optimize("-fno-inline")))
+bfs_main(core_config_info_t cinfo, int mask, Node* h_graph_nodes, char *h_graph_mask, char *h_updating_graph_mask, 
+    char *h_graph_visited, int* h_graph_edges, int* h_cost, int no_of_nodes, int edge_list_size, char *stop, 
+    int start, int end, int ptid, int pdim, int pdim_x, template_info_t tinfo){
+
+    #ifdef _VEC
+    int max_edges;
+    if (ptid==0) max_edges = find_max_edges(h_graph_nodes,no_of_nodes);
+    if (ptid==0) printf("Max edges in the graph: %d \n",max_edges);
+    #endif
+    int k=0;
+    pthread_barrier_wait(&start_barrier);
+    do
+    {
+      k++;
+      //if no thread changes this value then the loop stops
+      if (ptid==0) *stop=false;
+
+      if (ptid==0) printf("Starting round: %d \n",k);
+
+      #ifdef _VEC
+      SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
+      if (ptid==0) printf("Applied mask\n");
+      if (cinfo.used) {
+        tril_bfs_vec1(mask, h_graph_nodes, h_graph_edges, h_graph_mask, h_updating_graph_mask,
+                 h_graph_visited, h_cost, max_edges, start, end, ptid, cinfo.vtid);
+      }
+      if (ptid==0) printf("Kernel 1 completed\n");
+      #else
+      bfs_manycore1(h_graph_nodes, h_graph_edges, h_graph_mask, h_updating_graph_mask, h_graph_visited, h_cost, start, end, ptid);
+      #endif
+
+      pthread_barrier_wait(&start_barrier);
+
+      #ifdef _VEC
+      SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
+      if (cinfo.used) {
+        // tril_bfs_vec2(mask, h_graph_mask, h_updating_graph_mask, h_graph_visited, stop, start, end, ptid, cinfo.vtid);
+      }
+      #else
+      bfs_manycore2(h_graph_mask, h_updating_graph_mask, h_graph_visited, stop, start, end, ptid);
+      #endif
+
+      pthread_barrier_wait(&start_barrier);
+
+    }while(*stop);
+    if (ptid==0) printf("Total rounds %d\n",k);
+
 }
 
 
@@ -62,13 +124,24 @@ void kernel(Node* h_graph_nodes, char *h_graph_mask, char *h_updating_graph_mask
   int start = 0;
   int end   = 0;
 
+  template_info_t tinfo;
+
   #ifdef _VEC
   #if VEC_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
+  tinfo = init_template_4x4_2x2();
   #elif VEC_LEN==16
-  template_info_t tinfo = init_template_8x8_4x4();
+  tinfo = init_template_8x8_4x4();
   #endif
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
+
+  if(cinfo.used){
+    //do work division here
+    int alignment = VEC_LEN; //each group should have elements of multiple of this number
+    start = roundUp((cinfo.unique_id + 0) * no_of_nodes / cinfo.total_groups, alignment); 
+    end = roundUp((cinfo.unique_id + 1) * no_of_nodes / cinfo.total_groups, alignment); 
+    
+    if(cinfo.is_scalar==1) printf("ptid:%d, start=%d and end=%d\n",ptid,start,end);
+  }
 
   #else
   core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
@@ -85,10 +158,10 @@ void kernel(Node* h_graph_nodes, char *h_graph_mask, char *h_updating_graph_mask
   int mask = 0;
   #endif
 
-  // region based mask for scratchpad
-#ifdef _VEC
-  SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
-#endif
+  if (ptid==0) printf("Work division done, mask calculated \n");
+
+  bfs_main(cinfo, mask, h_graph_nodes, h_graph_mask, h_updating_graph_mask, h_graph_visited, h_graph_edges, h_cost, 
+    no_of_nodes, edge_list_size, stop, start, end, ptid, pdim, pdim_x, tinfo);
 
   // // only let certain tids continue
   // if (cinfo.used == 0) return;
@@ -96,31 +169,31 @@ void kernel(Node* h_graph_nodes, char *h_graph_mask, char *h_updating_graph_mask
   // // move stack onto scratchpad for faster local access than default on DRAM
   // MOVE_STACK_ONTO_SCRATCHPAD();
 
-#if defined USE_VECTOR_SIMD
-  bfs_vec(mask);
+// #if defined USE_VECTOR_SIMD
+//   bfs_vec(mask);
 
-#else
-int k=0;
-  do
-  {
-    k++;
-    //if no thread changes this value then the loop stops
-    if (ptid==0) *stop=false;
+// #else
+// int k=0;
+// if (ptid==0) printf("Starting bfs on manycore\n");
+//   do
+//   {
+//     k++;
+//     //if no thread changes this value then the loop stops
+//     if (ptid==0) *stop=false;
 
-    bfs_manycore1(h_graph_nodes, h_graph_edges, h_graph_mask, h_updating_graph_mask, h_graph_visited, h_cost,
-                start, end, ptid);
+//     bfs_manycore1(h_graph_nodes, h_graph_edges, h_graph_mask, h_updating_graph_mask, h_graph_visited, h_cost,
+//                 start, end, ptid);
 
-    pthread_barrier_wait(&start_barrier);
+//     pthread_barrier_wait(&start_barrier);
 
-    bfs_manycore2(h_graph_mask, h_updating_graph_mask, h_graph_visited, stop, start, end, ptid);
+//     bfs_manycore2(h_graph_mask, h_updating_graph_mask, h_graph_visited, stop, start, end, ptid);
 
-    pthread_barrier_wait(&start_barrier);
-    pthread_barrier_wait(&start_barrier);
+//     pthread_barrier_wait(&start_barrier);
 
-  }while(*stop);
+//   }while(*stop);
 
-  if (ptid==0) printf("Total rounds %d\n",k);
-#endif
+//   if (ptid==0) printf("Total rounds %d\n",k);
+// #endif
 
   // // restore stack pointer to DRAM
   // RECOVER_DRAM_STACK();
