@@ -19,7 +19,7 @@ void tril_bfs_vec1(int mask, Node *h_graph_nodes, int *h_graph_edges, char *h_gr
   ISSUE_VINST(init_label); //eg: this block will deal with initila stack manipulation and initilaization of variables
   //-----------------------------------
 
-   //prefetch variables
+  //prefetch variables
   int spadRegion = 0;
 
   for (int i = start; i < end; i+=VEC_LEN) {
@@ -72,26 +72,26 @@ void tril_bfs_vec1(int mask, Node *h_graph_nodes, int *h_graph_edges, char *h_gr
     asm("trillium vissue_delim until_next check_frontier");
     int cond = (h_graph_mask[tid] == true);
     volatile int compiler_hack = 1;
-    PRED_EQ(cond,1);
+    PRED_NEQ(cond,0);
     if(compiler_hack){
       h_graph_mask[tid]=false;
       int i = h_graph_nodes[tid].starting;
       int edge_bound= h_graph_nodes[tid].starting + h_graph_nodes[tid].no_of_edges;
       do{
         asm("trillium vissue_delim until_next update_cost");
-        int loop_cond =  (i<edge_bound);
-        PRED_EQ(loop_cond,1);
+        int loop_cond =  cond & (i<edge_bound);
+        PRED_NEQ(loop_cond,0);
         if(compiler_hack){
           int id = h_graph_edges[i];
-          int cond2 = (h_graph_visited[id]==false);
-          PRED_EQ(cond2,1);
+          int cond2 = loop_cond & (!h_graph_visited[id]);
+          PRED_NEQ(cond2,0);
           if(compiler_hack){
             h_cost[id]=h_cost[tid]+1;
             h_updating_graph_mask[id]=true;
           }
-          PRED_EQ(ptid,ptid);
+          PRED_NEQ(loop_cond,0);
         }
-        PRED_EQ(ptid,ptid);
+        PRED_NEQ(cond,0);
         i++;
       } while(bh2);
     }
