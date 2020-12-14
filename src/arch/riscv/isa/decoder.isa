@@ -2637,8 +2637,8 @@ decode QUADRANT default Unknown::unknown() {
                             uint32_t temp;
                             float fs1 = reinterpret_cast<float&>(temp = Vs1_ud[i]);
                             float fs2 = reinterpret_cast<float&>(temp = Vs2_ud[i]);
-                            // DPRINTF(RiscvVector, "%f %f\n", fs1, fs2);
                             float res = fs2 + fs1;
+                            DPRINTF(RiscvVector, "%f = %f + %f\n", res, fs2, fs1);
                             Vd_ud[i] = reinterpret_cast<uint32_t&>(res);
                         }
                     }}, flags=['SimdFloatAddOp']);
@@ -2696,6 +2696,7 @@ decode QUADRANT default Unknown::unknown() {
                             float fs1 = reinterpret_cast<float&>(temp = Vs1_ud[i]);
                             float fs2 = reinterpret_cast<float&>(temp = Vs2_ud[i]);
                             float res = fs2 - fs1;
+                            DPRINTF(RiscvVector, "%f = %f - %f\n", res, fs2, fs1);
                             Vd_ud[i] = reinterpret_cast<uint32_t&>(res);
                         }
                     }}, flags=['SimdFloatAddOp']);
@@ -3003,7 +3004,7 @@ decode QUADRANT default Unknown::unknown() {
 
                 // vfmul
                 0x24: decode VM {
-                    // vfmul_vf
+                    // vfmul_vv
                     0x1: VOPFVV::vfmul_vv({{
                         for (auto i = 0; i < VLEN; i++) {
                             uint32_t temp;
@@ -4123,30 +4124,28 @@ decode QUADRANT default Unknown::unknown() {
                     // vfslide1up_vf
                     0x1: VOPFVF::vfslide1up_vf({{
                         for (auto i = 0; i < VLEN; i++) {
-                            assert(false); // TODO doesnt seem to work
                             if (i == 0) {
                                 uint32_t temp;
                                 float fs1 = reinterpret_cast<float&>(temp = Fs1_bits);
                                 DPRINTF(RiscvVector, "slide in %f\n", fs1);
-                                Vd_ud[i] = reinterpret_cast<uint32_t&>(temp = fs1);
+                                Vd_ud[i] = reinterpret_cast<uint32_t&>(fs1);
                             } else {
                                 uint32_t temp;
                                 float fs1 = reinterpret_cast<float&>(temp = Vs2_ud[i-1]);
                                 DPRINTF(RiscvVector, "slide %d %f\n", i, fs1);
-                                Vd_ud[i] = reinterpret_cast<uint32_t&>(temp = fs1); //Vs2_ud[i - 1];
+                                Vd_ud[i] = reinterpret_cast<uint32_t&>(fs1); //Vs2_ud[i - 1];
                             }
                         }
                     }}, flags=['SimdFloatAluOp']);
 
                     // vfslide1up_vfm
                     0x0: VOPFVF::vfslide1up_vfm({{
-                        assert(false);
                         for (auto i = 0; i < VLEN; i++) {
                             if (Vm_ud[i] & 0x1llu) {
                                 if (i == 0) {
                                     uint32_t temp;
                                     float fs1 = reinterpret_cast<float&>(temp = Fs1_bits);
-                                    Vd_ud[i] = reinterpret_cast<uint32_t&>(temp = fs1);
+                                    Vd_ud[i] = reinterpret_cast<uint32_t&>(fs1);
                                 } else {
                                     Vd_ud[i] = Vs2_ud[i - 1];
                                 }
@@ -4159,12 +4158,11 @@ decode QUADRANT default Unknown::unknown() {
                 0x0f: decode VM {
                     // vfslide1down_vf
                     0x1: VOPFVF::vfslide1down_vf({{
-                        assert(false);
                         for (auto i = 0; i < VLEN; i++) {
                             if (i == (VLEN - 1)) {
                                 uint32_t temp;
                                 float fs1 = reinterpret_cast<float&>(temp = Fs1_bits);
-                                Vd_ud[i] = reinterpret_cast<uint32_t&>(temp = fs1);
+                                Vd_ud[i] = reinterpret_cast<uint32_t&>(fs1);
                             } else {
                                 Vd_ud[i] = Vs2_ud[i + 1];
                             }
@@ -4173,13 +4171,12 @@ decode QUADRANT default Unknown::unknown() {
 
                     // vfslide1down_vxm
                     0x0: VOPFVF::vfslide1down_vfm({{
-                        assert(false);
                         for (auto i = 0; i < VLEN; i++) {
                             if (Vm_ud[i] & 0x1llu) {
                                 if (i == (VLEN - 1)) {
                                     uint32_t temp;
                                     float fs1 = reinterpret_cast<float&>(temp = Fs1_bits);
-                                    Vd_ud[i] = reinterpret_cast<uint32_t&>(temp = fs1);
+                                    Vd_ud[i] = reinterpret_cast<uint32_t&>(fs1);
                                 } else {
                                     Vd_ud[i] = Vs2_ud[i + 1];
                                 }
@@ -4194,7 +4191,7 @@ decode QUADRANT default Unknown::unknown() {
                     0x1: VOPFVF::vfmv_s_f({{
                         uint32_t temp;
                         float fs1 = reinterpret_cast<float&>(temp = Fs1_bits);
-                        Vd_ud[0] = reinterpret_cast<uint32_t&>(temp = fs1);
+                        Vd_ud[0] = reinterpret_cast<uint32_t&>(fs1);
                     }}, flags=['SimdFloatAluOp']);
                 }
 
@@ -4206,7 +4203,7 @@ decode QUADRANT default Unknown::unknown() {
                         uint32_t temp;
                         float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
                         for (auto i = 0; i < VLEN; i++) {
-                            Vd_ud[i] = reinterpret_cast<uint32_t&>(temp = rs1);
+                            Vd_ud[i] = reinterpret_cast<uint32_t&>(rs1);
                         }
                     }}, flags=['SimdFloatAluOp']);
 
@@ -4438,6 +4435,7 @@ decode QUADRANT default Unknown::unknown() {
                             float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
                             float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
                             float res = fs2 * rs1;
+                            DPRINTF(RiscvVector, "%f = %f * %f\n", res, fs2, rs1);
                             Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
                         }
                     }}, flags=['SimdFloatMultOp']);

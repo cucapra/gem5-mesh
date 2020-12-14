@@ -81,7 +81,7 @@ class IODynInst : public ExecContext
 //    { return static_inst_p->isSerializeBefore() || status[SerializeBefore]; }
 //    bool isSerializeAfter() const
 //    { return static_inst_p->isSerializeAfter() || status[SerializeAfter]; }
-    bool isSquashAfter()    const { return static_inst_p->isSquashAfter(); }
+    bool isSquashAfter()    const { return static_inst_p->isSquashAfter() && squash_if_squash_after; }
     bool isMemBarrier()     const { return static_inst_p->isMemBarrier(); }
     bool isWriteBarrier()   const { return static_inst_p->isWriteBarrier(); }
     bool isNonSpeculative() const { return static_inst_p->isNonSpeculative(); }
@@ -557,6 +557,9 @@ public:
 
     // set the value of the current renamed dest register to the previous one 
     void forwardOldRegs();
+
+    /** flag to stop squashing on an instruction marked 'IsSquashAfter' */
+    bool squash_if_squash_after;
 };
 
 typedef std::shared_ptr<IODynInst> IODynInstPtr;

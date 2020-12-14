@@ -310,6 +310,12 @@ class StaticInst : public RefCounted, public StaticInstFlags
       panic("generateAddresses not defined!");
     }
 
+    // check if execute will change uarch state
+    virtual bool willChangeState(ExecContext *xc) const
+    {
+      return true;
+    }
+
     /**
      * Return the microop that goes with a particular micropc. This should
      * only be defined/used in macroops which will contain microops

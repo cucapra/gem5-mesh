@@ -25,6 +25,26 @@ def template VectorDeclare {{
     };
 }};
 
+def template VectorCSRDeclare {{
+    /**
+     * Static instruction class for "%(mnemonic)s".
+     */
+    class %(class_name)s : public %(base_class)s
+    {
+      public:
+        /// Constructor.
+        %(class_name)s(ExtMachInst machInst);
+
+        Fault execute(ExecContext *, Trace::InstRecord *) const override;
+        bool willChangeState(ExecContext *) const override;
+
+        std::string
+            generateDisassembly(Addr pc, const SymbolTable *symtab) const override;
+
+    };
+}};
+
+
 def template VectorMemDeclare {{
     /**
      * Static instruction class for "%(mnemonic)s".
@@ -258,6 +278,27 @@ def template VectorMemAddresses {{
         }
 
         return addrs;
+    }
+}};
+
+def template CheckVLChange {{
+    bool
+    %(class_name)s::willChangeState(ExecContext *xc) const
+    { 
+        Fault fault = NoFault;
+
+        %(op_decl)s;
+        %(op_rd)s;
+
+        if (fault == NoFault) {
+            %(code)s;
+            if (fault == NoFault) {
+                Rd = 1;
+                auto oldVal = xc->readMiscReg(this->destRegIdx(Rd).index());
+                return VLEN != oldVal;
+            }
+        }
+        return true;
     }
 }};
 
@@ -755,10 +796,11 @@ def format VCSROp(code, flags=[]) {{
                             {'code':code,
                              'regs':','.join(regs)},
                         flags)
-    header_output = VectorDeclare.subst(iop)
+    header_output = VectorCSRDeclare.subst(iop)
     decoder_output = VectorConstructor.subst(iop)
     decode_block = VectorDecode.subst(iop)
     exec_output = (BasicExecute.subst(iop) +
+                   CheckVLChange.subst(iop) +
                    VDisassemblyDefault.subst(iop))
 }};
 
