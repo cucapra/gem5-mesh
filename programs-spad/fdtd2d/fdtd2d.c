@@ -35,11 +35,11 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
 
       vfloat32m1_t out;
       if (i == 0) {
-        l = vsetvl_e32m1(chunk);
+        // l = vsetvl_e32m1(chunk);
         out = vfmv_v_f_f32m1(fict[t]);
       }
       else {
-        l = vsetvl_e32m1(chunk);
+        // l = vsetvl_e32m1(chunk);
         vfloat32m1_t vhzi   = vle32_v_f32m1(&hz[i * NY + j]);
         vfloat32m1_t vhzim1 = vle32_v_f32m1(&hz[(i-1) * NY + j]);
         vfloat32m1_t vey    = vle32_v_f32m1(&ey[i * NY + j]);
@@ -48,7 +48,6 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
         out = vfmul_vf_f32m1(vhzsub, -0.5f);
         out = vfadd_vv_f32m1(vey, out);
       }
-      l = vsetvl_e32m1(chunk);
       vse32_v_f32m1(&ey[i * NY + j], out);
     }
   }
