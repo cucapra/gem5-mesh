@@ -157,12 +157,12 @@ Fault
 EmulationPageTable::translate(const RequestPtr &req)
 {
     Addr paddr;
-    assert(pageAlign(req->getVaddr() + req->getSize() - 1) ==
+    assert(pageAlign(req->getVaddr() + req->getWordSize() - 1) ==
            pageAlign(req->getVaddr()));
     if (!translate(req->getVaddr(), paddr))
         return Fault(new GenericPageTableFault(req->getVaddr()));
     req->setPaddr(paddr);
-    if ((paddr & (pageSize - 1)) + req->getSize() > pageSize) {
+    if ((paddr & (pageSize - 1)) + req->getWordSize() > pageSize) {
         panic("Request spans page boundaries!\n");
         return NoFault;
     }

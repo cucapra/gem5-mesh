@@ -839,7 +839,7 @@ class Packet : public Printable
     /**
      * Get word size which might be different than full size
      */ 
-    unsigned int getWordSize() const { return req->wordSize; }
+    unsigned int getWordSize() const { return req->getWordSize(); }
 
     /**
      * Get addrs

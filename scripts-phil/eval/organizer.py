@@ -198,7 +198,7 @@ def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar
 
 # group together similar series and get preferred field
 # expects 3 meta fields(prog, config, meta) along with desired_field
-def group_bar_data(data, desired_field, desired_config_order= [ 'NV', 'NV_PF', 'V4', 'V16', 'GPU' ]):
+def group_bar_data(data, desired_field, desired_config_order= [ 'NV', 'NV_PF', 'PACKED_SIMD', 'V4', 'V16', 'GPU' ]):
   # hash of hash
   values = {}
 

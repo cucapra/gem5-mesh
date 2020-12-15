@@ -725,6 +725,13 @@ class Request
         return _size;
     }
 
+    unsigned
+    getWordSize() const
+    {
+        assert(privateFlags.isSet(VALID_SIZE));
+        return wordSize;
+    }
+
     /** Accessor for time. */
     Tick
     time() const

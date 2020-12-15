@@ -807,7 +807,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->vecAddrs = vecAddrs;
       m_s1_inst->mem_req_p->wordSize /= m_cpu_p->getHardwareVectorLength();
 
-      DPRINTF(RiscvVector, "send vector request of size %d load ? %d\n", m_s1_inst->mem_req_p->respCnt, is_load);
+      DPRINTF(RiscvVector, "%s send vector request %#x of size %d load ? %d\n", m_s1_inst->toString(true), vecAddrs[0], m_s1_inst->mem_req_p->respCnt, is_load);
     }
     else {
       m_s1_inst->mem_req_p->isNormVector = false;

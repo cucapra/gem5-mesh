@@ -10,6 +10,10 @@
 #include "group_templates.h"
 #include "fdtd2d_kernel.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 /*
   FDTD-2D
 */
@@ -22,7 +26,33 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
-  #ifdef MANYCORE_PREFETCH
+  #ifdef PACKED_SIMD
+  for (int i = start; i < end; i++) {
+    int chunk = NY;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+      int j = NY - chunk;
+
+      vfloat32m1_t out;
+      if (i == 0) {
+        l = vsetvl_e32m1(chunk);
+        out = vfmv_v_f_f32m1(fict[t]);
+      }
+      else {
+        l = vsetvl_e32m1(chunk);
+        vfloat32m1_t vhzi   = vle32_v_f32m1(&hz[i * NY + j]);
+        vfloat32m1_t vhzim1 = vle32_v_f32m1(&hz[(i-1) * NY + j]);
+        vfloat32m1_t vey    = vle32_v_f32m1(&ey[i * NY + j]);
+
+        vfloat32m1_t vhzsub = vfsub_vv_f32m1(vhzi, vhzim1);
+        out = vfmul_vf_f32m1(vhzsub, -0.5f);
+        out = vfadd_vv_f32m1(vey, out);
+      }
+      l = vsetvl_e32m1(chunk);
+      vse32_v_f32m1(&ey[i * NY + j], out);
+    }
+  }
+  #elif defined(MANYCORE_PREFETCH)
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
   for (int i = start; i < end; i++) {
@@ -80,7 +110,25 @@ void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
-  #ifdef MANYCORE_PREFETCH
+  #ifdef PACKED_SIMD
+  for (int i = start; i < end; i++) {
+    int chunk = NY - 1;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+      int j = 1 + (NY-1) - chunk;
+
+      vfloat32m1_t vhz  = vle32_v_f32m1(&hz[i * NY + j]);
+      vfloat32m1_t vhz1 = vle32_v_f32m1(&hz[i * NY + (j-1)]);
+      vfloat32m1_t vex  = vle32_v_f32m1(&ex[i * (NY+1) + j]);
+
+      vfloat32m1_t vhzz = vfsub_vv_f32m1(vhz, vhz1);
+      vfloat32m1_t vout = vfmul_vf_f32m1(vhzz, -0.5f);
+      vout = vfadd_vv_f32m1(vex, vout);
+
+      vse32_v_f32m1(&ex[i * (NY+1) + j], vout);
+    }
+  }
+  #elif defined(MANYCORE_PREFETCH)
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
   for (int i = start; i < end; i++) {
@@ -119,7 +167,30 @@ void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
-  #ifdef MANYCORE_PREFETCH
+  #ifdef PACKED_SIMD
+  for (int i = start; i < end; i++) {
+    int chunk = NY;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+      int j = NY - chunk;
+
+      vfloat32m1_t vhz  = vle32_v_f32m1(&hz[i * NY + j]);
+      vfloat32m1_t vex  = vle32_v_f32m1(&ex[i * (NY+1) + j]);
+      vfloat32m1_t vex1 = vle32_v_f32m1(&ex[i * (NY+1) + (j+1)]); // this load is not working
+      // vfloat32m1_t vex1 = vfslidedown_vf_f32m1(vex, vex, ex[i * (NY+1) + (j+1)]);
+      vfloat32m1_t vey1 = vle32_v_f32m1(&ey[(i + 1) * NY + j]);
+      vfloat32m1_t vey  = vle32_v_f32m1(&ey[i * NY + j]);
+
+      vfloat32m1_t veyy = vfsub_vv_f32m1(vey1, vey);
+      vfloat32m1_t vexx = vfsub_vv_f32m1(vex1, vex);
+      vfloat32m1_t vout = vfadd_vv_f32m1(vexx, veyy);
+      vout = vfmul_vf_f32m1(vout, -0.7f);
+      vout = vfadd_vv_f32m1(vhz, vout);
+
+      vse32_v_f32m1(&hz[i * NY + j], vout);
+    }
+  }
+  #elif defined(MANYCORE_PREFETCH)
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
   for (int i = start; i < end; i++) {

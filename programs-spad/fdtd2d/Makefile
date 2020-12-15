@@ -3,10 +3,10 @@ default: $(BENCHNAME)
 
 # run small sim for test
 PROB_SIZE := 32 32 2
-N_SPS ?= 64
-EXTRA_FLAGS ?= -DMANYCORE_PREFETCH
+N_SPS ?= 16
+EXTRA_FLAGS ?= -DPACKED_SIMD
 HB_ARGS := --options="$(PROB_SIZE)"
-# GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Frame,Mesh
+# GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=RiscvVector
 
 # Build the kernel with trilliasm.
 TRILLIASM_KERNEL := fdtd2d_kernel.c
