@@ -52,10 +52,10 @@ sim_configs = {
   #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
   #   'argv' : ['256']
   # },
-  # 'fdtd' : {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['512', '30']
-  # },
+  'fdtd' : {
+    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['512', '30']
+  },
 
   # 'atax'   : {
   #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,

@@ -116,8 +116,12 @@ void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
       l = vsetvl_e32m1(chunk);
       int j = 1 + (NY-1) - chunk;
 
-      vfloat32m1_t vhz  = vle32_v_f32m1(&hz[i * NY + j]);
+      // vfloat32m1_t vhz  = vle32_v_f32m1(&hz[i * NY + j]);
+      // breaks? // vfloat32m1_t vhz1 = vfslide1up_vf_f32m1(vhz1, hz[i * NY + (j-1)]);
       vfloat32m1_t vhz1 = vle32_v_f32m1(&hz[i * NY + (j-1)]);
+      // vfloat32m1_t vhz  = vle32_v_f32m1(&hz[i * NY + j]);
+      vfloat32m1_t vhz  = vfslide1down_vf_f32m1(vhz1, hz[i * NY + (j-1+l)]);
+
       vfloat32m1_t vex  = vle32_v_f32m1(&ex[i * (NY+1) + j]);
 
       vfloat32m1_t vhzz = vfsub_vv_f32m1(vhz, vhz1);
@@ -175,8 +179,8 @@ void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
 
       vfloat32m1_t vhz  = vle32_v_f32m1(&hz[i * NY + j]);
       vfloat32m1_t vex  = vle32_v_f32m1(&ex[i * (NY+1) + j]);
-      vfloat32m1_t vex1 = vle32_v_f32m1(&ex[i * (NY+1) + (j+1)]); // this load is not working
-      // vfloat32m1_t vex1 = vfslidedown_vf_f32m1(vex, vex, ex[i * (NY+1) + (j+1)]);
+      // vfloat32m1_t vex1 = vle32_v_f32m1(&ex[i * (NY+1) + (j+1)]);
+      vfloat32m1_t vex1 = vfslide1down_vf_f32m1(vex, ex[i * (NY+1) + (j+l)]); // potentially a little slower than just doing load??
       vfloat32m1_t vey1 = vle32_v_f32m1(&ey[(i + 1) * NY + j]);
       vfloat32m1_t vey  = vle32_v_f32m1(&ey[i * NY + j]);
 
