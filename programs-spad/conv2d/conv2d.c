@@ -53,6 +53,14 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
     for (int c = inner_start; c < cEnd; c+=CORE_STEP) {
       prefetch_vert_frame(a, r, c, inner_dim, 1, &sp);
 
+      // -  -  -  <- load16 1
+      // -  -  -  <- load16 2
+      // -  -  -  -   - - -
+
+      // "shuffle"
+
+      // 3 wide!
+
       FRAME_START();
       // not actually 14iters, but like 6
       #pragma GCC unroll(14)

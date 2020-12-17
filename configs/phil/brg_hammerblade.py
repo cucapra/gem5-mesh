@@ -608,10 +608,27 @@ if (options.vector):
 system.mem_mode = 'timing'
 system.mem_ranges = [ AddrRange(options.mem_size) ]
 
+'''
 system.mem_ctrl = SimpleMemory()
-system.mem_ctrl.range = system.mem_ranges[0]
-system.mem_ctrl.latency = '60ns'
-system.mem_ctrl.bandwidth = '16GB/s'
+system.mem_ctrl.latency = '60ns' 
+system.mem_ctrl.bandwidth = '16GB/s' # HBM is 128GB/s HBM2 is 256GB/s (1024bit bus...high overhead to route, slower clock than ddr but comparable?)
+'''
+# HBM_1000_4H_1x128 * 8  (HBMv1)
+# eac is 16GB/s so -> 8B/c (@1GHZ). so 16*num_channel = 128B/c
+# HBM_1000_4H_1x64  * 16 (HBMv2)
+# each is 8GB/s, -> 8B/c (@1GHZ). so 8*num_channel B/c
+bytes_per_cycle = 128
+
+num_channels = 8
+nbr_mem_ctrls = num_channels
+intlv_size = max(128, system.cache_line_size.value)
+intlv_bits = int(math.log(nbr_mem_ctrls, 2))
+mem_ctrls = []
+for i in range(num_channels):
+  mc = MemConfig.create_mem_ctrl(HBM_1000_4H_1x128, system.mem_ranges[0], i, nbr_mem_ctrls, intlv_bits, intlv_size)
+  mem_ctrls.append(mc)
+
+system.mem_ctrls = mem_ctrls
 
 # TODO need to config this more like in MemConfig.py?
 # I don't think need to do when only one address range?
@@ -627,7 +644,7 @@ system.mem_ctrl.bandwidth = '16GB/s'
 system.l2_bus = NoncoherentXBar()
 
 # 16 bytes per cycle. This is set to match with the mem_ctrl.bandwidth
-system.l2_bus.width = 16
+system.l2_bus.width = bytes_per_cycle
 system.l2_bus.frontend_latency = 1
 system.l2_bus.forward_latency = 1
 system.l2_bus.response_latency = 1
@@ -636,7 +653,8 @@ system.l2_bus.clk_domain = system.clk_domain
 for i in xrange(n_l2s):
   system.l2_bus.slave = system.l2_cntrls[i].memory
 
-system.l2_bus.master = system.mem_ctrl.port
+for i in xrange(nbr_mem_ctrls):
+  system.l2_bus.master = system.mem_ctrls[i].port
 
 #------------------------------------------------------------------------------
 # Connect memory controller and CPUs to the Ruby system
