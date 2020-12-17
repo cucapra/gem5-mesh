@@ -11,6 +11,9 @@
 
 #include "gesummv_kernel.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
 
 void __attribute__((optimize("-fno-inline")))
 gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int start, int end, int ptid)
@@ -48,6 +51,30 @@ gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int 
         }
         REMEM();
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
+      }
+      #elif defined(PACKED_SIMD)
+      int chunk = n;
+      for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+        l = vsetvl_e32m1(chunk);
+        int j = n - chunk;
+
+        vfloat32m1_t va = vle32_v_f32m1(&a[i*n+j]);
+        vfloat32m1_t vb = vle32_v_f32m1(&b[i*n+j]);
+        vfloat32m1_t vx = vle32_v_f32m1(&x[j]);
+
+        va = vfmul_vv_f32m1(va, vx);
+        vb = vfmul_vv_f32m1(vb, vx);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vfloat32m1_t vsa = vfredsum_vs_f32m1_f32m1(va, va, vzero);
+        vfloat32m1_t vsb = vfredsum_vs_f32m1_f32m1(vb, vb, vzero);
+
+        // update the accumulation
+        float temp1_val = vfmv_f_s_f32m1_f32(vsa);
+        temp1 += temp1_val;
+        float temp2_val = vfmv_f_s_f32m1_f32(vsb);
+        temp2 += temp2_val;
       }
       #else
       #pragma GCC unroll(8)
