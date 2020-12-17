@@ -3029,6 +3029,31 @@ decode QUADRANT default Unknown::unknown() {
                         }
                     }}, flags=['SimdFloatMultOp']);
                 }
+
+                // vfsqrt
+                0x13: decode VM {
+                    // vfsqrt_v
+                    0x1: VOPFVV::vfsqrt_v({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            uint32_t temp;
+                            float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                            float res = sqrt(fs2);
+                            Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                        }
+                    }}, flags=['SimdFloatSqrtOp']);
+
+                    // vfsqrt_vm
+                    0x0: VOPFVV::vfsqrt_vm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                uint32_t temp;
+                                float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
+                                float res = sqrt(fs2);
+                                Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
+                            }
+                        }
+                    }}, flags=['SimdFloatSqrtOp']);
+                }
             }
 
             // OPMVV
@@ -3995,7 +4020,7 @@ decode QUADRANT default Unknown::unknown() {
                     0x1: VOPFVF::vfadd_vf({{
                         for (auto i = 0; i < VLEN; i++) {
                             uint32_t temp;
-                            float rs1 = reinterpret_cast<float&>(temp = Rs1_sd);
+                            float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
                             float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
                             float res = fs2 + rs1;
                             Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
@@ -4007,7 +4032,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             if (Vm_ud[i] & 0x1llu) {
                                 uint32_t temp;
-                                float rs1 = reinterpret_cast<float&>(temp = Rs1_sd);
+                                float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
                                 float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
                                 float res = fs2 + rs1;
                                 Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
@@ -4022,7 +4047,7 @@ decode QUADRANT default Unknown::unknown() {
                     0x1: VOPFVF::vfsub_vf({{
                         for (auto i = 0; i < VLEN; i++) {
                             uint32_t temp;
-                            float rs1 = reinterpret_cast<float&>(temp = Rs1_sd);
+                            float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
                             float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
                             float res = fs2 - rs1;
                             Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
@@ -4034,7 +4059,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             if (Vm_ud[i] & 0x1llu) {
                                 uint32_t temp;
-                                float rs1 = reinterpret_cast<float&>(temp = Rs1_sd);
+                                float rs1 = reinterpret_cast<float&>(temp = Fs1_bits);
                                 float fs2 = reinterpret_cast<float&>(temp = Vs2_sd[i]);
                                 float res = fs2 - rs1;
                                 Vd_sd[i] = reinterpret_cast<uint32_t&>(res);
