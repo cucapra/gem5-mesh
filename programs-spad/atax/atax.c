@@ -11,6 +11,10 @@
 
 #include "atax_kernel.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 static inline int _idx_(int y, int x, int width)
 {
   return (y * width) + x;
@@ -47,6 +51,26 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
         REMEM(REGION_SIZE);
       }
+      #elif defined(PACKED_SIMD)
+      int chunk = ny;
+      for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+        l = vsetvl_e32m1(chunk);
+        int j = ny - chunk;
+
+        vfloat32m1_t vx = vle32_v_f32m1(&_x[j]);
+        vfloat32m1_t va = vle32_v_f32m1(&a[i*ny+j]);
+
+        // multiple together
+        vfloat32m1_t vtemp = vfmul_vv_f32m1(va, vx);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vtemp, vtemp, vzero);
+
+        // update the accumulation
+        float single_val = vfmv_f_s_f32m1_f32(vs);
+        temp += single_val;
+      }
       #else
       #pragma GCC unroll(16)
       for(int j=0; j<ny; j++){
@@ -70,6 +94,22 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         }
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
         REMEM(REGION_SIZE);
+      }
+      #elif defined(PACKED_SIMD)
+      chunk = ny;
+      for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+        l = vsetvl_e32m1(chunk);
+        int j = ny - chunk;
+
+        vfloat32m1_t va = vle32_v_f32m1(&a[i*ny+j]);
+        vfloat32m1_t vpp = vle32_v_f32m1(&partial_prod[j]);
+
+        // multiple together
+        vfloat32m1_t vp = vfmul_vf_f32m1(va, temp);
+        vpp = vfadd_vv_f32m1(vpp, vp);
+
+
+        vse32_v_f32m1(&partial_prod[j], vpp);
       }
       #else
       #pragma GCC unroll(16)
