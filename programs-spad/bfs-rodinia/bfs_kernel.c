@@ -72,31 +72,33 @@ void tril_bfs_vec1(int mask, Node *h_graph_nodes, int *h_graph_edges, char *h_gr
     asm("trillium vissue_delim until_next check_frontier");
     int cond = (h_graph_mask[tid] == true);
     volatile int compiler_hack = 1;
-    PRED_NEQ(cond,0);
+    PRED_EQ(cond,1);
     if(compiler_hack){
       h_graph_mask[tid]=false;
       int i = h_graph_nodes[tid].starting;
       int edge_bound= h_graph_nodes[tid].starting + h_graph_nodes[tid].no_of_edges;
       do{
         asm("trillium vissue_delim until_next update_cost");
-        int loop_cond =  cond & (i<edge_bound);
-        PRED_NEQ(loop_cond,0);
+        int loop_cond = (i<edge_bound);
+        loop_cond = cond & loop_cond;
+        PRED_EQ(loop_cond,1);
         if(compiler_hack){
           int id = h_graph_edges[i];
-          int cond2 = loop_cond & (!h_graph_visited[id]);
-          PRED_NEQ(cond2,0);
+          int cond2 = (!h_graph_visited[id]);
+          cond2 = cond2 & loop_cond;
+          PRED_EQ(cond2,1);
           if(compiler_hack){
             h_cost[id]=h_cost[tid]+1;
             h_updating_graph_mask[id]=true;
           }
-          PRED_NEQ(loop_cond,0);
+          PRED_EQ(loop_cond,1);
         }
-        PRED_NEQ(cond,0);
+        PRED_EQ(cond,1);
         i++;
       } while(bh2);
     }
     asm("trillium vissue_delim until_next increment_loop");
-    PRED_EQ(ptid,ptid);
+    PRED_EQ(vtid,vtid);
     tid+=VEC_LEN;
   } while(bh1);
 
@@ -155,7 +157,7 @@ void tril_bfs_vec2(int mask, char *h_graph_mask, char *h_updating_graph_mask, ch
       *stop=true;
       h_updating_graph_mask[tid]=false;
     }
-    PRED_EQ(ptid,ptid);
+    PRED_EQ(vtid,vtid);
     tid+=VEC_LEN;
   }while(bh1);
 
