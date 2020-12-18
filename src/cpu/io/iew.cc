@@ -354,6 +354,10 @@ IEW::doWriteback()
         //       m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
         // }
 
+        if (inst->isVector()) {
+          DPRINTF(RiscvVector, "writeback %s\n", inst->toString(true));
+        }
+
         // // set values as temp renamed dest reg
         // if (inst->static_inst_p->isBroadcast()) {
         //   inst->broadcast_val = m_cpu_p->readIntReg(inst->renamedDestRegIdx(0));

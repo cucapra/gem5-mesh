@@ -28,10 +28,10 @@ sim_configs = {
     'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['2048']
   },
-  # 'gram'   : {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['320']
-  # },
+  'gram'   : {
+    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['320']
+  },
   'syrk'   : {
     'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['256']
@@ -57,26 +57,26 @@ sim_configs = {
     'argv' : ['512', '30']
   },
 
-  # 'atax'   : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-  #   'argv' : ['2048'] # ['128']
-  # },
-  # 'mvt'    : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-  #   'argv' : ['4096'] # ['128']
-  # },
+  'atax'   : {
+    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'argv' : ['2048'] # ['128']
+  },
+  'mvt'    : {
+    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'argv' : ['4096'] # ['128']
+  },
   # 'gemm'   : {
   #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
   #   'argv' : ['256'] #['64']
   # },
-  # 'gesummv'   : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-  #   'argv' : ['4096'] #['128'] 
-  # },
-  # 'corr'   : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-  #   'argv' : ['512'] #['64']
-  # },
+  'gesummv'   : {
+    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'argv' : ['4096'] #['128'] 
+  },
+  'corr'   : {
+    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'argv' : ['512'] #['64']
+  },
   # '2mm' : {
   #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
   #   'argv' : ['256'] #['64']

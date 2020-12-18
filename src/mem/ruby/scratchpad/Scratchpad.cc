@@ -837,6 +837,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     }
     else if (pkt_p->isWrite()) m_local_stores++;
     
+    // NOTE vector accesses to scratchpad happen in one cycle (i.e., modeling wide io between cpu and spad. prob fine b/c local)
     accessDataArray(pkt_p);
 
     // if (isRegionAccess(pkt_p) && pkt_p->isRead()){

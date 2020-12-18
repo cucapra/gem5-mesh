@@ -782,7 +782,12 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // but wont be noack, and should come directly into register rather than spad
     if (m_s1_inst->isVector()) {
       m_s1_inst->mem_req_p->respCnt = m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
-      assert(m_s1_inst->mem_req_p->respCnt > 0);
+      // assert(m_s1_inst->mem_req_p->respCnt > 0); // can hit this condition if csr write hasnt happened, ok b/c will be squashed
+      // just set resp cnt to 1 b/c will be squashed
+      if (m_s1_inst->mem_req_p->respCnt == 0) {
+        m_s1_inst->fault = std::make_shared<RiscvISA::AddressFault>
+                                        (addr, RiscvISA::INST_ACCESS);
+      }
       m_s1_inst->mem_req_p->prefetchConfig = 1; // vertical
       m_s1_inst->mem_req_p->xOrigin = m_cpu_p->cpuId(); // flattened so just set as full idx
       m_s1_inst->mem_req_p->yOrigin = 0; // flattened so just set to 0
@@ -807,7 +812,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->vecAddrs = vecAddrs;
       m_s1_inst->mem_req_p->wordSize /= m_cpu_p->getHardwareVectorLength();
 
-      DPRINTF(RiscvVector, "%s send vector request %#x of size %d load ? %d\n", m_s1_inst->toString(true), vecAddrs[0], m_s1_inst->mem_req_p->respCnt, is_load);
+      if (vecAddrs.size() > 0)
+        DPRINTF(RiscvVector, "%s send vector request %#x of size %d load ? %d\n", m_s1_inst->toString(true), vecAddrs[0], m_s1_inst->mem_req_p->respCnt, is_load);
     }
     else {
       m_s1_inst->mem_req_p->isNormVector = false;
@@ -822,20 +828,22 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     else
       memset(m_s1_inst->mem_data_p, 0, size);
 
-    // init a translation for this memory request
-    // XXX: Note that we assume address translation is functionally done. No
-    // timing delay in doing translateTiming. That means this translateTiming
-    // function will eventually call MemUnit::finishTranslation in the same
-    // cycle.
-    MemTranslation* trans = new MemTranslation(this);
-    m_cpu_p->dtb->translateTiming(m_s1_inst->mem_req_p,
-                                  m_cpu_p->tcBase(tid),
-                                  trans,
-                                  is_load ? BaseTLB::Read : BaseTLB::Write);
+    if (!m_s1_inst->isFault()) { 
+      // init a translation for this memory request
+      // XXX: Note that we assume address translation is functionally done. No
+      // timing delay in doing translateTiming. That means this translateTiming
+      // function will eventually call MemUnit::finishTranslation in the same
+      // cycle.
+      MemTranslation* trans = new MemTranslation(this);
+      m_cpu_p->dtb->translateTiming(m_s1_inst->mem_req_p,
+                                    m_cpu_p->tcBase(tid),
+                                    trans,
+                                    is_load ? BaseTLB::Read : BaseTLB::Write);
 
-    if (m_s1_inst->isFault()) {
-      DPRINTF(Mesh, "fault could not translate %lx for inst %s\n", addr, m_s1_inst->toString(true));
-      m_s1_inst->setExecuted();
+      if (m_s1_inst->isFault()) {
+        DPRINTF(Mesh, "fault could not translate %lx for inst %s\n", addr, m_s1_inst->toString(true));
+        m_s1_inst->setExecuted();
+      }
     }
   }
 
