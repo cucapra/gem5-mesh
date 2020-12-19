@@ -6,7 +6,7 @@
 #ifdef _VEC
 
 void tril_bfs_vec1(int mask, Node *h_graph_nodes, int *h_graph_edges, char *h_graph_mask, char *h_updating_graph_mask, \
-                 char *h_graph_visited, int *h_cost, int max_edges, int start, int end, int ptid, int vtid)
+                 char *h_graph_visited, int *h_cost, int max_edges, int start, int end, int vtid)
 {
   //this template uses separate scalar and vector code blocks but they can be interspersed as well as shown here
   //https://github.com/cucapra/gem5-mesh/wiki/Trilliasm-Language-Overview:-Vector-SIMD-in-C
@@ -76,7 +76,7 @@ void tril_bfs_vec1(int mask, Node *h_graph_nodes, int *h_graph_edges, char *h_gr
     if(chack1){
       h_graph_mask[tid]=false;
       int i = h_graph_nodes[tid].starting;
-      int edge_bound= h_graph_nodes[tid].starting + h_graph_nodes[tid].no_of_edges;
+      int edge_bound= (h_graph_nodes[tid].starting + h_graph_nodes[tid].no_of_edges);
       do{
         asm("trillium vissue_delim until_next update_cost");
         int cond2 = (i<edge_bound);
@@ -112,7 +112,7 @@ void tril_bfs_vec1(int mask, Node *h_graph_nodes, int *h_graph_edges, char *h_gr
 
 
 void tril_bfs_vec2(int mask, char *h_graph_mask, char *h_updating_graph_mask, char *h_graph_visited, char *stop, \
-                 int start, int end, int ptid, int vtid)
+                 int start, int end, int vtid)
 {
 
   #ifdef SCALAR_CORE
