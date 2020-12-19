@@ -14,20 +14,40 @@
 
 void __attribute__((optimize("-fno-inline")))
 bfs_manycore1(Node *h_graph_nodes, int *h_graph_edges, char *h_graph_mask, char *h_updating_graph_mask, \
-                 char *h_graph_visited, int *h_cost, int start, int end, int ptid)
+                 char *h_graph_visited, int *h_cost, int start, int end, int ptid, int max_edges)
 {
   for (int tid = start; tid < end; tid++){
-    if (h_graph_mask[tid] == true){ 
+    int cond1 = (h_graph_mask[tid] == true);
+    if (cond1!=0){ 
       h_graph_mask[tid]=false;
-      for(int i=h_graph_nodes[tid].starting; i<(h_graph_nodes[tid].no_of_edges + h_graph_nodes[tid].starting); i++)
-      {
+
+      int i=h_graph_nodes[tid].starting;
+      int edge_bound = (h_graph_nodes[tid].no_of_edges + h_graph_nodes[tid].starting);
+      // printf("i: %d, edge_bound: %d\n", i,edge_bound);
+      
+      for(int j=0; j<max_edges; j++){
+        int cond2 = (i<edge_bound);
+        cond2 = cond1 & cond2;
+        if (cond2!=0){
           int id = h_graph_edges[i];
-          if(!h_graph_visited[id])
-          {
-              h_cost[id]=h_cost[tid]+1;
-              h_updating_graph_mask[id]=true;
+          int cond3 = (!h_graph_visited[id]);
+          cond3 = cond3 & cond2;
+          if(cond3!=0){
+            h_cost[id]=h_cost[tid]+1;
+            h_updating_graph_mask[id]=true;
           }
+        }
+        i++;
       }
+      // for(int i=h_graph_nodes[tid].starting; i<(h_graph_nodes[tid].no_of_edges + h_graph_nodes[tid].starting); i++)
+      // {
+      //     int id = h_graph_edges[i];
+      //     if(!h_graph_visited[id])
+      //     {
+      //         h_cost[id]=h_cost[tid]+1;
+      //         h_updating_graph_mask[id]=true;
+      //     }
+      // }
     }
   }
   // if (ptid==0) printf("End of first kernel\n");
@@ -59,40 +79,46 @@ int find_max_edges(Node* h_graph_nodes, int total_nodes){
 
 void __attribute__((optimize("-fno-inline")))
 bfs_main(core_config_info_t cinfo, int mask, Node* h_graph_nodes, char *h_graph_mask, char *h_updating_graph_mask, 
-    char *h_graph_visited, int* h_graph_edges, int* h_cost, int no_of_nodes, int edge_list_size, char *stop, 
+    char *h_graph_visited, int* h_graph_edges, int* h_cost, int no_of_nodes, int edge_list_size, char *stop,
     int start, int end, int ptid, int pdim, int pdim_x, template_info_t tinfo){
 
-    #ifdef _VEC
-    int max_edges;
-    if (ptid==0) max_edges = find_max_edges(h_graph_nodes,no_of_nodes);
-    if (ptid==0) printf("Max edges in the graph: %d \n",max_edges);
-    #endif
+    // #ifdef _VEC
+    int max_edges = find_max_edges(h_graph_nodes,no_of_nodes);
+    // if (ptid==0) printf("Max edges in the graph: %d \n",max_edges);
+    // #endif
     int k=0;
-    pthread_barrier_wait(&start_barrier);
+    // pthread_barrier_wait(&start_barrier);
     do
     {
       k++;
       //if no thread changes this value then the loop stops
       if (ptid==0) *stop=false;
-
-      if (ptid==0) printf("Starting round: %d \n",k);
+      // pthread_barrier_wait(&start_barrier);
+      // if (ptid==0) printf("Starting round: %d\n",k);
 
       #ifdef _VEC
       SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
       if (cinfo.used) {
         tril_bfs_vec1(mask, h_graph_nodes, h_graph_edges, h_graph_mask, h_updating_graph_mask,
-                 h_graph_visited, h_cost, max_edges, start, end, ptid, cinfo.vtid);
+                 h_graph_visited, h_cost, max_edges, start, end, cinfo.vtid);
       }
       #else
-      bfs_manycore1(h_graph_nodes, h_graph_edges, h_graph_mask, h_updating_graph_mask, h_graph_visited, h_cost, start, end, ptid);
+      bfs_manycore1(h_graph_nodes, h_graph_edges, h_graph_mask, h_updating_graph_mask, h_graph_visited, h_cost, start, end, ptid, max_edges);
       #endif
 
       pthread_barrier_wait(&start_barrier);
+      // if (ptid==0){
+      //   for (int i=0; i<no_of_nodes; i++){
+      //     printf("%d ",h_cost[i]);
+      //   }
+      //   printf("\n");
+      // }
+      // pthread_barrier_wait(&start_barrier);
 
       #ifdef _VEC
       SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
       if (cinfo.used) {
-        tril_bfs_vec2(mask, h_graph_mask, h_updating_graph_mask, h_graph_visited, stop, start, end, ptid, cinfo.vtid);
+        tril_bfs_vec2(mask, h_graph_mask, h_updating_graph_mask, h_graph_visited, stop, start, end, cinfo.vtid);
       }
       #else
       bfs_manycore2(h_graph_mask, h_updating_graph_mask, h_graph_visited, stop, start, end, ptid);
@@ -101,7 +127,7 @@ bfs_main(core_config_info_t cinfo, int mask, Node* h_graph_nodes, char *h_graph_
       pthread_barrier_wait(&start_barrier);
 
     }while(*stop);
-    if (ptid==0) printf("Total rounds %d\n",k);
+    // if (ptid==0) printf("Total rounds %d\n",k);
 
 }
 
@@ -138,7 +164,7 @@ void kernel(Node* h_graph_nodes, char *h_graph_mask, char *h_updating_graph_mask
     start = roundUp((cinfo.unique_id + 0) * no_of_nodes / cinfo.total_groups, alignment); 
     end = roundUp((cinfo.unique_id + 1) * no_of_nodes / cinfo.total_groups, alignment); 
     
-    if(cinfo.is_scalar==1) printf("ptid:%d, start=%d and end=%d\n",ptid,start,end);
+    // if(cinfo.is_scalar==1) printf("ptid:%d, start=%d and end=%d\n",ptid,start,end);
   }
 
   #else
@@ -157,45 +183,32 @@ void kernel(Node* h_graph_nodes, char *h_graph_mask, char *h_updating_graph_mask
   int mask = 0;
   #endif
 
-  if (ptid==0) printf("Work division done, mask calculated \n");
+  // if (ptid==0) printf("Work division done, mask calculated \n");
+
+  // move stack onto scratchpad for faster local access than default on DRAM
+  // MOVE_STACK_ONTO_SCRATCHPAD();
+  unsigned long long *spTop = getSpTop(ptid); 
+  spTop -= 120;                                
+  unsigned long long stackLoc;                
+  unsigned long long temp;                    
+  _Pragma("GCC unroll(120)")                   
+  for(int i=0;i<120;i++){                      
+    asm volatile("ld t0, %[id](sp)\n\t"       
+                "sd t0, %[id](%[spad])\n\t"   
+                : "=r"(temp)                  
+                : [id] "i"(i*8), [spad] "r"(spTop) : "memory"); 
+  }                                                   
+  asm volatile (                                      
+      "addi %[dest], sp, 0\n\t"                       
+      "addi sp, %[spad], 0\n\t"                       
+      : [ dest ] "=r"(stackLoc)                       
+      : [ spad ] "r"(spTop));
 
   bfs_main(cinfo, mask, h_graph_nodes, h_graph_mask, h_updating_graph_mask, h_graph_visited, h_graph_edges, h_cost, 
     no_of_nodes, edge_list_size, stop, start, end, ptid, pdim, pdim_x, tinfo);
 
-  // // only let certain tids continue
-  // if (cinfo.used == 0) return;
-
-  // // move stack onto scratchpad for faster local access than default on DRAM
-  // MOVE_STACK_ONTO_SCRATCHPAD();
-
-// #if defined USE_VECTOR_SIMD
-//   bfs_vec(mask);
-
-// #else
-// int k=0;
-// if (ptid==0) printf("Starting bfs on manycore\n");
-//   do
-//   {
-//     k++;
-//     //if no thread changes this value then the loop stops
-//     if (ptid==0) *stop=false;
-
-//     bfs_manycore1(h_graph_nodes, h_graph_edges, h_graph_mask, h_updating_graph_mask, h_graph_visited, h_cost,
-//                 start, end, ptid);
-
-//     pthread_barrier_wait(&start_barrier);
-
-//     bfs_manycore2(h_graph_mask, h_updating_graph_mask, h_graph_visited, stop, start, end, ptid);
-
-//     pthread_barrier_wait(&start_barrier);
-
-//   }while(*stop);
-
-//   if (ptid==0) printf("Total rounds %d\n",k);
-// #endif
-
-  // // restore stack pointer to DRAM
-  // RECOVER_DRAM_STACK();
+  // restore stack pointer to DRAM
+  RECOVER_DRAM_STACK();
 }
 
 // helper functions
