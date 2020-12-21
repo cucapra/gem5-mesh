@@ -52,6 +52,8 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
   
 
     for (int c = inner_start; c < cEnd; c+=CORE_STEP) {
+      // vlen = max, stuff that doesnt fit is done on manycore at end
+      vsetvl_e32m1(16);
 
       // load 3x16 section of image and produce 14 outputs
       vfloat32m1_t r1 = vle32_v_f32m1(&a[(r - 1)*NJ + (c - 1)]);
@@ -83,6 +85,9 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
       // row 3
       r23 = vslidedown_vx_f32m1(r23, r23, 1);
       r33 = vslidedown_vx_f32m1(r33, r33, 2);
+
+      // only want to do first 16
+      vsetvl_e32m1(CORE_STEP);
 
       // add every vector togehter for a set of 14 outputs (last 2 are duds)
       vfloat32m1_t ofmap = vfadd_vv_f32m1(r11, r21);
