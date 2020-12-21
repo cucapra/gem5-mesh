@@ -8,6 +8,10 @@
 #include "bind_defs.h"
 #include "conv3d_kernel.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 /*
   Conv3d. weird kernel
 */
@@ -20,7 +24,73 @@ void conv3d_manycore(DTYPE *a, DTYPE *b, int NI, int NJ, int NK, int ptid, int p
 
   DEF_WEIGHTS();
 
-  #ifdef MANYCORE_PREFETCH
+  #ifdef PACKED_SIMD
+  for (int i = outer_start; i < outer_end; i++) {
+    for (int j = 1; j < NJ - 1; j++) {
+      for (int k = 1; k < NK - 1; k+=16) {
+
+        int remLen = (NK-1) - k;
+        vsetvl_e32m1(remLen);
+
+        vfloat32m1_t a111 = vle32_v_f32m1(a + IDX(i-1, j-1, k-1, NJ, NK));
+        vfloat32m1_t a113 = vle32_v_f32m1(a + IDX(i-1, j-1, k+1, NJ, NK));
+        vfloat32m1_t a123 = vle32_v_f32m1(a + IDX(i-1, j+0, k+1, NJ, NK));
+        vfloat32m1_t a133 = vle32_v_f32m1(a + IDX(i-1, j+1, k+1, NJ, NK));
+        vfloat32m1_t a212 = vle32_v_f32m1(a + IDX(i+0, j-1, k+0, NJ, NK));
+        vfloat32m1_t a222 = vle32_v_f32m1(a + IDX(i+0, j+0, k+0, NJ, NK));
+        vfloat32m1_t a232 = vle32_v_f32m1(a + IDX(i+0, j+1, k+0, NJ, NK));
+        vfloat32m1_t a311 = vle32_v_f32m1(a + IDX(i+1, j-1, k-1, NJ, NK));
+        vfloat32m1_t a313 = vle32_v_f32m1(a + IDX(i+1, j-1, k+1, NJ, NK));
+        vfloat32m1_t a323 = vle32_v_f32m1(a + IDX(i+1, j+0, k+1, NJ, NK));
+        vfloat32m1_t a333 = vle32_v_f32m1(a + IDX(i+1, j+1, k+1, NJ, NK));
+    
+        // do vector-scalar multiplications for each element
+        // stride is elementwise so this works? could reduce loads by doing shifts
+        // afterwards, but more complicated than in conv2d and only saves 2/11 loads
+        // so going to skip for now
+        vfloat32m1_t b111_11, b111_21, b111_31, b113_11, b123_21, b133_31,
+          b212_12, b222_22, b232_32, b311_13, b311_23, b311_33, b313_13,
+          b323_23, b333_33;
+
+        b111_11 = vfmul_vf_f32m1(a111, c11);
+        b111_21 = vfmul_vf_f32m1(a111, c21);
+        b111_31 = vfmul_vf_f32m1(a111, c31);
+        b113_11 = vfmul_vf_f32m1(a113, c11);
+        b123_21 = vfmul_vf_f32m1(a123, c21);
+        b133_31 = vfmul_vf_f32m1(a133, c31);
+        b212_12 = vfmul_vf_f32m1(a212, c12);
+        b222_22 = vfmul_vf_f32m1(a222, c22);
+        b232_32 = vfmul_vf_f32m1(a232, c32);
+        b311_13 = vfmul_vf_f32m1(a311, c13);
+        b311_23 = vfmul_vf_f32m1(a311, c23);
+        b311_33 = vfmul_vf_f32m1(a311, c33);
+        b313_13 = vfmul_vf_f32m1(a313, c13);
+        b323_23 = vfmul_vf_f32m1(a323, c23);
+        b333_33 = vfmul_vf_f32m1(a333, c33);
+
+        // add every vector together
+        vfloat32m1_t ofmap = vfadd_vv_f32m1(b111_11, b111_21);
+        ofmap = vfadd_vv_f32m1(ofmap, b111_31);
+        ofmap = vfadd_vv_f32m1(ofmap, b113_11);
+        ofmap = vfadd_vv_f32m1(ofmap, b123_21);
+        ofmap = vfadd_vv_f32m1(ofmap, b133_31);
+        ofmap = vfadd_vv_f32m1(ofmap, b212_12);
+        ofmap = vfadd_vv_f32m1(ofmap, b222_22);
+        ofmap = vfadd_vv_f32m1(ofmap, b232_32);
+        ofmap = vfadd_vv_f32m1(ofmap, b311_13);
+        ofmap = vfadd_vv_f32m1(ofmap, b311_23);
+        ofmap = vfadd_vv_f32m1(ofmap, b311_33);
+        ofmap = vfadd_vv_f32m1(ofmap, b313_13);
+        ofmap = vfadd_vv_f32m1(ofmap, b323_23);
+        ofmap = vfadd_vv_f32m1(ofmap, b333_33);
+
+        vse32_v_f32m1(&b[IDX(i, j, k, NJ, NK)], ofmap);
+      }
+    }
+  }
+
+
+  #elif defined(MANYCORE_PREFETCH)
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
   for (int i = outer_start; i < outer_end; i++) {

@@ -38,6 +38,7 @@
 // one of these should be defined to dictate config
 // #define NO_VEC 1
 // #define MANYCORE_PREFETCH
+// #define PACKED_SIMD
 
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
@@ -48,7 +49,7 @@
 // #define VEC_16_REUSE_VERTICAL 1
 
 // vvadd_execute config directives
-#if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH)
+#if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
 #define USE_VEC 1
 #endif
 
