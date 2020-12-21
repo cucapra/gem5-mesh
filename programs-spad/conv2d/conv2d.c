@@ -9,6 +9,10 @@
 #include "conv2d_kernel.h"
 #include "util.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 /*
   3x3 stencil with a single 3x3 filter
   Filter is cached in each spad.
@@ -41,7 +45,73 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
 
   int NJ = inner_dim;
 
-  #ifdef MANYCORE_PREFETCH
+  #ifdef PACKED_SIMD
+  int cEnd = ((NJ-1) / CORE_STEP) * CORE_STEP;
+
+  for (int r = outer_start; r < outer_end; r++) {
+  
+
+    for (int c = inner_start; c < cEnd; c+=CORE_STEP) {
+
+      // load 3x16 section of image and produce 14 outputs
+      vfloat32m1_t r1 = vle32_v_f32m1(&a[(r - 1)*NJ + (c - 1)]);
+      vfloat32m1_t r2 = vle32_v_f32m1(&a[(r + 0)*NJ + (c - 1)]);
+      vfloat32m1_t r3 = vle32_v_f32m1(&a[(r + 1)*NJ + (c - 1)]);
+    
+      // do three vector-scalar multiplications for each row (one for each filter element)
+      vfloat32m1_t r11, r12, r13, r21, r22, r23, r31, r32, r33;
+      // row 1
+      r11 = vfmul_vf_f32m1(r1, c11);
+      r21 = vfmul_vf_f32m1(r1, c21);
+      r31 = vfmul_vf_f32m1(r1, c31);
+      // row 2
+      r12 = vfmul_vf_f32m1(r2, c12);
+      r22 = vfmul_vf_f32m1(r2, c22);
+      r32 = vfmul_vf_f32m1(r2, c32);
+      // row 3
+      r13 = vfmul_vf_f32m1(r3, c13);
+      r23 = vfmul_vf_f32m1(r3, c23);
+      r33 = vfmul_vf_f32m1(r3, c33);
+
+      // shift vectors so when add get a partial product for the row
+      // row 1
+      r21 = vslidedown_vx_f32m1(r21, r21, 1);
+      r31 = vslidedown_vx_f32m1(r31, r31, 2);
+      // row 2
+      r22 = vslidedown_vx_f32m1(r22, r22, 1);
+      r32 = vslidedown_vx_f32m1(r32, r32, 2);
+      // row 3
+      r23 = vslidedown_vx_f32m1(r23, r23, 1);
+      r33 = vslidedown_vx_f32m1(r33, r33, 2);
+
+      // add every vector togehter for a set of 14 outputs (last 2 are duds)
+      vfloat32m1_t ofmap = vfadd_vv_f32m1(r11, r21);
+      ofmap = vfadd_vv_f32m1(ofmap, r31);
+      ofmap = vfadd_vv_f32m1(ofmap, r12);
+      ofmap = vfadd_vv_f32m1(ofmap, r22);
+      ofmap = vfadd_vv_f32m1(ofmap, r32);
+      ofmap = vfadd_vv_f32m1(ofmap, r13);
+      ofmap = vfadd_vv_f32m1(ofmap, r23);
+      ofmap = vfadd_vv_f32m1(ofmap, r33);
+
+      vse32_v_f32m1(&b[r*NJ + c], ofmap);
+    }
+
+    // TODO not clear how much this matters
+    // do rest that doesnt map into prefetch pattern
+    #pragma GCC unroll(16)
+    for (int c = cEnd; c < NJ-1; c++) {
+      int i = r;
+      int j = c;
+      DTYPE out = CONV_3x3(
+        a[(i - 1)*NJ + (j - 1)], a[(i - 1)*NJ + (j + 0)], a[(i - 1)*NJ + (j + 1)],
+        a[(i + 0)*NJ + (j - 1)], a[(i + 0)*NJ + (j + 0)], a[(i + 0)*NJ + (j + 1)],
+        a[(i + 1)*NJ + (j - 1)], a[(i + 1)*NJ + (j + 0)], a[(i + 1)*NJ + (j + 1)]
+      );
+      STORE_NOACK(out, &b[i*NJ + j], 0);
+    }
+  }
+  #elif defined(MANYCORE_PREFETCH)
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
@@ -52,14 +122,6 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
 
     for (int c = inner_start; c < cEnd; c+=CORE_STEP) {
       prefetch_vert_frame(a, r, c, inner_dim, 1, &sp);
-
-      // -  -  -  <- load16 1
-      // -  -  -  <- load16 2
-      // -  -  -  -   - - -
-
-      // "shuffle"
-
-      // 3 wide!
 
       FRAME_START();
       // not actually 14iters, but like 6

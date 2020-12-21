@@ -72,6 +72,10 @@
 #define UNROLL 4
 #endif
 
+#ifdef PACKED_SIMD
+#define CORE_STEP (16 - (FILTER_DIM - 1))
+#endif
+
 // prefetch sizings
 #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
 // can guarentee power of 2 works
