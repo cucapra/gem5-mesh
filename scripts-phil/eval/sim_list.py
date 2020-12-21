@@ -44,14 +44,14 @@ sim_configs = {
     'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['512']
   },
-  # 'conv2d' : {
-  #   'vec'  : [ 'NO_VEC', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], ['VEC_4_SIMD_VERTICAL', 'INIT_FRAMES=0' ] ],
-  #   'argv' : ['2048']
-  # },
-  # 'conv3d' : {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['256']
-  # },
+  'conv2d' : {
+    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #[ 'NO_VEC', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], ['VEC_4_SIMD_VERTICAL', 'INIT_FRAMES=0' ] ],
+    'argv' : ['2048']
+  },
+  'conv3d' : {
+    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['256']
+  },
   'fdtd' : {
     'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['512', '30']
@@ -65,10 +65,10 @@ sim_configs = {
     'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['4096'] # ['128']
   },
-  # 'gemm'   : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-  #   'argv' : ['256'] #['64']
-  # },
+  'gemm'   : {
+    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'argv' : ['256'] #['64']
+  },
   'gesummv'   : {
     'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['4096'] #['128'] 
@@ -77,14 +77,14 @@ sim_configs = {
     'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['512'] #['64']
   },
-  # '2mm' : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-  #   'argv' : ['256'] #['64']
-  # },
-  # '3mm' : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-  #   'argv' : ['256'] #['32']
-  # },
+  '2mm' : {
+    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'argv' : ['256'] #['64']
+  },
+  '3mm' : {
+    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'argv' : ['256'] #['32']
+  },
 
 }
 
