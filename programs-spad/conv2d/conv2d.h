@@ -24,7 +24,7 @@
 // one of these should be defined to dictate config
 // #define NO_VEC 1
 // #define MANYCORE_PREFETCH
-#define PACKED_SIMD
+// #define PACKED_SIMD
 
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_UNROLL 1
