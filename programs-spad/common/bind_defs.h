@@ -132,6 +132,17 @@
 //   asm volatile (".insn sb 0x23, 0x4, %[spad], %[off](%[mem])\n\t" :: \
 //     [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" ((group_start << 6) | (group_end - group_start)))
 
+#define LWSPEC(dest, spadAddr, offset)                    \
+  asm volatile (                                          \
+    ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"   \
+    : [destreg] "=r" (dest)                               \
+    : [mem] "r" (spadAddr), [off] "i" (offset))         
+
+#if __GNUC__ >= 10
+#define STORE_NOACK(data, memAddr, offset) \
+  asm volatile (".insn s 0x23, 0x5, %[dataReg], %[off](%[mem])\n\t" :: \
+    [dataReg] "r" (data), [mem] "r" (memAddr), [off] "i" (offset))     
+
 #define VPREFETCH_L(spadOffset, memAddr, coreOffset, count, config)   \
   asm volatile (".insn s 0x23, 0x6, %[spad], %[off](%[mem])\n\t" ::   \
     [spad] "r" ((coreOffset << 12) | spadOffset),                     \
@@ -143,21 +154,27 @@
     [spad] "r" ((coreOffset << 12) | spadOffset),                     \
     [mem] "r" (memAddr),                                              \
     [off] "i" ((count << 2) | config))
+#else
+#define STORE_NOACK(data, memAddr, offset) \
+  asm volatile (".insn sb 0x23, 0x5, %[dataReg], %[off](%[mem])\n\t" :: \
+    [dataReg] "r" (data), [mem] "r" (memAddr), [off] "i" (offset))     
+
+#define VPREFETCH_L(spadOffset, memAddr, coreOffset, count, config)   \
+  asm volatile (".insn sb 0x23, 0x6, %[spad], %[off](%[mem])\n\t" ::   \
+    [spad] "r" ((coreOffset << 12) | spadOffset),                     \
+    [mem] "r" (memAddr),                                              \
+    [off] "i" ((count << 2) | config))
+
+#define VPREFETCH_R(spadOffset, memAddr, coreOffset, count, config)   \
+  asm volatile (".insn sb 0x23, 0x7, %[spad], %[off](%[mem])\n\t" ::   \
+    [spad] "r" ((coreOffset << 12) | spadOffset),                     \
+    [mem] "r" (memAddr),                                              \
+    [off] "i" ((count << 2) | config))
+#endif
 
 #define VPREFETCH_LR(sp, memIdx, core, len, style)  \
   VPREFETCH_L(sp, memIdx, core, len, style);        \
   VPREFETCH_R(sp, memIdx, core, len, style)
-
-#define LWSPEC(dest, spadAddr, offset)                    \
-  asm volatile (                                          \
-    ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"   \
-    : [destreg] "=r" (dest)                               \
-    : [mem] "r" (spadAddr), [off] "i" (offset))         
-
-#define STORE_NOACK(data, memAddr, offset) \
-  asm volatile (".insn s 0x23, 0x5, %[dataReg], %[off](%[mem])\n\t" :: \
-    [dataReg] "r" (data), [mem] "r" (memAddr), [off] "i" (offset))     
-
   
 static inline void stats_on()
 {

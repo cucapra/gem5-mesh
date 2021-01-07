@@ -2,9 +2,9 @@ BENCHNAME := syr2k
 default: $(BENCHNAME)
 
 # # run small sim for test
-PROB_SIZE := 32
+PROB_SIZE := 64
 N_SPS ?= 64
-EXTRA_FLAGS ?= -DVEC_4_SIMD
+EXTRA_FLAGS ?= -DNO_VEC
 HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
 
 # Build the kernel with trilliasm.

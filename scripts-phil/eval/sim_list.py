@@ -3,8 +3,8 @@
 '''
 
 # helper set of vec configs you can use in a benchmark (assuming it supports)
-ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
-ALL_NEIL_CONFIGS = ['NO_VEC', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_VEC', 'MANYCORE_PREFETCH' ]]
+ALL_CONFIGS = ['NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
+ALL_NEIL_CONFIGS = [ 'NO_VEC', 'PACKED_SIMD', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_VEC', 'MANYCORE_PREFETCH' ]]
 INIT0_CONFIGS = [ [ 'VEC_4_SIMD', 'INIT_FRAMES=0' ] ]
 INIT0_NEIL_CONFIGS = [ [ 'VEC_LEN=4', 'INIT_FRAMES=0' ] ]
 
@@ -25,64 +25,64 @@ sim_configs = {
   # Benchmarks
 
   'bicg'   : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['2048']
   },
   'gram'   : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['320']
   },
   'syrk'   : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['256']
   },
   'syr2k'  : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['256']
   },
   'covar'   : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['512']
   },
   'conv2d' : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #[ 'NO_VEC', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], ['VEC_4_SIMD_VERTICAL', 'INIT_FRAMES=0' ] ],
+    'vec'  : [ 'NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], ['VEC_4_SIMD_VERTICAL', 'INIT_FRAMES=0' ] ],
     'argv' : ['2048']
   },
   'conv3d' : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['256']
   },
   'fdtd' : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_CONFIGS + INIT0_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['512', '30']
   },
 
   'atax'   : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['2048'] # ['128']
   },
   'mvt'    : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['4096'] # ['128']
   },
   'gemm'   : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['256'] #['64']
   },
   'gesummv'   : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['4096'] #['128'] 
   },
   'corr'   : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['512'] #['64']
   },
   '2mm' : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['256'] #['64']
   },
   '3mm' : {
-    'vec'  : ['NO_VEC', 'PACKED_SIMD'], #ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['256'] #['32']
   },
 
@@ -112,6 +112,13 @@ def abbreviate_config(config):
   else:
     return config
 
+def is_tril_vec_config(config):
+  a = abbreviate_config(config)
+  if (a == 'V4' or a == 'V16' or a == 'VEC_4_SIMD_VERTICAL' or a == 'VEC_16_SIMD_VERTICAL'):
+    return True
+  else:
+    return False
+
 # either array or single string
 def strings_to_make_args(args):
   # cmd_line = 'ENV_EXTRA_MAKE_FLAGS=\''
@@ -122,6 +129,23 @@ def strings_to_make_args(args):
     cmd_line += '\''
   else:
     cmd_line += '-D' + args + '\''
+
+  # DONE in makefile currently
+  # # add which compiler to use
+  # uses_tril_vec = False
+  # if (isinstance(args, list)):
+  #   for a in args:
+  #     if (is_tril_vec_config(a)):
+  #       uses_tril_vec = True
+  # else:
+  #   if (is_tril_vec_config(args)):
+  #     uses_tril_vec = True
+
+  # if (uses_tril_vec):
+  #   cmd_line += ' ENV_GCC_VER=8'
+  # else:
+  #   cmd_line += ' ENV_GCC_VER=10'
+
   return cmd_line
 
 # turn config into metadata to make which run was used
