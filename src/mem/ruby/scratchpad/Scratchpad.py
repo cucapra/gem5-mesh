@@ -20,6 +20,7 @@ class Scratchpad(RubyController):
   num_l2s           = Param.Int(1, "Number of L2 banks")
   grid_dim_x        = Param.Int(2, "XDim of core mesh")
   grid_dim_y        = Param.Int(2, "YDim of core mesh")
+  netWidth          = Param.Int(1, "Number of words that can be sent over network")
   maxNumPendingReqs = Param.Int(8, "Max number of pending requests")
   
   prefetchBufSize   = Param.Int(2, "Allowed number of pending prefetches from master core")

@@ -18,6 +18,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
       int meshDimX := 2;
       int meshDimY := 2;
+
+      // how wide the network is in words
+      int netWidth := 1;
       
 {
   //---------------------------------------------------------------------------
@@ -356,18 +359,34 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return intToAddress(spadIdx);
   }
 
+  int getNumWordsInResp(int respCnt, int config) {
+    if (isVerticalLoad(config)) {
+      // do min of respCnt and netWidth
+      if (respCnt > netWidth) {
+        return netWidth;
+      }
+      else {
+        return respCnt;
+      }
+    }
+    else {
+      return 1;
+    }
+  }
+
   bool isFirstLoadOfVec(bool isCpuSide) {
     int vecCnt := getPortVecCnt(isCpuSide);
     return vecCnt == 0;
   }
 
-  bool isLastLoadOfVec(int count, bool isCpuSide) {
+  bool isLastLoadOfVec(int count, int config, bool isCpuSide) {
     int vecCnt := getPortVecCnt(isCpuSide);
-    return (vecCnt == (count - 1));
+    int nextVecCnt := vecCnt + getNumWordsInResp(count, config);
+    return (nextVecCnt == count);
   }
 
-  void increaseVecCount(bool isCpuSide) {
-    int vecCnt := getPortVecCnt(isCpuSide) + 1;
+  void increaseVecCount(int respCnt, int config, bool isCpuSide) {
+    int vecCnt := getPortVecCnt(isCpuSide) + getNumWordsInResp(respCnt, config);
     setPortVecCnt(vecCnt, isCpuSide);
     DPRINTF(Frame, "increase vec cnt to %d\n", getPortVecCnt(isCpuSide));
   }
@@ -497,7 +516,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
                   else if (isFirstLoadOfVec(true)) {
                     trigger(Event:VREAD0, LineAddress, cache_entry, tbe);
                   }
-                  else if (!isLastLoadOfVec(in_msg.RespCnt, true)) {
+                  else if (!isLastLoadOfVec(in_msg.RespCnt, in_msg.PrefetchConfig, true)) {
                     trigger(Event:VREAD1, LineAddress, cache_entry, tbe);
                   }
                   else {
@@ -569,7 +588,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
               else if (isFirstLoadOfVec(false)) {
                 trigger(Event:VData0, in_msg.addr, cache_entry, tbe);
               }
-              else if (!isLastLoadOfVec(tbe.RespCnt, false)) {
+              else if (!isLastLoadOfVec(tbe.RespCnt, tbe.PrefetchConfig, false)) {
                 trigger(Event:VData1, in_msg.addr, cache_entry, tbe);
               }
               else {
@@ -731,7 +750,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         // this is gem5 only meta-data, in reality would just send the single
         // word, so no need to pick out the element from the whole block
         out_msg.BlkIdx      := wordOffset;
-        // out_msg.Epoch       := in_msg.Epoch;
+        out_msg.Epoch       := getNumWordsInResp(in_msg.RespCnt, in_msg.PrefetchConfig); // temp encode resp size
       }
     }
   }
@@ -776,7 +795,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
         out_msg.BlkIdx      := wordOffset;
-        // out_msg.Epoch       := tbe.Epoch;
+        out_msg.Epoch       := getNumWordsInResp(tbe.RespCnt, tbe.PrefetchConfig);
       }
     }
   }
@@ -1036,7 +1055,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   action(ivc_incVectorCount, "ivc", desc = "Increment vector count") {
     // // enqueue the same packet back on request queue with decremented vec count
     // // if no more counts don't put back onto the queue
-    // peek(requestNetwork_in, LLCRequestMsg) {
+    peek(requestNetwork_in, LLCRequestMsg) {
     //   // might need to put in TBE when split across cache line (and you want to do other reqs)
     //   // store and then restore the count when send req and restore?
     //   // NOT neccessary because no point to do vector request across a cache line
@@ -1044,12 +1063,13 @@ machine(MachineType:L2Cache, "SP LLC cache")
     //   increaseVecCount(in_msg.XDim);
     //   _vecFromLLC := true;
     // }
-    increaseVecCount(true);
+      increaseVecCount(in_msg.RespCnt, in_msg.PrefetchConfig, true);
+    }
   }
   
   // for missed accesses
   action(ivt_incVectorCountTBE, "ivt", desc = "Increment vector count TBE") {
-    increaseVecCount(false);
+    increaseVecCount(tbe.RespCnt, tbe.PrefetchConfig, false);
     // _vecFromMem := true;
   }
 

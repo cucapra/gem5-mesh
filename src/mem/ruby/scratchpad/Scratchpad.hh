@@ -506,6 +506,11 @@ class Scratchpad : public AbstractController
      */ 
     int m_cur_consumer_region;
 
+    /**
+     * Maximum size of vector packet over the network
+     */
+    int m_net_word_width;
+
     
     /**
      * Stats to keep track of for the scratchpad
