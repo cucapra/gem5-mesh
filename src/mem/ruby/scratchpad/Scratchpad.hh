@@ -389,7 +389,7 @@ class Scratchpad : public AbstractController
       }
 
       // set word of data packet to be return as a whole
-      void setData(Addr addr, const uint8_t *incData, int wordSize) {
+      void setData(Addr addr, const uint8_t *incData, int len) {
         if (!pkt->isVector()) { // for scalar loads just write data (also the addr is the line addr is his case)
           pkt->setData(incData);
           return;
@@ -399,7 +399,7 @@ class Scratchpad : public AbstractController
         int word = pkt->getWordOffset(addr);
 
         auto data = pkt->getPtr<uint8_t>();
-        std::memcpy(&data[word], incData, wordSize);
+        std::memcpy(&data[word], incData, len);
         // for (int i = 0; i < wordSize; i++) {
           // data[word * wordSize + i] = incData[i];
         // }
