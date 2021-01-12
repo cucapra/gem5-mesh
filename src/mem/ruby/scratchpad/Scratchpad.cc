@@ -403,13 +403,13 @@ Scratchpad::arbitrate() {
 // helper to figure out where the response word is (and maybe the address)
 const uint8_t*
 Scratchpad::decodeRespWord(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_msg_p) {
-  int len = pending_pkt_p->getWordSize();
+  int wordLen = pending_pkt_p->getWordSize();
+  int len = wordLen * llc_msg_p->m_Len;
   int offset = llc_msg_p->m_BlkIdx;
   
   if (llc_msg_p->m_Type == LLCResponseType_REVDATA ||
         llc_msg_p->m_Type == LLCResponseType_REDATA) {
-    offset *= len; // blk idx is / sizeof(int) here
-    len *= pending_pkt_p->req->respCnt; // if doing wide io may have sent more
+    offset *= wordLen; // blk idx is / sizeof(int) here
   }
   else if (!pending_pkt_p->isVector()) {
     assert(llc_msg_p->m_LineAddress ==
@@ -495,7 +495,7 @@ Scratchpad::wakeup()
                                           sizeof(uint32_t),    // size
                                           0, 0);
         
-        req->respCnt = llc_msg_p->m_Epoch;
+        req->respCnt = llc_msg_p->m_Len;
         size_t buf_size = sizeof(uint32_t) * req->respCnt;
         
         PacketPtr pkt_p = Packet::createWrite(req);
@@ -508,8 +508,8 @@ Scratchpad::wakeup()
         memcpy(buff, data, buf_size);
         pkt_p->dataDynamic(buff);
         
-        DPRINTF(Frame, "Recv remote store %#x from cache epoch %d data %d %d %d %d\n", 
-          llc_msg_p->m_LineAddress, llc_msg_p->m_Epoch, data[3], data[2], data[1], data[0]);
+        DPRINTF(Frame, "Recv remote store %#x num words %d data %d %d %d %d\n", 
+          llc_msg_p->m_LineAddress, llc_msg_p->m_Len, data[3], data[2], data[1], data[0]);
         
         assert(getScratchpadIdFromAddr(pkt_p->getAddr()) == m_version);
       
@@ -571,7 +571,7 @@ Scratchpad::wakeup()
             wordAddr, llc_msg_p->m_LineAddress, llc_msg_p->m_BlkIdx);
         }
         m_pending_pkt_map[llc_msg_p->m_SeqNum]->setData(
-          wordAddr, data_p, pending_mem_pkt_p->getWordSize());
+          wordAddr, data_p, pending_mem_pkt_p->getWordSize()*llc_msg_p->m_Len);
 
 
       } else if (llc_msg_p->m_Type == LLCResponseType_ACK) {

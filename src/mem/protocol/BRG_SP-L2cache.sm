@@ -666,6 +666,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
         out_msg.BlkIdx      := blkIdx;
+        out_msg.Len         := 1;
       }
     }
   }
@@ -681,6 +682,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := in_msg.SeqNum;
         out_msg.BlkIdx      := blkIdx;
+        out_msg.Len         := 1;
       }
     }
   }
@@ -750,7 +752,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         // this is gem5 only meta-data, in reality would just send the single
         // word, so no need to pick out the element from the whole block
         out_msg.BlkIdx      := wordOffset;
-        out_msg.Epoch       := getNumWordsInResp(in_msg.RespCnt, in_msg.PrefetchConfig); // temp encode resp size
+        out_msg.Len         := getNumWordsInResp(in_msg.RespCnt, in_msg.PrefetchConfig); // temp encode resp size
       }
     }
   }
@@ -795,7 +797,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
         out_msg.BlkIdx      := wordOffset;
-        out_msg.Epoch       := getNumWordsInResp(tbe.RespCnt, tbe.PrefetchConfig);
+        out_msg.Len         := getNumWordsInResp(tbe.RespCnt, tbe.PrefetchConfig);
       }
     }
   }
@@ -990,6 +992,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       out_msg.MessageSize := MessageSizeType:SingleWordData;
       out_msg.SeqNum := tbe.SeqNum;
       out_msg.BlkIdx := blkIdx;
+      out_msg.Len    := 1;
     }
   }
 

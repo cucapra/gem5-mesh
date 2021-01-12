@@ -139,7 +139,7 @@ structure(LLCResponseMsg, desc = "...", interface = "Message") {
   bool            SC_Success,   desc = "Is SC successful?";
   int             SeqNum,       desc = "";
   int             BlkIdx,       desc = "We functionally send a whole data blk, but really only send a word";
-  int             Epoch,        desc = "The Epoch of the sending core or maybe a diff, TODO?";
+  int             Len,          desc = "The number of words sent";
 
   bool functionalRead(Packet* pkt) {
     return testAndRead(LineAddress, DataBlk, pkt);
