@@ -359,14 +359,15 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return intToAddress(spadIdx);
   }
 
-  int getNumWordsInResp(int respCnt, int config) {
+  int getNumWordsInResp(int respCnt, int config, bool isCpuSide) {
     if (isVerticalLoad(config)) {
+      int remCnt := respCnt - getPortVecCnt(isCpuSide);
       // do min of respCnt and netWidth
-      if (respCnt > netWidth) {
+      if (remCnt > netWidth) {
         return netWidth;
       }
       else {
-        return respCnt;
+        return remCnt;
       }
     }
     else {
@@ -381,12 +382,12 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   bool isLastLoadOfVec(int count, int config, bool isCpuSide) {
     int vecCnt := getPortVecCnt(isCpuSide);
-    int nextVecCnt := vecCnt + getNumWordsInResp(count, config);
+    int nextVecCnt := vecCnt + getNumWordsInResp(count, config, isCpuSide);
     return (nextVecCnt == count);
   }
 
   void increaseVecCount(int respCnt, int config, bool isCpuSide) {
-    int vecCnt := getPortVecCnt(isCpuSide) + getNumWordsInResp(respCnt, config);
+    int vecCnt := getPortVecCnt(isCpuSide) + getNumWordsInResp(respCnt, config, isCpuSide);
     setPortVecCnt(vecCnt, isCpuSide);
     DPRINTF(Frame, "increase vec cnt to %d\n", getPortVecCnt(isCpuSide));
   }
@@ -401,8 +402,8 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return count > 1;
   }
 
-  bool requiresMultipleResps(int count, int config) {
-    return getNumWordsInResp(count, config) < count;
+  bool requiresMultipleResps(int count, int config, bool isCpuSide) {
+    return getNumWordsInResp(count, config, isCpuSide) < count;
   }
 
   bool isVecActive(bool isCpuSide) {
@@ -514,7 +515,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
                 }
                 
                 if (canIssueVecLoad(true)) {
-                  if (!isVector(in_msg.RespCnt) || !requiresMultipleResps(in_msg.RespCnt, in_msg.PrefetchConfig)) {
+                  if (!isVector(in_msg.RespCnt) || !requiresMultipleResps(in_msg.RespCnt, in_msg.PrefetchConfig, true)) {
                     trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
                   }
                   else if (isFirstLoadOfVec(true)) {
@@ -586,7 +587,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
               DPRINTF(Frame, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", 
                   canIssueVecLoad(false), getState(tbe, cache_entry, in_msg.addr), 
                   tbe.WordAddress, in_msg.addr, getPortVecCnt(false), tbe.RespCnt);
-              if (!isVector(tbe.RespCnt) || !requiresMultipleResps(tbe.RespCnt, tbe.PrefetchConfig)) {
+              if (!isVector(tbe.RespCnt) || !requiresMultipleResps(tbe.RespCnt, tbe.PrefetchConfig, false)) {
                 trigger(Event:SP_Mem_Data, in_msg.addr, cache_entry, tbe);
               }
               else if (isFirstLoadOfVec(false)) {
@@ -756,7 +757,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         // this is gem5 only meta-data, in reality would just send the single
         // word, so no need to pick out the element from the whole block
         out_msg.BlkIdx      := wordOffset;
-        out_msg.Len         := getNumWordsInResp(in_msg.RespCnt, in_msg.PrefetchConfig); // temp encode resp size
+        out_msg.Len         := getNumWordsInResp(in_msg.RespCnt, in_msg.PrefetchConfig, true); // temp encode resp size
       }
     }
   }
@@ -801,7 +802,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
         out_msg.BlkIdx      := wordOffset;
-        out_msg.Len         := getNumWordsInResp(tbe.RespCnt, tbe.PrefetchConfig);
+        out_msg.Len         := getNumWordsInResp(tbe.RespCnt, tbe.PrefetchConfig, false);
       }
     }
   }
