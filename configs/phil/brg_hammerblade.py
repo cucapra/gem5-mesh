@@ -356,6 +356,9 @@ parser.add_option("--stream-width", type = "int", default = 8)
 parser.add_option("--vector", action="store_true", default=False,
   help="Use vector stage in pipe")
 
+parser.add_option("--net-width", default=1,
+  help="How many words wide the network is")
+
 (options, args) = parser.parse_args()
 
 # set large mem-size needed for larger problem sizes
@@ -558,6 +561,7 @@ for i in xrange(n_l2s):
                                 meshDimY = n_cols,
                                 ruby_system = system.ruby
                                 ,
+                                netWidth = options.net_width,
                                 cache_resp_latency = 1,
                                 to_memory_controller_latency = 1,
                                 mem_to_cpu_latency = 1 # TODO this needs to be the same as cache_resp_latency b/c same ordered queue?

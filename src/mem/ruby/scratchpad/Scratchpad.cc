@@ -556,7 +556,7 @@ Scratchpad::wakeup()
                       makeLineAddress(pending_mem_pkt_p->getAddr()));
       }
 
-      m_pending_pkt_map[llc_msg_p->m_SeqNum]->recvMemResp();
+      m_pending_pkt_map[llc_msg_p->m_SeqNum]->recvMemResp(llc_msg_p->m_Len);
 
       if (llc_msg_p->m_Type == LLCResponseType_DATA || 
             llc_msg_p->m_Type == LLCResponseType_REDATA) {
@@ -567,8 +567,9 @@ Scratchpad::wakeup()
         Addr wordAddr = decodeRespAddr(pending_mem_pkt_p, llc_msg_p);
         // pending_mem_pkt_p->setData(data_p);
         if (pending_mem_pkt_p->isVector()) {
-          DPRINTF(RiscvVector, "load resp %#x(%#x), offset %d\n", 
-            wordAddr, llc_msg_p->m_LineAddress, llc_msg_p->m_BlkIdx);
+          DPRINTF(RiscvVector, "load resp %#x(%#x), offset %d len %d\n", 
+            wordAddr, llc_msg_p->m_LineAddress, llc_msg_p->m_BlkIdx,
+            llc_msg_p->m_Len);
         }
         m_pending_pkt_map[llc_msg_p->m_SeqNum]->setData(
           wordAddr, data_p, pending_mem_pkt_p->getWordSize()*llc_msg_p->m_Len);

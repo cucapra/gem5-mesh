@@ -401,6 +401,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return count > 1;
   }
 
+  bool requiresMultipleResps(int count, int config) {
+    return getNumWordsInResp(count, config) < count;
+  }
+
   bool isVecActive(bool isCpuSide) {
     return getPortVecCnt(isCpuSide) > 0;
   }
@@ -510,7 +514,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
                 }
                 
                 if (canIssueVecLoad(true)) {
-                  if (!isVector(in_msg.RespCnt)) {
+                  if (!isVector(in_msg.RespCnt) || !requiresMultipleResps(in_msg.RespCnt, in_msg.PrefetchConfig)) {
                     trigger(Event:SPLOAD, LineAddress, cache_entry, tbe);
                   }
                   else if (isFirstLoadOfVec(true)) {
@@ -582,7 +586,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
               DPRINTF(Frame, "req %d %d addr %#x line %#x curCnt %d to cnt %d\n", 
                   canIssueVecLoad(false), getState(tbe, cache_entry, in_msg.addr), 
                   tbe.WordAddress, in_msg.addr, getPortVecCnt(false), tbe.RespCnt);
-              if (!isVector(tbe.RespCnt)) {
+              if (!isVector(tbe.RespCnt) || !requiresMultipleResps(tbe.RespCnt, tbe.PrefetchConfig)) {
                 trigger(Event:SP_Mem_Data, in_msg.addr, cache_entry, tbe);
               }
               else if (isFirstLoadOfVec(false)) {
@@ -895,6 +899,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       out_msg.Destination.add(tbe.Requestor);
       out_msg.MessageSize := MessageSizeType:Response_Control;
       out_msg.SeqNum      := tbe.SeqNum;
+      out_msg.Len         := 1;
     }
   }
 
@@ -929,6 +934,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       out_msg.SC_Success  := false;
       out_msg.MessageSize := MessageSizeType:Response_Control;
       out_msg.SeqNum      := tbe.SeqNum;
+      out_msg.Len         := 1;
     }
   }
 
@@ -952,6 +958,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
           out_msg.MessageSize := MessageSizeType:Response_Control;
           out_msg.SeqNum      := in_msg.SeqNum;
           out_msg.BlkIdx      := blkIdx;
+          out_msg.Len         := 1;
         }
 
         // set MRU
@@ -968,6 +975,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
           out_msg.MessageSize := MessageSizeType:Response_Control;
           out_msg.SeqNum      := in_msg.SeqNum;
           out_msg.BlkIdx      := blkIdx;
+          out_msg.Len         := 1;
         }
       }
     }
@@ -1140,13 +1148,11 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
   
   transition(IV, SP_Mem_Data, V) {
-    //pam_prefetchAckMiss; // TODO overhaul this one to remove
     wdc_writeDataToCache;
     smu_setMRU;
     rsm_remoteStoreFromMem;
-    // rvm_resetVectorFromMem;
     dtb_deallocateTBE;
-    pms_profileMissAccess;
+    // pms_profileMissAccess; // I think this double counts
     pmq_popMemResponseQueue;
     wua_wakeupAllDependents;
   }

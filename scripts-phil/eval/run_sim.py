@@ -26,9 +26,9 @@ parser.add_argument('--num-cpus', default=64, help='Number of cpus to use in sim
 args = parser.parse_args()
 
 # create a template for the gem5 command line
-gem5_cmd = lambda program, options, result, cpus, vec: \
-  '{} --remote-gdb-port=0 -d {}/{} {} --cmd={} --options=\"{}\" --num-cpus={} {}'.format(
-      args.build, args.results, result, args.config, program, options, str(cpus), '--vector' if vec else '')
+gem5_cmd = lambda program, options, result, cpus, vec, hw_opts: \
+  '{} --remote-gdb-port=0 -d {}/{} {} {} --cmd={} --options=\"{}\" --num-cpus={} {}'.format(
+      args.build, args.results, result, args.config, hw_opts, program, options, str(cpus), '--vector' if vec else '')
   
 # compile command that chooses whether to use scratchpad optimizations
 # how many cores/sps are present, and whether to use vector mode
@@ -49,7 +49,7 @@ def compile_prog(numCpus, prog_key, vec_config):
   # result = subprocess.check_output(cmplCmd, shell=True)
   # print(result)
 
-def run_prog(numCpus, prog_key, argv, vec_config):
+def run_prog(numCpus, prog_key, argv, vec_config, hw_opts):
   program = sim_list.programs[prog_key]
 
   # check if the success flag was asserted using regex checking on the gem5 output
@@ -62,11 +62,12 @@ def run_prog(numCpus, prog_key, argv, vec_config):
   
   # serialize arguments
   extra_info = sim_list.strings_to_metadata(vec_config)
+  hw_info = sim_list.strings_to_metadata(hw_opts)
   serialArgs = program['serialize'].format(*argv)
-  resultsAnno = '-' + extra_info + serialArgs
+  resultsAnno = '-' + extra_info + serialArgs + hw_info
   resultsDir = program['name'] + resultsAnno
   progName = os.path.join(os.path.dirname(program['path']),sim_list.get_binary_name(prog_key, vec_config))
-  cmd = gem5_cmd(progName, optionsStr, resultsDir, numCpus, True)
+  cmd = gem5_cmd(progName, optionsStr, resultsDir, numCpus, True, hw_opts)
   print(cmd)
   try:
     result = subprocess.check_output(cmd, shell=True, stderr=subprocess.STDOUT)
@@ -89,13 +90,13 @@ def run_prog(numCpus, prog_key, argv, vec_config):
 # run all configuration for a single benchmark
 # this must be done serially due to recompiling benchmark
 # (but can parallize across benchmarks)
-def run_config(vec_config, num_cpus, prog_key, argv):
+def run_config(vec_config, num_cpus, prog_key, argv, hw_opts):
   all_pass = True
 
-  ret = run_prog(num_cpus, prog_key, argv, vec_config)
+  ret = run_prog(num_cpus, prog_key, argv, vec_config, hw_opts)
   if (not ret):
     print('-------------------------------------------------------------')
-    print('{} failed w/ config {}'.format(prog_key, vec_config))
+    print('{} failed w/ config {} hw {}'.format(prog_key, vec_config, hw_opts))
     print('-------------------------------------------------------------')
     all_pass = False
 
@@ -115,17 +116,22 @@ for k,v in sim_list.sim_configs.items():
   # prog_def  = sim_list.programs[prog_name] # TODO can't pass dicts?
   argv      = sim_config['argv']
   vec_configs = sim_config['vec']
+  if ('hw_opts' in sim_config):
+    hw_opts = sim_config['hw_opts']
+  else:
+    hw_opts = ['']
   for vec_config in vec_configs:
 
     # compile serially so can launch job with overwritting binary
     compile_prog(num_cpus, prog_key, vec_config)
 
-    # the new file will have the same name as the old file, but also specify the new dir
-    proc = pool.apply_async(run_config, args=(vec_config, num_cpus, prog_key, argv, ))
-    jobs.append(proc)
+    for hw_opt in hw_opts:
+      # the new file will have the same name as the old file, but also specify the new dir
+      proc = pool.apply_async(run_config, args=(vec_config, num_cpus, prog_key, argv, hw_opt, ))
+      jobs.append(proc)
 
-    # sleep for some time to give time for gem5 to load the binary
-    # time.sleep(11)
+      # sleep for some time to give time for gem5 to load the binary
+      # time.sleep(11)
     
 
 # Wait for jobs to complete before exiting

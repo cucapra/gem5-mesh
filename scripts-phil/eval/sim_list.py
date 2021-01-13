@@ -8,6 +8,13 @@ ALL_NEIL_CONFIGS = [ 'NO_VEC', 'PACKED_SIMD', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_V
 INIT0_CONFIGS = [ [ 'VEC_4_SIMD', 'INIT_FRAMES=0' ] ]
 INIT0_NEIL_CONFIGS = [ [ 'VEC_LEN=4', 'INIT_FRAMES=0' ] ]
 
+TEST_1_12_CONFIGS = ['PACKED_SIMD', 'VEC_16_SIMD']
+TEST_1_12_CONFIGS_NEIL = ['PACKED_SIMD', 'VEC_LEN=16']
+HW_OPTS = ['--net-width=1', '--net-width=2', '--net-width=4', '--net-width=16']
+ALL_CONFIGS = TEST_1_12_CONFIGS
+ALL_NEIL_CONFIGS = TEST_1_12_CONFIGS_NEIL
+INIT0_CONFIGS = []
+INIT0_NEIL_CONFIGS = []
 
 # choose which programs to run via script and with what configs
 sim_configs = {
@@ -25,65 +32,81 @@ sim_configs = {
   # Benchmarks
 
   'bicg'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['2048']
+    'vec'  : TEST_1_12_CONFIGS,
+    'argv' : ['2048'],
+    'hw_opts' : HW_OPTS
   },
   'gram'   : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['320']
+    'argv' : ['320'],
+    'hw_opts' : HW_OPTS
   },
   'syrk'   : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256']
+    'argv' : ['256'],
+    'hw_opts' : HW_OPTS
   },
   'syr2k'  : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256']
+    'argv' : ['256'],
+    'hw_opts' : HW_OPTS
   },
   'covar'   : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['512']
+    'argv' : ['512'],
+    'hw_opts' : HW_OPTS
   },
   'conv2d' : {
-    'vec'  : [ 'NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], ['VEC_4_SIMD_VERTICAL', 'INIT_FRAMES=0' ] ],
-    'argv' : ['2048']
+    # 'vec'  : [ 'NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], ['VEC_4_SIMD_VERTICAL', 'INIT_FRAMES=0' ] ],
+    'vec'  : ['PACKED_SIMD', 'VEC_4_SIMD_VERTICAL'],
+    'argv' : ['2048'],
+    'hw_opts' : HW_OPTS
   },
   'conv3d' : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256']
+    'argv' : ['256'],
+    'hw_opts' : HW_OPTS
   },
   'fdtd' : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['512', '30']
+    'argv' : ['512', '30'],
+    'hw_opts' : HW_OPTS
   },
 
   'atax'   : {
     'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['2048'] # ['128']
+    'argv' : ['2048'], # ['128']
+    'hw_opts' : HW_OPTS
   },
   'mvt'    : {
     'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['4096'] # ['128']
+    'argv' : ['4096'], # ['128']
+    'hw_opts' : HW_OPTS
   },
   'gemm'   : {
     'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['256'] #['64']
+    'argv' : ['256'], #['64']
+    'hw_opts' : HW_OPTS
   },
   'gesummv'   : {
     'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['4096'] #['128'] 
+    'argv' : ['4096'], #['128']
+    'hw_opts' : HW_OPTS 
   },
   'corr'   : {
     'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['512'] #['64']
+    'argv' : ['512'], #['64']
+    'hw_opts' : HW_OPTS
   },
   '2mm' : {
     'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['256'] #['64']
+    'argv' : ['256'], #['64']
+    'hw_opts' : HW_OPTS
   },
   '3mm' : {
     'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['256'] #['32']
+    'argv' : ['256'], #['32']
+    'hw_opts' : HW_OPTS
   },
 
 }

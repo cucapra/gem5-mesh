@@ -376,8 +376,8 @@ class Scratchpad : public AbstractController
         recvResps = 0;
       }
 
-      void recvMemResp() {
-        recvResps++;
+      void recvMemResp(int numResp) {
+        recvResps+=numResp;
       }
 
       bool allRespRecv() {
