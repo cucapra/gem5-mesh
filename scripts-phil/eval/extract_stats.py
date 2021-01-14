@@ -39,7 +39,7 @@ metaRegex = re.compile(metaConv)
 
 # try to parse as prog-vec-othermeta
 mc = '[a-zA-Z0-9_]+'
-mcdash = '[a-zA-Z0-9_-]+'
+mcdash = '[a-zA-Z0-9=_-]+'
 dirConv = '({})-({})-({})'.format(mc, mc, mcdash)
 dirRegex = re.compile(dirConv)
 

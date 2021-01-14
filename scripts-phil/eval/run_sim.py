@@ -62,9 +62,9 @@ def run_prog(numCpus, prog_key, argv, vec_config, hw_opts):
   
   # serialize arguments
   extra_info = sim_list.strings_to_metadata(vec_config)
-  hw_info = sim_list.strings_to_metadata(hw_opts)
+  hw_info = sim_list.hw_opts_to_metadata(hw_opts)
   serialArgs = program['serialize'].format(*argv)
-  resultsAnno = '-' + extra_info + serialArgs + hw_info
+  resultsAnno = '-' + extra_info + hw_info + serialArgs
   resultsDir = program['name'] + resultsAnno
   progName = os.path.join(os.path.dirname(program['path']),sim_list.get_binary_name(prog_key, vec_config))
   cmd = gem5_cmd(progName, optionsStr, resultsDir, numCpus, True, hw_opts)

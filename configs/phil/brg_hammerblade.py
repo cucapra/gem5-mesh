@@ -615,17 +615,16 @@ system.mem_ranges = [ AddrRange(options.mem_size) ]
 
 # so HammerBlade uses 1 channels per 16 caches (which is 16GB/s total)
 
-
-system.mem_ctrl = SimpleMemory()
-system.mem_ctrl.latency = '60ns' 
-system.mem_ctrl.bandwidth = '32GB/s' # HBM is 128GB/s HBM2 is 256GB/s (1024bit bus...high overhead to route, slower clock than ddr but comparable?)
-system.mem_ctrl.range = system.mem_ranges[0]
-
 # HBM_1000_4H_1x128 * 8  (HBMv1)
 # eac is 16GB/s so -> 8B/c (@1GHZ). so 16*num_channel = 128B/c
 # HBM_1000_4H_1x64  * 16 (HBMv2)
 # each is 8GB/s, -> 8B/c (@1GHZ). so 8*num_channel B/c
 bytes_per_cycle = 32
+
+system.mem_ctrl = SimpleMemory()
+system.mem_ctrl.latency = '60ns' 
+system.mem_ctrl.bandwidth = str(bytes_per_cycle) + 'GB/s' # HBM is 128GB/s HBM2 is 256GB/s (1024bit bus...high overhead to route, slower clock than ddr but comparable?)
+system.mem_ctrl.range = system.mem_ranges[0]
 
 # num_channels = 2
 # nbr_mem_ctrls = num_channels

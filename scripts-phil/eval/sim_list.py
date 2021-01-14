@@ -8,9 +8,9 @@ ALL_NEIL_CONFIGS = [ 'NO_VEC', 'PACKED_SIMD', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_V
 INIT0_CONFIGS = [ [ 'VEC_4_SIMD', 'INIT_FRAMES=0' ] ]
 INIT0_NEIL_CONFIGS = [ [ 'VEC_LEN=4', 'INIT_FRAMES=0' ] ]
 
-TEST_1_12_CONFIGS = ['PACKED_SIMD', 'VEC_16_SIMD']
-TEST_1_12_CONFIGS_NEIL = ['PACKED_SIMD', 'VEC_LEN=16']
-HW_OPTS = ['--net-width=1', '--net-width=2', '--net-width=4', '--net-width=16']
+TEST_1_12_CONFIGS = ['PACKED_SIMD', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
+TEST_1_12_CONFIGS_NEIL = ['PACKED_SIMD', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
+HW_OPTS = ['--net-width=1', '--net-width=2', '--net-width=16']
 ALL_CONFIGS = TEST_1_12_CONFIGS
 ALL_NEIL_CONFIGS = TEST_1_12_CONFIGS_NEIL
 INIT0_CONFIGS = []
@@ -31,11 +31,11 @@ sim_configs = {
 
   # Benchmarks
 
-  'bicg'   : {
-    'vec'  : TEST_1_12_CONFIGS,
-    'argv' : ['2048'],
-    'hw_opts' : HW_OPTS
-  },
+  # 'bicg'   : {
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+  #   'argv' : ['2048'],
+  #   'hw_opts' : HW_OPTS
+  # },
   'gram'   : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['320'],
@@ -58,7 +58,7 @@ sim_configs = {
   },
   'conv2d' : {
     # 'vec'  : [ 'NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], ['VEC_4_SIMD_VERTICAL', 'INIT_FRAMES=0' ] ],
-    'vec'  : ['PACKED_SIMD', 'VEC_4_SIMD_VERTICAL'],
+    'vec'  : [ 'PACKED_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
     'argv' : ['2048'],
     'hw_opts' : HW_OPTS
   },
@@ -73,16 +73,16 @@ sim_configs = {
     'hw_opts' : HW_OPTS
   },
 
-  'atax'   : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['2048'], # ['128']
-    'hw_opts' : HW_OPTS
-  },
-  'mvt'    : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['4096'], # ['128']
-    'hw_opts' : HW_OPTS
-  },
+  # 'atax'   : {
+  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'argv' : ['2048'], # ['128']
+  #   'hw_opts' : HW_OPTS
+  # },
+  # 'mvt'    : {
+  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'argv' : ['4096'], # ['128']
+  #   'hw_opts' : HW_OPTS
+  # },
   'gemm'   : {
     'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
     'argv' : ['256'], #['64']
@@ -98,16 +98,16 @@ sim_configs = {
     'argv' : ['512'], #['64']
     'hw_opts' : HW_OPTS
   },
-  '2mm' : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['256'], #['64']
-    'hw_opts' : HW_OPTS
-  },
-  '3mm' : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['256'], #['32']
-    'hw_opts' : HW_OPTS
-  },
+  # '2mm' : {
+  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'argv' : ['256'], #['64']
+  #   'hw_opts' : HW_OPTS
+  # },
+  # '3mm' : {
+  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'argv' : ['256'], #['32']
+  #   'hw_opts' : HW_OPTS
+  # },
 
 }
 
@@ -170,6 +170,30 @@ def strings_to_make_args(args):
   #   cmd_line += ' ENV_GCC_VER=10'
 
   return cmd_line
+
+# remove dashes from hardware args so annoation is nicer to read and parse
+# then call strings_to_metadata after transformation
+def hw_opt_to_metadata(arg):
+  out_str = ''
+  for l in arg:
+    # swap - and = with _
+    if (l == '-' or l == '='):
+      next_char = '_'
+    else:
+      next_char = l
+    out_str += next_char
+  return out_str
+
+# turn hardware config command line into part of run annoation
+# similar to strings_to_metadata() but first does some processing on format
+def hw_opts_to_metadata(args):
+  if (isinstance(args, list)):
+    for i in range(0, len(args)):
+      args[i] = hw_opt_to_metadata(args[i])
+  else:
+    args = hw_opt_to_metadata(args)
+
+  return strings_to_metadata(args)
 
 # turn config into metadata to make which run was used
 def strings_to_metadata(args):
