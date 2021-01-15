@@ -37,6 +37,10 @@ cpu_stats = OrderedDict([
     'regex' : re.compile('system.mem_ctrl.num_writes::total\s*' + intRegexStr),
     'ignore-zero' : False,
   }),
+  ('dram_bw_used' , { 
+    'regex' : re.compile('system.mem_ctrl.bw_total::total\s*' + intRegexStr),
+    'ignore-zero' : False,
+  }),
 #   ('inMesh' , { 
 #     'name' : 'mesh_stall', 
 #     'regex' : re.compile('system.cpu[0-9]+.vector.mesh_input_stalls\s*' + intRegexStr), 
