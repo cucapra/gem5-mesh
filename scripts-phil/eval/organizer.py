@@ -32,7 +32,12 @@ def sort_by_sub_label(cur_order, values, desired_order):
 def format_bar_series(labels, sub_labels, values, desired_order):
   labels = deepcopy(labels)
   sub_labels = deepcopy(sub_labels)
-  desired_order = deepcopy(desired_order)
+
+  # if no desired order just show everything
+  if len(desired_order) == 0:
+    desired_order = deepcopy(sub_labels)
+  else:
+    desired_order = deepcopy(desired_order)
 
   # remove any labels that have no fields
   j = 0
@@ -341,7 +346,7 @@ def add_geo_mean(labels, values):
 # plot speedup
 # group together same benchmark (if metadata the same)
 def plot_speedup(data):
-  (labels, sub_labels, values) = group_bar_data(data, 'cycles')
+  (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=[])
 
   # flip from cycles to speedup normalized to NV
   normalize(sub_labels, values)
