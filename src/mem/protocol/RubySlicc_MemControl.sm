@@ -117,7 +117,9 @@ structure(LLCRequestMsg, desc = "...", interface = "Message") {
   Addr            PrefetchAddress, desc = "helper to get address from datablk, not actually needed in hardware";
   // int             Epoch,        desc = "The Epoch of the sending core or maybe a diff, TODO?";
   int             CoreOffset,   desc = "offset from origin to issue req from";
-  int             RespCnt,      desc = "number of resps for this vector req";
+  int             SubCoreOffset,   desc = "offset within the current count per core";
+  int             CountPerCore,      desc = "number of resps for this vector req";
+  int             RespCnt,        desc = "total number of resps to be generated to all cores";
   int             PrefetchConfig, desc = "config of the prefetch i.e. vertical or horizontal load";
   int             InstSeqNum, desc = "corresponding seq num of instruction spawning the request";
 

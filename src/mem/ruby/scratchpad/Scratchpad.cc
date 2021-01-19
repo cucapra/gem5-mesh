@@ -673,6 +673,12 @@ Scratchpad::createLLCReqPacket(Packet* pkt_p, Addr addr, int respCnt) {
   // pre-interpret it here, but not actually an additional field
   msg_p->m_PrefetchAddress = pkt_p->getPrefetchAddr();
   msg_p->m_CoreOffset = pkt_p->getCoreOffset();
+  msg_p->m_SubCoreOffset = pkt_p->req->subCoreOffset; // TODO if split need to update??
+  // possible if split requests here (rvv, might not have correct count per core)
+  if (pkt_p->req->countPerCore > respCnt)
+    msg_p->m_CountPerCore = respCnt;
+  else
+    msg_p->m_CountPerCore = pkt_p->req->countPerCore;
   msg_p->m_RespCnt = respCnt;
   msg_p->m_PrefetchConfig = pkt_p->getPrefetchConfig();
   // msg_p->m_InstSeqNum = pkt_p->getCoreOffset(); // temp for debug
@@ -907,11 +913,12 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
         schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
 
 
+      // TODO need to update this for new system
       // log that we sent
-      m_cpu_p->getSystemPtr()->initPrefetch(pkt_p->getPrefetchAddr(),
-        pkt_p->getXOrigin(), pkt_p->getYOrigin(),
-        pkt_p->getXDim(), pkt_p->getYDim(), m_grid_dim_x,
-        pkt_p->getCoreOffset(), pkt_p->getRespCnt(), (bool)pkt_p->getPrefetchConfig());
+      // m_cpu_p->getSystemPtr()->initPrefetch(pkt_p->getPrefetchAddr(),
+      //   pkt_p->getXOrigin(), pkt_p->getYOrigin(),
+      //   pkt_p->getXDim(), pkt_p->getYDim(), m_grid_dim_x,
+      //   pkt_p->getCoreOffset(), pkt_p->getRespCnt(), (bool)pkt_p->getPrefetchConfig());
 
     }
     // // immedietly send an ACK back for a write if no syncronization is needed
@@ -1371,7 +1378,8 @@ Scratchpad::setWordRdy(Addr addr) {
 
   // tag = 1;
 
-  m_cpu_p->getSystemPtr()->cmplPrefetch(addr);
+  // TODO need to update
+  // m_cpu_p->getSystemPtr()->cmplPrefetch(addr);
 
 
   // increment the counter for number of expected loads

@@ -716,21 +716,25 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       // right : offset = coreOffset + leftCount   rightCount = count - leftCount 
       bool prefetchLeft = m_s1_inst->static_inst_p->isLeftSide();
       size_t lineSize = m_cpu_p->getCacheLineSize();
-      size_t count = bits(imm, 11, 2);
+      size_t countPerCore = bits(imm, 11, 2);
+      int vecDimX = m_cpu_p->getEarlyVector()->getXLen();
+      int vecDimY = m_cpu_p->getEarlyVector()->getYLen();
+      size_t totalResp = countPerCore * vecDimX * vecDimY;
       int config = bits(imm, 1, 0);
       size_t wordOffset = addr & (lineSize - 1);
       size_t wordsRemInLine = (lineSize - wordOffset) / size;
-      size_t leftCount = std::min(wordsRemInLine, count);
+      size_t leftCount = std::min(wordsRemInLine, totalResp);
       m_s1_inst->mem_req_p->prefetchConfig = config;
       if (prefetchLeft) {
         m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
+        m_s1_inst->mem_req_p->subCoreOffset = 0;
         m_s1_inst->mem_req_p->respCnt = leftCount;
         DPRINTF(Mesh, "send vec load left global %#x spad %#x core offset %d cnt %d\n", 
           m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
           m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
       }
       else {
-        int rightCount = count - wordsRemInLine;
+        int rightCount = totalResp - wordsRemInLine;
         // don't execute this the right prefetch because no overshoot
         if (rightCount <= 0) {
           m_s1_inst->setExecuted();
@@ -739,12 +743,15 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
             rightCount);
         }
         else {
-          bool isVerticalLoad = (config == 1);
-          if (isVerticalLoad) {
-            m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
-            m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + leftCount * sizeof(uint32_t);
-          }
-          else m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount;
+          // bool isVerticalLoad = (config == 1);
+          // if (isVerticalLoad) {
+          //   m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
+          //   m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + leftCount * sizeof(uint32_t);
+          // }
+          // else m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount;
+          m_s1_inst->mem_req_p->coreOffset = leftCount / countPerCore;
+          m_s1_inst->mem_req_p->subCoreOffset = leftCount % countPerCore;
+          // m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + (leftCount ) * sizeof(uint32_t);
           m_s1_inst->mem_req_p->respCnt = rightCount;
           // change vaddr to reflect new baseOffset
           Addr rightVirtAddr = addr + (leftCount * size);
@@ -759,6 +766,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
 
       assert (m_cpu_p->getEarlyVector());
 
+      m_s1_inst->mem_req_p->countPerCore = countPerCore;
       m_s1_inst->mem_req_p->xDim = m_cpu_p->getEarlyVector()->getXLen();
       m_s1_inst->mem_req_p->yDim = m_cpu_p->getEarlyVector()->getYLen();
       m_s1_inst->mem_req_p->xOrigin = m_cpu_p->getEarlyVector()->getXOrigin();
@@ -767,6 +775,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
 
     }
     else {
+      m_s1_inst->mem_req_p->countPerCore = 1;
       m_s1_inst->mem_req_p->xDim = 1;
       m_s1_inst->mem_req_p->yDim = 1;
       m_s1_inst->mem_req_p->xOrigin = 0;
@@ -792,6 +801,8 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->xOrigin = m_cpu_p->cpuId(); // flattened so just set as full idx
       m_s1_inst->mem_req_p->yOrigin = 0; // flattened so just set to 0
       m_s1_inst->mem_req_p->coreOffset = 0;
+      m_s1_inst->mem_req_p->subCoreOffset = 0;
+      m_s1_inst->mem_req_p->countPerCore = m_s1_inst->mem_req_p->respCnt; // only fetches for one core
       m_s1_inst->mem_req_p->xDim = 1;
       m_s1_inst->mem_req_p->yDim = 1;
       m_s1_inst->mem_req_p->isNormVector = true;

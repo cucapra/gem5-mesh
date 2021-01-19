@@ -109,8 +109,11 @@
   else
 
 // config defs for prefetch. horizontal or vertical prefetching
-#define HORIZONTAL 0
-#define VERTICAL   1
+// #define HORIZONTAL 0
+// #define VERTICAL   1
+
+#define TO_ONE_CORE 0
+#define TO_ALL_CORES 1
 
 // set mask and do barrier because need to wait for all cores to be on same page about frame size
 // CSR writes in gem5 require the data to have changed for some reason, so need to switch to 0 before updating

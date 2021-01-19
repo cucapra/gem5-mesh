@@ -13,8 +13,8 @@ inline void prefetch_frame(DTYPE *a, DTYPE *b, int i, int *sp, int dim, int star
   #ifdef VERTICAL_LOADS
   for (int core = 0; core < dim; core++) {
     int memIdx = start + i * dim + LOAD_LEN * core;
-    VPREFETCH_L(*sp + 0       , a + memIdx, core, LOAD_LEN, 1);
-    VPREFETCH_L(*sp + LOAD_LEN, b + memIdx, core, LOAD_LEN, 1);
+    VPREFETCH_L(*sp + 0       , a + memIdx, core, LOAD_LEN, TO_ONE_CORE);
+    VPREFETCH_L(*sp + LOAD_LEN, b + memIdx, core, LOAD_LEN, TO_ONE_CORE);
   }
   #elif defined(SPATIAL_UNROLL)
   for (int j = 0; j < LOAD_LEN; j++) {

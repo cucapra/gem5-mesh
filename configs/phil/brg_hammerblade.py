@@ -418,7 +418,7 @@ CPUClass = IOCPU (
 system = System(cpu = [ CPUClass(cpu_id = i) for i in xrange(n_cpus) ],
                         mem_mode = CPUClass.memory_mode(),
                         mem_ranges = [ AddrRange(options.mem_size) ],
-                        cache_line_size = 64) #options.cacheline_size)
+                        cache_line_size = options.cacheline_size)
 
 # Create a top-level voltage domain
 system.voltage_domain = VoltageDomain(voltage = options.sys_voltage)
@@ -450,7 +450,7 @@ for i in xrange(n_cpus):
 # Construct Ruby memory system
 #------------------------------------------------------------------------------
 
-system.ruby = RubySystem()
+system.ruby = RubySystem(block_size_bytes=options.cacheline_size)
 
 # Construct network
 network = NetworkClass (ruby_system = system.ruby,

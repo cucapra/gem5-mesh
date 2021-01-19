@@ -21,6 +21,11 @@
 // SPATIAL, VERTICAL, SPATIAL_UNROLL
 // PREFETCH_LEN
 
+
+#ifndef CACHE_LINE_SIZE
+#define CACHE_LINE_SIZE 64
+#endif
+
 // vvadd_execute config directives
 #if !defined(NO_VEC) && !defined(PACKED_SIMD)
 #define USE_VEC 1
@@ -45,7 +50,7 @@
 #define INIT_FRAMES 1
 #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
 // load 16 words (whole cacheline at a time)
-#define LOAD_LEN 16
+#define LOAD_LEN (CACHE_LINE_SIZE/sizeof(uint32_t))
 #define REGION_SIZE (LOAD_LEN * 2)
 #define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
 #elif defined(USE_VEC)

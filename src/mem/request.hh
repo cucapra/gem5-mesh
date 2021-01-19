@@ -403,7 +403,7 @@ class Request
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
           coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
-          isNormVector(false), wordSize(0)
+          isNormVector(false), wordSize(0), countPerCore(0), subCoreOffset(0)
     {}
 
     Request(Addr paddr, unsigned size, Flags flags, MasterID mid,
@@ -415,7 +415,7 @@ class Request
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
           coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
-          isNormVector(false), wordSize(size)
+          isNormVector(false), wordSize(size), countPerCore(0), subCoreOffset(0)
     {
         setPhys(paddr, size, flags, mid, curTick());
         setContext(cid);
@@ -435,7 +435,7 @@ class Request
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
           coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
-          isNormVector(false), wordSize(size)
+          isNormVector(false), wordSize(size), countPerCore(0), subCoreOffset(0)
     {
         setPhys(paddr, size, flags, mid, curTick());
     }
@@ -448,7 +448,7 @@ class Request
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
           coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
-          isNormVector(false), wordSize(size)
+          isNormVector(false), wordSize(size), countPerCore(0), subCoreOffset(0)
     {
         setPhys(paddr, size, flags, mid, time);
     }
@@ -462,7 +462,7 @@ class Request
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
           coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
-          isNormVector(false), wordSize(size)
+          isNormVector(false), wordSize(size), countPerCore(0), subCoreOffset(0)
     {
         setPhys(paddr, size, flags, mid, time);
         privateFlags.set(VALID_PC);
@@ -477,7 +477,7 @@ class Request
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false), 
           coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
-          isNormVector(false), wordSize(size)
+          isNormVector(false), wordSize(size), countPerCore(0), subCoreOffset(0)
     {
         setVirt(asid, vaddr, size, flags, mid, pc);
         setContext(cid);
@@ -506,7 +506,8 @@ class Request
           xOrigin(other.xOrigin), yOrigin(other.yOrigin),
           prefetchAddr(other.prefetchAddr), spadSpec(other.spadSpec), isSpadPrefetch(other.isSpadPrefetch), 
           coreOffset(other.coreOffset), respCnt(other.respCnt), prefetchConfig(other.prefetchConfig), isStoreNoAck(other.isStoreNoAck),
-          isNormVector(other.isNormVector), wordSize(other.wordSize)
+          isNormVector(other.isNormVector), wordSize(other.wordSize), countPerCore(other.countPerCore),
+          subCoreOffset(other.subCoreOffset)
     {
         if (other.atomicOpFunctor)
             atomicOpFunctor = (other.atomicOpFunctor)->clone();
@@ -708,6 +709,16 @@ class Request
      * the accesses we need to perform for a vector request
      */ 
     std::vector<Addr> vecAddrs;
+
+    /**
+     * count per core
+     */ 
+    uint8_t countPerCore;
+
+    /**
+     * offset in word
+     */ 
+    uint8_t subCoreOffset;
 
     /**
      *  Accessor for size.
