@@ -11,11 +11,17 @@ inline void prefetch_frame(DTYPE *a, DTYPE *b, int i, int *sp, int dim, int star
   int pRatio = VECTOR_LEN / PREFETCH_LEN;
   
   #ifdef VERTICAL_LOADS
+  #ifdef BIGBOI
+  int memIdx = start + i * dim;
+  VPREFETCH_L(*sp + 0            , a + memIdx, 0, LOAD_PER_CORE, TO_ALL_CORES);
+  VPREFETCH_L(*sp + LOAD_PER_CORE, b + memIdx, 0, LOAD_PER_CORE, TO_ALL_CORES);
+  #else
   for (int core = 0; core < dim; core++) {
     int memIdx = start + i * dim + LOAD_LEN * core;
     VPREFETCH_L(*sp + 0       , a + memIdx, core, LOAD_LEN, TO_ONE_CORE);
     VPREFETCH_L(*sp + LOAD_LEN, b + memIdx, core, LOAD_LEN, TO_ONE_CORE);
   }
+  #endif
   #elif defined(SPATIAL_UNROLL)
   for (int j = 0; j < LOAD_LEN; j++) {
     for (int p = 0; p < pRatio; p++) {
@@ -46,9 +52,9 @@ inline void vvadd_body(DTYPE *spadAddr, DTYPE **cPtr, int *sp, int dim) {
 
     // load values from scratchpad
     #pragma GCC unroll(16)
-    for (int i = 0; i < LOAD_LEN; i++) {
+    for (int i = 0; i < LOAD_PER_CORE; i++) {
       DTYPE a = spadAddr[*sp + i + 0];
-      DTYPE b = spadAddr[*sp + i + LOAD_LEN];
+      DTYPE b = spadAddr[*sp + i + LOAD_PER_CORE];
 
       // compute and store
       DTYPE c = a + b;
@@ -57,14 +63,14 @@ inline void vvadd_body(DTYPE *spadAddr, DTYPE **cPtr, int *sp, int dim) {
 
     REMEM(REGION_SIZE);
 
-    (*cPtr) += LOAD_LEN * dim;
+    (*cPtr) += LOAD_PER_CORE * dim;
     *sp = (*sp + REGION_SIZE) % POST_REGION_WORD;
     #elif defined(SPATIAL_UNROLL)
     FRAME_START(REGION_SIZE);
 
     // load values from scratchpad
     #pragma GCC unroll(16)
-    for (int i = 0; i < LOAD_LEN; i++) {
+    for (int i = 0; i < LOAD_PER_CORE; i++) {
       DTYPE a = spadAddr[*sp + i * 2 + 0];
       DTYPE b = spadAddr[*sp + i * 2 + 1];
 
@@ -75,7 +81,7 @@ inline void vvadd_body(DTYPE *spadAddr, DTYPE **cPtr, int *sp, int dim) {
 
     REMEM(REGION_SIZE);
 
-    (*cPtr) += LOAD_LEN * dim;
+    (*cPtr) += LOAD_PER_CORE * dim;
     *sp = (*sp + REGION_SIZE) % POST_REGION_WORD;
     #else
 

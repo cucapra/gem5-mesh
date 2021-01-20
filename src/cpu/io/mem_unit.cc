@@ -14,6 +14,7 @@
 #include "mem/ruby/scratchpad/Scratchpad.hh"
 #include "debug/Mesh.hh"
 #include "debug/RiscvVector.hh"
+#include "debug/Frame.hh"
 
 MemUnit::MemUnit(const char* _iew_name, const char* _name,
                  IOCPU* _cpu_p, IOCPUParams* params)
@@ -729,7 +730,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
         m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
         m_s1_inst->mem_req_p->subCoreOffset = 0;
         m_s1_inst->mem_req_p->respCnt = leftCount;
-        DPRINTF(Mesh, "send vec load left global %#x spad %#x core offset %d cnt %d\n", 
+        DPRINTF(Frame, "send vec load left global %#x spad %#x core offset %d cnt %d\n", 
           m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
           m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
       }
@@ -738,7 +739,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
         // don't execute this the right prefetch because no overshoot
         if (rightCount <= 0) {
           m_s1_inst->setExecuted();
-          DPRINTF(Mesh, "don't send vec load right global %#x spad %#x cnt %d\n", 
+          DPRINTF(Frame, "don't send vec load right global %#x spad %#x cnt %d\n", 
             m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
             rightCount);
         }
@@ -758,7 +759,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
           m_s1_inst->mem_req_p->setVirt(0, rightVirtAddr, size, flags, 
               m_cpu_p->dataMasterId(), m_s1_inst->pc.pc(), amo_op);
 
-          DPRINTF(Mesh, "send vec load right %#x spad %#x offset %d cnt %d\n", 
+          DPRINTF(Frame, "send vec load right %#x spad %#x offset %d cnt %d\n", 
             m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
             m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
         }
