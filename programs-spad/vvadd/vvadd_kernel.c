@@ -110,8 +110,8 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
   int prefetchFrames = INIT_FRAMES; // BE carful about prefetching, this + queue size >= num hardware frames
 
   #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
-  int numInitFetch = LOAD_LEN * prefetchFrames;
-  int step = LOAD_LEN;
+  int numInitFetch = LOAD_PER_CORE * prefetchFrames;
+  int step = LOAD_PER_CORE;
   #else
   int numInitFetch = prefetchFrames;
   int step = 1;
