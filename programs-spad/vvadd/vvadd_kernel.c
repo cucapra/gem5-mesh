@@ -136,7 +136,7 @@ void tril_vvadd(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, int 
 #elif defined VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
   #ifdef VERTICAL_LOADS
-  DTYPE *cPtr = c + start + vtid * LOAD_LEN;
+  DTYPE *cPtr = c + start + vtid * LOAD_PER_CORE;
   #else
   DTYPE *cPtr = c + start + vtid;
   #endif
