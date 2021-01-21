@@ -9,7 +9,7 @@
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
-#define VEC_4_SIMD_BIGBOI 1
+// #define VEC_4_SIMD_BIGBOI 1
 // #define PACKED_SIMD 1
 
 // in current system cacheline size is 16 so doesn't make sense to go beyond this for now
