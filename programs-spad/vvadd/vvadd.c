@@ -96,7 +96,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
   if (cinfo.used) {
-    int alignment = LOAD_LEN * VECTOR_LEN;
+    int alignment = LOAD_PER_CORE * VECTOR_LEN;
     start = roundUp((cinfo.unique_id + 0) * n / cinfo.total_groups, alignment);
     end   = roundUp((cinfo.unique_id + 1) * n / cinfo.total_groups, alignment);
   }

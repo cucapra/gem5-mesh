@@ -15,6 +15,7 @@
 // in current system cacheline size is 16 so doesn't make sense to go beyond this for now
 // #define VEC_16_SIMD 1
 // #define VEC_16_SIMD_VERTICAL 1
+// #define VEC_16_SIMD_BIGBOI 1
 // #define VEC_16_SIMD_SPATIAL_UNROLLED 1
 
 // can also input orthogonal #ifdefs
@@ -22,22 +23,17 @@
 // SPATIAL, VERTICAL, SPATIAL_UNROLL
 // PREFETCH_LEN
 
-
-#ifndef CACHE_LINE_SIZE
-#define CACHE_LINE_SIZE 64
-#endif
-
 // vvadd_execute config directives
 #if !defined(NO_VEC) && !defined(PACKED_SIMD)
 #define USE_VEC 1
 #endif
-#if defined(VEC_4_SIMD_VERTICAL) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_4_SIMD_BIGBOI)
+#if defined(VEC_4_SIMD_VERTICAL) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_4_SIMD_BIGBOI) ||  defined(VEC_16_SIMD_BIGBOI)
 #define VERTICAL_LOADS 1
 #endif
 #if defined(VEC_4_SIMD_SPATIAL_UNROLLED) || defined(VEC_16_SIMD_SPATIAL_UNROLLED)
 #define SPATIAL_UNROLL 1
 #endif
-#if defined(VEC_4_SIMD_BIGBOI)
+#if defined(VEC_4_SIMD_BIGBOI) || defined(VEC_16_SIMD_BIGBOI)
 #define BIGBOI 1
 #endif
 
@@ -45,7 +41,7 @@
 #if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED) || defined(VEC_4_SIMD_BIGBOI)
 #define VECTOR_LEN 4
 #endif
-#if defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_16_SPATIAL_UNROLLED)
+#if defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_16_SPATIAL_UNROLLED) ||  defined(VEC_16_SIMD_BIGBOI)
 #define VECTOR_LEN 16
 #endif
 

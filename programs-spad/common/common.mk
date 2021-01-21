@@ -10,6 +10,12 @@ EXTRA_FLAGS ?=
 # 	EXTRA_FLAGS := $(EXTRA_FLAGS) $(ENV_EXTRA_MAKE_FLAGS)
 # endif
 
+# check if cache line size is defined
+ifeq (,$(findstring -DCACHE_LINE_SIZE=,$(EXTRA_FLAGS)))
+	EXTRA_FLAGS:=$(EXTRA_FLAGS) -DCACHE_LINE_SIZE=64 
+endif
+
+
 # Overridable arguments to the simulation command for `make run`.
 GEM5_ARGS ?= --remote-gdb-port=0
 HB_ARGS ?= --options=""
