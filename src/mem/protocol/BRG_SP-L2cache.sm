@@ -223,7 +223,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
     } else if (is_valid(cache_entry)) {
       num_functional_writes := num_functional_writes +
                         testAndWrite(addr, getCacheEntry(addr).DataBlk, pkt);
-    } else if (version == intToID(0)) {
+    }
+    
+    // always write memory even if write the cache line as well, b/c a replacement could overwrite changes!
+    if (version == intToID(0)) {
       // only one L2 bank needs to do the functional write to memory, so let
       // the first L2 do it.
       num_functional_writes := num_functional_writes +
