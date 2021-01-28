@@ -522,7 +522,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         bool isVectorReq := isVector(respCnt);
 
         if (isVectorReq) {
-          DPRINTF(Mesh, "wakeup req addr %#x line %#x curCnt %d to cnt %d\n", 
+          DPRINTF(Frame, "wakeup req addr %#x line %#x curCnt %d to cnt %d\n", 
               in_msg.WordAddress, LineAddress, getPortVecCnt(true), respCnt);
         }
 
@@ -533,7 +533,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
               cacheMemory.cacheAvail(LineAddress) == false) {
 
             if (isVectorReq) {
-              DPRINTF(Mesh, "invalid line req addr %#x line %#x curCnt %d to cnt %d\n", 
+              DPRINTF(Frame, "invalid line req addr %#x line %#x curCnt %d to cnt %d\n", 
                 in_msg.WordAddress, LineAddress, getPortVecCnt(true), respCnt);
             }
 
@@ -614,7 +614,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
           }
         } else {
           if (isVectorReq) {
-            DPRINTF(Mesh, "no tbes req addr %#x line %#x curCnt %d to cnt %d\n", 
+            DPRINTF(Frame, "no tbes req addr %#x line %#x curCnt %d to cnt %d\n", 
               in_msg.WordAddress, LineAddress, getPortVecCnt(true), respCnt);
           }
           TBE tbe := TBEs[LineAddress];
@@ -806,8 +806,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
       Addr spadAddr := getSpadIdx(baseCntAddr, coreOffset, in_msg.SubCoreOffset, 
         in_msg.CountPerCore, true);
       
-      DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d\n", 
-        spadIdx, coreIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset);
+      int numRespWords := getNumWordsInResp(in_msg.CountPerCore, in_msg.SubCoreOffset, true);
+
+      DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d words %d\n", 
+        spadIdx, coreIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset, numRespWords);
       
 
       
@@ -826,7 +828,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         // this is gem5 only meta-data, in reality would just send the single
         // word, so no need to pick out the element from the whole block
         out_msg.BlkIdx      := wordOffset;
-        out_msg.Len         := getNumWordsInResp(in_msg.RespCnt, in_msg.PrefetchConfig, true); // temp encode resp size
+        out_msg.Len         := numRespWords; // temp encode resp size
       }
     }
   }
@@ -861,8 +863,10 @@ machine(MachineType:L2Cache, "SP LLC cache")
       Addr spadAddr := getSpadIdx(baseCntAddr, coreOffset, tbe.SubCoreOffset,
         tbe.CountPerCore, false);
 
-      DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d core offset %d\n", 
-        spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.CoreOffset);
+      int numRespWords := getNumWordsInResp(tbe.CountPerCore, tbe.SubCoreOffset, false);
+
+      DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d core offset %d words %d\n", 
+        spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.CoreOffset, numRespWords);
       
       enqueue(responseNetwork_out, LLCResponseMsg, mem_to_cpu_latency) {
         assert(is_valid(tbe));
@@ -873,7 +877,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
         out_msg.MessageSize := MessageSizeType:SingleWordData;
         out_msg.SeqNum      := tbe.SeqNum;
         out_msg.BlkIdx      := wordOffset;
-        out_msg.Len         := getNumWordsInResp(tbe.RespCnt, tbe.PrefetchConfig, false);
+        out_msg.Len         := numRespWords;
       }
     }
   }
