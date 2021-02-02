@@ -801,6 +801,17 @@ std::vector<WordAndCnt_t> getNeededReqs(Packet* pkt_p) {
   return reqs;
 }
 
+void
+Scratchpad::confirmNoAckReq(Packet *pkt_p, bool hardcopy) {
+  PacketPtr resp_pkt_p = pkt_p;
+  if (hardcopy)
+    resp_pkt_p = new Packet(pkt_p, true, false);
+  resp_pkt_p->makeResponse();
+  m_cpu_resp_pkts.push_back(resp_pkt_p);
+  if (!m_cpu_resp_event.scheduled())
+    schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+}
+
 bool
 Scratchpad::handleCpuReq(Packet* pkt_p)
 {
@@ -907,11 +918,12 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       
       // deliver a response packet to the core that this was completed
       // but need to copy it because will be delete there
-      PacketPtr resp_pkt_p = pkt_p; //new Packet(pkt_p, true, false);
-      resp_pkt_p->makeResponse();
-      m_cpu_resp_pkts.push_back(resp_pkt_p);
-      if (!m_cpu_resp_event.scheduled())
-        schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+      // PacketPtr resp_pkt_p = pkt_p; //new Packet(pkt_p, true, false);
+      // resp_pkt_p->makeResponse();
+      // m_cpu_resp_pkts.push_back(resp_pkt_p);
+      // if (!m_cpu_resp_event.scheduled())
+      //   schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
+      confirmNoAckReq(pkt_p, false);
 
       // // log that we sent
       // m_cpu_p->getSystemPtr()->initPrefetch(pkt_p->getPrefetchAddr(),
@@ -1000,6 +1012,11 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     m_mem_req_buffer_p->enqueue(msg_p,
                                 clockEdge(),
                                 cyclesToTicks(Cycles(1)));
+
+    // if no ack confirm that we sent
+    if (pkt_p->isWrite() && pkt_p->isStoreNoAck()) {
+      confirmNoAckReq(pkt_p, true);
+    }
   }
 
   return true;
@@ -1034,10 +1051,12 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
 
   if (isRegionAccess(pkt_p) && pkt_p->isWrite()) {
     setWordRdy(pkt_p->getAddr());
+  }
 
-    if (pkt_p->isStoreNoAck()) {
-      respond_sender = false;
-    }
+  // if remote store requires no ack, then dont respond
+  if (pkt_p->isWrite() && pkt_p->isStoreNoAck()) {
+    DPRINTF(Frame, "don't respond to write to frame\n");
+    respond_sender = false;
   }
 
   // record remote access here
@@ -1060,6 +1079,11 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
     m_remote_resp_buffer_p->enqueue(msg_p,
                                     clockEdge(),
                                     cyclesToTicks(Cycles(1)));
+  }
+  else {
+    // delete packet
+    delete pkt_p->popSenderState();
+    delete pkt_p;
   }
 
   return true;

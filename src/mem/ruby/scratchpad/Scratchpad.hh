@@ -314,6 +314,9 @@ class Scratchpad : public AbstractController
     const uint8_t* decodeRespWord(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_msg_p);
     Addr decodeRespAddr(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_msg_p);
 
+    // send back packet to confirm no ack req with cpu mem unit
+    void confirmNoAckReq(Packet *pkt_p, bool hardcopy);
+
   private:
     /**
      * Pointer to Ruby system
