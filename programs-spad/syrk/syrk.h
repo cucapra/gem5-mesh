@@ -66,6 +66,9 @@
 #define INNER_FRAME_SIZE (2*INNER_PREFETCH_LEN)
 #define NUM_FRAMES (POST_FRAME_WORD / INNER_FRAME_SIZE)
 #define INIT_OFFSET (INIT_FRAMES * K_STRIDE)
+// used in certain versions
+#define SCALAR_FRAME_SIZE (VECTOR_LEN)
+#define SCALAR_NUM_FRAMES (POST_FRAME_WORD / SCALAR_FRAME_SIZE)
 
 // frame size to get the c to accumulate on
 #define OUTER_FRAME_SIZE INNER_FRAME_SIZE

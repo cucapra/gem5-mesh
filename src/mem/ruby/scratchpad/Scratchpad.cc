@@ -991,7 +991,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     DPRINTF(Scratchpad, "Sending pkt %s to %s\n", pkt_p->print(), dst_port);
     if (pkt_p->isRead())
       DPRINTF(LoadTrack, "Sending Load request to remote SP %#x\n", pkt_p->getAddr());
-    if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Scratchpad, "Sending remote req pkt %#x to %s\n", pkt_p->getAddr(), dst_port);
+    if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Frame, "Sending remote req pkt %#x to %s\n", pkt_p->getAddr(), dst_port);
 
     // Make and queue the message
     std::shared_ptr<MemMessage> msg_p =

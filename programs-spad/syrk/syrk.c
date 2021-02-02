@@ -192,10 +192,19 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   group_id_to_scalar(&tinfo, unique_id, &ptidOrig_x, &ptidOrig_y);
   ptidOrigin = ptidOrig_x + ptidOrig_y * pdim_x;
 
+  // if (unique_id == 0) {
+  //   group_info_t ginfo = get_group_info(unique_id, &tinfo);
+  //   printf("ptid %d %d %d %d scalar %d %d\n", 
+  //     ptid, ptidOrig_x, ptidOrig_y, ptidOrigin, ginfo.scalar_x, ginfo.scalar_y);
+  // }
+
+  asm volatile("fence\n\t");
+
   // int mask = getDebugMask(&cinfo);
   if (is_da) {
-    SET_PREFETCH_MASK(NUM_FRAMES, VECTOR_LEN, &start_barrier);
-  } else {
+    SET_PREFETCH_MASK(SCALAR_NUM_FRAMES, SCALAR_FRAME_SIZE, &start_barrier); 
+  }
+  else { 
     SET_PREFETCH_MASK(NUM_FRAMES, INNER_FRAME_SIZE, &start_barrier);
   }
   #else

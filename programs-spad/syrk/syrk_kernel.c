@@ -69,7 +69,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   DTYPE c_ij;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
-  int sp_origin = 0;
+  int sp_origin = vtid;
   DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidOrigin, 0);
   #endif
 
@@ -101,20 +101,22 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
         ISSUE_VINST(vec_body_label);
       }
 
+      ISSUE_VINST(vec_body_end_label);
+
       #ifdef LONGLINES
       // do reduction on scalar core
       // each core in vector group should have sent a message in a frame
       // TODO could start another round here, but keep simple at first
       DTYPE sum = c[i * N + j];
-      FRAME_START(VECTOR_LEN);
-      for (int i = 0; i < VECTOR_LEN; i++) {
+      FRAME_START(SCALAR_FRAME_SIZE);
+      for (int i = 0; i < SCALAR_FRAME_SIZE; i++) {
         sum += sp_ptr[sp_self + i];
       }
-      REMEM(VECTOR_LEN);
+      REMEM(SCALAR_FRAME_SIZE);
       STORE_NOACK(sum, &c[i * N + j], 0);
+      sp_self+=SCALAR_FRAME_SIZE;
+      sp_self = sp_self % POST_FRAME_WORD;
       #endif
-
-      ISSUE_VINST(vec_body_end_label);
     }
   }
 
@@ -203,8 +205,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     #ifdef LONGLINES
     // store partial sum to scalar core
     STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
-    sp_origin+=VECTOR_LEN;
-    sp_origin = sp_origin % (VECTOR_LEN*NUM_FRAMES);
+    sp_origin+=SCALAR_FRAME_SIZE;
+    sp_origin = sp_origin % POST_FRAME_WORD;
     #else
 
     STORE_NOACK(c_ij, &c[i * N + j], 0);
