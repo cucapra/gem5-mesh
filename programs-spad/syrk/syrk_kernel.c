@@ -107,7 +107,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       // do reduction on scalar core
       // each core in vector group should have sent a message in a frame
       // TODO could start another round here, but keep simple at first
-      DTYPE sum = c[i * N + j];
+      DTYPE sum = c[i * N + j] * beta;
       FRAME_START(SCALAR_FRAME_SIZE);
       for (int i = 0; i < SCALAR_FRAME_SIZE; i++) {
         sum += sp_ptr[sp_self + i];
@@ -177,7 +177,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     sp+=OUTER_FRAME_SIZE;
     sp = sp % POST_FRAME_WORD;
     #else
-    // keep in case any loop variables initiated here
+    c_ij = 0;
     #endif
 
     do {
@@ -204,7 +204,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
     #ifdef LONGLINES
     // store partial sum to scalar core
-    STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
+    // STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
+    sp_origin_ptr[sp_origin] = c_ij; // TODO STORE_NOACK doesn't work. check remote load req path, maybe not considering flag
     sp_origin+=SCALAR_FRAME_SIZE;
     sp_origin = sp_origin % POST_FRAME_WORD;
     #else
