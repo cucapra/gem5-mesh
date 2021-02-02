@@ -110,6 +110,14 @@ void group_id_to_origin(template_info_t *tinfo, int group_id, int *x, int *y) {
   *y = ginfo.vector_start_y + offset_y;
 }
 
+void group_id_to_scalar(template_info_t *tinfo, int group_id, int *x, int *y) {
+  group_info_t ginfo = get_group_info(group_id, tinfo);
+  int offset_x, offset_y; // offset due to being in a template
+  get_template_offset(group_id, tinfo, &offset_x, &offset_y);
+  *x = ginfo.scalar_x + offset_x;
+  *y = ginfo.scalar_y + offset_y;
+}
+
 int get_ptid_from_group(template_info_t *tinfo, int group_id, int vid_x, int vid_y, int phys_dim_x) {
   int x,y;
   group_id_to_origin(tinfo, group_id, &x, &y);

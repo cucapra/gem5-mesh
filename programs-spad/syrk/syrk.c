@@ -94,14 +94,14 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
 void __attribute__((optimize("-fno-inline"))) syrk(
     DTYPE *a, DTYPE *c,
     int ptid, int vtid, int dim, int N, int M, int groupId, int numGroups,
-    int mask, int used
+    int mask, int used, int ptidOrigin
   ) {
 
     #ifndef USE_VEC
     syrk_manycore_baseline(a, c, N, M, ptid, dim);
     #else
     if (used)
-      tril_syrk(mask, a, c, N, M, ptid, groupId, numGroups, vtid);
+      tril_syrk(mask, a, c, N, M, ptid, groupId, numGroups, vtid, ptidOrigin);
     #endif
 
 }
@@ -175,6 +175,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // linearize some fields
   vdim = vdim_x * vdim_y;
 
+  int ptidOrigin = 0;
+
   // get behavior of each core
   #ifdef NUM_FRAMES
   // setup up self prefetch
@@ -185,8 +187,17 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #else
   int mask = getSIMDMask(&cinfo);
   #endif
+
+  int ptidOrig_x, ptidOrig_y;
+  group_id_to_scalar(&tinfo, unique_id, &ptidOrig_x, &ptidOrig_y);
+  ptidOrigin = ptidOrig_x + ptidOrig_y * pdim_x;
+
   // int mask = getDebugMask(&cinfo);
-  SET_PREFETCH_MASK(NUM_FRAMES, INNER_FRAME_SIZE, &start_barrier);
+  if (is_da) {
+    SET_PREFETCH_MASK(NUM_FRAMES, VECTOR_LEN, &start_barrier);
+  } else {
+    SET_PREFETCH_MASK(NUM_FRAMES, INNER_FRAME_SIZE, &start_barrier);
+  }
   #else
   int mask = 0;
   #endif
@@ -194,7 +205,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   MOVE_STACK_ONTO_SCRATCHPAD();
 
   // do the kernel
-  syrk(a, c, ptid, vtid, pdim, N, M, unique_id, total_groups, mask, used);
+  syrk(a, c, ptid, vtid, pdim, N, M, unique_id, total_groups, mask, used, ptidOrigin);
 
   // restore stack pointer
   RECOVER_DRAM_STACK();

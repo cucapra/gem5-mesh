@@ -601,8 +601,8 @@ class System : public SimObject
 
     void drainResume() override;
 
-    void initPrefetch(Addr spadAddr, int origin_x, int origin_y, int vec_x, int vec_y, int mesh_dim_x,
-      int core_offset, int resp_cnt, bool is_vertical);
+    void initPrefetch(Addr spadAddr, int origin_x, int origin_y, int vec_x, int vec_y, 
+        int mesh_dim_x, int core_offset, int word_offset, int count_per_core, bool all_cores);
     void cmplPrefetch(Addr spadAddr);
 
   public:
@@ -631,6 +631,9 @@ class System : public SimObject
     //   // }
     // } PrefetchResp_t;
     std::unordered_map<Addr, Tick> prefetchMap;
+
+    // TEMP 
+    Stats::Vector m_spad_l2_bank_util;
 
     ////////////////////////////////////////////
     //

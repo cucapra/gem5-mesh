@@ -405,7 +405,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     //   spadIdx := spadIdx + (vecCnt * uint32_t_size);
     // }
     int uint32_t_size := 4;
-    int spadOffset := mod((subCoreOffset + vecCnt), countPerCore); 
+    int spadOffset := mod((subCoreOffset + vecCnt), countPerCore);
     spadIdx := spadIdx + (spadOffset * uint32_t_size);
     return intToAddress(spadIdx);
   }

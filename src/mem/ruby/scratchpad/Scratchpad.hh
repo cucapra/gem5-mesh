@@ -265,7 +265,8 @@ class Scratchpad : public AbstractController
    //void updateMasterEpoch(const LLCResponseMsg *llc_msg_p);
 
    //edit: Neil for remote access LW to region
-   bool isWordRdyForRemote(Addr addr);
+  bool canHandleRemoteReq(Packet *pkt_p);
+  bool isRegionBeingFilled(Addr addr);
 
    /**
      * For bitarray accessign to make sure load not too early to prefetch

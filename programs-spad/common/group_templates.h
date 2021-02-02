@@ -255,6 +255,8 @@ inline int vector_group_template_16(
 // TODO need to define this for every group size
 void group_id_to_origin(template_info_t *tinfo, int group_id, int *x, int *y);
 
+void group_id_to_scalar(template_info_t *tinfo, int group_id, int *x, int *y);
+
 int get_ptid_from_group(template_info_t *tinfo, int group_id, int vid_x, int vid_y, int phys_dim_x);
 
 

@@ -10,7 +10,7 @@ INIT0_NEIL_CONFIGS = [ [ 'VEC_LEN=4', 'INIT_FRAMES=0' ] ]
 
 TEST_1_12_CONFIGS = ['PACKED_SIMD', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
 TEST_1_12_CONFIGS_NEIL = ['PACKED_SIMD', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
-HW_OPTS = ['--net-width=1', '--net-width=2', '--net-width=16']
+HW_OPTS = ['--cacheline_size=1024 --net-width=1', '--cacheline_size=1024 --net-width=2', '--cacheline_size=1024 --net-width=16']
 ALL_CONFIGS = TEST_1_12_CONFIGS
 ALL_NEIL_CONFIGS = TEST_1_12_CONFIGS_NEIL
 INIT0_CONFIGS = []
@@ -20,10 +20,11 @@ INIT0_NEIL_CONFIGS = []
 sim_configs = {
   # Test programs, not actual benchmarks
 
-  # 'vvadd': {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['131072'] # ['1024']
-  # },
+  'vvadd': {
+    'vec'  : [['VEC_16_SIMD_BIGBOI', 'CACHE_LINE_SIZE=1024'], ['VEC_16_SIMD_VERTICAL', 'CACHE_LINE_SIZE=64'], ['NO_VEC']],
+    'argv' : ['1048576'], # ['1024']
+    'hw_opts' : HW_OPTS
+  },
   # 'stencil': {
   #   'vec'  : ['VEC_4_SIMD'],
   #   'argv' : ['1730', '60']
@@ -36,42 +37,42 @@ sim_configs = {
   #   'argv' : ['2048'],
   #   'hw_opts' : HW_OPTS
   # },
-  'gram'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['320'],
-    'hw_opts' : HW_OPTS
-  },
-  'syrk'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256'],
-    'hw_opts' : HW_OPTS
-  },
-  'syr2k'  : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256'],
-    'hw_opts' : HW_OPTS
-  },
-  'covar'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['512'],
-    'hw_opts' : HW_OPTS
-  },
-  'conv2d' : {
-    # 'vec'  : [ 'NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], ['VEC_4_SIMD_VERTICAL', 'INIT_FRAMES=0' ] ],
-    'vec'  : [ 'PACKED_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
-    'argv' : ['2048'],
-    'hw_opts' : HW_OPTS
-  },
-  'conv3d' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256'],
-    'hw_opts' : HW_OPTS
-  },
-  'fdtd' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['512', '30'],
-    'hw_opts' : HW_OPTS
-  },
+  # 'gram'   : {
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+  #   'argv' : ['320'],
+  #   'hw_opts' : HW_OPTS
+  # },
+  # 'syrk'   : {
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+  #   'argv' : ['256'],
+  #   'hw_opts' : HW_OPTS
+  # },
+  # 'syr2k'  : {
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+  #   'argv' : ['256'],
+  #   'hw_opts' : HW_OPTS
+  # },
+  # 'covar'   : {
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+  #   'argv' : ['512'],
+  #   'hw_opts' : HW_OPTS
+  # },
+  # 'conv2d' : {
+  #   # 'vec'  : [ 'NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], ['VEC_4_SIMD_VERTICAL', 'INIT_FRAMES=0' ] ],
+  #   'vec'  : [ 'PACKED_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
+  #   'argv' : ['2048'],
+  #   'hw_opts' : HW_OPTS
+  # },
+  # 'conv3d' : {
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+  #   'argv' : ['256'],
+  #   'hw_opts' : HW_OPTS
+  # },
+  # 'fdtd' : {
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+  #   'argv' : ['512', '30'],
+  #   'hw_opts' : HW_OPTS
+  # },
 
   # 'atax'   : {
   #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
@@ -83,21 +84,21 @@ sim_configs = {
   #   'argv' : ['4096'], # ['128']
   #   'hw_opts' : HW_OPTS
   # },
-  'gemm'   : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['256'], #['64']
-    'hw_opts' : HW_OPTS
-  },
-  'gesummv'   : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['4096'], #['128']
-    'hw_opts' : HW_OPTS 
-  },
-  'corr'   : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['512'], #['64']
-    'hw_opts' : HW_OPTS
-  },
+  # 'gemm'   : {
+  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'argv' : ['256'], #['64']
+  #   'hw_opts' : HW_OPTS
+  # },
+  # 'gesummv'   : {
+  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'argv' : ['4096'], #['128']
+  #   'hw_opts' : HW_OPTS 
+  # },
+  # 'corr'   : {
+  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'argv' : ['512'], #['64']
+  #   'hw_opts' : HW_OPTS
+  # },
   # '2mm' : {
   #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
   #   'argv' : ['256'], #['64']
@@ -173,11 +174,11 @@ def strings_to_make_args(args):
 
 # remove dashes from hardware args so annoation is nicer to read and parse
 # then call strings_to_metadata after transformation
-def hw_opt_to_metadata(arg):
+def preprocess_metadata(arg):
   out_str = ''
   for l in arg:
     # swap - and = with _
-    if (l == '-' or l == '='):
+    if (l == '-' or l == '=' or l == ' '):
       next_char = '_'
     else:
       next_char = l
@@ -186,12 +187,12 @@ def hw_opt_to_metadata(arg):
 
 # turn hardware config command line into part of run annoation
 # similar to strings_to_metadata() but first does some processing on format
-def hw_opts_to_metadata(args):
+def preprocess_and_convert_to_metadata(args):
   if (isinstance(args, list)):
     for i in range(0, len(args)):
-      args[i] = hw_opt_to_metadata(args[i])
+      args[i] = preprocess_metadata(args[i])
   else:
-    args = hw_opt_to_metadata(args)
+    args = preprocess_metadata(args)
 
   return strings_to_metadata(args)
 
@@ -210,7 +211,7 @@ def strings_to_metadata(args):
   return meta
 
 def get_binary_name(prog_key, vec_config):
-  return prog_key + '_' + strings_to_metadata(vec_config)
+  return prog_key + '_' + preprocess_and_convert_to_metadata(vec_config)
 
 
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful (opt)

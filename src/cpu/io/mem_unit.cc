@@ -718,10 +718,13 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       bool prefetchLeft = m_s1_inst->static_inst_p->isLeftSide();
       size_t lineSize = m_cpu_p->getCacheLineSize();
       size_t countPerCore = bits(imm, 11, 2);
+      int config = bits(imm, 1, 0);
       int vecDimX = m_cpu_p->getEarlyVector()->getXLen();
       int vecDimY = m_cpu_p->getEarlyVector()->getYLen();
-      size_t totalResp = countPerCore * vecDimX * vecDimY;
-      int config = bits(imm, 1, 0);
+
+      int numCores = (config == 1) ? vecDimX * vecDimY : 1;
+      size_t totalResp = countPerCore * numCores;
+
       size_t wordOffset = addr & (lineSize - 1);
       size_t wordsRemInLine = (lineSize - wordOffset) / size;
       size_t leftCount = std::min(wordsRemInLine, totalResp);
@@ -750,7 +753,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
           //   m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + leftCount * sizeof(uint32_t);
           // }
           // else m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount;
-          m_s1_inst->mem_req_p->coreOffset = leftCount / countPerCore;
+          m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount / countPerCore;
           m_s1_inst->mem_req_p->subCoreOffset = leftCount % countPerCore;
           // m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + (leftCount ) * sizeof(uint32_t);
           m_s1_inst->mem_req_p->respCnt = rightCount;
@@ -759,9 +762,9 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
           m_s1_inst->mem_req_p->setVirt(0, rightVirtAddr, size, flags, 
               m_cpu_p->dataMasterId(), m_s1_inst->pc.pc(), amo_op);
 
-          DPRINTF(Frame, "send vec load right %#x spad %#x offset %d cnt %d\n", 
+          DPRINTF(Frame, "send vec load right %#x spad %#x core offset %d word offset %d cnt %d\n", 
             m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
-            m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
+            m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->subCoreOffset, m_s1_inst->mem_req_p->respCnt);
         }
       }
 
@@ -886,6 +889,10 @@ MemUnit::finishTranslation(const Fault& fault, RequestPtr req)
     m_s1_inst->setEffAddrValid();
   // set instruction fault
   m_s1_inst->fault = fault;
+
+  if (m_s1_inst->mem_req_p->isSpadPrefetch)
+    DPRINTF(Frame, "pf addr trans %#x -> %#x\n", m_s1_inst->mem_req_p->getVaddr(),
+      m_s1_inst->mem_req_p->getPaddr());
 }
 
 bool

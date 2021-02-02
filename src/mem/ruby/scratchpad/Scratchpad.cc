@@ -674,11 +674,12 @@ Scratchpad::createLLCReqPacket(Packet* pkt_p, Addr addr, int respCnt) {
   msg_p->m_PrefetchAddress = pkt_p->getPrefetchAddr();
   msg_p->m_CoreOffset = pkt_p->getCoreOffset();
   msg_p->m_SubCoreOffset = pkt_p->req->subCoreOffset; // TODO if split need to update??
-  // possible if split requests here (rvv, might not have correct count per core)
-  if (pkt_p->req->countPerCore > respCnt)
-    msg_p->m_CountPerCore = respCnt;
-  else
-    msg_p->m_CountPerCore = pkt_p->req->countPerCore;
+  // // possible if split requests here (rvv, might not have correct count per core)
+  // // TODO this is problematic for split
+  // if (!isPrefetch && pkt_p->req->countPerCore > respCnt)
+  //   msg_p->m_CountPerCore = respCnt;
+  // else
+  msg_p->m_CountPerCore = pkt_p->req->countPerCore;
   msg_p->m_RespCnt = respCnt;
   msg_p->m_PrefetchConfig = pkt_p->getPrefetchConfig();
   // msg_p->m_InstSeqNum = pkt_p->getCoreOffset(); // temp for debug
@@ -912,13 +913,11 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       if (!m_cpu_resp_event.scheduled())
         schedule(m_cpu_resp_event, clockEdge(Cycles(1)));
 
-
-      // TODO need to update this for new system
-      // log that we sent
+      // // log that we sent
       // m_cpu_p->getSystemPtr()->initPrefetch(pkt_p->getPrefetchAddr(),
       //   pkt_p->getXOrigin(), pkt_p->getYOrigin(),
       //   pkt_p->getXDim(), pkt_p->getYDim(), m_grid_dim_x,
-      //   pkt_p->getCoreOffset(), pkt_p->getRespCnt(), (bool)pkt_p->getPrefetchConfig());
+      //   pkt_p->getCoreOffset(), pkt_p->req->subCoreOffset, pkt_p->req->countPerCore, (bool)pkt_p->getPrefetchConfig());
 
     }
     // // immedietly send an ACK back for a write if no syncronization is needed
@@ -1029,25 +1028,24 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
    * From a remote CPU/Xcel, access to data
    */
 
-    // TODO i think should guarentee data will be there??
-    if (isRegionAccess(pkt_p) && !isWordRdyForRemote(pkt_p->getAddr()))
-    //TODO: Will fail if remote access to past region and prefetching going on, but then again accessing into past region is faulty
-    {
-      DPRINTF(Frame, "remote region access into a region not ready (not cool bro) %s\n", pkt_p->print());
-      // return false;
-      assert(false);
+  // make sure can handle the request (mainly check frames in valid state)
+
+  assert(canHandleRemoteReq(pkt_p));
+
+  if (isRegionAccess(pkt_p) && pkt_p->isWrite()) {
+    setWordRdy(pkt_p->getAddr());
+
+    if (pkt_p->isStoreNoAck()) {
+      respond_sender = false;
     }
+  }
 
-      // record remote access here
-      if (pkt_p->isRead()) m_remote_loads++;
-      else if (pkt_p->isWrite()) m_remote_stores++;
-      
-      // access data array
-      accessDataArray(pkt_p);
-    // }
-  // }
-
-
+  // record remote access here
+  if (pkt_p->isRead()) m_remote_loads++;
+  else if (pkt_p->isWrite()) m_remote_stores++;
+  
+  // access data array
+  accessDataArray(pkt_p);
 
   // Make and queue the message
   if (respond_sender) {
@@ -1205,6 +1203,9 @@ Scratchpad::getL2BankFromAddr(Addr addr) const
   unsigned int hig_bit = low_bit + floorLog2(m_num_l2s) - 1;
   NodeID l2_node_id = (NodeID) bitSelect(addr, low_bit, hig_bit);
   assert(l2_node_id < m_num_l2s);
+
+  m_cpu_p->getSystemPtr()->m_spad_l2_bank_util[l2_node_id]++;
+
   return l2_node_id;
 }
 
@@ -1332,14 +1333,42 @@ Scratchpad::isPrefetchAhead(Addr addr) {
   //   wouldOverlap, aheadCntr, pktEpochMod, coreEpochMod, m_cur_prefetch_region, m_region_cntr);
   // return wouldOverlap || aheadCntr;
 }
-bool Scratchpad::isWordRdyForRemote(Addr addr)
-{
 
+bool Scratchpad::canHandleRemoteReq(Packet *pkt_p) {
+  // can always handle a normal remote req
+  if (!isRegionAccess(pkt_p)) return true;
+
+  // now checking remote loads/stores to regions
+  
+  // make sure reading a closed frame
+  if (pkt_p->isRead()) {
+    bool ret = !isRegionBeingFilled(pkt_p->getAddr());
+      //TODO: Will fail if remote access to past region and prefetching going on, but then again accessing into past region is faulty
+    if (!ret) {
+      DPRINTF(Frame, "remote read into a region not ready (not cool bro) %s\n", pkt_p->print());
+    }
+    return ret;
+  }
+  // make sure not overwriting a current consumer frame
+  else if (pkt_p->isWrite()) {
+    bool ret = !isPrefetchAhead(pkt_p->getAddr());
+    if (!ret) {
+      DPRINTF(Frame, "remote write to an unavailable region %s\n", pkt_p->print());
+    }
+    return ret;
+  }
+  else {
+    assert(false);
+  }
+}
+
+
+bool Scratchpad::isRegionBeingFilled(Addr addr) {
   //the region where the packet is targeted to
   int pktEpochMod = getDesiredRegion(addr);
 
   // if the region being accessed remotely is not being written into by vprefetch the word is ready
-  bool ret = (pktEpochMod != m_cur_prefetch_region);
+  bool ret = (pktEpochMod == m_cur_prefetch_region);
   return ret;
 }
 
@@ -1378,7 +1407,7 @@ Scratchpad::setWordRdy(Addr addr) {
 
   // tag = 1;
 
-  // TODO need to update
+  // log for stats
   // m_cpu_p->getSystemPtr()->cmplPrefetch(addr);
 
 

@@ -465,6 +465,10 @@ System::regStats()
         .flags(Stats::nozero | Stats::pdf);
     ;
 
+    m_spad_l2_bank_util
+        .init(16)
+        .name(name() + ".spad_l2_util")
+    ;
     // avgPrefetchLatency
     //     .name(name() + ".avg_prefetch_latency")
     //     .desc("Average time between prefetch to arrival in spad in ticks (cycles * 1000)")
@@ -477,7 +481,7 @@ System::regStats()
 // should give physical address plz
 void
 System::initPrefetch(Addr spadAddr, int origin_x, int origin_y, int vec_x, int vec_y, 
-        int mesh_dim_x, int core_offset, int resp_cnt, bool is_vertical) {
+        int mesh_dim_x, int core_offset, int word_offset, int count_per_core, bool all_cores) {
     // make the addresses we are going to prefetch to
     // expect one response for each
     // auto pf = PrefetchResp_t();
@@ -486,23 +490,28 @@ System::initPrefetch(Addr spadAddr, int origin_x, int origin_y, int vec_x, int v
     int offset_x = core_offset % vec_x;
     int offset_y = core_offset / vec_x;
 
-    for (int i = 0; i < resp_cnt; i++) {
-        int x = origin_x;
-        int y = origin_y;
-        if (is_vertical) {
-            x += offset_x;
-            y += offset_y;
+    int xdim = all_cores ? vec_x : offset_x + 1;
+    int ydim = all_cores ? vec_y : offset_y + 1;
+
+    // TODO not working
+    // 1 issue is that needs to stop early for word offset
+    // alternetevily only do for left prefetch??
+
+    for (int x = offset_x; x < xdim; x++) {
+        for (int y = offset_y; y < ydim; y++) {
+            int abs_offset = ( y + origin_y ) * mesh_dim_x + ( x + origin_x );
+            Addr baseAddr = spadAddr + ( abs_offset << 12 );
+
+            int word_offset_for_core = 0;
+            if (x == offset_x && y == offset_y)
+                word_offset_for_core = word_offset;
+
+            for (int a = word_offset_for_core; a < count_per_core; a++) {
+                Addr respAddr = baseAddr + (sizeof(uint32_t) * a);
+                DPRINTF(Frame, "wait for %#x\n", respAddr);
+                prefetchMap[respAddr] = curTick();
+            }
         }
-        else {
-            x += ( ( i + core_offset ) % vec_x);
-            y += ( ( i + core_offset ) / vec_x);
-        }
-        int abs_offset = y * mesh_dim_x + x;
-        Addr respAddr = spadAddr + ( abs_offset << 12 );
-        if (is_vertical) {
-            respAddr += (sizeof(uint32_t) * i);
-        }
-        prefetchMap[respAddr] = curTick();
     }
 }
     
@@ -531,6 +540,7 @@ System::cmplPrefetch(Addr spadAddr) {
         // avgPrefetchLatency = prefetchLatencySum / prefetchCnt;
     }
     else {
+        DPRINTF(Frame, "fail to find %#x\n", spadAddr);
         assert(false);
     }
 

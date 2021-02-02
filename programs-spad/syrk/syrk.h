@@ -16,6 +16,7 @@
 // #define VEC_16_SIMD 1
 // #define MANYCORE_PREFETCH
 // #define PACKED_SIMD
+// #define VEC_16_LONGLINES
 
 // vvadd_execute config directives
 #if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
@@ -26,11 +27,15 @@
 #if defined(VEC_4_SIMD)
 #define VECTOR_LEN 4
 #endif
-#if defined(VEC_16_SIMD)
+#if defined(VEC_16_SIMD) || defined(VEC_16_LONGLINES)
 #define VECTOR_LEN 16
 #endif
 #if defined(MANYCORE_PREFETCH)
 #define VECTOR_LEN 1
+#endif
+
+#if defined(VEC_16_LONGLINES)
+#define LONGLINES
 #endif
 
 // prefetch sizing
@@ -44,10 +49,23 @@
 #endif
 
 // prefetch config for inner kernel
-#define INNER_PREFETCH_LEN 16
+
+
+
+
+#ifdef LONGLINES
+#define INNER_PREFETCH_LEN (CACHE_LINE_SIZE / sizeof(DTYPE) / VECTOR_LEN)
+#define J_STRIDE (1)
+#define K_STRIDE (INNER_PREFETCH_LEN * VECTOR_LEN)
+#else
+#define INNER_PREFETCH_LEN (16)
+#define J_STRIDE (VECTOR_LEN)
+#define K_STRIDE (INNER_PREFETCH_LEN)
+#endif
+
 #define INNER_FRAME_SIZE (2*INNER_PREFETCH_LEN)
 #define NUM_FRAMES (POST_FRAME_WORD / INNER_FRAME_SIZE)
-#define INIT_OFFSET (INIT_FRAMES * INNER_PREFETCH_LEN)
+#define INIT_OFFSET (INIT_FRAMES * K_STRIDE)
 
 // frame size to get the c to accumulate on
 #define OUTER_FRAME_SIZE INNER_FRAME_SIZE
@@ -57,26 +75,37 @@
 // pad out to the frame size (1->2 currently)
 // maybe don't have to prefetch this
 inline void prefetch_outer_frame(DTYPE *c, int i, int j, int *sp, int N) {
+  #ifdef LONGLINES
+  // nothing
+  #else
   for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_LR(*sp + 0, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 0, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, TO_ONE_CORE);
 
     // pad out
-    VPREFETCH_LR(*sp + OUTER_PREFETCH_LEN, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + OUTER_PREFETCH_LEN, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, TO_ONE_CORE);
   }
 
   *sp = *sp + OUTER_FRAME_SIZE;
   if (*sp == POST_FRAME_WORD) *sp = 0;
+  #endif
 }
 
 // prefetch a
 inline void prefetch_inner_frame(DTYPE *a, int i, int j, int k, int *sp, int M) {
+  #ifdef LONGLINES
+  VPREFETCH_L(*sp + 0, 
+    &a[i * M + k], 0, INNER_PREFETCH_LEN, TO_ALL_CORES);
+  VPREFETCH_L(*sp + INNER_PREFETCH_LEN, 
+    &a[j * M + k], 0, INNER_PREFETCH_LEN, TO_ALL_CORES);
+  #else
   for (int core = 0; core < VECTOR_LEN; core++) {
     // TODO redundant across cores
-    VPREFETCH_L(*sp + 0, &a[i * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_L(*sp + 0, &a[i * M + k], core, INNER_PREFETCH_LEN, TO_ONE_CORE);
 
     // TODO this can be horizontal?
-    VPREFETCH_L(*sp + INNER_PREFETCH_LEN, &a[(j + core) * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_L(*sp + INNER_PREFETCH_LEN, &a[(j + core) * M + k], core, INNER_PREFETCH_LEN, TO_ONE_CORE);
   }
+  #endif
 
   // will be done manually for manycore prefetch
   #ifndef MANYCORE_PREFETCH

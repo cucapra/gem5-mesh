@@ -37,7 +37,8 @@
 // then can use horizontal prefetching
 
 void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M, 
-                  int ptid, int groupId, int numGroups, int vtid) {
+                  int ptid, int groupId, int numGroups, int vtid,
+                  int ptidOrigin) {
 
 
   #ifdef SCALAR_CORE
@@ -48,6 +49,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   int start = ((groupId + 0) * N) / numGroups;
   int end   = ((groupId + 1) * N) / numGroups;
 
+  // TODO don't think needed for this??
   // make it a factor of vector group mapping size
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
@@ -66,38 +68,55 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   int sp = 0;
   DTYPE c_ij;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
+  int sp_origin = 0;
+  DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidOrigin, 0);
   #endif
 
   #ifdef SCALAR_CORE
   int sp = 0;
+  int sp_self = 0;
+  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
   // int init_offset = min(INIT_OFFSET, M);
 
   for (int i = start; i < end; i++) {
-    for (int j = 0; j < M; j+=VECTOR_LEN) {
+    for (int j = 0; j < M; j+=J_STRIDE) {
       prefetch_outer_frame(c, i, j, &sp, N);
       ISSUE_VINST(vec_body_init_label);
 
       // warmup 
-      for (int k = 0; k < startOffset; k+=INNER_PREFETCH_LEN) {
+      for (int k = 0; k < startOffset; k+=K_STRIDE) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
       }
 
       // steady-state
-      for (int k = startOffset; k < M; k+=INNER_PREFETCH_LEN) {
+      for (int k = startOffset; k < M; k+=K_STRIDE) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
         ISSUE_VINST(vec_body_label);
       }
 
       // cooldown
-      for (int k = M - startOffset; k < M; k+=INNER_PREFETCH_LEN) {
+      for (int k = M - startOffset; k < M; k+=K_STRIDE) {
         ISSUE_VINST(vec_body_label);
       }
+
+      #ifdef LONGLINES
+      // do reduction on scalar core
+      // each core in vector group should have sent a message in a frame
+      // TODO could start another round here, but keep simple at first
+      DTYPE sum = c[i * N + j];
+      FRAME_START(VECTOR_LEN);
+      for (int i = 0; i < VECTOR_LEN; i++) {
+        sum += sp_ptr[sp_self + i];
+      }
+      REMEM(VECTOR_LEN);
+      STORE_NOACK(sum, &c[i * N + j], 0);
+      #endif
 
       ISSUE_VINST(vec_body_end_label);
     }
   }
-
 
   // // get ahead
   // prefetch_outer_frame(c, start, 0, &sp, N);
@@ -136,6 +155,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   volatile int BHO;
   do { 
     asm("trillium vissue_delim until_next vec_body_init");
+
+    #ifndef LONGLINES
     FRAME_START(OUTER_FRAME_SIZE);
     // c[i * N + j] *= beta;
     // printf("c %f ?= %f\n", sp_ptr[sp], c[i*N+j]);
@@ -153,6 +174,9 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     asm volatile("nop\n\t");
     sp+=OUTER_FRAME_SIZE;
     sp = sp % POST_FRAME_WORD;
+    #else
+    // keep in case any loop variables initiated here
+    #endif
 
     do {
       asm("trillium vissue_delim if_begin vec_body");
@@ -175,14 +199,23 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     asm("trillium vissue_delim if_begin vec_body_end");
     // TODO store NO ACK
     // c[i * N + j] = c_ij;
+
+    #ifdef LONGLINES
+    // store partial sum to scalar core
+    STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
+    sp_origin+=VECTOR_LEN;
+    sp_origin = sp_origin % (VECTOR_LEN*NUM_FRAMES);
+    #else
+
     STORE_NOACK(c_ij, &c[i * N + j], 0);
 
     // handle outer loops
-    j+=VECTOR_LEN;
+    j+=J_STRIDE;
     if (j >= M) {
       j = vtid;
       i++;
     }
+    #endif
     asm("trillium vissue_delim end at_jump");
 
   } while(BHO);

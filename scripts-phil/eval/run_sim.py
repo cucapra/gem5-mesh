@@ -61,8 +61,8 @@ def run_prog(numCpus, prog_key, argv, vec_config, hw_opts):
   optionsStr = program['options'].format(*argv)
   
   # serialize arguments
-  extra_info = sim_list.strings_to_metadata(vec_config)
-  hw_info = sim_list.hw_opts_to_metadata(hw_opts)
+  extra_info = sim_list.preprocess_and_convert_to_metadata(vec_config)
+  hw_info = sim_list.preprocess_and_convert_to_metadata(hw_opts)
   serialArgs = program['serialize'].format(*argv)
   resultsAnno = '-' + extra_info + hw_info + serialArgs
   resultsDir = program['name'] + resultsAnno
