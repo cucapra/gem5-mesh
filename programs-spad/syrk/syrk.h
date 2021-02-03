@@ -50,9 +50,6 @@
 
 // prefetch config for inner kernel
 
-
-
-
 #ifdef LONGLINES
 #define INNER_PREFETCH_LEN (CACHE_LINE_SIZE / sizeof(DTYPE) / VECTOR_LEN)
 #define J_STRIDE (1)

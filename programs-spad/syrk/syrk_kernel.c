@@ -64,11 +64,6 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   int start = ((groupId + 0) * N) / numGroups;
   int end   = ((groupId + 1) * N) / numGroups;
 
-  // TODO don't think needed for this??
-  // make it a factor of vector group mapping size
-  start = roundUp(start, VECTOR_LEN);
-  end   = roundUp(end  , VECTOR_LEN);
-
   int startOffset = min(INIT_OFFSET, M);
 
   ISSUE_VINST(init_label);
