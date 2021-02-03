@@ -36,6 +36,21 @@
 //
 // then can use horizontal prefetching
 
+
+// do reduction on scalar core
+// each core in vector group should have sent a message in a frame
+inline void do_sum(DTYPE *c, int i, int j, int N, DTYPE *sp_ptr, int *sp_idx) {
+  DTYPE sum = c[i * N + j] * beta;
+  FRAME_START(SCALAR_FRAME_SIZE);
+  for (int i = 0; i < SCALAR_FRAME_SIZE; i++) {
+    sum += sp_ptr[*sp_idx + i];
+  }
+  REMEM(SCALAR_FRAME_SIZE);
+  STORE_NOACK(sum, &c[i * N + j], 0);
+  (*sp_idx)+=SCALAR_FRAME_SIZE;
+  *sp_idx = *sp_idx % POST_FRAME_WORD;
+}
+
 void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M, 
                   int ptid, int groupId, int numGroups, int vtid,
                   int ptidOrigin) {
@@ -96,6 +111,13 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
         ISSUE_VINST(vec_body_label);
       }
 
+      #ifdef LONGLINES
+      // do reduction of previous iter now while loads are in flight for next frame
+      if (j > 0) {
+        do_sum(c, i, j - 1, N, sp_ptr, &sp_self);
+      }
+      #endif
+
       // cooldown
       for (int k = M - startOffset; k < M; k+=K_STRIDE) {
         ISSUE_VINST(vec_body_label);
@@ -103,19 +125,11 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
       ISSUE_VINST(vec_body_end_label);
 
+      // do the last of j iter sum here (no load in flight, but only single iter so w/e)
       #ifdef LONGLINES
-      // do reduction on scalar core
-      // each core in vector group should have sent a message in a frame
-      // TODO could start another round here, but keep simple at first
-      DTYPE sum = c[i * N + j] * beta;
-      FRAME_START(SCALAR_FRAME_SIZE);
-      for (int i = 0; i < SCALAR_FRAME_SIZE; i++) {
-        sum += sp_ptr[sp_self + i];
+      if (j == M - 1) {
+        do_sum(c, i, j, N, sp_ptr, &sp_self);
       }
-      REMEM(SCALAR_FRAME_SIZE);
-      STORE_NOACK(sum, &c[i * N + j], 0);
-      sp_self+=SCALAR_FRAME_SIZE;
-      sp_self = sp_self % POST_FRAME_WORD;
       #endif
     }
   }
