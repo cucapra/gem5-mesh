@@ -64,6 +64,12 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   int start = ((groupId + 0) * N) / numGroups;
   int end   = ((groupId + 1) * N) / numGroups;
 
+  #ifndef LONGLINES
+  // make it a factor of vector group mapping size
+  start = roundUp(start, VECTOR_LEN);
+  end   = roundUp(end  , VECTOR_LEN);
+  #endif
+
   int startOffset = min(INIT_OFFSET, M);
 
   ISSUE_VINST(init_label);
@@ -91,6 +97,56 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   // int init_offset = min(INIT_OFFSET, M);
 
   for (int i = start; i < end; i++) {
+
+    #ifdef LONGLINES
+    int j = 0;
+
+    // get ahead
+    ISSUE_VINST(vec_body_init_label);
+    for (int k = 0; k < startOffset; k+=K_STRIDE) {
+      prefetch_inner_frame(a, i, j, k, &sp, M);
+    }
+
+    // do first inner loop
+    for (int k = startOffset; k < M; k+=K_STRIDE) {
+      prefetch_inner_frame(a, i, j, k, &sp, M);
+      ISSUE_VINST(vec_body_label);
+    }
+
+    // steady state
+    for (j = 1; j < M; j+=J_STRIDE) {
+      for (int k = 0; k < M; k+=K_STRIDE) {
+
+        prefetch_inner_frame(a, i, j, k, &sp, M);
+        ISSUE_VINST(vec_body_label);
+
+        // finish loop at a weird time
+        if (k + K_STRIDE == startOffset) {
+          ISSUE_VINST(vec_body_end_label);
+          ISSUE_VINST(vec_body_init_label);
+        }
+      }
+
+      // edge case if don't do within loop
+      // if (startOffset == M) {
+      //   ISSUE_VINST(vec_body_end_label);
+      //   ISSUE_VINST(vec_body_init_label);
+      // }
+
+      // every so often need to complete the sum
+      // maybe should do this at a coarser granularity?
+      do_sum(c, i, j - 1, N, sp_ptr, &sp_self);
+    }
+
+    // draining. do the last vissue corresponding to the initial round of prefetch
+    for (int k = M - startOffset; k < M; k+=K_STRIDE) {
+      ISSUE_VINST(vec_body_label);
+    }
+
+    ISSUE_VINST(vec_body_end_label);
+    do_sum(c, i, M - 1, N, sp_ptr, &sp_self);
+  
+    #else
     for (int j = 0; j < M; j+=J_STRIDE) {
       prefetch_outer_frame(c, i, j, &sp, N);
       ISSUE_VINST(vec_body_init_label);
@@ -100,18 +156,18 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
         prefetch_inner_frame(a, i, j, k, &sp, M);
       }
 
+      // #ifdef LONGLINES
+      // // do reduction of previous iter now while loads are in flight for next frame
+      // if (j > 0) {
+      //   do_sum(c, i, j - 1, N, sp_ptr, &sp_self);
+      // }
+      // #endif
+
       // steady-state
       for (int k = startOffset; k < M; k+=K_STRIDE) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
         ISSUE_VINST(vec_body_label);
       }
-
-      #ifdef LONGLINES
-      // do reduction of previous iter now while loads are in flight for next frame
-      if (j > 0) {
-        do_sum(c, i, j - 1, N, sp_ptr, &sp_self);
-      }
-      #endif
 
       // cooldown
       for (int k = M - startOffset; k < M; k+=K_STRIDE) {
@@ -120,13 +176,14 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
       ISSUE_VINST(vec_body_end_label);
 
-      // do the last of j iter sum here (no load in flight, but only single iter so w/e)
-      #ifdef LONGLINES
-      if (j == M - 1) {
-        do_sum(c, i, j, N, sp_ptr, &sp_self);
-      }
-      #endif
+      // // do the last of j iter sum here (no load in flight, but only single iter so w/e)
+      // #ifdef LONGLINES
+      // if (j == M - 1) {
+      //   do_sum(c, i, j, N, sp_ptr, &sp_self);
+      // }
+      // #endif
     }
+    #endif
   }
 
   // // get ahead
@@ -208,13 +265,9 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     } while(BH);
 
     asm("trillium vissue_delim if_begin vec_body_end");
-    // TODO store NO ACK
-    // c[i * N + j] = c_ij;
-
     #ifdef LONGLINES
     // store partial sum to scalar core
     STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
-    // sp_origin_ptr[sp_origin] = c_ij; // TODO STORE_NOACK doesn't work. check remote load req path, maybe not considering flag
     sp_origin+=SCALAR_FRAME_SIZE;
     sp_origin = sp_origin % POST_FRAME_WORD;
     #else
