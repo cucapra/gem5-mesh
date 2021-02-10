@@ -50,6 +50,10 @@
 
 // prefetch config for inner kernel
 
+#ifndef ACCUM_GRANULARITY
+#define ACCUM_GRANULARITY 8
+#endif
+
 #ifdef LONGLINES
 #define INNER_PREFETCH_LEN (CACHE_LINE_SIZE / sizeof(DTYPE) / VECTOR_LEN)
 #define J_STRIDE (1)

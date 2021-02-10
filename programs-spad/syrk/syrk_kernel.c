@@ -39,17 +39,35 @@
 
 // do reduction on scalar core
 // each core in vector group should have sent a message in a frame
-inline void do_sum(DTYPE *c, int i, int j, int N, DTYPE *sp_ptr, int *sp_idx) {
-  DTYPE sum = c[i * N + j] * beta;
-  FRAME_START(SCALAR_FRAME_SIZE);
-  for (int i = 0; i < SCALAR_FRAME_SIZE; i++) {
-    sum += sp_ptr[*sp_idx + i];
+inline void do_sum(DTYPE *c, int i, int j_base, int N, DTYPE *sp_ptr, int *sp_idx) {
+  // start fetching now so dont want for frame
+  DTYPE sum[ACCUM_GRANULARITY];
+  #pragma GCC unroll(8)
+  for (int j = 0; j < ACCUM_GRANULARITY; j++) {
+    int j_idx = j + j_base;
+    sum[j] = c[i * N + j_idx] * beta;
   }
-  REMEM(SCALAR_FRAME_SIZE);
-  STORE_NOACK(sum, &c[i * N + j], 0);
-  (*sp_idx)+=SCALAR_FRAME_SIZE;
-  *sp_idx = *sp_idx % POST_FRAME_WORD;
+  
+  for (int j = 0; j < ACCUM_GRANULARITY; j++) {
+    FRAME_START(SCALAR_FRAME_SIZE);
+    for (int i = 0; i < SCALAR_FRAME_SIZE; i++) {
+      sum[j] += sp_ptr[*sp_idx + i];
+    }
+    int j_idx = j + j_base;
+    STORE_NOACK(sum[j], &c[i * N + j_idx], 0);
+    REMEM(SCALAR_FRAME_SIZE);
+    (*sp_idx)+=SCALAR_FRAME_SIZE;
+    *sp_idx = *sp_idx % POST_FRAME_WORD;
+  }
 }
+
+// void mailer(int start, int end, int N, int M) {
+//   for (int i = start; i < end; i++) {
+//     for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) {
+//       do_sum(c, i, j, N, sp_ptr, &sp_self);
+//     }
+//   }
+// }
 
 void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M, 
                   int ptid, int groupId, int numGroups, int vtid,
@@ -127,15 +145,10 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
         }
       }
 
-      // edge case if don't do within loop
-      // if (startOffset == M) {
-      //   ISSUE_VINST(vec_body_end_label);
-      //   ISSUE_VINST(vec_body_init_label);
-      // }
-
       // every so often need to complete the sum
-      // maybe should do this at a coarser granularity?
-      do_sum(c, i, j - 1, N, sp_ptr, &sp_self);
+      // maybe want to put this somewhere else, so in between vinst and such?
+      if (j % ACCUM_GRANULARITY == 0)
+        do_sum(c, i, j - ACCUM_GRANULARITY, N, sp_ptr, &sp_self);
     }
 
     // draining. do the last vissue corresponding to the initial round of prefetch
@@ -144,7 +157,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     }
 
     ISSUE_VINST(vec_body_end_label);
-    do_sum(c, i, M - 1, N, sp_ptr, &sp_self);
+    do_sum(c, i, M - ACCUM_GRANULARITY, N, sp_ptr, &sp_self);
   
     #else
     for (int j = 0; j < M; j+=J_STRIDE) {
