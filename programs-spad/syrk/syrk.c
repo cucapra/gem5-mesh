@@ -91,17 +91,48 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
  * Staging
  *---------------------------------------------------------------------------------*/
 
+void mailer(DTYPE *c, int groupId, int numGroups, int N, int M, int ptid, int ptidScalar) {
+  // chunk over vector gorups
+  int start = ((groupId + 0) * N) / numGroups;
+  int end   = ((groupId + 1) * N) / numGroups;
+
+  int sp_self = 0;
+  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  volatile DTYPE *sp_scalar_ptr = (DTYPE*)getSpAddr(ptidScalar, 0);
+
+  for (int i = start; i < end; i++) {
+    for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) {
+      // printf("%d %d\n", ptid, j);
+      // inform scalar core of the group that ready to go
+      if (j % SCALAR_NUM_FRAMES == 0) {
+        // printf("start set value %d %d\n", ptidScalar, j);
+        while (1) {
+          volatile int wait_val = sp_scalar_ptr[POST_FRAME_WORD];
+          if (wait_val == 0) break;
+        }
+        // printf("set value %d %d\n", ptidScalar, j); // gets here
+        sp_scalar_ptr[POST_FRAME_WORD] = 1; 
+      }
+
+      do_sum(c, i, j, N, sp_ptr, &sp_self);
+    }
+  }
+}
+
+
 void __attribute__((optimize("-fno-inline"))) syrk(
     DTYPE *a, DTYPE *c,
     int ptid, int vtid, int dim, int N, int M, int groupId, int numGroups,
-    int mask, int used, int ptidOrigin
+    int mask, int used, int ptidMailer, int ptidScalar, int isMailer
   ) {
 
     #ifndef USE_VEC
     syrk_manycore_baseline(a, c, N, M, ptid, dim);
     #else
     if (used)
-      tril_syrk(mask, a, c, N, M, ptid, groupId, numGroups, vtid, ptidOrigin);
+      tril_syrk(mask, a, c, N, M, ptid, groupId, numGroups, vtid, ptidMailer);
+    else if (isMailer)
+      mailer(c, groupId, numGroups, N, M, ptid, ptidScalar);
     #endif
 
 }
@@ -159,6 +190,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   total_groups = cinfo.total_groups;
   used = cinfo.used;
 
+  // if (!used) printf("unused %d %d = %d\n", ptid_x, ptid_y, ptid);
+
   // printf("ptid %d(%d,%d) da %d vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, is_da, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used);
 
   #else
@@ -175,7 +208,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // linearize some fields
   vdim = vdim_x * vdim_y;
 
-  int ptidOrigin = 0;
+  // the core that is responsible for doing stores to DRAM if reduction over
+  // entire vector group
+  int ptidMailer = 0;
+  int is_mailer = 0;
 
   // get behavior of each core
   #ifdef NUM_FRAMES
@@ -188,9 +224,51 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int mask = getSIMDMask(&cinfo);
   #endif
 
+
   int ptidOrig_x, ptidOrig_y;
   group_id_to_scalar(&tinfo, unique_id, &ptidOrig_x, &ptidOrig_y);
-  ptidOrigin = ptidOrig_x + ptidOrig_y * pdim_x;
+  int ptidScalar = ptidOrig_x + ptidOrig_y * pdim_x;
+
+// #define SCALAR_IS_MAILER
+  #ifdef SCALAR_IS_MAILER
+  ptidMailer = ptidScalar;
+  is_mailer = is_da;
+  #else
+  // TODO. manually figure out which mailer core
+  
+  // Group1 ptid 0,5(40)
+  // Group2 ptid 1,5(41)
+  // Group3 ptid 6,4(38)
+  total_groups = 3;
+  if (ptid == 40) {
+    unique_id = 0;
+    ptidScalar = 32;
+    is_mailer = 1;
+  }
+  else if (ptid == 41) {
+    unique_id = 1;
+    ptidScalar = 39;
+    is_mailer = 1;
+  }
+  else if (ptid == 38) {
+    unique_id = 2;
+    ptidScalar = 33;
+    is_mailer = 1;
+  }
+
+  if (unique_id == 0) {
+    ptidMailer = 40;
+  }
+  else if (unique_id == 1) {
+    ptidMailer = 41;
+  }
+  else if (unique_id == 2) {
+    ptidMailer = 38;
+  }
+
+  #endif
+
+
 
   // if (unique_id == 0) {
   //   group_info_t ginfo = get_group_info(unique_id, &tinfo);
@@ -201,7 +279,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   asm volatile("fence\n\t");
 
   // int mask = getDebugMask(&cinfo);
-  if (is_da) {
+  if (is_mailer) {
     SET_PREFETCH_MASK(SCALAR_NUM_FRAMES, SCALAR_FRAME_SIZE, &start_barrier); 
   }
   else { 
@@ -214,7 +292,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   MOVE_STACK_ONTO_SCRATCHPAD();
 
   // do the kernel
-  syrk(a, c, ptid, vtid, pdim, N, M, unique_id, total_groups, mask, used, ptidOrigin);
+  syrk(a, c, ptid, vtid, pdim, N, M, unique_id, total_groups, 
+    mask, used, ptidMailer, ptidScalar, is_mailer);
 
   // restore stack pointer
   RECOVER_DRAM_STACK();
@@ -252,11 +331,14 @@ void *pthread_kernel(void *args) {
   kernel(a->a, a->c, a->N, a->M,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-  pthread_barrier_wait(&start_barrier);
+  // pthread_barrier_wait(&start_barrier);
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
 
   if (a->tid_x == 0 && a->tid_y == 0) {
     stats_off();
   }
+
+
 
   return NULL;
 }

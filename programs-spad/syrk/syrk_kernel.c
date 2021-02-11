@@ -36,42 +36,9 @@
 //
 // then can use horizontal prefetching
 
-
-// do reduction on scalar core
-// each core in vector group should have sent a message in a frame
-inline void do_sum(DTYPE *c, int i, int j_base, int N, DTYPE *sp_ptr, int *sp_idx) {
-  // start fetching now so dont want for frame
-  DTYPE sum[ACCUM_GRANULARITY];
-  #pragma GCC unroll(8)
-  for (int j = 0; j < ACCUM_GRANULARITY; j++) {
-    int j_idx = j + j_base;
-    sum[j] = c[i * N + j_idx] * beta;
-  }
-  
-  for (int j = 0; j < ACCUM_GRANULARITY; j++) {
-    FRAME_START(SCALAR_FRAME_SIZE);
-    for (int i = 0; i < SCALAR_FRAME_SIZE; i++) {
-      sum[j] += sp_ptr[*sp_idx + i];
-    }
-    int j_idx = j + j_base;
-    STORE_NOACK(sum[j], &c[i * N + j_idx], 0);
-    REMEM(SCALAR_FRAME_SIZE);
-    (*sp_idx)+=SCALAR_FRAME_SIZE;
-    *sp_idx = *sp_idx % POST_FRAME_WORD;
-  }
-}
-
-// void mailer(int start, int end, int N, int M) {
-//   for (int i = start; i < end; i++) {
-//     for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) {
-//       do_sum(c, i, j, N, sp_ptr, &sp_self);
-//     }
-//   }
-// }
-
 void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M, 
                   int ptid, int groupId, int numGroups, int vtid,
-                  int ptidOrigin) {
+                  int ptidMailer) {
 
 
   #ifdef SCALAR_CORE
@@ -104,19 +71,29 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
   int sp_origin = vtid;
-  DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidOrigin, 0);
+  DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
   #endif
 
   #ifdef SCALAR_CORE
   int sp = 0;
   int sp_self = 0;
-  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  volatile DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
   // int init_offset = min(INIT_OFFSET, M);
 
   for (int i = start; i < end; i++) {
 
     #ifdef LONGLINES
+    #ifndef SCALAR_IS_MAILER
+    while (1) {
+      // needs volatile so doesn't optimize
+      volatile int wait_val = sp_ptr[POST_FRAME_WORD]; 
+      if (wait_val == 1) break;
+    }
+    // printf("reset val %d\n", ptid);
+    sp_ptr[POST_FRAME_WORD] = 0;
+    #endif
+
     int j = 0;
 
     // get ahead
@@ -124,6 +101,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     for (int k = 0; k < startOffset; k+=K_STRIDE) {
       prefetch_inner_frame(a, i, j, k, &sp, M);
     }
+
+
 
     // do first inner loop
     for (int k = startOffset; k < M; k+=K_STRIDE) {
@@ -140,15 +119,32 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
         // finish loop at a weird time
         if (k + K_STRIDE == startOffset) {
+          #ifndef SCALAR_IS_MAILER
+
           ISSUE_VINST(vec_body_end_label);
           ISSUE_VINST(vec_body_init_label);
+
+                    // wait for mailer to be ready
+          if (j != 1 && (j - 1) % SCALAR_NUM_FRAMES == 0) {
+            // printf("start reset value %d %d\n", ptid, j);
+            while (1) {
+              volatile int wait_val = sp_ptr[POST_FRAME_WORD]; 
+              if (wait_val == 1) break;
+            }
+            // printf("reset value %d %d\n", ptid, j);
+            sp_ptr[POST_FRAME_WORD] = 0;
+          }
+          #endif
+
         }
       }
 
+      #ifdef SCALAR_IS_MAILER
       // every so often need to complete the sum
       // maybe want to put this somewhere else, so in between vinst and such?
       if (j % ACCUM_GRANULARITY == 0)
         do_sum(c, i, j - ACCUM_GRANULARITY, N, sp_ptr, &sp_self);
+      #endif
     }
 
     // draining. do the last vissue corresponding to the initial round of prefetch
@@ -157,8 +153,10 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     }
 
     ISSUE_VINST(vec_body_end_label);
+    #ifdef SCALAR_IS_MAILER
     do_sum(c, i, M - ACCUM_GRANULARITY, N, sp_ptr, &sp_self);
-  
+    #endif
+
     #else
     for (int j = 0; j < M; j+=J_STRIDE) {
       prefetch_outer_frame(c, i, j, &sp, N);
@@ -168,13 +166,6 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       for (int k = 0; k < startOffset; k+=K_STRIDE) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
       }
-
-      // #ifdef LONGLINES
-      // // do reduction of previous iter now while loads are in flight for next frame
-      // if (j > 0) {
-      //   do_sum(c, i, j - 1, N, sp_ptr, &sp_self);
-      // }
-      // #endif
 
       // steady-state
       for (int k = startOffset; k < M; k+=K_STRIDE) {
@@ -188,13 +179,6 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       }
 
       ISSUE_VINST(vec_body_end_label);
-
-      // // do the last of j iter sum here (no load in flight, but only single iter so w/e)
-      // #ifdef LONGLINES
-      // if (j == M - 1) {
-      //   do_sum(c, i, j, N, sp_ptr, &sp_self);
-      // }
-      // #endif
     }
     #endif
   }
