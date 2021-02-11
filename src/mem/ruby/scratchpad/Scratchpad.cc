@@ -1524,31 +1524,31 @@ Scratchpad::setupConfig(int csrId, RegVal csrVal) {
     // can also probably store region size and number here rather than going to cpu
 
 
-  // finalize stats when devec
-  if (csrId == RiscvISA::MISCREG_FETCH) {
-    if (csrVal == 0) {
+  // // finalize stats when devec
+  // if (csrId == RiscvISA::MISCREG_FETCH) {
+  //   if (csrVal == 0) {
 
-      for (int i = 0; i < m_num_frame_cntrs; i++) {
-        for (int j = 0; j < m_occupancies.size(); j++) {
-          m_occupancy_offset[i] += m_occupancies[j].frac_usage(i);
-        }
-      }
+  //     for (int i = 0; i < m_num_frame_cntrs; i++) {
+  //       for (int j = 0; j < m_occupancies.size(); j++) {
+  //         m_occupancy_offset[i] += m_occupancies[j].frac_usage(i);
+  //       }
+  //     }
 
-      int totSamples = 0;
-      for (int j = 0; j < m_occupancies.size(); j++) {
-        totSamples += m_occupancies[j].num_samples;
-      }
-      if (totSamples > 0) {
-        for (int i = 0; i < m_num_frame_cntrs; i++) {
-          m_occupancy_offset[i] = m_occupancy_offset[i].value() / totSamples;
-        }
-      }
-    }
-    else {
-      // num_occupancy_samples = 0;
-      m_occupancies.emplace_back(m_num_frame_cntrs, getRegionElements());
-    }
-  }
+  //     int totSamples = 0;
+  //     for (int j = 0; j < m_occupancies.size(); j++) {
+  //       totSamples += m_occupancies[j].num_samples;
+  //     }
+  //     if (totSamples > 0) {
+  //       for (int i = 0; i < m_num_frame_cntrs; i++) {
+  //         m_occupancy_offset[i] = m_occupancy_offset[i].value() / totSamples;
+  //       }
+  //     }
+  //   }
+  //   else {
+  //     // num_occupancy_samples = 0;
+  //     m_occupancies.emplace_back(m_num_frame_cntrs, getRegionElements());
+  //   }
+  // }
 
 
 }
@@ -1562,6 +1562,27 @@ Scratchpad::resetAllRegionCntrs() {
   }
   m_cur_prefetch_region = 0;
   m_cur_consumer_region = 0;
+
+  // do recording of m_occupancies
+ for (int i = 0; i < m_num_frame_cntrs; i++) {
+    for (int j = 0; j < m_occupancies.size(); j++) {
+      m_occupancy_offset[i] += m_occupancies[j].frac_usage(i);
+    }
+  }
+
+  int totSamples = 0;
+  for (int j = 0; j < m_occupancies.size(); j++) {
+    totSamples += m_occupancies[j].num_samples;
+  }
+  if (totSamples > 0) {
+    for (int i = 0; i < m_num_frame_cntrs; i++) {
+      m_occupancy_offset[i] = m_occupancy_offset[i].value() / totSamples;
+    }
+  }
+
+  m_occupancies.clear();
+  m_occupancies.emplace_back(m_num_frame_cntrs, getRegionElements());
+
 }
 
 void
