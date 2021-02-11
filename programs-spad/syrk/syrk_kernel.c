@@ -87,7 +87,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     #ifndef SCALAR_IS_MAILER
     while (1) {
       // needs volatile so doesn't optimize
-      volatile int wait_val = sp_ptr[POST_FRAME_WORD]; 
+      int wait_val = sp_ptr[POST_FRAME_WORD]; 
       if (wait_val == 1) break;
     }
     // printf("reset val %d\n", ptid);
@@ -119,16 +119,17 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
         // finish loop at a weird time
         if (k + K_STRIDE == startOffset) {
-          #ifndef SCALAR_IS_MAILER
+          
 
           ISSUE_VINST(vec_body_end_label);
           ISSUE_VINST(vec_body_init_label);
 
-                    // wait for mailer to be ready
+          #ifndef SCALAR_IS_MAILER
+          // wait for mailer to be ready
           if (j != 1 && (j - 1) % SCALAR_NUM_FRAMES == 0) {
             // printf("start reset value %d %d\n", ptid, j);
             while (1) {
-              volatile int wait_val = sp_ptr[POST_FRAME_WORD]; 
+              int wait_val = sp_ptr[POST_FRAME_WORD]; 
               if (wait_val == 1) break;
             }
             // printf("reset value %d %d\n", ptid, j);

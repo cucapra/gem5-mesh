@@ -107,7 +107,7 @@ void mailer(DTYPE *c, int groupId, int numGroups, int N, int M, int ptid, int pt
       if (j % SCALAR_NUM_FRAMES == 0) {
         // printf("start set value %d %d\n", ptidScalar, j);
         while (1) {
-          volatile int wait_val = sp_scalar_ptr[POST_FRAME_WORD];
+          int wait_val = sp_scalar_ptr[POST_FRAME_WORD];
           if (wait_val == 0) break;
         }
         // printf("set value %d %d\n", ptidScalar, j); // gets here
