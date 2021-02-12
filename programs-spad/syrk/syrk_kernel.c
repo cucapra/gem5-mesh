@@ -77,8 +77,11 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   #ifdef SCALAR_CORE
   int sp = 0;
   int sp_self = 0;
-  volatile DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-
+  #ifdef SCALAR_IS_MAILER
+  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  #else
+  volatile int *sp_ptr = (int*)getSpAddr(ptid, 0);
+  #endif
   // int init_offset = min(INIT_OFFSET, M);
 
   for (int i = start; i < end; i++) {
@@ -122,7 +125,6 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
           
 
           ISSUE_VINST(vec_body_end_label);
-          ISSUE_VINST(vec_body_init_label);
 
           #ifndef SCALAR_IS_MAILER
           // wait for mailer to be ready
@@ -133,9 +135,14 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
               if (wait_val == 1) break;
             }
             // printf("reset value %d %d\n", ptid, j);
-            sp_ptr[POST_FRAME_WORD] = 0;
+            // sp_ptr[POST_FRAME_WORD] = 0;
+
+            // TODO doesn't work. not sure if sync bug or NOACK to local spad not supported
+            STORE_NOACK(0, &sp_ptr[POST_FRAME_WORD], 0);
           }
           #endif
+
+          ISSUE_VINST(vec_body_init_label);
 
         }
       }

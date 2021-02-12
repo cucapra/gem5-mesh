@@ -51,7 +51,7 @@
 // prefetch config for inner kernel
 
 #ifndef ACCUM_GRANULARITY
-#define ACCUM_GRANULARITY 8
+#define ACCUM_GRANULARITY 1
 #endif
 
 #ifdef LONGLINES

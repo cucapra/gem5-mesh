@@ -98,7 +98,7 @@ void mailer(DTYPE *c, int groupId, int numGroups, int N, int M, int ptid, int pt
 
   int sp_self = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-  volatile DTYPE *sp_scalar_ptr = (DTYPE*)getSpAddr(ptidScalar, 0);
+  volatile int *sp_scalar_ptr = (int*)getSpAddr(ptidScalar, 0);
 
   for (int i = start; i < end; i++) {
     for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) {
@@ -111,7 +111,9 @@ void mailer(DTYPE *c, int groupId, int numGroups, int N, int M, int ptid, int pt
           if (wait_val == 0) break;
         }
         // printf("set value %d %d\n", ptidScalar, j); // gets here
-        sp_scalar_ptr[POST_FRAME_WORD] = 1; 
+        // sp_scalar_ptr[POST_FRAME_WORD] = 1;
+        // DOESNT WORK?? SYNC PROB?
+        STORE_NOACK(1, &sp_scalar_ptr[POST_FRAME_WORD], 0); 
       }
 
       do_sum(c, i, j, N, sp_ptr, &sp_self);
