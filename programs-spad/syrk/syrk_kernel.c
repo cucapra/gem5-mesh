@@ -97,6 +97,37 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     sp_ptr[POST_FRAME_WORD] = 0;
     #endif
 
+
+    #if INIT_FRAMES==0
+    for (int j = 0; j < M; j+=J_STRIDE) {
+      ISSUE_VINST(vec_body_init_label);
+
+      for (int k = 0; k < M; k+=K_STRIDE) {
+        prefetch_inner_frame(a, i, j, k, &sp, M);
+        ISSUE_VINST(vec_body_label);
+      }
+
+      #ifndef SCALAR_IS_MAILER
+      // wait for mailer to be ready
+      if (j != 1 && (j - 1) % SCALAR_NUM_FRAMES == 0) {
+        // printf("start reset value %d %d\n", ptid, j);
+        while (1) {
+          int wait_val = sp_ptr[POST_FRAME_WORD]; 
+          if (wait_val == 1) break;
+        }
+        // printf("reset value %d %d\n", ptid, j);
+        // sp_ptr[POST_FRAME_WORD] = 0;
+
+        // TODO doesn't work. not sure if sync bug or NOACK to local spad not supported
+        STORE_NOACK(0, &sp_ptr[POST_FRAME_WORD], 0);
+      }
+      #endif
+
+      ISSUE_VINST(vec_body_end_label);
+
+    }
+
+    #else
     int j = 0;
 
     // get ahead
@@ -115,6 +146,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
     // steady state
     for (j = 1; j < M; j+=J_STRIDE) {
+
       for (int k = 0; k < M; k+=K_STRIDE) {
 
         prefetch_inner_frame(a, i, j, k, &sp, M);
@@ -122,7 +154,6 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
         // finish loop at a weird time
         if (k + K_STRIDE == startOffset) {
-          
 
           ISSUE_VINST(vec_body_end_label);
 
@@ -143,8 +174,9 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
           #endif
 
           ISSUE_VINST(vec_body_init_label);
-
         }
+
+
       }
 
       #ifdef SCALAR_IS_MAILER
@@ -163,6 +195,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     ISSUE_VINST(vec_body_end_label);
     #ifdef SCALAR_IS_MAILER
     do_sum(c, i, M - ACCUM_GRANULARITY, N, sp_ptr, &sp_self);
+    #endif
     #endif
 
     #else
@@ -313,14 +346,29 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 #ifdef SCALAR_CORE
 init_label:
   asm("trillium glue_point vector_init");
+#if INIT_FRAMES==0
+exit(1);
+#endif
 vec_body_init_label:
   asm("trillium glue_point vec_body_init");
+#if INIT_FRAMES==0
+exit(1);
+#endif
 vec_body_label:
   asm("trillium glue_point vec_body");
+#if INIT_FRAMES==0
+exit(1);
+#endif
 vec_body_end_label:
   asm("trillium glue_point vec_body_end");
+#if INIT_FRAMES==0
+exit(1);
+#endif
 vector_return_label:
   asm("trillium glue_point vector_return");
+#if INIT_FRAMES==0
+exit(1);
+#endif
 #endif
 
   // can we change where paralleization is to get more horiz prefetch?
