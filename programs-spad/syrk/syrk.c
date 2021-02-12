@@ -231,7 +231,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   group_id_to_scalar(&tinfo, unique_id, &ptidOrig_x, &ptidOrig_y);
   int ptidScalar = ptidOrig_x + ptidOrig_y * pdim_x;
 
-// #define SCALAR_IS_MAILER
+  #ifdef LONGLINES
   #ifdef SCALAR_IS_MAILER
   ptidMailer = ptidScalar;
   is_mailer = is_da;
@@ -268,6 +268,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     ptidMailer = 38;
   }
 
+  #endif
   #endif
 
 

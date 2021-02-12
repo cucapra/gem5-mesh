@@ -410,11 +410,29 @@ machine(MachineType:L2Cache, "SP LLC cache")
     return intToAddress(spadIdx);
   }
 
-  int getNumWordsInResp(int countPerCore, int subCoreOffset, bool isCpuSide) {
+  int min(int a, int b) {
+    if (a > b) {
+      return b;
+    }
+    else {
+      return a;
+    }
+  }
+
+  int getNumWordsInResp(int totCnt, int countPerCore, int subCoreOffset, bool isCpuSide) {
     if (countPerCore > 1) {
       int vecCnt := getPortVecCnt(isCpuSide);
+
+      // remaining count for the entire request (takes into account line clipping)
+      int absRemCnt := totCnt - vecCnt;
+
+      // remaining count just for this core
       int respForCore := mod((subCoreOffset + vecCnt), countPerCore);
-      int remCnt := countPerCore - respForCore;
+      int remCntForCore := countPerCore - respForCore;
+
+      // take min of these two
+      int remCnt := min(absRemCnt, remCntForCore);
+
       // do min of respCnt and netWidth
       if (remCnt > netWidth) {
         return netWidth;
@@ -436,13 +454,13 @@ machine(MachineType:L2Cache, "SP LLC cache")
   bool isLastLoadOfVec(int count, int countPerCore, int subCoreOffset, bool isCpuSide) {
     int vecCnt := getPortVecCnt(isCpuSide);
     int nextVecCnt := vecCnt + 
-      getNumWordsInResp(countPerCore, subCoreOffset, isCpuSide);
+      getNumWordsInResp(count, countPerCore, subCoreOffset, isCpuSide);
     return (nextVecCnt == count);
   }
 
   void increaseVecCount(int respCnt, int countPerCore, int subCoreOffset, bool isCpuSide) {
     int vecCnt := getPortVecCnt(isCpuSide) + 
-      getNumWordsInResp(countPerCore, subCoreOffset, isCpuSide);
+      getNumWordsInResp(respCnt, countPerCore, subCoreOffset, isCpuSide);
     setPortVecCnt(vecCnt, isCpuSide);
     DPRINTF(Frame, "increase vec cnt to %d\n", getPortVecCnt(isCpuSide));
   }
@@ -458,7 +476,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
 
   bool requiresMultipleResps(int totalCount, int countPerCore, int subCoreOffset, bool isCpuSide) {
-    return getNumWordsInResp(countPerCore, subCoreOffset, isCpuSide) < totalCount;
+    return getNumWordsInResp(totalCount, countPerCore, subCoreOffset, isCpuSide) < totalCount;
   }
 
   bool isVecActive(bool isCpuSide) {
@@ -806,7 +824,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       Addr spadAddr := getSpadIdx(baseCntAddr, coreOffset, in_msg.SubCoreOffset, 
         in_msg.CountPerCore, true);
       
-      int numRespWords := getNumWordsInResp(in_msg.CountPerCore, in_msg.SubCoreOffset, true);
+      int numRespWords := getNumWordsInResp(in_msg.RespCnt, in_msg.CountPerCore, in_msg.SubCoreOffset, true);
 
       DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x lineaddr %#x offset %d words %d\n", 
         spadIdx, coreIdx, spadAddr, in_msg.WordAddress, in_msg.LineAddress, wordOffset, numRespWords);
@@ -863,7 +881,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
       Addr spadAddr := getSpadIdx(baseCntAddr, coreOffset, tbe.SubCoreOffset,
         tbe.CountPerCore, false);
 
-      int numRespWords := getNumWordsInResp(tbe.CountPerCore, tbe.SubCoreOffset, false);
+      int numRespWords := getNumWordsInResp(tbe.RespCnt, tbe.CountPerCore, tbe.SubCoreOffset, false);
 
       DPRINTF(Frame, "remote store to spad %d from spad %d @ addr %#x from mem %#x prefetch %#x offset %d core offset %d words %d\n", 
         spadIdx, coreIdx, spadAddr, tbe.WordAddress, tbe.PrefetchAddress, wordOffset, tbe.CoreOffset, numRespWords);
