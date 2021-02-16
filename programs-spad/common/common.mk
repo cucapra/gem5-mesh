@@ -48,6 +48,8 @@ else
 		RV_CC=$(RV_CC8)
 	endif
 endif
+# TEMP FORCE
+RC_CC=$(RV_CC8)
 
 CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
 

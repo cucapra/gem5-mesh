@@ -9,6 +9,10 @@
 #include "bind_defs.h"
 #include "util.h"
 
+#ifdef NESTED_SIMD
+#include <riscv_vector.h>
+#endif
+
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
@@ -63,7 +67,9 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   #ifdef VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
   int start = ((groupId + 0) * N) / numGroups;
+  #ifndef LONGLINES
   start = roundUp(start, VECTOR_LEN);
+  #endif
   int i = start;
   int j = vtid;
   int sp = 0;
@@ -72,6 +78,10 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
   int sp_origin = vtid;
   DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
+
+  #ifdef NESTED_SIMD
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+  #endif
   #endif
 
   #ifdef SCALAR_CORE
@@ -281,18 +291,40 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     sp+=OUTER_FRAME_SIZE;
     sp = sp % POST_FRAME_WORD;
     #else
+    #ifdef NESTED_SIMD
+    // NOTE MUST NEVER CHANGE THIS VALUE B/C CANT SQUASH IN VCORES!!!
+    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    #endif
     c_ij = 0;
     #endif
 
     do {
       asm("trillium vissue_delim if_begin vec_body");
+  
       // do innermost loop body (k)
+      #ifdef NESTED_SIMD
+      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #endif
+      
       FRAME_START(INNER_FRAME_SIZE);
 
       #pragma GCC unroll(16)
-      for (int k = 0; k < INNER_PREFETCH_LEN; k++) {
+      for (int k = 0; k < INNER_PREFETCH_LEN; k+=NESTED_SIMD_VLEN) {
+        #ifdef NESTED_SIMD
+        // load from scratchpad frame
+        vfloat32m1_t vai = vle32_v_f32m1(&sp_ptr[sp + k]);
+        vfloat32m1_t vaj = vle32_v_f32m1(&sp_ptr[sp + INNER_PREFETCH_LEN + k]);
+
+        vfloat32m1_t vaa = vfmul_vv_f32m1(vai, vaj);
+        vfloat32m1_t vaaa = vfmul_vf_f32m1(vaa, alpha); 
+
+        vfloat32m1_t vcij = vfredsum_vs_f32m1_f32m1(vaaa, vaaa, vzero);
+        c_ij += vfmv_f_s_f32m1_f32(vcij);
+        #else
         c_ij += alpha * sp_ptr[sp + k] * sp_ptr[sp + INNER_PREFETCH_LEN + k];
+        #endif
       }
+
       // printf("a %f ?= %f %f ?= %f\n", sp_ptr[sp + 0], a[i * M + k], sp_ptr[sp + 1], a[j * M +k]);
       // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
       // c_ij += alpha * sp_ptr[sp + 0] * sp_ptr[sp + 1];

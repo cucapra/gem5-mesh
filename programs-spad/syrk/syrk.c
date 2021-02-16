@@ -10,7 +10,7 @@
 #include "group_templates.h"
 #include "syrk_kernel.h"
 
-#ifdef PACKED_SIMD
+#if defined(PACKED_SIMD) || defined(NESTED_SIMD) 
 #include <riscv_vector.h>
 #endif
 
@@ -91,6 +91,7 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
  * Staging
  *---------------------------------------------------------------------------------*/
 
+#ifdef LONGLINES
 void mailer(DTYPE *c, int groupId, int numGroups, int N, int M, int ptid, int ptidScalar) {
   // chunk over vector gorups
   int start = ((groupId + 0) * N) / numGroups;
@@ -120,6 +121,7 @@ void mailer(DTYPE *c, int groupId, int numGroups, int N, int M, int ptid, int pt
     }
   }
 }
+#endif
 
 
 void __attribute__((optimize("-fno-inline"))) syrk(
@@ -133,8 +135,10 @@ void __attribute__((optimize("-fno-inline"))) syrk(
     #else
     if (used)
       tril_syrk(mask, a, c, N, M, ptid, groupId, numGroups, vtid, ptidMailer);
+    #ifdef USE_VEC
     else if (isMailer)
       mailer(c, groupId, numGroups, N, M, ptid, ptidScalar);
+    #endif
     #endif
 
 }
@@ -214,6 +218,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // entire vector group
   int ptidMailer = 0;
   int is_mailer = 0;
+  int ptidScalar = 0;
 
   // get behavior of each core
   #ifdef NUM_FRAMES
@@ -226,10 +231,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int mask = getSIMDMask(&cinfo);
   #endif
 
-
   int ptidOrig_x, ptidOrig_y;
   group_id_to_scalar(&tinfo, unique_id, &ptidOrig_x, &ptidOrig_y);
-  int ptidScalar = ptidOrig_x + ptidOrig_y * pdim_x;
+  ptidScalar = ptidOrig_x + ptidOrig_y * pdim_x;
 
   #ifdef LONGLINES
   #ifdef SCALAR_IS_MAILER
@@ -271,6 +275,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
   #endif
 
+  // // need to set vlen here so doesn't cause squash in vector core on change in value
+  // #ifdef NESTED_SIMD
+  // vsetvl_e32m1(NESTED_SIMD_VLEN);
+  // #endif
 
 
   // if (unique_id == 0) {

@@ -17,6 +17,7 @@
 // #define MANYCORE_PREFETCH
 // #define PACKED_SIMD
 // #define VEC_16_LONGLINES
+// #define NESTED_SIMD_4_4
 
 // vvadd_execute config directives
 #if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
@@ -24,7 +25,7 @@
 #endif
 
 // vector grouping directives
-#if defined(VEC_4_SIMD)
+#if defined(VEC_4_SIMD) || defined(NESTED_SIMD_4_4)
 #define VECTOR_LEN 4
 #endif
 #if defined(VEC_16_SIMD) || defined(VEC_16_LONGLINES)
@@ -34,9 +35,22 @@
 #define VECTOR_LEN 1
 #endif
 
-#if defined(VEC_16_LONGLINES)
+#if defined(VEC_16_LONGLINES) || defined(NESTED_SIMD_4_4)
 #define LONGLINES
 #endif
+
+#if defined(NESTED_SIMD_4_4)
+#define NESTED_SIMD_VLEN 4
+#else
+#define NESTED_SIMD_VLEN 1
+#endif
+
+#if NESTED_SIMD_VLEN > 1
+#define NESTED_SIMD
+#endif
+
+#define EFF_VLEN (VECTOR_LEN * NESTED_SIMD_VLEN)
+
 
 // prefetch sizing
 #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
@@ -55,13 +69,13 @@
 #endif
 
 #ifdef LONGLINES
-#define INNER_PREFETCH_LEN (CACHE_LINE_SIZE / sizeof(DTYPE) / VECTOR_LEN)
-#define J_STRIDE (1)
-#define K_STRIDE (INNER_PREFETCH_LEN * VECTOR_LEN)
+  #define INNER_PREFETCH_LEN (CACHE_LINE_SIZE / sizeof(DTYPE) / EFF_VLEN)
+  #define J_STRIDE (1)
+  #define K_STRIDE (INNER_PREFETCH_LEN * EFF_VLEN)
 #else
-#define INNER_PREFETCH_LEN (16)
-#define J_STRIDE (VECTOR_LEN)
-#define K_STRIDE (INNER_PREFETCH_LEN)
+  #define INNER_PREFETCH_LEN (16)
+  #define J_STRIDE (VECTOR_LEN)
+  #define K_STRIDE (INNER_PREFETCH_LEN)
 #endif
 
 #define INNER_FRAME_SIZE (2*INNER_PREFETCH_LEN)
