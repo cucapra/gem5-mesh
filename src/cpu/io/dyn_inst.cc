@@ -59,6 +59,10 @@ IODynInst::execute()
   // check if should squash after
   // for vsetvli was squashing a lot b/c was every loop, but we only need
   // to do so if it would change VLEN, which happens a minority of the time
+
+  // check in current context if will change state
+  // use sparingly b/c not super realistic call
+  // Needs to be computed before isSquashAfter() is called in the pipeline (just commit for now)
   squash_if_squash_after = static_inst_p->willChangeState(this);
 
   this->fault = static_inst_p->execute(this, nullptr);

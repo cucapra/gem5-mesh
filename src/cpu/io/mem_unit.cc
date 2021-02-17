@@ -733,9 +733,9 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
         m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
         m_s1_inst->mem_req_p->subCoreOffset = 0;
         m_s1_inst->mem_req_p->respCnt = leftCount;
-        DPRINTF(Frame, "send vec load left global %#x spad %#x core offset %d cnt %d\n", 
+        DPRINTF(Frame, "send vec load left global %#x spad %#x core offset %d cpc %d config %d, cnt %d\n", 
           m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
-          m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
+          m_s1_inst->mem_req_p->coreOffset, countPerCore, config, m_s1_inst->mem_req_p->respCnt);
       }
       else {
         int rightCount = totalResp - wordsRemInLine;

@@ -94,6 +94,7 @@ class IODynInst : public ExecContext
     bool isLastMicroop()    const { return static_inst_p->isLastMicroop(); }
     bool isFirstMicroop()   const { return static_inst_p->isFirstMicroop(); }
     bool isMicroBranch()    const { return static_inst_p->isMicroBranch(); }
+    bool isDevec()          const { return isSquashAfter() && static_inst_p->isVectorIssue(); }
     //bool isRoCC()           const { return static_inst_p->isRoCC(); }
 
     /**
