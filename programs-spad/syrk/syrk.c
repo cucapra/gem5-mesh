@@ -182,23 +182,24 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
-  vtid = cinfo.vtid;
-  vtid_x = cinfo.vtid_x;
-  vtid_y = cinfo.vtid_y;
-  vdim_x = cinfo.vdim_x;
-  vdim_y = cinfo.vdim_y;
-  orig_x = cinfo.orig_x;
-  orig_y = cinfo.orig_y;
+  vtid = cinfo.vtid_flat;
+  vtid_x = cinfo.vtid.x;
+  vtid_y = cinfo.vtid.y;
+  vdim_x = cinfo.vdim.x;
+  vdim_y = cinfo.vdim.y;
+  orig_x = cinfo.orig.x;
+  orig_y = cinfo.orig.y;
   is_da  = cinfo.is_scalar;
-  master_x = cinfo.master_x;
-  master_y = cinfo.master_y;
+  master_x = cinfo.master.x;
+  master_y = cinfo.master.y;
   unique_id = cinfo.unique_id;
   total_groups = cinfo.total_groups;
   used = cinfo.used;
 
   // if (!used) printf("unused %d %d = %d\n", ptid_x, ptid_y, ptid);
 
-  // printf("ptid %d(%d,%d) da %d vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, is_da, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used);
+  // printf("ptid %d(%d,%d) da %d vtid %d(%d,%d) dim %d(%d,%d) used? %d\n", 
+    // ptid, ptid_x, ptid_y, is_da, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, used);
 
   #else
 
@@ -245,40 +246,49 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // Group1 ptid 0,5(40)
   // Group2 ptid 1,5(41)
   // Group3 ptid 6,4(38)
-  total_groups = 3;
-  if (ptid == 40) {
-    unique_id = 0;
-    ptidScalar = 32;
-    is_mailer = 1;
-  }
-  else if (ptid == 41) {
-    unique_id = 1;
-    ptidScalar = 39;
-    is_mailer = 1;
-  }
-  else if (ptid == 38) {
-    unique_id = 2;
-    ptidScalar = 33;
-    is_mailer = 1;
-  }
+  // total_groups = 3;
+  // if (ptid == 40) {
+  //   unique_id = 0;
+  //   ptidScalar = 32;
+  //   is_mailer = 1;
+  // }
+  // else if (ptid == 41) {
+  //   unique_id = 1;
+  //   ptidScalar = 39;
+  //   is_mailer = 1;
+  // }
+  // else if (ptid == 38) {
+  //   unique_id = 2;
+  //   ptidScalar = 33;
+  //   is_mailer = 1;
+  // }
 
-  if (unique_id == 0) {
-    ptidMailer = 40;
-  }
-  else if (unique_id == 1) {
-    ptidMailer = 41;
-  }
-  else if (unique_id == 2) {
-    ptidMailer = 38;
-  }
+  // if (unique_id == 0) {
+  //   ptidMailer = 40;
+  // }
+  // else if (unique_id == 1) {
+  //   ptidMailer = 41;
+  // }
+  // else if (unique_id == 2) {
+  //   ptidMailer = 38;
+  // }
+
+  is_mailer = cinfo.num_prev_cores > 0;
+  if (is_mailer)
+    unique_id = cinfo.link_id[0];
+  ptidScalar = cinfo.prev_cores[0];
+
+  ptidMailer = cinfo.next_cores[0];
+
+  // printf("%d: %d %d %d %d\n", ptid, is_da, is_mailer, ptidScalar, ptidMailer);
 
   #endif
   #endif
 
-  // // need to set vlen here so doesn't cause squash in vector core on change in value
-  // #ifdef NESTED_SIMD
-  // vsetvl_e32m1(NESTED_SIMD_VLEN);
-  // #endif
+  // need to set vlen here so doesn't cause squash in vector core on change in value
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #endif
 
 
   // if (unique_id == 0) {

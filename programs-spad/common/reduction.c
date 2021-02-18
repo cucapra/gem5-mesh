@@ -14,8 +14,8 @@ void setup_reduction(token_queue_t *cons0, token_queue_t *cons1, token_queue_t *
     // int active_dim = pdim;
   }
   else {
-    int pairTid = get_reduction_dest_vector(tinfo, cinfo->unique_id, cinfo->vtid_x, cinfo->vtid_y, 
-      cinfo->vdim_x, pdim_x, &activeTid);
+    int pairTid = get_reduction_dest_vector(tinfo, cinfo->unique_id, cinfo->vtid.x, cinfo->vtid.y, 
+      cinfo->vdim.x, pdim_x, &activeTid);
     // int active_dim = total_groups * VEC_LEN;
   }
 
@@ -103,7 +103,7 @@ int get_reduction_dest_manycore(int src_id) {
 int get_reduction_dest_vector(template_info_t *tinfo, int group_id, int vid_x, int vid_y, int virt_dim_x, int phys_dim_x, int *active_tid) {
   // get a flat id from group and vid
   int vid = vid_y * virt_dim_x + vid_x;
-  int vlen = tinfo->groups[0].vector_dim_x * tinfo->groups[0].vector_dim_y;
+  int vlen = tinfo->groups[0].vector_dim.x * tinfo->groups[0].vector_dim.y;
   int src = group_id * vlen + vid;
   // divide by two as in manycore case
   int dest = src / 2;

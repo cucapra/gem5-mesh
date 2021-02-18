@@ -327,14 +327,14 @@ static int getSIMDMaskHoriz(Vector2_t master, Vector2_t origin, Vector2_t tid, V
 // is_master  --> whether this core is the master or not
 static int getSIMDMask(core_config_info_t *cinfo) {
   // unpack struct
-  int master_x  = cinfo->master_x;
-  int master_y  = cinfo->master_y;
-  int origin_x  = cinfo->orig_x;
-  int origin_y  = cinfo->orig_y;
-  int tid_x     = cinfo->vtid_x;
-  int tid_y     = cinfo->vtid_y;
-  int dim_x     = cinfo->vdim_x;
-  int dim_y     = cinfo->vdim_y;
+  int master_x  = cinfo->master.x;
+  int master_y  = cinfo->master.y;
+  int origin_x  = cinfo->orig.x;
+  int origin_y  = cinfo->orig.y;
+  int tid_x     = cinfo->vtid.x;
+  int tid_y     = cinfo->vtid.y;
+  int dim_x     = cinfo->vdim.x;
+  int dim_y     = cinfo->vdim.y;
   int is_master = cinfo->is_scalar;
   
   // TODO does not handle case where master is above or below due to nesting order?????????
@@ -410,10 +410,10 @@ static int getSIMDMask(core_config_info_t *cinfo) {
 // Avoid overfilling the scratchpad because may overwrite incorretly
 static int getDebugMask(core_config_info_t *cinfo) {
   // unpack
-  int origin_x  = cinfo->orig_x;
-  int origin_y  = cinfo->orig_y;
-  int dim_x     = cinfo->vdim_x;
-  int dim_y     = cinfo->vdim_y;
+  int origin_x  = cinfo->orig.x;
+  int origin_y  = cinfo->orig.y;
+  int dim_x     = cinfo->vdim.x;
+  int dim_y     = cinfo->vdim.y;
   int is_master = cinfo->is_scalar;
 
   return (origin_x << FET_XORIGIN_SHAMT) | (origin_y << FET_YORIGIN_SHAMT) | (dim_x << FET_XLEN_SHAMT) | (dim_y << FET_YLEN_SHAMT) | (is_master << FET_DAE_SHAMT);
