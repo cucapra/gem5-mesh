@@ -32,6 +32,6 @@ inline void do_sum(DTYPE *c, int i, int j_base, int N, DTYPE *sp_ptr, int *sp_id
 
 void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M, 
                   int ptid, int groupId, int numGroups, int vtid,
-                  int ptidMailer);
+                  int ptidMailer, int linkId, int numGroupsPerMailer);
 
 #endif

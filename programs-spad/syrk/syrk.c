@@ -121,7 +121,8 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
   // printf("%d %d %d %d %d %f\n", 
     // ptid, max_chunk_size, numGroupsToSum, baseGroupId, fwders[0], ceilf((float)N/(float)numGroups));
   for (int cnt = 0; cnt < max_chunk_size; cnt++) {
-    for (int g = 0; g < numGroupsToSum; g++) {
+    // do reverse order b/c later groups will always have the same or more frames
+    for (int g = numGroupsToSum - 1; g >= 0; g--) {
       int gid = baseGroupId + g; // todo do lookup here if not consecutive
       
       // check if expecting frame
@@ -158,16 +159,15 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
 void __attribute__((optimize("-fno-inline"))) syrk(
     DTYPE *a, DTYPE *c,
     int ptid, int vtid, int dim, int N, int M, int groupId, int numGroups,
-    int mask, int used, int ptidMailer, int *ptidFwder, int numGroupsToSum
+    int mask, int used, int ptidMailer, int isMailer, int *ptidFwder, int numGroupsToSum, int linkId
   ) {
-
-    int isMailer = (numGroupsToSum > 0);
 
     #ifndef USE_VEC
     syrk_manycore_baseline(a, c, N, M, ptid, dim);
     #else
     if (used)
-      tril_syrk(mask, a, c, N, M, ptid, groupId, numGroups, vtid, ptidMailer);
+      tril_syrk(mask, a, c, N, M, ptid, groupId, numGroups, 
+        vtid, ptidMailer, linkId, numGroupsToSum);
     #ifdef USE_VEC
     else if (isMailer)
       mailer(c, groupId, numGroups, N, M, ptid, ptidFwder, numGroupsToSum);
@@ -252,7 +252,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // entire vector group
   int ptidMailer = 0;
   int ptidFwders[MAX_GROUP_AFFINITY];
-  int numGroupsPerMailer = cinfo.num_prev_cores;
+  int numGroupsPerMailer = 0;
+  int linkId = cinfo.link_id[0];
+  int isMailer = 0;
 
   // get behavior of each core
   #ifdef NUM_FRAMES
@@ -271,18 +273,20 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #ifdef LONGLINES
   #ifdef SCALAR_IS_MAILER
   ptidMailer = ptidScalar;
-  is_mailer = is_da;
+  isMailer = is_da;
   #else
 
-  int is_mailer = numGroupsPerMailer > 0;
-  if (is_mailer)
-    unique_id = cinfo.link_id[0];
+  numGroupsPerMailer = tinfo.num_groups_in_template / tinfo.num_extra_in_template;
+  isMailer = cinfo.num_prev_cores > 0;
+  if (isMailer)
+    unique_id = linkId;
   for (int i = 0; i < MAX_GROUP_AFFINITY; i++)
     ptidFwders[i] = cinfo.prev_cores[i];
 
   ptidMailer = cinfo.next_cores[0];
 
-  // printf("%d: %d %d %d %d\n", ptid, is_da, is_mailer, ptidScalar, ptidMailer);
+  // printf("%d: %d %d %d %d %d %d\n", 
+  //  ptid, is_da, isMailer, ptidFwders[0], ptidMailer, linkId, numGroupsPerMailer);
 
   #endif
   #endif
@@ -302,7 +306,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   asm volatile("fence\n\t");
 
   // int mask = getDebugMask(&cinfo);
-  if (is_mailer) {
+  if (isMailer) {
     SET_PREFETCH_MASK(SCALAR_NUM_FRAMES, SCALAR_FRAME_SIZE, &start_barrier); 
   }
   else { 
@@ -316,7 +320,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // do the kernel
   syrk(a, c, ptid, vtid, pdim, N, M, unique_id, total_groups, 
-    mask, used, ptidMailer, ptidFwders, numGroupsPerMailer);
+    mask, used, ptidMailer, isMailer, ptidFwders, numGroupsPerMailer, linkId);
 
   // restore stack pointer
   RECOVER_DRAM_STACK();
