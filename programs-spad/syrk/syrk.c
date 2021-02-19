@@ -122,7 +122,7 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
     // ptid, max_chunk_size, numGroupsToSum, baseGroupId, fwders[0], ceilf((float)N/(float)numGroups));
   for (int cnt = 0; cnt < max_chunk_size; cnt++) {
     // do reverse order b/c later groups will always have the same or more frames
-    for (int g = numGroupsToSum - 1; g >= 0; g--) {
+    for (int g = 0; g >= -1*numGroupsToSum + 1; g--) {
       int gid = baseGroupId + g; // todo do lookup here if not consecutive
       
       // check if expecting frame
