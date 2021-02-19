@@ -8,7 +8,7 @@ CL_LEN := 256
 # CL_LEN := 64
 EXTRA_FLAGS ?= -DVEC_16_LONGLINES -DCACHE_LINE_SIZE=$(CL_LEN) -DACCUM_GRANULARITY=1 -DINIT_FRAMES=1
 HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)" --cacheline_size=$(CL_LEN) --net-width=4
-# GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Mesh,Frame
+# GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Frame
 
 # Build the kernel with trilliasm.
 TRILLIASM_KERNEL := syrk_kernel.c

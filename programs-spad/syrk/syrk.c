@@ -91,44 +91,77 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
  * Staging
  *---------------------------------------------------------------------------------*/
 
-#ifdef LONGLINES
-void mailer(DTYPE *c, int groupId, int numGroups, int N, int M, int ptid, int ptidScalar) {
-  // chunk over vector gorups
-  int start = ((groupId + 0) * N) / numGroups;
-  int end   = ((groupId + 1) * N) / numGroups;
+// #ifdef LONGLINES
+
+inline int get_group_start(int id, int N, int numGroups) {
+  return (( id + 0 ) * N) / numGroups;
+}
+
+inline int get_group_end(int id, int N, int numGroups) {
+  return (( id + 1 ) * N) / numGroups;
+}
+
+inline int get_group_len(int id, int N, int numGroups) {
+  return get_group_end(id, N, numGroups) - get_group_start(id, N, numGroups);
+}
+
+inline int ceilToInt(float val) {
+  int base = (int)val;
+  return base + 1;// ceilf() not working so do cheap version
+}
+
+// TODO making assumption that if multiple groups then are consecutive
+void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M, 
+    int ptid, int *fwders, int numGroupsToSum) {
+  // chunk over vector groups. note all might not do the same amount of work
+  int max_chunk_size = ceilToInt((float)N / (float)numGroups);
 
   int sp_self = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-  volatile int *sp_scalar_ptr = (int*)getSpAddr(ptidScalar, 0);
+  // printf("%d %d %d %d %d %f\n", 
+    // ptid, max_chunk_size, numGroupsToSum, baseGroupId, fwders[0], ceilf((float)N/(float)numGroups));
+  for (int cnt = 0; cnt < max_chunk_size; cnt++) {
+    for (int g = 0; g < numGroupsToSum; g++) {
+      int gid = baseGroupId + g; // todo do lookup here if not consecutive
+      
+      // check if expecting frame
+      // because of the way div works, should have cores with larger ids write
+      // to earlier frames to avoid skips
+      if (cnt >= get_group_len(gid, N, numGroups)) continue;
+      
+      volatile int *sp_scalar_ptr = (int*)getSpAddr(fwders[g], 0);
+      int i = get_group_start(gid, N, numGroups) + cnt; 
 
-  for (int i = start; i < end; i++) {
-    for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) {
-      // printf("%d %d\n", ptid, j);
-      // inform scalar core of the group that ready to go
-      if (j % SCALAR_NUM_FRAMES == 0) {
-        // printf("start set value %d %d\n", ptidScalar, j);
-        while (1) {
-          int wait_val = sp_scalar_ptr[POST_FRAME_WORD];
-          if (wait_val == 0) break;
+      for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) { // TODO wrong order
+        // printf("%d %d\n", ptid, j);
+        // inform scalar core of the group that ready to go
+        if (j % SCALAR_NUM_FRAMES == 0) {
+          // printf("start set value %d %d\n", ptidScalar, j);
+          while (1) {
+            int wait_val = sp_scalar_ptr[POST_FRAME_WORD];
+            if (wait_val == 0) break;
+          }
+          // printf("set value %d %d\n", ptidScalar, j); // gets here
+          // sp_scalar_ptr[POST_FRAME_WORD] = 1;
+          // DOESNT WORK?? SYNC PROB?
+          STORE_NOACK(1, &sp_scalar_ptr[POST_FRAME_WORD], 0); 
         }
-        // printf("set value %d %d\n", ptidScalar, j); // gets here
-        // sp_scalar_ptr[POST_FRAME_WORD] = 1;
-        // DOESNT WORK?? SYNC PROB?
-        STORE_NOACK(1, &sp_scalar_ptr[POST_FRAME_WORD], 0); 
-      }
 
-      do_sum(c, i, j, N, sp_ptr, &sp_self);
+        do_sum(c, i, j, N, sp_ptr, &sp_self);
+      }
     }
   }
 }
-#endif
+// #endif
 
 
 void __attribute__((optimize("-fno-inline"))) syrk(
     DTYPE *a, DTYPE *c,
     int ptid, int vtid, int dim, int N, int M, int groupId, int numGroups,
-    int mask, int used, int ptidMailer, int ptidScalar, int isMailer
+    int mask, int used, int ptidMailer, int *ptidFwder, int numGroupsToSum
   ) {
+
+    int isMailer = (numGroupsToSum > 0);
 
     #ifndef USE_VEC
     syrk_manycore_baseline(a, c, N, M, ptid, dim);
@@ -137,7 +170,7 @@ void __attribute__((optimize("-fno-inline"))) syrk(
       tril_syrk(mask, a, c, N, M, ptid, groupId, numGroups, vtid, ptidMailer);
     #ifdef USE_VEC
     else if (isMailer)
-      mailer(c, groupId, numGroups, N, M, ptid, ptidScalar);
+      mailer(c, groupId, numGroups, N, M, ptid, ptidFwder, numGroupsToSum);
     #endif
     #endif
 
@@ -218,8 +251,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // the core that is responsible for doing stores to DRAM if reduction over
   // entire vector group
   int ptidMailer = 0;
-  int is_mailer = 0;
-  int ptidScalar = 0;
+  int ptidFwders[MAX_GROUP_AFFINITY];
+  int numGroupsPerMailer = cinfo.num_prev_cores;
 
   // get behavior of each core
   #ifdef NUM_FRAMES
@@ -234,49 +267,18 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   int ptidOrig_x, ptidOrig_y;
   group_id_to_scalar(&tinfo, unique_id, &ptidOrig_x, &ptidOrig_y);
-  ptidScalar = ptidOrig_x + ptidOrig_y * pdim_x;
 
   #ifdef LONGLINES
   #ifdef SCALAR_IS_MAILER
   ptidMailer = ptidScalar;
   is_mailer = is_da;
   #else
-  // TODO. manually figure out which mailer core
-  
-  // Group1 ptid 0,5(40)
-  // Group2 ptid 1,5(41)
-  // Group3 ptid 6,4(38)
-  // total_groups = 3;
-  // if (ptid == 40) {
-  //   unique_id = 0;
-  //   ptidScalar = 32;
-  //   is_mailer = 1;
-  // }
-  // else if (ptid == 41) {
-  //   unique_id = 1;
-  //   ptidScalar = 39;
-  //   is_mailer = 1;
-  // }
-  // else if (ptid == 38) {
-  //   unique_id = 2;
-  //   ptidScalar = 33;
-  //   is_mailer = 1;
-  // }
 
-  // if (unique_id == 0) {
-  //   ptidMailer = 40;
-  // }
-  // else if (unique_id == 1) {
-  //   ptidMailer = 41;
-  // }
-  // else if (unique_id == 2) {
-  //   ptidMailer = 38;
-  // }
-
-  is_mailer = cinfo.num_prev_cores > 0;
+  int is_mailer = numGroupsPerMailer > 0;
   if (is_mailer)
     unique_id = cinfo.link_id[0];
-  ptidScalar = cinfo.prev_cores[0];
+  for (int i = 0; i < MAX_GROUP_AFFINITY; i++)
+    ptidFwders[i] = cinfo.prev_cores[i];
 
   ptidMailer = cinfo.next_cores[0];
 
@@ -314,7 +316,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // do the kernel
   syrk(a, c, ptid, vtid, pdim, N, M, unique_id, total_groups, 
-    mask, used, ptidMailer, ptidScalar, is_mailer);
+    mask, used, ptidMailer, ptidFwders, numGroupsPerMailer);
 
   // restore stack pointer
   RECOVER_DRAM_STACK();
