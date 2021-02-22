@@ -55,7 +55,7 @@
   asm volatile (".insn i 0x1b, 0x3, x0, x0, 0\n\t"::: "memory")
 
 #define FRAME_START(count)                                                     \
-  START_FRAME()
+  asm volatile (".insn i 0x1b, 0x3, x0, %[cnt], 0\n\t":: [cnt] "r" (count) : "memory")
 
   // asm volatile (".insn i 0x1b, 0x3, x0, %[src0], 0\n\t":: [src0] "r" (count) : "memory")
 

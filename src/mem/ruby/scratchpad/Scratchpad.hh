@@ -218,7 +218,8 @@ class Scratchpad : public AbstractController
     void incConsumerFrame();
 
     // check if the next consumer frame is ready
-    bool isNextConsumerFrameRdy();
+    // parameter cnt, is how much to consume (0, FRAME_SIZE)
+    bool isNextConsumerFrameRdy(int cnt);
 
   private:
     /**

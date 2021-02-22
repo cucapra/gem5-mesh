@@ -281,20 +281,16 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   IODynInstPtr squash_inst = squashInfo.trig_inst;
   
   if (getConfigured()) {
-  if (initiator == StageIdx::CommitIdx)
-    DPRINTF(Mesh, "Squash from Commit: squash inst [tid:%d] [sn:%d]\n",
-                    squash_inst->thread_id, squash_inst->seq_num);
-  else if (initiator == StageIdx::IEWIdx) {
-    if (m_stage_idx == LateVectorIdx)
-      DPRINTF(Mesh, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
-                    squash_inst->thread_id, squash_inst->seq_num);
-    else
-      DPRINTF(Mesh, "Squash from IEW: squash inst [tid:%d] [sn:%d]\n",
-                    squash_inst->thread_id, squash_inst->seq_num);            
-  }
-  else if (initiator == StageIdx::DecodeIdx)
-    DPRINTF(Mesh, "Squash from Decode: squash inst [tid:%d] [sn:%d]\n",
-                    squash_inst->thread_id, squash_inst->seq_num);
+    if (initiator == StageIdx::CommitIdx)
+      DPRINTF(Mesh, "Squash from Commit: squash inst %s\n",
+                      squash_inst->toString(true));
+    else if (initiator == StageIdx::IEWIdx) {
+      DPRINTF(Mesh, "Squash from IEW: squash inst %s\n",
+                      squash_inst->toString(true));            
+    }
+    else if (initiator == StageIdx::DecodeIdx)
+      DPRINTF(Mesh, "Squash from Decode: squash inst %s\n", 
+                      squash_inst->toString(true));
   }
   
   ThreadID tid = squash_inst->thread_id;
@@ -564,7 +560,7 @@ Vector::pushPipeInstToNextStage(const IODynInstPtr &inst) {
   //DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
   if (m_stage_idx == LateVectorIdx) {
     _numInstructions++;
-    DPRINTF(Mesh, "[%s] num instructions seen %d\n", inst->toString(true), _numInstructions);
+    // DPRINTF(Mesh, "[%s] num instructions seen %d\n", inst->toString(true), _numInstructions);
   }
 }
 

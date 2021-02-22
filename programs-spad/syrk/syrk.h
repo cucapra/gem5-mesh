@@ -81,9 +81,22 @@
 #define INNER_FRAME_SIZE (2*INNER_PREFETCH_LEN)
 #define NUM_FRAMES (POST_FRAME_WORD / INNER_FRAME_SIZE)
 #define INIT_OFFSET (INIT_FRAMES * K_STRIDE)
-// used in certain versions
-#define SCALAR_FRAME_SIZE (VECTOR_LEN)
+
+
+
+
+// TODO hardcode this based on spipe
+#if VECTOR_LEN == 4
+#define NUM_GROUPS_PER_PIPE (3)
+#else
+#define NUM_GROUPS_PER_PIPE (1)
+#endif
+
+#define SCALAR_FRAME_SIZE (VECTOR_LEN * NUM_GROUPS_PER_PIPE)
 #define SCALAR_NUM_FRAMES (POST_FRAME_WORD / SCALAR_FRAME_SIZE)
+
+// has somewhat significant impact on performance
+#define FRAMES_TO_SYNC_AFTER (10)
 
 // frame size to get the c to accumulate on
 #define OUTER_FRAME_SIZE INNER_FRAME_SIZE

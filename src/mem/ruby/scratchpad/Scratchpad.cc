@@ -1489,9 +1489,13 @@ Scratchpad::resetRdyArray() {
 }
 
 bool
-Scratchpad::isNextConsumerFrameRdy() {
+Scratchpad::isNextConsumerFrameRdy(int cnt) {
+  // if invalid value provided, then set to frame size
+  if (cnt <= 0)
+    cnt = getRegionElements();
+
   // DPRINTF(Frame, "check frames %d ?= %d\n", m_cur_consumer_region, m_cur_prefetch_region);
-  return (m_cur_consumer_region == m_cur_prefetch_region) && (m_region_cntrs[0] == getRegionElements());
+  return (m_cur_consumer_region == m_cur_prefetch_region) && (m_region_cntrs[0] == cnt); //getRegionElements());
 }
 
 void

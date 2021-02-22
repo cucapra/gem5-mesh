@@ -121,36 +121,107 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
   // printf("%d %d %d %d %d %f\n", 
     // ptid, max_chunk_size, numGroupsToSum, baseGroupId, fwders[0], ceilf((float)N/(float)numGroups));
   for (int cnt = 0; cnt < max_chunk_size; cnt++) {
-    // do reverse order b/c later groups will always have the same or more frames
-    for (int g = 0; g >= -1*numGroupsToSum + 1; g--) {
-      int gid = baseGroupId + g; // todo do lookup here if not consecutive
-      
-      // check if expecting frame
-      // because of the way div works, should have cores with larger ids write
-      // to earlier frames to avoid skips
-      if (cnt >= get_group_len(gid, N, numGroups)) continue;
-      
-      volatile int *sp_scalar_ptr = (int*)getSpAddr(fwders[g], 0);
-      int i = get_group_start(gid, N, numGroups) + cnt; 
 
-      for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) { // TODO wrong order
-        // printf("%d %d\n", ptid, j);
-        // inform scalar core of the group that ready to go
-        if (j % SCALAR_NUM_FRAMES == 0) {
+    // figure out how many valid elements we're expecting in the frame
+    int expected_elements = 0;
+    for (int g = 0; g >= -1*numGroupsToSum + 1; g--) {
+      int gid = baseGroupId + g;
+      if (cnt < get_group_len(gid, N, numGroups)) expected_elements+=VECTOR_LEN;
+    }
+
+    // printf("exp %d\n", expected_elements);
+    if (expected_elements == 0) return; // TODO not sure why problematic
+    for (int j = 0; j < M; j+=J_STRIDE) {
+
+      if (j % FRAMES_TO_SYNC_AFTER == 0) {
+        // try to do syncronization with cores
+        for (int g = 0; g >= -1*numGroupsToSum + 1; g--) {
+          // printf("%d %d\n", ptid, j);
+          // inform scalar core of the group that ready to go
+          volatile int *sp_scalar_ptr = (int*)getSpAddr(fwders[g], 0);
           // printf("start set value %d %d\n", ptidScalar, j);
           while (1) {
             int wait_val = sp_scalar_ptr[POST_FRAME_WORD];
             if (wait_val == 0) break;
           }
           // printf("set value %d %d\n", ptidScalar, j); // gets here
-          // sp_scalar_ptr[POST_FRAME_WORD] = 1;
-          // DOESNT WORK?? SYNC PROB?
           STORE_NOACK(1, &sp_scalar_ptr[POST_FRAME_WORD], 0); 
+          
+        }
+      }
+
+      // load initial value
+      DTYPE sum[MAX_GROUP_AFFINITY];
+      for (int g = 0; g >= -1*numGroupsToSum + 1; g--) {
+        int gid = baseGroupId + g; // todo do lookup here if not consecutive
+      
+        // check if expecting frame
+        // because of the way div works, should have cores with larger ids write
+        // to earlier frames to avoid skips
+        if (cnt >= get_group_len(gid, N, numGroups)) continue;
+        int i = get_group_start(gid, N, numGroups) + cnt;
+        sum[g] = c[i * N + j] * beta;
+      }
+
+      // wait for frame and then do sum
+      FRAME_START(expected_elements);
+      for (int g = 0; g >= -1*numGroupsToSum + 1; g--) {
+        int gid = baseGroupId + g;
+
+        for (int k = 0; k < VECTOR_LEN; k++) {
+          sum[g] += sp_ptr[sp_self + k + g * VECTOR_LEN];
         }
 
-        do_sum(c, i, j, N, sp_ptr, &sp_self);
+        sp_self += VECTOR_LEN;
+
+        if (cnt >= get_group_len(gid, N, numGroups)) continue;
+        int i = get_group_start(gid, N, numGroups) + cnt;
+
+        STORE_NOACK(sum[g], &c[i * N + j], 0);
+
       }
+      REMEM(expected_elements);
+      sp_self = sp_self % POST_FRAME_WORD;
+
+
     }
+
+
+    // // do reverse order b/c later groups will always have the same or more frames
+    // for (int g = 0; g >= -1*numGroupsToSum + 1; g--) {
+    //   int gid = baseGroupId + g; // todo do lookup here if not consecutive
+      
+    //   // check if expecting frame
+    //   // because of the way div works, should have cores with larger ids write
+    //   // to earlier frames to avoid skips
+    //   if (cnt >= get_group_len(gid, N, numGroups)) continue;
+      
+    //   volatile int *sp_scalar_ptr = (int*)getSpAddr(fwders[g], 0);
+    //   int i = get_group_start(gid, N, numGroups) + cnt;
+
+    //   for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) { // TODO wrong order
+    //     // printf("%d %d\n", ptid, j);
+    //     // inform scalar core of the group that ready to go
+    //     if (j % FRAMES_TO_SYNC_AFTER == 0) {
+    //       // printf("start set value %d %d\n", ptidScalar, j);
+    //       while (1) {
+    //         int wait_val = sp_scalar_ptr[POST_FRAME_WORD];
+    //         if (wait_val == 0) break;
+    //       }
+    //       // printf("set value %d %d\n", ptidScalar, j); // gets here
+    //       // sp_scalar_ptr[POST_FRAME_WORD] = 1;
+    //       // DOESNT WORK?? SYNC PROB?
+    //       STORE_NOACK(1, &sp_scalar_ptr[POST_FRAME_WORD], 0); 
+    //     }
+
+    //     // do_sum(c, i, j, N, sp_ptr, &sp_self);
+
+    //     // load values
+    //     DTYPE sum[MAX_GROUP_AFFINITY];
+
+        
+    //   }
+    // }
   }
 }
 // #endif

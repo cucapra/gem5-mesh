@@ -119,7 +119,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
       #ifndef SCALAR_IS_MAILER
       // wait for mailer to be ready
-      if (j != 1 && (j - 1) % SCALAR_NUM_FRAMES == 0) {
+      if (j != 1 && (j - 1) % FRAMES_TO_SYNC_AFTER == 0) {
         // printf("start reset value %d %d\n", ptid, j);
         while (1) {
           int wait_val = sp_ptr[POST_FRAME_WORD]; 
@@ -169,7 +169,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
           #ifndef SCALAR_IS_MAILER
           // wait for mailer to be ready
-          if (j != 1 && (j - 1) % SCALAR_NUM_FRAMES == 0) {
+          if (j != 1 && (j - 1) % FRAMES_TO_SYNC_AFTER == 0) {
             // printf("start reset value %d %d\n", ptid, j);
             while (1) {
               int wait_val = sp_ptr[POST_FRAME_WORD]; 

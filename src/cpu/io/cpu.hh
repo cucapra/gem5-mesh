@@ -260,7 +260,7 @@ class IOCPU : public BaseCPU
     // void consumeMemTokens(int tokens);
     // int getMemTokens() const { return m_tokens; }
 
-    bool isNextFrameReady();
+    bool isNextFrameReady(int cnt);
     void consumeFrame();
 
     /**
