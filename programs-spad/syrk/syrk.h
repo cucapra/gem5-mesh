@@ -18,6 +18,7 @@
 // #define PACKED_SIMD
 // #define VEC_16_LONGLINES
 // #define NESTED_SIMD_4_4
+// #define VEC_4_LONGLINES
 
 // vvadd_execute config directives
 #if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
@@ -25,7 +26,7 @@
 #endif
 
 // vector grouping directives
-#if defined(VEC_4_SIMD) || defined(NESTED_SIMD_4_4)
+#if defined(VEC_4_SIMD) || defined(NESTED_SIMD_4_4) || defined(VEC_4_LONGLINES)
 #define VECTOR_LEN 4
 #endif
 #if defined(VEC_16_SIMD) || defined(VEC_16_LONGLINES)
@@ -35,7 +36,7 @@
 #define VECTOR_LEN 1
 #endif
 
-#if defined(VEC_16_LONGLINES) || defined(NESTED_SIMD_4_4)
+#if defined(VEC_16_LONGLINES) || defined(NESTED_SIMD_4_4) || defined(VEC_4_LONGLINES)
 #define LONGLINES
 #endif
 
@@ -96,7 +97,9 @@
 #define SCALAR_NUM_FRAMES (POST_FRAME_WORD / SCALAR_FRAME_SIZE)
 
 // has somewhat significant impact on performance
-#define FRAMES_TO_SYNC_AFTER (10)
+#define FRAMES_TO_SYNC_AFTER (8)
+
+#define PER_CORE_SCALAR_FRAME (VECTOR_LEN)
 
 // frame size to get the c to accumulate on
 #define OUTER_FRAME_SIZE INNER_FRAME_SIZE

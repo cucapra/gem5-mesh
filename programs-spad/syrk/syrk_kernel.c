@@ -76,7 +76,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   DTYPE c_ij;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
-  int sp_origin = (linkId * SCALAR_FRAME_SIZE) + vtid;
+  int sp_origin = (linkId * PER_CORE_SCALAR_FRAME) + vtid;
   DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
 
   #ifdef NESTED_SIMD
@@ -338,7 +338,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     #ifdef LONGLINES
     // store partial sum to scalar core
     STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
-    sp_origin+=SCALAR_FRAME_SIZE*numGroupsPerMailer;
+    sp_origin+=SCALAR_FRAME_SIZE;
     sp_origin = sp_origin % POST_FRAME_WORD;
     #else
 

@@ -116,30 +116,41 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
   // chunk over vector groups. note all might not do the same amount of work
   int max_chunk_size = ceilToInt((float)N / (float)numGroups);
 
+  // printf("%d fwders %d %d %d\n", ptid, fwders[0], fwders[1], fwders[2]);
+
   int sp_self = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
   // printf("%d %d %d %d %d %f\n", 
     // ptid, max_chunk_size, numGroupsToSum, baseGroupId, fwders[0], ceilf((float)N/(float)numGroups));
   for (int cnt = 0; cnt < max_chunk_size; cnt++) {
 
+    int group_start[MAX_GROUP_AFFINITY]; 
     // figure out how many valid elements we're expecting in the frame
     int expected_elements = 0;
-    for (int g = 0; g >= -1*numGroupsToSum + 1; g--) {
-      int gid = baseGroupId + g;
-      if (cnt < get_group_len(gid, N, numGroups)) expected_elements+=VECTOR_LEN;
+    for (int g = numGroupsToSum - 1; g >= 0; g--) {
+      int gid = baseGroupId + g - (numGroupsToSum - 1);
+      if (cnt < get_group_len(gid, N, numGroups)) {
+        expected_elements+=PER_CORE_SCALAR_FRAME;
+        group_start[g] = get_group_start(gid, N, numGroups) + cnt;
+      }
+      else {
+        // printf("%d %d %d %d %d %d cant go\n", ptid, g, gid, N, numGroups, get_group_len(gid, N, numGroups));
+        group_start[g] = -1;
+      }
     }
 
-    // printf("exp %d\n", expected_elements);
-    if (expected_elements == 0) return; // TODO not sure why problematic
+    if (expected_elements == 0) return; // TODO not sure the issue
     for (int j = 0; j < M; j+=J_STRIDE) {
 
       if (j % FRAMES_TO_SYNC_AFTER == 0) {
         // try to do syncronization with cores
-        for (int g = 0; g >= -1*numGroupsToSum + 1; g--) {
+        for (int g = numGroupsToSum - 1; g >= 0; g--) {
+          if (group_start[g] < 0) continue;
+
           // printf("%d %d\n", ptid, j);
           // inform scalar core of the group that ready to go
           volatile int *sp_scalar_ptr = (int*)getSpAddr(fwders[g], 0);
-          // printf("start set value %d %d\n", ptidScalar, j);
+          // printf("start set value %d %p %d %d %d\n", ptid, sp_scalar_ptr, fwders[g], g, j);
           while (1) {
             int wait_val = sp_scalar_ptr[POST_FRAME_WORD];
             if (wait_val == 0) break;
@@ -152,30 +163,32 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
 
       // load initial value
       DTYPE sum[MAX_GROUP_AFFINITY];
-      for (int g = 0; g >= -1*numGroupsToSum + 1; g--) {
-        int gid = baseGroupId + g; // todo do lookup here if not consecutive
+      for (int g = numGroupsToSum - 1; g >= 0; g--) {
+        // int gid = baseGroupId + g; // todo do lookup here if not consecutive
       
-        // check if expecting frame
-        // because of the way div works, should have cores with larger ids write
-        // to earlier frames to avoid skips
-        if (cnt >= get_group_len(gid, N, numGroups)) continue;
-        int i = get_group_start(gid, N, numGroups) + cnt;
+        // // check if expecting frame
+        // // because of the way div works, should have cores with larger ids write
+        // // to earlier frames to avoid skips
+        // if (cnt >= get_group_len(gid, N, numGroups)) continue;
+        // int i = get_group_start(gid, N, numGroups) + cnt;
+        int i = group_start[g];
+        if (i < 0) continue;
         sum[g] = c[i * N + j] * beta;
       }
 
       // wait for frame and then do sum
       FRAME_START(expected_elements);
-      for (int g = 0; g >= -1*numGroupsToSum + 1; g--) {
-        int gid = baseGroupId + g;
+      for (int g = numGroupsToSum - 1; g >= 0; g--) {
+        // int gid = baseGroupId + g;
 
-        for (int k = 0; k < VECTOR_LEN; k++) {
-          sum[g] += sp_ptr[sp_self + k + g * VECTOR_LEN];
+        for (int k = 0; k < PER_CORE_SCALAR_FRAME; k++) {
+          sum[g] += sp_ptr[sp_self + k + g * PER_CORE_SCALAR_FRAME];
         }
 
-        sp_self += VECTOR_LEN;
+        sp_self += PER_CORE_SCALAR_FRAME;
 
-        if (cnt >= get_group_len(gid, N, numGroups)) continue;
-        int i = get_group_start(gid, N, numGroups) + cnt;
+        int i = group_start[g];
+        if (i < 0) continue;
 
         STORE_NOACK(sum[g], &c[i * N + j], 0);
 
