@@ -313,7 +313,9 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       
       FRAME_START(INNER_FRAME_SIZE);
 
-      #pragma GCC unroll(16)
+      // WARNING if less than INNER_PREFETCH_LEN, creates code gen problem
+      // could always just not unroll
+      #pragma GCC unroll(32)
       for (int k = 0; k < INNER_PREFETCH_LEN; k+=NESTED_SIMD_VLEN) {
         #ifdef NESTED_SIMD
         // load from scratchpad frame
