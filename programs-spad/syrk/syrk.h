@@ -56,7 +56,7 @@
 // prefetch sizing
 #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
 // dedicate a quarter of scratchpad to frames
-#define POST_FRAME_WORD 256
+#define POST_FRAME_WORD 512
 
 // number of frames to get ahead
 #ifndef INIT_FRAMES
