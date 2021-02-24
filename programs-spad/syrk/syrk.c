@@ -123,12 +123,12 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
   // printf("%d %d %d %d %d %f\n", 
     // ptid, max_chunk_size, numGroupsToSum, baseGroupId, fwders[0], ceilf((float)N/(float)numGroups));
   for (int cnt = 0; cnt < max_chunk_size; cnt++) {
-
+    // printf("%d %d\n", ptid, cnt);
     int group_start[MAX_GROUP_AFFINITY]; 
     // figure out how many valid elements we're expecting in the frame
     int expected_elements = 0;
-    for (int g = numGroupsToSum - 1; g >= 0; g--) {
-      int gid = baseGroupId + g - (numGroupsToSum - 1);
+    for (int g = 0; g < numGroupsToSum; g++) {
+      int gid = baseGroupId + g;
       if (cnt < get_group_len(gid, N, numGroups)) {
         expected_elements+=PER_CORE_SCALAR_FRAME;
         group_start[g] = get_group_start(gid, N, numGroups) + cnt;
@@ -144,13 +144,16 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
 
       if (j % FRAMES_TO_SYNC_AFTER == 0) {
         // try to do syncronization with cores
-        for (int g = numGroupsToSum - 1; g >= 0; g--) {
-          if (group_start[g] < 0) continue;
+        for (int g = 0; g < numGroupsToSum; g++) {
+          if (group_start[g] < 0) {
+            // printf("%d %d %d skip sync %d\n", ptid, cnt, j, fwders[g]);
+            continue;
+          }
 
           // printf("%d %d\n", ptid, j);
           // inform scalar core of the group that ready to go
           volatile int *sp_scalar_ptr = (int*)getSpAddr(fwders[g], 0);
-          // printf("start set value %d %p %d %d %d\n", ptid, sp_scalar_ptr, fwders[g], g, j);
+          // printf("start set value %d %d %d %d\n", ptid, fwders[g], g, j);
           while (1) {
             int wait_val = sp_scalar_ptr[POST_FRAME_WORD];
             if (wait_val == 0) break;
@@ -163,7 +166,7 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
 
       // load initial value
       DTYPE sum[MAX_GROUP_AFFINITY];
-      for (int g = numGroupsToSum - 1; g >= 0; g--) {
+      for (int g = 0; g < numGroupsToSum; g++) {
         // int gid = baseGroupId + g; // todo do lookup here if not consecutive
       
         // // check if expecting frame
@@ -176,9 +179,13 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
         sum[g] = c[i * N + j] * beta;
       }
 
+      // printf("%d start consume frame %d %d %d %d\n", ptid, cnt, j, expected_elements, numGroupsToSum);
+
       // wait for frame and then do sum
       FRAME_START(expected_elements);
-      for (int g = numGroupsToSum - 1; g >= 0; g--) {
+
+      // printf("%d consume %d\n", ptid, j);
+      for (int g = 0; g < numGroupsToSum; g++) {
         // int gid = baseGroupId + g;
 
         for (int k = 0; k < PER_CORE_SCALAR_FRAME; k++) {
@@ -194,7 +201,7 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
 
       }
       REMEM(expected_elements);
-      sp_self = sp_self % POST_FRAME_WORD;
+      sp_self = sp_self % SCALAR_POST_FRAME_WORD;
 
 
     }
@@ -257,6 +264,8 @@ void __attribute__((optimize("-fno-inline"))) syrk(
       mailer(c, groupId, numGroups, N, M, ptid, ptidFwder, numGroupsToSum);
     #endif
     #endif
+
+    // printf("finish %d\n", ptid);
 
 }
 

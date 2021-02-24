@@ -53,6 +53,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   int start = ((groupId + 0) * N) / numGroups;
   int end   = ((groupId + 1) * N) / numGroups;
 
+  // printf("ptid %d %d->%d (%d)\n", ptid, start, end, end-start);
+
   #ifndef LONGLINES
   // make it a factor of vector group mapping size
   start = roundUp(start, VECTOR_LEN);
@@ -97,15 +99,15 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   for (int i = start; i < end; i++) {
 
     #ifdef LONGLINES
-    #ifndef SCALAR_IS_MAILER
-    while (1) {
-      // needs volatile so doesn't optimize
-      int wait_val = sp_ptr[POST_FRAME_WORD]; 
-      if (wait_val == 1) break;
-    }
-    // printf("reset val %d\n", ptid);
-    sp_ptr[POST_FRAME_WORD] = 0;
-    #endif
+    // #ifndef SCALAR_IS_MAILER
+    // while (1) {
+    //   // needs volatile so doesn't optimize
+    //   int wait_val = sp_ptr[POST_FRAME_WORD]; 
+    //   if (wait_val == 1) break;
+    // }
+    // // printf("reset val %d\n", ptid);
+    // sp_ptr[POST_FRAME_WORD] = 0;
+    // #endif
 
 
     #if INIT_FRAMES==0
@@ -165,11 +167,9 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
         // finish loop at a weird time
         if (k + K_STRIDE == startOffset) {
 
-          ISSUE_VINST(vec_body_end_label);
-
           #ifndef SCALAR_IS_MAILER
           // wait for mailer to be ready
-          if (j != 1 && (j - 1) % FRAMES_TO_SYNC_AFTER == 0) {
+          if ( ( j - 1 ) % FRAMES_TO_SYNC_AFTER == 0) {
             // printf("start reset value %d %d\n", ptid, j);
             while (1) {
               int wait_val = sp_ptr[POST_FRAME_WORD]; 
@@ -183,7 +183,12 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
           }
           #endif
 
+          // printf("write frame %d %d\n", ptid, j-1);
+          ISSUE_VINST(vec_body_end_label);
           ISSUE_VINST(vec_body_init_label);
+  
+
+
         }
 
 
@@ -339,7 +344,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     // store partial sum to scalar core
     STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
     sp_origin+=SCALAR_FRAME_SIZE;
-    sp_origin = sp_origin % POST_FRAME_WORD;
+    sp_origin = sp_origin % SCALAR_POST_FRAME_WORD;
     #else
 
     STORE_NOACK(c_ij, &c[i * N + j], 0);

@@ -71,10 +71,9 @@ template_info_t init_template_4x4_2x2() {
   tinfo.groups[0] = init_group_info(0, 0, 1, 0, 2, 2);
   tinfo.groups[1] = init_group_info(0, 1, 0, 2, 2, 2);
   tinfo.groups[2] = init_group_info(3, 1, 2, 2, 2, 2);
-  // set affinity (link id) in reverse group order, for general convenience
-  // important b/c early group frames will cut off whereas later will last longer
+  // set affinity (link id)
   tinfo.num_extra_in_template = 1;
-  tinfo.extra[0] = init_extra_core_info(3, 0, 2, 1, 0);
+  tinfo.extra[0] = init_extra_core_info(3, 0, 0, 1, 2);
   if (_N_SPS < tinfo.template_dim.x * tinfo.template_dim.y) printf("[[WARNING]] trying to instantiate template bigger than mesh\n");
   return tinfo;
 }
