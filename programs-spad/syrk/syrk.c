@@ -189,13 +189,15 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
         // int gid = baseGroupId + g;
 
         for (int k = 0; k < PER_CORE_SCALAR_FRAME; k++) {
-          sum[g] += sp_ptr[sp_self + k + g * PER_CORE_SCALAR_FRAME];
+          sum[g] += sp_ptr[sp_self + k];
         }
 
         sp_self += PER_CORE_SCALAR_FRAME;
 
         int i = group_start[g];
         if (i < 0) continue;
+
+        // if (i == 5 && j == 1) printf("%d %d %f %d %d\n", ptid, g, sum[g], cnt, baseGroupId);
 
         STORE_NOACK(sum[g], &c[i * N + j], 0);
 
