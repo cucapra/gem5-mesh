@@ -8,11 +8,18 @@ ALL_NEIL_CONFIGS = [ 'NO_VEC', 'PACKED_SIMD', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_V
 INIT0_CONFIGS = [ [ 'VEC_4_SIMD', 'INIT_FRAMES=0' ] ]
 INIT0_NEIL_CONFIGS = [ [ 'VEC_LEN=4', 'INIT_FRAMES=0' ] ]
 
-TEST_1_12_CONFIGS = ['PACKED_SIMD', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
-TEST_1_12_CONFIGS_NEIL = ['PACKED_SIMD', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
-HW_OPTS = ['--cacheline_size=1024 --net-width=1', '--cacheline_size=1024 --net-width=2', '--cacheline_size=1024 --net-width=16']
-ALL_CONFIGS = TEST_1_12_CONFIGS
-ALL_NEIL_CONFIGS = TEST_1_12_CONFIGS_NEIL
+# TODO hardware opts should automatically determine cache line size
+# b/c wnat to do vec 4 with 256. might be more natural
+HW_OPTS = ['--net-width=1', 
+  '--net-width=2', 
+  '--net-width=4', 
+  '--net-width=8', 
+  '--net-width=16']
+# HW_OPTS = ['']
+ALL_CONFIGS = [['VEC_16_LONGLINES', 'CACHE_LINE_SIZE=256'],
+  ['NESTED_SIMD_4_4', 'CACHE_LINE_SIZE=1024']]
+# ALL_CONFIGS = ['VEC_16_SIMD', ['VEC_16_SIMD', 'INIT_FRAMES=5'], 'VEC_4_SIMD', ['VEC_4_SIMD', 'INIT_FRAMES=5'], 'PACKED_SIMD']
+ALL_NEIL_CONFIGS = []
 INIT0_CONFIGS = []
 INIT0_NEIL_CONFIGS = []
 
@@ -20,11 +27,11 @@ INIT0_NEIL_CONFIGS = []
 sim_configs = {
   # Test programs, not actual benchmarks
 
-  'vvadd': {
-    'vec'  : [['VEC_16_SIMD_BIGBOI', 'CACHE_LINE_SIZE=1024'], ['VEC_16_SIMD_VERTICAL', 'CACHE_LINE_SIZE=64'], ['NO_VEC']],
-    'argv' : ['1048576'], # ['1024']
-    'hw_opts' : HW_OPTS
-  },
+  # 'vvadd': {
+  #   'vec'  : [['VEC_16_SIMD_BIGBOI', 'CACHE_LINE_SIZE=1024'], ['VEC_16_SIMD_VERTICAL', 'CACHE_LINE_SIZE=64'], ['NO_VEC']],
+  #   'argv' : ['1048576'], # ['1024']
+  #   'hw_opts' : HW_OPTS
+  # },
   # 'stencil': {
   #   'vec'  : ['VEC_4_SIMD'],
   #   'argv' : ['1730', '60']
@@ -42,11 +49,11 @@ sim_configs = {
   #   'argv' : ['320'],
   #   'hw_opts' : HW_OPTS
   # },
-  # 'syrk'   : {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['256'],
-  #   'hw_opts' : HW_OPTS
-  # },
+  'syrk'   : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['256'],
+    'hw_opts' : HW_OPTS
+  },
   # 'syr2k'  : {
   #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
   #   'argv' : ['256'],
@@ -113,7 +120,28 @@ sim_configs = {
 }
 
 
+def string_to_cacheline_arg(a):
+  if (a[0:16] == 'CACHE_LINE_SIZE='):
+    return int(a[16:len(a)])
+  elif (a[0:16] == 'CACHE_LINE_SIZE_'):
+    return int(a[16:len(a)])
+  else:
+    return -1
 
+# find an appropriate hardware cachelines size
+# if cant find defined in software, then default to 64 
+def get_cacheline_opt(args):
+  cl_hw_size = 64
+  if (isinstance(args, list)):
+    for a in args:
+      cl_sw_size = string_to_cacheline_arg(a)
+      if (cl_sw_size > 0):
+        cl_hw_size = cl_sw_size
+  else:
+    cl_sw_size = string_to_cacheline_arg(args)
+    if (cl_sw_size > 0):
+      cl_hw_size = cl_sw_size
+  return '--cacheline_size=' + str(cl_hw_size)
 
 # make a shorthand to represent the config output name
 def abbreviate_config(config):
@@ -130,9 +158,9 @@ def abbreviate_config(config):
   elif (config == 'INIT_FRAMES=0'):
     return 'I0'
   elif (config[0:11] == 'VECTOR_LEN='):
-    return a[11:len(a)]
+    return config[11:len(config)]
   elif (config[0:3] == 'PF='):
-    return a[3:len(a)]
+    return config[3:len(config)]
   else:
     return config
 

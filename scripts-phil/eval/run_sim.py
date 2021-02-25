@@ -67,6 +67,10 @@ def run_prog(numCpus, prog_key, argv, vec_config, hw_opts):
   resultsAnno = '-' + extra_info + hw_info + serialArgs
   resultsDir = program['name'] + resultsAnno
   progName = os.path.join(os.path.dirname(program['path']),sim_list.get_binary_name(prog_key, vec_config))
+  
+  # add hw line size to args
+  hw_opts += ' ' + sim_list.get_cacheline_opt(vec_config)
+  
   cmd = gem5_cmd(progName, optionsStr, resultsDir, numCpus, True, hw_opts)
   print(cmd)
   try:
