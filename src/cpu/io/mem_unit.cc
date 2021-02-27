@@ -825,7 +825,11 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
         // DPRINTF(RiscvVector, "vec addr (%d) %#x\n", i, pAddr);
       }
       m_s1_inst->mem_req_p->vecAddrs = vecAddrs;
-      m_s1_inst->mem_req_p->wordSize /= m_cpu_p->getHardwareVectorLength();
+
+      // TODO cheap out and just assume words. need to acutally look at instruction
+      // or vsew (vtype) to know
+      // not valid too use getHardwareVectorLength() here.
+      m_s1_inst->mem_req_p->wordSize = sizeof(uint32_t);
 
       if (vecAddrs.size() > 0)
         DPRINTF(RiscvVector, "%s send vector request %#x of size %d load ? %d\n", m_s1_inst->toString(true), vecAddrs[0], m_s1_inst->mem_req_p->respCnt, is_load);
