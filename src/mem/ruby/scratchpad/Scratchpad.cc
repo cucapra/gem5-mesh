@@ -1491,7 +1491,7 @@ Scratchpad::resetRdyArray() {
 bool
 Scratchpad::isNextConsumerFrameRdy(int cnt) {
   // if invalid value provided, then set to frame size
-  if (cnt <= 0)
+  if (cnt <= 0 || cnt > getRegionElements())
     cnt = getRegionElements();
 
   // DPRINTF(Frame, "check frames %d ?= %d\n", m_cur_consumer_region, m_cur_prefetch_region);

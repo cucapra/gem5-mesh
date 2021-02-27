@@ -13,6 +13,7 @@
 
 #include "debug/Mesh.hh"
 #include "debug/RiscvVector.hh"
+#include "debug/Frame.hh"
 
 //-----------------------------------------------------------------------------
 // IEW
@@ -24,7 +25,8 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
       m_issue_width(params->issueWidth),
       m_wb_width(params->writebackWidth),
       m_scoreboard_p(nullptr),
-      m_pred_flag(true)
+      m_pred_flag(true),
+      m_in_frame_stall(false)
 {
   // create Int ALU exec unit
   assert(params->intAluOpLatency == 1); // need branch to check in one cycle for trace
@@ -547,16 +549,27 @@ IEW::doIssue()
       int numRememInFlight = m_robs[tid]->getRememInstCount();
       // check if needs to stall and log the reason
       if (numRememInFlight > 0 || !m_cpu_p->isNextFrameReady(reqCnt)) {
+        if (!m_in_frame_stall) {
+          m_frame_stall_start = curTick();
+          m_in_frame_stall = true;
+        }
+        if (m_in_frame_stall && (curTick() - m_frame_stall_start > 500000000)) { // allow 500000 cycles to stall
+          fatal("deadlock due to waiting on frame\n");
+        }
         if (numRememInFlight > 0) {
           m_frame_start_remem++;
           DPRINTF(Mesh, "[sn:%d] Can't issue frame start because remem in flight\n", inst->seq_num);
         }
         else {
           m_frame_start_tokens++;
-          DPRINTF(Mesh, "[sn:%d] Can't issue frame start because not enough tokens\n", inst->seq_num);
+          DPRINTF(Mesh, "[sn:%d] Can't issue frame start because not enough tokens %d\n", inst->seq_num, reqCnt);
         }
         // stall inst
         return;
+      }
+      else {
+        m_in_frame_stall = false;
+        DPRINTF(Frame, "pass frame start with cnt %d\n", reqCnt);
       }
     }
     

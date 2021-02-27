@@ -153,6 +153,10 @@ class IEW : public Stage
     /** Predicate flag. If set and vec mode then do not perform effect of instruction */
     bool m_pred_flag;
 
+    /** Remember when frame stall started so we can detect deadlock */
+    Tick m_frame_stall_start;
+    bool m_in_frame_stall;
+
 #ifdef DEBUG
     /** Stage's status (for line trace) */
     std::bitset<IEWStatus::NumStatus> m_stage_status;

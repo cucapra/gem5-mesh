@@ -47,7 +47,7 @@ SwitchAllocator::SwitchAllocator(Router *router)
 {
     m_router = router;
     m_num_vcs = m_router->get_num_vcs();
-    DPRINTF(Frame, "num vcs %d\n", m_num_vcs);
+    // DPRINTF(Frame, "num vcs %d\n", m_num_vcs);
     m_vc_per_vnet = m_router->get_vc_per_vnet();
 
     m_input_arbiter_activity = 0;
@@ -313,10 +313,10 @@ SwitchAllocator::arbitrate_outports()
                             *t_flit,
                         m_router->curCycle());
 
-                auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(t_flit->get_msg_ptr());
-                if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
-                    DPRINTF(Frame, "Switch Allocator Router %d do route %#x in %s out %s\n", m_router->get_id(), mem_msg->getLineAddress(),
-                        m_router->getPortDirectionName(m_input_unit[inport]->get_direction()), m_router->getPortDirectionName(m_output_unit[outport]->get_direction()));
+                // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(t_flit->get_msg_ptr());
+                // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
+                //     DPRINTF(Frame, "Switch Allocator Router %d do route %#x in %s out %s\n", m_router->get_id(), mem_msg->getLineAddress(),
+                //         m_router->getPortDirectionName(m_input_unit[inport]->get_direction()), m_router->getPortDirectionName(m_output_unit[outport]->get_direction()));
 
 
                 // Update outport field in the flit since this is

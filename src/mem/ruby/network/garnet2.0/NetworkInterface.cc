@@ -232,22 +232,25 @@ NetworkInterface::wakeup()
         int vnet = t_flit->get_vnet();
         t_flit->set_dequeue_time(curCycle());
 
+        DPRINTF(RubyNetwork, "Net interface %d Router %d ifs pull flit %p tail? %d\n", 
+            m_id, m_router_id, t_flit, t_flit->get_type() == TAIL_ || t_flit->get_type() == HEAD_TAIL_);
+
         // If a tail flit is received, enqueue into the protocol buffers if
         // space is available. Otherwise, exchange non-tail flits for credits.
         if (t_flit->get_type() == TAIL_ || t_flit->get_type() == HEAD_TAIL_) {
             if (!messageEnqueuedThisCycle &&
                 outNode_ptr[vnet]->areNSlotsAvailable(1, curTime)) {
 
+                DPRINTF(RubyNetwork, "Net interface %d Router %d ifs sink flit %p\n", 
+                            m_id, m_router_id, t_flit);
+
                 // auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
                 // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
                 //     DPRINTF(Mesh, "Net interface %d Router %d pull pkt %#x\n", m_id, m_router_id, mem_msg->getPacket()->getAddr());
 
-                auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
-                    if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
-                        DPRINTF(Frame, "Network interface push addr %#x\n", mem_msg->getLineAddress());
-
-
-                DPRINTF(RubyNetwork, "Net interface %d Router %d ifs pull flit %#x\n", m_id, m_router_id, t_flit);
+                // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
+                //     if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+                //         DPRINTF(Frame, "Network interface push addr %#x\n", mem_msg->getLineAddress());
 
 
                 // Space is available. Enqueue to protocol buffer.
@@ -272,10 +275,10 @@ NetworkInterface::wakeup()
                 outNode_ptr[vnet]->registerDequeueCallback(cb);
 
                 // if (!outNode_ptr[vnet]->areNSlotsAvailable(1, curTime)) {
-                    auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
-                    if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
-                        DPRINTF(Frame, "Network interface could not push addr %#x b/c router not ready. Enqueue? %d NSlots ? %d. Save for later\n", 
-                            mem_msg->getLineAddress(), messageEnqueuedThisCycle, outNode_ptr[vnet]->areNSlotsAvailable(1, curTime));
+                    // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
+                    // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+                    //     DPRINTF(Frame, "Network interface could not push addr %#x b/c router not ready. Enqueue? %d NSlots ? %d. Save for later\n", 
+                    //         mem_msg->getLineAddress(), messageEnqueuedThisCycle, outNode_ptr[vnet]->areNSlotsAvailable(1, curTime));
                 // }
             }
         } else {
@@ -288,9 +291,9 @@ NetworkInterface::wakeup()
         }
     }
     else {
-        auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
-        if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
-            DPRINTF(Frame, "Network interface in link not rdy for addr %#x\n", mem_msg->getLineAddress());
+        // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
+        // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
+        //     DPRINTF(Frame, "Network interface in link not rdy for addr %#x\n", mem_msg->getLineAddress());
     }
 
     /****************** Check the incoming credit link *******/
@@ -381,9 +384,9 @@ NetworkInterface::flitisizeMessage(MsgPtr msg_ptr, int vnet)
     int num_flits = (int) ceil((double) m_net_ptr->MessageSizeType_to_int(
         net_msg_ptr->getMessageSize())/m_net_ptr->getNiFlitSize());
 
-    auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
-    if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
-        DPRINTF(Frame, "Network interface flit addr %#x to %d flits\n", mem_msg->getLineAddress(), num_flits);
+    // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
+    // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
+    //     DPRINTF(Frame, "Network interface flit addr %#x to %d flits\n", mem_msg->getLineAddress(), num_flits);
 
     // loop to convert all multicast messages into unicast messages
     for (int ctr = 0; ctr < dest_nodes.size(); ctr++) { // dest nodes is 1 for most partp
@@ -393,9 +396,9 @@ NetworkInterface::flitisizeMessage(MsgPtr msg_ptr, int vnet)
 
         if (vc == -1) {
             m_no_channel_avail++;
-            auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
-            if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
-                DPRINTF(Frame, "Network interface no free output virtual channel (vcs) for flit addr %#x\n", mem_msg->getLineAddress());
+            // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(msg_ptr);
+            // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
+            //     DPRINTF(Frame, "Network interface no free output virtual channel (vcs) for flit addr %#x\n", mem_msg->getLineAddress());
             return false ;
         }
         MsgPtr new_msg_ptr = msg_ptr->clone();
@@ -449,6 +452,7 @@ NetworkInterface::flitisizeMessage(MsgPtr msg_ptr, int vnet)
                 curCycle());
 
             fl->set_src_delay(curCycle() - ticksToCycles(msg_ptr->getTime()));
+            DPRINTF(RubyNetwork, "inject flit into buffer %d %p\n", i, fl);
             m_ni_out_vcs[vc]->insert(fl);
         }
 
@@ -533,11 +537,12 @@ NetworkInterface::scheduleOutputLink()
             t_flit->set_time(curCycle() + Cycles(1)); // potentially incorrect? // TODO this is 2cycles, maybe thats delayed credit return???
             // t_flit->set_time(curTick() + (Tick)1);
 
-            DPRINTF(RubyNetwork, "Net interface %d Router %d net push flit %p @time %llu\n", m_id, m_router_id, t_flit, t_flit->get_time_ticks());
+            DPRINTF(RubyNetwork, "Net interface %d Router %d net push flit %p tail? %d @time %llu\n", m_id, m_router_id, t_flit, 
+                t_flit->get_type() == TAIL_ || t_flit->get_type() == HEAD_TAIL_, t_flit->get_time_ticks());
 
-            auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(t_flit->get_msg_ptr());
-            if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
-                DPRINTF(Frame, "Schedule out link flit addr %#x to %d flits\n", mem_msg->getLineAddress());
+            // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(t_flit->get_msg_ptr());
+            // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x40032038) 
+            //     DPRINTF(Frame, "Schedule out link flit addr %#x to %d flits\n", mem_msg->getLineAddress());
 
 
             outFlitQueue->insert(t_flit);
@@ -597,6 +602,12 @@ NetworkInterface::checkReschedule()
             scheduleEvent(Cycles(1));
             return;
         }
+    }
+
+    // PBB: check incoming flits from network as well. Needed to add. not sure why not here before??
+    if (inNetLink->isReady(curCycle() + Cycles(1))) {
+        scheduleEvent(Cycles(1));
+        return;
     }
 }
 

@@ -512,6 +512,21 @@ machine(MachineType:L2Cache, "SP LLC cache")
     // return ((_vecFromLLC && (attemptedAddr != _lastServicedVecAddr)) || _vecFromMem);
   }
 
+  // determine how many flits will be used to send
+  // kind of nuanced difference between this and response count
+  // TODO maybe should try to unify at some point b/c ICACHE can't take advantage of wider net
+  MessageSizeType getFlitMessageSize(MachineID requestor) {
+    if (machineIDToMachineType(requestor) == MachineType:L1Cache) {
+      return MessageSizeType:Response_Data;
+    }
+    else if (machineIDToMachineType(requestor) == MachineType:Scratchpad) {
+      return MessageSizeType:SingleWordData;
+    }
+    else {
+      assert(false);
+    }
+  }
+
   //---------------------------------------------------------------------------
   // Network ports
   //---------------------------------------------------------------------------
@@ -747,13 +762,14 @@ machine(MachineType:L2Cache, "SP LLC cache")
   action(sdm_sendDataFromMem, "sdm", desc = "Send response data to CPU side from mem") {
     peek(memQueue_in, MemoryMsg) {
       int blkIdx := AddrOffset(tbe.WordAddress, in_msg.addr);
+      MessageSizeType msgSize := getFlitMessageSize(tbe.Requestor);
       enqueue(responseNetwork_out, LLCResponseMsg, mem_to_cpu_latency) {
         assert(is_valid(tbe));
         out_msg.Type        := LLCResponseType:DATA;
         out_msg.LineAddress := in_msg.addr;
         out_msg.Destination.add(tbe.Requestor);
         out_msg.DataBlk     := cache_entry.DataBlk;
-        out_msg.MessageSize := MessageSizeType:SingleWordData;
+        out_msg.MessageSize := msgSize;
         out_msg.SeqNum      := tbe.SeqNum;
         out_msg.BlkIdx      := blkIdx;
         out_msg.Len         := 1;
@@ -764,12 +780,13 @@ machine(MachineType:L2Cache, "SP LLC cache")
   action(sdc_sendDataFromCache, "sdc", desc = "Send response data to CPU side from cache") {
     peek(requestNetwork_in, LLCRequestMsg) {
       int blkIdx := AddrOffset(in_msg.WordAddress, in_msg.LineAddress);
+      MessageSizeType msgSize := getFlitMessageSize(in_msg.Requestor);
       enqueue(responseNetwork_out, LLCResponseMsg, cache_resp_latency) {
         out_msg.Type        := LLCResponseType:DATA;
         out_msg.LineAddress := in_msg.LineAddress;
         out_msg.Destination.add(in_msg.Requestor);
         out_msg.DataBlk     := cache_entry.DataBlk;
-        out_msg.MessageSize := MessageSizeType:SingleWordData;
+        out_msg.MessageSize := msgSize;
         out_msg.SeqNum      := in_msg.SeqNum;
         out_msg.BlkIdx      := blkIdx;
         out_msg.Len         := 1;
