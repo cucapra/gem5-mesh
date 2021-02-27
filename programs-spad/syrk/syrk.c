@@ -64,7 +64,7 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
       for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
 
-        FRAME_START();
+        FRAME_START(INNER_FRAME_SIZE);
         #pragma GCC unroll(16)
         for (int kin = 0; kin < INNER_PREFETCH_LEN; kin++) {
           c_ij += alpha * sp_ptr[sp + kin] * sp_ptr[sp + INNER_PREFETCH_LEN + kin];
@@ -91,7 +91,7 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
  * Staging
  *---------------------------------------------------------------------------------*/
 
-// #ifdef LONGLINES
+#ifdef LONGLINES
 
 inline int get_group_start(int id, int N, int numGroups) {
   return (( id + 0 ) * N) / numGroups;
@@ -246,7 +246,7 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
     // }
   }
 }
-// #endif
+#endif
 
 
 void __attribute__((optimize("-fno-inline"))) syrk(
@@ -261,7 +261,7 @@ void __attribute__((optimize("-fno-inline"))) syrk(
     if (used)
       tril_syrk(mask, a, c, N, M, ptid, groupId, numGroups, 
         vtid, ptidMailer, linkId, numGroupsToSum);
-    #ifdef USE_VEC
+    #ifdef LONGLINES
     else if (isMailer)
       mailer(c, groupId, numGroups, N, M, ptid, ptidFwder, numGroupsToSum);
     #endif
@@ -348,7 +348,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int ptidMailer = 0;
   int ptidFwders[MAX_GROUP_AFFINITY];
   int numGroupsPerMailer = 0;
-  int linkId = cinfo.link_id[0];
+  int linkId = 0;
   int isMailer = 0;
 
   // get behavior of each core
@@ -362,15 +362,13 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int mask = getSIMDMask(&cinfo);
   #endif
 
-  int ptidOrig_x, ptidOrig_y;
-  group_id_to_scalar(&tinfo, unique_id, &ptidOrig_x, &ptidOrig_y);
-
   #ifdef LONGLINES
   #ifdef SCALAR_IS_MAILER
   ptidMailer = ptidScalar;
   isMailer = is_da;
   #else
 
+  linkId = cinfo.link_id[0];
   numGroupsPerMailer = tinfo.num_groups_in_template / tinfo.num_extra_in_template;
   isMailer = cinfo.num_prev_cores > 0;
   if (isMailer)
