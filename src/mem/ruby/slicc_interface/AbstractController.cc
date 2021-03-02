@@ -273,6 +273,8 @@ AbstractController::queueMemoryWrite(const MachineID &id, Addr addr,
     RequestPtr req = std::make_shared<Request>(
         addr, RubySystem::getBlockSizeBytes(), 0, m_masterId);
 
+    req->isStoreNoAck = false;
+
     PacketPtr pkt = Packet::createWrite(req);
     pkt->allocate();
     pkt->setData(block.getData(0, RubySystem::getBlockSizeBytes()));
@@ -294,9 +296,10 @@ AbstractController::queueMemoryWrite(const MachineID &id, Addr addr,
 void
 AbstractController::queueMemoryWritePartial(const MachineID &id, Addr addr,
                                             Cycles latency,
-                                            const DataBlock &block, int size)
+                                            const DataBlock &block, int size, int needsAck)
 {
     RequestPtr req = std::make_shared<Request>(addr, size, 0, m_masterId);
+    req->isStoreNoAck = (needsAck == 0);
 
     PacketPtr pkt = Packet::createWrite(req);
     pkt->allocate();
@@ -352,6 +355,12 @@ AbstractController::recvTimingResp(PacketPtr pkt)
         (*msg).m_DataBlk.setData(pkt->getPtr<uint8_t>(), 0,
                                  RubySystem::getBlockSizeBytes());
     } else if (pkt->isWrite()) {
+        // if noack don't send anything
+        if (pkt->req->isStoreNoAck) {
+            delete pkt;
+            return;
+        }
+
         (*msg).m_Type = MemoryRequestType_MEMORY_WB;
         (*msg).m_MessageSize = MessageSizeType_Writeback_Control;
     } else {

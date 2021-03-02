@@ -756,9 +756,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
 
   action(ipw_issueMemWriteBackPartial, "ipw", desc="Queue writeback request of less than a data block") {
     peek(requestNetwork_in, LLCRequestMsg) {
-      DPRINTF(Frame, "send partial write %#x %#x %d\n", address, in_msg.WordAddress, getNumTrueInMask(in_msg.writeMask));
+      // DPRINTF(Frame, "send partial write %#x %#x %d\n", address, in_msg.WordAddress, getNumTrueInMask(in_msg.writeMask));
       queueMemoryWritePartial(machineID, in_msg.WordAddress, to_memory_controller_latency,
-                              in_msg.DataBlk, getNumTrueInMask(in_msg.writeMask));
+                              in_msg.DataBlk, getNumTrueInMask(in_msg.writeMask), 0);
     }
   }
 
@@ -1407,27 +1407,27 @@ machine(MachineType:L2Cache, "SP LLC cache")
   // WRITE requests
   // writeback
 
-  // transition(V, WRITE, M) {
-  //   atb_allocateTBE;
-  //   art_addRequestorToTBE;
-  //   smu_setMRU;
-  //   wdd_writeDirtyDataToCache;
-  //   swa_sendWriteAck;
-  //   dtb_deallocateTBE;
-  //   prq_popRequestQueue;
-  //   pht_profileHitAccess;
-  // }
+  transition(V, WRITE, M) {
+    atb_allocateTBE;
+    art_addRequestorToTBE;
+    smu_setMRU;
+    wdd_writeDirtyDataToCache;
+    swa_sendWriteAck;
+    dtb_deallocateTBE;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
 
-  // transition(M, WRITE) {
-  //   atb_allocateTBE;
-  //   art_addRequestorToTBE;
-  //   smu_setMRU;
-  //   wdd_writeDirtyDataToCache;
-  //   swa_sendWriteAck;
-  //   dtb_deallocateTBE;
-  //   prq_popRequestQueue;
-  //   pht_profileHitAccess;
-  // }
+  transition(M, WRITE) {
+    atb_allocateTBE;
+    art_addRequestorToTBE;
+    smu_setMRU;
+    wdd_writeDirtyDataToCache;
+    swa_sendWriteAck;
+    dtb_deallocateTBE;
+    prq_popRequestQueue;
+    pht_profileHitAccess;
+  }
 
   // transition(I, WRITE, IM) {
   //   atb_allocateTBE;
@@ -1464,17 +1464,17 @@ machine(MachineType:L2Cache, "SP LLC cache")
     pms_profileMissAccess;
   }
 
-  transition(V, WRITE) {
-    atb_allocateTBE;
-    art_addRequestorToTBE;
-    smu_setMRU;
-    wdd_writeDirtyDataToCache;
-    ipw_issueMemWriteBackPartial;
-    swa_sendWriteAck;
-    dtb_deallocateTBE;
-    prq_popRequestQueue;
-    pht_profileHitAccess;
-  }
+  // transition({V, M}, WRITE) {
+  //   atb_allocateTBE;
+  //   art_addRequestorToTBE;
+  //   smu_setMRU;
+  //   wdd_writeDirtyDataToCache;
+  //   ipw_issueMemWriteBackPartial;
+  //   swa_sendWriteAck;
+  //   dtb_deallocateTBE;
+  //   prq_popRequestQueue;
+  //   pht_profileHitAccess;
+  // }
 
   // SC requests
 

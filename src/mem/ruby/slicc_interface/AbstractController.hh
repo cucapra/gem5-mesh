@@ -135,7 +135,7 @@ class AbstractController : public ClockedObject, public Consumer
     void queueMemoryWrite(const MachineID &id, Addr addr, Cycles latency,
                           const DataBlock &block);
     void queueMemoryWritePartial(const MachineID &id, Addr addr, Cycles latency,
-                                 const DataBlock &block, int size);
+                                 const DataBlock &block, int size, int needsAck);
     void recvTimingResp(PacketPtr pkt);
     Tick recvAtomic(PacketPtr pkt);
 

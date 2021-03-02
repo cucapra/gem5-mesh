@@ -459,7 +459,7 @@ machine(MachineType:Directory, "Directory protocol")
     peek(dmaRequestQueue_in, DMARequestMsg) {
       queueMemoryWritePartial(in_msg.Requestor, address,
                               to_memory_controller_latency, in_msg.DataBlk,
-                              in_msg.Len);
+                              in_msg.Len, 1);
     }
   }
 
@@ -467,7 +467,7 @@ machine(MachineType:Directory, "Directory protocol")
     peek(requestQueue_in, RequestMsg) {
       queueMemoryWritePartial(in_msg.Requestor, address,
                               to_memory_controller_latency, tbe.DataBlk,
-                              tbe.Len);
+                              tbe.Len, 1);
     }
   }
 

@@ -1217,7 +1217,7 @@ machine(MachineType:Directory, "AMD Hammer-like protocol")
     assert(is_valid(tbe));
     queueMemoryWritePartial(tbe.DmaRequestor, tbe.PhysicalAddress,
                             to_memory_controller_latency, tbe.DmaDataBlk,
-                            tbe.Len);
+                            tbe.Len, 1);
   }
 
   action(ly_queueMemoryWriteFromTBE, "ly", desc="Write data to memory from TBE") {

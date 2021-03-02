@@ -681,7 +681,7 @@ machine(MachineType:Directory, "Token protocol")
   action(ld_queueMemoryDmaWriteFromTbe, "ld", desc="Write DMA data to memory") {
     queueMemoryWritePartial(tbe.DmaRequestor, address,
                             to_memory_controller_latency, tbe.DataBlk,
-                            tbe.Len);
+                            tbe.Len, 1);
   }
 
   action(lr_queueMemoryDmaReadWriteback, "lr",

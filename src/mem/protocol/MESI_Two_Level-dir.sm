@@ -345,7 +345,7 @@ machine(MachineType:Directory, "MESI Two Level directory protocol")
          desc="Queue off-chip writeback request") {
     peek(requestNetwork_in, RequestMsg) {
       queueMemoryWritePartial(machineID, address, to_mem_ctrl_latency,
-                              in_msg.DataBlk, in_msg.Len);
+                              in_msg.DataBlk, in_msg.Len, 1);
     }
   }
 
@@ -408,7 +408,7 @@ machine(MachineType:Directory, "MESI Two Level directory protocol")
          desc="Queue off-chip writeback request") {
     peek(responseNetwork_in, ResponseMsg) {
       queueMemoryWritePartial(in_msg.Sender, tbe.PhysicalAddress,
-                              to_mem_ctrl_latency, tbe.DataBlk, tbe.Len);
+                              to_mem_ctrl_latency, tbe.DataBlk, tbe.Len, 1);
     }
   }
 

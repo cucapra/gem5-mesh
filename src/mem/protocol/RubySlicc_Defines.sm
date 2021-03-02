@@ -39,7 +39,7 @@ void queueMemoryRead(MachineID id, Addr addr, Cycles latency);
 void queueMemoryWrite(MachineID id, Addr addr, Cycles latency,
                       DataBlock block);
 void queueMemoryWritePartial(MachineID id, Addr addr, Cycles latency,
-                             DataBlock block, int size);
+                             DataBlock block, int size, int needsAck);
 
 // Functions implemented in the AbstractController class for
 // making functional access to the memory maintained by the
