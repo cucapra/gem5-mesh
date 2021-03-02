@@ -754,6 +754,13 @@ machine(MachineType:L2Cache, "SP LLC cache")
     queueMemoryWrite(machineID, address, to_memory_controller_latency, cache_entry.DataBlk);
   }
 
+  action(ipw_issueMemWriteBackPartial, "ipw", desc="Queue writeback request of less than a data block") {
+    peek(requestNetwork_in, LLCRequestMsg) {
+      queueMemoryWritePartial(machineID, address, to_memory_controller_latency,
+                              in_msg.DataBlk, getNumTrueInMask(in_msg.writeMask));
+    }
+  }
+
   action(smu_setMRU, "smu", desc = "Set MRU") {
     assert(is_valid(cache_entry));
     cacheMemory.setMRU(cache_entry);
@@ -1397,6 +1404,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
   }
 
   // WRITE requests
+  // writeback
 
   transition(V, WRITE, M) {
     atb_allocateTBE;
@@ -1420,28 +1428,38 @@ machine(MachineType:L2Cache, "SP LLC cache")
     pht_profileHitAccess;
   }
 
-  transition(I, WRITE, IM) {
-    atb_allocateTBE;
-    art_addRequestorToTBE;
-    sdt_saveDataInTBE;
-    acb_allocateCacheBlock;
-    imr_issueMemReadRequest;
-    prq_popRequestQueue;
-    pms_profileMissAccess;
-  }
+  // transition(I, WRITE, IM) {
+  //   atb_allocateTBE;
+  //   art_addRequestorToTBE;
+  //   sdt_saveDataInTBE;
+  //   acb_allocateCacheBlock;
+  //   imr_issueMemReadRequest;
+  //   prq_popRequestQueue;
+  //   pms_profileMissAccess;
+  // }
 
-  transition(IM, Memory_Data, M) {
-    wdc_writeDataToCache;
-    wdt_writeDirtyDataToCacheFromTBE;
-    swa_sendWriteAck;
-    smu_setMRU;
-    dtb_deallocateTBE;
-    pmq_popMemResponseQueue;
-    wua_wakeupAllDependents;
-  }
+  // transition(IM, Memory_Data, M) {
+  //   wdc_writeDataToCache;
+  //   wdt_writeDirtyDataToCacheFromTBE;
+  //   swa_sendWriteAck;
+  //   smu_setMRU;
+  //   dtb_deallocateTBE;
+  //   pmq_popMemResponseQueue;
+  //   wua_wakeupAllDependents;
+  // }
 
   transition({IV, MI, IM, IV_LL, IA, VV, VM}, WRITE) {
     z_stallAndWait;
+  }
+
+  // no allocate
+  transition(I, WRITE) {
+    atb_allocateTBE;
+    art_addRequestorToTBE;
+    swa_sendWriteAck;
+    ipw_issueMemWriteBackPartial;
+    dtb_deallocateTBE;
+    prq_popRequestQueue;
   }
 
   // SC requests

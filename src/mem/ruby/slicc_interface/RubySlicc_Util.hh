@@ -190,4 +190,9 @@ countBoolVec(BoolVec bVec)
     return count;
 }
 
+inline int
+getNumTrueInMask(WriteMask mask) {
+    return mask.getNumTrue();
+}
+
 #endif //__MEM_RUBY_SLICC_INTERFACE_RUBYSLICC_UTIL_HH__

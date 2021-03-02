@@ -189,6 +189,15 @@ class WriteMask
     addAtomicOp(int offset, AtomicOpFunctor* op) {
         mAtomicOp.push_back(std::make_pair(offset, op));
     }
+
+    int
+    getNumTrue() {
+        int tot = 0;
+        for (int i = 0; i < mSize; i++) {
+            tot++;
+        }
+        return tot;
+    }
     
   private:
     int mSize;
