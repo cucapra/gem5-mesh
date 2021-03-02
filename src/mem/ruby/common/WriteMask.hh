@@ -194,7 +194,9 @@ class WriteMask
     getNumTrue() {
         int tot = 0;
         for (int i = 0; i < mSize; i++) {
-            tot++;
+            if (mMask.at(i)) {
+                tot++;
+            }
         }
         return tot;
     }
