@@ -118,6 +118,7 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
 
   // printf("%d fwders %d %d %d\n", ptid, fwders[0], fwders[1], fwders[2]);
 
+  int flat_iter = 0;
   int sp_self = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
   // printf("%d %d %d %d %d %f\n", 
@@ -130,7 +131,7 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
     for (int g = 0; g < numGroupsToSum; g++) {
       int gid = baseGroupId + g;
       if (cnt < get_group_len(gid, N, numGroups)) {
-        expected_elements+=PER_CORE_SCALAR_FRAME;
+        expected_elements+=PER_CORE_MAILER_FRAME;
         group_start[g] = get_group_start(gid, N, numGroups) + cnt;
       }
       else {
@@ -142,38 +143,20 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
     if (expected_elements == 0) return; // TODO not sure the issue
     for (int j = 0; j < M; j+=J_STRIDE) {
 
-      if (j % FRAMES_TO_SYNC_AFTER == 0) {
-        // try to do syncronization with cores
-        for (int g = 0; g < numGroupsToSum; g++) {
-          if (group_start[g] < 0) {
-            // printf("%d %d %d skip sync %d\n", ptid, cnt, j, fwders[g]);
-            continue;
-          }
-
-          // printf("%d %d\n", ptid, j);
-          // inform scalar core of the group that ready to go
-          volatile int *sp_scalar_ptr = (int*)getSpAddr(fwders[g], 0);
-          // printf("start set value %d %d %d %d\n", ptid, fwders[g], g, j);
-          while (1) {
-            int wait_val = sp_scalar_ptr[POST_FRAME_WORD];
-            if (wait_val == 0) break;
-          }
-          // printf("set value %d %d\n", ptidScalar, j); // gets here
-          STORE_NOACK(1, &sp_scalar_ptr[POST_FRAME_WORD], 0); 
-          
+      for (int g = 0; g < numGroupsToSum; g++) {
+        if (group_start[g] < 0) {
+          continue;
         }
+        int *sp_scalar_ptr = (int*)getSpAddr(fwders[g], 0);
+        // printf("%d flat %p %d\n", ptid, sp_scalar_ptr, flat_iter);
+        STORE_NOACK(flat_iter, &sp_scalar_ptr[POST_FRAME_WORD], 0); 
+        // sp_scalar_ptr[POST_FRAME_WORD] = flat_iter;
       }
+      flat_iter++;
 
       // load initial value
       DTYPE sum[MAX_GROUP_AFFINITY];
       for (int g = 0; g < numGroupsToSum; g++) {
-        // int gid = baseGroupId + g; // todo do lookup here if not consecutive
-      
-        // // check if expecting frame
-        // // because of the way div works, should have cores with larger ids write
-        // // to earlier frames to avoid skips
-        // if (cnt >= get_group_len(gid, N, numGroups)) continue;
-        // int i = get_group_start(gid, N, numGroups) + cnt;
         int i = group_start[g];
         if (i < 0) continue;
         sum[g] = c[i * N + j] * beta;
@@ -188,62 +171,22 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
       for (int g = 0; g < numGroupsToSum; g++) {
         // int gid = baseGroupId + g;
 
-        for (int k = 0; k < PER_CORE_SCALAR_FRAME; k++) {
+        for (int k = 0; k < PER_CORE_MAILER_FRAME; k++) {
           sum[g] += sp_ptr[sp_self + k];
         }
 
-        sp_self += PER_CORE_SCALAR_FRAME;
+        sp_self += PER_CORE_MAILER_FRAME;
 
         int i = group_start[g];
         if (i < 0) continue;
-
-        // if (i == 5 && j == 1) printf("%d %d %f %d %d\n", ptid, g, sum[g], cnt, baseGroupId);
 
         STORE_NOACK(sum[g], &c[i * N + j], 0);
 
       }
       REMEM(expected_elements);
-      sp_self = sp_self % SCALAR_POST_FRAME_WORD;
-
+      sp_self = sp_self % MAILER_POST_FRAME_WORD;
 
     }
-
-
-    // // do reverse order b/c later groups will always have the same or more frames
-    // for (int g = 0; g >= -1*numGroupsToSum + 1; g--) {
-    //   int gid = baseGroupId + g; // todo do lookup here if not consecutive
-      
-    //   // check if expecting frame
-    //   // because of the way div works, should have cores with larger ids write
-    //   // to earlier frames to avoid skips
-    //   if (cnt >= get_group_len(gid, N, numGroups)) continue;
-      
-    //   volatile int *sp_scalar_ptr = (int*)getSpAddr(fwders[g], 0);
-    //   int i = get_group_start(gid, N, numGroups) + cnt;
-
-    //   for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) { // TODO wrong order
-    //     // printf("%d %d\n", ptid, j);
-    //     // inform scalar core of the group that ready to go
-    //     if (j % FRAMES_TO_SYNC_AFTER == 0) {
-    //       // printf("start set value %d %d\n", ptidScalar, j);
-    //       while (1) {
-    //         int wait_val = sp_scalar_ptr[POST_FRAME_WORD];
-    //         if (wait_val == 0) break;
-    //       }
-    //       // printf("set value %d %d\n", ptidScalar, j); // gets here
-    //       // sp_scalar_ptr[POST_FRAME_WORD] = 1;
-    //       // DOESNT WORK?? SYNC PROB?
-    //       STORE_NOACK(1, &sp_scalar_ptr[POST_FRAME_WORD], 0); 
-    //     }
-
-    //     // do_sum(c, i, j, N, sp_ptr, &sp_self);
-
-    //     // load values
-    //     DTYPE sum[MAX_GROUP_AFFINITY];
-
-        
-    //   }
-    // }
   }
 }
 #endif
@@ -400,7 +343,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // int mask = getDebugMask(&cinfo);
   if (isMailer) {
-    SET_PREFETCH_MASK(SCALAR_NUM_FRAMES, SCALAR_FRAME_SIZE, &start_barrier); 
+    SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier); 
+  }
+  else if (is_da) {
+    SET_PREFETCH_MASK(SCALAR_NUM_FRAMES, SCALAR_FRAME_SIZE, &start_barrier);
   }
   else { 
     SET_PREFETCH_MASK(NUM_FRAMES, INNER_FRAME_SIZE, &start_barrier);

@@ -16,14 +16,14 @@ inline void do_sum(DTYPE *c, int i, int j_base, int N, DTYPE *sp_ptr, int *sp_id
   }
   
   for (int j = 0; j < ACCUM_GRANULARITY; j++) {
-    FRAME_START(SCALAR_FRAME_SIZE);
-    for (int i = 0; i < SCALAR_FRAME_SIZE; i++) {
+    FRAME_START(MAILER_FRAME_SIZE);
+    for (int i = 0; i < MAILER_FRAME_SIZE; i++) {
       sum[j] += sp_ptr[*sp_idx + i];
     }
     int j_idx = j + j_base;
     STORE_NOACK(sum[j], &c[i * N + j_idx], 0);
-    REMEM(SCALAR_FRAME_SIZE);
-    (*sp_idx)+=SCALAR_FRAME_SIZE;
+    REMEM(MAILER_FRAME_SIZE);
+    (*sp_idx)+=MAILER_FRAME_SIZE;
     *sp_idx = *sp_idx % POST_FRAME_WORD;
   }
 }

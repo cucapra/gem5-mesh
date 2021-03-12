@@ -63,6 +63,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
   int startOffset = min(INIT_OFFSET, M);
 
+  int numCompleted = 0;
+
   ISSUE_VINST(init_label);
   #endif
 
@@ -78,10 +80,11 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   DTYPE c_ij;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
-  int sp_origin = (linkId * PER_CORE_SCALAR_FRAME) + vtid;
+  int sp_origin = (linkId * PER_CORE_MAILER_FRAME) + vtid;
   DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
 
   #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
   vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
   #endif
   #endif
@@ -99,16 +102,6 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   for (int i = start; i < end; i++) {
 
     #ifdef LONGLINES
-    // #ifndef SCALAR_IS_MAILER
-    // while (1) {
-    //   // needs volatile so doesn't optimize
-    //   int wait_val = sp_ptr[POST_FRAME_WORD]; 
-    //   if (wait_val == 1) break;
-    // }
-    // // printf("reset val %d\n", ptid);
-    // sp_ptr[POST_FRAME_WORD] = 0;
-    // #endif
-
 
     #if INIT_FRAMES==0
     for (int j = 0; j < M; j+=J_STRIDE) {
@@ -121,18 +114,11 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
       #ifndef SCALAR_IS_MAILER
       // wait for mailer to be ready
-      if (j != 1 && (j - 1) % FRAMES_TO_SYNC_AFTER == 0) {
-        // printf("start reset value %d %d\n", ptid, j);
-        while (1) {
-          int wait_val = sp_ptr[POST_FRAME_WORD]; 
-          if (wait_val == 1) break;
-        }
-        // printf("reset value %d %d\n", ptid, j);
-        // sp_ptr[POST_FRAME_WORD] = 0;
-
-        // TODO doesn't work. not sure if sync bug or NOACK to local spad not supported
-        STORE_NOACK(0, &sp_ptr[POST_FRAME_WORD], 0);
+      while (1) {
+        int wait_val = sp_ptr[POST_FRAME_WORD]; 
+        if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER) break;
       }
+      numCompleted++;
       #endif
 
       ISSUE_VINST(vec_body_end_label);
@@ -147,8 +133,6 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     for (int k = 0; k < startOffset; k+=K_STRIDE) {
       prefetch_inner_frame(a, i, j, k, &sp, M);
     }
-
-
 
     // do first inner loop
     for (int k = startOffset; k < M; k+=K_STRIDE) {
@@ -169,28 +153,35 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
           #ifndef SCALAR_IS_MAILER
           // wait for mailer to be ready
-          if ( ( j - 1 ) % FRAMES_TO_SYNC_AFTER == 0) {
+          // if ( ( j - 1 ) % FRAMES_TO_SYNC_AFTER == 0) {
             // printf("start reset value %d %d\n", ptid, j);
             while (1) {
-              int wait_val = sp_ptr[POST_FRAME_WORD]; 
-              if (wait_val == 1) break;
-            }
-            // printf("reset value %d %d\n", ptid, j);
-            // sp_ptr[POST_FRAME_WORD] = 0;
+              int wait_val = sp_ptr[POST_FRAME_WORD];
+              // printf("%d || %d\n", ptid, wait_val);
+              // printf("%d %d < %d + %d\n", ptid, numCompleted, wait_val, FRAMES_TO_SYNC_AFTER);
+              
+              // plus 1 b/c will send another if allowed to pass
+              if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER) break;
 
-            // TODO doesn't work. not sure if sync bug or NOACK to local spad not supported
-            STORE_NOACK(0, &sp_ptr[POST_FRAME_WORD], 0);
-          }
+              // if (numCompleted > 0)  printf("%d %d < %d + %d\n", ptid, numCompleted, wait_val, FRAMES_TO_SYNC_AFTER);
+
+            }
+
+            // printf("reset value %d %d\n", ptid, j);
+            numCompleted++;
+            // STORE_NOACK(0, &sp_ptr[POST_FRAME_WORD], 0);
+          // }
+          // FRAME_START(SCALAR_FRAME_SIZE);
+          // REMEM(SCALAR_FRAME_SIZE);
+          
+  
           #endif
 
           // printf("write frame %d %d\n", ptid, j-1);
           ISSUE_VINST(vec_body_end_label);
           ISSUE_VINST(vec_body_init_label);
-  
-
 
         }
-
 
       }
 
@@ -206,6 +197,13 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     for (int k = M - startOffset; k < M; k+=K_STRIDE) {
       ISSUE_VINST(vec_body_label);
     }
+
+
+    while (1) {
+      int wait_val = sp_ptr[POST_FRAME_WORD];
+      if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER) break;
+    }
+    numCompleted++;
 
     ISSUE_VINST(vec_body_end_label);
     #ifdef SCALAR_IS_MAILER
@@ -275,6 +273,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   volatile int BH;
   volatile int BHO;
   do { 
+
     asm("trillium vissue_delim until_next vec_body_init");
 
     #ifndef LONGLINES
@@ -345,8 +344,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     #ifdef LONGLINES
     // store partial sum to scalar core
     STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
-    sp_origin+=SCALAR_FRAME_SIZE;
-    sp_origin = sp_origin % SCALAR_POST_FRAME_WORD;
+    sp_origin+=MAILER_FRAME_SIZE;
+    sp_origin = sp_origin % MAILER_POST_FRAME_WORD;
     #else
 
     STORE_NOACK(c_ij, &c[i * N + j], 0);
