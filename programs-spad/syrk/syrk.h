@@ -20,6 +20,8 @@
 // #define NESTED_SIMD_4_4
 // #define VEC_4_LONGLINES
 
+#define SCALAR_IS_MAILER
+
 // vvadd_execute config directives
 #if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
 #define USE_VEC 1
@@ -93,7 +95,13 @@
 #define NUM_GROUPS_PER_PIPE (1)
 #endif
 
+#ifdef SCALAR_IS_MAILER
+#define MAILER_OFFSET (1)
+#define MAILER_FRAME_SIZE (VECTOR_LEN + MAILER_OFFSET)
+#else
 #define MAILER_FRAME_SIZE (VECTOR_LEN * NUM_GROUPS_PER_PIPE)
+#endif
+
 #define MAILER_NUM_FRAMES (POST_FRAME_WORD / MAILER_FRAME_SIZE)
 #define MAILER_POST_FRAME_WORD (MAILER_FRAME_SIZE * MAILER_NUM_FRAMES)
 

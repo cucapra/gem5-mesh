@@ -22,6 +22,37 @@
 
 #ifdef USE_VEC
 
+#ifdef SCALAR_IS_MAILER
+// fetch c value at beginning of the frame
+inline void do_sum_prefetch(DTYPE *c, int i, int j_base, int N, int sp_idx) {
+  #pragma GCC unroll(8)
+  for (int j = 0; j < ACCUM_GRANULARITY; j++) {
+    int j_idx = j + j_base;
+    VPREFETCH_L(sp_idx + j * MAILER_FRAME_SIZE, &c[i * N + j_idx], 0, 1, TO_SELF);
+  }
+}
+
+// do reduction on scalar core
+// each core in vector group should have sent a message in a frame
+inline void do_sum(DTYPE *c, int i, int j_base, int N, DTYPE *sp_ptr, int *sp_idx) {
+  // merge frame into full sum
+  #pragma GCC unroll(8)
+  for (int j = 0; j < ACCUM_GRANULARITY; j++) {
+    FRAME_START(MAILER_FRAME_SIZE);
+    DTYPE sum = sp_ptr[*sp_idx + 0] * beta;
+    #pragma unroll(16)
+    for (int i = MAILER_OFFSET; i < MAILER_FRAME_SIZE; i++) {
+      sum += sp_ptr[*sp_idx + i];
+    }
+    int j_idx = j + j_base;
+    STORE_NOACK(sum, &c[i * N + j_idx], 0);
+    REMEM(MAILER_FRAME_SIZE);
+    (*sp_idx)+=MAILER_FRAME_SIZE;
+    *sp_idx = *sp_idx % MAILER_POST_FRAME_WORD;
+  }
+}
+#endif
+
 // TODO there are def oppurtuniteis to parallize inner loop instead of outer loop to get more horizontal prefetching
 //
 // for (int i = start + vtid; i < end; i+=VECTOR_LEN) {
@@ -80,7 +111,11 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   DTYPE c_ij;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
+  #ifdef SCALAR_IS_MAILER
+  int sp_origin = vtid + MAILER_OFFSET;
+  #else
   int sp_origin = (linkId * PER_CORE_MAILER_FRAME) + vtid;
+  #endif
   DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
 
   #ifdef NESTED_SIMD
@@ -107,6 +142,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     for (int j = 0; j < M; j+=J_STRIDE) {
       ISSUE_VINST(vec_body_init_label);
 
+      do_sum_prefetch(c, i, j, N, sp_self);
+
       for (int k = 0; k < M; k+=K_STRIDE) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
         ISSUE_VINST(vec_body_label);
@@ -122,6 +159,9 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       #endif
 
       ISSUE_VINST(vec_body_end_label);
+
+          
+      do_sum(c, i, j, N, sp_ptr, &sp_self);
 
     }
 
@@ -143,6 +183,9 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     // steady state
     for (j = 1; j < M; j+=J_STRIDE) {
 
+      // prefetch what is needed for sum
+      do_sum_prefetch(c, i, j - ACCUM_GRANULARITY, N, sp_self);
+
       for (int k = 0; k < M; k+=K_STRIDE) {
 
         prefetch_inner_frame(a, i, j, k, &sp, M);
@@ -153,28 +196,15 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
           #ifndef SCALAR_IS_MAILER
           // wait for mailer to be ready
-          // if ( ( j - 1 ) % FRAMES_TO_SYNC_AFTER == 0) {
-            // printf("start reset value %d %d\n", ptid, j);
-            while (1) {
-              int wait_val = sp_ptr[POST_FRAME_WORD];
-              // printf("%d || %d\n", ptid, wait_val);
-              // printf("%d %d < %d + %d\n", ptid, numCompleted, wait_val, FRAMES_TO_SYNC_AFTER);
-              
-              // plus 1 b/c will send another if allowed to pass
-              if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER) break;
+          while (1) {
+            int wait_val = sp_ptr[POST_FRAME_WORD];
 
-              // if (numCompleted > 0)  printf("%d %d < %d + %d\n", ptid, numCompleted, wait_val, FRAMES_TO_SYNC_AFTER);
+            // plus 1 b/c will send another if allowed to pass
+            if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER) break;
+          }
 
-            }
-
-            // printf("reset value %d %d\n", ptid, j);
-            numCompleted++;
-            // STORE_NOACK(0, &sp_ptr[POST_FRAME_WORD], 0);
-          // }
-          // FRAME_START(SCALAR_FRAME_SIZE);
-          // REMEM(SCALAR_FRAME_SIZE);
-          
-  
+          // printf("reset value %d %d\n", ptid, j);
+          numCompleted++;
           #endif
 
           // printf("write frame %d %d\n", ptid, j-1);
@@ -199,14 +229,17 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     }
 
 
+    #ifndef SCALAR_IS_MAILER
     while (1) {
       int wait_val = sp_ptr[POST_FRAME_WORD];
       if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER) break;
     }
     numCompleted++;
+    #endif
 
     ISSUE_VINST(vec_body_end_label);
     #ifdef SCALAR_IS_MAILER
+    do_sum_prefetch(c, i, M - ACCUM_GRANULARITY, N, sp_self);
     do_sum(c, i, M - ACCUM_GRANULARITY, N, sp_ptr, &sp_self);
     #endif
     #endif

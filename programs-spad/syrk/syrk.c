@@ -143,6 +143,17 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
     if (expected_elements == 0) return; // TODO not sure the issue
     for (int j = 0; j < M; j+=J_STRIDE) {
 
+      // #ifdef MAILER_PREFETCH
+      // // prefetch c into frame along with partial sums
+      // for (int g = 0; g < numGroupsToSum; g++) {
+      //   int i = group_start[g];
+      //   if (i < 0) continue;
+      //   // place into first 3 elements
+      //   VPREFETCH_L(*sp_ptr + g, &c[i * N + j], 0, 1, TO_ONE_CORE);
+      // }
+      // #endif
+
+
       for (int g = 0; g < numGroupsToSum; g++) {
         if (group_start[g] < 0) {
           continue;
@@ -157,9 +168,13 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
       // load initial value
       DTYPE sum[MAX_GROUP_AFFINITY];
       for (int g = 0; g < numGroupsToSum; g++) {
+        // #ifdef MAILER_PREFETCH
+        // sum[g] = sp_ptr[g] * beta;
+        // #else
         int i = group_start[g];
         if (i < 0) continue;
         sum[g] = c[i * N + j] * beta;
+        // #endif
       }
 
       // printf("%d start consume frame %d %d %d %d\n", ptid, cnt, j, expected_elements, numGroupsToSum);
@@ -307,7 +322,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   #ifdef LONGLINES
   #ifdef SCALAR_IS_MAILER
-  ptidMailer = ptidScalar;
+  int ptid_scalar_x, ptid_scalar_y;
+  group_id_to_scalar(&tinfo, unique_id, &ptid_scalar_x, &ptid_scalar_y);
+  int ptid_scalar = ptid_scalar_x + ptid_scalar_y * pdim_x;
+  ptidMailer = ptid_scalar;
   isMailer = is_da;
   #else
 
@@ -345,9 +363,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   if (isMailer) {
     SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier); 
   }
-  else if (is_da) {
-    SET_PREFETCH_MASK(SCALAR_NUM_FRAMES, SCALAR_FRAME_SIZE, &start_barrier);
-  }
+  // else if (is_da) {
+  //   SET_PREFETCH_MASK(SCALAR_NUM_FRAMES, SCALAR_FRAME_SIZE, &start_barrier);
+  // }
   else { 
     SET_PREFETCH_MASK(NUM_FRAMES, INNER_FRAME_SIZE, &start_barrier);
   }

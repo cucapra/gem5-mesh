@@ -15,6 +15,9 @@
 // macro args
 #define COMMA ,
 
+#define FENCE() \
+  asm volatile("fence\n\t" ::: "memory")
+
 // https://forums.sifive.com/t/confusion-regarding-freedom-e-sdk-inline-asm/383
 // # is stringify, 'reg' must be explictliy written out
 // 'val' must be defined at compile time
@@ -114,6 +117,7 @@
 
 #define TO_ONE_CORE 0
 #define TO_ALL_CORES 1
+#define TO_SELF 2
 
 // set mask and do barrier because need to wait for all cores to be on same page about frame size
 // CSR writes in gem5 require the data to have changed for some reason, so need to switch to 0 before updating
