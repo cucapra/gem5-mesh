@@ -20,7 +20,8 @@
 // #define NESTED_SIMD_4_4
 // #define VEC_4_LONGLINES
 
-#define SCALAR_IS_MAILER
+// #define SCALAR_IS_MAILER
+#define ROFL_COP
 
 // vvadd_execute config directives
 #if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
@@ -118,6 +119,13 @@
 #define OUTER_FRAME_SIZE INNER_FRAME_SIZE
 #define OUTER_PREFETCH_LEN INNER_PREFETCH_LEN
 
+// TODO hardcode where end core is
+#if VECTOR_LEN==4
+#define SUM_END_VTID 2
+#else
+#define SUM_END_VTID 0
+#endif
+
 // prefetch c
 // pad out to the frame size (1->2 currently)
 // maybe don't have to prefetch this
@@ -132,8 +140,7 @@ inline void prefetch_outer_frame(DTYPE *c, int i, int j, int *sp, int N) {
     VPREFETCH_LR(*sp + OUTER_PREFETCH_LEN, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, TO_ONE_CORE);
   }
 
-  *sp = *sp + OUTER_FRAME_SIZE;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
+  *sp = (*sp + OUTER_FRAME_SIZE) % POST_FRAME_WORD;
   #endif
 }
 
@@ -156,8 +163,7 @@ inline void prefetch_inner_frame(DTYPE *a, int i, int j, int k, int *sp, int M) 
 
   // will be done manually for manycore prefetch
   #ifndef MANYCORE_PREFETCH
-  *sp = *sp + INNER_FRAME_SIZE;
-  if (*sp == POST_FRAME_WORD) *sp = 0;
+  *sp = (*sp + INNER_FRAME_SIZE) % POST_FRAME_WORD;
   #endif
 }
 

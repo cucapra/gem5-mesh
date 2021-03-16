@@ -327,8 +327,67 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int ptid_scalar = ptid_scalar_x + ptid_scalar_y * pdim_x;
   ptidMailer = ptid_scalar;
   isMailer = is_da;
-  #else
+  #elif defined(ROFL_COP)
+  // define snaking pattern
+  int bias = vtid_y % 2; // whether snaking right or left (0 == right)
 
+  // determine which core starts
+  int starting_core_vtid = 0;
+  int ending_core_vtid = SUM_END_VTID;
+  // groupId = 2 (and repeating) has differing instruction flow so need to accum
+  // in a different order
+  #if VECTOR_LEN == 4
+  if ((unique_id + 1) % 3 == 0) {
+    starting_core_vtid = 1;
+    ending_core_vtid = 3; 
+
+    // invert bias
+    bias = ((bias + 1) % 2);
+  }
+  #endif
+
+
+  int next_x, next_y;
+
+  // snek right
+  if (bias == 0) {
+    if (vtid_x < vdim_x-1) {
+      next_y = vtid_y;
+      next_x = vtid_x + 1;
+    }
+    else {
+      next_y = vtid_y + 1;
+      next_x = vtid_x;
+    }
+  }
+  // snek left
+  else {
+    if (vtid_x > 0) {
+      next_y = vtid_y;
+      next_x = vtid_x - 1;
+    }
+    else {
+      next_y = vtid_y + 1;
+      next_x = next_x;
+    }
+  }
+
+  // cores last in the formation will just send to self which won't count as a frame access
+  if (vtid == ending_core_vtid) {
+    next_x = vtid_x;
+    next_y = vtid_y;
+  }
+
+  ptidMailer = get_ptid_from_group(&tinfo, unique_id, next_x, next_y, pdim_x);
+
+  // set some fields
+  linkId = starting_core_vtid;
+  numGroupsPerMailer = ending_core_vtid;
+
+  // if (unique_id == 0) {
+  //   printf("%d %d %d %d %d %d %d\n", ptid, ptidMailer, vtid_x, vtid_y, next_x, next_y, bias);
+  // }
+  #else
   linkId = cinfo.link_id[0];
   numGroupsPerMailer = tinfo.num_groups_in_template / tinfo.num_extra_in_template;
   isMailer = cinfo.num_prev_cores > 0;

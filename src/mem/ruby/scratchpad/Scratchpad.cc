@@ -835,7 +835,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // If this is a speculative load and the data isn't present, then
     // allow the packets equal to ld queue size be buffered here
     // if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
-    if (m_cpu_p->getEarlyVector()->isSlave()){
+    if (m_cpu_p->getEarlyVector()->isSlave() && !pkt_p->isWrite()){
       if (isRegionAccess(pkt_p) && !isWordRdy(pkt_p->getAddr())){
         //m_packet_buffer.push_back(pkt_p);
         //assert(m_packet_buffer.size() <= m_spec_buf_size);
@@ -845,6 +845,11 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
         return false;
       }
     }
+
+    // // can fill own frame i guess
+    // if (isRegionAccess(pkt_p) && pkt_p->isWrite()) {
+    //   setWordRdy(pkt_p->getAddr());
+    // }
     
     // TODO stats might be incorrect with these stalls
     // should move into accessDataArray rather than keep out here
@@ -903,6 +908,9 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
   // MachineID dst_port;
 
   if (dst_sp_id == m_num_scratchpads) {
+    // log a global access
+    m_global_reqs++;
+
     // this packet can be modified to not access global memory in case of slave
     // core but rather just update info in the spad
     // TODO currently checking normal pkt map, should we make our own so that can be
@@ -1005,6 +1013,11 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       DPRINTF(LoadTrack, "Sending Load request to remote SP %#x\n", pkt_p->getAddr());
     if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Frame, "Sending remote req pkt %#x to %s\n", pkt_p->getAddr(), dst_port);
 
+
+    if (pkt_p->isStoreNoAck()) {
+      DPRINTF(Frame, "send noack store %#x %d\n", pkt_p->getAddr(), pkt_p->getPtr<uint32_t>()[0]);
+    }
+
     // Make and queue the message
     std::shared_ptr<MemMessage> msg_p =
           std::make_shared<MemMessage>(clockEdge(), src_port, dst_port, pkt_p);
@@ -1055,7 +1068,7 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
 
   // if remote store requires no ack, then dont respond
   if (pkt_p->isWrite() && pkt_p->isStoreNoAck()) {
-    DPRINTF(Frame, "don't respond to write to frame\n");
+    // DPRINTF(Frame, "don't respond to write to frame\n");
     respond_sender = false;
   }
 
@@ -1259,8 +1272,10 @@ Scratchpad::getDesiredRegion(Addr addr) {
   // NOTE currently assumed to be directly after metadata bits
   int prefetchSectionIdx = padIdx - SPM_DATA_WORD_OFFSET;
   int region = prefetchSectionIdx / getRegionElements();
-  // DPRINTF(Frame, "addr %#x padIdx %d region %d\n", addr, padIdx, region);
-  assert(region < getNumRegions());
+  if (region >= getNumRegions()) {
+    DPRINTF(Frame, "addr %#x padIdx %d region %d\n", addr, padIdx, region);
+    assert(false);
+  }
   return region;
 }
 
@@ -1723,6 +1738,10 @@ Scratchpad::regStats()
     // .flags(Stats::total | Stats::pdf | Stats::dist)
     ;
   
+  m_global_reqs
+      .name(name() + ".global_reqs")
+      .desc("Number of reqs to global memory")
+      ;
 }
 
 Scratchpad*

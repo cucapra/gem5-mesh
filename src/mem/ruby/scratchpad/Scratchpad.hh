@@ -527,6 +527,8 @@ class Scratchpad : public AbstractController
    Stats::Scalar m_remote_loads;
    Stats::Scalar m_remote_stores;
 
+   Stats::Scalar m_global_reqs;
+
    Stats::Formula m_local_accesses;
    Stats::Formula m_remote_accesses;
    Stats::Formula m_total_accesses;

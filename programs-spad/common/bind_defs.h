@@ -183,6 +183,20 @@
   VPREFETCH_L(sp, memIdx, core, len, style);        \
   VPREFETCH_R(sp, memIdx, core, len, style)
   
+#if __GNUC__ >= 10
+// block of instructions to avoid reordering
+// PRED_EQ(cond)
+// STORE_NOACK()
+// PRED_EQ(0, 0)
+#define PRED_EQ_STORE_NOACK(cond0, cond1, val, addr, offset)            \
+  asm volatile(                                                         \
+    ".insn r 0x33, 0x7, 0x5, x0, %[c0], %[c1]\n\t"                      \
+    ".insn s 0x23, 0x5, %[dataReg], %[off](%[mem])\n\t"                 \
+    ".insn r 0x33, 0x7, 0x5, x0, x0, x0\n\t"                            \
+  :: [c0] "r" (cond0), [c1] "r" (cond1), [dataReg] "r" (val),           \
+    [mem] "r" (addr), [off] "i" (offset))                                       
+#endif
+
 static inline void stats_on()
 {
 #if !defined(__x86_64__) && !defined(__i386__)

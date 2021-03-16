@@ -13,6 +13,8 @@
 #include <riscv_vector.h>
 #endif
 
+#define ROFL_COP
+
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
@@ -118,6 +120,14 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   #endif
   DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
 
+  // rename some variables
+  #ifdef ROFL_COP
+  int starting_vtid = linkId;
+  int ending_vtid = numGroupsPerMailer;
+  // one core will do all the work
+  j = 0;
+  #endif
+
   #ifdef NESTED_SIMD
   vsetvl_e32m1(NESTED_SIMD_VLEN);
   vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
@@ -132,6 +142,9 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   #else
   volatile int *sp_ptr = (int*)getSpAddr(ptid, 0);
   #endif
+
+  // DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
+
   // int init_offset = min(INIT_OFFSET, M);
 
   for (int i = start; i < end; i++) {
@@ -142,14 +155,24 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     for (int j = 0; j < M; j+=J_STRIDE) {
       ISSUE_VINST(vec_body_init_label);
 
+      #ifdef SCALAR_IS_MAILER
       do_sum_prefetch(c, i, j, N, sp_self);
+      #elif defined(ROFL_COP)
+      // fetch first value to first core
+      // .... awkward. also does this even work?? 
+      // might be motivation for multiple frame regions???
+      int sp_start_sum = (sp + INNER_FRAME_SIZE * (M / K_STRIDE)) % POST_FRAME_WORD;
+      int starting_vtid = linkId; // rename
+      VPREFETCH_LR(sp_start_sum, &c[i * N + j], starting_vtid, 1, TO_ONE_CORE);
+      // sp_origin_ptr[sp_start_sum] = 
+      #endif
 
       for (int k = 0; k < M; k+=K_STRIDE) {
         prefetch_inner_frame(a, i, j, k, &sp, M);
         ISSUE_VINST(vec_body_label);
       }
 
-      #ifndef SCALAR_IS_MAILER
+      #if !defined(SCALAR_IS_MAILER) && !defined(ROFL_COP)
       // wait for mailer to be ready
       while (1) {
         int wait_val = sp_ptr[POST_FRAME_WORD]; 
@@ -158,11 +181,18 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       numCompleted++;
       #endif
 
+      #ifdef ROFL_COP
+      ISSUE_VINST(vec_body_pre_end_label);
+      sp = (sp + INNER_FRAME_SIZE) % POST_FRAME_WORD;
+      #endif
+
       ISSUE_VINST(vec_body_end_label);
 
-          
-      do_sum(c, i, j, N, sp_ptr, &sp_self);
+      
 
+      #ifdef SCALAR_IS_MAILER
+      do_sum(c, i, j, N, sp_ptr, &sp_self);
+      #endif
     }
 
     #else
@@ -183,8 +213,16 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     // steady state
     for (j = 1; j < M; j+=J_STRIDE) {
 
+      #ifdef SCALAR_IS_MAILER
       // prefetch what is needed for sum
       do_sum_prefetch(c, i, j - ACCUM_GRANULARITY, N, sp_self);
+      #elif defined(ROFL_COP)
+      // fetch first value to first core
+      // .... awkward. also does this even work?? 
+      // might be motivation for multiple frame regions???
+      int sp_start_sum = (sp + M / K_STRIDE) % POST_FRAME_WORD;
+      // VPREFETCH_L()
+      #endif
 
       for (int k = 0; k < M; k+=K_STRIDE) {
 
@@ -194,7 +232,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
         // finish loop at a weird time
         if (k + K_STRIDE == startOffset) {
 
-          #ifndef SCALAR_IS_MAILER
+          #if !defined(SCALAR_IS_MAILER) && !defined(ROFL_COP)
           // wait for mailer to be ready
           while (1) {
             int wait_val = sp_ptr[POST_FRAME_WORD];
@@ -205,6 +243,11 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
           // printf("reset value %d %d\n", ptid, j);
           numCompleted++;
+          #endif
+
+          #ifdef ROFL_COP
+          sp += INNER_FRAME_SIZE;
+          if (sp == POST_FRAME_WORD) sp = 0;
           #endif
 
           // printf("write frame %d %d\n", ptid, j-1);
@@ -229,12 +272,17 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     }
 
 
-    #ifndef SCALAR_IS_MAILER
+    #if !defined(SCALAR_IS_MAILER) && !defined(ROFL_COP)
     while (1) {
       int wait_val = sp_ptr[POST_FRAME_WORD];
       if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER) break;
     }
     numCompleted++;
+    #endif
+
+    #ifdef ROFL_COP
+    sp += INNER_FRAME_SIZE;
+    if (sp == POST_FRAME_WORD) sp = 0;
     #endif
 
     ISSUE_VINST(vec_body_end_label);
@@ -373,12 +421,88 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
+    #ifdef ROFL_COP
+    asm("trillium vissue_delim until_next vec_body_pre_end");
+    // do instructions that dont fit into first block (specifically for vtid == 0)
+    // PRED_EQ(vtid, 0); // if pred doesnt work just prefetch value to each core and then write to slot 2?
+    
+    PRED_EQ(vtid, starting_vtid);
+    FRAME_START(ACCUM_GRANULARITY);
+    PRED_EQ(0, 0);
+
+    // add current value
+    DTYPE start_sum = sp_ptr[sp];
+    start_sum *= beta;
+
+    // store into a frame
+    // DTYPE *sp_next_ptr = sp_origin_ptr; //rename for clarity
+    // int sp_val_idx = sp + 1;
+
+    // only first core does
+    PRED_EQ_STORE_NOACK(vtid, starting_vtid, start_sum, &sp_ptr[sp], 0);
+
+    #endif
     asm("trillium vissue_delim if_begin vec_body_end");
+
     #ifdef LONGLINES
+    #ifndef ROFL_COP
     // store partial sum to scalar core
     STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
     sp_origin+=MAILER_FRAME_SIZE;
     sp_origin = sp_origin % MAILER_POST_FRAME_WORD;
+    #else
+    // do reduction systolically on vector cores
+    // cant exceed queue length between any two vector cores if want to snake it
+    // 10 instructions between frame start and store in this case. should be enough :p
+
+    // ------
+    // critical section (must be <10 instructions)
+    // seriously had 10 instructions due to predication and needed to remove to get to not deadlock
+
+    // get from frame (make sure scalar core doesn't write to this one)
+    FRAME_START(ACCUM_GRANULARITY);
+
+    // add current value
+    c_ij += sp_ptr[sp];
+    // PRED_EQ(vtid, 0);
+    // c_ij *= beta;
+    // PRED_EQ(0, 0);
+
+    // store into a frame
+    // DTYPE *sp_next_ptr = sp_origin_ptr; //rename for clarity
+
+    // last core doesn't do
+    // i think this could mess up with remem on final core which writes to self
+    // would need to be store with ack to work (remem done on commit atomically)
+    // possible the timing works out though
+    // PRED_NEQ(vtid, SUM_END_VTID);
+    STORE_NOACK(c_ij, &sp_origin_ptr[sp], 0); 
+    // PRED_EQ(0, 0);
+
+    // ------
+    // after this point can stall all you want with deadlock
+
+    // free frame
+    REMEM(ACCUM_GRANULARITY);
+
+    // if your the last core in snake, do store
+    PRED_EQ_STORE_NOACK(vtid, ending_vtid, c_ij, &c[i * N + j], 0);
+    // STORE_NOACK(3.0f, &c[i * N + j], 0);
+
+    // do pointer updates
+    sp = (sp + INNER_FRAME_SIZE) % POST_FRAME_WORD;
+
+    // handle outer loop
+    j+=J_STRIDE;
+    if (j >= M) {
+      #ifdef ROFL_COP
+      j = 0;
+      #else
+      j = vtid;
+      #endif
+      i++;
+    }
+    #endif
     #else
 
     STORE_NOACK(c_ij, &c[i * N + j], 0);
@@ -434,6 +558,13 @@ vec_body_end_label:
   asm("trillium glue_point vec_body_end");
 #if INIT_FRAMES==0
 exit(1);
+#endif
+#ifdef ROFL_COP
+vec_body_pre_end_label:
+  asm("trillium glue_point vec_body_pre_end");
+#if INIT_FRAMES==0
+exit(1);
+#endif
 #endif
 vector_return_label:
   asm("trillium glue_point vector_return");
