@@ -328,24 +328,47 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   ptidMailer = ptid_scalar;
   isMailer = is_da;
   #elif defined(ROFL_COP)
-  // define snaking pattern
-  int bias = vtid_y % 2; // whether snaking right or left (0 == right)
+  // define snaking pattern 
+  // TODO define some of this stuff in templates
+  // i think if define start and end , can figure out the snake pattern
+  int bias_x = vtid_y % 2; // whether snaking right or left (0 == right)
+  int bias_y = 0; // whether snaking down or up at ends (0 == down)
 
   // determine which core starts
   int starting_core_vtid, ending_core_vtid;
   // groupId = 2 (and repeating) has differing instruction flow so need to accum
   // in a different order
   #if VECTOR_LEN == 4
+  // 2
   if ((unique_id + 1) % 3 == 0) {
-    starting_core_vtid = 1;
+    starting_core_vtid = 1; // i think this is always the origin vtid
     ending_core_vtid = 3; 
 
-    // invert bias
-    bias = ((bias + 1) % 2);
+    // invert x bias
+    bias_x = ((bias_x + 1) % 2);
   }
+  // 0,1
   else {
     starting_core_vtid = 0;
     ending_core_vtid = 2;
+  }
+  #elif VECTOR_LEN == 16
+  if (unique_id == 0) {
+    starting_core_vtid = 12; // 0,3
+    ending_core_vtid = 0; // 3,0
+    bias_y = 1;
+    bias_x = ((bias_x + 1) % 2);
+  }
+  else if (unique_id == 1) {
+    starting_core_vtid = 15; // 7,3
+    ending_core_vtid = 3; // 4,0
+    bias_y = 1;
+    // invert x bias
+    // bias_x = ((bias_x + 1) % 2);
+  }
+  else if (unique_id == 2) {
+    starting_core_vtid = 0;
+    ending_core_vtid = 12;
   }
   #endif
 
@@ -353,13 +376,16 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int next_x, next_y;
 
   // snek right
-  if (bias == 0) {
+  if (bias_x == 0) {
     if (vtid_x < vdim_x-1) {
       next_y = vtid_y;
       next_x = vtid_x + 1;
     }
     else {
-      next_y = vtid_y + 1;
+      if (bias_y == 0)
+        next_y = vtid_y + 1;
+      else
+        next_y = vtid_y - 1;
       next_x = vtid_x;
     }
   }
@@ -370,7 +396,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
       next_x = vtid_x - 1;
     }
     else {
-      next_y = vtid_y + 1;
+      if (bias_y == 0)
+        next_y = vtid_y + 1;
+      else
+        next_y = vtid_y - 1;
       next_x = next_x;
     }
   }
@@ -388,7 +417,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   numGroupsPerMailer = ending_core_vtid;
 
   // if (unique_id == 0) {
-  //   printf("%d %d %d %d %d %d %d\n", ptid, ptidMailer, vtid_x, vtid_y, next_x, next_y, bias);
+  //   printf("%d %d (%d %d) -> (%d %d) %d %d\n", ptid, ptidMailer, vtid_x, vtid_y, next_x, next_y, bias_x, bias_y);
   // }
   #else
   linkId = cinfo.link_id[0];
