@@ -55,6 +55,12 @@ inline void do_sum(DTYPE *c, int i, int j_base, int N, DTYPE *sp_ptr, int *sp_id
 }
 #endif
 
+// fetch first value to first core
+inline void do_sum_prefetch(int sp, int starting_vtid, DTYPE *c, int i, int j, int N, int M) {
+    int sp_start_sum = (sp + INNER_FRAME_SIZE * (M / K_STRIDE)) % POST_FRAME_WORD;
+    VPREFETCH_L(sp_start_sum, &c[i * N + j], starting_vtid, 1, TO_ONE_CORE);
+}
+
 // TODO there are def oppurtuniteis to parallize inner loop instead of outer loop to get more horizontal prefetching
 //
 // for (int i = start + vtid; i < end; i+=VECTOR_LEN) {
@@ -158,13 +164,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       #ifdef SCALAR_IS_MAILER
       do_sum_prefetch(c, i, j, N, sp_self);
       #elif defined(ROFL_COP)
-      // fetch first value to first core
-      // .... awkward. also does this even work?? 
-      // might be motivation for multiple frame regions???
-      int sp_start_sum = (sp + INNER_FRAME_SIZE * (M / K_STRIDE)) % POST_FRAME_WORD;
-      int starting_vtid = linkId; // rename
-      VPREFETCH_LR(sp_start_sum, &c[i * N + j], starting_vtid, 1, TO_ONE_CORE);
-      // sp_origin_ptr[sp_start_sum] = 
+      do_sum_prefetch(sp, linkId, c, i, j, N, M);
       #endif
 
       for (int k = 0; k < M; k+=K_STRIDE) {
@@ -200,6 +200,11 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
     // get ahead
     ISSUE_VINST(vec_body_init_label);
+
+    #ifdef ROFL_COP
+    do_sum_prefetch(sp, linkId, c, i, j, N, M);
+    #endif
+
     for (int k = 0; k < startOffset; k+=K_STRIDE) {
       prefetch_inner_frame(a, i, j, k, &sp, M);
     }
@@ -210,19 +215,23 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       ISSUE_VINST(vec_body_label);
     }
 
+    #ifdef ROFL_COP
+    // ISSUE_VINST(vec_body_pre_end_label);
+    sp = (sp + INNER_FRAME_SIZE) % POST_FRAME_WORD;
+    #endif
+
     // steady state
     for (j = 1; j < M; j+=J_STRIDE) {
 
       #ifdef SCALAR_IS_MAILER
       // prefetch what is needed for sum
       do_sum_prefetch(c, i, j - ACCUM_GRANULARITY, N, sp_self);
-      #elif defined(ROFL_COP)
-      // fetch first value to first core
-      // .... awkward. also does this even work?? 
-      // might be motivation for multiple frame regions???
-      int sp_start_sum = (sp + M / K_STRIDE) % POST_FRAME_WORD;
-      // VPREFETCH_L()
       #endif
+
+      #ifdef ROFL_COP
+      do_sum_prefetch(sp, linkId, c, i, j, N, M);
+      #endif
+
 
       for (int k = 0; k < M; k+=K_STRIDE) {
 
@@ -246,8 +255,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
           #endif
 
           #ifdef ROFL_COP
-          sp += INNER_FRAME_SIZE;
-          if (sp == POST_FRAME_WORD) sp = 0;
+          ISSUE_VINST(vec_body_pre_end_label);
           #endif
 
           // printf("write frame %d %d\n", ptid, j-1);
@@ -255,8 +263,11 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
           ISSUE_VINST(vec_body_init_label);
 
         }
-
       }
+
+      #ifdef ROFL_COP
+      sp = (sp + INNER_FRAME_SIZE) % POST_FRAME_WORD;
+      #endif
 
       #ifdef SCALAR_IS_MAILER
       // every so often need to complete the sum
@@ -281,8 +292,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     #endif
 
     #ifdef ROFL_COP
-    sp += INNER_FRAME_SIZE;
-    if (sp == POST_FRAME_WORD) sp = 0;
+    ISSUE_VINST(vec_body_pre_end_label);
     #endif
 
     ISSUE_VINST(vec_body_end_label);
