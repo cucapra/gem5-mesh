@@ -332,8 +332,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int bias = vtid_y % 2; // whether snaking right or left (0 == right)
 
   // determine which core starts
-  int starting_core_vtid = 0;
-  int ending_core_vtid = SUM_END_VTID;
+  int starting_core_vtid, ending_core_vtid;
   // groupId = 2 (and repeating) has differing instruction flow so need to accum
   // in a different order
   #if VECTOR_LEN == 4
@@ -343,6 +342,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
     // invert bias
     bias = ((bias + 1) % 2);
+  }
+  else {
+    starting_core_vtid = 0;
+    ending_core_vtid = 2;
   }
   #endif
 

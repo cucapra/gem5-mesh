@@ -119,13 +119,6 @@
 #define OUTER_FRAME_SIZE INNER_FRAME_SIZE
 #define OUTER_PREFETCH_LEN INNER_PREFETCH_LEN
 
-// TODO hardcode where end core is
-#if VECTOR_LEN==4
-#define SUM_END_VTID 2
-#else
-#define SUM_END_VTID 0
-#endif
-
 // prefetch c
 // pad out to the frame size (1->2 currently)
 // maybe don't have to prefetch this
