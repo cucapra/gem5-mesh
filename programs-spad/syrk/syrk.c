@@ -210,7 +210,8 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
 void __attribute__((optimize("-fno-inline"))) syrk(
     DTYPE *a, DTYPE *c,
     int ptid, int vtid, int dim, int N, int M, int groupId, int numGroups,
-    int mask, int used, int ptidMailer, int isMailer, int *ptidFwder, int numGroupsToSum, int linkId
+    int mask, int used, int ptidMailer, int isMailer, int *ptidFwder, 
+    int numGroupsToSum, int linkId, int numSum, int sendOffset
   ) {
 
     #ifndef USE_VEC
@@ -218,7 +219,7 @@ void __attribute__((optimize("-fno-inline"))) syrk(
     #else
     if (used)
       tril_syrk(mask, a, c, N, M, ptid, groupId, numGroups, 
-        vtid, ptidMailer, linkId, numGroupsToSum);
+        vtid, ptidMailer, linkId, numGroupsToSum, numSum, sendOffset);
     #ifdef LONGLINES
     else if (isMailer)
       mailer(c, groupId, numGroups, N, M, ptid, ptidFwder, numGroupsToSum);
@@ -308,6 +309,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int numGroupsPerMailer = 0;
   int linkId = 0;
   int isMailer = 0;
+  int numSum; // how many values converge to this core during sum
+  int sendOffset = 0;
 
   // get behavior of each core
   #ifdef NUM_FRAMES
@@ -328,6 +331,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   ptidMailer = ptid_scalar;
   isMailer = is_da;
   #elif defined(ROFL_COP)
+
+
+  #ifdef SNAKING
+
   // define snaking pattern 
   // TODO define some of this stuff in templates
   // i think if define start and end , can figure out the snake pattern
@@ -404,6 +411,111 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     }
   }
 
+  #else
+ // determine which core starts
+  int starting_core_vtid, ending_core_vtid;
+  // groupId = 2 (and repeating) has differing instruction flow so need to accum
+  // in a different order
+  #if VECTOR_LEN == 4
+  // 2
+  if ((unique_id + 1) % 3 == 0) {
+    starting_core_vtid = 1; // i think this is always the origin vtid
+    ending_core_vtid = 2; 
+  }
+  // 0,1
+  else {
+    starting_core_vtid = 0;
+    ending_core_vtid = 3;
+  }
+  #elif VECTOR_LEN == 16
+  if (unique_id == 0) {
+    starting_core_vtid = 12;
+    ending_core_vtid = 3;
+  }
+  else if (unique_id == 1) {
+    starting_core_vtid = 15;
+    ending_core_vtid = 0;
+  }
+  else if (unique_id == 2) {
+    starting_core_vtid = 0;
+    ending_core_vtid = 15;
+  }
+  #endif
+
+
+  int next_x, next_y;
+
+
+  // do logflow like instruction forwarding but covergent instread of divergent
+  // just first and last row vectors will be different
+  int start_x, start_y;
+  int end_x, end_y;
+  start_x = starting_core_vtid % vdim_x;
+  start_y = starting_core_vtid / vdim_x;
+  end_x = ending_core_vtid % vdim_x;
+  end_y = ending_core_vtid / vdim_x;
+  
+  int dir_x = (start_x < end_x); // 1 == right
+  int dir_y = (start_y < end_y); // 1 == down
+  #define X_RIGHT 1
+  #define Y_DOWN 1
+
+  if (dir_x == X_RIGHT) {
+    if (vtid_x == vdim_x - 1) {
+      next_x = vtid_x;
+      sendOffset = 1;
+      if (dir_y == Y_DOWN) {
+        next_y = vtid_y + 1;
+
+        if (vtid_y == 0) numSum = 1;
+        else numSum = 2;
+      }
+      else {
+        next_y = vtid_y - 1;
+
+        if (vtid_y == vdim_y - 1) numSum = 1;
+        else numSum = 2;
+      }
+    }
+    else {
+      sendOffset = 0;
+      next_x = vtid_x + 1;
+      next_y = vtid_y;
+
+      numSum = 1;
+    }
+
+    if (vtid_x == 0) numSum = 0;
+  }
+  else {
+    if (vtid_x == 0) {
+      next_x = vtid_x;
+      sendOffset = 1;
+      if (dir_y == Y_DOWN) {
+        next_y = vtid_y + 1;
+
+        if (vtid_y == 0) numSum = 1;
+        else numSum = 2;
+      }
+      else {
+        next_y = vtid_y - 1;
+
+        if (vtid_y == vdim_y - 1) numSum = 1;
+        else numSum = 2;
+      }
+    }
+    else {
+      sendOffset = 0;
+      next_x = vtid_x - 1;
+      next_y = vtid_y;
+
+      numSum = 1;
+    }
+
+    if (vtid_x == vdim_x - 1) numSum = 0;
+  }
+
+  #endif
   // cores last in the formation will just send to self which won't count as a frame access
   if (vtid == ending_core_vtid) {
     next_x = vtid_x;
@@ -417,7 +529,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   numGroupsPerMailer = ending_core_vtid;
 
   // if (unique_id == 0) {
-  //   printf("%d %d (%d %d) -> (%d %d) %d %d\n", ptid, ptidMailer, vtid_x, vtid_y, next_x, next_y, bias_x, bias_y);
+    // printf("%d %d (%d %d) -> (%d %d) (%d %d) %d %d\n", ptid, ptidMailer, vtid_x, vtid_y, next_x, next_y, dir_x, dir_y, numSum, sendOffset);
   // }
   #else
   linkId = cinfo.link_id[0];
@@ -468,7 +580,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // do the kernel
   syrk(a, c, ptid, vtid, pdim, N, M, unique_id, total_groups, 
-    mask, used, ptidMailer, isMailer, ptidFwders, numGroupsPerMailer, linkId);
+    mask, used, ptidMailer, isMailer, ptidFwders, numGroupsPerMailer, 
+    linkId, numSum, sendOffset);
 
   // restore stack pointer
   RECOVER_DRAM_STACK();

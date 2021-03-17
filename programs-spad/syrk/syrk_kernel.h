@@ -5,6 +5,7 @@
 
 void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M, 
                   int ptid, int groupId, int numGroups, int vtid,
-                  int ptidMailer, int linkId, int numGroupsPerMailer);
+                  int ptidMailer, int linkId, int numGroupsPerMailer, 
+                  int numSum, int sendOffset);
 
 #endif

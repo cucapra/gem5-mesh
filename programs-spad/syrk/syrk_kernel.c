@@ -81,7 +81,7 @@ inline void do_sum_prefetch(int sp, int starting_vtid, DTYPE *c, int i, int j, i
 
 void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M, 
                   int ptid, int groupId, int numGroups, int vtid,
-                  int ptidMailer, int linkId, int numGroupsPerMailer) {
+                  int ptidMailer, int linkId, int numGroupsPerMailer, int numSum, int sendOffset) {
 
 
   #ifdef SCALAR_CORE
@@ -444,12 +444,20 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     DTYPE start_sum = sp_ptr[sp];
     start_sum *= beta;
 
+    #ifndef SNAKING
+    // set zero to simplify code
+    STORE_NOACK(0, &sp_ptr[sp + 0], 0);
+    STORE_NOACK(0, &sp_ptr[sp + 1], 0);
+    #endif
+
+    int sp_meme_lord = sp + sendOffset;
+
     // store into a frame
     // DTYPE *sp_next_ptr = sp_origin_ptr; //rename for clarity
     // int sp_val_idx = sp + 1;
 
     // only first core does
-    PRED_EQ_STORE_NOACK(vtid, starting_vtid, start_sum, &sp_ptr[sp], 0);
+    PRED_EQ_STORE_NOACK(vtid, starting_vtid, start_sum, &sp_ptr[sp_meme_lord], 0);
 
     #endif
     asm("trillium vissue_delim if_begin vec_body_end");
@@ -470,10 +478,17 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     // seriously had 10 instructions due to predication and needed to remove to get to not deadlock
 
     // get from frame (make sure scalar core doesn't write to this one)
+    #ifdef SNAKING
     FRAME_START(ACCUM_GRANULARITY);
 
-    // add current value
     c_ij += sp_ptr[sp];
+    #else
+    FRAME_START(numSum); // can have mutliple or none
+
+    // add current value
+    c_ij += sp_ptr[sp + 0];
+    c_ij += sp_ptr[sp + 1];
+    #endif
     // PRED_EQ(vtid, 0);
     // c_ij *= beta;
     // PRED_EQ(0, 0);
@@ -486,7 +501,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     // would need to be store with ack to work (remem done on commit atomically)
     // possible the timing works out though
     // PRED_NEQ(vtid, SUM_END_VTID);
-    STORE_NOACK(c_ij, &sp_origin_ptr[sp], 0); 
+    STORE_NOACK(c_ij, &sp_origin_ptr[sp_meme_lord], 0); 
     // PRED_EQ(0, 0);
 
     // ------

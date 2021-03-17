@@ -22,6 +22,7 @@
 
 // #define SCALAR_IS_MAILER
 #define ROFL_COP
+// #define SNAKING
 
 // vvadd_execute config directives
 #if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
