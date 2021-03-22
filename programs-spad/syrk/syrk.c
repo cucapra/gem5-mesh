@@ -112,7 +112,7 @@ inline int ceilToInt(float val) {
 
 // TODO making assumption that if multiple groups then are consecutive
 void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M, 
-    int ptid, int *fwders, int numGroupsToSum) {
+    int ptid, int *fwders) {
   // chunk over vector groups. note all might not do the same amount of work
   int max_chunk_size = ceilToInt((float)N / (float)numGroups);
 
@@ -128,10 +128,13 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
     int group_start[MAX_GROUP_AFFINITY]; 
     // figure out how many valid elements we're expecting in the frame
     int expected_elements = 0;
-    for (int g = 0; g < numGroupsToSum; g++) {
+    for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
       int gid = baseGroupId + g;
       if (cnt < get_group_len(gid, N, numGroups)) {
-        expected_elements+=PER_CORE_MAILER_FRAME;
+        expected_elements+=PER_CORE_MAILER_FRAME*ACCUM_GRANULARITY;
+        #ifdef MAILER_PREFETCH
+        expected_elements+=ACCUM_GRANULARITY;
+        #endif
         group_start[g] = get_group_start(gid, N, numGroups) + cnt;
       }
       else {
@@ -141,20 +144,20 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
     }
 
     if (expected_elements == 0) return; // TODO not sure the issue
-    for (int j = 0; j < M; j+=J_STRIDE) {
+    for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) {
 
-      // #ifdef MAILER_PREFETCH
-      // // prefetch c into frame along with partial sums
-      // for (int g = 0; g < numGroupsToSum; g++) {
-      //   int i = group_start[g];
-      //   if (i < 0) continue;
-      //   // place into first 3 elements
-      //   VPREFETCH_L(*sp_ptr + g, &c[i * N + j], 0, 1, TO_ONE_CORE);
-      // }
-      // #endif
+      #ifdef MAILER_PREFETCH
+      // prefetch c into frame along with partial sums
+      for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
+        int i = group_start[g];
+        if (i < 0) continue;
+        // place into first 3 elements
+        VPREFETCH_L(sp_self + g * ACCUM_GRANULARITY, &c[i * N + j], 0, ACCUM_GRANULARITY, TO_SELF);
+      }
+      #endif
 
-
-      for (int g = 0; g < numGroupsToSum; g++) {
+      // inform sync
+      for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
         if (group_start[g] < 0) {
           continue;
         }
@@ -165,9 +168,10 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
       }
       flat_iter++;
 
+      #ifndef MAILER_PREFETCH
       // load initial value
       DTYPE sum[MAX_GROUP_AFFINITY];
-      for (int g = 0; g < numGroupsToSum; g++) {
+      for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
         // #ifdef MAILER_PREFETCH
         // sum[g] = sp_ptr[g] * beta;
         // #else
@@ -176,16 +180,33 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
         sum[g] = c[i * N + j] * beta;
         // #endif
       }
+      #endif
 
-      // printf("%d start consume frame %d %d %d %d\n", ptid, cnt, j, expected_elements, numGroupsToSum);
+      // printf("%d start consume frame %d %d %d\n", ptid, cnt, j, expected_elements);
 
       // wait for frame and then do sum
       FRAME_START(expected_elements);
 
       // printf("%d consume %d\n", ptid, j);
-      for (int g = 0; g < numGroupsToSum; g++) {
-        // int gid = baseGroupId + g;
+      for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
+        #ifdef MAILER_PREFETCH
+        DTYPE sum = sp_ptr[sp_self + g * ACCUM_GRANULARITY] * beta;
 
+        int sum_offset = MAILER_OFFSET + g * PER_CORE_MAILER_FRAME;
+
+        #pragma GCC unroll(16)
+        for (int k = 0; k < PER_CORE_MAILER_FRAME; k++) {
+          sum += sp_ptr[sum_offset + sp_self + k];
+        }
+
+        int i = group_start[g];
+        if (i < 0) continue;
+
+        STORE_NOACK(sum, &c[i * N + j], 0);
+
+        #else
+        
+        #pragma GCC unroll(16)
         for (int k = 0; k < PER_CORE_MAILER_FRAME; k++) {
           sum[g] += sp_ptr[sp_self + k];
         }
@@ -196,11 +217,14 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
         if (i < 0) continue;
 
         STORE_NOACK(sum[g], &c[i * N + j], 0);
+        #endif
 
       }
+      #ifdef MAILER_PREFETCH
+      sp_self += MAILER_FRAME_SIZE;
+      #endif
+      sp_self = sp_self % MAILER_POST_FRAME_WORD; // TOOD branch better??
       REMEM(expected_elements);
-      sp_self = sp_self % MAILER_POST_FRAME_WORD;
-
     }
   }
 }
@@ -222,7 +246,7 @@ void __attribute__((optimize("-fno-inline"))) syrk(
         vtid, ptidMailer, linkId, numGroupsToSum, numSum, sendOffset);
     #ifdef LONGLINES
     else if (isMailer)
-      mailer(c, groupId, numGroups, N, M, ptid, ptidFwder, numGroupsToSum);
+      mailer(c, groupId, numGroups, N, M, ptid, ptidFwder);
     #endif
     #endif
 

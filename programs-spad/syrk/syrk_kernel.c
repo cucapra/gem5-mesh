@@ -13,8 +13,6 @@
 #include <riscv_vector.h>
 #endif
 
-#define ROFL_COP
-
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
@@ -122,7 +120,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   #ifdef SCALAR_IS_MAILER
   int sp_origin = vtid + MAILER_OFFSET;
   #else
-  int sp_origin = (linkId * PER_CORE_MAILER_FRAME) + vtid;
+  int sp_origin = MAILER_OFFSET + (linkId * PER_CORE_MAILER_FRAME) + vtid;
   #endif
   DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
 
@@ -201,7 +199,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     // get ahead
     ISSUE_VINST(vec_body_init_label);
 
-    #ifdef ROFL_COP
+    #if defined(ROFL_COP) && !defined(SKIP_LOOP_HEAD_FOOT)
     do_sum_prefetch(sp, linkId, c, i, j, N, M);
     #endif
 
@@ -215,7 +213,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       ISSUE_VINST(vec_body_label);
     }
 
-    #ifdef ROFL_COP
+    #if defined(ROFL_COP) && !defined(SKIP_LOOP_HEAD_FOOT)
     // ISSUE_VINST(vec_body_pre_end_label);
     sp = (sp + INNER_FRAME_SIZE) % POST_FRAME_WORD;
     #endif
@@ -223,6 +221,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     // steady state
     for (j = 1; j < M; j+=J_STRIDE) {
 
+      #ifndef SKIP_LOOP_HEAD_FOOT
       #ifdef SCALAR_IS_MAILER
       // prefetch what is needed for sum
       do_sum_prefetch(c, i, j - ACCUM_GRANULARITY, N, sp_self);
@@ -231,7 +230,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       #ifdef ROFL_COP
       do_sum_prefetch(sp, linkId, c, i, j, N, M);
       #endif
-
+      #endif
 
       for (int k = 0; k < M; k+=K_STRIDE) {
 
@@ -254,18 +253,19 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
           numCompleted++;
           #endif
 
-          #ifdef ROFL_COP
+          #ifndef SKIP_LOOP_HEAD_FOOT
+          #if defined(ROFL_COP) && !defined(MERGESUM)
           ISSUE_VINST(vec_body_pre_end_label);
           #endif
 
           // printf("write frame %d %d\n", ptid, j-1);
           ISSUE_VINST(vec_body_end_label);
           ISSUE_VINST(vec_body_init_label);
-
+          #endif
         }
       }
 
-      #ifdef ROFL_COP
+      #if defined(ROFL_COP) && !defined(SKIP_LOOP_HEAD_FOOT)
       sp = (sp + INNER_FRAME_SIZE) % POST_FRAME_WORD;
       #endif
 
@@ -291,7 +291,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     numCompleted++;
     #endif
 
-    #ifdef ROFL_COP
+    #if defined(ROFL_COP) && !defined(MERGESUM)
     ISSUE_VINST(vec_body_pre_end_label);
     #endif
 
@@ -399,6 +399,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       // do innermost loop body (k)
       #ifdef NESTED_SIMD
       l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      vfloat32m1_t accum = vzero;
       #endif
       
       FRAME_START(INNER_FRAME_SIZE);
@@ -413,26 +414,38 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
         vfloat32m1_t vaj = vle32_v_f32m1(&sp_ptr[sp + INNER_PREFETCH_LEN + k]);
 
         vfloat32m1_t vaa = vfmul_vv_f32m1(vai, vaj);
-        vfloat32m1_t vaaa = vfmul_vf_f32m1(vaa, alpha); 
+        vfloat32m1_t vaaa = vfmul_vf_f32m1(vaa, alpha);
 
-        vfloat32m1_t vcij = vfredsum_vs_f32m1_f32m1(vaaa, vaaa, vzero);
-        c_ij += vfmv_f_s_f32m1_f32(vcij);
+        accum = vfadd_vv_f32m1(accum, vaaa);
         #else
         c_ij += alpha * sp_ptr[sp + k] * sp_ptr[sp + INNER_PREFETCH_LEN + k];
         #endif
       }
 
-      // printf("a %f ?= %f %f ?= %f\n", sp_ptr[sp + 0], a[i * M + k], sp_ptr[sp + 1], a[j * M +k]);
-      // c[i * N + j] += alpha * a[i * M + k] * a[j * M + k];
-      // c_ij += alpha * sp_ptr[sp + 0] * sp_ptr[sp + 1];
-      REMEM(INNER_FRAME_SIZE);
+      #ifdef NESTED_SIMD
+      // NOTE very important to do this outside of the loop otherwise won't
+      // mix iterations together and will have poor depedency distances
+      vfloat32m1_t vcij = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+      c_ij += vfmv_f_s_f32m1_f32(vcij);
+      #endif
+
       sp+=INNER_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
+
+      // best to do remem at the end so can reorder as my instructions as possible
+      REMEM(INNER_FRAME_SIZE); 
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
-    #ifdef ROFL_COP
+    #ifdef SKIP_LOOP_HEAD_FOOT
+    asm("trillium vissue_delim if_begin vec_body_end");
+    STORE_NOACK(c_ij, &c[i * N + j], 0);
+    j++;
+    #else
+
+    #if defined(ROFL_COP) && !defined(MERGESUM)
     asm("trillium vissue_delim until_next vec_body_pre_end");
+
     // do instructions that dont fit into first block (specifically for vtid == 0)
     // PRED_EQ(vtid, 0); // if pred doesnt work just prefetch value to each core and then write to slot 2?
     
@@ -463,6 +476,29 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     asm("trillium vissue_delim if_begin vec_body_end");
 
     #ifdef LONGLINES
+    #if defined(ROFL_COP) && defined(MERGESUM)
+
+    PRED_EQ(vtid, starting_vtid);
+    FRAME_START(ACCUM_GRANULARITY);
+    PRED_EQ(0, 0);
+
+    // add current value
+    DTYPE start_sum = sp_ptr[sp];
+    start_sum *= beta;
+
+    #ifndef SNAKING
+    // set zero to simplify code
+    STORE_NOACK(0, &sp_ptr[sp + 0], 0);
+    STORE_NOACK(0, &sp_ptr[sp + 1], 0);
+    #endif
+
+    int sp_meme_lord = sp + sendOffset;
+
+    // only first core does
+    PRED_EQ_STORE_NOACK(vtid, starting_vtid, start_sum, &sp_ptr[sp_meme_lord], 0);
+
+    #endif
+
     #ifndef ROFL_COP
     // store partial sum to scalar core
     STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
@@ -507,8 +543,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     // ------
     // after this point can stall all you want with deadlock
 
-    // free frame
-    REMEM(ACCUM_GRANULARITY);
+    // // free frame
+    // REMEM(ACCUM_GRANULARITY);
 
     // if your the last core in snake, do store
     PRED_EQ_STORE_NOACK(vtid, ending_vtid, c_ij, &c[i * N + j], 0);
@@ -527,6 +563,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       #endif
       i++;
     }
+    // free frame
+    REMEM(ACCUM_GRANULARITY);
     #endif
     #else
 
@@ -538,6 +576,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       j = vtid;
       i++;
     }
+    #endif
     #endif
     asm("trillium vissue_delim end at_jump");
 
@@ -584,7 +623,7 @@ vec_body_end_label:
 #if INIT_FRAMES==0
 exit(1);
 #endif
-#ifdef ROFL_COP
+#if defined(ROFL_COP) && !defined(MERGESUM)
 vec_body_pre_end_label:
   asm("trillium glue_point vec_body_pre_end");
 #if INIT_FRAMES==0
