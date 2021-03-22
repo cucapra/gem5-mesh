@@ -152,7 +152,11 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
         int i = group_start[g];
         if (i < 0) continue;
         // place into first 3 elements
-        VPREFETCH_L(sp_self + g * ACCUM_GRANULARITY, &c[i * N + j], 0, ACCUM_GRANULARITY, TO_SELF);
+        // hard to put consectuively b/c then would need to change store pattern
+        // TODO would need to change kernel code if wanted. need to alternate strides
+        for (int a = 0; a < ACCUM_GRANULARITY; a++) {
+          VPREFETCH_L(sp_self + g + a * SUB_FRAME_SIZE, &c[i * N + j + a], 0, 1, TO_SELF);
+        }
       }
       #endif
 
@@ -166,7 +170,7 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
         STORE_NOACK(flat_iter, &sp_scalar_ptr[POST_FRAME_WORD], 0); 
         // sp_scalar_ptr[POST_FRAME_WORD] = flat_iter;
       }
-      flat_iter++;
+      flat_iter+=ACCUM_GRANULARITY;
 
       #ifndef MAILER_PREFETCH
       // load initial value
@@ -190,20 +194,22 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
       // printf("%d consume %d\n", ptid, j);
       for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
         #ifdef MAILER_PREFETCH
-        DTYPE sum = sp_ptr[sp_self + g * ACCUM_GRANULARITY] * beta;
+        #pragma GCC unroll(4)
+        for (int a = 0; a < ACCUM_GRANULARITY; a++) {
+          DTYPE sum = sp_ptr[sp_self + g + a * SUB_FRAME_SIZE] * beta;
 
-        int sum_offset = MAILER_OFFSET + g * PER_CORE_MAILER_FRAME;
+          int sum_offset = MAILER_OFFSET + g * PER_CORE_MAILER_FRAME + a * SUB_FRAME_SIZE;
 
-        #pragma GCC unroll(16)
-        for (int k = 0; k < PER_CORE_MAILER_FRAME; k++) {
-          sum += sp_ptr[sum_offset + sp_self + k];
+          #pragma GCC unroll(16)
+          for (int k = 0; k < PER_CORE_MAILER_FRAME; k++) {
+            sum += sp_ptr[sum_offset + sp_self + k];
+          }
+
+          int i = group_start[g];
+          if (i < 0) continue;
+
+          STORE_NOACK(sum, &c[i * N + j + a], 0);
         }
-
-        int i = group_start[g];
-        if (i < 0) continue;
-
-        STORE_NOACK(sum, &c[i * N + j], 0);
-
         #else
         
         #pragma GCC unroll(16)

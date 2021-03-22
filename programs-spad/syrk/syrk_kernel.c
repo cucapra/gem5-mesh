@@ -174,7 +174,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       // wait for mailer to be ready
       while (1) {
         int wait_val = sp_ptr[POST_FRAME_WORD]; 
-        if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER) break;
+        if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER*ACCUM_GRANULARITY) break;
       }
       numCompleted++;
       #endif
@@ -246,7 +246,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
             int wait_val = sp_ptr[POST_FRAME_WORD];
 
             // plus 1 b/c will send another if allowed to pass
-            if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER) break;
+            if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER*ACCUM_GRANULARITY) break;
           }
 
           // printf("reset value %d %d\n", ptid, j);
@@ -286,7 +286,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     #if !defined(SCALAR_IS_MAILER) && !defined(ROFL_COP)
     while (1) {
       int wait_val = sp_ptr[POST_FRAME_WORD];
-      if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER) break;
+      if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER*ACCUM_GRANULARITY) break;
     }
     numCompleted++;
     #endif
@@ -502,7 +502,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     #ifndef ROFL_COP
     // store partial sum to scalar core
     STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
-    sp_origin+=MAILER_FRAME_SIZE;
+    sp_origin+=SUB_FRAME_SIZE;
     sp_origin = sp_origin % MAILER_POST_FRAME_WORD;
     #else
     // do reduction systolically on vector cores
