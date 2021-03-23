@@ -118,6 +118,12 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
 
   // printf("%d fwders %d %d %d\n", ptid, fwders[0], fwders[1], fwders[2]);
 
+  // cache sp ptrs to avoid global load
+  int* spPtrs[NUM_GROUPS_PER_PIPE];
+  for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
+    spPtrs[g] = (int*)getSpAddr(fwders[g], 0);
+  }
+
   int flat_iter = 0;
   int sp_self = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
@@ -165,7 +171,8 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
         if (group_start[g] < 0) {
           continue;
         }
-        int *sp_scalar_ptr = (int*)getSpAddr(fwders[g], 0);
+        // int *sp_scalar_ptr = (int*)getSpAddr(fwders[g], 0);
+        int *sp_scalar_ptr = spPtrs[g];
         // printf("%d flat %p %d\n", ptid, sp_scalar_ptr, flat_iter);
         STORE_NOACK(flat_iter, &sp_scalar_ptr[POST_FRAME_WORD], 0); 
         // sp_scalar_ptr[POST_FRAME_WORD] = flat_iter;
