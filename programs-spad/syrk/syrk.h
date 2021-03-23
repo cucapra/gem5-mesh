@@ -75,7 +75,8 @@
 // prefetch config for inner kernel
 
 #ifndef ACCUM_GRANULARITY
-#define ACCUM_GRANULARITY 1
+// default to coarser b/c can onlt help. although 2 is probably sufficient
+#define ACCUM_GRANULARITY 8
 #endif
 
 #ifdef LONGLINES
