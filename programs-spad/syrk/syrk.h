@@ -52,16 +52,6 @@
 
 #define EFF_VLEN (VECTOR_LEN * NESTED_SIMD_VLEN)
 
-#ifdef LONGLINES
-// #define SCALAR_IS_MAILER
-// #define ROFL_COP
-// #define MERGESUM
-// #define SNAKING
-// #define SKIP_LOOP_HEAD_FOOT
-#define MAILER_PREFETCH
-#endif
-
-
 // prefetch sizing
 #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
 // dedicate a quarter of scratchpad to frames
@@ -93,9 +83,6 @@
 #define NUM_FRAMES (POST_FRAME_WORD / INNER_FRAME_SIZE)
 #define INIT_OFFSET (INIT_FRAMES * K_STRIDE)
 
-
-
-
 // TODO hardcode this based on spipe
 #if VECTOR_LEN == 4
 #define NUM_GROUPS_PER_PIPE (3)
@@ -103,25 +90,13 @@
 #define NUM_GROUPS_PER_PIPE (1)
 #endif
 
-#ifdef SCALAR_IS_MAILER
-#define MAILER_OFFSET (1)
-#define MAILER_FRAME_SIZE (VECTOR_LEN + MAILER_OFFSET)
-#else
-#ifdef MAILER_PREFETCH
+
 #define MAILER_OFFSET (NUM_GROUPS_PER_PIPE)
-#else
-#define MAILER_OFFSET (0)
-#endif
 #define SUB_FRAME_SIZE (MAILER_OFFSET + VECTOR_LEN * NUM_GROUPS_PER_PIPE)
 #define MAILER_FRAME_SIZE (SUB_FRAME_SIZE * ACCUM_GRANULARITY)
-#endif
 
 #define MAILER_NUM_FRAMES (POST_FRAME_WORD / MAILER_FRAME_SIZE)
 #define MAILER_POST_FRAME_WORD (MAILER_FRAME_SIZE * MAILER_NUM_FRAMES)
-
-#define SCALAR_FRAME_SIZE (1)
-#define SCALAR_NUM_FRAMES (POST_FRAME_WORD / SCALAR_FRAME_SIZE)
-#define SCALAR_POST_FRAME_WORD (SCALAR_FRAME_SIZE * SCALAR_NUM_FRAMES)
 
 // needs to be maxed at number of frame counters
 #if MAILER_NUM_FRAMES < 5

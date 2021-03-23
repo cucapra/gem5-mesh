@@ -111,13 +111,11 @@ inline int ceilToInt(float val) {
   return base + 1;// ceilf() not working so do cheap version
 }
 
-// TODO making assumption that if multiple groups then are consecutive
+// partial sum reduction offload
 void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M, 
     int ptid, int *fwders) {
   // chunk over vector groups. note all might not do the same amount of work
   int max_chunk_size = ceilToInt((float)N / (float)numGroups);
-
-  // printf("%d fwders %d %d %d\n", ptid, fwders[0], fwders[1], fwders[2]);
 
   // cache sp ptrs to avoid global load
   int* spPtrs[NUM_GROUPS_PER_PIPE];
@@ -128,10 +126,9 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
   int flat_iter = 0;
   int sp_self = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-  // printf("%d %d %d %d %d %f\n", 
-    // ptid, max_chunk_size, numGroupsToSum, baseGroupId, fwders[0], ceilf((float)N/(float)numGroups));
+
   for (int cnt = 0; cnt < max_chunk_size; cnt++) {
-    // printf("%d %d\n", ptid, cnt);
+
     int group_start[MAX_GROUP_AFFINITY]; 
     // figure out how many valid elements we're expecting in the frame
     int expected_elements = 0;
@@ -139,13 +136,10 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
       int gid = baseGroupId + g;
       if (cnt < get_group_len(gid, N, numGroups)) {
         expected_elements+=PER_CORE_MAILER_FRAME*ACCUM_GRANULARITY;
-        #ifdef MAILER_PREFETCH
         expected_elements+=ACCUM_GRANULARITY;
-        #endif
         group_start[g] = get_group_start(gid, N, numGroups) + cnt;
       }
       else {
-        // printf("%d %d %d %d %d %d cant go\n", ptid, g, gid, N, numGroups, get_group_len(gid, N, numGroups));
         group_start[g] = -1;
       }
     }
@@ -153,7 +147,6 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
     if (expected_elements == 0) return; // TODO not sure the issue
     for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) {
 
-      #ifdef MAILER_PREFETCH
       // prefetch c into frame along with partial sums
       for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
         int i = group_start[g];
@@ -165,43 +158,22 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
           VPREFETCH_L(sp_self + g + a * SUB_FRAME_SIZE, &c[i * N + j + a], 0, 1, TO_SELF);
         }
       }
-      #endif
 
       // inform sync
       for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
         if (group_start[g] < 0) {
           continue;
         }
-        // int *sp_scalar_ptr = (int*)getSpAddr(fwders[g], 0);
         int *sp_scalar_ptr = spPtrs[g];
-        // printf("%d flat %p %d\n", ptid, sp_scalar_ptr, flat_iter);
         STORE_NOACK(flat_iter, &sp_scalar_ptr[POST_FRAME_WORD], 0); 
-        // sp_scalar_ptr[POST_FRAME_WORD] = flat_iter;
       }
       flat_iter+=ACCUM_GRANULARITY;
-
-      #ifndef MAILER_PREFETCH
-      // load initial value
-      DTYPE sum[MAX_GROUP_AFFINITY];
-      for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
-        // #ifdef MAILER_PREFETCH
-        // sum[g] = sp_ptr[g] * beta;
-        // #else
-        int i = group_start[g];
-        if (i < 0) continue;
-        sum[g] = c[i * N + j] * beta;
-        // #endif
-      }
-      #endif
-
-      // printf("%d start consume frame %d %d %d\n", ptid, cnt, j, expected_elements);
 
       // wait for frame and then do sum
       FRAME_START(expected_elements);
 
-      // printf("%d consume %d\n", ptid, j);
       for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
-        #ifdef MAILER_PREFETCH
+
         #pragma GCC unroll(4)
         for (int a = 0; a < ACCUM_GRANULARITY; a++) {
           DTYPE sum = sp_ptr[sp_self + g + a * SUB_FRAME_SIZE] * beta;
@@ -218,25 +190,9 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
 
           STORE_NOACK(sum, &c[i * N + j + a], 0);
         }
-        #else
-        
-        #pragma GCC unroll(16)
-        for (int k = 0; k < PER_CORE_MAILER_FRAME; k++) {
-          sum[g] += sp_ptr[sp_self + k];
-        }
-
-        sp_self += PER_CORE_MAILER_FRAME;
-
-        int i = group_start[g];
-        if (i < 0) continue;
-
-        STORE_NOACK(sum[g], &c[i * N + j], 0);
-        #endif
 
       }
-      #ifdef MAILER_PREFETCH
       sp_self += MAILER_FRAME_SIZE;
-      #endif
       sp_self = sp_self % MAILER_POST_FRAME_WORD; // TOOD branch better??
       REMEM(expected_elements);
     }
@@ -248,8 +204,7 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
 void __attribute__((optimize("-fno-inline"))) syrk(
     DTYPE *a, DTYPE *c,
     int ptid, int vtid, int dim, int N, int M, int groupId, int numGroups,
-    int mask, int used, int ptidMailer, int isMailer, int *ptidFwder, 
-    int numGroupsToSum, int linkId, int numSum, int sendOffset
+    int mask, int used, int ptidMailer, int isMailer, int *ptidFwder, int linkId
   ) {
 
     #ifndef USE_VEC
@@ -257,14 +212,12 @@ void __attribute__((optimize("-fno-inline"))) syrk(
     #else
     if (used)
       tril_syrk(mask, a, c, N, M, ptid, groupId, numGroups, 
-        vtid, ptidMailer, linkId, numGroupsToSum, numSum, sendOffset);
+        vtid, ptidMailer, linkId);
     #ifdef LONGLINES
     else if (isMailer)
       mailer(c, groupId, numGroups, N, M, ptid, ptidFwder);
     #endif
     #endif
-
-    // printf("finish %d\n", ptid);
 
 }
 
@@ -344,11 +297,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // entire vector group
   int ptidMailer = 0;
   int ptidFwders[MAX_GROUP_AFFINITY];
-  int numGroupsPerMailer = 0;
   int linkId = 0;
   int isMailer = 0;
-  int numSum; // how many values converge to this core during sum
-  int sendOffset = 0;
 
   // get behavior of each core
   #ifdef NUM_FRAMES
@@ -362,216 +312,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   #ifdef LONGLINES
-  #ifdef SCALAR_IS_MAILER
-  int ptid_scalar_x, ptid_scalar_y;
-  group_id_to_scalar(&tinfo, unique_id, &ptid_scalar_x, &ptid_scalar_y);
-  int ptid_scalar = ptid_scalar_x + ptid_scalar_y * pdim_x;
-  ptidMailer = ptid_scalar;
-  isMailer = is_da;
-  #elif defined(ROFL_COP)
 
-
-  #ifdef SNAKING
-
-  // define snaking pattern 
-  // TODO define some of this stuff in templates
-  // i think if define start and end , can figure out the snake pattern
-  int bias_x = vtid_y % 2; // whether snaking right or left (0 == right)
-  int bias_y = 0; // whether snaking down or up at ends (0 == down)
-
-  // determine which core starts
-  int starting_core_vtid, ending_core_vtid;
-  // groupId = 2 (and repeating) has differing instruction flow so need to accum
-  // in a different order
-  #if VECTOR_LEN == 4
-  // 2
-  if ((unique_id + 1) % 3 == 0) {
-    starting_core_vtid = 1; // i think this is always the origin vtid
-    ending_core_vtid = 3; 
-
-    // invert x bias
-    bias_x = ((bias_x + 1) % 2);
-  }
-  // 0,1
-  else {
-    starting_core_vtid = 0;
-    ending_core_vtid = 2;
-  }
-  #elif VECTOR_LEN == 16
-  if (unique_id == 0) {
-    starting_core_vtid = 12; // 0,3
-    ending_core_vtid = 0; // 3,0
-    bias_y = 1;
-    bias_x = ((bias_x + 1) % 2);
-  }
-  else if (unique_id == 1) {
-    starting_core_vtid = 15; // 7,3
-    ending_core_vtid = 3; // 4,0
-    bias_y = 1;
-    // invert x bias
-    // bias_x = ((bias_x + 1) % 2);
-  }
-  else if (unique_id == 2) {
-    starting_core_vtid = 0;
-    ending_core_vtid = 12;
-  }
-  #endif
-
-
-  int next_x, next_y;
-
-  // snek right
-  if (bias_x == 0) {
-    if (vtid_x < vdim_x-1) {
-      next_y = vtid_y;
-      next_x = vtid_x + 1;
-    }
-    else {
-      if (bias_y == 0)
-        next_y = vtid_y + 1;
-      else
-        next_y = vtid_y - 1;
-      next_x = vtid_x;
-    }
-  }
-  // snek left
-  else {
-    if (vtid_x > 0) {
-      next_y = vtid_y;
-      next_x = vtid_x - 1;
-    }
-    else {
-      if (bias_y == 0)
-        next_y = vtid_y + 1;
-      else
-        next_y = vtid_y - 1;
-      next_x = next_x;
-    }
-  }
-
-  #else
- // determine which core starts
-  int starting_core_vtid, ending_core_vtid;
-  // groupId = 2 (and repeating) has differing instruction flow so need to accum
-  // in a different order
-  #if VECTOR_LEN == 4
-  // 2
-  if ((unique_id + 1) % 3 == 0) {
-    starting_core_vtid = 1; // i think this is always the origin vtid
-    ending_core_vtid = 2; 
-  }
-  // 0,1
-  else {
-    starting_core_vtid = 0;
-    ending_core_vtid = 3;
-  }
-  #elif VECTOR_LEN == 16
-  if (unique_id == 0) {
-    starting_core_vtid = 12;
-    ending_core_vtid = 3;
-  }
-  else if (unique_id == 1) {
-    starting_core_vtid = 15;
-    ending_core_vtid = 0;
-  }
-  else if (unique_id == 2) {
-    starting_core_vtid = 0;
-    ending_core_vtid = 15;
-  }
-  #endif
-
-
-  int next_x, next_y;
-
-
-  // do logflow like instruction forwarding but covergent instread of divergent
-  // just first and last row vectors will be different
-  int start_x, start_y;
-  int end_x, end_y;
-  start_x = starting_core_vtid % vdim_x;
-  start_y = starting_core_vtid / vdim_x;
-  end_x = ending_core_vtid % vdim_x;
-  end_y = ending_core_vtid / vdim_x;
-  
-  int dir_x = (start_x < end_x); // 1 == right
-  int dir_y = (start_y < end_y); // 1 == down
-  #define X_RIGHT 1
-  #define Y_DOWN 1
-
-  if (dir_x == X_RIGHT) {
-    if (vtid_x == vdim_x - 1) {
-      next_x = vtid_x;
-      sendOffset = 1;
-      if (dir_y == Y_DOWN) {
-        next_y = vtid_y + 1;
-
-        if (vtid_y == 0) numSum = 1;
-        else numSum = 2;
-      }
-      else {
-        next_y = vtid_y - 1;
-
-        if (vtid_y == vdim_y - 1) numSum = 1;
-        else numSum = 2;
-      }
-    }
-    else {
-      sendOffset = 0;
-      next_x = vtid_x + 1;
-      next_y = vtid_y;
-
-      numSum = 1;
-    }
-
-    if (vtid_x == 0) numSum = 0;
-  }
-  else {
-    if (vtid_x == 0) {
-      next_x = vtid_x;
-      sendOffset = 1;
-      if (dir_y == Y_DOWN) {
-        next_y = vtid_y + 1;
-
-        if (vtid_y == 0) numSum = 1;
-        else numSum = 2;
-      }
-      else {
-        next_y = vtid_y - 1;
-
-        if (vtid_y == vdim_y - 1) numSum = 1;
-        else numSum = 2;
-      }
-    }
-    else {
-      sendOffset = 0;
-      next_x = vtid_x - 1;
-      next_y = vtid_y;
-
-      numSum = 1;
-    }
-
-    if (vtid_x == vdim_x - 1) numSum = 0;
-  }
-
-  #endif
-  // cores last in the formation will just send to self which won't count as a frame access
-  if (vtid == ending_core_vtid) {
-    next_x = vtid_x;
-    next_y = vtid_y;
-  }
-
-  ptidMailer = get_ptid_from_group(&tinfo, unique_id, next_x, next_y, pdim_x);
-
-  // set some fields
-  linkId = starting_core_vtid;
-  numGroupsPerMailer = ending_core_vtid;
-
-  // if (unique_id == 0) {
-    // printf("%d %d (%d %d) -> (%d %d) (%d %d) %d %d\n", ptid, ptidMailer, vtid_x, vtid_y, next_x, next_y, dir_x, dir_y, numSum, sendOffset);
-  // }
-  #else
   linkId = cinfo.link_id[0];
-  numGroupsPerMailer = tinfo.num_groups_in_template / tinfo.num_extra_in_template;
   isMailer = cinfo.num_prev_cores > 0;
   if (isMailer)
     unique_id = linkId;
@@ -580,10 +322,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   ptidMailer = cinfo.next_cores[0];
 
-  // printf("%d: %d %d %d %d %d %d\n", 
-  //  ptid, is_da, isMailer, ptidFwders[0], ptidMailer, linkId, numGroupsPerMailer);
-
-  #endif
   #endif
 
   // need to set vlen here so doesn't cause squash in vector core on change in value
@@ -591,22 +329,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vsetvl_e32m1(NESTED_SIMD_VLEN);
   #endif
 
-
-  // if (unique_id == 0) {
-  //   group_info_t ginfo = get_group_info(unique_id, &tinfo);
-  //   printf("ptid %d %d %d %d scalar %d %d\n", 
-  //     ptid, ptidOrig_x, ptidOrig_y, ptidOrigin, ginfo.scalar_x, ginfo.scalar_y);
-  // }
-
-  asm volatile("fence\n\t");
-
   // int mask = getDebugMask(&cinfo);
   if (isMailer) {
     SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier); 
   }
-  // else if (is_da) {
-  //   SET_PREFETCH_MASK(SCALAR_NUM_FRAMES, SCALAR_FRAME_SIZE, &start_barrier);
-  // }
   else { 
     SET_PREFETCH_MASK(NUM_FRAMES, INNER_FRAME_SIZE, &start_barrier);
   }
@@ -618,8 +344,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // do the kernel
   syrk(a, c, ptid, vtid, pdim, N, M, unique_id, total_groups, 
-    mask, used, ptidMailer, isMailer, ptidFwders, numGroupsPerMailer, 
-    linkId, numSum, sendOffset);
+    mask, used, ptidMailer, isMailer, ptidFwders, linkId);
 
   // restore stack pointer
   RECOVER_DRAM_STACK();
@@ -657,7 +382,7 @@ void *pthread_kernel(void *args) {
   kernel(a->a, a->c, a->N, a->M,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-  // pthread_barrier_wait(&start_barrier);
+  // reset scratchpad config
   SET_PREFETCH_MASK(0, 0, &start_barrier);
 
   if (a->tid_x == 0 && a->tid_y == 0) {

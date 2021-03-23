@@ -22,64 +22,9 @@
 
 #ifdef USE_VEC
 
-#ifdef SCALAR_IS_MAILER
-// fetch c value at beginning of the frame
-inline void do_sum_prefetch(DTYPE *c, int i, int j_base, int N, int sp_idx) {
-  #pragma GCC unroll(8)
-  for (int j = 0; j < ACCUM_GRANULARITY; j++) {
-    int j_idx = j + j_base;
-    VPREFETCH_L(sp_idx + j * MAILER_FRAME_SIZE, &c[i * N + j_idx], 0, 1, TO_SELF);
-  }
-}
-
-// do reduction on scalar core
-// each core in vector group should have sent a message in a frame
-inline void do_sum(DTYPE *c, int i, int j_base, int N, DTYPE *sp_ptr, int *sp_idx) {
-  // merge frame into full sum
-  #pragma GCC unroll(8)
-  for (int j = 0; j < ACCUM_GRANULARITY; j++) {
-    FRAME_START(MAILER_FRAME_SIZE);
-    DTYPE sum = sp_ptr[*sp_idx + 0] * beta;
-    #pragma unroll(16)
-    for (int i = MAILER_OFFSET; i < MAILER_FRAME_SIZE; i++) {
-      sum += sp_ptr[*sp_idx + i];
-    }
-    int j_idx = j + j_base;
-    STORE_NOACK(sum, &c[i * N + j_idx], 0);
-    REMEM(MAILER_FRAME_SIZE);
-    (*sp_idx)+=MAILER_FRAME_SIZE;
-    *sp_idx = *sp_idx % MAILER_POST_FRAME_WORD;
-  }
-}
-#endif
-
-// fetch first value to first core
-inline void do_sum_prefetch(int sp, int starting_vtid, DTYPE *c, int i, int j, int N, int M) {
-    int sp_start_sum = (sp + INNER_FRAME_SIZE * (M / K_STRIDE)) % POST_FRAME_WORD;
-    VPREFETCH_L(sp_start_sum, &c[i * N + j], starting_vtid, 1, TO_ONE_CORE);
-}
-
-// TODO there are def oppurtuniteis to parallize inner loop instead of outer loop to get more horizontal prefetching
-//
-// for (int i = start + vtid; i < end; i+=VECTOR_LEN) {
-//  for (int j = 0; j < M; j++) {
-//    c[i * N + j]
-//  }
-// }
-//
-// should be 
-//
-// for (int i = start; i < end; i++{
-//  for (int j = vtid; j < M; j+=VECTOR_LEN) {
-//    c[i * N + j]
-//  }
-// }
-//
-// then can use horizontal prefetching
-
 void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M, 
                   int ptid, int groupId, int numGroups, int vtid,
-                  int ptidMailer, int linkId, int numGroupsPerMailer, int numSum, int sendOffset) {
+                  int ptidMailer, int linkId) {
 
 
   #ifdef SCALAR_CORE
@@ -117,20 +62,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   DTYPE c_ij;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
-  #ifdef SCALAR_IS_MAILER
-  int sp_origin = vtid + MAILER_OFFSET;
-  #else
   int sp_origin = MAILER_OFFSET + (linkId * PER_CORE_MAILER_FRAME) + vtid;
-  #endif
   DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
-
-  // rename some variables
-  #ifdef ROFL_COP
-  int starting_vtid = linkId;
-  int ending_vtid = numGroupsPerMailer;
-  // one core will do all the work
-  j = 0;
-  #endif
 
   #ifdef NESTED_SIMD
   vsetvl_e32m1(NESTED_SIMD_VLEN);
@@ -147,61 +80,14 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   volatile int *sp_ptr = (int*)getSpAddr(ptid, 0);
   #endif
 
-  // DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
-
-  // int init_offset = min(INIT_OFFSET, M);
-
   for (int i = start; i < end; i++) {
 
     #ifdef LONGLINES
 
-    #if INIT_FRAMES==0
-    for (int j = 0; j < M; j+=J_STRIDE) {
-      ISSUE_VINST(vec_body_init_label);
-
-      #ifdef SCALAR_IS_MAILER
-      do_sum_prefetch(c, i, j, N, sp_self);
-      #elif defined(ROFL_COP)
-      do_sum_prefetch(sp, linkId, c, i, j, N, M);
-      #endif
-
-      for (int k = 0; k < M; k+=K_STRIDE) {
-        prefetch_inner_frame(a, i, j, k, &sp, M);
-        ISSUE_VINST(vec_body_label);
-      }
-
-      #if !defined(SCALAR_IS_MAILER) && !defined(ROFL_COP)
-      // wait for mailer to be ready
-      while (1) {
-        int wait_val = sp_ptr[POST_FRAME_WORD]; 
-        if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER*ACCUM_GRANULARITY) break;
-      }
-      numCompleted++;
-      #endif
-
-      #ifdef ROFL_COP
-      ISSUE_VINST(vec_body_pre_end_label);
-      sp = (sp + INNER_FRAME_SIZE) % POST_FRAME_WORD;
-      #endif
-
-      ISSUE_VINST(vec_body_end_label);
-
-      
-
-      #ifdef SCALAR_IS_MAILER
-      do_sum(c, i, j, N, sp_ptr, &sp_self);
-      #endif
-    }
-
-    #else
     int j = 0;
 
     // get ahead
     ISSUE_VINST(vec_body_init_label);
-
-    #if defined(ROFL_COP) && !defined(SKIP_LOOP_HEAD_FOOT)
-    do_sum_prefetch(sp, linkId, c, i, j, N, M);
-    #endif
 
     for (int k = 0; k < startOffset; k+=K_STRIDE) {
       prefetch_inner_frame(a, i, j, k, &sp, M);
@@ -213,26 +99,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       ISSUE_VINST(vec_body_label);
     }
 
-    #if defined(ROFL_COP) && !defined(SKIP_LOOP_HEAD_FOOT)
-    // ISSUE_VINST(vec_body_pre_end_label);
-    sp = (sp + INNER_FRAME_SIZE) % POST_FRAME_WORD;
-    #endif
-
     // steady state
     for (j = 1; j < M; j+=J_STRIDE) {
-
-      #ifndef SKIP_LOOP_HEAD_FOOT
-      #ifdef SCALAR_IS_MAILER
-      // prefetch what is needed for sum
-      do_sum_prefetch(c, i, j - ACCUM_GRANULARITY, N, sp_self);
-      #endif
-
-      #ifdef ROFL_COP
-      do_sum_prefetch(sp, linkId, c, i, j, N, M);
-      #endif
-      #endif
-
-
 
       for (int k = 0; k < M; k+=K_STRIDE) {
 
@@ -242,7 +110,6 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
         // finish loop at a weird time
         if (k + K_STRIDE == startOffset) {
 
-          #if !defined(SCALAR_IS_MAILER) && !defined(ROFL_COP)
           // wait for mailer to be ready
           while (1) {
             int wait_val = sp_ptr[POST_FRAME_WORD];
@@ -250,15 +117,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
             // plus 1 b/c will send another if allowed to pass
             if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER*ACCUM_GRANULARITY) break;
           }
-
-          // printf("reset value %d %d\n", ptid, j);
           numCompleted++;
-          #endif
-
-          #ifndef SKIP_LOOP_HEAD_FOOT
-          #if defined(ROFL_COP) && !defined(MERGESUM)
-          ISSUE_VINST(vec_body_pre_end_label);
-          #endif
 
           // printf("write frame %d %d\n", ptid, j-1);
           ISSUE_VINST(vec_body_end_label);
@@ -266,48 +125,23 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
           // reduce number of vinsts on critical path. TODO make sure 
           // end label does everything init label does (generally setting sum variable)
           // ISSUE_VINST(vec_body_init_label);
-          #endif
         }
       }
 
-      #if defined(ROFL_COP) && !defined(SKIP_LOOP_HEAD_FOOT)
-      sp = (sp + INNER_FRAME_SIZE) % POST_FRAME_WORD;
-      #endif
-
-      #ifdef SCALAR_IS_MAILER
-      // every so often need to complete the sum
-      // maybe want to put this somewhere else, so in between vinst and such?
-      if (j % ACCUM_GRANULARITY == 0)
-        do_sum(c, i, j - ACCUM_GRANULARITY, N, sp_ptr, &sp_self);
-      #endif
     }
-
-    // ISSUE_VINST(vec_body_init_label);
 
     // draining. do the last vissue corresponding to the initial round of prefetch
     for (int k = M - startOffset; k < M; k+=K_STRIDE) {
       ISSUE_VINST(vec_body_label);
     }
 
-
-    #if !defined(SCALAR_IS_MAILER) && !defined(ROFL_COP)
     while (1) {
       int wait_val = sp_ptr[POST_FRAME_WORD];
       if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER*ACCUM_GRANULARITY) break;
     }
     numCompleted++;
-    #endif
-
-    #if defined(ROFL_COP) && !defined(MERGESUM)
-    ISSUE_VINST(vec_body_pre_end_label);
-    #endif
 
     ISSUE_VINST(vec_body_end_label);
-    #ifdef SCALAR_IS_MAILER
-    do_sum_prefetch(c, i, M - ACCUM_GRANULARITY, N, sp_self);
-    do_sum(c, i, M - ACCUM_GRANULARITY, N, sp_ptr, &sp_self);
-    #endif
-    #endif
 
     #else
     for (int j = 0; j < M; j+=J_STRIDE) {
@@ -335,36 +169,6 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     #endif
   }
 
-  // // get ahead
-  // prefetch_outer_frame(c, start, 0, &sp, N);
-  // for (int k = 0; k < INIT_OFFSET; k+=INNER_PREFETCH_LEN) {
-  //   prefetch_inner_frame(a, start, 0, k, &sp, M);
-  // }
-
-  // // do first inner loop
-  // for (int k = INIT_OFFSET; k < M; k+=INNER_PREFETCH_LEN) {
-  //   prefetch_inner_frame(a, start, 0, k, &sp, M);
-  //   ISSUE_VINST(vec_body_label);
-  // }
-
-  // // steady state
-  // for (int i = start; i < end; i++) {
-  //   int startJ = 0;
-  //   if (i == start) startJ += VECTOR_LEN;
-  //   for (int j = startJ; j < M; j+=VECTOR_LEN) {
-  //     prefetch_outer_frame(c, i, j, &sp, N);
-
-  //     for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
-  //       prefetch_inner_frame(a, i, j, k, &sp, M);
-  //       ISSUE_VINST(vec_body_label);
-  //     }
-  //   }
-  // }
-
-  // // draining. do the last vissue corresponding to the initial round of prefetch
-  // for (int k = N - INIT_OFFSET; k < N; k+=INNER_PREFETCH_LEN) {
-  //   ISSUE_VINST(vec_body_label);
-  // }
   #endif
   
   #ifdef VECTOR_CORE
@@ -444,137 +248,16 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
-    #ifdef SKIP_LOOP_HEAD_FOOT
-    asm("trillium vissue_delim if_begin vec_body_end");
-    STORE_NOACK(c_ij, &c[i * N + j], 0);
-    j++;
-    #else
-
-    #if defined(ROFL_COP) && !defined(MERGESUM)
-    asm("trillium vissue_delim until_next vec_body_pre_end");
-
-    // do instructions that dont fit into first block (specifically for vtid == 0)
-    // PRED_EQ(vtid, 0); // if pred doesnt work just prefetch value to each core and then write to slot 2?
-    
-    PRED_EQ(vtid, starting_vtid);
-    FRAME_START(ACCUM_GRANULARITY);
-    PRED_EQ(0, 0);
-
-    // add current value
-    DTYPE start_sum = sp_ptr[sp];
-    start_sum *= beta;
-
-    #ifndef SNAKING
-    // set zero to simplify code
-    STORE_NOACK(0, &sp_ptr[sp + 0], 0);
-    STORE_NOACK(0, &sp_ptr[sp + 1], 0);
-    #endif
-
-    int sp_meme_lord = sp + sendOffset;
-
-    // store into a frame
-    // DTYPE *sp_next_ptr = sp_origin_ptr; //rename for clarity
-    // int sp_val_idx = sp + 1;
-
-    // only first core does
-    PRED_EQ_STORE_NOACK(vtid, starting_vtid, start_sum, &sp_ptr[sp_meme_lord], 0);
-
-    #endif
     asm("trillium vissue_delim if_begin vec_body_end");
 
     #ifdef LONGLINES
-    #if defined(ROFL_COP) && defined(MERGESUM)
-
-    PRED_EQ(vtid, starting_vtid);
-    FRAME_START(ACCUM_GRANULARITY);
-    PRED_EQ(0, 0);
-
-    // add current value
-    DTYPE start_sum = sp_ptr[sp];
-    start_sum *= beta;
-
-    #ifndef SNAKING
-    // set zero to simplify code
-    STORE_NOACK(0, &sp_ptr[sp + 0], 0);
-    STORE_NOACK(0, &sp_ptr[sp + 1], 0);
-    #endif
-
-    int sp_meme_lord = sp + sendOffset;
-
-    // only first core does
-    PRED_EQ_STORE_NOACK(vtid, starting_vtid, start_sum, &sp_ptr[sp_meme_lord], 0);
-
-    #endif
-
-    #ifndef ROFL_COP
     // store partial sum to scalar core
     STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
     sp_origin+=SUB_FRAME_SIZE;
     sp_origin = sp_origin % MAILER_POST_FRAME_WORD;
     // force sum reset here
     asm volatile("fmv.s.x %[creg],zero\n\t" : [creg] "=f" (c_ij));
-    #else
-    // do reduction systolically on vector cores
-    // cant exceed queue length between any two vector cores if want to snake it
-    // 10 instructions between frame start and store in this case. should be enough :p
-
-    // ------
-    // critical section (must be <10 instructions)
-    // seriously had 10 instructions due to predication and needed to remove to get to not deadlock
-
-    // get from frame (make sure scalar core doesn't write to this one)
-    #ifdef SNAKING
-    FRAME_START(ACCUM_GRANULARITY);
-
-    c_ij += sp_ptr[sp];
-    #else
-    FRAME_START(numSum); // can have mutliple or none
-
-    // add current value
-    c_ij += sp_ptr[sp + 0];
-    c_ij += sp_ptr[sp + 1];
-    #endif
-    // PRED_EQ(vtid, 0);
-    // c_ij *= beta;
-    // PRED_EQ(0, 0);
-
-    // store into a frame
-    // DTYPE *sp_next_ptr = sp_origin_ptr; //rename for clarity
-
-    // last core doesn't do
-    // i think this could mess up with remem on final core which writes to self
-    // would need to be store with ack to work (remem done on commit atomically)
-    // possible the timing works out though
-    // PRED_NEQ(vtid, SUM_END_VTID);
-    STORE_NOACK(c_ij, &sp_origin_ptr[sp_meme_lord], 0); 
-    // PRED_EQ(0, 0);
-
-    // ------
-    // after this point can stall all you want with deadlock
-
-    // // free frame
-    // REMEM(ACCUM_GRANULARITY);
-
-    // if your the last core in snake, do store
-    PRED_EQ_STORE_NOACK(vtid, ending_vtid, c_ij, &c[i * N + j], 0);
-    // STORE_NOACK(3.0f, &c[i * N + j], 0);
-
-    // do pointer updates
-    sp = (sp + INNER_FRAME_SIZE) % POST_FRAME_WORD;
-
-    // handle outer loop
-    j+=J_STRIDE;
-    if (j >= M) {
-      #ifdef ROFL_COP
-      j = 0;
-      #else
-      j = vtid;
-      #endif
-      i++;
-    }
-    // free frame
-    REMEM(ACCUM_GRANULARITY);
-    #endif
+   
     #else
 
     STORE_NOACK(c_ij, &c[i * N + j], 0);
@@ -585,7 +268,6 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       j = vtid;
       i++;
     }
-    #endif
     #endif
     asm("trillium vissue_delim end at_jump");
 
@@ -631,13 +313,6 @@ vec_body_end_label:
   asm("trillium glue_point vec_body_end");
 #if INIT_FRAMES==0
 exit(1);
-#endif
-#if defined(ROFL_COP) && !defined(MERGESUM)
-vec_body_pre_end_label:
-  asm("trillium glue_point vec_body_pre_end");
-#if INIT_FRAMES==0
-exit(1);
-#endif
 #endif
 vector_return_label:
   asm("trillium glue_point vector_return");
