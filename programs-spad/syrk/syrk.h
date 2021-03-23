@@ -122,11 +122,11 @@
 #define SCALAR_NUM_FRAMES (POST_FRAME_WORD / SCALAR_FRAME_SIZE)
 #define SCALAR_POST_FRAME_WORD (SCALAR_FRAME_SIZE * SCALAR_NUM_FRAMES)
 
-// has somewhat significant impact on performance
-#if MAILER_NUM_FRAMES < 10
+// needs to be maxed at number of frame counters
+#if MAILER_NUM_FRAMES < 5
 #define FRAMES_TO_SYNC_AFTER (MAILER_NUM_FRAMES)
 #else
-#define FRAMES_TO_SYNC_AFTER (10)
+#define FRAMES_TO_SYNC_AFTER (5)
 #endif
 
 #define PER_CORE_MAILER_FRAME (VECTOR_LEN)

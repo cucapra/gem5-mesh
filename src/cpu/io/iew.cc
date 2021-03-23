@@ -68,14 +68,9 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
   m_op_to_unit_map[Enums::FloatMultAcc] = idx;
   m_op_to_unit_map[Enums::FloatMisc]    = idx;
 
-  // create FP SIMD unit
   idx++;
   m_exec_units.push_back(new PipelinedExecUnit(this->name().c_str(), "FpSIMD",
                                                params->fpMulOpLatency));
-  m_op_to_unit_map[Enums::SimdFloatAdd]  = idx;
-  m_op_to_unit_map[Enums::SimdFloatAlu]  = idx;
-  m_op_to_unit_map[Enums::SimdFloatCmp]  = idx;
-  m_op_to_unit_map[Enums::SimdFloatCvt]  = idx;
   m_op_to_unit_map[Enums::SimdFloatMisc] = idx;
   m_op_to_unit_map[Enums::SimdFloatMultAcc] = idx;
 
@@ -84,20 +79,25 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
 
   m_op_to_unit_map[Enums::SimdFloatDiv] = idx; // should be unpipelined
 
+  m_op_to_unit_map[Enums::SimdMisc] = idx;
+  m_op_to_unit_map[Enums::SimdMult]  = idx;
+  m_op_to_unit_map[Enums::SimdMultAcc] = idx;
+  m_op_to_unit_map[Enums::SimdSqrt] = idx;
+  m_op_to_unit_map[Enums::SimdFloatReduceAdd] = idx;
+
+
+  m_op_to_unit_map[Enums::SimdFloatAdd]  = idx;
+  m_op_to_unit_map[Enums::SimdFloatAlu]  = idx;
+  m_op_to_unit_map[Enums::SimdFloatCmp]  = idx;
+  m_op_to_unit_map[Enums::SimdFloatCvt]  = idx;
   m_op_to_unit_map[Enums::SimdAdd]  = idx; // should have int unit
   m_op_to_unit_map[Enums::SimdAddAcc]  = idx;
   m_op_to_unit_map[Enums::SimdAlu]  = idx;
   m_op_to_unit_map[Enums::SimdCmp]  = idx;
   m_op_to_unit_map[Enums::SimdCvt] = idx;
-  m_op_to_unit_map[Enums::SimdMisc] = idx;
-  m_op_to_unit_map[Enums::SimdMult]  = idx;
-  m_op_to_unit_map[Enums::SimdMultAcc] = idx;
   m_op_to_unit_map[Enums::SimdShift] = idx;
   m_op_to_unit_map[Enums::SimdShiftAcc] = idx;
-  m_op_to_unit_map[Enums::SimdSqrt] = idx;
 
-  // should be way longer lat
-  m_op_to_unit_map[Enums::SimdFloatReduceAdd] = idx;
 
   // create memory unit
   idx++;
@@ -554,7 +554,7 @@ IEW::doIssue()
           m_in_frame_stall = true;
         }
         if (m_in_frame_stall && (curTick() - m_frame_stall_start > 500000000)) { // allow 500000 cycles to stall
-          fatal("deadlock due to waiting on frame\n");
+          fatal("deadlock due to waiting on frame on core %d\n", m_cpu_p->cpuId());
         }
         if (numRememInFlight > 0) {
           m_frame_start_remem++;

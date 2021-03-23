@@ -127,12 +127,18 @@ MemUnit::isBusy() const
 void
 MemUnit::tick()
 {
-  // S2 stage
-  doMemIssue();
-  // S1 stage
-  doTranslation();
-  // S0 stage
+  // 3 stage config
+  // // S2 stage
+  // doMemIssue();
+  // // S1 stage
+  // doTranslation();
+  // // S0 stage
+  // doAddrCalc();
+
+  // 1 stage config
   doAddrCalc();
+  doTranslation();
+  doMemIssue();
 }
 
 void
@@ -773,9 +779,16 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->countPerCore = countPerCore;
       m_s1_inst->mem_req_p->xDim = m_cpu_p->getEarlyVector()->getXLen();
       m_s1_inst->mem_req_p->yDim = m_cpu_p->getEarlyVector()->getYLen();
-      m_s1_inst->mem_req_p->xOrigin = m_cpu_p->getEarlyVector()->getXOrigin();
-      m_s1_inst->mem_req_p->yOrigin = m_cpu_p->getEarlyVector()->getYOrigin();
-      
+
+      // to self
+      if (config == 2) {
+        m_s1_inst->mem_req_p->xOrigin = m_cpu_p->cpuId(); // flattened so just set as full idx
+        m_s1_inst->mem_req_p->yOrigin = 0; // flattened so just set to 0
+      }
+      else { 
+        m_s1_inst->mem_req_p->xOrigin = m_cpu_p->getEarlyVector()->getXOrigin();
+        m_s1_inst->mem_req_p->yOrigin = m_cpu_p->getEarlyVector()->getYOrigin();
+      }
 
     }
     else {

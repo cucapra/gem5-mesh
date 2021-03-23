@@ -410,8 +410,16 @@ CPUClass = IOCPU (
   includeVector = options.vector,
   meshBufferSize = 2,
   numROBEntries = 8,
-  hw_vector_length = 16
-
+  hw_vector_length = 4
+  # latencies from https://github.com/bespoke-silicon-group/riscv-gcc/blob/bsg_manycore_gcc/gcc/config/riscv/bsg_vanilla_2020.md
+  ,
+  intAluOpLatency = 1,
+  intMulOpLatency = 2,
+  divOpLatency    = 20,
+  fpAluOpLatency  = 3,
+  fpMulOpLatency  = 3
+  # , numLoadQueueEntries = 8,
+  # numStoreQueueEntries = 8
 )
 
 # Create top-level system
@@ -547,6 +555,8 @@ elif n_l2s == 4:
   l2_size = '64kB'
 elif n_l2s == 8:
   l2_size = '32kB'
+elif n_l2s == 16:
+  l2_size = '16kB'
 elif n_l2s % n_cols == 0:
   l2_size = '32kB'
 else:
