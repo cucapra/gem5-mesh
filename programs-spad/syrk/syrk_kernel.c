@@ -20,6 +20,14 @@
  * Vector versions of the kernels.
  *---------------------------------------------------------------------------------*/
 
+#define SCALAR_SYNC_WITH_REDUCTION(sp_ptr, numCompleted)    \
+    while (1) {                                             \
+        int wait_val = sp_ptr[POST_FRAME_WORD];             \
+        if (numCompleted + 1 < wait_val +                   \
+            FRAMES_TO_SYNC_AFTER*ACCUM_GRANULARITY) break;  \
+    }                                                       \
+    numCompleted++
+
 #ifdef USE_VEC
 
 void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M, 
@@ -111,15 +119,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
         if (k + K_STRIDE == startOffset) {
 
           // wait for mailer to be ready
-          while (1) {
-            int wait_val = sp_ptr[POST_FRAME_WORD];
+          SCALAR_SYNC_WITH_REDUCTION(sp_ptr, numCompleted);
 
-            // plus 1 b/c will send another if allowed to pass
-            if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER*ACCUM_GRANULARITY) break;
-          }
-          numCompleted++;
-
-          // printf("write frame %d %d\n", ptid, j-1);
           ISSUE_VINST(vec_body_end_label);
 
           // reduce number of vinsts on critical path. TODO make sure 
@@ -135,11 +136,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       ISSUE_VINST(vec_body_label);
     }
 
-    while (1) {
-      int wait_val = sp_ptr[POST_FRAME_WORD];
-      if (numCompleted + 1 < wait_val + FRAMES_TO_SYNC_AFTER*ACCUM_GRANULARITY) break;
-    }
-    numCompleted++;
+    SCALAR_SYNC_WITH_REDUCTION(sp_ptr, numCompleted);
 
     ISSUE_VINST(vec_body_end_label);
 
