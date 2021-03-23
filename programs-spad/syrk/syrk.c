@@ -38,6 +38,7 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
       DTYPE c_ij = c[i * N + j] * beta;
       
       #ifdef PACKED_SIMD
+      // I don't this can be unrolled, would need force vlen? Maybe should
       int chunk = M;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
         l = vsetvl_e32m1(chunk);
