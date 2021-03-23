@@ -10,14 +10,25 @@ INIT0_NEIL_CONFIGS = [ [ 'VEC_LEN=4', 'INIT_FRAMES=0' ] ]
 
 # TODO hardware opts should automatically determine cache line size
 # b/c wnat to do vec 4 with 256. might be more natural
-HW_OPTS = ['--net-width=1', 
+HW_OPTS = [
+  '--net-width=1', 
   '--net-width=2', 
-  '--net-width=4', 
-  '--net-width=8', 
-  '--net-width=16']
+  '--net-width=4',
+  '--net-width=16'
+  ]
 # HW_OPTS = ['']
-ALL_CONFIGS = [['VEC_16_LONGLINES', 'CACHE_LINE_SIZE=256'],
-  ['NESTED_SIMD_4_4', 'CACHE_LINE_SIZE=1024']]
+ALL_CONFIGS = [
+  ['VEC_16_LONGLINES', 'CACHE_LINE_SIZE=256'],
+  ['VEC_16_LONGLINES', 'CACHE_LINE_SIZE=1024'],
+  ['VEC_4_LONGLINES', 'CACHE_LINE_SIZE=256'],
+  ['VEC_4_LONGLINES', 'CACHE_LINE_SIZE=1024'],
+  ['VEC_4_SIMD'],
+  ['VEC_16_SIMD'],
+  [ 'NO_VEC', 'MANYCORE_PREFETCH' ],
+  ['PACKED_SIMD'],
+  ['NESTED_SIMD_4_4', 'CACHE_LINE_SIZE=256'],
+  'NO_VEC',
+  ]
 # ALL_CONFIGS = ['VEC_16_SIMD', ['VEC_16_SIMD', 'INIT_FRAMES=5'], 'VEC_4_SIMD', ['VEC_4_SIMD', 'INIT_FRAMES=5'], 'PACKED_SIMD']
 ALL_NEIL_CONFIGS = []
 INIT0_CONFIGS = []
