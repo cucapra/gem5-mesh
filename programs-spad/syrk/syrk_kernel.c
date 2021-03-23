@@ -232,6 +232,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       #endif
       #endif
 
+
+
       for (int k = 0; k < M; k+=K_STRIDE) {
 
         prefetch_inner_frame(a, i, j, k, &sp, M);
@@ -260,7 +262,10 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
 
           // printf("write frame %d %d\n", ptid, j-1);
           ISSUE_VINST(vec_body_end_label);
-          ISSUE_VINST(vec_body_init_label);
+
+          // reduce number of vinsts on critical path. TODO make sure 
+          // end label does everything init label does (generally setting sum variable)
+          // ISSUE_VINST(vec_body_init_label);
           #endif
         }
       }
@@ -276,6 +281,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
         do_sum(c, i, j - ACCUM_GRANULARITY, N, sp_ptr, &sp_self);
       #endif
     }
+
+    // ISSUE_VINST(vec_body_init_label);
 
     // draining. do the last vissue corresponding to the initial round of prefetch
     for (int k = M - startOffset; k < M; k+=K_STRIDE) {
@@ -504,6 +511,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
     sp_origin+=SUB_FRAME_SIZE;
     sp_origin = sp_origin % MAILER_POST_FRAME_WORD;
+    // force sum reset here
+    asm volatile("fmv.s.x %[creg],zero\n\t" : [creg] "=f" (c_ij));
     #else
     // do reduction systolically on vector cores
     // cant exceed queue length between any two vector cores if want to snake it
