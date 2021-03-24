@@ -32,30 +32,17 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   VECTOR_EPOCH(mask);
 
   // chunk over vector gorups
-  int start = ((groupId + 0) * N) / numGroups;
-  int end   = ((groupId + 1) * N) / numGroups;
-
-  // printf("ptid %d %d->%d (%d)\n", ptid, start, end, end-start);
-
-  #ifndef LONGLINES
-  // make it a factor of vector group mapping size
-  start = roundUp(start, VECTOR_LEN);
-  end   = roundUp(end  , VECTOR_LEN);
-  #endif
-
-  int startOffset = min(INIT_OFFSET, M);
-
+  int start = get_group_start(groupId, N, numGroups);
+  int end   = get_group_end(groupId, N, numGroups);
   int numCompleted = 0;
+  int startOffset = min(INIT_OFFSET, M);
 
   ISSUE_VINST(init_label);
   #endif
 
   #ifdef VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
-  int start = ((groupId + 0) * N) / numGroups;
-  #ifndef LONGLINES
-  start = roundUp(start, VECTOR_LEN);
-  #endif
+  int start = get_group_start(groupId, N, numGroups);
   int i = start;
   int j = vtid;
   int sp = 0;
