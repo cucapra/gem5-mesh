@@ -74,11 +74,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   #ifdef SCALAR_CORE
   int sp = 0;
   int sp_self = 0;
-  #ifdef SCALAR_IS_MAILER
-  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-  #else
   volatile int *sp_ptr = (int*)getSpAddr(ptid, 0);
-  #endif
 
   for (int i = start; i < end; i++) {
 
@@ -183,7 +179,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     asm volatile("nop\n\t");
     asm volatile("nop\n\t");
     asm volatile("nop\n\t");
-    sp+=OUTER_FRAME_SIZE;
+    sp+=INNER_FRAME_SIZE;
     sp = sp % POST_FRAME_WORD;
     #else
     #ifdef NESTED_SIMD

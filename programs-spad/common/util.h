@@ -95,5 +95,65 @@ inline int ceilToInt(float val) {
   return base + 1;// ceilf() not working so do cheap version
 }
 
+#define SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y)                             \
+  int ptid = ptid_x + ptid_y * pdim_x;                                                      \
+  int pdim = pdim_x * pdim_y;                                                               \
+  template_info_t tinfo = init_template_4x4_2x2();                                          \
+  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo); \
+  int vtid = cinfo.vtid_flat;                                                               \
+  int vtid_x = cinfo.vtid.x;                                                                \
+  int vtid_y = cinfo.vtid.y;                                                                \
+  int vdim_x = cinfo.vdim.x;                                                                \
+  int vdim_y = cinfo.vdim.y;                                                                \
+  int orig_x = cinfo.orig.x;                                                                \
+  int orig_y = cinfo.orig.y;                                                                \
+  int is_da  = cinfo.is_scalar;                                                             \
+  int master_x = cinfo.master.x;                                                            \
+  int master_y = cinfo.master.y;                                                            \
+  int unique_id = cinfo.unique_id;                                                          \
+  int total_groups = cinfo.total_groups;                                                    \
+  int used = cinfo.used;                                                                    \
+  int vdim = vdim_x * vdim_y;                                                               \
+  int mask = getSIMDMask(&cinfo)
+
+#define SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y)                            \
+  int ptid = ptid_x + ptid_y * pdim_x;                                                      \
+  int pdim = pdim_x * pdim_y;                                                               \
+  template_info_t tinfo = init_template_8x8_4x4();                                          \
+  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo); \
+  int vtid = cinfo.vtid_flat;                                                               \
+  int vtid_x = cinfo.vtid.x;                                                                \
+  int vtid_y = cinfo.vtid.y;                                                                \
+  int vdim_x = cinfo.vdim.x;                                                                \
+  int vdim_y = cinfo.vdim.y;                                                                \
+  int orig_x = cinfo.orig.x;                                                                \
+  int orig_y = cinfo.orig.y;                                                                \
+  int is_da  = cinfo.is_scalar;                                                             \
+  int master_x = cinfo.master.x;                                                            \
+  int master_y = cinfo.master.y;                                                            \
+  int unique_id = cinfo.unique_id;                                                          \
+  int total_groups = cinfo.total_groups;                                                    \
+  int used = cinfo.used;                                                                    \
+  int vdim = vdim_x * vdim_y;                                                               \
+  int mask = getSIMDMask(&cinfo)
+
+#define SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y)                       \
+  int ptid = ptid_x + ptid_y * pdim_x;                                                      \
+  int pdim = pdim_x * pdim_y;                                                               \
+  int vtid = 0;                                                                             \
+  int vtid_x = 0;                                                                           \
+  int vtid_y = 0;                                                                           \
+  int vdim_x = 1;                                                                           \
+  int vdim_y = 1;                                                                           \
+  int orig_x = 0;                                                                           \
+  int orig_y = 0;                                                                           \
+  int is_da  = 0;                                                                           \
+  int master_x = 0;                                                                         \
+  int master_y = 0;                                                                         \
+  int unique_id = 0;                                                                        \
+  int total_groups = 0;                                                                     \
+  int used = 1;                                                                             \
+  int vdim = vdim_x * vdim_y;                                                               \
+  int mask = 0                                                                              \
 
 #endif

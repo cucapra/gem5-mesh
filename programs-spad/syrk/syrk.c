@@ -185,82 +185,12 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     stats_on();
   }
 
-  // linearize tid and dim
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
-
-  // split into physical and virtual tids + dim
-  int vtid_x = 0;
-  int vtid_y = 0;
-  int vtid   = 0;
-  int vdim_x = 0;
-  int vdim_y = 0;
-  int vdim   = 0;
-  int orig_x = 0;
-  int orig_y = 0;
-  int is_da  = 0;
-  int master_x = 0;
-  int master_y = 0;
-  int unique_id = 0;
-  int total_groups = 0;
-  int used = 0;
-
-  // group construction
-  #ifdef USE_VEC
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
   #elif VECTOR_LEN==16
-  template_info_t tinfo = init_template_8x8_4x4();
-  #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
-
-  vtid = cinfo.vtid_flat;
-  vtid_x = cinfo.vtid.x;
-  vtid_y = cinfo.vtid.y;
-  vdim_x = cinfo.vdim.x;
-  vdim_y = cinfo.vdim.y;
-  orig_x = cinfo.orig.x;
-  orig_y = cinfo.orig.y;
-  is_da  = cinfo.is_scalar;
-  master_x = cinfo.master.x;
-  master_y = cinfo.master.y;
-  unique_id = cinfo.unique_id;
-  total_groups = cinfo.total_groups;
-  used = cinfo.used;
-
-  // if (!used) printf("unused %d %d = %d\n", ptid_x, ptid_y, ptid);
-
-  // printf("ptid %d(%d,%d) da %d vtid %d(%d,%d) dim %d(%d,%d) used? %d\n", 
-    // ptid, ptid_x, ptid_y, is_da, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, used);
-
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
   #else
-
-  vdim_x = 1;
-  vdim_y = 1;
-  vtid_x = 0;
-  vtid_y = 0;
-  vtid   = 0;
-  used   = 1;
-
-  #endif
-
-  // linearize some fields
-  vdim = vdim_x * vdim_y;
-
-  // the core that is responsible for doing stores to DRAM if reduction over
-  // entire vector group
-
-
-  // get behavior of each core
-  #ifdef NUM_FRAMES
-  // setup up self prefetch
-  #ifdef MANYCORE_PREFETCH
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
-  int mask = getDebugMask(&cinfo);
-  VECTOR_EPOCH(mask);
-  #else
-  int mask = getSIMDMask(&cinfo);
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
   #endif
 
   #ifdef LONGLINES
@@ -274,6 +204,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vsetvl_e32m1(NESTED_SIMD_VLEN);
   #endif
 
+  #ifdef NUM_FRAMES
   // int mask = getDebugMask(&cinfo);
   if (isMailer) {
     SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier); 
@@ -281,8 +212,6 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   else { 
     SET_PREFETCH_MASK(NUM_FRAMES, INNER_FRAME_SIZE, &start_barrier);
   }
-  #else
-  int mask = 0;
   #endif
 
   MOVE_STACK_ONTO_SCRATCHPAD();

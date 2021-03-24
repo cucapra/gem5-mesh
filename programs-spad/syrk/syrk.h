@@ -109,8 +109,14 @@
 #define PER_CORE_FULL_MAILER_FRAME (PER_CORE_MAILER_FRAME + 1)
 
 // frame size to get the c to accumulate on
-#define OUTER_FRAME_SIZE INNER_FRAME_SIZE
 #define OUTER_PREFETCH_LEN INNER_PREFETCH_LEN
+#define OUTER_FRAME_SIZE OUTER_PREFETCH_LEN
+
+#ifdef MANYCORE_PREFETCH
+  #define VERTICAL_FETCH_TYPE (TO_SELF)
+#else
+  #define VERTICAL_FETCH_TYPE (TO_ONE_CORE)
+#endif
 
 // prefetch c
 // pad out to the frame size (1->2 currently)
@@ -120,13 +126,13 @@ inline void prefetch_outer_frame(DTYPE *c, int i, int j, int *sp, int N) {
   // nothing
   #else
   for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_LR(*sp + 0, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, TO_ONE_CORE);
+    VPREFETCH_LR(*sp + 0, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL_FETCH_TYPE);
 
     // pad out
-    VPREFETCH_LR(*sp + OUTER_PREFETCH_LEN, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, TO_ONE_CORE);
+    // VPREFETCH_LR(*sp + OUTER_PREFETCH_LEN, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, TO_ONE_CORE);
   }
 
-  *sp = (*sp + OUTER_FRAME_SIZE) % POST_FRAME_WORD;
+  *sp = (*sp + INNER_FRAME_SIZE) % POST_FRAME_WORD;
   #endif
 }
 
@@ -140,10 +146,10 @@ inline void prefetch_inner_frame(DTYPE *a, int i, int j, int k, int *sp, int M) 
   #else
   for (int core = 0; core < VECTOR_LEN; core++) {
     // TODO redundant across cores
-    VPREFETCH_L(*sp + 0, &a[i * M + k], core, INNER_PREFETCH_LEN, TO_ONE_CORE);
+    VPREFETCH_L(*sp + 0, &a[i * M + k], core, INNER_PREFETCH_LEN, VERTICAL_FETCH_TYPE);
 
     // TODO this can be horizontal?
-    VPREFETCH_L(*sp + INNER_PREFETCH_LEN, &a[(j + core) * M + k], core, INNER_PREFETCH_LEN, TO_ONE_CORE);
+    VPREFETCH_L(*sp + INNER_PREFETCH_LEN, &a[(j + core) * M + k], core, INNER_PREFETCH_LEN, VERTICAL_FETCH_TYPE);
   }
   #endif
 
