@@ -9,6 +9,7 @@
 #include "bind_defs.h"
 #include "group_templates.h"
 #include "syrk_kernel.h"
+#include "util.h"
 
 #if defined(PACKED_SIMD) || defined(NESTED_SIMD) 
 #include <riscv_vector.h>
@@ -94,23 +95,6 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
 
 #ifdef LONGLINES
 
-inline int get_group_start(int id, int N, int numGroups) {
-  return (( id + 0 ) * N) / numGroups;
-}
-
-inline int get_group_end(int id, int N, int numGroups) {
-  return (( id + 1 ) * N) / numGroups;
-}
-
-inline int get_group_len(int id, int N, int numGroups) {
-  return get_group_end(id, N, numGroups) - get_group_start(id, N, numGroups);
-}
-
-inline int ceilToInt(float val) {
-  int base = (int)val;
-  return base + 1;// ceilf() not working so do cheap version
-}
-
 // partial sum reduction offload
 void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M, 
     int ptid, int *fwders) {
@@ -118,33 +102,12 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
   int max_chunk_size = ceilToInt((float)N / (float)numGroups);
 
   // cache sp ptrs to avoid global load
-  int* spPtrs[NUM_GROUPS_PER_PIPE];
-  for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
-    spPtrs[g] = (int*)getSpAddr(fwders[g], 0);
-  }
-
-  int flat_iter = 0;
-  int sp_self = 0;
-  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  SETUP_REDUCTION_CORE(fwders, ptid);
 
   for (int cnt = 0; cnt < max_chunk_size; cnt++) {
 
-    int group_start[MAX_GROUP_AFFINITY]; 
-    // figure out how many valid elements we're expecting in the frame
-    int expected_elements = 0;
-    for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
-      int gid = baseGroupId + g;
-      if (cnt < get_group_len(gid, N, numGroups)) {
-        expected_elements+=PER_CORE_MAILER_FRAME*ACCUM_GRANULARITY;
-        expected_elements+=ACCUM_GRANULARITY;
-        group_start[g] = get_group_start(gid, N, numGroups) + cnt;
-      }
-      else {
-        group_start[g] = -1;
-      }
-    }
+    SETUP_GROUP_ITERATION(baseGroupId, numGroups, cnt);
 
-    if (expected_elements == 0) return; // TODO not sure the issue
     for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) {
 
       // prefetch c into frame along with partial sums
@@ -159,15 +122,7 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
         }
       }
 
-      // inform sync
-      for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
-        if (group_start[g] < 0) {
-          continue;
-        }
-        int *sp_scalar_ptr = spPtrs[g];
-        STORE_NOACK(flat_iter, &sp_scalar_ptr[POST_FRAME_WORD], 0); 
-      }
-      flat_iter+=ACCUM_GRANULARITY;
+      REDUCE_SYNC_WITH_SCALAR(group_start, spPtrs, flat_iter);
 
       // wait for frame and then do sum
       FRAME_START(expected_elements);
@@ -295,10 +250,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   // the core that is responsible for doing stores to DRAM if reduction over
   // entire vector group
-  int ptidMailer = 0;
-  int ptidFwders[MAX_GROUP_AFFINITY];
-  int linkId = 0;
-  int isMailer = 0;
+
 
   // get behavior of each core
   #ifdef NUM_FRAMES
@@ -312,16 +264,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   #ifdef LONGLINES
-
-  linkId = cinfo.link_id[0];
-  isMailer = cinfo.num_prev_cores > 0;
-  if (isMailer)
-    unique_id = linkId;
-  for (int i = 0; i < MAX_GROUP_AFFINITY; i++)
-    ptidFwders[i] = cinfo.prev_cores[i];
-
-  ptidMailer = cinfo.next_cores[0];
-
+  SETUP_REDUCE_CONFIG();
+  #else
+  SETUP_REDUCE_CONFIG_NULL();
   #endif
 
   // need to set vlen here so doesn't cause squash in vector core on change in value
