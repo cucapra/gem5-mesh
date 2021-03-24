@@ -90,11 +90,9 @@
 #define NUM_GROUPS_PER_PIPE (1)
 #endif
 
-
 #define MAILER_OFFSET (NUM_GROUPS_PER_PIPE)
 #define SUB_FRAME_SIZE (MAILER_OFFSET + VECTOR_LEN * NUM_GROUPS_PER_PIPE)
 #define MAILER_FRAME_SIZE (SUB_FRAME_SIZE * ACCUM_GRANULARITY)
-
 #define MAILER_NUM_FRAMES (POST_FRAME_WORD / MAILER_FRAME_SIZE)
 #define MAILER_POST_FRAME_WORD (MAILER_FRAME_SIZE * MAILER_NUM_FRAMES)
 
@@ -105,7 +103,10 @@
 #define FRAMES_TO_SYNC_AFTER (5)
 #endif
 
+// how much vector core will write
 #define PER_CORE_MAILER_FRAME (VECTOR_LEN)
+// includes also if any base value to the sum
+#define PER_CORE_FULL_MAILER_FRAME (PER_CORE_MAILER_FRAME + 1)
 
 // frame size to get the c to accumulate on
 #define OUTER_FRAME_SIZE INNER_FRAME_SIZE

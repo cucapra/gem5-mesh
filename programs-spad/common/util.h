@@ -50,8 +50,7 @@ int float_compare(float a, float b, float eps);
     for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {                 \
       int gid = baseGroupId + g;                                    \
       if (cnt < get_group_len(gid, N, numGroups)) {                 \
-        expected_elements+=PER_CORE_MAILER_FRAME*ACCUM_GRANULARITY; \
-        expected_elements+=ACCUM_GRANULARITY;                       \
+        expected_elements+=PER_CORE_FULL_MAILER_FRAME*ACCUM_GRANULARITY; \
         group_start[g] = get_group_start(gid, N, numGroups) + cnt;  \
       }                                                             \
       else {                                                        \
