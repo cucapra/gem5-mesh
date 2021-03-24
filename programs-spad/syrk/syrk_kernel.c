@@ -36,6 +36,11 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   int end   = get_group_end(groupId, N, numGroups);
   int numCompleted = 0;
   int startOffset = min(INIT_OFFSET, M);
+  int sp = 0;
+
+  #ifdef LONGLINES
+  volatile int *sp_ptr = (int*)getSpAddr(ptid, 0);
+  #endif
 
   ISSUE_VINST(init_label);
   #endif
@@ -59,9 +64,6 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   #endif
 
   #ifdef SCALAR_CORE
-  int sp = 0;
-  int sp_self = 0;
-  volatile int *sp_ptr = (int*)getSpAddr(ptid, 0);
 
   for (int i = start; i < end; i++) {
 
