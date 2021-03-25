@@ -23,20 +23,34 @@
 #endif
 
 // vector grouping directives
-#if defined(VEC_4_SIMD)
+#if defined(VEC_4_SIMD) || defined(NESTED_SIMD_4_4) || defined(VEC_4_LONGLINES)
 #define VECTOR_LEN 4
 #endif
-#if defined(VEC_16_SIMD)
+#if defined(VEC_16_SIMD) || defined(VEC_16_LONGLINES)
 #define VECTOR_LEN 16
 #endif
 #if defined(MANYCORE_PREFETCH)
 #define VECTOR_LEN 1
 #endif
 
+#if defined(VEC_16_LONGLINES) || defined(NESTED_SIMD_4_4) || defined(VEC_4_LONGLINES)
+#define LONGLINES
+#endif
+
+#if defined(NESTED_SIMD_4_4)
+#define NESTED_SIMD_VLEN 4
+#else
+#define NESTED_SIMD_VLEN 1
+#endif
+
+#if NESTED_SIMD_VLEN > 1
+#define NESTED_SIMD
+#endif
+
 // prefetch sizing
 #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
-// dedicate a quarter of scratchpad to frames
-#define POST_FRAME_WORD 256
+// dedicate half of scratchpad to frames
+#define POST_FRAME_WORD 512
 
 // number of frames to get ahead
 #ifndef INIT_FRAMES
@@ -44,47 +58,98 @@
 #endif
 
 // prefetch config for inner kernel
-#define INNER_PREFETCH_LEN 8
+#ifdef LONGLINES
+  #define INNER_PREFETCH_LEN (CACHE_LINE_SIZE / sizeof(DTYPE) / VECTOR_LEN / 2)
+  #define J_STRIDE (1)
+  #define K_STRIDE (INNER_PREFETCH_LEN * VECTOR_LEN)
+#else
+  #define INNER_PREFETCH_LEN (8)
+  #define J_STRIDE (VECTOR_LEN)
+  #define K_STRIDE (INNER_PREFETCH_LEN)
+#endif
 #define INNER_FRAME_SIZE (4*INNER_PREFETCH_LEN)
 #define NUM_FRAMES (POST_FRAME_WORD / INNER_FRAME_SIZE)
 
-#define INIT_OFFSET (INIT_FRAMES * INNER_PREFETCH_LEN)
+#define INIT_OFFSET (INIT_FRAMES * K_STRIDE)
 
 // frame size to get the c to accumulate on
-#define OUTER_FRAME_SIZE INNER_FRAME_SIZE
 #define OUTER_PREFETCH_LEN INNER_PREFETCH_LEN
+#define OUTER_FRAME_SIZE OUTER_PREFETCH_LEN
+
+#if VECTOR_LEN == 4
+#define NUM_GROUPS_PER_PIPE (3)
+#else
+#define NUM_GROUPS_PER_PIPE (1)
+#endif
+
+#define ACCUM_GRANULARITY (8)
+#define MAILER_OFFSET (NUM_GROUPS_PER_PIPE)
+#define SUB_FRAME_SIZE (MAILER_OFFSET + VECTOR_LEN * NUM_GROUPS_PER_PIPE)
+#define MAILER_FRAME_SIZE (SUB_FRAME_SIZE * ACCUM_GRANULARITY)
+#define MAILER_NUM_FRAMES (POST_FRAME_WORD / MAILER_FRAME_SIZE)
+#define MAILER_POST_FRAME_WORD (MAILER_FRAME_SIZE * MAILER_NUM_FRAMES)
+
+// needs to be maxed at number of frame counters
+#if MAILER_NUM_FRAMES < 5
+#define FRAMES_TO_SYNC_AFTER (MAILER_NUM_FRAMES)
+#else
+#define FRAMES_TO_SYNC_AFTER (5)
+#endif
+
+// how much vector core will write
+#define PER_CORE_MAILER_FRAME (VECTOR_LEN)
+// includes also if any base value to the sum
+#define PER_CORE_FULL_MAILER_FRAME (PER_CORE_MAILER_FRAME + 1)
+
+#ifdef MANYCORE_PREFETCH
+  #define VERTICAL_FETCH_TYPE (TO_SELF)
+#else
+  #define VERTICAL_FETCH_TYPE (TO_ONE_CORE)
+#endif
 
 // prefetch c
 // pad out to the frame size (1->2 currently)
 // maybe don't have to prefetch this
 inline void prefetch_outer_frame(DTYPE *c, int i, int j, int *sp, int N) {
   for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_LR(*sp + INNER_PREFETCH_LEN * 0, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + INNER_PREFETCH_LEN * 0, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL_FETCH_TYPE);
 
+    // TODO can optmizie, don't need padding anymore with updated FRAME_START
     // pad out
-    VPREFETCH_LR(*sp + INNER_PREFETCH_LEN * 1, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
-    VPREFETCH_LR(*sp + INNER_PREFETCH_LEN * 2, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
-    VPREFETCH_LR(*sp + INNER_PREFETCH_LEN * 3, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, VERTICAL);
+    // VPREFETCH_LR(*sp + INNER_PREFETCH_LEN * 1, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, TO_ONE_CORE);
+    // VPREFETCH_LR(*sp + INNER_PREFETCH_LEN * 2, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, TO_ONE_CORE);
+    // VPREFETCH_LR(*sp + INNER_PREFETCH_LEN * 3, &c[i * N + j + core], core, OUTER_PREFETCH_LEN, TO_ONE_CORE);
   }
 
-  *sp = *sp + OUTER_FRAME_SIZE;
+  *sp = *sp + INNER_FRAME_SIZE;
   if (*sp == POST_FRAME_WORD) *sp = 0;
 }
 
 // prefetch a
 inline void prefetch_inner_frame(DTYPE *a, DTYPE *b, int i, int j, int k, int *sp, int M) {
+  #ifdef LONGLINES
+  VPREFETCH_L(*sp + INNER_PREFETCH_LEN * 0, 
+    &a[i * M + k], 0, INNER_PREFETCH_LEN, TO_ALL_CORES);
+  VPREFETCH_L(*sp + INNER_PREFETCH_LEN * 1, 
+    &a[j * M + k], 0, INNER_PREFETCH_LEN, TO_ALL_CORES);
+  VPREFETCH_L(*sp + INNER_PREFETCH_LEN * 2, 
+    &b[i * M + k], 0, INNER_PREFETCH_LEN, TO_ALL_CORES);
+  VPREFETCH_L(*sp + INNER_PREFETCH_LEN * 3, 
+    &b[j * M + k], 0, INNER_PREFETCH_LEN, TO_ALL_CORES);
+  #else
   for (int core = 0; core < VECTOR_LEN; core++) {
     // TODO redundant
-    VPREFETCH_L(*sp + INNER_PREFETCH_LEN * 0, &a[i * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_L(*sp + INNER_PREFETCH_LEN * 0, &a[i * M + k], core, INNER_PREFETCH_LEN, VERTICAL_FETCH_TYPE);
 
     // TODO this can be horizontal?
-    VPREFETCH_L(*sp + INNER_PREFETCH_LEN * 1, &a[(j + core) * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_L(*sp + INNER_PREFETCH_LEN * 1, &a[(j + core) * M + k], core, INNER_PREFETCH_LEN, VERTICAL_FETCH_TYPE);
 
     // fetch b's in the same way
-    VPREFETCH_L(*sp + INNER_PREFETCH_LEN * 2, &b[i * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
-    VPREFETCH_L(*sp + INNER_PREFETCH_LEN * 3, &b[(j + core) * M + k], core, INNER_PREFETCH_LEN, VERTICAL);
+    VPREFETCH_L(*sp + INNER_PREFETCH_LEN * 2, &b[i * M + k], core, INNER_PREFETCH_LEN, VERTICAL_FETCH_TYPE);
+    VPREFETCH_L(*sp + INNER_PREFETCH_LEN * 3, &b[(j + core) * M + k], core, INNER_PREFETCH_LEN, VERTICAL_FETCH_TYPE);
 
   }
+  #endif
 
   #ifndef MANYCORE_PREFETCH
   *sp = *sp + INNER_FRAME_SIZE;
