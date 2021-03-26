@@ -9,6 +9,7 @@
 #include "bind_defs.h"
 #include "group_templates.h"
 #include "covar_kernel.h"
+#include "util.h"
 
 #ifdef PACKED_SIMD
 #include <riscv_vector.h>
@@ -194,10 +195,61 @@ void covar_manycore(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) 
   asm volatile("fence\n\t");
 }
 
+#ifdef LONGLINES
+// partial sum reduction offload
+void covar_reduction(DTYPE *symmat, int baseGroupId, int numGroups, int N, int M, 
+    int ptid, int *fwders) {
+  // chunk over vector groups. note all might not do the same amount of work
+  int max_chunk_size = ceilToInt((float)N / (float)numGroups);
+
+  // cache sp ptrs to avoid global load
+  SETUP_REDUCTION_CORE(fwders, ptid);
+
+  for (int cnt = 0; cnt < max_chunk_size; cnt++) {
+
+    SETUP_GROUP_ITERATION_STRIDED(baseGroupId, numGroups, cnt, N);
+    
+    for (int i2 = group_start[0]; i2 < N; i2+=ACCUM_GRANULARITY) {
+
+      REDUCE_SYNC_WITH_SCALAR(group_start, spPtrs, flat_iter);
+
+      // wait for frame and then do sum
+      FRAME_START(expected_elements);
+
+      for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
+
+        #pragma GCC unroll(4)
+        for (int a = 0; a < ACCUM_GRANULARITY; a++) {
+          DTYPE sum = 0.0f;
+
+          int sum_offset = g * PER_CORE_MAILER_FRAME + a * SUB_FRAME_SIZE;
+
+          #pragma GCC unroll(16)
+          for (int k = 0; k < PER_CORE_MAILER_FRAME; k++) {
+            sum += sp_ptr[sum_offset + sp_self + k];
+          }
+
+          int i1 = group_start[g];
+          int i2_eff = i2 + g;
+          if (i1 < 0 || i2_eff >= N ) continue;
+
+          STORE_NOACK(sum, &symmat[i2_eff * M + i1], 0);
+          STORE_NOACK(sum, &symmat[i1 * M + i2_eff], 0);
+        }
+
+      }
+      sp_self += MAILER_FRAME_SIZE;
+      sp_self = sp_self % MAILER_POST_FRAME_WORD; // TOOD branch better??
+      REMEM(expected_elements);
+    }
+  }
+}
+#endif
+
 void __attribute__((optimize("-fno-inline"))) covar(
     DTYPE *data, DTYPE *dataT, DTYPE *mean, DTYPE *symmat,
     int ptid, int vtid, int dim, int N, int M, int groupId, int numGroups,
-    int mask, int used
+    int mask, int used, int ptidMailer, int isMailer, int *ptidFwder, int linkId
   ) {
 
     transpose_manycore(data, M, N, dataT, ptid, dim);
@@ -216,13 +268,27 @@ void __attribute__((optimize("-fno-inline"))) covar(
     #endif
     covar_manycore(symmat, dataT, N, M, ptid, dim);
     #else
+
     SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);
     if (used)
       tril_mean(mask, mean, dataT, N, M, ptid, groupId, numGroups, vtid);
     
+    #ifdef LONGLINES
+    if (isMailer) {
+      SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier); 
+    } else {
+      SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
+    }
+    #else
     SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
+    #endif
     if (used)
-      tril_covar(mask, symmat, dataT, N, M, ptid, groupId, numGroups, vtid);
+      tril_covar(mask, symmat, dataT, N, M, ptid, groupId, 
+        numGroups, vtid, ptidMailer, linkId);
+    #ifdef LONGLINES
+    else if (isMailer)
+      covar_reduction(symmat, groupId, numGroups, N, M, ptid, ptidFwder);
+    #endif
     #endif
 
 }
@@ -236,75 +302,25 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     stats_on();
   }
 
-  // linearize tid and dim
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
-
-  // split into physical and virtual tids + dim
-  int vtid_x = 0;
-  int vtid_y = 0;
-  int vtid   = 0;
-  int vdim_x = 0;
-  int vdim_y = 0;
-  int vdim   = 0;
-  int unique_id = 0;
-  int total_groups = 0;
-  int used = 0;
-
-  // group construction
-  #ifdef USE_VEC
-
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
   #elif VECTOR_LEN==16
-  template_info_t tinfo = init_template_8x8_4x4();
-  #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
-
-  vtid = cinfo.vtid;
-  vtid_x = cinfo.vtid_x;
-  vtid_y = cinfo.vtid_y;
-  vdim_x = cinfo.vdim_x;
-  vdim_y = cinfo.vdim_y;
-  unique_id = cinfo.unique_id;
-  total_groups = cinfo.total_groups;
-  used = cinfo.used;
-
-  // printf("ptid %d(%d,%d) da %d vtid %d(%d,%d) dim %d(%d,%d) orig (%d,%d) used? %d\n", ptid, ptid_x, ptid_y, is_da, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, orig_x, orig_y, used);
-
-  #elif !defined(USE_VEC)
-
-  vdim_x = 1;
-  vdim_y = 1;
-  vtid_x = 0;
-  vtid_y = 0;
-  vtid   = 0;
-  used   = 1;
-
-  #endif
-
-  // linearize some fields
-  vdim = vdim_x * vdim_y;
-
-  // get behavior of each core
-  #ifdef MEAN_FRAME_SIZE
-  // setup up self prefetch
-  #ifdef MANYCORE_PREFETCH
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
-  int mask = getDebugMask(&cinfo);
-  VECTOR_EPOCH(mask);
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
   #else
-  int mask = getSIMDMask(&cinfo);
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
   #endif
+
+  #ifdef LONGLINES
+  SETUP_REDUCE_CONFIG();
   #else
-  int mask = 0;
+  SETUP_REDUCE_CONFIG_NULL();
   #endif
 
   MOVE_STACK_ONTO_SCRATCHPAD();
 
   // compute covariance
-  covar(data, dataT, mean, symmat, ptid, vtid, pdim, N, M, unique_id, total_groups, mask, used);
+  covar(data, dataT, mean, symmat, ptid, vtid, pdim, N, M, unique_id, total_groups,
+    mask, used, ptidMailer, isMailer, ptidFwders, linkId);
 
   // restore stack pointer
   RECOVER_DRAM_STACK();

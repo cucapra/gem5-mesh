@@ -44,7 +44,7 @@ int float_compare(float a, float b, float eps);
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0)
 
 // figure out how many valid elements we're expecting in the frame
-#define SETUP_GROUP_ITERATION(baseGroupId, numGroups, cnt)          \
+#define SETUP_GROUP_ITERATION_CHUNKED(baseGroupId, numGroups, cnt)  \
     int group_start[MAX_GROUP_AFFINITY];                            \
     int expected_elements = 0;                                      \
     for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {                 \
@@ -52,6 +52,21 @@ int float_compare(float a, float b, float eps);
       if (cnt < get_group_len(gid, N, numGroups)) {                 \
         expected_elements+=PER_CORE_FULL_MAILER_FRAME*ACCUM_GRANULARITY; \
         group_start[g] = get_group_start(gid, N, numGroups) + cnt;  \
+      }                                                             \
+      else {                                                        \
+        group_start[g] = -1;                                        \
+      }                                                             \
+    }                                                               \
+    if (expected_elements == 0) return
+
+#define SETUP_GROUP_ITERATION_STRIDED(baseGroupId, numGroups, cnt, maxCnt)  \
+    int group_start[MAX_GROUP_AFFINITY];                            \
+    int expected_elements = 0;                                      \
+    for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {                 \
+      int gstart = cnt * numGroups + baseGroupId + g;               \
+      if (gstart < maxCnt) {                                        \
+        expected_elements+=PER_CORE_FULL_MAILER_FRAME*ACCUM_GRANULARITY; \
+        group_start[g] = gstart;                                    \
       }                                                             \
       else {                                                        \
         group_start[g] = -1;                                        \

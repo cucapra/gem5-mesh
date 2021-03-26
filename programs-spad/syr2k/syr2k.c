@@ -111,7 +111,7 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
 
   for (int cnt = 0; cnt < max_chunk_size; cnt++) {
 
-    SETUP_GROUP_ITERATION(baseGroupId, numGroups, cnt);
+    SETUP_GROUP_ITERATION_CHUNKED(baseGroupId, numGroups, cnt);
 
     for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) {
 

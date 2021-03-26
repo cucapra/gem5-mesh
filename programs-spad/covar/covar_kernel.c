@@ -107,14 +107,14 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
 
     do {
       asm("trillium vissue_delim if_begin mean_body");
-      START_FRAME();
+      FRAME_START(MEAN_FRAME_SIZE);
       #pragma GCC unroll(16)
       for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
         mean_i += sp_ptr[sp + u];
       }
-      END_FRAME();
       sp+=MEAN_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
+      END_FRAME();
       // #if VECTOR_LEN==16
       // #pragma GCC unroll(16)
       // for (int n = 0; n < 1; n++) {
@@ -130,16 +130,16 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
 
     do {
       asm("trillium vissue_delim if_begin center_body");
-      START_FRAME();
+      FRAME_START(MEAN_FRAME_SIZE);
       #pragma GCC unroll(16)
       for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
         DTYPE dat = sp_ptr[sp + u] - mean_i;
         STORE_NOACK(dat, &data[i * N + j + u], 0);
       }
-      END_FRAME();
       j+=MEAN_UNROLL_LEN;
       sp += MEAN_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
+      END_FRAME();
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
@@ -209,16 +209,21 @@ vector_return_label:
 
 // compute the covariance matrix
 void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M, 
-    int ptid, int groupId, int numGroups, int vtid) {
+    int ptid, int groupId, int numGroups, int vtid, int ptidMailer, int linkId) {
 
   #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
 
-  int start = groupId; // * VECTOR_LEN;
-  int stride = numGroups; // * VECTOR_LEN;
+  int start = groupId;
+  int stride = numGroups;
   int end = N;
-
+  int numCompleted = 0;
   int startOffset = min(INIT_COVAR_OFFSET, N);
+  int sp  = 0;
+
+  #ifdef LONGLINES
+  volatile int *sp_ptr = (int*)getSpAddr(ptid, 0);
+  #endif
 
   ISSUE_VINST(init_label);
   #endif
@@ -232,10 +237,56 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   int i1 = start - stride;
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
+  int sp_origin = linkId * PER_CORE_MAILER_FRAME + vtid;
+  DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
+
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+  #endif
   #endif
 
   #ifdef SCALAR_CORE
-  int sp  = 0;
+
+  #ifdef LONGLINES
+
+  for (int i1 = start; i1 < end; i1+=stride) {
+
+    for (int i2 = i1; i2 < N; i2++) {
+
+      ISSUE_VINST(vec_body_init_label);
+
+      // initial round
+      for (int j = 0; j < startOffset; j+=COVAR_J_STRIDE) {
+        prefetch_covar_frame(data, i1, i2, j, &sp, M);
+      }
+
+      // steady state
+      for (int j = startOffset; j < M; j+=COVAR_J_STRIDE) {
+        prefetch_covar_frame(data, i1, i2, j, &sp, M);
+        ISSUE_VINST(vec_body_label);
+      }
+
+      // cooldown
+      for (int j = N - startOffset; j < N; j+=COVAR_J_STRIDE) {
+        ISSUE_VINST(vec_body_label);
+      }
+
+      SCALAR_SYNC_WITH_REDUCTION(sp_ptr, numCompleted);
+
+      ISSUE_VINST(vec_body_end_label);
+    }
+
+    // depending on linkid might need a lil extra for strided
+    for (int l = 0; l < linkId; l++) {
+      SCALAR_SYNC_WITH_REDUCTION(sp_ptr, numCompleted);
+      ISSUE_VINST(vec_body_end_label);
+    }
+
+  }
+
+  #else
 
   for (int i1 = start; i1 < end; i1+=stride) {
 
@@ -246,18 +297,18 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
       ISSUE_VINST(vec_body_init_label);
 
       // initial round
-      for (int j = 0; j < startOffset; j+=COVAR_UNROLL_LEN) {
+      for (int j = 0; j < startOffset; j+=COVAR_J_STRIDE) {
         prefetch_covar_frame(data, i1, i2, j, &sp, M);
       }
 
        // steady state
-      for (int j = startOffset; j < M; j+=COVAR_UNROLL_LEN) {
+      for (int j = startOffset; j < M; j+=COVAR_J_STRIDE) {
         prefetch_covar_frame(data, i1, i2, j, &sp, M);
         ISSUE_VINST(vec_body_label);
       }
 
       // cooldown
-      for (int j = N - startOffset; j < N; j+=COVAR_UNROLL_LEN) {
+      for (int j = N - startOffset; j < N; j+=COVAR_J_STRIDE) {
         ISSUE_VINST(vec_body_label);
       }
 
@@ -267,15 +318,18 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
     ISSUE_VINST(j2_end_label);
   }
   #endif
+  #endif
 
   #ifdef VECTOR_CORE
   volatile int BH;
   volatile int BHO;
+  #ifndef LONGLINES
   volatile int BHOO;
   do {
     asm("trillium vissue_delim until_next j2_begin");
     i1+=stride;
     i2 = i1 + vtid;
+  #endif
 
   do {
 
@@ -286,12 +340,12 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
       asm("trillium vissue_delim if_begin vec_body");
       FRAME_START(COVAR_FRAME_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
-        symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_UNROLL_LEN + u];
+      for (int u = 0; u < COVAR_PREFETCH_LEN; u++) {
+        symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_PREFETCH_LEN + u];
       }
-      REMEM(COVAR_FRAME_SIZE);
       sp+=COVAR_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
+      REMEM(COVAR_FRAME_SIZE);
       // #if VECTOR_LEN==16
       // #pragma GCC unroll(16)
       // for (int n = 0; n < 1; n++) {
@@ -303,6 +357,12 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
 
 
     asm("trillium vissue_delim if_begin vec_body_end");
+    #ifdef LONGLINES 
+    STORE_NOACK(symmat_idx, &sp_origin_ptr[sp_origin], 0);
+    sp_origin+=SUB_FRAME_SIZE;
+    sp_origin = sp_origin % MAILER_POST_FRAME_WORD;
+    asm volatile("fmv.s.x %[creg],zero\n\t" : [creg] "=f" (symmat_idx));
+    #else
     int gt = (i2 >= N);
     PRED_EQ(gt, 0);
     STORE_NOACK(symmat_idx, &symmat[i2 * M + i1], 0);
@@ -311,15 +371,19 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
     // symmat[j1 * (M+1) + j2] = symmat_idx;
     PRED_EQ(i2, i2);
     i2+=VECTOR_LEN;
+    #endif
     asm("trillium vissue_delim end at_jump");
 
   } while (BHO);
 
+
+#ifndef LONGLINES
     asm("trillium vissue_delim if_begin j2_end");
 
     asm("trillium vissue_delim end at_jump");
 
   } while(BHOO);
+#endif
   #endif
 
 
@@ -346,9 +410,11 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
 init_label:
   asm("trillium glue_point vector_init");
   exit(1);
+#ifndef LONGLINES
 j2_begin_label:
   asm("trillium glue_point j2_begin");
   exit(1);
+#endif
 vec_body_init_label:
   asm("trillium glue_point vec_body_init");
   exit(1);
@@ -358,83 +424,15 @@ vec_body_label:
 vec_body_end_label:
   asm("trillium glue_point vec_body_end");
   exit(1);
+#ifndef LONGLINES
 j2_end_label:
   asm("trillium glue_point j2_end");
   exit(1);
+#endif
 vector_return_label:
   asm("trillium glue_point vector_return");
   exit(1);
 #endif
 
-
-
-  // if (ptid == 0) {
-  
-  // ISSUE_VINST()
-
-  // // initial round
-  // for (int i = 1; i < 1 + INIT_COVAR_OFFSET; i++) {
-  //   prefetch_covar_frame(data, i, start, start, &sp, M);
-  // }
-
-  // // first row
-  // for (int i = 1 + INIT_COVAR_OFFSET; i < (N+1); i++) {
-  //   prefetch_covar_frame(data, i, start, start, &sp, M);
-  //   // ISSUE_VINST()
-  // }
-
-  // // steady state
-  // for (int j1 = start; j1 < end; j1++) {
-  //   int startJ2 = j1;
-  //   if (j1 == start) startJ2 += VECTOR_LEN;
-  //   for (int j2 = startJ2; j2 < (M+1); j2+=VECTOR_LEN) {
-  //     for (int i = 1; i < (N+1); i++) {
-  //       prefetch_covar_frame(data, i, j1, j2, &sp, M);
-  //       // ISSUE_VINST()
-  //     }
-  //   }
-  // }
-
-  // // cooldown
-  // for (int i = N - INIT_MEAN_OFFSET; i < (N+1); i++) {
-  //   // ISSUE_VINST()
-  // }
-
-  // }
-  // else {
-  // DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-  // for (int j1 = start; j1 < end; j1++) {
-  //   // for (int j2 = j1 + vtid; j2 < (M+1); j2+=VECTOR_LEN) { // TODO needs predication on this loop
-  //   for (int j2 = j1; j2 < (M+1); j2+=VECTOR_LEN) {
-  //     int j2_idx = j2 + vtid;
-  //     DTYPE symmat_idx = 0.0f;
-  //     for (int i = 1; i < (N+1); i++) {
-  //       FRAME_START(COVAR_FRAME_SIZE);
-  //       // printf("j1 %d j2 %d i %d vtid %d %f ?= %f | %f ?= %f\n", j1, j2, i, vtid, sp_ptr[sp+0], data[i *(M+1) + j1], sp_ptr[sp+1], data[i *(M+1) + j2]);
-  //       symmat_idx += sp_ptr[sp + 0] * sp_ptr[sp + 1]; // not prefetching the right stuff here
-  //       REMEM(COVAR_FRAME_SIZE);
-  //       sp+=2;
-  //       if (sp == POST_FRAME_WORD) sp = 0;
-  //     }
-
-  //     if (j2_idx < (M+1)) {
-  //       symmat[j2_idx * (M+1) + j1] = symmat_idx;
-  //       symmat[j1 * (M+1) + j2_idx] = symmat_idx;
-  //     }
-  //   }
-  // }
-
-  // }
-
-  // for (int j1 = start + 1; j1 < (end+1); j1++) {
-  //   for (int j2 = j1; j2 < (M+1); j2++) {
-  //     DTYPE symmat_idx = 0.0f;
-  //     for (int i = 1; i < (N+1); i++) {
-  //       symmat_idx += data[i *(M+1) + j1] * data[i *(M+1) + j2];
-  //     }
-  //     symmat[j2 * (M+1) + j1] = symmat_idx;
-  //     symmat[j1 * (M+1) + j2] = symmat_idx;
-  //   }
-  // }
 }
 #endif

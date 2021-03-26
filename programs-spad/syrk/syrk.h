@@ -50,8 +50,6 @@
 #define NESTED_SIMD
 #endif
 
-#define EFF_VLEN (VECTOR_LEN * NESTED_SIMD_VLEN)
-
 // prefetch sizing
 #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
 // dedicate a quarter of scratchpad to frames
