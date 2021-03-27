@@ -57,11 +57,27 @@
 #endif
 
 // prefetch config for mean kernel
-#define MEAN_UNROLL_LEN 16
-#define MEAN_FRAME_SIZE MEAN_UNROLL_LEN
+#ifdef LONGLINES
+  #define MEAN_PREFETCH_LEN (CACHE_LINE_SIZE / sizeof(DTYPE) / VECTOR_LEN)
+  #define MEAN_J_STRIDE (MEAN_PREFETCH_LEN * VECTOR_LEN)
+#else
+  #define MEAN_PREFETCH_LEN (16)
+  #define MEAN_J_STRIDE (MEAN_PREFETCH_LEN)
+#endif
+
+#define MEAN_FRAME_SIZE (MEAN_PREFETCH_LEN)
 #define NUM_MEAN_FRAMES (POST_FRAME_WORD / MEAN_FRAME_SIZE)
-#define MEAN_PREFETCH_LEN (MEAN_UNROLL_LEN)
-#define INIT_MEAN_OFFSET (INIT_FRAMES * MEAN_FRAME_SIZE)
+#define INIT_MEAN_OFFSET (INIT_FRAMES * MEAN_J_STRIDE)
+
+// prefetch config for reduce kernel
+#ifdef LONGLINES
+  #define REDUCE_PREFETCH_LEN (CACHE_LINE_SIZE / sizeof(DTYPE) / VECTOR_LEN)
+  #define REDUCE_J_STRIDE (REDUCE_PREFETCH_LEN * VECTOR_LEN)
+
+  #define REDUCE_FRAME_SIZE (2*REDUCE_PREFETCH_LEN)
+  #define NUM_REDUCE_FRAMES (POST_FRAME_WORD / REDUCE_FRAME_SIZE)
+  #define INIT_REDUCE_OFFSET (INIT_FRAMES * REDUCE_J_STRIDE)
+#endif
 
 // prefetch config for covar kernel
 #ifdef LONGLINES
@@ -74,7 +90,6 @@
 
 #define COVAR_FRAME_SIZE (2*COVAR_PREFETCH_LEN)
 #define NUM_COVAR_FRAMES (POST_FRAME_WORD / COVAR_FRAME_SIZE)
-
 #define INIT_COVAR_OFFSET (INIT_FRAMES * COVAR_J_STRIDE)
 
 // -------------------------------------------------------------------------------
@@ -106,13 +121,14 @@
 // ------------------------------------------------------------------------------
 
 inline void prefetch_mean_frame(DTYPE *data, int i, int j, int *sp, int M) {
-  // #ifdef LONGLINES
-
-  // #else
+  #ifdef LONGLINES
+  VPREFETCH_LR(*sp + 0, &data[i * M + j], 0, 
+    MEAN_PREFETCH_LEN, TO_ALL_CORES);
+  #else
   for (int core = 0; core < VECTOR_LEN; core++) {
     VPREFETCH_LR(*sp + 0, &data[(i + core) * M + j], core, MEAN_PREFETCH_LEN, VERTICAL_FETCH_TYPE);
   }
-  // #endif
+  #endif
 
   #ifndef MANYCORE_PREFETCH
   *sp = *sp + MEAN_FRAME_SIZE;
@@ -148,6 +164,17 @@ inline void prefetch_covar_frame(DTYPE *data, int i1, int i2, int j, int *sp, in
   #endif
 }
 
+#ifdef LONGLINES
+inline void prefetch_reduce_frame(DTYPE *data, DTYPE *mean, int i, int j, int *sp, int M) {
+  VPREFETCH_LR(*sp + 0, &data[i * M + j], 0, 
+    REDUCE_PREFETCH_LEN, TO_ALL_CORES);
+  VPREFETCH_LR(*sp + REDUCE_PREFETCH_LEN, &mean[j], 0, 
+    REDUCE_PREFETCH_LEN, TO_ALL_CORES);
+
+  *sp = *sp + REDUCE_FRAME_SIZE;
+  if (*sp == POST_FRAME_WORD) *sp = 0;
+}
+#endif
 
 
 #endif

@@ -90,7 +90,7 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
     mean_i /= (DTYPE)FLOAT_N;
 
     // TODO dont need this
-    STORE_NOACK(mean_i, &mean[i], 0);
+    FSTORE_NOACK(mean_i, &mean[i], 0);
 
     #ifdef PACKED_SIMD
     chunk = M;
@@ -106,14 +106,14 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
       vse32_v_f32m1(&data[i * M + base_j], vdata);
     }
     #elif defined(MANYCORE_PREFETCH)
-    for (int j = 0; j < M; j+=MEAN_UNROLL_LEN) {
+    for (int j = 0; j < M; j+=MEAN_PREFETCH_LEN) {
       prefetch_mean_frame(data, i, j, &sp, M);
 
       START_FRAME();
       #pragma GCC unroll(16)
-      for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
+      for (int u = 0; u < MEAN_PREFETCH_LEN; u++) {
         DTYPE dat = sp_ptr[sp + u] - mean_i;
-        STORE_NOACK(dat, &data[i * N + j + u], 0);
+        FSTORE_NOACK(dat, &data[i * N + j + u], 0);
       }
       END_FRAME();
 
@@ -124,7 +124,7 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
     #pragma GCC unroll(16)
     for (int j = 0; j < M; j++) {
       DTYPE dat = data[i * M + j] - mean_i;
-      STORE_NOACK(dat, &data[i * M + j], 0);
+      FSTORE_NOACK(dat, &data[i * M + j], 0);
     }
     #endif
   }
@@ -186,8 +186,8 @@ void covar_manycore(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) 
       }
       #endif
 
-      STORE_NOACK(symmat_idx, &symmat[i2 * N + i1], 0);
-      STORE_NOACK(symmat_idx, &symmat[i1 * N + i2], 0);
+      FSTORE_NOACK(symmat_idx, &symmat[i2 * N + i1], 0);
+      FSTORE_NOACK(symmat_idx, &symmat[i1 * N + i2], 0);
       // symmat[j2 * (M+1) + j1] = symmat_idx;
       // symmat[j1 * (M+1) + j2] = symmat_idx;
     }
@@ -196,6 +196,52 @@ void covar_manycore(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) 
 }
 
 #ifdef LONGLINES
+
+// partial sum reduction offload
+void mean_reduction(DTYPE *out, int baseGroupId, int numGroups, int N, int M, 
+    int ptid, int *fwders) {
+  // chunk over vector groups. note all might not do the same amount of work
+  int max_chunk_size = ceilToInt((float)N / (float)numGroups);
+
+  // cache sp ptrs to avoid global load
+  SETUP_REDUCTION_CORE(fwders, ptid);
+
+  for (int cnt = 0; cnt < max_chunk_size; cnt++) {
+
+    SETUP_GROUP_ITERATION_CHUNKED(baseGroupId, numGroups, cnt);
+    REDUCE_SYNC_WITH_SCALAR(group_start, spPtrs, flat_iter);
+
+    // wait for frame and then do sum
+    FRAME_START(expected_elements);
+
+    for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
+
+      #pragma GCC unroll(4)
+      for (int a = 0; a < ACCUM_GRANULARITY; a++) {
+        DTYPE sum = 0.0f;
+
+        int sum_offset = g * PER_CORE_MAILER_FRAME + a * SUB_FRAME_SIZE;
+
+        #pragma GCC unroll(16)
+        for (int k = 0; k < PER_CORE_MAILER_FRAME; k++) {
+          sum += sp_ptr[sum_offset + sp_self + k];
+        }
+
+        sum /= (DTYPE)FLOAT_N;
+
+        int i = group_start[g];
+        if (i < 0) continue;
+
+        FSTORE_NOACK(sum, &out[i + a], 0);
+      }
+
+    }
+    sp_self += MAILER_FRAME_SIZE;
+    sp_self = sp_self % MAILER_POST_FRAME_WORD; // TOOD branch better??
+    REMEM(expected_elements);
+  }
+}
+
 // partial sum reduction offload
 void covar_reduction(DTYPE *symmat, int baseGroupId, int numGroups, int N, int M, 
     int ptid, int *fwders) {
@@ -208,7 +254,7 @@ void covar_reduction(DTYPE *symmat, int baseGroupId, int numGroups, int N, int M
   for (int cnt = 0; cnt < max_chunk_size; cnt++) {
 
     SETUP_GROUP_ITERATION_STRIDED(baseGroupId, numGroups, cnt, N);
-    
+
     for (int i2 = group_start[0]; i2 < N; i2+=ACCUM_GRANULARITY) {
 
       REDUCE_SYNC_WITH_SCALAR(group_start, spPtrs, flat_iter);
@@ -233,8 +279,8 @@ void covar_reduction(DTYPE *symmat, int baseGroupId, int numGroups, int N, int M
           int i2_eff = i2 + g;
           if (i1 < 0 || i2_eff >= N ) continue;
 
-          STORE_NOACK(sum, &symmat[i2_eff * M + i1], 0);
-          STORE_NOACK(sum, &symmat[i1 * M + i2_eff], 0);
+          FSTORE_NOACK(sum, &symmat[i2_eff * M + i1], 0);
+          FSTORE_NOACK(sum, &symmat[i1 * M + i2_eff], 0);
         }
 
       }
@@ -246,13 +292,72 @@ void covar_reduction(DTYPE *symmat, int baseGroupId, int numGroups, int N, int M
 }
 #endif
 
+// void mean_sum(DTYPE* data, DTYPE *mean, int N, int M) {
+//   for (int i = 0; i < N; i++) {
+//     DTYPE temp = 0.0f;
+//     for (int j = 0; j < M; j++) {
+//       temp+=data[i * M + j];
+//     }
+//     mean[i] = temp/(DTYPE)FLOAT_N;
+//   }
+// }
+
+
+// void reduce_the_deuce(DTYPE *data, DTYPE *mean, int N, int M) {
+//   for (int i = 0; i < N; i++) {
+//     for (int j = 0; j < M; j++) {
+//       DTYPE val = data[i * M + j] - mean[j];
+//       FSTORE_NOACK(val, &data[i*M+j], 0);
+//     }
+//   }
+// }
+
 void __attribute__((optimize("-fno-inline"))) covar(
     DTYPE *data, DTYPE *dataT, DTYPE *mean, DTYPE *symmat,
     int ptid, int vtid, int dim, int N, int M, int groupId, int numGroups,
     int mask, int used, int ptidMailer, int isMailer, int *ptidFwder, int linkId
   ) {
 
+
     transpose_manycore(data, M, N, dataT, ptid, dim);
+
+    // longlines non-transposed size
+    #ifdef LONGLINES
+    if (isMailer) {
+      SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier); 
+    } else {
+      SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);
+    }
+    if (used)
+      tril_mean(mask, mean, dataT, N, M, ptid, groupId, 
+        numGroups, vtid, ptidMailer, linkId);
+    else if (isMailer)
+      mean_reduction(mean, groupId, numGroups, N, M, ptid, ptidFwder);
+    // if (ptid == 0)
+    //   mean_sum(dataT, mean, N, M);
+
+    // need to add reduce kernel as well
+    SET_PREFETCH_MASK(NUM_REDUCE_FRAMES, REDUCE_FRAME_SIZE, &start_barrier);
+    // if (ptid == 0)
+      // reduce_the_deuce(dataT, mean, N, M);
+
+    if (used)
+      tril_reduce(mask, mean, dataT, N, M, ptid, groupId, 
+        numGroups, vtid, ptidMailer, linkId);
+
+    if (isMailer) {
+      SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier); 
+    } else {
+      SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
+    }
+    if (used)
+      tril_covar(mask, symmat, dataT, N, M, ptid, groupId, 
+        numGroups, vtid, ptidMailer, linkId);
+    else if (isMailer)
+      covar_reduction(symmat, groupId, numGroups, N, M, ptid, ptidFwder);
+    // covar_manycore(symmat, dataT, N, M, ptid, dim);
+
+    #else
 
     #ifndef USE_VEC
     #ifdef MANYCORE_PREFETCH
@@ -271,23 +376,13 @@ void __attribute__((optimize("-fno-inline"))) covar(
 
     SET_PREFETCH_MASK(NUM_MEAN_FRAMES, MEAN_FRAME_SIZE, &start_barrier);
     if (used)
-      tril_mean(mask, mean, dataT, N, M, ptid, groupId, numGroups, vtid);
-    
-    #ifdef LONGLINES
-    if (isMailer) {
-      SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier); 
-    } else {
-      SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
-    }
-    #else
+      tril_mean(mask, mean, dataT, N, M, ptid, groupId, 
+        numGroups, vtid, ptidMailer, linkId);
+
     SET_PREFETCH_MASK(NUM_COVAR_FRAMES, COVAR_FRAME_SIZE, &start_barrier);
-    #endif
     if (used)
       tril_covar(mask, symmat, dataT, N, M, ptid, groupId, 
         numGroups, vtid, ptidMailer, linkId);
-    #ifdef LONGLINES
-    else if (isMailer)
-      covar_reduction(symmat, groupId, numGroups, N, M, ptid, ptidFwder);
     #endif
     #endif
 

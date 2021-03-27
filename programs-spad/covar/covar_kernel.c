@@ -20,7 +20,7 @@
 #ifdef USE_VEC
 // compute each mean across each vector (single dimension)
 void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M, 
-    int ptid, int groupId, int numGroups, int vtid) {
+    int ptid, int groupId, int numGroups, int vtid, int ptidMailer, int linkId) {
 
   #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
@@ -28,11 +28,17 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   int start = ((groupId + 0) * N) / numGroups;
   int end   = ((groupId + 1) * N) / numGroups;
 
+  #ifdef LONGLINES
+  int numCompleted = 0;
+  volatile int *sp_ptr = (int*)getSpAddr(ptid, 0);
+  #else
   // make it a factor of vector group mapping size
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
+  #endif
 
   int startOffset = min(INIT_MEAN_OFFSET, N);
+  int sp  = 0;
 
   ISSUE_VINST(init_label);
   #endif
@@ -40,7 +46,12 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   #ifdef VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
   int start = ((groupId + 0) * N) / numGroups;
+  #ifdef LONGLINES
+  int sp_origin = (linkId * PER_CORE_MAILER_FRAME) + vtid;
+  DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
+  #else
   start = roundUp(start, VECTOR_LEN);
+  #endif
   int i = start + vtid;
   int j = 0;
   DTYPE mean_i = 0.0f;
@@ -50,27 +61,55 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
 
   #ifdef SCALAR_CORE
 
-  int sp  = 0;
+  #ifdef LONGLINES
+
+
+  for (int i = start; i < end; i++) {
+
+    ISSUE_VINST(vec_body_init_label);
+
+    // initial round
+    for (int j = 0; j < startOffset; j+=MEAN_J_STRIDE) {
+      prefetch_mean_frame(data, i, j, &sp, M);
+    }
+
+    // steady state
+    for (int j = startOffset; j < N; j+=MEAN_J_STRIDE) {
+      prefetch_mean_frame(data, i, j, &sp, M);
+      ISSUE_VINST(mean_body_label);
+    }
+
+    //cooldown
+    for (int j = N - startOffset; j < N; j+=MEAN_J_STRIDE) {
+      ISSUE_VINST(mean_body_label);
+    }
+
+    SCALAR_SYNC_WITH_REDUCTION(sp_ptr, numCompleted);
+
+    ISSUE_VINST(vec_body_end_label);
+  }
+
+  #else
 
   for (int i = start; i < end; i+=VECTOR_LEN) {
 
     ISSUE_VINST(vec_body_init_label);
 
     // initial round
-    for (int j = 0; j < startOffset; j+=MEAN_UNROLL_LEN) {
+    for (int j = 0; j < startOffset; j+=MEAN_J_STRIDE) {
       // printf("bpf %d %d\n", i, j);
       prefetch_mean_frame(data, i, j, &sp, M);
     }
 
     // steady state
-    for (int j = startOffset; j < N; j+=MEAN_UNROLL_LEN) {
+    for (int j = startOffset; j < N; j+=MEAN_J_STRIDE) {
       // printf("mpf %d %d\n", i, j);
       prefetch_mean_frame(data, i, j, &sp, M);
       ISSUE_VINST(mean_body_label);
     }
 
     //cooldown
-    for (int j = N - startOffset; j < N; j+=MEAN_UNROLL_LEN) {
+    for (int j = N - startOffset; j < N; j+=MEAN_J_STRIDE) {
       // printf("epf %d %d\n", i, j);
       ISSUE_VINST(mean_body_label);
     }
@@ -79,23 +118,26 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
 
 
     // initial round
-    for (int j = 0; j < startOffset; j+=MEAN_UNROLL_LEN) {
+    for (int j = 0; j < startOffset; j+=MEAN_J_STRIDE) {
       prefetch_mean_frame(data, i, j, &sp, M);
     }
 
     // steady state
-    for (int j = startOffset; j < N; j+=MEAN_UNROLL_LEN) {
+    for (int j = startOffset; j < N; j+=MEAN_J_STRIDE) {
       prefetch_mean_frame(data, i, j, &sp, M);
       ISSUE_VINST(center_body_label);
     }
 
     //cooldown
-    for (int j = N - startOffset; j < N; j+=MEAN_UNROLL_LEN) {
+    for (int j = N - startOffset; j < N; j+=MEAN_J_STRIDE) {
       ISSUE_VINST(center_body_label);
     }
 
     ISSUE_VINST(vec_body_end_label);
+
+    
   }
+  #endif
   #endif
 
   #ifdef VECTOR_CORE
@@ -109,7 +151,7 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
       asm("trillium vissue_delim if_begin mean_body");
       FRAME_START(MEAN_FRAME_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
+      for (int u = 0; u < MEAN_PREFETCH_LEN; u++) {
         mean_i += sp_ptr[sp + u];
       }
       sp+=MEAN_FRAME_SIZE;
@@ -124,6 +166,7 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
+    #ifndef LONGLINES
     asm("trillium vissue_delim until_next center_begin");
     mean_i /= (DTYPE)FLOAT_N;
     STORE_NOACK(mean_i, &mean[i], 0);
@@ -132,21 +175,28 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
       asm("trillium vissue_delim if_begin center_body");
       FRAME_START(MEAN_FRAME_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
+      for (int u = 0; u < MEAN_PREFETCH_LEN; u++) {
         DTYPE dat = sp_ptr[sp + u] - mean_i;
         STORE_NOACK(dat, &data[i * N + j + u], 0);
       }
-      j+=MEAN_UNROLL_LEN;
+      j+=MEAN_PREFETCH_LEN;
       sp += MEAN_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
       END_FRAME();
       asm("trillium vissue_delim end at_jump");
     } while(BH);
+    #endif
 
     asm("trillium vissue_delim if_begin vec_body_end");
+    #ifdef LONGLINES
+    FSTORE_NOACK(mean_i, &sp_origin_ptr[sp_origin], 0);
+    sp_origin+=SUB_FRAME_SIZE;
+    sp_origin = sp_origin % MAILER_POST_FRAME_WORD;
+    #else
     i+=VECTOR_LEN;
-    mean_i = 0.0f;
     j = 0;
+    #endif
+    asm volatile("fmv.s.x %[creg],zero\n\t" : [creg] "=f" (mean_i));
     asm("trillium vissue_delim end at_jump");
 
   } while (BHO);
@@ -179,10 +229,12 @@ vec_body_init_label:
   asm("trillium glue_point vec_body_init");
 mean_body_label:
   asm("trillium glue_point mean_body");
+#ifndef LONGLINES
 center_begin_label:
   asm("trillium glue_point center_begin");
 center_body_label:
   asm("trillium glue_point center_body");
+#endif
 vec_body_end_label:
   asm("trillium glue_point vec_body_end");
 vector_return_label:
@@ -435,4 +487,126 @@ vector_return_label:
 #endif
 
 }
+
+#ifdef LONGLINES
+// compute each reduce across each vector (single dimension)
+// only used in longlines version
+void tril_reduce(int mask, DTYPE *mean, DTYPE *data, int N, int M, 
+    int ptid, int groupId, int numGroups, int vtid, int ptidMailer, int linkId) {
+
+  #ifdef SCALAR_CORE
+  VECTOR_EPOCH(mask);
+
+  int start = ((groupId + 0) * N) / numGroups;
+  int end   = ((groupId + 1) * N) / numGroups;
+
+  int startOffset = min(INIT_REDUCE_OFFSET, N);
+  int sp  = 0;
+
+  ISSUE_VINST(init_label);
+  #endif
+
+  #ifdef VECTOR_CORE
+  asm("trillium vissue_delim until_next vector_init");
+  int start = ((groupId + 0) * N) / numGroups;
+  int i = start;
+  int j = vtid*REDUCE_PREFETCH_LEN;
+  int sp = 0;
+  DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  #endif
+
+  #ifdef SCALAR_CORE
+
+  for (int i = start; i < end; i++) {
+
+    ISSUE_VINST(vec_body_init_label);
+
+    // initial round
+    for (int j = 0; j < startOffset; j+=REDUCE_J_STRIDE) {
+      prefetch_reduce_frame(data, mean, i, j, &sp, M);
+    }
+
+    // steady state
+    for (int j = startOffset; j < N; j+=REDUCE_J_STRIDE) {
+      prefetch_reduce_frame(data, mean, i, j, &sp, M);
+      ISSUE_VINST(vec_body_label);
+    }
+
+    //cooldown
+    for (int j = N - startOffset; j < N; j+=REDUCE_J_STRIDE) {
+      ISSUE_VINST(vec_body_label);
+    }
+
+    ISSUE_VINST(vec_body_end_label);
+  }
+
+  #endif
+
+  #ifdef VECTOR_CORE
+  volatile int BH;
+  volatile int BHO;
+  do {
+
+    asm("trillium vissue_delim until_next vec_body_init");
+
+    do {
+      asm("trillium vissue_delim if_begin vec_body");
+      FRAME_START(REDUCE_FRAME_SIZE);
+      #pragma GCC unroll(16)
+      for (int u = 0; u < REDUCE_PREFETCH_LEN; u++) {
+        DTYPE updated_data = sp_ptr[sp + u] - sp_ptr[sp + REDUCE_PREFETCH_LEN + u];
+        FSTORE_NOACK(updated_data, &data[i * M + j + u], 0);
+        // data[i * M + j] = updated_data;
+      }
+      j+=REDUCE_J_STRIDE;
+      sp+=REDUCE_FRAME_SIZE;
+      sp = sp % POST_FRAME_WORD;
+      END_FRAME();
+      asm("trillium vissue_delim end at_jump");
+    } while(BH);
+
+    asm("trillium vissue_delim if_begin vec_body_end");
+    j = vtid*REDUCE_PREFETCH_LEN;
+    i++;
+    asm("trillium vissue_delim end at_jump");
+
+  } while (BHO);
+  #endif
+
+
+  // Clean up on the vector cores.
+#ifdef SCALAR_CORE
+  ISSUE_VINST(vector_return_label);
+#elif defined VECTOR_CORE
+  asm("trillium vissue_delim return vector_return");
+  return;
+#endif
+
+#ifdef SCALAR_CORE
+  // devec with unique tag
+  DEVEC(devec_0);
+
+  // we are doing lazy store acks, so use this to make sure all stores have commited to memory
+  asm volatile("fence\n\t");
+  asm("trillium vissue_delim return scalar_return");  // XXX is this real???
+  return;
+#endif
+
+  // Glue points!
+#ifdef SCALAR_CORE
+init_label:
+  asm("trillium glue_point vector_init");
+vec_body_init_label:
+  asm("trillium glue_point vec_body_init");
+vec_body_label:
+  asm("trillium glue_point vec_body");
+vec_body_end_label:
+  asm("trillium glue_point vec_body_end");
+vector_return_label:
+  asm("trillium glue_point vector_return");
+#endif
+}
+#endif
+
+
 #endif

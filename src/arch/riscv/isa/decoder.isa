@@ -767,6 +767,10 @@ decode QUADRANT default Unknown::unknown() {
                 0x3: fsd({{
                     Mem_ud = Fs2_bits;
                 }}, inst_flags=FloatMemWriteOp);
+
+                0x4: fsw_noack({{
+                    Mem_uw = (uint32_t)Fs2_bits;
+                }}, inst_flags=[FloatMemWriteOp, IsAckFree]);
             }
 
             // +--> OP-V VSTORE
