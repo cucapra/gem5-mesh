@@ -10,6 +10,10 @@
 #include "group_templates.h"
 #include "util.h"
 
+#ifdef NESTED_SIMD
+#include <riscv_vector.h>
+#endif
+
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
@@ -57,6 +61,12 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   DTYPE mean_i = 0.0f;
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+  #endif
+
   #endif
 
   #ifdef SCALAR_CORE
@@ -146,14 +156,35 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   do {
 
     asm("trillium vissue_delim until_next vec_body_init");
+    #ifdef NESTED_SIMD
+    // NOTE MUST NEVER CHANGE THIS VALUE B/C CANT SQUASH IN VCORES!!!
+    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    #endif
 
     do {
       asm("trillium vissue_delim if_begin mean_body");
+
+      #ifdef NESTED_SIMD
+      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      vfloat32m1_t accum = vzero;
+      #endif
+
       FRAME_START(MEAN_FRAME_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < MEAN_PREFETCH_LEN; u++) {
+      for (int u = 0; u < MEAN_PREFETCH_LEN; u+=NESTED_SIMD_VLEN) {
+        #ifdef NESTED_SIMD
+        vfloat32m1_t vmean = vle32_v_f32m1(&sp_ptr[sp + u]);
+        accum = vfadd_vv_f32m1(accum, vmean);
+        #else
         mean_i += sp_ptr[sp + u];
+        #endif
       }
+
+      #ifdef NESTED_SIMD
+      vfloat32m1_t vmean_partial = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+      mean_i += vfmv_f_s_f32m1_f32(vmean_partial);
+      #endif
+
       sp+=MEAN_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
       END_FRAME();
@@ -387,14 +418,37 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
 
     asm("trillium vissue_delim until_next vec_body_init");
     DTYPE symmat_idx = 0.0f;
+    #ifdef NESTED_SIMD
+    // NOTE MUST NEVER CHANGE THIS VALUE B/C CANT SQUASH IN VCORES!!!
+    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    #endif
 
     do {
       asm("trillium vissue_delim if_begin vec_body");
+
+      #ifdef NESTED_SIMD
+      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      vfloat32m1_t accum = vzero;
+      #endif
+
       FRAME_START(COVAR_FRAME_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < COVAR_PREFETCH_LEN; u++) {
+      for (int u = 0; u < COVAR_PREFETCH_LEN; u+=NESTED_SIMD_VLEN) {
+        #ifdef NESTED_SIMD
+        vfloat32m1_t vi1 = vle32_v_f32m1(&sp_ptr[sp + u]);
+        vfloat32m1_t vi2 = vle32_v_f32m1(&sp_ptr[sp + COVAR_PREFETCH_LEN + u]);
+        vfloat32m1_t vs = vfmul_vv_f32m1(vi1, vi2);
+        accum = vfadd_vv_f32m1(accum, vs);
+        #else
         symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_PREFETCH_LEN + u];
+        #endif
       }
+
+      #ifdef NESTED_SIMD
+      vfloat32m1_t vpartial = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+      symmat_idx += vfmv_f_s_f32m1_f32(vpartial);
+      #endif
+
       sp+=COVAR_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
       REMEM(COVAR_FRAME_SIZE);
@@ -513,6 +567,9 @@ void tril_reduce(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   int j = vtid*REDUCE_PREFETCH_LEN;
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #endif
   #endif
 
   #ifdef SCALAR_CORE
@@ -549,14 +606,32 @@ void tril_reduce(int mask, DTYPE *mean, DTYPE *data, int N, int M,
 
     asm("trillium vissue_delim until_next vec_body_init");
 
+    #ifdef NESTED_SIMD
+    // NOTE MUST NEVER CHANGE THIS VALUE B/C CANT SQUASH IN VCORES!!!
+    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    #endif
+
     do {
       asm("trillium vissue_delim if_begin vec_body");
+
+      #ifdef NESTED_SIMD
+      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #endif
+
       FRAME_START(REDUCE_FRAME_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < REDUCE_PREFETCH_LEN; u++) {
+      for (int u = 0; u < REDUCE_PREFETCH_LEN; u+=NESTED_SIMD_VLEN) {
+        #ifdef NESTED_SIMD 
+        // TODO don't do vector here b/c don't have store noack version?
+        vfloat32m1_t vdata = vle32_v_f32m1(&sp_ptr[sp + u]);
+        vfloat32m1_t vmean = vle32_v_f32m1(&sp_ptr[sp + REDUCE_PREFETCH_LEN + u]);
+
+        vfloat32m1_t vnew = vfsub_vv_f32m1(vdata, vmean);
+        vse32_v_f32m1(&data[i * M + j + u], vnew);
+        #else
         DTYPE updated_data = sp_ptr[sp + u] - sp_ptr[sp + REDUCE_PREFETCH_LEN + u];
         FSTORE_NOACK(updated_data, &data[i * M + j + u], 0);
-        // data[i * M + j] = updated_data;
+        #endif
       }
       j+=REDUCE_J_STRIDE;
       sp+=REDUCE_FRAME_SIZE;

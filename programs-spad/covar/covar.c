@@ -11,7 +11,7 @@
 #include "covar_kernel.h"
 #include "util.h"
 
-#ifdef PACKED_SIMD
+#if defined(PACKED_SIMD) || defined(NESTED_SIMD) 
 #include <riscv_vector.h>
 #endif
 
@@ -66,12 +66,12 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
       mean_i += vfmv_f_s_f32m1_f32(vsum);
     }
     #elif defined(MANYCORE_PREFETCH)
-    for (int j = 0; j < M; j+=MEAN_UNROLL_LEN) {
+    for (int j = 0; j < M; j+=MEAN_PREFETCH_LEN) {
       prefetch_mean_frame(data, i, j, &sp, M);
 
-      START_FRAME();
+      FRAME_START(MEAN_PREFETCH_LEN);
       #pragma GCC unroll(16)
-      for (int u = 0; u < MEAN_UNROLL_LEN; u++) {
+      for (int u = 0; u < MEAN_PREFETCH_LEN; u++) {
         mean_i += sp_ptr[sp + u];
       }
       END_FRAME();
@@ -109,7 +109,7 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
     for (int j = 0; j < M; j+=MEAN_PREFETCH_LEN) {
       prefetch_mean_frame(data, i, j, &sp, M);
 
-      START_FRAME();
+      FRAME_START(MEAN_FRAME_SIZE);
       #pragma GCC unroll(16)
       for (int u = 0; u < MEAN_PREFETCH_LEN; u++) {
         DTYPE dat = sp_ptr[sp + u] - mean_i;
@@ -167,13 +167,13 @@ void covar_manycore(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) 
         symmat_idx += vfmv_f_s_f32m1_f32(vs);;
       }
       #elif defined(MANYCORE_PREFETCH)
-      for (int j = 0; j < M; j+=COVAR_UNROLL_LEN) {
+      for (int j = 0; j < M; j+=COVAR_PREFETCH_LEN) {
         prefetch_covar_frame(data, i1, i2, j, &sp, M);
 
-        START_FRAME();
+        FRAME_START(COVAR_FRAME_SIZE);
         #pragma GCC unroll(16)
-        for (int u = 0; u < COVAR_UNROLL_LEN; u++) {
-          symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_UNROLL_LEN + u];
+        for (int u = 0; u < COVAR_PREFETCH_LEN; u++) {
+          symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_PREFETCH_LEN + u];
         }
         END_FRAME();
         sp += COVAR_FRAME_SIZE;
@@ -411,6 +411,11 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   SETUP_REDUCE_CONFIG_NULL();
   #endif
 
+  // need to set vlen here so doesn't cause squash in vector core on change in value
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #endif
+
   MOVE_STACK_ONTO_SCRATCHPAD();
 
   // compute covariance
@@ -455,7 +460,8 @@ void *pthread_kernel(void *args) {
   kernel(a->data, a->dataT, a->mean, a->symmat, a->N, a->M,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-  pthread_barrier_wait(&start_barrier);
+  // reset scratchpad config
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
 
   if (a->tid_x == 0 && a->tid_y == 0) {
     stats_off();
