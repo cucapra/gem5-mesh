@@ -232,7 +232,7 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
     
     #ifdef LONGLINES
     // store partial sum to scalar core
-    STORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
+    FSTORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);
     sp_origin+=SUB_FRAME_SIZE;
     sp_origin = sp_origin % MAILER_POST_FRAME_WORD;
     // force sum reset here
@@ -240,7 +240,7 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
    
     #else
 
-    STORE_NOACK(c_ij, &c[i * N + j], 0);
+    FSTORE_NOACK(c_ij, &c[i * N + j], 0);
 
     // handle outer loops
     j+=VECTOR_LEN;

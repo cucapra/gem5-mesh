@@ -169,7 +169,7 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
     #ifndef LONGLINES
     asm("trillium vissue_delim until_next center_begin");
     mean_i /= (DTYPE)FLOAT_N;
-    STORE_NOACK(mean_i, &mean[i], 0);
+    FSTORE_NOACK(mean_i, &mean[i], 0);
 
     do {
       asm("trillium vissue_delim if_begin center_body");
@@ -177,7 +177,7 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
       #pragma GCC unroll(16)
       for (int u = 0; u < MEAN_PREFETCH_LEN; u++) {
         DTYPE dat = sp_ptr[sp + u] - mean_i;
-        STORE_NOACK(dat, &data[i * N + j + u], 0);
+        FSTORE_NOACK(dat, &data[i * N + j + u], 0);
       }
       j+=MEAN_PREFETCH_LEN;
       sp += MEAN_FRAME_SIZE;
@@ -410,15 +410,15 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
 
     asm("trillium vissue_delim if_begin vec_body_end");
     #ifdef LONGLINES 
-    STORE_NOACK(symmat_idx, &sp_origin_ptr[sp_origin], 0);
+    FSTORE_NOACK(symmat_idx, &sp_origin_ptr[sp_origin], 0);
     sp_origin+=SUB_FRAME_SIZE;
     sp_origin = sp_origin % MAILER_POST_FRAME_WORD;
     asm volatile("fmv.s.x %[creg],zero\n\t" : [creg] "=f" (symmat_idx));
     #else
     int gt = (i2 >= N);
     PRED_EQ(gt, 0);
-    STORE_NOACK(symmat_idx, &symmat[i2 * M + i1], 0);
-    STORE_NOACK(symmat_idx, &symmat[i1 * M + i2], 0);
+    FSTORE_NOACK(symmat_idx, &symmat[i2 * M + i1], 0);
+    FSTORE_NOACK(symmat_idx, &symmat[i1 * M + i2], 0);
     // symmat[j2 * (M+1) + j1] = symmat_idx;
     // symmat[j1 * (M+1) + j2] = symmat_idx;
     PRED_EQ(i2, i2);

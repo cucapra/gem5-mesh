@@ -82,7 +82,7 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
         c_ij += alpha * a[i * M + k] * a[j * M + k];
       }
       #endif
-      STORE_NOACK(c_ij, &c[i * N + j], 0);
+      FSTORE_NOACK(c_ij, &c[i * N + j], 0);
     }
   }
 
@@ -143,7 +143,7 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
           int i = group_start[g];
           if (i < 0) continue;
 
-          STORE_NOACK(sum, &c[i * N + j + a], 0);
+          FSTORE_NOACK(sum, &c[i * N + j + a], 0);
         }
 
       }
