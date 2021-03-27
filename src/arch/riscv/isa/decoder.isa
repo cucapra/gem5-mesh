@@ -742,11 +742,9 @@ decode QUADRANT default Unknown::unknown() {
                 0x3: sd({{
                     Mem_ud = Rs2_ud;
                 }});
-                //0x4: prelw({{
-                //    // this op doesn't actually happen b/c execute is never
-                //    // called in brg io. However, the bitwidths here are important
-                //    Mem_uw = Rs2_uw;
-                //}}, inst_flags=[IsSpadPrefetch, IsAckFree]);
+                0x4: fsw_noack({{
+                    Mem_uw = (uint32_t)Fs2_bits;
+                }}, inst_flags=[FloatMemWriteOp, IsAckFree]);
                 0x5: sw_noack({{
                     Mem_uw = Rs2_uw;
                 }}, inst_flags=IsAckFree);
@@ -767,10 +765,6 @@ decode QUADRANT default Unknown::unknown() {
                 0x3: fsd({{
                     Mem_ud = Fs2_bits;
                 }}, inst_flags=FloatMemWriteOp);
-
-                0x1: fsw_noack({{
-                    Mem_uw = (uint32_t)Fs2_bits;
-                }}, inst_flags=[FloatMemWriteOp, IsAckFree]);
             }
 
             // +--> OP-V VSTORE
