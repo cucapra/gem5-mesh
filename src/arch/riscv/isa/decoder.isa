@@ -768,7 +768,7 @@ decode QUADRANT default Unknown::unknown() {
                     Mem_ud = Fs2_bits;
                 }}, inst_flags=FloatMemWriteOp);
 
-                0x4: fsw_noack({{
+                0x1: fsw_noack({{
                     Mem_uw = (uint32_t)Fs2_bits;
                 }}, inst_flags=[FloatMemWriteOp, IsAckFree]);
             }

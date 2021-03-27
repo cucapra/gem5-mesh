@@ -151,7 +151,7 @@
     [dataReg] "r" (data), [mem] "r" (memAddr), [off] "i" (offset))     
 
 #define FSTORE_NOACK(data, memAddr, offset) \
-  asm volatile (".insn s 0x27, 0x4, %[dataReg], %[off](%[mem])\n\t" :: \
+  asm volatile (".insn s 0x27, 0x1, %[dataReg], %[off](%[mem])\n\t" :: \
     [dataReg] "f" (data), [mem] "r" (memAddr), [off] "i" (offset))  
 
 #define VPREFETCH_L(spadOffset, memAddr, coreOffset, count, config)   \
@@ -171,7 +171,7 @@
     [dataReg] "r" (data), [mem] "r" (memAddr), [off] "i" (offset))     
 
 #define FSTORE_NOACK(data, memAddr, offset) \
-  asm volatile (".insn sb 0x27, 0x4, %[dataReg], %[off](%[mem])\n\t" :: \
+  asm volatile (".insn sb 0x27, 0x1, %[dataReg], %[off](%[mem])\n\t" :: \
     [dataReg] "f" (data), [mem] "r" (memAddr), [off] "i" (offset)) 
 
 #define VPREFETCH_L(spadOffset, memAddr, coreOffset, count, config)   \
