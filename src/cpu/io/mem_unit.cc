@@ -330,6 +330,7 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
 
       // save address b/c the packet can be deleted if noack
       Addr addr = pkt->getAddr();
+      int respCnt = pkt->getRespCnt();
 
       // send request
       if (!m_cpu_p->getDataPort().sendTimingReq(pkt)) {
@@ -344,7 +345,7 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
         return;
       } else {
         // an outstanding memory request to track
-        m_store_diff_reg+=pkt->getRespCnt();
+        m_store_diff_reg+=respCnt;
         DPRINTF(LSQ, "Sent request to memory for inst %s with vaddr %#x paddr %#x\n", inst->toString(true), pkt->req->getVaddr(), addr);
         if (m_cpu_p->getEarlyVector()->getConfigured()) 
           DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), addr, m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
