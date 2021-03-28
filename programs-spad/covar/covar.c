@@ -30,9 +30,11 @@ void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int
 
   for(int i=start; i<end; i++){
     for(int j=0; j<a_row; j++){
-      aT[i*a_row+j] = a[j*a_col+i];
+      // aT[i*a_row+j] = a[j*a_col+i];
+      FSTORE_NOACK(a[j*a_col+i], &aT[i*a_row+j], 0);
     }
   }
+  FENCE();
 }
 
 
@@ -128,7 +130,7 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
     }
     #endif
   }
-  asm volatile("fence\n\t");
+  FENCE();
 }
 
 // compute the covariance matrix
@@ -192,7 +194,7 @@ void covar_manycore(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) 
       // symmat[j1 * (M+1) + j2] = symmat_idx;
     }
   }
-  asm volatile("fence\n\t");
+  FENCE();
 }
 
 #ifdef LONGLINES
