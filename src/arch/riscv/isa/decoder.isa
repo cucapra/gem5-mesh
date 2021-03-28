@@ -899,7 +899,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uW[i] = Vs3_ud[i];
                         }
-                    }});
+                    }}, flags=[IsAckFree]);
 
                     // vse32.vm
                     0x0: VMSOp::vse32_vm({{
@@ -908,7 +908,7 @@ decode QUADRANT default Unknown::unknown() {
                                 VMem_uW[i] = Vs3_ud[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}});
+                    }}, mask={{Vm_ud[i] & 0x1}}, flags=[IsAckFree]);
                 }
 
                 // vsse32
@@ -918,7 +918,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uW[i] = Vs3_ud[i];
                         }
-                    }}, stride=Rs2_ud);
+                    }}, stride=Rs2_ud, flags=[IsAckFree]);
 
                     // vsse32.vm
                     0x0: VMSSOp::vsse32_vm({{
@@ -927,7 +927,7 @@ decode QUADRANT default Unknown::unknown() {
                                 VMem_uW[i] = Vs3_ud[i];
                             }
                         }
-                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud);
+                    }}, mask={{Vm_ud[i] & 0x1}}, stride=Rs2_ud, flags=[IsAckFree]);
                 }
 
                 // vsxe32
@@ -937,7 +937,7 @@ decode QUADRANT default Unknown::unknown() {
                         for (auto i = 0; i < VLEN; i++) {
                             VMem_uW[i] = Vs3_ud[i];
                         }
-                    }}, addr_gen={{ += Vs2_ud[i] }});
+                    }}, addr_gen={{ += Vs2_ud[i] }}, flags=[IsAckFree]);
 
                     // vsxe32.vm
                     0x0: VMSXOp::vsxe32_vm({{
@@ -947,7 +947,7 @@ decode QUADRANT default Unknown::unknown() {
                             }
                         }
                     }}, mask={{Vm_ud[i] & 0x1}},
-                        addr_gen={{ += Vs2_ud[i] }});
+                        addr_gen={{ += Vs2_ud[i] }}, flags=[IsAckFree]);
                 }
             }
 

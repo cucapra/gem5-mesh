@@ -344,7 +344,7 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
         return;
       } else {
         // an outstanding memory request to track
-        m_store_diff_reg++;
+        m_store_diff_reg+=pkt->getRespCnt();
         DPRINTF(LSQ, "Sent request to memory for inst %s with vaddr %#x paddr %#x\n", inst->toString(true), pkt->req->getVaddr(), addr);
         if (m_cpu_p->getEarlyVector()->getConfigured()) 
           DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), addr, m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
@@ -511,7 +511,7 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
 {
   // lazy ack so have already completed the store
   if (pkt->isStoreNoAck()) {
-    m_store_diff_reg--;
+    m_store_diff_reg-=pkt->getRespCnt();
     delete pkt;
     return;
   }
@@ -575,7 +575,7 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
                            [&](const IODynInstPtr& inst)
                               { return ss->inst->seq_num == inst->seq_num; } );
     // mark we've recv an outstanding ack
-    m_store_diff_reg--;
+    m_store_diff_reg-=pkt->getRespCnt();
     if (it == m_st_queue.end()) {
       // this inst must have been squashed earlier
       if (!ss->inst->static_inst_p->isAckFree())

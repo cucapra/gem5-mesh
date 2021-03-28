@@ -529,6 +529,7 @@ Scratchpad::wakeup()
                                           sizeof(uint32_t),    // size
                                           0, 0);
       req->isStoreNoAck = true;
+      req->respCnt = llc_msg_p->m_Len;
       PacketPtr pending_mem_pkt_p = Packet::createWrite(req);
       pending_mem_pkt_p->pushSenderState(new MemUnit::SenderState(nullptr));
       pending_mem_pkt_p->makeResponse();
