@@ -57,7 +57,7 @@ void tril_conv2d(int mask,
   int vtid = vtid_x + vtid_y * vdim_x;
   int startOffset = vtid * CORE_STEP;
 
-  DTYPE *bPtr = b + outer_start * inner_dim + startOffset;
+  DTYPE *bPtr = b + outer_start * inner_dim + startOffset + 1;
   bPtr -= OUT_PTR_OFFSET;
 
   int unmappedColLen = inner_dim - eff_inner_dim;

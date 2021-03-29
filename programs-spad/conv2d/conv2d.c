@@ -181,6 +181,29 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
 }
 
 
+void __attribute__((optimize("-fno-inline"))) conv2d(
+    DTYPE *a, DTYPE *b,
+    int ptid, int pdim, int vtid_x, int vtid_y, int vdim_x, int vdim_y, 
+    int NI, int NJ, int start, int end, int mapped_len,
+    int mask, int used, DTYPE *p_sp_ptr, DTYPE *n_sp_ptr 
+  ) {
+
+  #ifdef USE_VEC
+  // do computation that we can map
+  if (used)
+    tril_conv2d(mask, a, b, start, end, NJ, mapped_len, 
+      ptid, vtid_x, vtid_y, vdim_x, vdim_y, p_sp_ptr, n_sp_ptr);
+
+  // do remainder of computation starting from offset
+  conv2d_manycore(a, b, NI, NJ, mapped_len + 1, ptid, pdim);
+  #else
+  conv2d_manycore(a, b, NI, NJ, 1, ptid, pdim);
+  #endif
+
+
+}
+
+
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *b, int NI, int NJ,
     int ptid_x, int ptid_y, int pdim_x, int pdim_y) {
@@ -293,17 +316,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // move stack onto scratchpad for faster local access than default on DRAM
   MOVE_STACK_ONTO_SCRATCHPAD();
 
-  #ifdef USE_VEC
-  // do computation that we can map
-  if (used)
-    tril_conv2d(mask, a, b, start, end, NJ, mapped_len, 
-      ptid, vtid_x, vtid_y, vdim_x, vdim_y, p_sp_ptr, n_sp_ptr);
-
-  // do remainder of computation starting from offset
-  conv2d_manycore(a, b, NI, NJ, mapped_len + 1, ptid, pdim);
-  #else
-  conv2d_manycore(a, b, NI, NJ, 1, ptid, pdim);
-  #endif
+  conv2d(a, b, ptid, pdim, vtid_x, vtid_y, vdim_x, vdim_y, 
+    NI, NJ, start, end, mapped_len, mask, used,
+    p_sp_ptr, n_sp_ptr 
+  );
 
   // restore stack pointer to DRAM
   RECOVER_DRAM_STACK();
