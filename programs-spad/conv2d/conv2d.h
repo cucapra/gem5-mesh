@@ -77,11 +77,16 @@
   #define LOAD_DEPTH 3
   // (CACHE_LINE_SIZE / sizeof(DTYPE) / VECTOR_LEN / 2)
   #define CORE_STEP (LOAD_DEPTH)
-  #define C_STRIDE (CORE_STEP*VECTOR_LEN- (FILTER_DIM-1))
+  #define C_STRIDE (CORE_STEP*VECTOR_LEN - (FILTER_DIM-1))
+  #define OUT_PTR_OFFSET (1)
+  #define CENTER_ITERS (CORE_STEP - 2)
+  #define LOAD_DEPTH_M1 (LOAD_DEPTH - 1)
 #else
   #define LOAD_DEPTH 8
   #define CORE_STEP (LOAD_DEPTH - (FILTER_DIM - 1))
   #define C_STRIDE (CORE_STEP*VECTOR_LEN)
+  #define OUT_PTR_OFFSET (0)
+  #define CENTER_ITERS (CORE_STEP)
 #endif
 
 #define REGION_SIZE (LOAD_DEPTH*FILTER_DIM)

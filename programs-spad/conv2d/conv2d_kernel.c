@@ -58,12 +58,7 @@ void tril_conv2d(int mask,
   int startOffset = vtid * CORE_STEP;
 
   DTYPE *bPtr = b + outer_start * inner_dim + startOffset;
-  #ifdef LONGLINES
-  // int colOffset = 0;
-  // int endColOffset = 1 + eff_inner_dim - C_STRIDE;
-  #else
-  bPtr += 1;
-  #endif
+  bPtr -= OUT_PTR_OFFSET;
 
   int unmappedColLen = inner_dim - eff_inner_dim;
 
@@ -108,67 +103,64 @@ void tril_conv2d(int mask,
 
       FRAME_START(REGION_SIZE);
 
-      #ifdef LONGLINES
-      // volatile int ohjeez = 1;
-      // note we need to unroll in order to get cPtr indexing to work b/c it goes +1 +1 +3*dim
-      // potentially can move routine into a function call?
-      // also could access an indirection array that gives and then have counter mod 3
-      // or could even have 3 seperate issue block
-
-      // center computation with local values
-      // important to put non-predicated first so any shared values between pred blocks
-      // are not masked out... really need compiler help on this
-      DTYPE out_m = CONV_3x3(
-        sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
-        sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
-        sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8]
-      );
-      FSTORE_NOACK(out_m, bPtr + 1, 0);
-
-      // FSTORE_NOACK(out_m, bPtr, 0);
-      // FSTORE_NOACK(out_m, bPtr + 2, 0);
-
-      // fetch one column from the left to perform leftmost computation
-      // int isFirstCol = (vtid == 0) && (colOffset = 0);
-      PRED_NEQ(vtid, 0);
-      // if (ohjeez) {
-      DTYPE out_l = CONV_3x3(
-        p_sp_ptr[sp + 2], sp_ptr[sp + 0], sp_ptr[sp + 1],
-        p_sp_ptr[sp + 5], sp_ptr[sp + 3], sp_ptr[sp + 4],
-        p_sp_ptr[sp + 8], sp_ptr[sp + 6], sp_ptr[sp + 7]
-      );
-      FSTORE_NOACK(out_l, bPtr, 0);
-      // }
-      PRED_EQ(vtid, vtid);
-
-      // fetch one column from the right to perform rightmost computation
-      // int isLastCol = (vtid == VECTOR_LEN - 1) && 
-      //   (colOffset == endColOffset);
-      PRED_NEQ(vtid, VECTOR_LEN - 1); // last core in group can't do this
-      // if (ohjeez) { 
-      DTYPE out_r = CONV_3x3(
-        sp_ptr[sp + 1], sp_ptr[sp + 2], n_sp_ptr[sp + 0],
-        sp_ptr[sp + 4], sp_ptr[sp + 5], n_sp_ptr[sp + 3],
-        sp_ptr[sp + 7], sp_ptr[sp + 8], n_sp_ptr[sp + 6]
-      );
-      FSTORE_NOACK(out_r, bPtr + 2, 0);
-      // }
-      PRED_EQ(vtid, vtid);
-
-      #else
+      int sp0 = sp;
+      int sp1 = sp0 + LOAD_DEPTH;
+      int sp2 = sp1 + LOAD_DEPTH;
 
       #pragma GCC unroll(14)
-      for (int i = 0; i < CORE_STEP; i++) {
-        int sp0 = sp + i;
-        int sp1 = sp0 + LOAD_DEPTH;
-        int sp2 = sp1 + LOAD_DEPTH;
+      for (int i = 0; i < CENTER_ITERS; i++) {
+        int sp0i = sp0 + i;
+        int sp1i = sp1 + i;
+        int sp2i = sp2 + i;
+
         DTYPE out = CONV_3x3(
-          sp_ptr[sp0 + 0], sp_ptr[sp0 + 1], sp_ptr[sp0 + 2],
-          sp_ptr[sp1 + 0], sp_ptr[sp1 + 1], sp_ptr[sp1 + 2],
-          sp_ptr[sp2 + 0], sp_ptr[sp2 + 1], sp_ptr[sp2 + 2]
+          sp_ptr[sp0i + 0], sp_ptr[sp0i + 1], sp_ptr[sp0i + 2],
+          sp_ptr[sp1i + 0], sp_ptr[sp1i + 1], sp_ptr[sp1i + 2],
+          sp_ptr[sp2i + 0], sp_ptr[sp2i + 1], sp_ptr[sp2i + 2]
         );
-        FSTORE_NOACK(out, bPtr + i, 0);
+        FSTORE_NOACK(out, bPtr + OUT_PTR_OFFSET + i, 0);
       }
+
+      #ifdef LONGLINES
+
+      // // fetch one column from the left to perform leftmost computation
+      // volatile int ohjeez = 1;
+      // if (ohjeez) { 
+      // PRED_NEQ(vtid, 0);
+      // // if (ohjeez) {
+
+      // // prev vals at end of fetch for each row
+      // int p_sp0 = sp0 + LOAD_DEPTH_M1;
+      // int p_sp1 = sp1 + LOAD_DEPTH_M1;
+      // int p_sp2 = sp2 + LOAD_DEPTH_M1;
+
+      // DTYPE out_l = CONV_3x3(
+      //   p_sp_ptr[p_sp0], sp_ptr[sp0 + 0], sp_ptr[sp0 + 1],
+      //   p_sp_ptr[p_sp1], sp_ptr[sp1 + 0], sp_ptr[sp1 + 1],
+      //   p_sp_ptr[p_sp2], sp_ptr[sp2 + 0], sp_ptr[sp2 + 1]
+      // );
+      // FSTORE_NOACK(out_l, bPtr, 0);
+      // PRED_EQ(vtid, vtid);
+      // }
+
+      // // fetch one column from the right to perform rightmost computation
+      // if (ohjeez) { 
+      // PRED_NEQ(vtid, VECTOR_LEN - 1); // last core in group can't do this
+   
+
+      // // use end vals
+      // int e_sp0 = sp0 + LOAD_DEPTH_M1 - 1;
+      // int e_sp1 = sp1 + LOAD_DEPTH_M1 - 1;
+      // int e_sp2 = sp2 + LOAD_DEPTH_M1 - 1;
+
+      // DTYPE out_r = CONV_3x3(
+      //   sp_ptr[e_sp0 + 0], sp_ptr[e_sp0 + 1], n_sp_ptr[sp0 + 0],
+      //   sp_ptr[e_sp1 + 0], sp_ptr[e_sp1 + 1], n_sp_ptr[sp1 + 0],
+      //   sp_ptr[e_sp2 + 0], sp_ptr[e_sp2 + 1], n_sp_ptr[sp2 + 0]
+      // );
+      // FSTORE_NOACK(out_r, bPtr + LOAD_DEPTH_M1, 0);
+      // PRED_EQ(vtid, vtid);
+      // }
 
       #endif
 
