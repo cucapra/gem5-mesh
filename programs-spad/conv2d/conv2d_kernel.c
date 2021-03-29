@@ -130,8 +130,8 @@ void tril_conv2d(int mask,
       #ifdef LONGLINES
 
       // fetch one column from the left to perform leftmost computation
-      volatile int ohjeez = 1;
-      if (ohjeez) { 
+
+      // if (ohjeez) { 
       PRED_NEQ(vtid, 0);
       // if (ohjeez) {
 
@@ -147,10 +147,11 @@ void tril_conv2d(int mask,
       );
       FSTORE_NOACK(out_l, bPtr, 0);
       PRED_EQ(vtid, vtid);
-      }
+      // }
 
       // fetch one column from the right to perform rightmost computation
-      if (ohjeez) { 
+            // volatile int ohjeez = 1;
+      // if (ohjeez) { 
       PRED_NEQ(vtid, VECTOR_LEN - 1); // last core in group can't do this
    
 
@@ -166,7 +167,7 @@ void tril_conv2d(int mask,
       );
       FSTORE_NOACK(out_r, bPtr + LOAD_DEPTH_M1, 0);
       PRED_EQ(vtid, vtid);
-      }
+      // }
 
       #endif
 
