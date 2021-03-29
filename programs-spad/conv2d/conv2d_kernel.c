@@ -69,6 +69,9 @@ void tril_conv2d(int mask,
 
   #ifdef SCALAR_CORE
   for (int r = outer_start; r < outer_end; r++) {
+
+    ISSUE_VINST(vec_body_init_label);
+
     // initial warmup
     for (int c = 1; c < 1 + beginCol; c+=C_STRIDE) {
 
@@ -98,6 +101,9 @@ void tril_conv2d(int mask,
   volatile int BH;
   volatile int BHO;
   do {
+    asm("trillium vissue_delim until_next vec_body_init");
+    // b.c might put things here!
+
     do {
     asm("trillium vissue_delim if_begin vec_body");
 
@@ -202,6 +208,9 @@ void tril_conv2d(int mask,
 #ifdef SCALAR_CORE
 init_label:
   asm("trillium glue_point vector_init");
+exit(1);
+vec_body_init_label:
+  asm("trillium glue_point vec_body_init");
 exit(1);
 vec_body_label:
   asm("trillium glue_point vec_body");
