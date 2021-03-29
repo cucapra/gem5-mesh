@@ -1381,25 +1381,27 @@ bool Scratchpad::canHandleRemoteReq(Packet *pkt_p) {
   // now checking remote loads/stores to regions
   
   // make sure reading a closed frame
-  if (pkt_p->isRead()) {
-    bool ret = !isRegionBeingFilled(pkt_p->getAddr());
-      //TODO: Will fail if remote access to past region and prefetching going on, but then again accessing into past region is faulty
-    if (!ret) {
-      DPRINTF(Frame, "remote read into a region not ready (not cool bro) %s\n", pkt_p->print());
-    }
-    return ret;
-  }
+  // if (pkt_p->isRead()) {
+  //   bool ret = !isRegionBeingFilled(pkt_p->getAddr());
+  //     //TODO: Will fail if remote access to past region and prefetching going on, but then again accessing into past region is faulty
+  //   if (!ret) {
+  //     DPRINTF(Frame, "remote read into a region not ready (not cool bro) %s\n", pkt_p->print());
+  //   }
+  //   return ret;
+  // }
   // make sure not overwriting a current consumer frame
-  else if (pkt_p->isWrite()) {
+  if (pkt_p->isWrite()) {
     bool ret = !isPrefetchAhead(pkt_p->getAddr());
     if (!ret) {
       DPRINTF(Frame, "remote write to an unavailable region %s\n", pkt_p->print());
     }
     return ret;
   }
-  else {
-    assert(false);
-  }
+  // else {
+  //   assert(false);
+  // }
+
+  return true;
 }
 
 
