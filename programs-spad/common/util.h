@@ -1,6 +1,15 @@
 #ifndef __VECTOR_UTIL_H__
 #define __VECTOR_UTIL_H__
 
+// grid dim xy assuming always a square
+#if _N_SPS==16
+#define GRID_XDIM 4
+#define GRID_YDIM 4
+#elif _N_SPS==64
+#define GRID_XDIM 8
+#define GRID_YDIM 8
+#endif
+
 int roundUp(int numToRound, int multiple);
 inline int min(int a, int b) {
   if (a > b) {

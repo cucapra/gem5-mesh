@@ -37,34 +37,12 @@
 
 void tril_conv2d(int mask,
     DTYPE *a, DTYPE *b, int outer_start, int outer_end, int inner_dim, int eff_inner_dim,
-    int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y,
-    DTYPE *p_sp_ptr, DTYPE *n_sp_ptr) {
+    int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y, DTYPE *p_sp_ptr, DTYPE *n_sp_ptr) {
 
   #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
-
-  int dim = vdim_x * vdim_y;
-
-  #ifdef REUSE
-  int step = dim*FILTER_DIM - (FILTER_DIM - 1);
-  #elif defined(VERTICAL_LOADS)
-  int step = CORE_STEP*dim;
-  #else
-  int step = dim;
-  #endif
-
-  int unroll_step = step;
-  #ifdef UNROLL
-  unroll_step = step * UNROLL;
-  #endif
-
-
-  //   int unmappedColLen = inner_dim - eff_inner_dim;
-  // printf("%d %d %d %d %d\n", outer_start, outer_end, inner_dim, eff_inner_dim,
-  //   unmappedColLen);
-
-  // should be a constant from static analysis of dim
-  int pRatio = VECTOR_LEN / PREFETCH_LEN;
+  int sp = 0;
+  int beginCol = min(INIT_FRAMES * C_STRIDE, eff_inner_dim);
 
   ISSUE_VINST(init_label);
 
@@ -77,24 +55,16 @@ void tril_conv2d(int mask,
 	DEF_WEIGHTS();
 
   int vtid = vtid_x + vtid_y * vdim_x;
-  int dim = vdim_x * vdim_y;
+  int startOffset = vtid * CORE_STEP;
 
-
-  #ifdef REUSE
-  int step = dim*FILTER_DIM - (FILTER_DIM - 1);
-  #elif defined(VERTICAL_LOADS)
-  int step = CORE_STEP*dim;
+  DTYPE *bPtr = b + outer_start * inner_dim + startOffset;
+  #ifdef LONGLINES
+  // int colOffset = 0;
+  // int endColOffset = 1 + eff_inner_dim - C_STRIDE;
   #else
-  int step = dim;
+  bPtr += 1;
   #endif
 
-  #ifdef REUSE
-  int startOffset = vtid * FILTER_DIM - 1;
-  #else
-  int startOffset = vtid * (step/dim);
-  #endif
-
-  DTYPE *bPtr = b + outer_start * inner_dim + startOffset + 1;
   int unmappedColLen = inner_dim - eff_inner_dim;
 
 
@@ -103,56 +73,25 @@ void tril_conv2d(int mask,
   #endif
 
   #ifdef SCALAR_CORE
-  int sp = 0;
-  int beginCol = min(INIT_FRAMES * unroll_step, eff_inner_dim);
-
   for (int r = outer_start; r < outer_end; r++) {
     // initial warmup
-    for (int c = 1; c < 1 + beginCol; c+=unroll_step) {
-      #ifdef UNROLL
-      for (int c0 = 0; c0 < UNROLL; c0++) {
-        int cIdx = c + c0 * step;
-      #else
-        int cIdx = c;
-      #endif
+    for (int c = 1; c < 1 + beginCol; c+=C_STRIDE) {
 
-      #ifdef VERTICAL_LOADS
       // exhibit temporal reuse within a frame in a cacheline (16) can do 16-2=14 3x1 filters
       // TODO spatial should also do reuse maybe between frames (by putting in temporal storage). 
       // But maybe can't do memory layout restrictions
-      prefetch_vert_frame(a, r, cIdx, inner_dim, dim, &sp);
-      #else
-      prefetch_horiz_frame(a, r, cIdx, inner_dim, pRatio, &sp);
-      #endif
+      prefetch_vert_frame(a, r, c, inner_dim, VECTOR_LEN, &sp);
 
-      #ifdef UNROLL
-      }
-      #endif
     }
 
     // steady state
-    for (int c = 1 + beginCol; c < 1 + eff_inner_dim; c+=unroll_step) {
-      #ifdef UNROLL
-      for (int c0 = 0; c0 < UNROLL; c0++) {
-        int cIdx = c + c0 * step;
-      #else
-        int cIdx = c;
-      #endif
-
-      #ifdef VERTICAL_LOADS
-      prefetch_vert_frame(a, r, cIdx, inner_dim, dim, &sp);
-      #else
-      prefetch_horiz_frame(a, r, cIdx, inner_dim, pRatio, &sp);
-      #endif
-
-      #ifdef UNROLL
-      }
-      #endif
+    for (int c = 1 + beginCol; c < 1 + eff_inner_dim; c+=C_STRIDE) {
+      prefetch_vert_frame(a, r, c, inner_dim, VECTOR_LEN, &sp);
       ISSUE_VINST(vec_body_label);
     }
 
     // cooldown
-    for (int c = 1 + eff_inner_dim - beginCol; c < 1 + eff_inner_dim; c+=unroll_step) {
+    for (int c = 1 + eff_inner_dim - beginCol; c < 1 + eff_inner_dim; c+=C_STRIDE) {
       ISSUE_VINST(vec_body_label);
     }
 
@@ -167,9 +106,9 @@ void tril_conv2d(int mask,
     do {
     asm("trillium vissue_delim if_begin vec_body");
 
-      FRAME_START();
+      FRAME_START(REGION_SIZE);
 
-      #ifdef REUSE
+      #ifdef LONGLINES
       // volatile int ohjeez = 1;
       // note we need to unroll in order to get cPtr indexing to work b/c it goes +1 +1 +3*dim
       // potentially can move routine into a function call?
@@ -184,9 +123,13 @@ void tril_conv2d(int mask,
         sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
         sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8]
       );
-      STORE_NOACK(out_m, bPtr + 1, 0);
+      FSTORE_NOACK(out_m, bPtr + 1, 0);
+
+      // FSTORE_NOACK(out_m, bPtr, 0);
+      // FSTORE_NOACK(out_m, bPtr + 2, 0);
 
       // fetch one column from the left to perform leftmost computation
+      // int isFirstCol = (vtid == 0) && (colOffset = 0);
       PRED_NEQ(vtid, 0);
       // if (ohjeez) {
       DTYPE out_l = CONV_3x3(
@@ -194,28 +137,26 @@ void tril_conv2d(int mask,
         p_sp_ptr[sp + 5], sp_ptr[sp + 3], sp_ptr[sp + 4],
         p_sp_ptr[sp + 8], sp_ptr[sp + 6], sp_ptr[sp + 7]
       );
-      STORE_NOACK(out_l, bPtr, 0);
+      FSTORE_NOACK(out_l, bPtr, 0);
       // }
       PRED_EQ(vtid, vtid);
 
       // fetch one column from the right to perform rightmost computation
-      PRED_NEQ(vtid, dim - 1); // last core in group can't do this
+      // int isLastCol = (vtid == VECTOR_LEN - 1) && 
+      //   (colOffset == endColOffset);
+      PRED_NEQ(vtid, VECTOR_LEN - 1); // last core in group can't do this
       // if (ohjeez) { 
       DTYPE out_r = CONV_3x3(
         sp_ptr[sp + 1], sp_ptr[sp + 2], n_sp_ptr[sp + 0],
         sp_ptr[sp + 4], sp_ptr[sp + 5], n_sp_ptr[sp + 3],
         sp_ptr[sp + 7], sp_ptr[sp + 8], n_sp_ptr[sp + 6]
       );
-      STORE_NOACK(out_r, bPtr + 2, 0);
+      FSTORE_NOACK(out_r, bPtr + 2, 0);
       // }
       PRED_EQ(vtid, vtid);
 
-      END_FRAME();
+      #else
 
-      // 10 results are computed per reuse iteration
-      bPtr += step;
-
-      #elif defined(VERTICAL_LOADS)
       #pragma GCC unroll(14)
       for (int i = 0; i < CORE_STEP; i++) {
         int sp0 = sp + i;
@@ -226,41 +167,17 @@ void tril_conv2d(int mask,
           sp_ptr[sp1 + 0], sp_ptr[sp1 + 1], sp_ptr[sp1 + 2],
           sp_ptr[sp2 + 0], sp_ptr[sp2 + 1], sp_ptr[sp2 + 2]
         );
-        STORE_NOACK(out, bPtr + i, 0);
+        FSTORE_NOACK(out, bPtr + i, 0);
       }
-      END_FRAME();
 
-      bPtr += step;
-      #else
-      int o = 0;
-      #ifdef UNROLL
-      #pragma GCC unroll(4)
-      for (int c0 = 0; c0 < UNROLL; c0++) {
-        o = c0 * FILTER_DIM * FILTER_DIM;
       #endif
 
-      DTYPE out = CONV_3x3(
-        sp_ptr[sp + 0 + o], sp_ptr[sp + 1 + o], sp_ptr[sp + 2 + o],
-        sp_ptr[sp + 3 + o], sp_ptr[sp + 4 + o], sp_ptr[sp + 5 + o],
-        sp_ptr[sp + 6 + o], sp_ptr[sp + 7 + o], sp_ptr[sp + 8 + o]
-      );
-
-      #ifndef UNROLL
-      END_FRAME();
-      #endif
-
-      STORE_NOACK(out, bPtr, 0);
-      bPtr += dim;
-
-      #ifdef UNROLL
-      }
-      END_FRAME();
-      #endif
-      #endif
-
+      bPtr += C_STRIDE;
+     
       sp += REGION_SIZE;
       sp = sp % POST_REGION_WORD; // not a power of 2 --> if cheaper than mod?
       // if (sp == POST_REGION_WORD) sp = 0;
+      END_FRAME();
       asm("trillium vissue_delim end at_jump");
     } while (BH);
 

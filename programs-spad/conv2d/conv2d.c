@@ -113,7 +113,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
         a[(i + 0)*NJ + (j - 1)], a[(i + 0)*NJ + (j + 0)], a[(i + 0)*NJ + (j + 1)],
         a[(i + 1)*NJ + (j - 1)], a[(i + 1)*NJ + (j + 0)], a[(i + 1)*NJ + (j + 1)]
       );
-      STORE_NOACK(out, &b[i*NJ + j], 0);
+      FSTORE_NOACK(out, &b[i*NJ + j], 0);
     }
   }
   #elif defined(MANYCORE_PREFETCH)
@@ -128,7 +128,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
     for (int c = inner_start; c < cEnd; c+=CORE_STEP) {
       prefetch_vert_frame(a, r, c, inner_dim, 1, &sp);
 
-      FRAME_START();
+      FRAME_START(REGION_SIZE);
       // not actually 14iters, but like 6
       #pragma GCC unroll(14)
       for (int i = 0; i < CORE_STEP; i++) {
@@ -140,7 +140,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
           sp_ptr[sp1 + 0], sp_ptr[sp1 + 1], sp_ptr[sp1 + 2],
           sp_ptr[sp2 + 0], sp_ptr[sp2 + 1], sp_ptr[sp2 + 2]
         );
-        STORE_NOACK(out, &b[r*NJ + c + i], 0);
+        FSTORE_NOACK(out, &b[r*NJ + c + i], 0);
       }
       END_FRAME();
       sp += REGION_SIZE;
@@ -173,11 +173,11 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
         a[(i + 0)*NJ + (j - 1)], a[(i + 0)*NJ + (j + 0)], a[(i + 0)*NJ + (j + 1)],
         a[(i + 1)*NJ + (j - 1)], a[(i + 1)*NJ + (j + 0)], a[(i + 1)*NJ + (j + 1)]
       );
-      STORE_NOACK(out, &b[i*NJ + j], 0);
+      FSTORE_NOACK(out, &b[i*NJ + j], 0);
     }
   }
   #endif
-  asm volatile("fence\n\t");
+  FENCE();
 }
 
 
@@ -190,91 +190,32 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     stats_on();
   }
 
-  // linearize tid and dim
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
+  #if VECTOR_LEN==4
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
+  #elif VECTOR_LEN==16
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
+  #else
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
+  #endif
 
-  // split into physical and virtual tids + dim
-  int vtid_x = 0;
-  int vtid_y = 0;
-  int vtid   = 0;
-  int vdim_x = 0;
-  int vdim_y = 0;
-  int vdim   = 0;
-  int unique_id = 0;
-  int total_groups = 0;
-  int used = 0;
   int start = 0;
   int end = 0;
-
-  // group construction
   #ifdef USE_VEC
-
-  #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
-  #elif VECTOR_LEN==16
-  template_info_t tinfo = init_template_8x8_4x4();
-  #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
-
-  vtid = cinfo.vtid;
-  vtid_x = cinfo.vtid_x;
-  vtid_y = cinfo.vtid_y;
-  vdim_x = cinfo.vdim_x;
-  vdim_y = cinfo.vdim_y;
-  unique_id = cinfo.unique_id;
-  total_groups = cinfo.total_groups;
-  used = cinfo.used;
-
   if (used) {
     start = 1 + ( (unique_id + 0) * (NI-2) ) / total_groups;
     end   = 1 + ( (unique_id + 1) * (NI-2) ) / total_groups;
   }
-
-  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, 16, vdim_x, vdim_y, start, end, used); 
-
-  #elif !defined(USE_VEC)
-
-  vdim_x = 1;
-  vdim_y = 1;
-  vtid_x = 0;
-  vtid_y = 0;
-  vtid   = 0;
-  // start  = ( ( ptid + 0 ) * NI ) / pdim;
-  // end    = ( ( ptid + 1 ) * NI ) / pdim;
-
-  // printf("%d->%d\n", start, end); 
-
   #endif
-
-  // linearize some fields
-  vdim = vdim_x * vdim_y;
-
-  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
   #ifdef NUM_REGIONS
-  #ifdef MANYCORE_PREFETCH
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
-  int mask = getDebugMask(&cinfo);
-  VECTOR_EPOCH(mask);
-  #else
-  int mask = getSIMDMask(&cinfo);
-  #endif
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   #endif
 
   // each vector group size is rated to do a certain problem size and multiples of that problem size
   // for the mod of this we need to do the rest on the flexible manycore version
   int rated_size = 0;
-  #ifdef REUSE
-  rated_size = ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1) );
-  #elif defined(VERTICAL_LOADS)
-  rated_size = ( VECTOR_LEN * CORE_STEP );
-  #elif defined(UNROLL)
-  rated_size = ( VECTOR_LEN * UNROLL );
-  #elif defined(VECTOR_LEN)
-  rated_size = ( VECTOR_LEN );
+  #ifdef USE_VEC
+  rated_size = C_STRIDE;
   #else
   rated_size = 1;
   #endif
@@ -288,9 +229,11 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // unmapped_len -= (FILTER_DIM-1);
 
   // TODO better way to do this for arbitrary groups
+  // TODO get snaking pattern from the reduction tried to do on syrk
   DTYPE *p_sp_ptr = NULL;
   DTYPE *n_sp_ptr = NULL;
-  #ifdef REUSE
+  #ifdef LONGLINES
+  
   // calculate prev and next spAddr for reuse
   if (vtid != 0) {
     if (vtid_x == 0) 
@@ -304,7 +247,46 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     else 
       n_sp_ptr = (DTYPE*)getSpAddr(ptid + 1, 0);
   }
+
+  // do a weird traversal
+  // - - - - >
+  // ^ |  ^  |
+  // | |  |  |
+  // | v  |  v
+
+  // int next_ptid_x = ptid_x;
+  // int next_ptid_y = ptid_y;
+  // int prev_ptid_x = ptid_x;
+  // int prev_ptid_y = ptid_y;
+
+  // #if VECTOR_LEN==4
+  // if (vtid == 0) {
+  //   next_ptid_x++;
+  //   prev_ptid_y++;
+  // }
+  // else if (vtid == 1)  {
+  //   prev_ptid_x--;
+  //   next_ptid_y++;
+  // }
+  // else if (vtid == 3) {
+  //   prev_ptid_y--;
+  //   next_ptid_x--;
+  // }
+  // else {
+  //   next_ptid_y--;
+  //   prev_ptid_x++;
+  // }
+  // #elif VECTOR_LEN==16
+
+  // #endif
+
+  // int prev_ptid = prev_ptid_x + prev_ptid_y * pdim_x;
+  // p_sp_ptr = (DTYPE*)getSpAddr(prev_ptid, 0);
+
+  // int next_ptid = next_ptid_x + next_ptid_y * pdim_x;
+  // n_sp_ptr = (DTYPE*)getSpAddr(next_ptid, 0);
   #endif
+
 
   // printf("%d %xd\n", mapped_len, unmapped_len);
 
@@ -359,7 +341,8 @@ void *pthread_kernel(void *args) {
   kernel(a->a, a->b, a->NI, a->NJ,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-  pthread_barrier_wait(&start_barrier);
+  // reset scratchpad config
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
 
   if (a->tid_x == 0 && a->tid_y == 0) {
     stats_off();
