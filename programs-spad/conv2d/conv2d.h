@@ -74,7 +74,7 @@
 #endif
 
 #ifdef LONGLINES
-  #define LOAD_DEPTH 3
+  #define LOAD_DEPTH 8
   // (CACHE_LINE_SIZE / sizeof(DTYPE) / VECTOR_LEN / 2)
   #define CORE_STEP (LOAD_DEPTH)
   #define C_STRIDE (CORE_STEP*VECTOR_LEN - (FILTER_DIM-1))

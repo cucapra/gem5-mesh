@@ -129,44 +129,44 @@ void tril_conv2d(int mask,
 
       #ifdef LONGLINES
 
-      // // fetch one column from the left to perform leftmost computation
-      // volatile int ohjeez = 1;
-      // if (ohjeez) { 
-      // PRED_NEQ(vtid, 0);
-      // // if (ohjeez) {
+      // fetch one column from the left to perform leftmost computation
+      volatile int ohjeez = 1;
+      if (ohjeez) { 
+      PRED_NEQ(vtid, 0);
+      // if (ohjeez) {
 
-      // // prev vals at end of fetch for each row
-      // int p_sp0 = sp0 + LOAD_DEPTH_M1;
-      // int p_sp1 = sp1 + LOAD_DEPTH_M1;
-      // int p_sp2 = sp2 + LOAD_DEPTH_M1;
+      // prev vals at end of fetch for each row
+      int p_sp0 = sp0 + LOAD_DEPTH_M1;
+      int p_sp1 = sp1 + LOAD_DEPTH_M1;
+      int p_sp2 = sp2 + LOAD_DEPTH_M1;
 
-      // DTYPE out_l = CONV_3x3(
-      //   p_sp_ptr[p_sp0], sp_ptr[sp0 + 0], sp_ptr[sp0 + 1],
-      //   p_sp_ptr[p_sp1], sp_ptr[sp1 + 0], sp_ptr[sp1 + 1],
-      //   p_sp_ptr[p_sp2], sp_ptr[sp2 + 0], sp_ptr[sp2 + 1]
-      // );
-      // FSTORE_NOACK(out_l, bPtr, 0);
-      // PRED_EQ(vtid, vtid);
-      // }
+      DTYPE out_l = CONV_3x3(
+        p_sp_ptr[p_sp0], sp_ptr[sp0 + 0], sp_ptr[sp0 + 1],
+        p_sp_ptr[p_sp1], sp_ptr[sp1 + 0], sp_ptr[sp1 + 1],
+        p_sp_ptr[p_sp2], sp_ptr[sp2 + 0], sp_ptr[sp2 + 1]
+      );
+      FSTORE_NOACK(out_l, bPtr, 0);
+      PRED_EQ(vtid, vtid);
+      }
 
-      // // fetch one column from the right to perform rightmost computation
-      // if (ohjeez) { 
-      // PRED_NEQ(vtid, VECTOR_LEN - 1); // last core in group can't do this
+      // fetch one column from the right to perform rightmost computation
+      if (ohjeez) { 
+      PRED_NEQ(vtid, VECTOR_LEN - 1); // last core in group can't do this
    
 
-      // // use end vals
-      // int e_sp0 = sp0 + LOAD_DEPTH_M1 - 1;
-      // int e_sp1 = sp1 + LOAD_DEPTH_M1 - 1;
-      // int e_sp2 = sp2 + LOAD_DEPTH_M1 - 1;
+      // use end vals
+      int e_sp0 = sp0 + LOAD_DEPTH_M1 - 1;
+      int e_sp1 = sp1 + LOAD_DEPTH_M1 - 1;
+      int e_sp2 = sp2 + LOAD_DEPTH_M1 - 1;
 
-      // DTYPE out_r = CONV_3x3(
-      //   sp_ptr[e_sp0 + 0], sp_ptr[e_sp0 + 1], n_sp_ptr[sp0 + 0],
-      //   sp_ptr[e_sp1 + 0], sp_ptr[e_sp1 + 1], n_sp_ptr[sp1 + 0],
-      //   sp_ptr[e_sp2 + 0], sp_ptr[e_sp2 + 1], n_sp_ptr[sp2 + 0]
-      // );
-      // FSTORE_NOACK(out_r, bPtr + LOAD_DEPTH_M1, 0);
-      // PRED_EQ(vtid, vtid);
-      // }
+      DTYPE out_r = CONV_3x3(
+        sp_ptr[e_sp0 + 0], sp_ptr[e_sp0 + 1], n_sp_ptr[sp0 + 0],
+        sp_ptr[e_sp1 + 0], sp_ptr[e_sp1 + 1], n_sp_ptr[sp1 + 0],
+        sp_ptr[e_sp2 + 0], sp_ptr[e_sp2 + 1], n_sp_ptr[sp2 + 0]
+      );
+      FSTORE_NOACK(out_r, bPtr + LOAD_DEPTH_M1, 0);
+      PRED_EQ(vtid, vtid);
+      }
 
       #endif
 
