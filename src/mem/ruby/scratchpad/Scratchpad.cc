@@ -847,10 +847,12 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
       }
     }
 
-    // // can fill own frame i guess
-    // if (isRegionAccess(pkt_p) && pkt_p->isWrite()) {
-    //   setWordRdy(pkt_p->getAddr());
-    // }
+    // can fill own frame i guess (useful to avoid predication)
+    // if want to save data to own scratchpad normally probably shouldnt use
+    // frame memory, use another section
+    if (isRegionAccess(pkt_p) && pkt_p->isWrite()) {
+      setWordRdy(pkt_p->getAddr());
+    }
     
     // TODO stats might be incorrect with these stalls
     // should move into accessDataArray rather than keep out here
