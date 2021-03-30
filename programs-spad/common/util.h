@@ -10,6 +10,12 @@
 #define GRID_YDIM 8
 #endif
 
+// define hardware vector length of vector alus
+// allows compiler to optimize more, if do this instead of length agnostic style
+#ifndef HARDWARE_VECTOR_LEN
+#define HARDWARE_VECTOR_LEN (8)
+#endif
+
 int roundUp(int numToRound, int multiple);
 inline int min(int a, int b) {
   if (a > b) {

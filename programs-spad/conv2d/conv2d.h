@@ -62,7 +62,8 @@
 #endif
 
 #ifdef PACKED_SIMD
-#define CORE_STEP (16 - (FILTER_DIM - 1))
+#define CORE_STEP (HARDWARE_VECTOR_LEN - (FILTER_DIM - 1))
+#define C_STRIDE (CORE_STEP)
 #endif
 
 // prefetch sizings

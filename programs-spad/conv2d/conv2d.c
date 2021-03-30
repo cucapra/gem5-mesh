@@ -53,7 +53,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
 
     for (int c = inner_start; c < cEnd; c+=CORE_STEP) {
       // vlen = max, stuff that doesnt fit is done on manycore at end
-      vsetvl_e32m1(16);
+      vsetvl_e32m1(HARDWARE_VECTOR_LEN);
 
       // load 3x16 section of image and produce 14 outputs
       vfloat32m1_t r1 = vle32_v_f32m1(&a[(r - 1)*NJ + (c - 1)]);
@@ -189,10 +189,6 @@ void __attribute__((optimize("-fno-inline"))) conv2d(
   ) {
 
   #ifdef USE_VEC
-  int finalFrameSize = REGION_SIZE + FILTER_DIM;
-  if (vtid != 0 && vtid != VECTOR_LEN-1)
-    finalFrameSize += FILTER_DIM;
-
   // do computation that we can map
   if (used)
     tril_conv2d(mask, a, b, start, end, NJ, mapped_len, 
@@ -241,7 +237,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // each vector group size is rated to do a certain problem size and multiples of that problem size
   // for the mod of this we need to do the rest on the flexible manycore version
   int rated_size = 0;
-  #ifdef USE_VEC
+  #ifdef C_STRIDE
   rated_size = C_STRIDE;
   #else
   rated_size = 1;
