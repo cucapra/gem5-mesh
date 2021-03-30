@@ -641,13 +641,19 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
 
   // vector loads have larger full size, but in some case only a subset will be executed
   // make sure that is considered before detecting a misaligned address fault
+  // fixed register size is 16 (not something that can be changed in python config)
   size_t effReqSize = size;
   if (m_s1_inst->isVector()) {
     // effReqSize = (size / m_cpu_p->getHardwareVectorLength()) * m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
     
     // only make sure one word doesnt go off for vector
     // will automatically split words in scratchpad
-    effReqSize = (size / m_cpu_p->getHardwareVectorLength());
+    // effReqSize = (size / m_cpu_p->getHardwareVectorLength());
+
+    // TODO assume always word sized. above  doesnt work b/c size is hardcoded
+    // and not reflective of hardwareVectorLenght param most of the time
+    effReqSize = sizeof(uint32_t);
+
   }
 
   // check if the request is spanning across two cache lines
