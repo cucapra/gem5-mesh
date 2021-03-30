@@ -37,7 +37,7 @@
 
 void tril_conv2d(int mask,
     DTYPE *a, DTYPE *b, int outer_start, int outer_end, int inner_dim, int eff_inner_dim,
-    int ptid, int vtid_x, int vtid_y, int vdim_x, int vdim_y, DTYPE *p_sp_ptr, DTYPE *n_sp_ptr) {
+    int ptid, int vtid, DTYPE *p_sp_ptr, DTYPE *n_sp_ptr) {
 
   #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
@@ -54,7 +54,6 @@ void tril_conv2d(int mask,
   
 	DEF_WEIGHTS();
 
-  int vtid = vtid_x + vtid_y * vdim_x;
   int startOffset = vtid * CORE_STEP;
 
   DTYPE *bPtr = b + outer_start * inner_dim + startOffset + 1;
@@ -62,9 +61,9 @@ void tril_conv2d(int mask,
 
   int unmappedColLen = inner_dim - eff_inner_dim;
 
-
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
   #endif
 
   #ifdef SCALAR_CORE
@@ -106,12 +105,37 @@ void tril_conv2d(int mask,
 
     do {
     asm("trillium vissue_delim if_begin vec_body");
-
-      FRAME_START(REGION_SIZE);
-
+ 
       int sp0 = sp;
       int sp1 = sp0 + LOAD_DEPTH;
       int sp2 = sp1 + LOAD_DEPTH;
+
+      #ifdef LONGLINES
+
+      // data to send to previous core
+      int first_sp0 = sp0;
+      int first_sp1 = sp1;
+      int first_sp2 = sp2;
+
+      // data to send to next core
+      int last_sp0 = sp0 + LOAD_DEPTH_M1;
+      int last_sp1 = sp1 + LOAD_DEPTH_M1;
+      int last_sp2 = sp2 + LOAD_DEPTH_M1;
+
+      FRAME_START(LOADED_REGION_SIZE);
+
+      // do remote store of useful values to next and prev cores
+      FSTORE_NOACK(sp_ptr[last_sp0 + 0], &n_sp_ptr[sp + SHARED_OFF + 0], 0);
+      FSTORE_NOACK(sp_ptr[last_sp1 + 0], &n_sp_ptr[sp + SHARED_OFF + 1], 0);
+      FSTORE_NOACK(sp_ptr[last_sp2 + 0], &n_sp_ptr[sp + SHARED_OFF + 2], 0);
+
+      FSTORE_NOACK(sp_ptr[first_sp0 + 0], &p_sp_ptr[sp + SHARED_OFF + 0], 0);
+      FSTORE_NOACK(sp_ptr[first_sp1 + 0], &p_sp_ptr[sp + SHARED_OFF + 1], 0);
+      FSTORE_NOACK(sp_ptr[first_sp2 + 0], &p_sp_ptr[sp + SHARED_OFF + 2], 0);
+
+      #else
+      FRAME_START(REGION_SIZE);
+      #endif
 
       #pragma GCC unroll(14)
       for (int i = 0; i < CENTER_ITERS; i++) {
@@ -129,21 +153,32 @@ void tril_conv2d(int mask,
 
       #ifdef LONGLINES
 
+      // wait for shared values to arrive (should hopefully be here already)
+      // this includes prefetched values, so its the whole region size
+      FRAME_START(REGION_SIZE);
+
+
       // fetch one column from the left to perform leftmost computation
 
       // if (ohjeez) { 
       PRED_NEQ(vtid, 0);
       // if (ohjeez) {
 
-      // prev vals at end of fetch for each row
-      int p_sp0 = sp0 + LOAD_DEPTH_M1;
-      int p_sp1 = sp1 + LOAD_DEPTH_M1;
-      int p_sp2 = sp2 + LOAD_DEPTH_M1;
+      // // prev vals at end of fetch for each row
+      // int p_sp0 = sp0 + LOAD_DEPTH_M1;
+      // int p_sp1 = sp1 + LOAD_DEPTH_M1;
+      // int p_sp2 = sp2 + LOAD_DEPTH_M1;
+
+      // DTYPE out_l = CONV_3x3(
+      //   p_sp_ptr[p_sp0], sp_ptr[sp0 + 0], sp_ptr[sp0 + 1],
+      //   p_sp_ptr[p_sp1], sp_ptr[sp1 + 0], sp_ptr[sp1 + 1],
+      //   p_sp_ptr[p_sp2], sp_ptr[sp2 + 0], sp_ptr[sp2 + 1]
+      // );
 
       DTYPE out_l = CONV_3x3(
-        p_sp_ptr[p_sp0], sp_ptr[sp0 + 0], sp_ptr[sp0 + 1],
-        p_sp_ptr[p_sp1], sp_ptr[sp1 + 0], sp_ptr[sp1 + 1],
-        p_sp_ptr[p_sp2], sp_ptr[sp2 + 0], sp_ptr[sp2 + 1]
+        sp_ptr[sp + SHARED_OFF + 0], sp_ptr[sp0 + 0], sp_ptr[sp0 + 1],
+        sp_ptr[sp + SHARED_OFF + 1], sp_ptr[sp1 + 0], sp_ptr[sp1 + 1],
+        sp_ptr[sp + SHARED_OFF + 2], sp_ptr[sp2 + 0], sp_ptr[sp2 + 1]
       );
       FSTORE_NOACK(out_l, bPtr, 0);
       PRED_EQ(vtid, vtid);
@@ -160,14 +195,21 @@ void tril_conv2d(int mask,
       int e_sp1 = sp1 + LOAD_DEPTH_M1 - 1;
       int e_sp2 = sp2 + LOAD_DEPTH_M1 - 1;
 
+      // DTYPE out_r = CONV_3x3(
+      //   sp_ptr[e_sp0 + 0], sp_ptr[e_sp0 + 1], n_sp_ptr[sp0 + 0],
+      //   sp_ptr[e_sp1 + 0], sp_ptr[e_sp1 + 1], n_sp_ptr[sp1 + 0],
+      //   sp_ptr[e_sp2 + 0], sp_ptr[e_sp2 + 1], n_sp_ptr[sp2 + 0]
+      // );
       DTYPE out_r = CONV_3x3(
-        sp_ptr[e_sp0 + 0], sp_ptr[e_sp0 + 1], n_sp_ptr[sp0 + 0],
-        sp_ptr[e_sp1 + 0], sp_ptr[e_sp1 + 1], n_sp_ptr[sp1 + 0],
-        sp_ptr[e_sp2 + 0], sp_ptr[e_sp2 + 1], n_sp_ptr[sp2 + 0]
+        sp_ptr[e_sp0 + 0], sp_ptr[e_sp0 + 1], sp_ptr[sp + SHARED_OFF + 3],
+        sp_ptr[e_sp1 + 0], sp_ptr[e_sp1 + 1], sp_ptr[sp + SHARED_OFF + 4],
+        sp_ptr[e_sp2 + 0], sp_ptr[e_sp2 + 1], sp_ptr[sp + SHARED_OFF + 5]
       );
       FSTORE_NOACK(out_r, bPtr + LOAD_DEPTH_M1, 0);
       PRED_EQ(vtid, vtid);
       // }
+
+      // _0 1 2 3 4 5 6 7_ | _8 9 10 11 12 13 14 15_ | _16 17 18 19 20 21 22 23_ | _24 25 26 27 28 29 30 31 
 
       #endif
 

@@ -183,16 +183,20 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
 
 void __attribute__((optimize("-fno-inline"))) conv2d(
     DTYPE *a, DTYPE *b,
-    int ptid, int pdim, int vtid_x, int vtid_y, int vdim_x, int vdim_y, 
+    int ptid, int pdim, int vtid, 
     int NI, int NJ, int start, int end, int mapped_len,
     int mask, int used, DTYPE *p_sp_ptr, DTYPE *n_sp_ptr 
   ) {
 
   #ifdef USE_VEC
+  int finalFrameSize = REGION_SIZE + FILTER_DIM;
+  if (vtid != 0 && vtid != VECTOR_LEN-1)
+    finalFrameSize += FILTER_DIM;
+
   // do computation that we can map
   if (used)
     tril_conv2d(mask, a, b, start, end, NJ, mapped_len, 
-      ptid, vtid_x, vtid_y, vdim_x, vdim_y, p_sp_ptr, n_sp_ptr);
+      ptid, vtid, p_sp_ptr, n_sp_ptr);
 
   // do remainder of computation starting from offset
   conv2d_manycore(a, b, NI, NJ, mapped_len + 1, ptid, pdim);
@@ -256,58 +260,35 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   DTYPE *p_sp_ptr = NULL;
   DTYPE *n_sp_ptr = NULL;
   #ifdef LONGLINES
-  
   // calculate prev and next spAddr for reuse
   if (vtid != 0) {
     if (vtid_x == 0) 
       p_sp_ptr = (DTYPE*)getSpAddr(ptid - (GRID_XDIM - (vdim_x - 1)), 0);
     else
       p_sp_ptr = (DTYPE*)getSpAddr(ptid - 1, 0);
+
+    // set offset
+    p_sp_ptr += 3;
+  }
+  else {
+    // loopback to self (set as next)
+    p_sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+    p_sp_ptr += 0;
   }
   if (vtid != vdim - 1) {
     if (vtid_x == vdim_x - 1)
       n_sp_ptr = (DTYPE*)getSpAddr(ptid + (GRID_XDIM - (vdim_x - 1)), 0);
     else 
       n_sp_ptr = (DTYPE*)getSpAddr(ptid + 1, 0);
+
+    // set offset 
+    n_sp_ptr += 0;
   }
-
-  // do a weird traversal
-  // - - - - >
-  // ^ |  ^  |
-  // | |  |  |
-  // | v  |  v
-
-  // int next_ptid_x = ptid_x;
-  // int next_ptid_y = ptid_y;
-  // int prev_ptid_x = ptid_x;
-  // int prev_ptid_y = ptid_y;
-
-  // #if VECTOR_LEN==4
-  // if (vtid == 0) {
-  //   next_ptid_x++;
-  //   prev_ptid_y++;
-  // }
-  // else if (vtid == 1)  {
-  //   prev_ptid_x--;
-  //   next_ptid_y++;
-  // }
-  // else if (vtid == 3) {
-  //   prev_ptid_y--;
-  //   next_ptid_x--;
-  // }
-  // else {
-  //   next_ptid_y--;
-  //   prev_ptid_x++;
-  // }
-  // #elif VECTOR_LEN==16
-
-  // #endif
-
-  // int prev_ptid = prev_ptid_x + prev_ptid_y * pdim_x;
-  // p_sp_ptr = (DTYPE*)getSpAddr(prev_ptid, 0);
-
-  // int next_ptid = next_ptid_x + next_ptid_y * pdim_x;
-  // n_sp_ptr = (DTYPE*)getSpAddr(next_ptid, 0);
+  else {
+    // loopback to self (set as prev)
+    n_sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+    n_sp_ptr += 3;
+  }
   #endif
 
 
@@ -316,8 +297,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // move stack onto scratchpad for faster local access than default on DRAM
   MOVE_STACK_ONTO_SCRATCHPAD();
 
-  conv2d(a, b, ptid, pdim, vtid_x, vtid_y, vdim_x, vdim_y, 
-    NI, NJ, start, end, mapped_len, mask, used,
+  conv2d(a, b, ptid, pdim, vtid, NI, NJ, start, end, mapped_len, mask, used,
     p_sp_ptr, n_sp_ptr 
   );
 
