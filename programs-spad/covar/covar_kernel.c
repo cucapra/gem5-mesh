@@ -361,8 +361,43 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
       ISSUE_VINST(vec_body_end_label);
     }
 
-    // depending on linkid might need a lil extra for strided
-    for (int l = 0; l < linkId; l++) {
+    // 0 1 2 3
+
+    // size = 4
+    // linkId 1,2 need extra
+
+    // 0 1 2 3
+    //   1 2 3  (1 extra)
+    //     2 3  (2 extra)
+
+    // granularity 4
+    // 0 1 2 3  (0 extra)
+    //   1 2 3  (1 extra)
+    //     2 3  (2 extra)
+
+    // 0 1 2    (1 extra)
+    //   1 2    (2 extra)
+    //     2    (3 extra)
+
+    // 0 1      (2 extra)
+    //   1      (3 extra)
+    //          (4 extra)
+
+    // 0 1 2 3 4 (3 extra) <--- wrong will be 1 in current version
+    //   1 2 3 4 (4 extra)
+    //     2 3 4 (5 extra)
+
+
+    // depending on linkid and accum granularity might need a lil extra for strided
+    // awk bruh but w/e prob not huge overhead
+    int base_iter = i1 - linkId;
+    int rem = (N - base_iter) % ACCUM_GRANULARITY;
+    int base_unused = 0;
+    if (rem > 0)
+      base_unused = ACCUM_GRANULARITY - rem;
+    int unused = base_unused + linkId;
+    // printf("%d %d\n", i1, unused);
+    for (int l = 0; l < unused; l++) {
       SCALAR_SYNC_WITH_REDUCTION(sp_ptr, numCompleted);
       ISSUE_VINST(vec_body_end_label);
     }

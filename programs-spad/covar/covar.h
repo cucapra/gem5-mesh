@@ -94,8 +94,8 @@
 
 // -------------------------------------------------------------------------------
 #ifndef ACCUM_GRANULARITY
-// default to coarser b/c can onlt help. although 2 is probably sufficient
-#define ACCUM_GRANULARITY 1
+// default to coarser b/c can only help. although 2 is probably sufficient
+#define ACCUM_GRANULARITY 4
 #endif
 #if VECTOR_LEN == 4
 #define NUM_GROUPS_PER_PIPE (3)

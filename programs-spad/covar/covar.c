@@ -208,11 +208,17 @@ void mean_reduction(DTYPE *out, int baseGroupId, int numGroups, int N, int M,
   // cache sp ptrs to avoid global load
   SETUP_REDUCTION_CORE(fwders, ptid);
 
-  for (int cnt = 0; cnt < max_chunk_size; cnt++) {
+  for (int cnt = 0; cnt < max_chunk_size; cnt+=ACCUM_GRANULARITY) {
 
-    SETUP_GROUP_ITERATION_CHUNKED(baseGroupId, numGroups, cnt);
+    SETUP_GROUP_ITERATION_CHUNKED_1NEST(baseGroupId, numGroups, cnt, max_chunk_size);
+
+    // SETUP_GROUP_ITERATION_CHUNKED(baseGroupId, numGroups, cnt);
+
     REDUCE_SYNC_WITH_SCALAR(group_start, spPtrs, flat_iter);
 
+
+
+    // printf("%d %d %d\n", cnt, group_start[0], expected_elements);
     // wait for frame and then do sum
     FRAME_START(expected_elements);
 
@@ -232,7 +238,7 @@ void mean_reduction(DTYPE *out, int baseGroupId, int numGroups, int N, int M,
         sum /= (DTYPE)FLOAT_N;
 
         int i = group_start[g];
-        if (i < 0) continue;
+        if (i < 0 || i + a >= max_chunk_size) continue;
 
         FSTORE_NOACK(sum, &out[i + a], 0);
       }
@@ -257,9 +263,17 @@ void covar_reduction(DTYPE *symmat, int baseGroupId, int numGroups, int N, int M
 
     SETUP_GROUP_ITERATION_STRIDED(baseGroupId, numGroups, cnt, N);
 
-    for (int i2 = group_start[0]; i2 < N; i2+=ACCUM_GRANULARITY) {
+    for (int i2 = group_start[0]; i2 < N; i2+=ACCUM_GRANULARITY) {      
 
       REDUCE_SYNC_WITH_SCALAR(group_start, spPtrs, flat_iter);
+
+      // int expected_elements = 0;  
+      // for (int a = 0; a < ACCUM_GRANULARITY; a++) {
+      //   if (i2 + a < N)
+      //     expected_elements += PER_CORE_FULL_MAILER_FRAME*NUM_GROUPS_PER_PIPE;
+      // }
+      // printf("%d\n", expected_elements);
+      // if (expected_elements == 0) return;
 
       // wait for frame and then do sum
       FRAME_START(expected_elements);
@@ -278,7 +292,7 @@ void covar_reduction(DTYPE *symmat, int baseGroupId, int numGroups, int N, int M
           }
 
           int i1 = group_start[g];
-          int i2_eff = i2 + g;
+          int i2_eff = i2 + g + a;
           if (i1 < 0 || i2_eff >= N ) continue;
 
           FSTORE_NOACK(sum, &symmat[i2_eff * M + i1], 0);
