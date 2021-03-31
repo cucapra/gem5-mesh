@@ -29,6 +29,11 @@ void run_bfs_cpu(int no_of_nodes, Node *h_graph_nodes, int edge_list_size, \
             }
         }
 
+        // for (int i=0; i<no_of_nodes; i++){
+        //   printf("%d ",h_cost_ref[i]);
+        // }
+        // printf("\n");
+
         for(int tid=0; tid< no_of_nodes ; tid++ ) {
             if (h_updating_graph_mask[tid] == true) {
                 h_graph_mask[tid]=true;
@@ -39,7 +44,7 @@ void run_bfs_cpu(int no_of_nodes, Node *h_graph_nodes, int edge_list_size, \
         }
         k++;
     } while(stop);
-    printf("single core CPU: Total rounds %d\n",k);
+    // printf("single core CPU: Total rounds %d\n",k);
 }
 
 int compare_results(int *h_cost_ref, int *h_cost, int n){
@@ -167,7 +172,6 @@ int main(int argc, char *argv[])
   h_cost_ref[source]=0;
 
   char stop;
-
 
   /*--------------------------------------------------------------------
   * Pack argument for kernel
