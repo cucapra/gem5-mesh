@@ -13,7 +13,7 @@
 // define hardware vector length of vector alus
 // allows compiler to optimize more, if do this instead of length agnostic style
 #ifndef HARDWARE_VECTOR_LEN
-#define HARDWARE_VECTOR_LEN (8)
+#define HARDWARE_VECTOR_LEN (4)
 #endif
 
 int roundUp(int numToRound, int multiple);

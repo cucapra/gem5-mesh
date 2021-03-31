@@ -50,7 +50,6 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
 
   for (int r = outer_start; r < outer_end; r++) {
   
-
     for (int c = inner_start; c < cEnd; c+=CORE_STEP) {
       // vlen = max, stuff that doesnt fit is done on manycore at end
       vsetvl_e32m1(HARDWARE_VECTOR_LEN);
@@ -237,7 +236,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // each vector group size is rated to do a certain problem size and multiples of that problem size
   // for the mod of this we need to do the rest on the flexible manycore version
   int rated_size = 0;
-  #ifdef C_STRIDE
+  #ifdef USE_VEC
   rated_size = C_STRIDE;
   #else
   rated_size = 1;
