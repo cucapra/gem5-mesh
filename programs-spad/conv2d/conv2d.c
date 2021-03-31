@@ -86,7 +86,13 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
       r33 = vslidedown_vx_f32m1(r33, r33, 2);
 
       // only want to do first 16
-      vsetvl_e32m1(CORE_STEP);
+      // vsetvl_e32m1(CORE_STEP);
+
+      // mask of last two elements
+      vint32m1_t vmask = vmv_v_x_i32m1(1); // splat 0
+      vfloat32m1_t voffmask = vfmv_v_f_f32m1(0.0f);
+      vmask = vslidedown_vx_i32m1(vmask, vmask, (FILTER_DIM-1));
+      vbool32_t mask = vmseq_vx_i32m1_b32(vmask, 1);
 
       // add every vector togehter for a set of 14 outputs (last 2 are duds)
       vfloat32m1_t ofmap = vfadd_vv_f32m1(r11, r21);
@@ -98,7 +104,9 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
       ofmap = vfadd_vv_f32m1(ofmap, r23);
       ofmap = vfadd_vv_f32m1(ofmap, r33);
 
-      vse32_v_f32m1(&b[r*NJ + c], ofmap);
+      // ofmap = vfadd_vv_f32m1_m(mask, voffmask, ofmap, r33);
+
+      vse32_v_f32m1_m(mask, &b[r*NJ + c], ofmap);
     }
 
     // TODO not clear how much this matters
