@@ -17,37 +17,37 @@ bfs_manycore1(Node *h_graph_nodes, int *h_graph_edges, char *h_graph_mask, char 
                  char *h_graph_visited, int *h_cost, int start, int end, int ptid, int max_edges)
 {
   for (int tid = start; tid < end; tid++){
-    int cond1 = (h_graph_mask[tid] == true);
-    if (cond1!=0){ 
+    // int cond1 = (h_graph_mask[tid] == true);
+    if ((h_graph_mask[tid] == true)){ 
       h_graph_mask[tid]=false;
 
-      int i=h_graph_nodes[tid].starting;
-      int edge_bound = (h_graph_nodes[tid].no_of_edges + h_graph_nodes[tid].starting);
-      // printf("i: %d, edge_bound: %d\n", i,edge_bound);
+      // int i=h_graph_nodes[tid].starting;
+      // int edge_bound = (h_graph_nodes[tid].no_of_edges + h_graph_nodes[tid].starting);
+      // // printf("i: %d, edge_bound: %d\n", i,edge_bound);
       
-      for(int j=0; j<max_edges; j++){
-        int cond2 = (i<edge_bound);
-        cond2 = cond1 & cond2;
-        if (cond2!=0){
-          int id = h_graph_edges[i];
-          int cond3 = (!h_graph_visited[id]);
-          cond3 = cond3 & cond2;
-          if(cond3!=0){
-            h_cost[id]=h_cost[tid]+1;
-            h_updating_graph_mask[id]=true;
-          }
-        }
-        i++;
-      }
-      // for(int i=h_graph_nodes[tid].starting; i<(h_graph_nodes[tid].no_of_edges + h_graph_nodes[tid].starting); i++)
-      // {
+      // for(int j=0; j<max_edges; j++){
+      //   int cond2 = (i<edge_bound);
+      //   cond2 = cond1 & cond2;
+      //   if (cond2!=0){
       //     int id = h_graph_edges[i];
-      //     if(!h_graph_visited[id])
-      //     {
-      //         h_cost[id]=h_cost[tid]+1;
-      //         h_updating_graph_mask[id]=true;
+      //     int cond3 = (!h_graph_visited[id]);
+      //     cond3 = cond3 & cond2;
+      //     if(cond3!=0){
+      //       h_cost[id]=h_cost[tid]+1;
+      //       h_updating_graph_mask[id]=true;
       //     }
+      //   }
+      //   i++;
       // }
+      for(int i=h_graph_nodes[tid].starting; i<(h_graph_nodes[tid].no_of_edges + h_graph_nodes[tid].starting); i++)
+      {
+          int id = h_graph_edges[i];
+          if(!h_graph_visited[id])
+          {
+              h_cost[id]=h_cost[tid]+1;
+              h_updating_graph_mask[id]=true;
+          }
+      }
     }
   }
   // if (ptid==0) printf("End of first kernel\n");
