@@ -79,7 +79,7 @@ void tril_bfs_vec1(int mask, Node *h_graph_nodes, int *h_graph_edges, char *h_gr
       int edge_bound= (h_graph_nodes[tid].starting + h_graph_nodes[tid].no_of_edges);
       do{
         asm("trillium vissue_delim until_next update_cost");
-        int cond2 = (i<edge_bound);
+        volatile int cond2 = (i<edge_bound);
         cond2 = cond1 & cond2;
         volatile int chack2 = 1;
         PRED_NEQ(cond2,0);
