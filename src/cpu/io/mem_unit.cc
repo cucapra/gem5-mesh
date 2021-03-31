@@ -814,7 +814,9 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // handle packed simd vec request, TODO not sure how to handle, need to serialize similarly to cur vec requests 
     // but wont be noack, and should come directly into register rather than spad
     if (m_s1_inst->isVector()) {
-      m_s1_inst->mem_req_p->respCnt = m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
+      std::vector<Addr> vecAddrs = m_s1_inst->generateAddresses();
+
+      m_s1_inst->mem_req_p->respCnt = vecAddrs.size(); //;m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
       // assert(m_s1_inst->mem_req_p->respCnt > 0); // can hit this condition if csr write hasnt happened, ok b/c will be squashed
       // just set resp cnt to 1 b/c will be squashed
       if (m_s1_inst->mem_req_p->respCnt == 0) {
@@ -831,7 +833,7 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->yDim = 1;
       m_s1_inst->mem_req_p->isNormVector = true;
 
-      std::vector<Addr> vecAddrs = m_s1_inst->generateAddresses();
+      
       // do functional translation of every address
       for (int i = 0; i < vecAddrs.size(); i++) {
         Addr vAddr = vecAddrs[i];
