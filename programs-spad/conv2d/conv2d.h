@@ -21,6 +21,42 @@
   c13 * a13 + c23 * a23 + c33 * a33
 
 
+#define GENERATE_VEC_CONV_MASK()                                \
+  vint32m1_t vmask = vmv_v_x_i32m1(1);                          \
+  vmask = vslidedown_vx_i32m1(vmask, vmask, (FILTER_DIM-1));    \
+  vbool32_t mask = vmseq_vx_i32m1_b32(vmask, 1)
+
+// 1: do three vector-scalar multiplications for each row (one for each filter element)
+// 2: shift vectors so when add get a partial product for the row
+// 3: add every vector togehter for a set of VLEN-(FILTER_DIM-1) outputs (last 2 are duds)
+#define VECTOR_CONV_3x3(r1, r2, r3, bPtr)                       \
+  vfloat32m1_t r11, r12, r13, r21, r22, r23, r31, r32, r33;     \
+  r11 = vfmul_vf_f32m1(r1, c11);                                \
+  r21 = vfmul_vf_f32m1(r1, c21);                                \
+  r31 = vfmul_vf_f32m1(r1, c31);                                \
+  r12 = vfmul_vf_f32m1(r2, c12);                                \
+  r22 = vfmul_vf_f32m1(r2, c22);                                \
+  r32 = vfmul_vf_f32m1(r2, c32);                                \
+  r13 = vfmul_vf_f32m1(r3, c13);                                \
+  r23 = vfmul_vf_f32m1(r3, c23);                                \
+  r33 = vfmul_vf_f32m1(r3, c33);                                \
+  r21 = vslidedown_vx_f32m1(r21, r21, 1);                       \
+  r31 = vslidedown_vx_f32m1(r31, r31, 2);                       \
+  r22 = vslidedown_vx_f32m1(r22, r22, 1);                       \
+  r32 = vslidedown_vx_f32m1(r32, r32, 2);                       \
+  r23 = vslidedown_vx_f32m1(r23, r23, 1);                       \
+  r33 = vslidedown_vx_f32m1(r33, r33, 2);                       \
+  vfloat32m1_t ofmap = vfadd_vv_f32m1(r11, r21);                \
+  ofmap = vfadd_vv_f32m1(ofmap, r31);                           \
+  ofmap = vfadd_vv_f32m1(ofmap, r12);                           \
+  ofmap = vfadd_vv_f32m1(ofmap, r22);                           \
+  ofmap = vfadd_vv_f32m1(ofmap, r32);                           \
+  ofmap = vfadd_vv_f32m1(ofmap, r13);                           \
+  ofmap = vfadd_vv_f32m1(ofmap, r23);                           \
+  ofmap = vfadd_vv_f32m1(ofmap, r33);                           \
+  vse32_v_f32m1_m(mask, bPtr, ofmap)
+
+
 // one of these should be defined to dictate config
 // #define NO_VEC 1
 // #define VEC_4_SIMD 1

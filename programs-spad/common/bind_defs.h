@@ -202,7 +202,15 @@
     ".insn s 0x23, 0x5, %[dataReg], %[off](%[mem])\n\t"                 \
     ".insn r 0x33, 0x7, 0x5, x0, x0, x0\n\t"                            \
   :: [c0] "r" (cond0), [c1] "r" (cond1), [dataReg] "r" (val),           \
-    [mem] "r" (addr), [off] "i" (offset))                                       
+    [mem] "r" (addr), [off] "i" (offset))     
+
+#define PRED_EQ_FSTORE_NOACK(cond0, cond1, val, addr, offset)           \
+  asm volatile(                                                         \
+    ".insn r 0x33, 0x7, 0x5, x0, %[c0], %[c1]\n\t"                      \
+    ".insn s 0x23, 0x4, %[dataReg], %[off](%[mem])\n\t"                 \
+    ".insn r 0x33, 0x7, 0x5, x0, x0, x0\n\t"                            \
+  :: [c0] "r" (cond0), [c1] "r" (cond1), [dataReg] "f" (val),           \
+    [mem] "r" (addr), [off] "i" (offset))                                     
 #endif
 
 static inline void stats_on()

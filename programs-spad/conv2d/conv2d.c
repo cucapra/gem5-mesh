@@ -48,6 +48,8 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
   #ifdef PACKED_SIMD
   int cEnd = ((NJ-1) / CORE_STEP) * CORE_STEP;
 
+  GENERATE_VEC_CONV_MASK();
+
   for (int r = outer_start; r < outer_end; r++) {
   
     for (int c = inner_start; c < cEnd; c+=CORE_STEP) {
@@ -59,54 +61,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
       vfloat32m1_t r2 = vle32_v_f32m1(&a[(r + 0)*NJ + (c - 1)]);
       vfloat32m1_t r3 = vle32_v_f32m1(&a[(r + 1)*NJ + (c - 1)]);
     
-      // do three vector-scalar multiplications for each row (one for each filter element)
-      vfloat32m1_t r11, r12, r13, r21, r22, r23, r31, r32, r33;
-      // row 1
-      r11 = vfmul_vf_f32m1(r1, c11);
-      r21 = vfmul_vf_f32m1(r1, c21);
-      r31 = vfmul_vf_f32m1(r1, c31);
-      // row 2
-      r12 = vfmul_vf_f32m1(r2, c12);
-      r22 = vfmul_vf_f32m1(r2, c22);
-      r32 = vfmul_vf_f32m1(r2, c32);
-      // row 3
-      r13 = vfmul_vf_f32m1(r3, c13);
-      r23 = vfmul_vf_f32m1(r3, c23);
-      r33 = vfmul_vf_f32m1(r3, c33);
-
-      // shift vectors so when add get a partial product for the row
-      // row 1
-      r21 = vslidedown_vx_f32m1(r21, r21, 1);
-      r31 = vslidedown_vx_f32m1(r31, r31, 2);
-      // row 2
-      r22 = vslidedown_vx_f32m1(r22, r22, 1);
-      r32 = vslidedown_vx_f32m1(r32, r32, 2);
-      // row 3
-      r23 = vslidedown_vx_f32m1(r23, r23, 1);
-      r33 = vslidedown_vx_f32m1(r33, r33, 2);
-
-      // only want to do first 16
-      // vsetvl_e32m1(CORE_STEP);
-
-      // mask of last two elements
-      vint32m1_t vmask = vmv_v_x_i32m1(1); // splat 0
-      vfloat32m1_t voffmask = vfmv_v_f_f32m1(0.0f);
-      vmask = vslidedown_vx_i32m1(vmask, vmask, (FILTER_DIM-1));
-      vbool32_t mask = vmseq_vx_i32m1_b32(vmask, 1);
-
-      // add every vector togehter for a set of 14 outputs (last 2 are duds)
-      vfloat32m1_t ofmap = vfadd_vv_f32m1(r11, r21);
-      ofmap = vfadd_vv_f32m1(ofmap, r31);
-      ofmap = vfadd_vv_f32m1(ofmap, r12);
-      ofmap = vfadd_vv_f32m1(ofmap, r22);
-      ofmap = vfadd_vv_f32m1(ofmap, r32);
-      ofmap = vfadd_vv_f32m1(ofmap, r13);
-      ofmap = vfadd_vv_f32m1(ofmap, r23);
-      ofmap = vfadd_vv_f32m1(ofmap, r33);
-
-      // ofmap = vfadd_vv_f32m1_m(mask, voffmask, ofmap, r33);
-
-      vse32_v_f32m1_m(mask, &b[r*NJ + c], ofmap);
+      VECTOR_CONV_3x3(r1, r2, r3, &b[r*NJ + c]);
     }
 
     // TODO not clear how much this matters
@@ -165,7 +120,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
         a[(i + 0)*NJ + (j - 1)], a[(i + 0)*NJ + (j + 0)], a[(i + 0)*NJ + (j + 1)],
         a[(i + 1)*NJ + (j - 1)], a[(i + 1)*NJ + (j + 0)], a[(i + 1)*NJ + (j + 1)]
       );
-      STORE_NOACK(out, &b[i*NJ + j], 0);
+      FSTORE_NOACK(out, &b[i*NJ + j], 0);
     }
   }
   #else
@@ -194,7 +149,6 @@ void __attribute__((optimize("-fno-inline"))) conv2d(
     int NI, int NJ, int start, int end, int mapped_len,
     int mask, int used, DTYPE *p_sp_ptr, DTYPE *n_sp_ptr 
   ) {
-
   #ifdef USE_VEC
   // do computation that we can map
   if (used)
@@ -202,7 +156,7 @@ void __attribute__((optimize("-fno-inline"))) conv2d(
       ptid, vtid, p_sp_ptr, n_sp_ptr);
 
   // do remainder of computation starting from offset
-  conv2d_manycore(a, b, NI, NJ, mapped_len + 1, ptid, pdim);
+  // conv2d_manycore(a, b, NI, NJ, mapped_len + 1, ptid, pdim);
   #else
   conv2d_manycore(a, b, NI, NJ, 1, ptid, pdim);
   #endif
@@ -241,25 +195,25 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   #endif
 
-  // each vector group size is rated to do a certain problem size and multiples of that problem size
-  // for the mod of this we need to do the rest on the flexible manycore version
-  int rated_size = 0;
-  #ifdef USE_VEC
-  rated_size = C_STRIDE;
-  #else
-  rated_size = 1;
-  #endif
+  // // each vector group size is rated to do a certain problem size and multiples of that problem size
+  // // for the mod of this we need to do the rest on the flexible manycore version
+  // int rated_size = 0;
+  // #ifdef USE_VEC
+  // rated_size = C_STRIDE;
+  // #else
+  // rated_size = 1;
+  // #endif
+
+  // all configs can handle by self now
+  int rated_size = 1;
 
   // cols without the edge case
   int eff_len = NJ - (FILTER_DIM-1);
   // mapped len is schedule on main config, unmapped will be scheduled on base manycore
   int unmapped_len = eff_len % rated_size;
   int mapped_len = eff_len - unmapped_len;
-  // mapped_len -= (FILTER_DIM-1);
-  // unmapped_len -= (FILTER_DIM-1);
 
   // TODO better way to do this for arbitrary groups
-  // TODO get snaking pattern from the reduction tried to do on syrk
   DTYPE *p_sp_ptr = NULL;
   DTYPE *n_sp_ptr = NULL;
   #ifdef LONGLINES

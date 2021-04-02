@@ -54,13 +54,7 @@ void tril_conv2d(int mask,
   
 	DEF_WEIGHTS();
 
-  int startOffset = vtid * CORE_STEP;
-
-  DTYPE *bPtr = b + outer_start * inner_dim + startOffset + 1;
-  bPtr -= OUT_PTR_OFFSET;
-
-  int unmappedColLen = inner_dim - eff_inner_dim;
-
+  int row = outer_start;
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
@@ -101,7 +95,8 @@ void tril_conv2d(int mask,
   volatile int BHO;
   do {
     asm("trillium vissue_delim until_next vec_body_init");
-    // b.c might put things here!
+    int startOffset = vtid * CORE_STEP;
+    int col = startOffset + 1 - OUT_PTR_OFFSET;
 
     do {
     asm("trillium vissue_delim if_begin vec_body");
@@ -110,7 +105,30 @@ void tril_conv2d(int mask,
       int sp1 = sp0 + LOAD_DEPTH;
       int sp2 = sp1 + LOAD_DEPTH;
 
+      DTYPE *bPtr = b + row * inner_dim + col;
+
       #ifdef LONGLINES
+
+      FRAME_START(LOADED_REGION_SIZE);
+
+      // need enough instructions here before stores to avoid sync problem
+      // (2*2 - 1)*2 + 6 + 8 = 20
+      // (2*4 - 1)*2 + 6 + 8 = 28
+
+      #pragma GCC unroll(16)
+      for (int i = 0; i < CENTER_ITERS; i++) {
+        int sp0i = sp0 + i;
+        int sp1i = sp1 + i;
+        int sp2i = sp2 + i;
+
+        DTYPE out = CONV_3x3(
+          sp_ptr[sp0i + 0], sp_ptr[sp0i + 1], sp_ptr[sp0i + 2],
+          sp_ptr[sp1i + 0], sp_ptr[sp1i + 1], sp_ptr[sp1i + 2],
+          sp_ptr[sp2i + 0], sp_ptr[sp2i + 1], sp_ptr[sp2i + 2]
+        );
+        int cond_c = (col + OUT_PTR_OFFSET + i <= eff_inner_dim);
+        PRED_EQ_FSTORE_NOACK(cond_c, 1, out, bPtr + OUT_PTR_OFFSET + i, 0);
+      }
 
       // data to send to previous core
       int first_sp0 = sp0;
@@ -122,8 +140,6 @@ void tril_conv2d(int mask,
       int last_sp1 = sp1 + LOAD_DEPTH_M1;
       int last_sp2 = sp2 + LOAD_DEPTH_M1;
 
-      FRAME_START(LOADED_REGION_SIZE);
-
       // do remote store of useful values to next and prev cores
       FSTORE_NOACK(sp_ptr[last_sp0 + 0], &n_sp_ptr[sp + SHARED_OFF + 0], 0);
       FSTORE_NOACK(sp_ptr[last_sp1 + 0], &n_sp_ptr[sp + SHARED_OFF + 1], 0);
@@ -133,10 +149,55 @@ void tril_conv2d(int mask,
       FSTORE_NOACK(sp_ptr[first_sp1 + 0], &p_sp_ptr[sp + SHARED_OFF + 1], 0);
       FSTORE_NOACK(sp_ptr[first_sp2 + 0], &p_sp_ptr[sp + SHARED_OFF + 2], 0);
 
-      #else
-      FRAME_START(REGION_SIZE);
-      #endif
+      // // do some computation in between to give time for remote stores to resolve
+      // #pragma GCC unroll(16)
+      // for (int i = CENTER_ITERS / 2; i < CENTER_ITERS; i++) {
+      //   int sp0i = sp0 + i;
+      //   int sp1i = sp1 + i;
+      //   int sp2i = sp2 + i;
 
+      //   DTYPE out = CONV_3x3(
+      //     sp_ptr[sp0i + 0], sp_ptr[sp0i + 1], sp_ptr[sp0i + 2],
+      //     sp_ptr[sp1i + 0], sp_ptr[sp1i + 1], sp_ptr[sp1i + 2],
+      //     sp_ptr[sp2i + 0], sp_ptr[sp2i + 1], sp_ptr[sp2i + 2]
+      //   );
+      //   FSTORE_NOACK(out, bPtr + OUT_PTR_OFFSET + i, 0);
+      // }
+
+
+      // wait for shared values to arrive (should hopefully be here already)
+      // this includes prefetched values, so its the whole region size
+      FRAME_START(REGION_SIZE);
+
+
+      // fetch one column from the left to perform leftmost computation
+      DTYPE out_l = CONV_3x3(
+        sp_ptr[sp + SHARED_OFF + 0], sp_ptr[sp0 + 0], sp_ptr[sp0 + 1],
+        sp_ptr[sp + SHARED_OFF + 1], sp_ptr[sp1 + 0], sp_ptr[sp1 + 1],
+        sp_ptr[sp + SHARED_OFF + 2], sp_ptr[sp2 + 0], sp_ptr[sp2 + 1]
+      );
+      // MUST BE & not && otherwise will insert a divergent branch
+      int cond_l = vtid != 0 & col <= eff_inner_dim;
+      PRED_EQ_FSTORE_NOACK(cond_l, 1, out_l, bPtr, 0);
+
+      // use end vals
+      int e_sp0 = sp0 + LOAD_DEPTH_M1 - 1;
+      int e_sp1 = sp1 + LOAD_DEPTH_M1 - 1;
+      int e_sp2 = sp2 + LOAD_DEPTH_M1 - 1;
+
+      DTYPE out_r = CONV_3x3(
+        sp_ptr[e_sp0 + 0], sp_ptr[e_sp0 + 1], sp_ptr[sp + SHARED_OFF + 3],
+        sp_ptr[e_sp1 + 0], sp_ptr[e_sp1 + 1], sp_ptr[sp + SHARED_OFF + 4],
+        sp_ptr[e_sp2 + 0], sp_ptr[e_sp2 + 1], sp_ptr[sp + SHARED_OFF + 5]
+      );
+
+      int cond_r = vtid != VECTOR_LEN-1 & col + LOAD_DEPTH_M1 <= eff_inner_dim;
+      PRED_EQ_FSTORE_NOACK(cond_r, 1, out_r, bPtr + LOAD_DEPTH_M1, 0);
+
+      #else
+
+      FRAME_START(REGION_SIZE);
+      
       #pragma GCC unroll(14)
       for (int i = 0; i < CENTER_ITERS; i++) {
         int sp0i = sp0 + i;
@@ -148,72 +209,13 @@ void tril_conv2d(int mask,
           sp_ptr[sp1i + 0], sp_ptr[sp1i + 1], sp_ptr[sp1i + 2],
           sp_ptr[sp2i + 0], sp_ptr[sp2i + 1], sp_ptr[sp2i + 2]
         );
-        FSTORE_NOACK(out, bPtr + OUT_PTR_OFFSET + i, 0);
+        int cond_c = (col + OUT_PTR_OFFSET + i <= eff_inner_dim);
+        PRED_EQ_FSTORE_NOACK(cond_c, 1, out, bPtr + OUT_PTR_OFFSET + i, 0);
       }
-
-      #ifdef LONGLINES
-
-      // wait for shared values to arrive (should hopefully be here already)
-      // this includes prefetched values, so its the whole region size
-      FRAME_START(REGION_SIZE);
-
-
-      // fetch one column from the left to perform leftmost computation
-
-      // if (ohjeez) { 
-      PRED_NEQ(vtid, 0);
-      // if (ohjeez) {
-
-      // // prev vals at end of fetch for each row
-      // int p_sp0 = sp0 + LOAD_DEPTH_M1;
-      // int p_sp1 = sp1 + LOAD_DEPTH_M1;
-      // int p_sp2 = sp2 + LOAD_DEPTH_M1;
-
-      // DTYPE out_l = CONV_3x3(
-      //   p_sp_ptr[p_sp0], sp_ptr[sp0 + 0], sp_ptr[sp0 + 1],
-      //   p_sp_ptr[p_sp1], sp_ptr[sp1 + 0], sp_ptr[sp1 + 1],
-      //   p_sp_ptr[p_sp2], sp_ptr[sp2 + 0], sp_ptr[sp2 + 1]
-      // );
-
-      DTYPE out_l = CONV_3x3(
-        sp_ptr[sp + SHARED_OFF + 0], sp_ptr[sp0 + 0], sp_ptr[sp0 + 1],
-        sp_ptr[sp + SHARED_OFF + 1], sp_ptr[sp1 + 0], sp_ptr[sp1 + 1],
-        sp_ptr[sp + SHARED_OFF + 2], sp_ptr[sp2 + 0], sp_ptr[sp2 + 1]
-      );
-      FSTORE_NOACK(out_l, bPtr, 0);
-      PRED_EQ(vtid, vtid);
-      // }
-
-      // fetch one column from the right to perform rightmost computation
-            // volatile int ohjeez = 1;
-      // if (ohjeez) { 
-      PRED_NEQ(vtid, VECTOR_LEN - 1); // last core in group can't do this
-   
-
-      // use end vals
-      int e_sp0 = sp0 + LOAD_DEPTH_M1 - 1;
-      int e_sp1 = sp1 + LOAD_DEPTH_M1 - 1;
-      int e_sp2 = sp2 + LOAD_DEPTH_M1 - 1;
-
-      // DTYPE out_r = CONV_3x3(
-      //   sp_ptr[e_sp0 + 0], sp_ptr[e_sp0 + 1], n_sp_ptr[sp0 + 0],
-      //   sp_ptr[e_sp1 + 0], sp_ptr[e_sp1 + 1], n_sp_ptr[sp1 + 0],
-      //   sp_ptr[e_sp2 + 0], sp_ptr[e_sp2 + 1], n_sp_ptr[sp2 + 0]
-      // );
-      DTYPE out_r = CONV_3x3(
-        sp_ptr[e_sp0 + 0], sp_ptr[e_sp0 + 1], sp_ptr[sp + SHARED_OFF + 3],
-        sp_ptr[e_sp1 + 0], sp_ptr[e_sp1 + 1], sp_ptr[sp + SHARED_OFF + 4],
-        sp_ptr[e_sp2 + 0], sp_ptr[e_sp2 + 1], sp_ptr[sp + SHARED_OFF + 5]
-      );
-      FSTORE_NOACK(out_r, bPtr + LOAD_DEPTH_M1, 0);
-      PRED_EQ(vtid, vtid);
-      // }
-
-      // _0 1 2 3 4 5 6 7_ | _8 9 10 11 12 13 14 15_ | _16 17 18 19 20 21 22 23_ | _24 25 26 27 28 29 30 31 
 
       #endif
 
-      bPtr += C_STRIDE;
+      col += C_STRIDE;
      
       sp += REGION_SIZE;
       sp = sp % POST_REGION_WORD; // not a power of 2 --> if cheaper than mod?
@@ -223,7 +225,7 @@ void tril_conv2d(int mask,
     } while (BH);
 
     asm("trillium vissue_delim if_begin vec_body_end");
-    bPtr += unmappedColLen;
+    row++;
     asm("trillium vissue_delim end at_jump");
 
 
