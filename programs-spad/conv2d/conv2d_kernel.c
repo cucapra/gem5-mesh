@@ -9,6 +9,10 @@
 #include "util.h"
 #include "conv2d_kernel.h"
 
+#ifdef NESTED_SIMD
+#include <riscv_vector.h>
+#endif
+
 /*
   3x3 stencil with a single 3x3 filter
   Filter is cached in each spad.
@@ -57,6 +61,11 @@ void tril_conv2d(int mask,
   int row = outer_start;
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  GENERATE_VEC_CONV_MASK();
+  #endif
 
   #endif
 
@@ -111,6 +120,25 @@ void tril_conv2d(int mask,
 
       FRAME_START(LOADED_REGION_SIZE);
 
+      #ifdef NESTED_SIMD
+      vsetvl_e32m1(NESTED_SIMD_VLEN);
+
+      #pragma GCC unroll(4)
+      for (int i = 0; i < CENTER_ITERS/NESTED_SIMD_STRIDE; i+=NESTED_SIMD_STRIDE) {
+        // construct initial vectors
+        vfloat32m1_t r1 = vle32_v_f32m1(&sp_ptr[sp0 + i]);
+        vfloat32m1_t r2 = vle32_v_f32m1(&sp_ptr[sp1 + i]);
+        vfloat32m1_t r3 = vle32_v_f32m1(&sp_ptr[sp2 + i]);
+
+        // just going to center compute in vector mode and the edges in non vec
+        // this means don't ever do first or last element, i think already does this though
+        int cond_c = (col + OUT_PTR_OFFSET + i <= eff_inner_dim);
+        PRED_EQ(cond_c, 1);
+        VECTOR_CONV_3x3(r1, r2, r3, bPtr + OUT_PTR_OFFSET + i);
+        PRED_EQ(0, 0);
+      }
+      #else
+
       // need enough instructions here before stores to avoid sync problem
       // (2*2 - 1)*2 + 6 + 8 = 20
       // (2*4 - 1)*2 + 6 + 8 = 28
@@ -129,6 +157,8 @@ void tril_conv2d(int mask,
         int cond_c = (col + OUT_PTR_OFFSET + i <= eff_inner_dim);
         PRED_EQ_FSTORE_NOACK(cond_c, 1, out, bPtr + OUT_PTR_OFFSET + i, 0);
       }
+
+      #endif
 
       // data to send to previous core
       int first_sp0 = sp0;
@@ -163,7 +193,6 @@ void tril_conv2d(int mask,
       //   );
       //   FSTORE_NOACK(out, bPtr + OUT_PTR_OFFSET + i, 0);
       // }
-
 
       // wait for shared values to arrive (should hopefully be here already)
       // this includes prefetched values, so its the whole region size
