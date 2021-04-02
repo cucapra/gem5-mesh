@@ -64,7 +64,7 @@ typedef float DTYPE;
   uid_x = cinfo.unique_id%tg_x; \
   uid_y = cinfo.unique_id/tg_x; \
   if(cinfo.used) { \
-    int alignment = BLK_DIM * cinfo.vdim_x; \
+    int alignment = BLK_DIM * vdim_x; \
     m_start = roundUp((uid_y + 0) * m / tg_y, alignment); \
     m_end = roundUp((uid_y + 1) * m / tg_y, alignment); \
     n_start = roundUp((uid_x + 0) * n / tg_x, alignment); \
