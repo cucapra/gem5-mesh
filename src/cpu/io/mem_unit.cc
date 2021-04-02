@@ -654,6 +654,11 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // and not reflective of hardwareVectorLenght param most of the time
     effReqSize = sizeof(uint32_t);
 
+    // for same reason need to figure out size of request when writing to scratchpad
+    // (only relevant then)
+    if (m_s1_inst->isStore())
+      size = effReqSize * m_cpu_p->getHardwareVectorLength();
+
   }
 
   // check if the request is spanning across two cache lines
