@@ -24,7 +24,7 @@
 #define GENERATE_VEC_CONV_MASK()                                \
   vint32m1_t vmask = vmv_v_x_i32m1(1);                          \
   vmask = vslidedown_vx_i32m1(vmask, vmask, (FILTER_DIM-1));    \
-  vbool32_t mask = vmseq_vx_i32m1_b32(vmask, 1)
+  vbool32_t bmask = vmseq_vx_i32m1_b32(vmask, 1)
 
 // 1: do three vector-scalar multiplications for each row (one for each filter element)
 // 2: shift vectors so when add get a partial product for the row
@@ -54,7 +54,7 @@
   ofmap = vfadd_vv_f32m1(ofmap, r13);                           \
   ofmap = vfadd_vv_f32m1(ofmap, r23);                           \
   ofmap = vfadd_vv_f32m1(ofmap, r33);                           \
-  vse32_v_f32m1_m(mask, bPtr, ofmap)
+  vse32_v_f32m1_m(bmask, bPtr, ofmap)
 
 
 // one of these should be defined to dictate config
@@ -129,6 +129,13 @@
   #define CENTER_ITERS (CORE_STEP)
 #endif
 
+// requirement CORE_STEP % NESTED_SIMD_VLEN == 0
+#ifdef NESTED_SIMD
+#if CORE_STEP % NESTED_SIMD_VLEN != 0
+#error Load length and valu len mismatch
+#endif
+#define NESTED_SIMD_STRIDE (NESTED_SIMD_VLEN-(FILTER_DIM-1))
+#endif
 
 
 #ifdef LONGLINES

@@ -9,7 +9,7 @@
 #include "conv2d_kernel.h"
 #include "util.h"
 
-#ifdef PACKED_SIMD
+#if defined(PACKED_SIMD) || defined(NESTED_SIMD) 
 #include <riscv_vector.h>
 #endif
 
@@ -48,6 +48,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
   #ifdef PACKED_SIMD
   int cEnd = ((NJ-1) / CORE_STEP) * CORE_STEP;
 
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
   GENERATE_VEC_CONV_MASK();
 
   for (int r = outer_start; r < outer_end; r++) {
@@ -154,9 +155,6 @@ void __attribute__((optimize("-fno-inline"))) conv2d(
   if (used)
     tril_conv2d(mask, a, b, start, end, NJ, mapped_len, 
       ptid, vtid, p_sp_ptr, n_sp_ptr);
-
-  // do remainder of computation starting from offset
-  // conv2d_manycore(a, b, NI, NJ, mapped_len + 1, ptid, pdim);
   #else
   conv2d_manycore(a, b, NI, NJ, 1, ptid, pdim);
   #endif
@@ -248,8 +246,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   }
   #endif
 
-
-  // printf("%d %xd\n", mapped_len, unmapped_len);
+  // need to set vlen here so doesn't cause squash in vector core on change in value
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #endif
 
   // move stack onto scratchpad for faster local access than default on DRAM
   MOVE_STACK_ONTO_SCRATCHPAD();
