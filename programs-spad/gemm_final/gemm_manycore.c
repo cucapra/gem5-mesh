@@ -51,30 +51,29 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
         sp_b_offset = sp_a_offset + BLK_DIM;
 
         // fetch a in scratchpad
-        VPREFETCH_L(sp_a_offset, aT + _idx_(k, i0, m), 0, BLK_DIM,1);
+        VPREFETCH_L(sp_a_offset, aT + _idx_(k, i0, m), 0, BLK_DIM,TO_SELF);
         // fetch b in scratchpad
-        VPREFETCH_L(sp_b_offset, b + _idx_(k, j0, n), 0, BLK_DIM,1);
+        VPREFETCH_L(sp_b_offset, b + _idx_(k, j0, n), 0, BLK_DIM,TO_SELF);
         FRAME_START(REGION_SIZE);
         #endif
 
         #ifdef PACKED_SIMD
         vsetvl_e32m1(BLK_DIM);
-        #if BLK_DIM != 16
-        assert(0);
-        #endif
         #endif
 
         #pragma GCC unroll(16)
         for (int i = 0; i < BLK_DIM; i++)
         {
           #ifdef PACKED_SIMD
-          vfloat32m1_t vaT = vfmv_v_f_f32m1(aT[_idx_(k, i + i0, m)] * ALPHA);
+          // vsetvl_e32m1(BLK_DIM);
+          // vfloat32m1_t vaT = vfmv_v_f_f32m1(aT[_idx_(k, i + i0, m)] * ALPHA);
+          float vaT = aT[_idx_(k, i + i0, m)] * ALPHA;
           vfloat32m1_t vb  = vle32_v_f32m1(&b[_idx_(k, j0, n)]);
 
           vfloat32m1_t vc  = vle32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)]);
 
           // TODO support multacc
-          vfloat32m1_t vcp = vfmul_vv_f32m1(vaT, vb);
+          vfloat32m1_t vcp = vfmul_vf_f32m1(vb,vaT);
           vc = vfadd_vv_f32m1(vc, vcp);
 
           vse32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)], vc);   
@@ -102,60 +101,38 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
         #endif
       }
 
+      #ifdef PACKED_SIMD
+      vsetvl_e32m1(BLK_DIM);
+      #endif
+
       #pragma GCC unroll(16)
-      for (int ii = 0; ii < BLK_DIM; ii+=2)
+      for (int i = 0; i < BLK_DIM; i++)
       {
-        #ifdef C_PREFETCH
-        // fetch c in scratchpad
-        sp_c_offset[0] = spadRegion * REGION_SIZE;
-        sp_c_offset[1] = sp_c_offset[0] + BLK_DIM;
-        VPREFETCH_L(sp_c_offset[0], c + _idx_(ii + i0, j0, n), 0, BLK_DIM,1);
-        VPREFETCH_L(sp_c_offset[1], c + _idx_(ii+1 + i0, j0, n), 0, BLK_DIM,1);
-        FRAME_START(REGION_SIZE);
-        #endif
 
         #ifdef PACKED_SIMD
-        vsetvl_e32m1(BLK_DIM);
-        #if BLK_DIM != 16
-        assert(0);
-        #endif
-        #endif
+        
+        vfloat32m1_t vc  = vle32_v_f32m1(&c[_idx_(i + i0, j0, n)]);
+        vfloat32m1_t vspc = vle32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)]);
 
+        vc = vfmul_vf_f32m1(vc, BETA);
+        vc = vfadd_vv_f32m1(vc, vspc);
+
+        vse32_v_f32m1(&c[_idx_(i + i0, j0, n)], vc);  
+
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vse32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)], vzero);
+
+        #else
         #pragma GCC unroll(16)
-        for (int i=ii; i<ii+2; i++){
-
-          #ifdef PACKED_SIMD
-          vfloat32m1_t vc  = vle32_v_f32m1(&c[_idx_(i + i0, j0, n)]);
-          vfloat32m1_t vspc = vle32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)]);
-
-          vc = vfmul_vf_f32m1(vc, BETA);
-          vc = vfadd_vv_f32m1(vc, vspc);
-
-          vse32_v_f32m1(&c[_idx_(i + i0, j0, n)], vc);  
-
-          vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
-          vse32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)], vzero);   
-
-          #else
-          #pragma GCC unroll(16)
-          for (int j = 0; j < BLK_DIM; j++)
-          {
-            DTYPE temp;
-            #ifdef C_PREFETCH
-            temp = spAddr[sp_c_offset[i-ii]+j]*BETA;
-            #else
-            temp = c[_idx_(i + i0, j + j0, n)]*BETA;
-            #endif
-            temp += sp_c[_idx_(i, j, BLK_DIM)];
-            // c[_idx_(i + i0, j + j0, n)] = temp;
-            STORE_NOACK(temp, c + _idx_(i + i0, j + j0, n), 0);
-            sp_c[_idx_(i, j, BLK_DIM)] = 0;
-          }
-          #endif
+        for (int j = 0; j < BLK_DIM; j++)
+        {
+          DTYPE temp;
+          temp = c[_idx_(i + i0, j + j0, n)]*BETA;
+          temp += sp_c[_idx_(i, j, BLK_DIM)];
+          // c[_idx_(i + i0, j + j0, n)] = temp;
+          STORE_NOACK(temp, c + _idx_(i + i0, j + j0, n), 0);
+          sp_c[_idx_(i, j, BLK_DIM)] = 0;
         }
-        #ifdef C_PREFETCH
-        spadRegion = (spadRegion + 1) % NUM_REGIONS;
-        REMEM(REGION_SIZE);
         #endif
       }
 

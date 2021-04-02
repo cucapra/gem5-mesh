@@ -122,74 +122,29 @@ void kernel(
     stats_on();
   }
 
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
   int m_start = 0;
   int m_end = 0;
   int n_start = 0;
   int n_end = 0;
-  int vdim;
-  template_info_t tinfo;
-
-  transpose_manycore(a,m,t,aT,ptid,pdim);
-  // a=aT;
-
-  #ifdef _VEC
-  #if VEC_LEN==4
-  tinfo = init_template_4x4_2x2();
-  #elif VEC_LEN==16
-  tinfo = init_template_8x8_4x4();
-  #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
-
-  vdim = cinfo.vdim_x*cinfo.vdim_y;
-  int *ptid_group = getSpAddr(ptid,NUM_REGIONS * REGION_SIZE + BLK_DIM*BLK_DIM + 10);
-
-  int ptid_new;
-  int m_manycore = 0; //usually no work assigned to manycore if vec present
-
-  #if VEC_LEN==4
-  WORK_DIV(m,n)
-  #elif VEC_LEN==16
-
-    #ifdef VEC_MANYCORE_OPT
-    if(!cinfo.used){
-      PTID_FINDER(ptid)
-      #ifdef MANYCORE_PREFETCH
-      cinfo.orig_x = ptid_x;
-      cinfo.orig_y = ptid_y;
-      cinfo.vdim_x = 1;
-      cinfo.vdim_y = 1;
-      #endif
-    }
-    WORK_DIV_OPT(m,n)
-    #else
-    WORK_DIV(m,n)
-    #endif
-
-  #endif
-
-
-
-  #ifdef SHARING
-  if(cinfo.used){
-    for(int i=0; i<cinfo.vdim_y;i++){
-      for(int j=0; j<cinfo.vdim_x; j++){
-        ptid_group[i*cinfo.vdim_x+j] = get_ptid_from_group(&tinfo, cinfo.unique_id,j,i,pdim_x);
-        // if (ptid==0) printf("Ptid: %d\n", ptid_group_[i*vdim_x+j]);
-      }
-    }
-  }
-  #endif
 
   
+
+  #ifdef _VEC
+
+  #if VEC_LEN==4
+    SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
+    #elif VEC_LEN==16
+    SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
+    #endif
+
+    WORK_DIV(m,n)
 
   // if (ptid==38) printf("mvec %d m manycore %d, weighted avergae %d\n",m_vec,m_manycore,(cinfo.total_groups*VEC_LEN*m)/total_compute_cores);
   // if(cinfo.used && cinfo.is_scalar) printf("used ptid:%d, start=%d end=%d\n",ptid,m_start,m_end);
   // if(!cinfo.used) printf("ptid:%d, start=%d end=%d\n",ptid,m_start,m_end);
   
 #else
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
   
   //do work division here
 
@@ -197,25 +152,13 @@ void kernel(
   n_start  = ptid_x * BLK_DIM;
 #endif
 
-// get behavior of each core
-  #ifdef _VEC
-  int mask;
-  if(cinfo.used){
-    mask = getSIMDMask(&cinfo);
-  }
-  else if (m_manycore>0){
-    #ifdef MANYCORE_PREFETCH
-    mask = getDebugMask(&cinfo);
-    #else
-    mask = 0;
-    #endif
-  }
-  #elif defined MANYCORE_PREFETCH
-  int mask = getDebugMask(&cinfo);
-  #else
-  int mask = 0;
-  #endif
+transpose_manycore(a,m,t,aT,ptid,pdim);
+  // a=aT;
 
+// need to set vlen here so doesn't cause squash in vector core on change in value
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+  #endif
 
   // region based mask for scratchpad
 #ifdef _VEC
@@ -231,15 +174,11 @@ MOVE_STACK_ONTO_SCRATCHPAD();
 
 
 #if defined _VEC
-if (cinfo.used){
-  tril_gemm_vec(mask, aT, b, c, m, n, t, m_start, m_end, n_start, n_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
-}
-else if (m_manycore>0){
-  VECTOR_EPOCH(mask);
-  gemm_unused_cores(aT,b,c,m,n,t,m_start,m_end,n_start,n_end,ptid,ptid_new);
+if (used){
+  tril_gemm_vec(mask, aT, b, c, m, n, t, m_start, m_end, n_start, n_end, vtid_x, vtid_y, vtid, ptid);
 }
 #else
-if (cinfo.used){
+if (used){
   VECTOR_EPOCH(mask);
   gemm_manycore(aT, b, c, m, n, t, m_start, n_start, ptid, pdim_x, pdim_y);
 }

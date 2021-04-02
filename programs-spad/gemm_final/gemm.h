@@ -8,10 +8,10 @@
 
 //tile size
 #ifndef BLK_DIM
-#ifdef PACKED_SIMD
+#if defined(PACKED_SIMD) || defined(NESTED_SIMD)
 // match blk dim to simd length for ease of use
 // 16 * 16 * 4 = 1kB space so fits in 4kB spad
-#define BLK_DIM 16
+#define BLK_DIM HARDWARE_VECTOR_LEN
 #else
 #define BLK_DIM 4
 #endif
@@ -81,7 +81,7 @@ typedef float DTYPE;
   uid_x = cinfo.unique_id%tg_x; \
   uid_y = cinfo.unique_id/tg_x; \
   if(cinfo.used) { \
-    int alignment = BLK_DIM * cinfo.vdim_x; \
+    int alignment = BLK_DIM * vdim_x; \
     m_start = roundUp((uid_y + 0) * m / tg_y, alignment); \
     m_end = roundUp((uid_y + 1) * m / tg_y, alignment); \
     n_start = roundUp((uid_x + 0) * n / tg_x, alignment); \
