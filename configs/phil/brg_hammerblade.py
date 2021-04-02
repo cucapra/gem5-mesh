@@ -410,6 +410,7 @@ CPUClass = IOCPU (
   includeVector = options.vector,
   meshBufferSize = 2,
   numROBEntries = 8,
+  # remember to set in util.h
   hw_vector_length = 4
   # latencies from https://github.com/bespoke-silicon-group/riscv-gcc/blob/bsg_manycore_gcc/gcc/config/riscv/bsg_vanilla_2020.md
   ,
@@ -556,7 +557,7 @@ elif n_l2s == 4:
 elif n_l2s == 8:
   l2_size = '32kB'
 elif n_l2s == 16:
-  l2_size = '16kB'
+  l2_size = '32kB'
 elif n_l2s % n_cols == 0:
   l2_size = '32kB'
 else:
@@ -629,7 +630,7 @@ system.mem_ranges = [ AddrRange(options.mem_size) ]
 # eac is 16GB/s so -> 8B/c (@1GHZ). so 16*num_channel = 128B/c
 # HBM_1000_4H_1x64  * 16 (HBMv2)
 # each is 8GB/s, -> 8B/c (@1GHZ). so 8*num_channel B/c
-bytes_per_cycle = 32
+bytes_per_cycle = 16
 
 system.mem_ctrl = SimpleMemory()
 system.mem_ctrl.latency = '60ns' 
