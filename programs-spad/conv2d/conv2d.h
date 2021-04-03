@@ -20,16 +20,10 @@
   c12 * a12 + c22 * a22 + c32 * a32 + \
   c13 * a13 + c23 * a23 + c33 * a33
 
-
-#define GENERATE_VEC_CONV_MASK()                                \
-  vint32m1_t vmask = vmv_v_x_i32m1(1);                          \
-  vmask = vslidedown_vx_i32m1(vmask, vmask, (FILTER_DIM-1));    \
-  vbool32_t bmask = vmseq_vx_i32m1_b32(vmask, 1)
-
 // 1: do three vector-scalar multiplications for each row (one for each filter element)
 // 2: shift vectors so when add get a partial product for the row
 // 3: add every vector togehter for a set of VLEN-(FILTER_DIM-1) outputs (last 2 are duds)
-#define VECTOR_CONV_3x3(r1, r2, r3, bPtr)                       \
+#define VECTOR_CONV_3x3(r1, r2, r3, bPtr, bmask)                \
   vfloat32m1_t r11, r12, r13, r21, r22, r23, r31, r32, r33;     \
   r11 = vfmul_vf_f32m1(r1, c11);                                \
   r21 = vfmul_vf_f32m1(r1, c21);                                \
@@ -135,6 +129,8 @@
 #error Load length and valu len mismatch
 #endif
 #define NESTED_SIMD_STRIDE (NESTED_SIMD_VLEN-(FILTER_DIM-1))
+#else
+#define NESTED_SIMD_STRIDE (1)
 #endif
 
 

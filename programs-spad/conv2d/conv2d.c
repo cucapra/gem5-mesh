@@ -49,7 +49,9 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
   int cEnd = ((NJ-1) / CORE_STEP) * CORE_STEP;
 
   vsetvl_e32m1(HARDWARE_VECTOR_LEN);
-  GENERATE_VEC_CONV_MASK();
+  vint32m1_t vmask = vmv_v_x_i32m1(1);
+  vmask = vslidedown_vx_i32m1(vmask, vmask, (FILTER_DIM-1));
+  vbool32_t bmask = vmseq_vx_i32m1_b32(vmask, 1);
 
   for (int r = outer_start; r < outer_end; r++) {
   
@@ -62,7 +64,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
       vfloat32m1_t r2 = vle32_v_f32m1(&a[(r + 0)*NJ + (c - 1)]);
       vfloat32m1_t r3 = vle32_v_f32m1(&a[(r + 1)*NJ + (c - 1)]);
     
-      VECTOR_CONV_3x3(r1, r2, r3, &b[r*NJ + c]);
+      VECTOR_CONV_3x3(r1, r2, r3, &b[r*NJ + c], bmask);
     }
 
     // TODO not clear how much this matters

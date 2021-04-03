@@ -11,6 +11,7 @@
 
 #ifdef NESTED_SIMD
 #include <riscv_vector.h>
+#define BIG_INT 2000000000
 #endif
 
 /*
@@ -64,7 +65,18 @@ void tril_conv2d(int mask,
 
   #ifdef NESTED_SIMD
   vsetvl_e32m1(NESTED_SIMD_VLEN);
-  GENERATE_VEC_CONV_MASK();
+  
+  // construct vector to help generate ending mask
+  vint32m1_t cresendo = vmv_v_x_i32m1(0.0f);
+  #pragma GCC unroll(16)
+  for (int i = 0; i < NESTED_SIMD_VLEN; i++) {
+    if (i < NESTED_SIMD_STRIDE)
+      cresendo = vslide1down_vx_i32m1(cresendo, i);
+    // the last two should always be masked so set to high value
+    else
+      cresendo = vslide1down_vx_i32m1(cresendo, BIG_INT);
+  }
+
   #endif
 
   #endif
@@ -122,33 +134,33 @@ void tril_conv2d(int mask,
 
       #ifdef NESTED_SIMD
       vsetvl_e32m1(NESTED_SIMD_VLEN);
-
-      #pragma GCC unroll(4)
-      for (int i = 0; i < CENTER_ITERS/NESTED_SIMD_STRIDE; i+=NESTED_SIMD_STRIDE) {
-        // construct initial vectors
-        vfloat32m1_t r1 = vle32_v_f32m1(&sp_ptr[sp0 + i]);
-        vfloat32m1_t r2 = vle32_v_f32m1(&sp_ptr[sp1 + i]);
-        vfloat32m1_t r3 = vle32_v_f32m1(&sp_ptr[sp2 + i]);
-
-        // just going to center compute in vector mode and the edges in non vec
-        // this means don't ever do first or last element, i think already does this though
-        int cond_c = (col + OUT_PTR_OFFSET + i <= eff_inner_dim);
-        PRED_EQ(cond_c, 1);
-        VECTOR_CONV_3x3(r1, r2, r3, bPtr + OUT_PTR_OFFSET + i);
-        PRED_EQ(0, 0);
-      }
-      #else
+      #endif
 
       // need enough instructions here before stores to avoid sync problem
       // (2*2 - 1)*2 + 6 + 8 = 20
       // (2*4 - 1)*2 + 6 + 8 = 28
 
       #pragma GCC unroll(16)
-      for (int i = 0; i < CENTER_ITERS; i++) {
+      for (int i = 0; i < CENTER_ITERS; i+=NESTED_SIMD_STRIDE) {
         int sp0i = sp0 + i;
         int sp1i = sp1 + i;
         int sp2i = sp2 + i;
 
+        #ifdef NESTED_SIMD
+        // construct initial vectors
+        vfloat32m1_t r1 = vle32_v_f32m1(&sp_ptr[sp0i]);
+        vfloat32m1_t r2 = vle32_v_f32m1(&sp_ptr[sp1i]);
+        vfloat32m1_t r3 = vle32_v_f32m1(&sp_ptr[sp2i]);
+
+        // just going to center compute in vector mode and the edges in non vec
+        // this means don't ever do first or last element, i think already does this though
+        // int cond_c = (col + OUT_PTR_OFFSET + i <= eff_inner_dim);
+        vbool32_t bmask = vmsle_vx_i32m1_b32(cresendo, eff_inner_dim - (col + OUT_PTR_OFFSET + i));
+        
+        // PRED_EQ(cond_c, 1);
+        VECTOR_CONV_3x3(r1, r2, r3, bPtr + OUT_PTR_OFFSET + i, bmask);
+        // PRED_EQ(0, 0);
+        #else
         DTYPE out = CONV_3x3(
           sp_ptr[sp0i + 0], sp_ptr[sp0i + 1], sp_ptr[sp0i + 2],
           sp_ptr[sp1i + 0], sp_ptr[sp1i + 1], sp_ptr[sp1i + 2],
@@ -156,9 +168,8 @@ void tril_conv2d(int mask,
         );
         int cond_c = (col + OUT_PTR_OFFSET + i <= eff_inner_dim);
         PRED_EQ_FSTORE_NOACK(cond_c, 1, out, bPtr + OUT_PTR_OFFSET + i, 0);
+        #endif
       }
-
-      #endif
 
       // data to send to previous core
       int first_sp0 = sp0;
