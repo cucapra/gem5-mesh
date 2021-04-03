@@ -30,9 +30,14 @@ void tril_fdtd_step1(int mask,
   int start = VECTOR_LEN + ((groupId + 0) * NX) / numGroups;
   int end   = VECTOR_LEN + ((groupId + 1) * NX) / numGroups;
 
+  #ifndef LONGLINES
   // make it a factor of vector group mapping size
   start = roundUp(start, VECTOR_LEN);
   end   = roundUp(end  , VECTOR_LEN);
+  #endif
+
+  int sp = 0;
+  int init_len = min(INIT_FRAMES*STEP1_J_STRIDE, NY);
 
   ISSUE_VINST(init_label);
   #endif
@@ -40,10 +45,12 @@ void tril_fdtd_step1(int mask,
   #ifdef VECTOR_CORE
   asm("trillium vissue_delim until_next vector_init");
   int start = VECTOR_LEN + ((groupId + 0) * NX) / numGroups;
+  #ifndef LONGLINES
   start = roundUp(start, VECTOR_LEN);
-
   int i = vtid + start;
-  int j;
+  #else
+  int i = start;
+  #endif
 
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
@@ -51,26 +58,24 @@ void tril_fdtd_step1(int mask,
 
 
   #ifdef SCALAR_CORE
-  int sp = 0;
-  int init_len = min(INIT_FRAMES*STEP1_UNROLL_LEN, NY);
 
-  for (int i = start; i < end; i+=VECTOR_LEN) {
+  for (int i = start; i < end; i+=STEP1_I_STRIDE) {
 
     ISSUE_VINST(vec_body_init_in0_label);
 
     // warmup
-    for (int j = 0; j < init_len; j+=STEP1_UNROLL_LEN) {
+    for (int j = 0; j < init_len; j+=STEP1_J_STRIDE) {
       prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp);
     }
 
     // steady state
-    for (int j = init_len; j < NY; j+=STEP1_UNROLL_LEN) {
+    for (int j = init_len; j < NY; j+=STEP1_J_STRIDE) {
       prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp);
       ISSUE_VINST(vec_body_in0_label);
     }
 
     // cooldown
-    for (int j = NY - init_len; j < NY; j+=STEP1_UNROLL_LEN) {
+    for (int j = NY - init_len; j < NY; j+=STEP1_J_STRIDE) {
       ISSUE_VINST(vec_body_in0_label);
     }
 
@@ -85,7 +90,11 @@ void tril_fdtd_step1(int mask,
 
   do {
     asm("trillium vissue_delim until_next vec_body_init_in0");
-    j = 0;
+    #ifdef LONGLINES
+    int j = vtid * STEP1_UNROLL_LEN;
+    #else
+    int j = 0;
+    #endif
 
     // i != 0
     do {
@@ -102,7 +111,7 @@ void tril_fdtd_step1(int mask,
         FSTORE_NOACK(out, ey + idx + u, 0);
       }
       END_FRAME();
-      j += STEP1_UNROLL_LEN;
+      j += STEP1_J_STRIDE;
       sp += STEP1_REGION_SIZE;
       sp = sp % STEP1_POST_FRAME_WORD;
       // if (sp == POST_FRAME_WORD) sp = 0;
@@ -111,7 +120,7 @@ void tril_fdtd_step1(int mask,
     } while(BH);
 
     asm("trillium vissue_delim if_begin vec_body_end_in0");
-    i += VECTOR_LEN;
+    i += STEP1_I_STRIDE;
     asm("trillium vissue_delim end at_jump");
 
   } while(BHO);

@@ -2,10 +2,11 @@ BENCHNAME := fdtd2d
 default: $(BENCHNAME)
 
 # run small sim for test
-PROB_SIZE := 32 32 2
+PROB_SIZE := 64 64 2
 N_SPS ?= 16
-EXTRA_FLAGS ?= -DVEC_4_SIMD
-HB_ARGS := --options="$(PROB_SIZE)"
+CL_LEN := 256
+EXTRA_FLAGS ?= -DVEC_4_LONGLINES -DCACHE_LINE_SIZE=$(CL_LEN)
+HB_ARGS := --options="$(PROB_SIZE)" --cacheline_size=$(CL_LEN)
 # GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=RiscvVector
 
 # Build the kernel with trilliasm.
