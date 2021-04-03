@@ -13,32 +13,43 @@
 // #define MANYCORE_PREFETCH
 // #define PACKED_SIMD
 
-// vvadd_execute config directives
 #if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
 #define USE_VEC 1
 #endif
 
 // vector grouping directives
-#if defined(VEC_4_SIMD)
+#if defined(VEC_4_SIMD) || defined(NESTED_SIMD_4_4) || defined(VEC_4_LONGLINES)
 #define VECTOR_LEN 4
 #endif
-#if defined(VEC_16_SIMD)
+#if defined(VEC_16_SIMD) || defined(VEC_16_LONGLINES)
 #define VECTOR_LEN 16
 #endif
 #if defined(MANYCORE_PREFETCH)
 #define VECTOR_LEN 1
 #endif
 
-// prefetch sizing
-#if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
-#ifdef MANYCORE_PREFETCH
-#define VPREFETCH_LR_FAIR(sp, memIdx, core, len, style)  \
-  VPREFETCH_L(sp, memIdx, core, len, style)
-#else
-#define VPREFETCH_LR_FAIR(sp, memIdx, core, len, style)  \
-  VPREFETCH_LR(sp, memIdx, core, len, style)
+#if defined(VEC_16_LONGLINES) || defined(NESTED_SIMD_4_4) || defined(VEC_4_LONGLINES)
+#define LONGLINES
 #endif
 
+#if defined(NESTED_SIMD_4_4)
+#define NESTED_SIMD_VLEN 4
+#else
+#define NESTED_SIMD_VLEN 1
+#endif
+
+#if NESTED_SIMD_VLEN > 1
+#define NESTED_SIMD
+#endif
+
+#ifdef MANYCORE_PREFETCH
+  #define VERTICAL_FETCH_TYPE (TO_SELF)
+#else
+  #define VERTICAL_FETCH_TYPE (TO_ONE_CORE)
+#endif
+
+// prefetch sizing
+#if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
 // dedicate a quarter of scratchpad to frames
 // #define POST_FRAME_WORD 120
 
@@ -68,12 +79,9 @@
 inline void prefetch_step1_frame_i0(DTYPE *fict, int t, int *sp) {
   // pad out to region size (3). also only fetch one element
   for (int core = 0; core < 1; core++) {
-    // VPREFETCH_L(*sp + 0, fict + t, core, 1, VERTICAL);
-    // VPREFETCH_L(*sp + 1, fict + t, core, 1, VERTICAL);
-    // VPREFETCH_L(*sp + 2, fict + t, core, 1, VERTICAL);
-    VPREFETCH_LR(*sp + 0*STEP1_UNROLL_LEN, fict + t, core, STEP1_UNROLL_LEN, VERTICAL);
-    VPREFETCH_LR(*sp + 1*STEP1_UNROLL_LEN, fict + t, core, STEP1_UNROLL_LEN, VERTICAL);
-    VPREFETCH_LR(*sp + 2*STEP1_UNROLL_LEN, fict + t, core, STEP1_UNROLL_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 0*STEP1_UNROLL_LEN, fict + t, core, STEP1_UNROLL_LEN, VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + 1*STEP1_UNROLL_LEN, fict + t, core, STEP1_UNROLL_LEN, VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + 2*STEP1_UNROLL_LEN, fict + t, core, STEP1_UNROLL_LEN, VERTICAL_FETCH_TYPE);
   }
 
   #ifndef MANYCORE_PREFETCH
@@ -83,14 +91,10 @@ inline void prefetch_step1_frame_i0(DTYPE *fict, int t, int *sp) {
 }
 
 inline void prefetch_step1_frame_in0(DTYPE *ey, DTYPE *hz, int i, int j, int NY, int *sp) {
-  // VPREFETCH_LR_FAIR(*sp + 0, ey + i     * NY + j, 0, VECTOR_LEN, HORIZONTAL);
-  // VPREFETCH_LR_FAIR(*sp + 1, hz + i     * NY + j, 0, VECTOR_LEN, HORIZONTAL);
-  // VPREFETCH_LR_FAIR(*sp + 2, hz + (i-1) * NY + j, 0, VECTOR_LEN, HORIZONTAL);
-
   for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_LR(*sp + 0*STEP1_UNROLL_LEN, ey + (i + core)     * NY + j, core, STEP1_UNROLL_LEN, VERTICAL);
-    VPREFETCH_LR(*sp + 1*STEP1_UNROLL_LEN, hz + (i + core)     * NY + j, core, STEP1_UNROLL_LEN, VERTICAL);
-    VPREFETCH_LR(*sp + 2*STEP1_UNROLL_LEN, hz + (i + core - 1) * NY + j, core, STEP1_UNROLL_LEN, VERTICAL);
+    VPREFETCH_LR(*sp + 0*STEP1_UNROLL_LEN, ey + (i + core)     * NY + j, core, STEP1_UNROLL_LEN, VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + 1*STEP1_UNROLL_LEN, hz + (i + core)     * NY + j, core, STEP1_UNROLL_LEN, VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + 2*STEP1_UNROLL_LEN, hz + (i + core - 1) * NY + j, core, STEP1_UNROLL_LEN, VERTICAL_FETCH_TYPE);
   }
 
   #ifndef MANYCORE_PREFETCH
@@ -100,13 +104,9 @@ inline void prefetch_step1_frame_in0(DTYPE *ey, DTYPE *hz, int i, int j, int NY,
 }
 
 inline void prefetch_step2_frame(DTYPE *ex, DTYPE *hz, int i, int j, int NY, int *sp) {
-  // VPREFETCH_LR_FAIR(*sp + 0, ex + i * (NY+1) + j, 0, VECTOR_LEN, HORIZONTAL);
-  // VPREFETCH_LR_FAIR(*sp + 1, hz + i * NY + j    , 0, VECTOR_LEN, HORIZONTAL);
-  // VPREFETCH_LR_FAIR(*sp + 2, hz + i * NY + (j-1), 0, VECTOR_LEN, HORIZONTAL);
-
   for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_LR(*sp + 0               , ex + (i + core) * (NY+1) + j, core, STEP2_UNROLL_LEN    , VERTICAL);
-    VPREFETCH_LR(*sp + STEP2_UNROLL_LEN, hz + (i + core) * NY + (j-1), core, STEP2_UNROLL_LEN + 1, VERTICAL);
+    VPREFETCH_LR(*sp + 0               , ex + (i + core) * (NY+1) + j, core, STEP2_UNROLL_LEN    , VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + STEP2_UNROLL_LEN, hz + (i + core) * NY + (j-1), core, STEP2_UNROLL_LEN + 1, VERTICAL_FETCH_TYPE);
   }
 
   #ifndef MANYCORE_PREFETCH
@@ -117,19 +117,12 @@ inline void prefetch_step2_frame(DTYPE *ex, DTYPE *hz, int i, int j, int NY, int
 
 inline void prefetch_step3_frame(DTYPE *ex, DTYPE *ey, DTYPE *hz, 
       int i, int j, int NY, int *sp) {
-  // TODO not sure LR needed here
-  // VPREFETCH_LR_FAIR(*sp + 0, hz + i     * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
-  // VPREFETCH_LR_FAIR(*sp + 1, ex + i     * (NY+1) + (j+1), 0, VECTOR_LEN, HORIZONTAL);
-  // VPREFETCH_LR_FAIR(*sp + 2, ex + i     * (NY+1) + j    , 0, VECTOR_LEN, HORIZONTAL);
-  // VPREFETCH_LR_FAIR(*sp + 3, ey + (i+1) * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
-  // VPREFETCH_LR_FAIR(*sp + 4, ey + i     * NY     + j    , 0, VECTOR_LEN, HORIZONTAL);
-
   int ul = STEP3_UNROLL_LEN;
   for (int core = 0; core < VECTOR_LEN; core++) {
-    VPREFETCH_L (*sp + 0*ul  , hz + (i + core)     * NY     + j, core, STEP3_UNROLL_LEN    , VERTICAL);
-    VPREFETCH_LR(*sp + 1*ul  , ex + (i + core)     * (NY+1) + j, core, STEP3_UNROLL_LEN + 1, VERTICAL);
-    VPREFETCH_L (*sp + 2*ul+1, ey + (i + core + 1) * NY     + j, core, STEP3_UNROLL_LEN    , VERTICAL);
-    VPREFETCH_L (*sp + 3*ul+1, ey + (i + core)     * NY     + j, core, STEP3_UNROLL_LEN    , VERTICAL);
+    VPREFETCH_L (*sp + 0*ul  , hz + (i + core)     * NY     + j, core, STEP3_UNROLL_LEN    , VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + 1*ul  , ex + (i + core)     * (NY+1) + j, core, STEP3_UNROLL_LEN + 1, VERTICAL_FETCH_TYPE);
+    VPREFETCH_L (*sp + 2*ul+1, ey + (i + core + 1) * NY     + j, core, STEP3_UNROLL_LEN    , VERTICAL_FETCH_TYPE);
+    VPREFETCH_L (*sp + 3*ul+1, ey + (i + core)     * NY     + j, core, STEP3_UNROLL_LEN    , VERTICAL_FETCH_TYPE);
   }
 
   #ifndef MANYCORE_PREFETCH
@@ -144,15 +137,6 @@ inline void prefetch_step3_frame(DTYPE *ex, DTYPE *ey, DTYPE *hz,
 
 // covariance specific value
 #define FLOAT_N 3214212.01
-
-// grid dim xy assuming always a square
-#if _N_SPS==16
-#define GRID_XDIM 4
-#define GRID_YDIM 4
-#elif _N_SPS==64
-#define GRID_XDIM 8
-#define GRID_YDIM 8
-#endif
 
 // pthread argument for the kernel
 typedef struct Kern_Args {
