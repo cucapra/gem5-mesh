@@ -42,8 +42,6 @@ void tril_fdtd_step1(int mask,
   int start = VECTOR_LEN + ((groupId + 0) * NX) / numGroups;
   start = roundUp(start, VECTOR_LEN);
 
-  // int stride = (VECTOR_LEN-1)*NY;
-  // int idx = ((start + vtid) * NY);
   int i = vtid + start;
   int j;
 
@@ -53,114 +51,37 @@ void tril_fdtd_step1(int mask,
 
 
   #ifdef SCALAR_CORE
-  // if (start != 0) ISSUE_VINST(init_2_label);
   int sp = 0;
   int init_len = min(INIT_FRAMES*STEP1_UNROLL_LEN, NY);
 
   for (int i = start; i < end; i+=VECTOR_LEN) {
 
-    // // i0
-    // if (i == 0) {
-    //   ISSUE_VINST(vec_body_init_i0_label);
+    ISSUE_VINST(vec_body_init_in0_label);
 
-    //   // warmup
-    //   for (int j = 0; j < init_len; j+=STEP1_UNROLL_LEN) {
-    //     prefetch_step1_frame_i0(fict, t, &sp);
-    //     prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp, 1);
-    //   }
-
-    //   // steady state
-    //   for (int j = init_len; j < NY; j+=STEP1_UNROLL_LEN) {
-    //     prefetch_step1_frame_i0(fict, t, &sp);
-    //     prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp, 1);
-    //     ISSUE_VINST(vec_body_i0_label);
-    //   }
-
-    //   // cooldown
-    //   for (int j = NY - init_len; j < NY; j+=STEP1_UNROLL_LEN) {
-    //     ISSUE_VINST(vec_body_i0_label);
-    //   }
-
-    //   ISSUE_VINST(vec_body_end_i0_label);
-    // }
-    // // in0
-    // else {
-      ISSUE_VINST(vec_body_init_in0_label);
-
-      // warmup
-      for (int j = 0; j < init_len; j+=STEP1_UNROLL_LEN) {
-        prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp);
-      }
-
-      // steady state
-      for (int j = init_len; j < NY; j+=STEP1_UNROLL_LEN) {
-        prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp);
-        ISSUE_VINST(vec_body_in0_label);
-      }
-
-      // cooldown
-      for (int j = NY - init_len; j < NY; j+=STEP1_UNROLL_LEN) {
-        ISSUE_VINST(vec_body_in0_label);
-      }
-
-      ISSUE_VINST(vec_body_end_in0_label);
+    // warmup
+    for (int j = 0; j < init_len; j+=STEP1_UNROLL_LEN) {
+      prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp);
     }
-  // }
+
+    // steady state
+    for (int j = init_len; j < NY; j+=STEP1_UNROLL_LEN) {
+      prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp);
+      ISSUE_VINST(vec_body_in0_label);
+    }
+
+    // cooldown
+    for (int j = NY - init_len; j < NY; j+=STEP1_UNROLL_LEN) {
+      ISSUE_VINST(vec_body_in0_label);
+    }
+
+    ISSUE_VINST(vec_body_end_in0_label);
+  }
   
   #endif
-
-  // TODO do first row in scalar and no vector core. maybe want another kernel?
 
   #ifdef VECTOR_CORE
   volatile int BH;
   volatile int BHO;
-
-  // do {
-
-  //   asm("trillium vissue_delim until_next vec_body_init_i0");
-  //   j = 0;
-
-  //   // i == 0
-  //   do {
-  //     asm("trillium vissue_delim if_begin vec_body_i0");
-  //     START_FRAME();
-  //     #pragma GCC unroll(4)
-  //     for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
-  //       DTYPE out = sp_ptr[sp + 0];
-  //       int idx = i * NY + j;
-  //       PRED_EQ(vtid, 0);
-  //       STORE_NOACK(out, ey + idx + u, 0);
-  //       PRED_EQ(vtid, vtid);
-  //     }
-
-  //     #pragma GCC unroll(4)
-  //     for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
-  //       int u0 = u;
-  //       int u1 = STEP1_UNROLL_LEN+u;
-  //       int u2 = 2*STEP1_UNROLL_LEN+u;
-  //       DTYPE out = sp_ptr[sp + u0] - 0.5f * (sp_ptr[sp + u1] - sp_ptr[sp + u2]);
-  //       int idx = i * NY + j;
-  //       PRED_NEQ(vtid, 0);
-  //       STORE_NOACK(out, ey + idx + u, 0);
-  //       PRED_EQ(vtid, vtid);
-  //     }
-
-  //     END_FRAME();
-  //     j += STEP1_UNROLL_LEN;
-  //     sp += STEP1_REGION_SIZE;
-  //     sp = sp % STEP1_POST_FRAME_WORD;
-  //     // if (sp == POST_FRAME_WORD) sp = 0;
-  //     asm("trillium vissue_delim end at_jump");
-
-  //   } while(BH);
-
-  //   asm("trillium vissue_delim if_begin vec_body_end_i0");
-  //   i += VECTOR_LEN;
-  //   asm("trillium vissue_delim end at_jump");
-
-  // } while (BHO);
-
-  // asm("trillium vissue_delim until_next init_block_2");
 
   do {
     asm("trillium vissue_delim until_next vec_body_init_in0");
@@ -170,7 +91,7 @@ void tril_fdtd_step1(int mask,
     do {
 
       asm("trillium vissue_delim if_begin vec_body_in0");
-      START_FRAME();
+      FRAME_START(STEP1_REGION_SIZE);
       #pragma GCC unroll(16)
       for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
         int u0 = u;
@@ -178,7 +99,7 @@ void tril_fdtd_step1(int mask,
         int u2 = 2*STEP1_UNROLL_LEN+u;
         DTYPE out = sp_ptr[sp + u0] - 0.5f * (sp_ptr[sp + u1] - sp_ptr[sp + u2]);
         int idx = i * NY + j;
-        STORE_NOACK(out, ey + idx + u, 0);
+        FSTORE_NOACK(out, ey + idx + u, 0);
       }
       END_FRAME();
       j += STEP1_UNROLL_LEN;
@@ -217,22 +138,12 @@ void tril_fdtd_step1(int mask,
 #ifdef SCALAR_CORE
 init_label:
   asm("trillium glue_point vector_init");
-// init_2_label:
-//   asm("trillium glue_point init_block_2");
-// vec_body_init_i0_label:
-//   asm("trillium glue_point vec_body_init_i0");
 vec_body_init_in0_label:
   asm("trillium glue_point vec_body_init_in0");
-// vec_body_i0_label:
-//   asm("trillium glue_point vec_body_i0");
 vec_body_in0_label:
   asm("trillium glue_point vec_body_in0");
-// vec_body_end_i0_label:
-//   asm("trillium glue_point vec_body_end_i0");
 vec_body_end_in0_label:
   asm("trillium glue_point vec_body_end_in0");
-// vec_body_end_label:
-//   asm("trillium glue_point vec_body_end");
 vector_return_label:
   asm("trillium glue_point vector_return");
 #endif
@@ -310,7 +221,7 @@ void tril_fdtd_step2(int mask,
     do {
 
       asm("trillium vissue_delim if_begin vec_body");
-      START_FRAME();
+      FRAME_START(STEP2_REGION_SIZE);
       #pragma GCC unroll(16)
       for (int u = 0; u < STEP2_UNROLL_LEN; u++) {
         int u0 = u;
@@ -319,9 +230,7 @@ void tril_fdtd_step2(int mask,
           0.5f * (sp_ptr[sp + u1 + 1] - sp_ptr[sp + u1]);
         int idx = i * (NY+1) + j + u;
         int gt = (j + u >= NY);
-        PRED_EQ(gt, 0);
-        STORE_NOACK(out, ex + idx, 0);
-        PRED_EQ(gt, gt);
+        PRED_EQ_FSTORE_NOACK(gt, 0, out, ex + idx, 0);
       }
       END_FRAME();
 
@@ -442,7 +351,7 @@ void tril_fdtd_step3(int mask,
     do {
 
       asm("trillium vissue_delim if_begin vec_body");
-      START_FRAME();
+      FRAME_START(STEP3_REGION_SIZE);
       #pragma GCC unroll(16)
       for (int u = 0; u < STEP3_UNROLL_LEN; u++) {
         int u0 = u;
@@ -451,7 +360,7 @@ void tril_fdtd_step3(int mask,
         int u3 = 3*STEP3_UNROLL_LEN+1 + u;
         DTYPE out = sp_ptr[sp + u0] - 0.7f * 
           (sp_ptr[sp + u1+1] - sp_ptr[sp + u1] + sp_ptr[sp + u2] - sp_ptr[sp + u3]);
-        STORE_NOACK(out, &hz[idx + u], 0); 
+        FSTORE_NOACK(out, &hz[idx + u], 0); 
       }
       END_FRAME();
       sp += STEP3_REGION_SIZE;

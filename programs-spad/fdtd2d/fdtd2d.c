@@ -63,7 +63,7 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
         #pragma GCC unroll(16)
         for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
           DTYPE out = sp_ptr[sp + 0];
-          STORE_NOACK(out, &ey[i * NY + j + u], 0);
+          FSTORE_NOACK(out, &ey[i * NY + j + u], 0);
         }
         END_FRAME();
         sp += STEP1_REGION_SIZE;
@@ -80,7 +80,7 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
           int u1 = STEP1_UNROLL_LEN+u;
           int u2 = 2*STEP1_UNROLL_LEN+u;
           DTYPE out = sp_ptr[sp + u0] - 0.5f * (sp_ptr[sp + u1] - sp_ptr[sp + u2]);
-          STORE_NOACK(out, &ey[i * NY + j + u], 0);
+          FSTORE_NOACK(out, &ey[i * NY + j + u], 0);
         }
         END_FRAME();
         sp += STEP1_REGION_SIZE;
@@ -99,7 +99,7 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
       else {
         out = ey[i * NY + j] - 0.5f * (hz[i * NY + j] - hz[(i-1) * NY + j]);
       }
-      STORE_NOACK(out, &ey[i * NY + j], 0);
+      FSTORE_NOACK(out, &ey[i * NY + j], 0);
     }
   }
   #endif
@@ -147,7 +147,7 @@ void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
         if (j + u < NY) {
           DTYPE out = sp_ptr[sp + u0] - 
             0.5f * (sp_ptr[sp + u1 + 1] - sp_ptr[sp + u1]);
-          STORE_NOACK(out, &ex[i * (NY+1) + j + u], 0);
+          FSTORE_NOACK(out, &ex[i * (NY+1) + j + u], 0);
         }
       }
       END_FRAME();
@@ -160,7 +160,7 @@ void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
     #pragma GCC unroll(16)
     for (int j = 1; j < NY; j++) {
       DTYPE out = ex[i * (NY+1) + j] - 0.5f * (hz[i * NY + j] - hz[i * NY + (j-1)]);
-      STORE_NOACK(out, &ex[i * (NY+1) + j], 0); 
+      FSTORE_NOACK(out, &ex[i * (NY+1) + j], 0); 
     }
   }
   #endif
@@ -210,7 +210,7 @@ void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
         int u3 = 3*STEP3_UNROLL_LEN+1 + u;
         DTYPE out = sp_ptr[sp + u0] - 0.7f * 
           (sp_ptr[sp + u1+1] - sp_ptr[sp + u1] + sp_ptr[sp + u2] - sp_ptr[sp + u3]);
-        STORE_NOACK(out, &hz[i * NY + j + u], 0); 
+        FSTORE_NOACK(out, &hz[i * NY + j + u], 0); 
       }
       END_FRAME();
       sp += STEP3_REGION_SIZE;
@@ -222,7 +222,7 @@ void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
     #pragma GCC unroll(16)
     for (int j = 0; j < NY; j++) {
       DTYPE out = hz[i * NY + j] - 0.7f * (ex[i * (NY+1) + (j+1)] - ex[i * (NY+1) + j] + ey[(i + 1) * NY + j] - ey[i * NY + j]);
-      STORE_NOACK(out, &hz[i * NY + j], 0); 
+      FSTORE_NOACK(out, &hz[i * NY + j], 0); 
     }
   }
   #endif
