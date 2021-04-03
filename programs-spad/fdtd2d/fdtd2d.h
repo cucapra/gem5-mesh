@@ -69,7 +69,6 @@
   #define STEP1_J_STRIDE (STEP1_UNROLL_LEN)
   #define STEP1_I_STRIDE (VECTOR_LEN)
 #endif
-
 #define STEP1_REGION_SIZE (3*STEP1_UNROLL_LEN)
 #define STEP1_NUM_REGIONS (8)
 #define STEP1_POST_FRAME_WORD (STEP1_REGION_SIZE*STEP1_NUM_REGIONS)
@@ -77,6 +76,13 @@
 
 // prefetch sizings for step2
 #define STEP2_UNROLL_LEN 8
+#ifdef LONGLINES
+  #define STEP2_J_STRIDE (STEP2_UNROLL_LEN*VECTOR_LEN)
+  #define STEP2_I_STRIDE (1)
+#else
+  #define STEP2_J_STRIDE (STEP2_UNROLL_LEN)
+  #define STEP2_I_STRIDE (VECTOR_LEN)
+#endif
 #define STEP2_REGION_SIZE (2*STEP2_UNROLL_LEN+1)
 #define STEP2_NUM_REGIONS (8)
 #define STEP2_POST_FRAME_WORD (STEP2_REGION_SIZE*STEP2_NUM_REGIONS)
@@ -121,10 +127,21 @@ inline void prefetch_step1_frame_in0(DTYPE *ey, DTYPE *hz, int i, int j, int NY,
 }
 
 inline void prefetch_step2_frame(DTYPE *ex, DTYPE *hz, int i, int j, int NY, int *sp) {
+  #ifdef LONGLINES
+  VPREFETCH_LR(*sp + 0               , ex + ( i ) * (NY+1) + j, 0, STEP2_UNROLL_LEN    , TO_ALL_CORES);
+  
+  // this +1 is a problem b/c not the same as j stride -> use unoptimized option
+  // VPREFETCH_LR(*sp + STEP2_UNROLL_LEN, hz + ( i ) * NY + (j-1), 0, STEP2_UNROLL_LEN + 1, TO_ALL_CORES);
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    int j_idx = j + core * STEP2_UNROLL_LEN;
+    VPREFETCH_LR(*sp + STEP2_UNROLL_LEN, hz + ( i ) * NY + (j_idx-1), core, STEP2_UNROLL_LEN + 1, TO_ONE_CORE);
+  }
+  #else
   for (int core = 0; core < VECTOR_LEN; core++) {
     VPREFETCH_LR(*sp + 0               , ex + (i + core) * (NY+1) + j, core, STEP2_UNROLL_LEN    , VERTICAL_FETCH_TYPE);
     VPREFETCH_LR(*sp + STEP2_UNROLL_LEN, hz + (i + core) * NY + (j-1), core, STEP2_UNROLL_LEN + 1, VERTICAL_FETCH_TYPE);
   }
+  #endif
 
   #ifndef MANYCORE_PREFETCH
   *sp += STEP2_REGION_SIZE;
