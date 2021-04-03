@@ -11,6 +11,10 @@
 #include "util.h"
 #include "fdtd2d_kernel.h"
 
+#ifdef NESTED_SIMD
+#include <riscv_vector.h>
+#endif
+
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
@@ -54,6 +58,10 @@ void tril_fdtd_step1(int mask,
 
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #endif
   #endif
 
 
@@ -96,19 +104,40 @@ void tril_fdtd_step1(int mask,
     int j = 0;
     #endif
 
+    #ifdef NESTED_SIMD
+    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    #endif
+
     // i != 0
     do {
 
       asm("trillium vissue_delim if_begin vec_body_in0");
+
+      #ifdef NESTED_SIMD
+      size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #endif
+
       FRAME_START(STEP1_REGION_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
+      for (int u = 0; u < STEP1_UNROLL_LEN; u+=NESTED_SIMD_VLEN) {
         int u0 = u;
         int u1 = STEP1_UNROLL_LEN+u;
         int u2 = 2*STEP1_UNROLL_LEN+u;
+        #ifdef NESTED_SIMD
+        vfloat32m1_t vhzi   = vle32_v_f32m1(&sp_ptr[sp + u1]);
+        vfloat32m1_t vhzim1 = vle32_v_f32m1(&sp_ptr[sp + u2]);
+        vfloat32m1_t vey    = vle32_v_f32m1(&sp_ptr[sp + u0]);
+
+        vfloat32m1_t vhzsub = vfsub_vv_f32m1(vhzi, vhzim1);
+        vfloat32m1_t out = vfmul_vf_f32m1(vhzsub, -0.5f);
+        out = vfadd_vv_f32m1(vey, out);
+        int idx = i * NY + j;
+        vse32_v_f32m1(&ey[idx + u], out);
+        #else
         DTYPE out = sp_ptr[sp + u0] - 0.5f * (sp_ptr[sp + u1] - sp_ptr[sp + u2]);
         int idx = i * NY + j;
         FSTORE_NOACK(out, ey + idx + u, 0);
+        #endif
       }
       END_FRAME();
       j += STEP1_J_STRIDE;
@@ -189,9 +218,20 @@ void tril_fdtd_step2(int mask,
   int i = start;
   #endif
 
-
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
+
+  // construct vector to help generate ending mask
+  // a cresendo
+  vint32m1_t cresendo = vmv_v_x_i32m1(0.0f);
+  for (int i = 0; i < NESTED_SIMD_VLEN; i++) {
+    cresendo = vslide1down_vx_i32m1(cresendo, i);
+  }
+
+  #endif
   #endif
 
 
@@ -237,19 +277,43 @@ void tril_fdtd_step2(int mask,
     int j = 1;
     #endif
 
+    #ifdef NESTED_SIMD
+    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    #endif
+
     do {
 
       asm("trillium vissue_delim if_begin vec_body");
+
+      #ifdef NESTED_SIMD
+      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #endif
+
       FRAME_START(STEP2_REGION_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < STEP2_UNROLL_LEN; u++) {
+      for (int u = 0; u < STEP2_UNROLL_LEN; u+=NESTED_SIMD_VLEN) {
         int u0 = u;
         int u1 = STEP2_UNROLL_LEN + u;
+        #ifdef NESTED_SIMD
+        vfloat32m1_t vhz1 = vle32_v_f32m1(&sp_ptr[sp + u1]);
+        vfloat32m1_t vhz  = vfslide1down_vf_f32m1(vhz1, sp_ptr[sp + u1 + NESTED_SIMD_VLEN]);
+
+        vfloat32m1_t vex  = vle32_v_f32m1(&sp_ptr[sp + u0]);
+
+        vfloat32m1_t vhzz = vfsub_vv_f32m1(vhz, vhz1);
+        vfloat32m1_t vout = vfmul_vf_f32m1(vhzz, -0.5f);
+        vout = vfadd_vv_f32m1(vex, vout);
+
+        // construct predication mask b/c can't change vlen due to squash
+        vbool32_t bmask = vmslt_vx_i32m1_b32(cresendo, NY - (j + u));
+        vse32_v_f32m1_m(bmask, &ex[i * (NY+1) + j + u], vout);
+        #else
         DTYPE out = sp_ptr[sp + u0] - 
           0.5f * (sp_ptr[sp + u1 + 1] - sp_ptr[sp + u1]);
         int idx = i * (NY+1) + j + u;
         int gt = (j + u >= NY);
         PRED_EQ_FSTORE_NOACK(gt, 0, out, ex + idx, 0);
+        #endif
       }
       END_FRAME();
 
@@ -331,6 +395,10 @@ void tril_fdtd_step3(int mask,
 
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #endif
   #endif
 
 
@@ -374,20 +442,45 @@ void tril_fdtd_step3(int mask,
     int j = 0;
     #endif
 
+    #ifdef NESTED_SIMD
+    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    #endif
+
     do {
 
       asm("trillium vissue_delim if_begin vec_body");
+
+      #ifdef NESTED_SIMD
+      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #endif
+
       FRAME_START(STEP3_REGION_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < STEP3_UNROLL_LEN; u++) {
+      for (int u = 0; u < STEP3_UNROLL_LEN; u+=NESTED_SIMD_VLEN) {
         int u0 = u;
         int u1 = STEP3_UNROLL_LEN + u;
         int u2 = 2*STEP3_UNROLL_LEN+1 + u;
         int u3 = 3*STEP3_UNROLL_LEN+1 + u;
+        #ifdef NESTED_SIMD
+        vfloat32m1_t vhz  = vle32_v_f32m1(&sp_ptr[sp + u0]);
+        vfloat32m1_t vex  = vle32_v_f32m1(&sp_ptr[sp + u1]);
+        vfloat32m1_t vex1 = vfslide1down_vf_f32m1(vex, sp_ptr[sp + u1 + NESTED_SIMD_VLEN]);
+        vfloat32m1_t vey1 = vle32_v_f32m1(&sp_ptr[sp + u2]);
+        vfloat32m1_t vey  = vle32_v_f32m1(&sp_ptr[sp + u3]);
+
+        vfloat32m1_t veyy = vfsub_vv_f32m1(vey1, vey);
+        vfloat32m1_t vexx = vfsub_vv_f32m1(vex1, vex);
+        vfloat32m1_t vout = vfadd_vv_f32m1(vexx, veyy);
+        vout = vfmul_vf_f32m1(vout, -0.7f);
+        vout = vfadd_vv_f32m1(vhz, vout);
+
+        vse32_v_f32m1(&hz[i * NY + j + u], vout);
+        #else
         DTYPE out = sp_ptr[sp + u0] - 0.7f * 
           (sp_ptr[sp + u1+1] - sp_ptr[sp + u1] + sp_ptr[sp + u2] - sp_ptr[sp + u3]);
         int idx = i * NY + j;
-        FSTORE_NOACK(out, &hz[idx + u], 0); 
+        FSTORE_NOACK(out, &hz[idx + u], 0);
+        #endif
       }
       END_FRAME();
       sp += STEP3_REGION_SIZE;
