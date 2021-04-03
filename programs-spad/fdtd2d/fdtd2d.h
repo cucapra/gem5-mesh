@@ -89,6 +89,13 @@
 
 // prefetch sizings for step3
 #define STEP3_UNROLL_LEN 8
+#ifdef LONGLINES
+  #define STEP3_J_STRIDE (STEP3_UNROLL_LEN*VECTOR_LEN)
+  #define STEP3_I_STRIDE (1)
+#else
+  #define STEP3_J_STRIDE (STEP3_UNROLL_LEN)
+  #define STEP3_I_STRIDE (VECTOR_LEN)
+#endif
 #define STEP3_REGION_SIZE (4*STEP3_UNROLL_LEN+1)
 #define STEP3_NUM_REGIONS (8)
 #define STEP3_POST_FRAME_WORD (STEP3_REGION_SIZE*STEP3_NUM_REGIONS)
@@ -152,12 +159,24 @@ inline void prefetch_step2_frame(DTYPE *ex, DTYPE *hz, int i, int j, int NY, int
 inline void prefetch_step3_frame(DTYPE *ex, DTYPE *ey, DTYPE *hz, 
       int i, int j, int NY, int *sp) {
   int ul = STEP3_UNROLL_LEN;
+
+  #ifdef LONGLINES
+  VPREFETCH_L (*sp + 0*ul  , hz + ( i )     * NY     + j, 0, STEP3_UNROLL_LEN    , TO_ALL_CORES);
+  VPREFETCH_L (*sp + 2*ul+1, ey + ( i + 1 ) * NY     + j, 0, STEP3_UNROLL_LEN    , TO_ALL_CORES);
+  VPREFETCH_L (*sp + 3*ul+1, ey + ( i )     * NY     + j, 0, STEP3_UNROLL_LEN    , TO_ALL_CORES);
+
+  for (int core = 0; core < VECTOR_LEN; core++) {
+    int j_idx = j + core * ul;
+    VPREFETCH_LR(*sp + 1*ul  , ex + ( i )     * (NY+1) + j_idx, core, STEP3_UNROLL_LEN + 1, TO_ONE_CORE);
+  }
+  #else
   for (int core = 0; core < VECTOR_LEN; core++) {
     VPREFETCH_L (*sp + 0*ul  , hz + (i + core)     * NY     + j, core, STEP3_UNROLL_LEN    , VERTICAL_FETCH_TYPE);
     VPREFETCH_LR(*sp + 1*ul  , ex + (i + core)     * (NY+1) + j, core, STEP3_UNROLL_LEN + 1, VERTICAL_FETCH_TYPE);
     VPREFETCH_L (*sp + 2*ul+1, ey + (i + core + 1) * NY     + j, core, STEP3_UNROLL_LEN    , VERTICAL_FETCH_TYPE);
     VPREFETCH_L (*sp + 3*ul+1, ey + (i + core)     * NY     + j, core, STEP3_UNROLL_LEN    , VERTICAL_FETCH_TYPE);
   }
+  #endif
 
   #ifndef MANYCORE_PREFETCH
   *sp += STEP3_REGION_SIZE;
