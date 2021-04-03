@@ -823,10 +823,12 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
 
       m_s1_inst->mem_req_p->respCnt = vecAddrs.size(); //;m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
       // assert(m_s1_inst->mem_req_p->respCnt > 0); // can hit this condition if csr write hasnt happened, ok b/c will be squashed
-      // just set resp cnt to 1 b/c will be squashed
+      
+      // set executed if wont have any requests (could all be predicated out for example or csr == 0) 
       if (m_s1_inst->mem_req_p->respCnt == 0) {
-        m_s1_inst->fault = std::make_shared<RiscvISA::AddressFault>
-                                        (addr, RiscvISA::INST_ACCESS);
+        // m_s1_inst->fault = std::make_shared<RiscvISA::AddressFault>
+        //                                 (addr, RiscvISA::INST_ACCESS);
+        m_s1_inst->setExecuted();
       }
       m_s1_inst->mem_req_p->prefetchConfig = 1; // vertical
       m_s1_inst->mem_req_p->xOrigin = m_cpu_p->cpuId(); // flattened so just set as full idx
