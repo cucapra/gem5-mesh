@@ -26,6 +26,7 @@ void gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
 
   for (int i = start; i < end; i++) {
       
+      // TODO make sure these loads are negligable (all versions do fyi)
       temp1=tmp[i];
       temp2=y[i];
       
@@ -40,7 +41,7 @@ void gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
         sp_x_offset = sp_b_offset + (REGION_SIZE/3);        
         VPREFETCH_L(sp_x_offset, x+j, 0, REGION_SIZE/3,TO_SELF);
 
-        FRAME_START();
+        FRAME_START(REGION_SIZE);
         #pragma GCC unroll(8)
         for(int jj=0; jj<REGION_SIZE/3; jj++){
           temp1 += spAddr[sp_a_offset+jj]*spAddr[sp_x_offset+jj];
@@ -80,8 +81,9 @@ void gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
         temp2 += b[i*n+j] * x[j];
       }
       #endif
-      tmp[i]=temp1;
-      y[i]=ALPHA*temp1 + BETA*temp2;
+      FSTORE_NOACK(temp1, &tmp[i], 0);
+      DTYPE y_i = ALPHA*temp1 + BETA*temp2;
+      FSTORE_NOACK(y_i, &y[i], 0);
   }
   FENCE();
 }

@@ -1,6 +1,10 @@
 #include "gesummv_kernel.h"
 #include "util.h"
 
+#ifdef NESTED_SIMD
+#include <riscv_vector.h>
+#endif
+
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
@@ -17,9 +21,9 @@ inline void prefetch_gesummv_frame(DTYPE *a, DTYPE *b, DTYPE *x, int i, int j, i
   int sp_x_offset = sp_b_offset + REGION_SIZE/3;
 
   for (int d = 0; d < VEC_LEN; d++){
-    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/3,1); //load A
-    VPREFETCH_L(sp_b_offset, b + _idx_(i+d,j,n), d, REGION_SIZE/3,1); //load A
-    VPREFETCH_L(sp_x_offset, x + j, d, REGION_SIZE/3,1); //load x
+    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/3,TO_ONE_CORE); //load A
+    VPREFETCH_L(sp_b_offset, b + _idx_(i+d,j,n), d, REGION_SIZE/3,TO_ONE_CORE); //load A
+    VPREFETCH_L(sp_x_offset, x + j, d, REGION_SIZE/3,TO_ONE_CORE); //load x
   }
 
   // sp_a_offset += REGION_SIZE;
@@ -134,9 +138,9 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
-    STORE_NOACK(temp1, tmp + row_thread, 0);
+    FSTORE_NOACK(temp1, tmp + row_thread, 0);
     // tmp[row_thread]=temp1;
-    STORE_NOACK(ALPHA*temp1 + BETA*temp2, y + row_thread, 0);
+    FSTORE_NOACK(ALPHA*temp1 + BETA*temp2, y + row_thread, 0);
     // y[row_thread]= ALPHA*temp1 + BETA*temp2;
     row_thread+=VEC_LEN;
   }while(bh1);
