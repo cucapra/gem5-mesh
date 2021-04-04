@@ -28,7 +28,7 @@
 
 // stuff for partial reduction
 #ifndef ACCUM_GRANULARITY
-#define ACCUM_GRANULARITY 8
+#define ACCUM_GRANULARITY 4
 #endif
 
 // TODO hardcode this based on spipe
@@ -56,6 +56,12 @@
 #define PER_CORE_MAILER_FRAME (VEC_LEN)
 // includes also if any base value to the sum
 #define PER_CORE_FULL_MAILER_FRAME (PER_CORE_MAILER_FRAME + OFFSET_PER_CORE)
+
+#ifdef NESTED_SIMD
+  #define NESTED_SIMD_VLEN (HARDWARE_VECTOR_LEN)
+#else
+  #define NESTED_SIMD_VLEN (1)
+#endif
 
 
 #define ALPHA 3

@@ -22,7 +22,7 @@ void reduction(DTYPE *out, DTYPE *tmp, int baseGroupId, int numGroups, int N,
   int max_chunk_size = ceilToInt((float)N / (float)numGroups);
 
   // cache sp ptrs to avoid global load
-  SETUP_REDUCTION_CORE(fwders, ptid);
+  SETUP_REDUCTION_CORE(fwders, ptid, N, baseGroupId, numGroups);
 
   for (int cnt = 0; cnt < max_chunk_size; cnt+=ACCUM_GRANULARITY) {
 
@@ -49,7 +49,7 @@ void reduction(DTYPE *out, DTYPE *tmp, int baseGroupId, int numGroups, int N,
 
       #pragma GCC unroll(4)
       for (int a = 0; a < ACCUM_GRANULARITY; a++) {
-        DTYPE sum = 
+        DTYPE sum =
           ALPHA * sp_ptr[sp_self + g * OFFSET_PER_CORE + a * SUB_FRAME_SIZE + 0] + 
           BETA  * sp_ptr[sp_self + g * OFFSET_PER_CORE + a * SUB_FRAME_SIZE + 1];
 
@@ -61,7 +61,8 @@ void reduction(DTYPE *out, DTYPE *tmp, int baseGroupId, int numGroups, int N,
         }
 
         int i = group_start[g];
-        if (i < 0 || i + a >= N) continue;
+
+        if (i < 0 || i + a >= group_end[g]) continue;
 
         FSTORE_NOACK(sum, &out[i + a], 0);
       }
@@ -142,7 +143,7 @@ void gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
         temp2 += b[i*n+j] * x[j];
       }
       #endif
-      FSTORE_NOACK(temp1, &tmp[i], 0);
+      // FSTORE_NOACK(temp1, &tmp[i], 0);
       DTYPE y_i = ALPHA*temp1 + BETA*temp2;
       FSTORE_NOACK(y_i, &y[i], 0);
   }
@@ -216,6 +217,11 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(DTYPE
   SETUP_REDUCE_CONFIG();
   #else
   SETUP_REDUCE_CONFIG_NULL();
+  #endif
+
+  // need to set vlen here so doesn't cause squash in vector core on change in value
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
   #endif
 
   // region based mask for scratchpad

@@ -56,7 +56,7 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
   // int sp_a_offset, sp_b_offset, sp_x_offset, sp_y_offset, sp_tmp_offset;
   // sp_a_offset=0;
 
-  int startOffset = INIT_FRAMES*J_STRIDE;
+  int startOffset = min(INIT_FRAMES*J_STRIDE, n);
 
   #ifdef LONGLINES
   int numCompleted = 0;
@@ -123,7 +123,10 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
   // int sp_offset = 0;
   DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
 
-
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); 
+  #endif
 
   #ifdef LONGLINES
   int row_thread=start;
@@ -145,21 +148,44 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
     temp1=tmp[row_thread];
     temp2=y[row_thread];
     #endif
+
+    #ifdef NESTED_SIMD
+    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    vfloat32m1_t vtempa = vzero;
+    vfloat32m1_t vtempb = vzero;
+    #endif
+
     do {
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
       // asm("trillium vissue_delim if_begin dotprod");
+
+      #ifdef NESTED_SIMD
+      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #endif
+
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
-      for(int jj=0; jj<REGION_SIZE/3; jj++){
+      for(int jj=0; jj<REGION_SIZE/3; jj+=NESTED_SIMD_VLEN){
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         // DTYPE *a_on_sp = spAddr + sp_offset + jj;
         DTYPE *b_on_sp = a_on_sp + REGION_SIZE/3;
         DTYPE *x_on_sp = b_on_sp + REGION_SIZE/3;
 
+        #ifdef NESTED_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(a_on_sp);
+        vfloat32m1_t vb = vle32_v_f32m1(b_on_sp);
+        vfloat32m1_t vx = vle32_v_f32m1(x_on_sp);
+        va = vfmul_vv_f32m1(va, vx);
+        vb = vfmul_vv_f32m1(vb, vx);
+        vtempa = vfadd_vv_f32m1(vtempa, va);
+        vtempb = vfadd_vv_f32m1(vtempb, vb);
+        #else
         temp1 += (*a_on_sp) * (*x_on_sp);
         temp2 += (*b_on_sp) * (*x_on_sp);
+        #endif
       }
+
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
       // sp_offset += REGION_SIZE;
@@ -168,6 +194,14 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
+
+    #ifdef NESTED_SIMD
+    vfloat32m1_t vreda = vfredsum_vs_f32m1_f32m1(vtempa, vtempa, vzero);
+    vfloat32m1_t vredb = vfredsum_vs_f32m1_f32m1(vtempb, vtempb, vzero);
+    temp1 += vfmv_f_s_f32m1_f32(vreda);
+    temp2 += vfmv_f_s_f32m1_f32(vredb);
+    #endif
+
     DTYPE y_i = ALPHA*temp1 + BETA*temp2;
 
     #ifdef LONGLINES
@@ -175,7 +209,7 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
     sp_origin+=SUB_FRAME_SIZE;
     sp_origin = sp_origin % MAILER_POST_FRAME_WORD;
     #else
-    FSTORE_NOACK(temp1, tmp + row_thread, 0);
+    // FSTORE_NOACK(temp1, tmp + row_thread, 0);
     FSTORE_NOACK(y_i, y + row_thread, 0);
     row_thread+=I_STRIDE;
     #endif
