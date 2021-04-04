@@ -16,8 +16,8 @@ inline void prefetch_ax_frame(DTYPE *a, DTYPE *b, int i, int j, int n, int *spad
   int sp_x_offset = sp_a_offset + REGION_SIZE/2;
   
   for (int d = 0; d < VEC_LEN; d++){
-    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, PREFETCH_LEN,1); //load A, hopefully cache alligned so no vprefetch_R
-    VPREFETCH_L(sp_x_offset, b + j, d, PREFETCH_LEN,1); //load x
+    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, PREFETCH_LEN,TO_ONE_CORE); //load A, hopefully cache alligned so no vprefetch_R
+    VPREFETCH_L(sp_x_offset, b + j, d, PREFETCH_LEN,TO_ONE_CORE); //load x
   }
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
 }
@@ -28,8 +28,8 @@ inline void prefetch_ay_frame(DTYPE *a, DTYPE *b, int i, int j, int n, int *ptid
   int sp_ypart_offset = sp_a_offset + REGION_SIZE/2;
   
   for (int d = 0; d < VEC_LEN; d++){
-    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, PREFETCH_LEN ,1);
-    VPREFETCH_L(sp_ypart_offset, b + ptid_group_sp[d]*n +j, d, PREFETCH_LEN ,1); 
+    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, PREFETCH_LEN ,TO_ONE_CORE);
+    VPREFETCH_L(sp_ypart_offset, b + ptid_group_sp[d]*n +j, d, PREFETCH_LEN ,TO_ONE_CORE); 
   }
   
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
@@ -42,10 +42,10 @@ inline void prefetch_horizontal(DTYPE *a, DTYPE *ax, int i, int j, int n, int *s
   int sp_ax_offset = sp_a_offset + PREFETCH_LEN;
   
   for(int u=0; u<PREFETCH_LEN; u++){
-    VPREFETCH_LR(sp_a_offset+u, a + _idx_(i+u,j,n), 0, VEC_LEN ,0);
+    VPREFETCH_LR(sp_a_offset+u, a + _idx_(i+u,j,n), 0, 1 ,TO_ALL_CORES);
   }
   for (int d = 0; d < VEC_LEN; d++){
-    VPREFETCH_LR(sp_ax_offset, ax +i, d, PREFETCH_LEN ,1); 
+    VPREFETCH_LR(sp_ax_offset, ax +i, d, PREFETCH_LEN ,TO_ONE_CORE); 
   }
   
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
