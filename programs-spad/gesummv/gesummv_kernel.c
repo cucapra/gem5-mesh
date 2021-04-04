@@ -20,18 +20,25 @@ inline void prefetch_gesummv_frame(DTYPE *a, DTYPE *b, DTYPE *x, int i, int j, i
   int sp_b_offset = sp_a_offset + REGION_SIZE/3;
   int sp_x_offset = sp_b_offset + REGION_SIZE/3;
 
+  #ifdef LONGLINES
+  VPREFETCH_LR(sp_a_offset, a + _idx_(i,j,n), 0, REGION_SIZE/3,TO_ALL_CORES);
+  VPREFETCH_LR(sp_b_offset, b + _idx_(i,j,n), 0, REGION_SIZE/3,TO_ALL_CORES);
+  VPREFETCH_LR(sp_x_offset, x + j, 0, REGION_SIZE/3,TO_ALL_CORES);
+  #else
   for (int d = 0; d < VEC_LEN; d++){
     VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/3,TO_ONE_CORE); //load A
     VPREFETCH_L(sp_b_offset, b + _idx_(i+d,j,n), d, REGION_SIZE/3,TO_ONE_CORE); //load A
     VPREFETCH_L(sp_x_offset, x + j, d, REGION_SIZE/3,TO_ONE_CORE); //load x
   }
+  #endif
 
   // sp_a_offset += REGION_SIZE;
   // if (sp_a_offset == NUM_REGIONS*REGION_SIZE) sp_a_offset=0;
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
 }
 
-void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int start, int end, int ptid, int vtid)
+void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y,
+    int n, int start, int end, int ptid, int vtid, int ptidMailer, int linkId)
 {
   //this template uses separate scalar and vector code blocks but they can be interspersed as well as shown here
   //https://github.com/cucapra/gem5-mesh/wiki/Trilliasm-Language-Overview:-Vector-SIMD-in-C
@@ -49,24 +56,33 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
   // int sp_a_offset, sp_b_offset, sp_x_offset, sp_y_offset, sp_tmp_offset;
   // sp_a_offset=0;
 
-  int stride = REGION_SIZE/3;
-  int startOffset = INIT_FRAMES*stride;
+  int startOffset = INIT_FRAMES*J_STRIDE;
 
-  for (int i = start; i < end; i+=VEC_LEN) {
+  #ifdef LONGLINES
+  int numCompleted = 0;
+  volatile int *sp_ptr = (int*)getSpAddr(ptid, 0);
+  #endif
+  
+
+  for (int i = start; i < end; i+=I_STRIDE) {
     ISSUE_VINST(hoist1_label);
 
-    for (int j = 0; j < startOffset; j+=stride) {
+    for (int j = 0; j < startOffset; j+=J_STRIDE) {
       prefetch_gesummv_frame(a, b, x, i, j, n, &spadRegion);
     }
     
-    for(int j=startOffset; j<n; j+=stride){
+    for(int j=startOffset; j<n; j+=J_STRIDE){
       prefetch_gesummv_frame(a, b, x, i, j, n, &spadRegion);
       ISSUE_VINST(dotprod_label);
     }
 
-    for (int j = n - startOffset; j < n; j+=stride) {
+    for (int j = n - startOffset; j < n; j+=J_STRIDE) {
       ISSUE_VINST(dotprod_label);
     }
+
+    #ifdef LONGLINES
+    SCALAR_SYNC_WITH_REDUCTION(sp_ptr, numCompleted);
+    #endif
 
     ISSUE_VINST(store_dp_label);
 
@@ -101,20 +117,34 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
   asm("trillium vissue_delim until_next init"); //until_next delimiter used, name (init) over here same as in glue point above
   //vector core code
 
-  volatile int bh1,bh2,bh3;
+  volatile int bh1,bh2;
   
   int spadRegion =0;
   // int sp_offset = 0;
   DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
 
+
+
+  #ifdef LONGLINES
+  int row_thread=start;
+  int sp_origin = MAILER_OFFSET + (linkId * PER_CORE_MAILER_FRAME) + vtid;
+  DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
+  #else
   int row_thread=start+vtid;
-  int col_thread=0;
+  #endif
+
   DTYPE temp1, temp2;
   do {
     // hoist1:
     asm("trillium vissue_delim until_next hoist1");
+    #ifdef LONGLINES
+    // TODO need to fetch these in reduction cores
+    temp1 = 0;
+    temp2 = 0;
+    #else
     temp1=tmp[row_thread];
     temp2=y[row_thread];
+    #endif
     do {
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
@@ -138,11 +168,17 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
+    DTYPE y_i = ALPHA*temp1 + BETA*temp2;
+
+    #ifdef LONGLINES
+    FSTORE_NOACK(y_i, &sp_origin_ptr[sp_origin], 0);
+    sp_origin+=SUB_FRAME_SIZE;
+    sp_origin = sp_origin % MAILER_POST_FRAME_WORD;
+    #else
     FSTORE_NOACK(temp1, tmp + row_thread, 0);
-    // tmp[row_thread]=temp1;
-    FSTORE_NOACK(ALPHA*temp1 + BETA*temp2, y + row_thread, 0);
-    // y[row_thread]= ALPHA*temp1 + BETA*temp2;
-    row_thread+=VEC_LEN;
+    FSTORE_NOACK(y_i, y + row_thread, 0);
+    row_thread+=I_STRIDE;
+    #endif
   }while(bh1);
 
   asm("trillium vissue_delim return vector_stack"); //return delimiter

@@ -13,6 +13,67 @@
 #include <riscv_vector.h>
 #endif
 
+#ifdef LONGLINES
+
+// partial sum reduction offload
+void reduction(DTYPE *out, DTYPE *tmp, int baseGroupId, int numGroups, int N, 
+    int ptid, int *fwders) {
+  // chunk over vector groups. note all might not do the same amount of work
+  int max_chunk_size = ceilToInt((float)N / (float)numGroups);
+
+  // cache sp ptrs to avoid global load
+  SETUP_REDUCTION_CORE(fwders, ptid);
+
+  for (int cnt = 0; cnt < max_chunk_size; cnt+=ACCUM_GRANULARITY) {
+
+    SETUP_GROUP_ITERATION_CHUNKED_1NEST(baseGroupId, numGroups, cnt, max_chunk_size);
+
+    for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
+      int i = group_start[g];
+      if (i < 0 /*|| i + a >= N*/) continue;
+
+      for (int a = 0; a < ACCUM_GRANULARITY; a++) {
+        VPREFETCH_L(sp_self + g * OFFSET_PER_CORE + a * SUB_FRAME_SIZE + 0, 
+          &out[i + a], 0, 1, TO_SELF);
+        VPREFETCH_L(sp_self + g * OFFSET_PER_CORE + a * SUB_FRAME_SIZE + 1,
+          &tmp[i + a], 0, 1, TO_SELF);
+      }
+    }
+
+    REDUCE_SYNC_WITH_SCALAR(group_start, spPtrs, flat_iter);
+
+    // wait for frame and then do sum
+    FRAME_START(expected_elements);
+
+    for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
+
+      #pragma GCC unroll(4)
+      for (int a = 0; a < ACCUM_GRANULARITY; a++) {
+        DTYPE sum = 
+          ALPHA * sp_ptr[sp_self + g * OFFSET_PER_CORE + a * SUB_FRAME_SIZE + 0] + 
+          BETA  * sp_ptr[sp_self + g * OFFSET_PER_CORE + a * SUB_FRAME_SIZE + 1];
+
+        int sum_offset = MAILER_OFFSET + g * PER_CORE_MAILER_FRAME + a * SUB_FRAME_SIZE;
+
+        #pragma GCC unroll(16)
+        for (int k = 0; k < PER_CORE_MAILER_FRAME; k++) {
+          sum += sp_ptr[sum_offset + sp_self + k];
+        }
+
+        int i = group_start[g];
+        if (i < 0 || i + a >= N) continue;
+
+        FSTORE_NOACK(sum, &out[i + a], 0);
+      }
+
+    }
+    sp_self += MAILER_FRAME_SIZE;
+    sp_self = sp_self % MAILER_POST_FRAME_WORD; // TOOD branch better??
+    REMEM(expected_elements);
+  }
+}
+#endif
+
 void gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int start, int end, int ptid)
 {
   
@@ -90,11 +151,18 @@ void gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
 
 void __attribute__((optimize("-fno-inline"))) gesummv(
     DTYPE *a, DTYPE *b, DTYPE *tmp, DTYPE *x, DTYPE *y, int n,
-    int mask, int start, int end, int ptid, int vtid
+    int used, int mask, int start, int end, int ptid, int vtid,
+    int isMailer, int ptidMailer, int *ptidFwder, int linkId,
+    int groupId, int numGroups
   ) {
 
   #if defined _VEC
-    tril_gesummv_vec(mask,a,b,x,tmp,y,n,start,end,ptid,vtid);
+    if (used)
+      tril_gesummv_vec(mask,a,b,x,tmp,y,n,start,end,ptid,vtid, ptidMailer, linkId);
+    #ifdef LONGLINES
+    else if (isMailer)
+      reduction(y, tmp, groupId, numGroups, n, ptid, ptidFwder);
+    #endif
   #else
     gesummv_manycore(a,b,x,tmp,y,n,start,end,ptid);
   #endif
@@ -123,10 +191,17 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(DTYPE
   #endif
 
   if(used) {
+    #ifdef LONGLINES
+    start = ((unique_id + 0) * n) / total_groups; 
+    end = ((unique_id + 1) * n) / total_groups; 
+    #else
     //do work division here
     int alignment = VEC_LEN; //each group should have elements of multiple of this number
-    start = roundUp((unique_id + 0) * n / total_groups, alignment); 
-    end = roundUp((unique_id + 1) * n / total_groups, alignment); 
+    start = roundUp(((unique_id + 0) * n) / total_groups, alignment); 
+    end = roundUp(((unique_id + 1) * n) / total_groups, alignment); 
+    #endif
+
+    // printf("%d %d %d\n", ptid, start, end);
   }
 
   #else
@@ -137,20 +212,29 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(DTYPE
   end    = ( ( unique_id + 1 ) * n ) / total_groups;
   #endif
 
+  #ifdef LONGLINES
+  SETUP_REDUCE_CONFIG();
+  #else
+  SETUP_REDUCE_CONFIG_NULL();
+  #endif
+
   // region based mask for scratchpad
 #ifdef _VEC
-  SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
+  if (isMailer) {
+    SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier); 
+  }
+  else {
+    SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
+  }
 #elif defined MANYCORE_PREFETCH
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
 #endif
 
-  // only let certain tids continue
-  if (used == 0) return;
-
   // move stack onto scratchpad for faster local access than default on DRAM
   MOVE_STACK_ONTO_SCRATCHPAD();
 
-  gesummv(a, b, tmp, x, y, n, mask, start, end, ptid, vtid);
+  gesummv(a, b, tmp, x, y, n, used, mask, start, end, ptid, vtid, 
+    isMailer, ptidMailer, ptidFwders, linkId, unique_id, total_groups);
 
   // restore stack pointer to DRAM
   RECOVER_DRAM_STACK();
