@@ -227,6 +227,7 @@ void tril_fdtd_step2(int mask,
   // construct vector to help generate ending mask
   // a cresendo
   vint32m1_t cresendo = vmv_v_x_i32m1(0.0f);
+  #pragma GCC unroll(16)
   for (int i = 0; i < NESTED_SIMD_VLEN; i++) {
     cresendo = vslide1down_vx_i32m1(cresendo, i);
   }

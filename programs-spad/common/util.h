@@ -203,8 +203,8 @@ inline int ceilToInt(float val) {
   int is_da  = 0;                                                                           \
   int master_x = 0;                                                                         \
   int master_y = 0;                                                                         \
-  int unique_id = 0;                                                                        \
-  int total_groups = 0;                                                                     \
+  int unique_id = ptid;                                                                        \
+  int total_groups = pdim;                                                                     \
   int used = 1;                                                                             \
   int vdim = vdim_x * vdim_y;                                                               \
   int mask = 0                                                                              \

@@ -4,19 +4,16 @@
 #include "gesummv.h"
 #include "spad.h"
 #include "bind_defs.h"
-#include "token_queue.h"
 #include "group_templates.h"
-#include "reduction.h"
 #include "util.h"
 
 #include "gesummv_kernel.h"
 
-#ifdef PACKED_SIMD
+#if defined(PACKED_SIMD) || defined(NESTED_SIMD) 
 #include <riscv_vector.h>
 #endif
 
-void __attribute__((optimize("-fno-inline")))
-gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int start, int end, int ptid)
+void gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int start, int end, int ptid)
 {
   
   DTYPE temp1, temp2;
@@ -35,13 +32,13 @@ gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int 
       #ifdef MANYCORE_PREFETCH
       for (int j = 0; j < n; j+=REGION_SIZE/3){
         sp_a_offset = spadRegion * REGION_SIZE;
-        VPREFETCH_L(sp_a_offset, a + i*n+j, 0, REGION_SIZE/3,1);
+        VPREFETCH_L(sp_a_offset, a + i*n+j, 0, REGION_SIZE/3,TO_SELF);
 
         sp_b_offset = sp_a_offset + (REGION_SIZE/3);
-        VPREFETCH_L(sp_b_offset, b + i*n+j, 0, REGION_SIZE/3,1);
+        VPREFETCH_L(sp_b_offset, b + i*n+j, 0, REGION_SIZE/3,TO_SELF);
 
         sp_x_offset = sp_b_offset + (REGION_SIZE/3);        
-        VPREFETCH_L(sp_x_offset, x+j, 0, REGION_SIZE/3,1);
+        VPREFETCH_L(sp_x_offset, x+j, 0, REGION_SIZE/3,TO_SELF);
 
         FRAME_START();
         #pragma GCC unroll(8)
@@ -86,11 +83,25 @@ gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int 
       tmp[i]=temp1;
       y[i]=ALPHA*temp1 + BETA*temp2;
   }
+  FENCE();
+}
+
+void __attribute__((optimize("-fno-inline"))) gesummv(
+    DTYPE *a, DTYPE *b, DTYPE *tmp, DTYPE *x, DTYPE *y, int n,
+    int mask, int start, int end, int ptid, int vtid
+  ) {
+
+  #if defined _VEC
+    tril_gesummv_vec(mask,a,b,x,tmp,y,n,start,end,ptid,vtid);
+  #else
+    gesummv_manycore(a,b,x,tmp,y,n,start,end,ptid);
+  #endif
 
 }
 
 
-void kernel(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
+
+void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
     int ptid_x, int ptid_y, int pdim_x, int pdim_y)
 {
 
@@ -99,43 +110,29 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
     stats_on();
   }
 
-  // linearize tid and dim
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
-
   int start = 0;
   int end   = 0;
 
   #ifdef _VEC
   #if VEC_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
   #elif VEC_LEN==16
-  template_info_t tinfo = init_template_8x8_4x4();
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
   #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
-  
-  if(cinfo.used) {
+
+  if(used) {
     //do work division here
     int alignment = VEC_LEN; //each group should have elements of multiple of this number
-    start = roundUp((cinfo.unique_id + 0) * n / cinfo.total_groups, alignment); 
-    end = roundUp((cinfo.unique_id + 1) * n / cinfo.total_groups, alignment); 
+    start = roundUp((unique_id + 0) * n / total_groups, alignment); 
+    end = roundUp((unique_id + 1) * n / total_groups, alignment); 
   }
 
   #else
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
 
   //do work division here
-  start  = ( ( cinfo.unique_id + 0 ) * n ) / cinfo.total_groups;
-  end    = ( ( cinfo.unique_id + 1 ) * n ) / cinfo.total_groups;
-  #endif
-
-  // get behavior of each core
-  #ifdef _VEC
-  int mask = getSIMDMask(&cinfo);
-  #elif defined MANYCORE_PREFETCH
-  int mask = getDebugMask(&cinfo);
-  #else
-  int mask = 0;
+  start  = ( ( unique_id + 0 ) * n ) / total_groups;
+  end    = ( ( unique_id + 1 ) * n ) / total_groups;
   #endif
 
   // region based mask for scratchpad
@@ -146,17 +143,12 @@ void kernel(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
 #endif
 
   // only let certain tids continue
-  if (cinfo.used == 0) return;
+  if (used == 0) return;
 
   // move stack onto scratchpad for faster local access than default on DRAM
   MOVE_STACK_ONTO_SCRATCHPAD();
 
-#if defined _VEC
-  tril_gesummv_vec(mask,a,b,x,tmp,y,n,start,end,ptid,cinfo.vtid);
-#else
-  VECTOR_EPOCH(mask);
-  gesummv_manycore(a,b,x,tmp,y,n,start,end,ptid);
-#endif
+  gesummv(a, b, tmp, x, y, n, mask, start, end, ptid, vtid);
 
   // restore stack pointer to DRAM
   RECOVER_DRAM_STACK();
@@ -197,7 +189,9 @@ void *pthread_kernel(void *args)
   kernel(a->a, a->b, a->x, a->tmp, a->y, a->n,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-  pthread_barrier_wait(&start_barrier);
+  // reset scratchpad config
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
+
   if (a->tid_x == 0 && a->tid_y == 0)
   {
     stats_off();
