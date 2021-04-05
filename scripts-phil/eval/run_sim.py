@@ -75,6 +75,8 @@ def run_prog(numCpus, prog_key, argv, vec_config, hw_opts):
   
   # add hw line size to args
   hw_opts += ' ' + sim_list.get_cacheline_opt(vec_config)
+  # add hardware vlen to args
+  hw_opts += ' ' + sim_list.get_hardware_vlen(vec_config)
   
   cmd = gem5_cmd(progName, optionsStr, resultsDir, numCpus, True, hw_opts)
   print(cmd)

@@ -359,6 +359,12 @@ parser.add_option("--vector", action="store_true", default=False,
 parser.add_option("--net-width", default=1,
   help="How many words wide the network is")
 
+parser.add_option("--hw-vlen", default=4,
+  help="Hardware vector length in number of words")
+
+parser.add_option("--mesh-queue-len", default=2,
+  help="How many instructions can be stored between cores in vector mode")
+
 (options, args) = parser.parse_args()
 
 # set large mem-size needed for larger problem sizes
@@ -408,10 +414,10 @@ process = get_processes(options)[0]
 # CPU class
 CPUClass = IOCPU (
   includeVector = options.vector,
-  meshBufferSize = 2,
+  meshBufferSize = options.mesh_queue_len,
   numROBEntries = 8,
   # remember to set in util.h
-  hw_vector_length = 4
+  hw_vector_length = options.hw_vlen
   # latencies from https://github.com/bespoke-silicon-group/riscv-gcc/blob/bsg_manycore_gcc/gcc/config/riscv/bsg_vanilla_2020.md
   ,
   intAluOpLatency = 1,

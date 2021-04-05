@@ -32,9 +32,6 @@ ALL_CONFIGS = [
   ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
   'NO_VEC',
   ]
-ALL_CONFIGS = [
-  ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
-  ]
 
 # ALL_CONFIGS = ['VEC_16_SIMD', ['VEC_16_SIMD', 'INIT_FRAMES=5'], 'VEC_4_SIMD', ['VEC_4_SIMD', 'INIT_FRAMES=5'], 'PACKED_SIMD']
 INIT0_CONFIGS = []
@@ -143,20 +140,53 @@ def string_to_cacheline_arg(a):
   else:
     return -1
 
+def string_to_hwvlen_arg(a):
+  if (a[0:20] == 'HARDWARE_VECTOR_LEN='):
+    return int(a[20:len(a)])
+  elif (a[0:20] == 'HARDWARE_VECTOR_LEN_'):
+    return int(a[20:len(a)])
+  else:
+    return -1
+
 # find an appropriate hardware cachelines size
 # if cant find defined in software, then default to 64 
 def get_cacheline_opt(args):
-  cl_hw_size = 64
+  found = False
   if (isinstance(args, list)):
     for a in args:
       cl_sw_size = string_to_cacheline_arg(a)
       if (cl_sw_size > 0):
         cl_hw_size = cl_sw_size
+        found = True
   else:
     cl_sw_size = string_to_cacheline_arg(args)
     if (cl_sw_size > 0):
       cl_hw_size = cl_sw_size
-  return '--cacheline_size=' + str(cl_hw_size)
+      found = True
+
+  if (found):
+    return '--cacheline_size=' + str(cl_hw_size)
+  else:
+    return ''
+
+def get_hardware_vlen(args):
+  found = False
+  if (isinstance(args, list)):
+    for a in args:
+      vl_sw_size = string_to_hwvlen_arg(a)
+      if (vl_sw_size > 0):
+        vl_hw_size = vl_sw_size
+        found = True
+  else:
+    vl_sw_size = string_to_hwvlen_arg(args)
+    if (vl_sw_size > 0):
+      vl_hw_size = vl_sw_size
+      found = True
+  
+  if (found):
+    return '--hw-vlen=' + str(vl_hw_size)
+  else:
+    return ''
 
 # make a shorthand to represent the config output name
 # note replace '=' with '_' because converted when called
