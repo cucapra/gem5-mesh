@@ -132,8 +132,8 @@ void gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
           temp2 += spAddr[sp_b_offset+jj]*spAddr[sp_x_offset+jj];
           #endif
         }
-        REMEM();
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
+        REMEM();
       }
 
       #ifdef PER_CORE_SIMD
