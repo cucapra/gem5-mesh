@@ -27,7 +27,58 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
-  #ifdef PER_CORE_SIMD
+
+  #if defined(MANYCORE_PREFETCH)
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+  for (int i = start; i < end; i++) {
+    if (i == 0) {
+      for (int j = 0; j < NY; j+=STEP1_UNROLL_LEN) {     
+        prefetch_step1_frame_i0(fict, t, &sp);
+        FRAME_START(STEP1_REGION_SIZE);
+        #pragma GCC unroll(16)
+        for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
+          DTYPE out = sp_ptr[sp + 0];
+          FSTORE_NOACK(out, &ey[i * NY + j + u], 0);
+        }
+        sp += STEP1_REGION_SIZE;
+        sp = sp % STEP1_POST_FRAME_WORD;
+        END_FRAME();
+      }
+    }
+    else {
+      for (int j = 0; j < NY; j+=STEP1_UNROLL_LEN) {   
+        prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp);
+        #ifdef PER_CORE_SIMD
+        vsetvl_e32m1(PER_CORE_SIMD_LEN);
+        #endif
+        FRAME_START(STEP1_REGION_SIZE);
+        #pragma GCC unroll(16)
+        for (int u = 0; u < STEP1_UNROLL_LEN; u+=PER_CORE_SIMD_LEN) {
+          int u0 = u;
+          int u1 = STEP1_UNROLL_LEN+u;
+          int u2 = 2*STEP1_UNROLL_LEN+u;
+          #ifdef PER_CORE_SIMD
+          vfloat32m1_t vhzi   = vle32_v_f32m1(&sp_ptr[sp + u1]);
+          vfloat32m1_t vhzim1 = vle32_v_f32m1(&sp_ptr[sp + u2]);
+          vfloat32m1_t vey    = vle32_v_f32m1(&sp_ptr[sp + u0]);
+          vfloat32m1_t vhzsub = vfsub_vv_f32m1(vhzi, vhzim1);
+          vfloat32m1_t out = vfmul_vf_f32m1(vhzsub, -0.5f);
+          out = vfadd_vv_f32m1(vey, out);
+          int idx = i * NY + j;
+          vse32_v_f32m1(&ey[idx + u], out);
+          #else
+          DTYPE out = sp_ptr[sp + u0] - 0.5f * (sp_ptr[sp + u1] - sp_ptr[sp + u2]);
+          FSTORE_NOACK(out, &ey[i * NY + j + u], 0);
+          #endif
+        }
+        sp += STEP1_REGION_SIZE;
+        sp = sp % STEP1_POST_FRAME_WORD;
+        END_FRAME();
+      }
+    }
+  }
+  #elif defined(PER_CORE_SIMD)
   for (int i = start; i < end; i++) {
     int chunk = NY;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -52,42 +103,6 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
       vse32_v_f32m1(&ey[i * NY + j], out);
     }
   }
-  #elif defined(MANYCORE_PREFETCH)
-  int sp = 0;
-  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
-  for (int i = start; i < end; i++) {
-    if (i == 0) {
-      for (int j = 0; j < NY; j+=STEP1_UNROLL_LEN) {     
-        prefetch_step1_frame_i0(fict, t, &sp);
-        FRAME_START(STEP1_REGION_SIZE);
-        #pragma GCC unroll(16)
-        for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
-          DTYPE out = sp_ptr[sp + 0];
-          FSTORE_NOACK(out, &ey[i * NY + j + u], 0);
-        }
-        END_FRAME();
-        sp += STEP1_REGION_SIZE;
-        sp = sp % STEP1_POST_FRAME_WORD;
-      }
-    }
-    else {
-      for (int j = 0; j < NY; j+=STEP1_UNROLL_LEN) {   
-        prefetch_step1_frame_in0(ey, hz, i, j, NY, &sp);
-        FRAME_START(STEP1_REGION_SIZE);
-        #pragma GCC unroll(16)
-        for (int u = 0; u < STEP1_UNROLL_LEN; u++) {
-          int u0 = u;
-          int u1 = STEP1_UNROLL_LEN+u;
-          int u2 = 2*STEP1_UNROLL_LEN+u;
-          DTYPE out = sp_ptr[sp + u0] - 0.5f * (sp_ptr[sp + u1] - sp_ptr[sp + u2]);
-          FSTORE_NOACK(out, &ey[i * NY + j + u], 0);
-        }
-        END_FRAME();
-        sp += STEP1_REGION_SIZE;
-        sp = sp % STEP1_POST_FRAME_WORD;
-      }
-    }
-  }
   #else
   for (int i = start; i < end; i++) {
     #pragma GCC unroll(16)
@@ -110,7 +125,51 @@ void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
+  #if defined(MANYCORE_PREFETCH)
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
   #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vint32m1_t cresendo = vmv_v_x_i32m1(0.0f);
+  #pragma GCC unroll(16)
+  for (int i = 0; i < PER_CORE_SIMD_LEN; i++) {
+    cresendo = vslide1down_vx_i32m1(cresendo, i);
+  }
+  #endif
+  for (int i = start; i < end; i++) {
+    for (int j = 1; j < NY; j+=STEP2_UNROLL_LEN) {
+      prefetch_step2_frame(ex, hz, i, j, NY, &sp);
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
+      FRAME_START(STEP2_REGION_SIZE);
+      #pragma GCC unroll(16)
+      for (int u = 0; u < STEP2_UNROLL_LEN; u+=PER_CORE_SIMD_LEN) {
+        int u0 = u;
+        int u1 = STEP2_UNROLL_LEN + u;
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t vhz1 = vle32_v_f32m1(&sp_ptr[sp + u1]);
+        vfloat32m1_t vhz  = vfslide1down_vf_f32m1(vhz1, sp_ptr[sp + u1 + PER_CORE_SIMD_LEN]);
+        vfloat32m1_t vex  = vle32_v_f32m1(&sp_ptr[sp + u0]);
+        vfloat32m1_t vhzz = vfsub_vv_f32m1(vhz, vhz1);
+        vfloat32m1_t vout = vfmul_vf_f32m1(vhzz, -0.5f);
+        vout = vfadd_vv_f32m1(vex, vout);
+        vbool32_t bmask = vmslt_vx_i32m1_b32(cresendo, NY - (j + u));
+        vse32_v_f32m1_m(bmask, &ex[i * (NY+1) + j + u], vout);
+        #else
+        if (j + u < NY) {
+          DTYPE out = sp_ptr[sp + u0] - 
+            0.5f * (sp_ptr[sp + u1 + 1] - sp_ptr[sp + u1]);
+          FSTORE_NOACK(out, &ex[i * (NY+1) + j + u], 0);
+        }
+        #endif
+      }
+      sp += STEP2_REGION_SIZE;
+      sp = sp % STEP2_POST_FRAME_WORD;
+      END_FRAME();
+    }
+  }
+  #elif defined(PER_CORE_SIMD)
   for (int i = start; i < end; i++) {
     int chunk = NY - 1;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -132,29 +191,6 @@ void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
       vse32_v_f32m1(&ex[i * (NY+1) + j], vout);
     }
   }
-  #elif defined(MANYCORE_PREFETCH)
-  int sp = 0;
-  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
-  for (int i = start; i < end; i++) {
-    for (int j = 1; j < NY; j+=STEP2_UNROLL_LEN) {
-      prefetch_step2_frame(ex, hz, i, j, NY, &sp);
-
-      FRAME_START(STEP2_REGION_SIZE);
-      #pragma GCC unroll(16)
-      for (int u = 0; u < STEP2_UNROLL_LEN; u++) {
-        int u0 = u;
-        int u1 = STEP2_UNROLL_LEN + u;
-        if (j + u < NY) {
-          DTYPE out = sp_ptr[sp + u0] - 
-            0.5f * (sp_ptr[sp + u1 + 1] - sp_ptr[sp + u1]);
-          FSTORE_NOACK(out, &ex[i * (NY+1) + j + u], 0);
-        }
-      }
-      END_FRAME();
-      sp += STEP2_REGION_SIZE;
-      sp = sp % STEP2_POST_FRAME_WORD;
-    }
-  }
   #else
   for (int i = start; i < end; i++) {
     #pragma GCC unroll(16)
@@ -171,7 +207,46 @@ void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
-  #ifdef PER_CORE_SIMD
+  #if defined(MANYCORE_PREFETCH)
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+  for (int i = start; i < end; i++) {
+    for (int j = 0; j < NY; j+=STEP3_UNROLL_LEN) {
+      prefetch_step3_frame(ex, ey, hz, i, j, NY, &sp);
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
+      FRAME_START(STEP3_REGION_SIZE);
+      #pragma GCC unroll(16)
+      for (int u = 0; u < STEP3_UNROLL_LEN; u+=PER_CORE_SIMD_LEN) {
+        int u0 = u;
+        int u1 = STEP3_UNROLL_LEN + u;
+        int u2 = 2*STEP3_UNROLL_LEN+1 + u;
+        int u3 = 3*STEP3_UNROLL_LEN+1 + u;
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t vhz  = vle32_v_f32m1(&sp_ptr[sp + u0]);
+        vfloat32m1_t vex  = vle32_v_f32m1(&sp_ptr[sp + u1]);
+        vfloat32m1_t vex1 = vfslide1down_vf_f32m1(vex, sp_ptr[sp + u1 + PER_CORE_SIMD_LEN]);
+        vfloat32m1_t vey1 = vle32_v_f32m1(&sp_ptr[sp + u2]);
+        vfloat32m1_t vey  = vle32_v_f32m1(&sp_ptr[sp + u3]);
+        vfloat32m1_t veyy = vfsub_vv_f32m1(vey1, vey);
+        vfloat32m1_t vexx = vfsub_vv_f32m1(vex1, vex);
+        vfloat32m1_t vout = vfadd_vv_f32m1(vexx, veyy);
+        vout = vfmul_vf_f32m1(vout, -0.7f);
+        vout = vfadd_vv_f32m1(vhz, vout);
+        vse32_v_f32m1(&hz[i * NY + j + u], vout);
+        #else
+        DTYPE out = sp_ptr[sp + u0] - 0.7f * 
+          (sp_ptr[sp + u1+1] - sp_ptr[sp + u1] + sp_ptr[sp + u2] - sp_ptr[sp + u3]);
+        FSTORE_NOACK(out, &hz[i * NY + j + u], 0); 
+        #endif
+      }
+      sp += STEP3_REGION_SIZE;
+      sp = sp % STEP3_POST_FRAME_WORD;
+      END_FRAME();
+    }
+  }
+  #elif defined(PER_CORE_SIMD)
   for (int i = start; i < end; i++) {
     int chunk = NY;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -192,29 +267,6 @@ void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
       vout = vfadd_vv_f32m1(vhz, vout);
 
       vse32_v_f32m1(&hz[i * NY + j], vout);
-    }
-  }
-  #elif defined(MANYCORE_PREFETCH)
-  int sp = 0;
-  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
-  for (int i = start; i < end; i++) {
-    for (int j = 0; j < NY; j+=STEP3_UNROLL_LEN) {
-      prefetch_step3_frame(ex, ey, hz, i, j, NY, &sp);
-
-      FRAME_START(STEP3_REGION_SIZE);
-      #pragma GCC unroll(16)
-      for (int u = 0; u < STEP3_UNROLL_LEN; u++) {
-        int u0 = u;
-        int u1 = STEP3_UNROLL_LEN + u;
-        int u2 = 2*STEP3_UNROLL_LEN+1 + u;
-        int u3 = 3*STEP3_UNROLL_LEN+1 + u;
-        DTYPE out = sp_ptr[sp + u0] - 0.7f * 
-          (sp_ptr[sp + u1+1] - sp_ptr[sp + u1] + sp_ptr[sp + u2] - sp_ptr[sp + u3]);
-        FSTORE_NOACK(out, &hz[i * NY + j + u], 0); 
-      }
-      END_FRAME();
-      sp += STEP3_REGION_SIZE;
-      sp = sp % STEP3_POST_FRAME_WORD;
     }
   }
   #else
