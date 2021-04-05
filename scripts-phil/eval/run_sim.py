@@ -46,9 +46,6 @@ def compile_prog(numCpus, prog_key, vec_config):
   program = sim_list.programs[prog_key]
   cmplCmd = compile_cmd(os.path.dirname(program['path']), numCpus, extra_flags)
   try:
-    print(vec_config)
-    print(extra_flags)
-    print(cmplCmd)
     result = subprocess.check_output(cmplCmd, shell=True, stderr=subprocess.STDOUT)
     return True
   except:
