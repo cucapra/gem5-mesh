@@ -64,7 +64,7 @@
 #define VECTOR_LEN (1)
 #endif
 
-#if defined(PER_CORE_SIMD) && !defined(USE_VEC)
+#if defined(PER_CORE_SIMD) && !defined(USE_VEC) && !defined(MANYCORE_PREFETCH)
 #define CORE_STEP (HARDWARE_VECTOR_LEN - (FILTER_DIM - 1))
 #endif
 
@@ -97,7 +97,7 @@
 #endif
 
 // requirement CENTER_ITERS % NESTED_SIMD_STRIDE == 0
-#if defined(PER_CORE_SIMD) && defined(USE_VEC)
+#if defined(PER_CORE_SIMD) && (defined(USE_VEC) || defined(MANYCORE_PREFETCH))
 #define NESTED_SIMD_STRIDE (PER_CORE_SIMD_LEN-(FILTER_DIM-1))
 #if CENTER_ITERS % NESTED_SIMD_STRIDE != 0
 #error Load length and valu len mismatch
@@ -106,6 +106,7 @@
 #define NESTED_SIMD_STRIDE (1)
 #endif
 
+#define BIG_INT 2000000000
 
 #ifdef LONGLINES
   #define SHARED_REGION_SIZE (2*FILTER_DIM)

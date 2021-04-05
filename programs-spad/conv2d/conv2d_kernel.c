@@ -11,7 +11,6 @@
 
 #ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
-#define BIG_INT 2000000000
 #endif
 
 /*
@@ -235,7 +234,7 @@ void tril_conv2d(int mask,
       PRED_EQ_FSTORE_NOACK(cond_r, 1, out_r, bPtr + LOAD_DEPTH_M1, 0);
 
       #endif
-      
+
       col += C_STRIDE;
      
       sp += REGION_SIZE;
