@@ -9,7 +9,7 @@
 #include "conv2d_kernel.h"
 #include "util.h"
 
-#if defined(PACKED_SIMD) || defined(NESTED_SIMD) 
+#if defined(PER_CORE_SIMD)
 #include <riscv_vector.h>
 #endif
 
@@ -45,7 +45,7 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
 
   int NJ = inner_dim;
 
-  #ifdef PACKED_SIMD
+  #ifdef PER_CORE_SIMD
   int cEnd = ((NJ-1) / CORE_STEP) * CORE_STEP;
 
   vsetvl_e32m1(HARDWARE_VECTOR_LEN);
@@ -249,8 +249,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   // need to set vlen here so doesn't cause squash in vector core on change in value
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
   // move stack onto scratchpad for faster local access than default on DRAM
