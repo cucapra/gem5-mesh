@@ -93,7 +93,16 @@ void gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
       temp2=y[i];
       
       #ifdef MANYCORE_PREFETCH
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+      vfloat32m1_t vtempa = vzero;
+      vfloat32m1_t vtempb = vzero;
+      #endif
+
       for (int j = 0; j < n; j+=REGION_SIZE/3){
+
         sp_a_offset = spadRegion * REGION_SIZE;
         VPREFETCH_L(sp_a_offset, a + i*n+j, 0, REGION_SIZE/3,TO_SELF);
 
@@ -103,15 +112,38 @@ void gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
         sp_x_offset = sp_b_offset + (REGION_SIZE/3);        
         VPREFETCH_L(sp_x_offset, x+j, 0, REGION_SIZE/3,TO_SELF);
 
+        #ifdef PER_CORE_SIMD
+        vsetvl_e32m1(PER_CORE_SIMD_LEN);
+        #endif
+
         FRAME_START(REGION_SIZE);
         #pragma GCC unroll(8)
-        for(int jj=0; jj<REGION_SIZE/3; jj++){
+        for(int jj=0; jj<REGION_SIZE/3; jj+=PER_CORE_SIMD_LEN){
+          #ifdef PER_CORE_SIMD
+          vfloat32m1_t va = vle32_v_f32m1(&spAddr[sp_a_offset+jj]);
+          vfloat32m1_t vb = vle32_v_f32m1(&spAddr[sp_b_offset+jj]);
+          vfloat32m1_t vx = vle32_v_f32m1(&spAddr[sp_x_offset+jj]);
+          va = vfmul_vv_f32m1(va, vx);
+          vb = vfmul_vv_f32m1(vb, vx);
+          vtempa = vfadd_vv_f32m1(vtempa, va);
+          vtempb = vfadd_vv_f32m1(vtempb, vb);
+          #else
           temp1 += spAddr[sp_a_offset+jj]*spAddr[sp_x_offset+jj];
           temp2 += spAddr[sp_b_offset+jj]*spAddr[sp_x_offset+jj];
+          #endif
         }
         REMEM();
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
       }
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vreda = vfredsum_vs_f32m1_f32m1(vtempa, vtempa, vzero);
+      vfloat32m1_t vredb = vfredsum_vs_f32m1_f32m1(vtempb, vtempb, vzero);
+      temp1 += vfmv_f_s_f32m1_f32(vreda);
+      temp2 += vfmv_f_s_f32m1_f32(vredb);
+      #endif
+
       #elif defined(PER_CORE_SIMD)
       int chunk = n;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
