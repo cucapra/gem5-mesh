@@ -1,14 +1,14 @@
 #ifndef __2MM_H__
 #define __2MM_H__
 
-// #define VEC_LEN 4
-#ifdef VEC_LEN
+// #define VECTOR_LEN 4
+#ifdef VECTOR_LEN
 #define _VEC
 #endif
 
 //tile size
 #ifndef BLK_DIM
-#if defined(PACKED_SIMD) || defined(NESTED_SIMD)
+#if defined(PER_CORE_SIMD) || defined(PER_CORE_SIMD)
 // match blk dim to simd length for ease of use
 // 16 * 16 * 4 = 1kB space so fits in 4kB spad
 #define BLK_DIM HARDWARE_VECTOR_LEN
@@ -30,7 +30,7 @@
 #define ALPHA 1
 #define BETA 0
 
-#if VEC_LEN==4 && _N_SPS==64
+#if VECTOR_LEN==4 && _N_SPS==64
 #define WORK_DIV(m,n) \
   int uid_x,uid_y; \
   int tg_x,tg_y; \

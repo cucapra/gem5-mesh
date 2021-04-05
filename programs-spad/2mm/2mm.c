@@ -4,23 +4,11 @@
 #include "2mm.h"
 #include "spad.h"
 #include "bind_defs.h"
-#include "token_queue.h"
 #include "group_templates.h"
-#include "reduction.h"
 #include "util.h"
 
 #include "gemm.h"
 #include "gemm_kernel.h"
-
-void transpose(DTYPE *a, int row, int col, DTYPE *aT){
-
-  for(int i=0; i<row; i++){
-    for(int j=i; j<col; j++){
-      aT[i*col+j] = a[j*row+i];
-      aT[j*row+i] = a[i*col+j];
-    }
-  }
-}
 
 void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int pdim){
 
@@ -29,7 +17,8 @@ void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int
 
   for(int i=start; i<end; i++){
     for(int j=0; j<a_row; j++){
-      aT[i*a_row+j] = a[j*a_col+i];
+      // aT[i*a_row+j] = a[j*a_col+i];
+      FSTORE_NOACK(a[j*a_col+i], &aT[i*a_row+j], 0);
     }
   }
 
@@ -100,11 +89,11 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE 
 
   
   #ifdef _VEC
-  #if VEC_LEN==4
+  #if VECTOR_LEN==4
   SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
-    #elif VEC_LEN==16
-    SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
-    #endif
+  #elif VECTOR_LEN==16
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
+  #endif
 
   WORK_DIV(m,t2)
 
@@ -119,7 +108,7 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE 
   transpose_manycore(a,m,t1,aT,ptid,pdim);
   a=aT;
 
-  #ifdef NESTED_SIMD
+  #ifdef PER_CORE_SIMD
   vsetvl_e32m1(HARDWARE_VECTOR_LEN);
   #endif
 
