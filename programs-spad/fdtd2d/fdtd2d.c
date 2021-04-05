@@ -11,7 +11,7 @@
 #include "fdtd2d_kernel.h"
 #include "util.h"
 
-#if defined(PACKED_SIMD) || defined(NESTED_SIMD) 
+#if defined(PER_CORE_SIMD)
 #include <riscv_vector.h>
 #endif
 
@@ -27,7 +27,7 @@ void fdtd_step1_manycore(DTYPE *fict, DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, in
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
-  #ifdef PACKED_SIMD
+  #ifdef PER_CORE_SIMD
   for (int i = start; i < end; i++) {
     int chunk = NY;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -110,7 +110,7 @@ void fdtd_step2_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
-  #ifdef PACKED_SIMD
+  #ifdef PER_CORE_SIMD
   for (int i = start; i < end; i++) {
     int chunk = NY - 1;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -171,7 +171,7 @@ void fdtd_step3_manycore(DTYPE *ex, DTYPE *ey, DTYPE *hz, int t, int NX, int NY,
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
-  #ifdef PACKED_SIMD
+  #ifdef PER_CORE_SIMD
   for (int i = start; i < end; i++) {
     int chunk = NY;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -300,8 +300,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   // need to set vlen here so doesn't cause squash in vector core on change in value
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
   MOVE_STACK_ONTO_SCRATCHPAD();
