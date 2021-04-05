@@ -15,7 +15,7 @@ void fill_array(DTYPE *m, int n)
   int rand_temp = rand()%8;
   for (int i = 0; i < n; i++)
   {
-    m[i] = (rand_temp+i)%(n/4); //(rand_temp + i)%8;
+    m[i] = (rand_temp + i)%8;
   }
 }
 
