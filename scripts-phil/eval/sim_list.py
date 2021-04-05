@@ -1,38 +1,43 @@
 '''
   Sim configurations
 '''
+from copy import deepcopy
 
 # helper set of vec configs you can use in a benchmark (assuming it supports)
 ALL_CONFIGS = ['NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
-ALL_NEIL_CONFIGS = [ 'NO_VEC', 'PACKED_SIMD', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_VEC', 'MANYCORE_PREFETCH' ]]
-INIT0_CONFIGS = [ [ 'VEC_4_SIMD', 'INIT_FRAMES=0' ] ]
-INIT0_NEIL_CONFIGS = [ [ 'VEC_LEN=4', 'INIT_FRAMES=0' ] ]
 
 # TODO hardware opts should automatically determine cache line size
 # b/c wnat to do vec 4 with 256. might be more natural
 HW_OPTS = [
   '--net-width=1', 
-  '--net-width=2', 
-  '--net-width=4',
-  '--net-width=16'
+  # '--net-width=2', 
+  # '--net-width=4',
+  # '--net-width=16'
   ]
 # HW_OPTS = ['']
 ALL_CONFIGS = [
-  ['VEC_16_LONGLINES', 'CACHE_LINE_SIZE=256'],
-  ['VEC_16_LONGLINES', 'CACHE_LINE_SIZE=1024'],
-  ['VEC_4_LONGLINES', 'CACHE_LINE_SIZE=256'],
-  ['VEC_4_LONGLINES', 'CACHE_LINE_SIZE=1024'],
-  ['VEC_4_SIMD'],
-  ['VEC_16_SIMD'],
+  ['VECTOR_LEN=16', 'LONGLINES', 'CACHE_LINE_SIZE=1024'],
+  ['VECTOR_LEN=4', 'LONGLINES', 'CACHE_LINE_SIZE=256'],
+  ['VECTOR_LEN=4'],
+  ['VECTOR_LEN=16'],
+  ['VECTOR_LEN=4', 'PER_CORE_SIMD'],
+  ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
   [ 'NO_VEC', 'MANYCORE_PREFETCH' ],
-  ['PACKED_SIMD'],
-  ['NESTED_SIMD_4_4', 'CACHE_LINE_SIZE=256'],
+  ['PER_CORE_SIMD', 'MANYCORE_PREFETCH'],
+  ['PER_CORE_SIMD'],
+  ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
+  ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=256'],
+  ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
+  ['VECTOR_LEN=4', 'PER_CORE_SIMD'],
+  ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
   'NO_VEC',
   ]
+ALL_CONFIGS = [
+  ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
+  ]
+
 # ALL_CONFIGS = ['VEC_16_SIMD', ['VEC_16_SIMD', 'INIT_FRAMES=5'], 'VEC_4_SIMD', ['VEC_4_SIMD', 'INIT_FRAMES=5'], 'PACKED_SIMD']
-ALL_NEIL_CONFIGS = []
 INIT0_CONFIGS = []
-INIT0_NEIL_CONFIGS = []
 
 # choose which programs to run via script and with what configs
 sim_configs = {
@@ -65,32 +70,31 @@ sim_configs = {
     'argv' : ['256'],
     'hw_opts' : HW_OPTS
   },
-  # 'syr2k'  : {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['256'],
-  #   'hw_opts' : HW_OPTS
-  # },
-  # 'covar'   : {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['512'],
-  #   'hw_opts' : HW_OPTS
-  # },
-  # 'conv2d' : {
-  #   # 'vec'  : [ 'NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], ['VEC_4_SIMD_VERTICAL', 'INIT_FRAMES=0' ] ],
-  #   'vec'  : [ 'PACKED_SIMD', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ],
-  #   'argv' : ['2048'],
-  #   'hw_opts' : HW_OPTS
-  # },
+  'syr2k'  : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['256'],
+    'hw_opts' : HW_OPTS
+  },
+  'covar'   : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['512'],
+    'hw_opts' : HW_OPTS
+  },
+  'conv2d' : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['2048'],
+    'hw_opts' : HW_OPTS
+  },
   # 'conv3d' : {
   #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
   #   'argv' : ['256'],
   #   'hw_opts' : HW_OPTS
   # },
-  # 'fdtd' : {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['512', '30'],
-  #   'hw_opts' : HW_OPTS
-  # },
+  'fdtd' : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['512', '30'],
+    'hw_opts' : HW_OPTS
+  },
 
   # 'atax'   : {
   #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
@@ -103,15 +107,15 @@ sim_configs = {
   #   'hw_opts' : HW_OPTS
   # },
   # 'gemm'   : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'vec'  : ['NO_VEC', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], 'VEC_LEN=4', 'VEC_LEN=16', ['NESTED_SIMD', 'VEC_LEN=4'], ['NESTED_SIMD', 'VEC_LEN=16']],
   #   'argv' : ['256'], #['64']
   #   'hw_opts' : HW_OPTS
   # },
-  # 'gesummv'   : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-  #   'argv' : ['4096'], #['128']
-  #   'hw_opts' : HW_OPTS 
-  # },
+  'gesummv'   : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['4096'], #['128']
+    'hw_opts' : HW_OPTS 
+  },
   # 'corr'   : {
   #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
   #   'argv' : ['512'], #['64']
@@ -155,10 +159,11 @@ def get_cacheline_opt(args):
   return '--cacheline_size=' + str(cl_hw_size)
 
 # make a shorthand to represent the config output name
+# note replace '=' with '_' because converted when called
 def abbreviate_config(config):
-  if (config == 'VEC_4_SIMD' or config == 'VEC_LEN=4'):
+  if (config == 'VEC_4_SIMD' or config == 'VEC_LEN_4' or config == 'VECTOR_LEN_4' ):
     return 'V4'
-  elif (config == 'VEC_16_SIMD' or config == 'VEC_LEN=16'):
+  elif (config == 'VEC_16_SIMD' or config == 'VEC_LEN_16' or config == 'VECTOR_LEN_16' ):
     return 'V16'
   elif (config == 'NO_VEC'):
     return 'NV'
@@ -166,21 +171,22 @@ def abbreviate_config(config):
     return 'R'
   elif (config == 'MANYCORE_PREFETCH'):
     return 'PF'
-  elif (config == 'INIT_FRAMES=0'):
+  elif (config == 'INIT_FRAMES_0'):
     return 'I0'
+  elif (config == 'LONGLINES'):
+    return 'LL'
+  elif (config == 'PER_CORE_SIMD'):
+    return 'PCV'
+  elif (config == 'CACHE_LINE_SIZE_1024'):
+    return 'CL1024'
+  elif (config == 'CACHE_LINE_SIZE_256'):
+    return 'CL256'
   elif (config[0:11] == 'VECTOR_LEN='):
     return config[11:len(config)]
   elif (config[0:3] == 'PF='):
     return config[3:len(config)]
   else:
     return config
-
-def is_tril_vec_config(config):
-  a = abbreviate_config(config)
-  if (a == 'V4' or a == 'V16' or a == 'VEC_4_SIMD_VERTICAL' or a == 'VEC_16_SIMD_VERTICAL'):
-    return True
-  else:
-    return False
 
 # either array or single string
 def strings_to_make_args(args):
@@ -227,13 +233,14 @@ def preprocess_metadata(arg):
 # turn hardware config command line into part of run annoation
 # similar to strings_to_metadata() but first does some processing on format
 def preprocess_and_convert_to_metadata(args):
+  converted_args = deepcopy(args)
   if (isinstance(args, list)):
-    for i in range(0, len(args)):
-      args[i] = preprocess_metadata(args[i])
+    for i in range(0, len(converted_args)):
+      converted_args[i] = preprocess_metadata(converted_args[i])
   else:
-    args = preprocess_metadata(args)
+    converted_args = preprocess_metadata(converted_args)
 
-  return strings_to_metadata(args)
+  return strings_to_metadata(converted_args)
 
 # turn config into metadata to make which run was used
 def strings_to_metadata(args):
