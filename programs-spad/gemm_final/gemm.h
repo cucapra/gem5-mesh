@@ -1,14 +1,14 @@
-#ifndef __VVADD_H__
-#define __VVADD_H__
+#ifndef __GEMM_H__
+#define __GEMM_H__
 
-// #define VEC_LEN 16
-#ifdef VEC_LEN
+// #define VECTOR_LEN 16
+#ifdef VECTOR_LEN
 #define _VEC
 #endif
 
 //tile size
 #ifndef BLK_DIM
-#if defined(PACKED_SIMD) || defined(NESTED_SIMD)
+#if defined(PER_CORE_SIMD) || defined(PER_CORE_SIMD)
 // match blk dim to simd length for ease of use
 // 16 * 16 * 4 = 1kB space so fits in 4kB spad
 #define BLK_DIM HARDWARE_VECTOR_LEN
@@ -21,9 +21,9 @@
 #define _N_SPS 64
 #endif
 
-#if VEC_LEN==4
+#if VECTOR_LEN==4
 #define DIM_X 2
-#elif VEC_LEN==16
+#elif VECTOR_LEN==16
 #define DIM_X 4
 #endif
 
@@ -54,8 +54,11 @@
 
 typedef float DTYPE;
 
+void gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
+     int m_start, int n_start, int ptid, int pdim_x, int pdim_y);
 
-#if VEC_LEN==4 && _N_SPS==64
+
+#if VECTOR_LEN==4 && _N_SPS==64
 #define WORK_DIV(m,n) \
   int uid_x,uid_y; \
   int tg_x,tg_y; \
@@ -107,10 +110,10 @@ typedef float DTYPE;
 
 #define WORK_DIV_OPT(m,n) \
   int total_groups = 3; \
-  int unused = _N_SPS - (total_groups*(VEC_LEN+1)); \
-  int total_compute_cores = (total_groups*VEC_LEN) + unused; \
+  int unused = _N_SPS - (total_groups*(VECTOR_LEN+1)); \
+  int total_compute_cores = (total_groups*VECTOR_LEN) + unused; \
   int alignment = BLK_DIM * DIM_X; \
-  int m_vec = roundUp((total_groups*VEC_LEN*m)/total_compute_cores, alignment);\
+  int m_vec = roundUp((total_groups*VECTOR_LEN*m)/total_compute_cores, alignment);\
   m_manycore = m-m_vec; \
   if(cinfo.used) { \
     alignment = BLK_DIM * DIM_X; \

@@ -1,10 +1,10 @@
 BENCHNAME := gemm
 default: $(BENCHNAME)
 
-SIZE := 64
+SIZE := 16
 # Specify number of CPUs. (TODO: rename to NUM_CPUS)
-N_SPS ?= 64
-EXTRA_FLAGS ?= -DNESTED_SIMD -DVEC_LEN=4 -DHARDWARE_VECTOR_LEN=4
+N_SPS ?= 16
+EXTRA_FLAGS ?= -DMANYCORE_PREFETCH -DPER_CORE_SIMD
 HB_ARGS := --options="$(SIZE) $(SIZE) $(SIZE)"
 # GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=RiscvVector
 

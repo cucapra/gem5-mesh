@@ -4,12 +4,10 @@
 #include "gemm.h"
 #include "spad.h"
 #include "bind_defs.h"
-#include "token_queue.h"
 #include "group_templates.h"
-#include "reduction.h"
 #include "util.h"
 
-#ifdef PACKED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
@@ -54,17 +52,18 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
         VPREFETCH_L(sp_a_offset, aT + _idx_(k, i0, m), 0, BLK_DIM,TO_SELF);
         // fetch b in scratchpad
         VPREFETCH_L(sp_b_offset, b + _idx_(k, j0, n), 0, BLK_DIM,TO_SELF);
+
         FRAME_START(REGION_SIZE);
         #endif
 
-        #ifdef PACKED_SIMD
+        #ifdef PER_CORE_SIMD
         vsetvl_e32m1(BLK_DIM);
         #endif
 
         #pragma GCC unroll(16)
         for (int i = 0; i < BLK_DIM; i++)
         {
-          #ifdef PACKED_SIMD
+          #if defined(PER_CORE_SIMD) && !defined(MANYCORE_PREFETCH)
           // vsetvl_e32m1(BLK_DIM);
           // vfloat32m1_t vaT = vfmv_v_f_f32m1(aT[_idx_(k, i + i0, m)] * ALPHA);
           float vaT = aT[_idx_(k, i + i0, m)] * ALPHA;
@@ -77,6 +76,13 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
           vc = vfadd_vv_f32m1(vc, vcp);
 
           vse32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)], vc);   
+          #elif defined(PER_CORE_SIMD) && defined(MANYCORE_PREFETCH)
+          DTYPE vaT = spAddr[sp_a_offset + i]*ALPHA;
+          vfloat32m1_t vb  = vle32_v_f32m1(&spAddr[sp_b_offset]);
+          vfloat32m1_t vc  = vle32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)]);
+          vfloat32m1_t vcp = vfmul_vf_f32m1(vb,vaT);
+          vc = vfadd_vv_f32m1(vc, vcp);
+          vse32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)], vc);
           #else
           #pragma GCC unroll(16)
           for (int j = 0; j < BLK_DIM; j++)
@@ -89,6 +95,7 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
             a_ = aT[_idx_(k,i + i0, m)];
             b_ = b[_idx_(k, j + j0, n)];
             #endif
+
             sp_c[_idx_(i, j, BLK_DIM)] += ALPHA* a_ * b_;
             // c[_idx_(i + i0, j + j0, n)] += a_ * b_;
           }
@@ -101,7 +108,7 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
         #endif
       }
 
-      #ifdef PACKED_SIMD
+      #ifdef PER_CORE_SIMD
       vsetvl_e32m1(BLK_DIM);
       #endif
 
@@ -109,7 +116,7 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
       for (int i = 0; i < BLK_DIM; i++)
       {
 
-        #ifdef PACKED_SIMD
+        #ifdef PER_CORE_SIMD
         
         vfloat32m1_t vc  = vle32_v_f32m1(&c[_idx_(i + i0, j0, n)]);
         vfloat32m1_t vspc = vle32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)]);
