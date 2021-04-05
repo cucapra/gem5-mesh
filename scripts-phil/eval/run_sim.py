@@ -45,7 +45,12 @@ def compile_prog(numCpus, prog_key, vec_config):
   extra_flags += ' BINARY_NAME=' + binary_name
   program = sim_list.programs[prog_key]
   cmplCmd = compile_cmd(os.path.dirname(program['path']), numCpus, extra_flags)
-  result = subprocess.check_output(cmplCmd, shell=True, stderr=subprocess.STDOUT)
+  try:
+    result = subprocess.check_output(cmplCmd, shell=True, stderr=subprocess.STDOUT)
+    return True
+  except:
+    print('Failed to compile ' + binary_name)
+    return False
   # result = subprocess.check_output(cmplCmd, shell=True)
   # print(result)
 
@@ -127,7 +132,10 @@ for k,v in sim_list.sim_configs.items():
   for vec_config in vec_configs:
 
     # compile serially so can launch job with overwritting binary
-    compile_prog(num_cpus, prog_key, vec_config)
+    # if fails, kill all jobs and exit
+    if (not compile_prog(num_cpus, prog_key, vec_config)):
+      pool.terminate()
+      quit()
 
     for hw_opt in hw_opts:
       # the new file will have the same name as the old file, but also specify the new dir
