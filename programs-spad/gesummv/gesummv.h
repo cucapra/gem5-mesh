@@ -1,8 +1,8 @@
 #ifndef __GESUMMV_H__
 #define __GESUMMV_H__
 
-// #define VEC_LEN 4
-#ifdef VEC_LEN
+// #define VECTOR_LEN 4
+#ifdef VECTOR_LEN
 #define _VEC
 #endif
 
@@ -19,11 +19,11 @@
 #define UNROLL_LEN (REGION_SIZE/3)
 
 #ifdef LONGLINES
-  #define J_STRIDE (UNROLL_LEN*VEC_LEN)
+  #define J_STRIDE (UNROLL_LEN*VECTOR_LEN)
   #define I_STRIDE (1)
 #else
   #define J_STRIDE (UNROLL_LEN)
-  #define I_STRIDE (VEC_LEN)
+  #define I_STRIDE (VECTOR_LEN)
 #endif
 
 // stuff for partial reduction
@@ -32,7 +32,7 @@
 #endif
 
 // TODO hardcode this based on spipe
-#if VEC_LEN == 4
+#if VECTOR_LEN == 4
 #define NUM_GROUPS_PER_PIPE (3)
 #else
 #define NUM_GROUPS_PER_PIPE (1)
@@ -40,7 +40,7 @@
 
 #define OFFSET_PER_CORE (2)
 #define MAILER_OFFSET (OFFSET_PER_CORE*NUM_GROUPS_PER_PIPE)
-#define SUB_FRAME_SIZE (MAILER_OFFSET + VEC_LEN * NUM_GROUPS_PER_PIPE)
+#define SUB_FRAME_SIZE (MAILER_OFFSET + VECTOR_LEN * NUM_GROUPS_PER_PIPE)
 #define MAILER_FRAME_SIZE (SUB_FRAME_SIZE * ACCUM_GRANULARITY)
 #define MAILER_NUM_FRAMES (POST_FRAME_WORD / MAILER_FRAME_SIZE)
 #define MAILER_POST_FRAME_WORD (MAILER_FRAME_SIZE * MAILER_NUM_FRAMES)
@@ -53,14 +53,14 @@
 #endif
 
 // how much vector core will write
-#define PER_CORE_MAILER_FRAME (VEC_LEN)
+#define PER_CORE_MAILER_FRAME (VECTOR_LEN)
 // includes also if any base value to the sum
 #define PER_CORE_FULL_MAILER_FRAME (PER_CORE_MAILER_FRAME + OFFSET_PER_CORE)
 
-#ifdef NESTED_SIMD
-  #define NESTED_SIMD_VLEN (HARDWARE_VECTOR_LEN)
+#ifdef PER_CORE_SIMD
+  #define PER_CORE_SIMD_LEN (HARDWARE_VECTOR_LEN)
 #else
-  #define NESTED_SIMD_VLEN (1)
+  #define PER_CORE_SIMD_LEN (1)
 #endif
 
 

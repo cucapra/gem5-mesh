@@ -9,7 +9,7 @@
 
 #include "gesummv_kernel.h"
 
-#if defined(PACKED_SIMD) || defined(NESTED_SIMD) 
+#if defined(PER_CORE_SIMD) || defined(PER_CORE_SIMD) 
 #include <riscv_vector.h>
 #endif
 
@@ -112,7 +112,7 @@ void gesummv_manycore(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n,
         REMEM();
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
       }
-      #elif defined(PACKED_SIMD)
+      #elif defined(PER_CORE_SIMD)
       int chunk = n;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
         l = vsetvl_e32m1(chunk);
@@ -185,9 +185,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(DTYPE
   int end   = 0;
 
   #ifdef _VEC
-  #if VEC_LEN==4
+  #if VECTOR_LEN==4
   SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
-  #elif VEC_LEN==16
+  #elif VECTOR_LEN==16
   SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
   #endif
 
@@ -197,7 +197,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(DTYPE
     end = ((unique_id + 1) * n) / total_groups; 
     #else
     //do work division here
-    int alignment = VEC_LEN; //each group should have elements of multiple of this number
+    int alignment = VECTOR_LEN; //each group should have elements of multiple of this number
     start = roundUp(((unique_id + 0) * n) / total_groups, alignment); 
     end = roundUp(((unique_id + 1) * n) / total_groups, alignment); 
     #endif
@@ -220,8 +220,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(DTYPE
   #endif
 
   // need to set vlen here so doesn't cause squash in vector core on change in value
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
   // region based mask for scratchpad

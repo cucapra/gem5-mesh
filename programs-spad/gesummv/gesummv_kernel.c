@@ -1,7 +1,7 @@
 #include "gesummv_kernel.h"
 #include "util.h"
 
-#ifdef NESTED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
@@ -25,7 +25,7 @@ inline void prefetch_gesummv_frame(DTYPE *a, DTYPE *b, DTYPE *x, int i, int j, i
   VPREFETCH_LR(sp_b_offset, b + _idx_(i,j,n), 0, REGION_SIZE/3,TO_ALL_CORES);
   VPREFETCH_LR(sp_x_offset, x + j, 0, REGION_SIZE/3,TO_ALL_CORES);
   #else
-  for (int d = 0; d < VEC_LEN; d++){
+  for (int d = 0; d < VECTOR_LEN; d++){
     VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/3,TO_ONE_CORE); //load A
     VPREFETCH_L(sp_b_offset, b + _idx_(i+d,j,n), d, REGION_SIZE/3,TO_ONE_CORE); //load A
     VPREFETCH_L(sp_x_offset, x + j, d, REGION_SIZE/3,TO_ONE_CORE); //load x
@@ -123,8 +123,8 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
   // int sp_offset = 0;
   DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
 
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); 
   #endif
 
@@ -149,8 +149,8 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
     temp2=y[row_thread];
     #endif
 
-    #ifdef NESTED_SIMD
-    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    #ifdef PER_CORE_SIMD
+    size_t l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
     vfloat32m1_t vtempa = vzero;
     vfloat32m1_t vtempb = vzero;
     #endif
@@ -160,19 +160,19 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
       asm("trillium vissue_delim until_next dotprod");
       // asm("trillium vissue_delim if_begin dotprod");
 
-      #ifdef NESTED_SIMD
-      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #ifdef PER_CORE_SIMD
+      l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
       #endif
 
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
-      for(int jj=0; jj<REGION_SIZE/3; jj+=NESTED_SIMD_VLEN){
+      for(int jj=0; jj<REGION_SIZE/3; jj+=PER_CORE_SIMD_LEN){
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         // DTYPE *a_on_sp = spAddr + sp_offset + jj;
         DTYPE *b_on_sp = a_on_sp + REGION_SIZE/3;
         DTYPE *x_on_sp = b_on_sp + REGION_SIZE/3;
 
-        #ifdef NESTED_SIMD
+        #ifdef PER_CORE_SIMD
         vfloat32m1_t va = vle32_v_f32m1(a_on_sp);
         vfloat32m1_t vb = vle32_v_f32m1(b_on_sp);
         vfloat32m1_t vx = vle32_v_f32m1(x_on_sp);
@@ -195,7 +195,7 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
 
-    #ifdef NESTED_SIMD
+    #ifdef PER_CORE_SIMD
     vfloat32m1_t vreda = vfredsum_vs_f32m1_f32m1(vtempa, vtempa, vzero);
     vfloat32m1_t vredb = vfredsum_vs_f32m1_f32m1(vtempb, vtempb, vzero);
     temp1 += vfmv_f_s_f32m1_f32(vreda);
