@@ -5,7 +5,7 @@ default: $(BENCHNAME)
 PROB_SIZE := 32
 N_SPS ?= 16
 CL_LEN := 128
-EXTRA_FLAGS ?= -DVECTOR_LEN=4 -DPER_CORE_SIMD -DLONGLINES -DCACHE_LINE_SIZE=$(CL_LEN)
+EXTRA_FLAGS ?= -DMANYCORE_PREFETCH -DPER_CORE_SIMD -DCACHE_LINE_SIZE=$(CL_LEN)
 HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)" --cacheline_size=$(CL_LEN)
 # GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Mesh,Frame
 
