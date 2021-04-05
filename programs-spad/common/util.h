@@ -16,6 +16,12 @@
 #define HARDWARE_VECTOR_LEN (4)
 #endif
 
+#ifdef PER_CORE_SIMD
+#define PER_CORE_SIMD_LEN (HARDWARE_VECTOR_LEN)
+#else
+#define PER_CORE_SIMD_LEN (1)
+#endif
+
 int roundUp(int numToRound, int multiple);
 inline int min(int a, int b) {
   if (a > b) {
@@ -49,10 +55,13 @@ int float_compare(float a, float b, float eps);
   }                                                             \
   flat_iter+=ACCUM_GRANULARITY
 
-#define SETUP_REDUCTION_CORE(fwders, ptid)                      \
+#define SETUP_REDUCTION_CORE(fwders, ptid, N, baseGroupId, numGroups)        \
   int* spPtrs[NUM_GROUPS_PER_PIPE];                             \
+  int group_end[MAX_GROUP_AFFINITY];                            \
   for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {               \
     spPtrs[g] = (int*)getSpAddr(fwders[g], 0);                  \
+    int gid = baseGroupId + g;                                  \
+    group_end[g] = get_group_end(gid, N, numGroups);            \
   }                                                             \
   int flat_iter = 0;                                            \
   int sp_self = 0;                                              \

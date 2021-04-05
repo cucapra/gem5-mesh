@@ -9,7 +9,7 @@
 #include "bind_defs.h"
 #include "util.h"
 
-#ifdef NESTED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
@@ -57,8 +57,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
   int sp_origin = MAILER_OFFSET + (linkId * PER_CORE_MAILER_FRAME) + vtid;
   DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
 
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
   #endif
   #endif
@@ -171,19 +171,20 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
     sp+=INNER_FRAME_SIZE;
     sp = sp % POST_FRAME_WORD;
     #else
-    #ifdef NESTED_SIMD
-    // NOTE MUST NEVER CHANGE THIS VALUE B/C CANT SQUASH IN VCORES!!!
-    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
-    #endif
     c_ij = 0;
+    #endif
+
+    #ifdef PER_CORE_SIMD
+    // NOTE MUST NEVER CHANGE THIS VALUE B/C CANT SQUASH IN VCORES!!!
+    size_t l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
     #endif
 
     do {
       asm("trillium vissue_delim if_begin vec_body");
   
       // do innermost loop body (k)
-      #ifdef NESTED_SIMD
-      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #ifdef PER_CORE_SIMD
+      l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
       vfloat32m1_t accum = vzero;
       #endif
       
@@ -192,8 +193,8 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
       // WARNING if less than INNER_PREFETCH_LEN, creates code gen problem
       // could always just not unroll
       #pragma GCC unroll(32)
-      for (int k = 0; k < INNER_PREFETCH_LEN; k+=NESTED_SIMD_VLEN) {
-        #ifdef NESTED_SIMD
+      for (int k = 0; k < INNER_PREFETCH_LEN; k+=PER_CORE_SIMD_LEN) {
+        #ifdef PER_CORE_SIMD
         // load from scratchpad frame
         vfloat32m1_t vai = vle32_v_f32m1(&sp_ptr[sp + k]);
         vfloat32m1_t vaj = vle32_v_f32m1(&sp_ptr[sp + INNER_PREFETCH_LEN + k]);
@@ -207,7 +208,7 @@ void tril_syrk(int mask, DTYPE *a, DTYPE *c, int N, int M,
         #endif
       }
 
-      #ifdef NESTED_SIMD
+      #ifdef PER_CORE_SIMD
       // NOTE very important to do this outside of the loop otherwise won't
       // mix iterations together and will have poor depedency distances
       vfloat32m1_t vcij = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
