@@ -11,7 +11,7 @@
 #include "covar_kernel.h"
 #include "util.h"
 
-#if defined(PACKED_SIMD) || defined(NESTED_SIMD) 
+#if defined(PER_CORE_SIMD)
 #include <riscv_vector.h>
 #endif
 
@@ -51,7 +51,7 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
   for (int i = start; i < end; i++) { // TODO remove +1, keep for now for eq
     DTYPE mean_i = 0.0f;
 
-    #ifdef PACKED_SIMD
+    #ifdef PER_CORE_SIMD
     int chunk = M;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
       l = vsetvl_e32m1(chunk);
@@ -94,7 +94,7 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
     // TODO dont need this
     FSTORE_NOACK(mean_i, &mean[i], 0);
 
-    #ifdef PACKED_SIMD
+    #ifdef PER_CORE_SIMD
     chunk = M;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
       l = vsetvl_e32m1(chunk);
@@ -147,7 +147,7 @@ void covar_manycore(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) 
     for (int i2 = i1; i2 < N; i2++) {
       DTYPE symmat_idx = 0.0f;
 
-      #ifdef PACKED_SIMD
+      #ifdef PER_CORE_SIMD
       int chunk = M;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
         l = vsetvl_e32m1(chunk);
@@ -206,7 +206,7 @@ void mean_reduction(DTYPE *out, int baseGroupId, int numGroups, int N, int M,
   int max_chunk_size = ceilToInt((float)N / (float)numGroups);
 
   // cache sp ptrs to avoid global load
-  SETUP_REDUCTION_CORE(fwders, ptid);
+  SETUP_REDUCTION_CORE(fwders, ptid, N, baseGroupId, numGroups);
 
   for (int cnt = 0; cnt < max_chunk_size; cnt+=ACCUM_GRANULARITY) {
 
@@ -238,7 +238,7 @@ void mean_reduction(DTYPE *out, int baseGroupId, int numGroups, int N, int M,
         sum /= (DTYPE)FLOAT_N;
 
         int i = group_start[g];
-        if (i < 0 || i + a >= max_chunk_size) continue;
+        if (i < 0 || i + a >= group_end[g]) continue; // TODO test b/c wrong before??
 
         FSTORE_NOACK(sum, &out[i + a], 0);
       }
@@ -257,7 +257,7 @@ void covar_reduction(DTYPE *symmat, int baseGroupId, int numGroups, int N, int M
   int max_chunk_size = ceilToInt((float)N / (float)numGroups);
 
   // cache sp ptrs to avoid global load
-  SETUP_REDUCTION_CORE(fwders, ptid);
+  SETUP_REDUCTION_CORE(fwders, ptid, N, baseGroupId, numGroups);
 
   for (int cnt = 0; cnt < max_chunk_size; cnt++) {
 
@@ -428,8 +428,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   // need to set vlen here so doesn't cause squash in vector core on change in value
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
   MOVE_STACK_ONTO_SCRATCHPAD();
