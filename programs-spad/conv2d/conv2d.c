@@ -9,7 +9,7 @@
 #include "conv2d_kernel.h"
 #include "util.h"
 
-#if defined(PACKED_SIMD) || defined(NESTED_SIMD) 
+#if defined(PER_CORE_SIMD)
 #include <riscv_vector.h>
 #endif
 
@@ -45,7 +45,61 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
 
   int NJ = inner_dim;
 
-  #ifdef PACKED_SIMD
+  #if defined(MANYCORE_PREFETCH)
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
+  int cEnd = NJ - 1;
+
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vint32m1_t cresendo = vmv_v_x_i32m1(0.0f);
+  #pragma GCC unroll(16)
+  for (int i = 0; i < PER_CORE_SIMD_LEN; i++) {
+    if (i < NESTED_SIMD_STRIDE)
+      cresendo = vslide1down_vx_i32m1(cresendo, i);
+    // the last two should always be masked so set to high value
+    else
+      cresendo = vslide1down_vx_i32m1(cresendo, BIG_INT);
+  }
+  #endif
+
+  for (int r = outer_start; r < outer_end; r++) {
+
+    for (int c = inner_start; c < cEnd; c+=CORE_STEP) {
+      prefetch_vert_frame(a, r, c, inner_dim, 1, &sp);
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
+      FRAME_START(REGION_SIZE);
+      // not actually 14iters, but like 6
+      #pragma GCC unroll(14)
+      for (int i = 0; i < CORE_STEP; i+=NESTED_SIMD_STRIDE) {
+        int sp0 = sp + i;
+        int sp1 = sp0 + LOAD_DEPTH;
+        int sp2 = sp1 + LOAD_DEPTH;
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t r1 = vle32_v_f32m1(&sp_ptr[sp0]);
+        vfloat32m1_t r2 = vle32_v_f32m1(&sp_ptr[sp1]);
+        vfloat32m1_t r3 = vle32_v_f32m1(&sp_ptr[sp2]);
+        vbool32_t bmask = vmslt_vx_i32m1_b32(cresendo, cEnd - (c + i));
+        VECTOR_CONV_3x3(r1, r2, r3, &b[r*NJ + c + i], bmask);
+        #else
+        if (c + i >= NJ-1) break;
+        DTYPE out = CONV_3x3(
+          sp_ptr[sp0 + 0], sp_ptr[sp0 + 1], sp_ptr[sp0 + 2],
+          sp_ptr[sp1 + 0], sp_ptr[sp1 + 1], sp_ptr[sp1 + 2],
+          sp_ptr[sp2 + 0], sp_ptr[sp2 + 1], sp_ptr[sp2 + 2]
+        );
+        FSTORE_NOACK(out, &b[r*NJ + c + i], 0);
+        #endif
+      }
+      sp += REGION_SIZE;
+      sp = sp % POST_REGION_WORD; 
+      END_FRAME();
+    }
+  }
+  #elif defined(PER_CORE_SIMD)
   int cEnd = ((NJ-1) / CORE_STEP) * CORE_STEP;
 
   vsetvl_e32m1(HARDWARE_VECTOR_LEN);
@@ -65,51 +119,6 @@ void conv2d_manycore(DTYPE *a, DTYPE *b, int outer_dim, int inner_dim,
       vfloat32m1_t r3 = vle32_v_f32m1(&a[(r + 1)*NJ + (c - 1)]);
     
       VECTOR_CONV_3x3(r1, r2, r3, &b[r*NJ + c], bmask);
-    }
-
-    // TODO not clear how much this matters
-    // do rest that doesnt map into prefetch pattern
-    #pragma GCC unroll(16)
-    for (int c = cEnd; c < NJ-1; c++) {
-      int i = r;
-      int j = c;
-      DTYPE out = CONV_3x3(
-        a[(i - 1)*NJ + (j - 1)], a[(i - 1)*NJ + (j + 0)], a[(i - 1)*NJ + (j + 1)],
-        a[(i + 0)*NJ + (j - 1)], a[(i + 0)*NJ + (j + 0)], a[(i + 0)*NJ + (j + 1)],
-        a[(i + 1)*NJ + (j - 1)], a[(i + 1)*NJ + (j + 0)], a[(i + 1)*NJ + (j + 1)]
-      );
-      FSTORE_NOACK(out, &b[i*NJ + j], 0);
-    }
-  }
-  #elif defined(MANYCORE_PREFETCH)
-  int sp = 0;
-  DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-
-  int cEnd = ((NJ-1) / CORE_STEP) * CORE_STEP;
-
-  for (int r = outer_start; r < outer_end; r++) {
-  
-
-    for (int c = inner_start; c < cEnd; c+=CORE_STEP) {
-      prefetch_vert_frame(a, r, c, inner_dim, 1, &sp);
-
-      FRAME_START(REGION_SIZE);
-      // not actually 14iters, but like 6
-      #pragma GCC unroll(14)
-      for (int i = 0; i < CORE_STEP; i++) {
-        int sp0 = sp + i;
-        int sp1 = sp0 + LOAD_DEPTH;
-        int sp2 = sp1 + LOAD_DEPTH;
-        DTYPE out = CONV_3x3(
-          sp_ptr[sp0 + 0], sp_ptr[sp0 + 1], sp_ptr[sp0 + 2],
-          sp_ptr[sp1 + 0], sp_ptr[sp1 + 1], sp_ptr[sp1 + 2],
-          sp_ptr[sp2 + 0], sp_ptr[sp2 + 1], sp_ptr[sp2 + 2]
-        );
-        FSTORE_NOACK(out, &b[r*NJ + c + i], 0);
-      }
-      END_FRAME();
-      sp += REGION_SIZE;
-      sp = sp % POST_REGION_WORD; 
     }
 
     // TODO not clear how much this matters
@@ -249,8 +258,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   // need to set vlen here so doesn't cause squash in vector core on change in value
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
   // move stack onto scratchpad for faster local access than default on DRAM

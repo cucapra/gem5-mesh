@@ -11,7 +11,7 @@
 #include "util.h"
 #include "fdtd2d_kernel.h"
 
-#ifdef NESTED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
@@ -59,8 +59,8 @@ void tril_fdtd_step1(int mask,
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
   #endif
 
@@ -104,8 +104,8 @@ void tril_fdtd_step1(int mask,
     int j = 0;
     #endif
 
-    #ifdef NESTED_SIMD
-    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    #ifdef PER_CORE_SIMD
+    size_t l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
     #endif
 
     // i != 0
@@ -113,17 +113,17 @@ void tril_fdtd_step1(int mask,
 
       asm("trillium vissue_delim if_begin vec_body_in0");
 
-      #ifdef NESTED_SIMD
-      size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #ifdef PER_CORE_SIMD
+      size_t l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
       #endif
 
       FRAME_START(STEP1_REGION_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < STEP1_UNROLL_LEN; u+=NESTED_SIMD_VLEN) {
+      for (int u = 0; u < STEP1_UNROLL_LEN; u+=PER_CORE_SIMD_LEN) {
         int u0 = u;
         int u1 = STEP1_UNROLL_LEN+u;
         int u2 = 2*STEP1_UNROLL_LEN+u;
-        #ifdef NESTED_SIMD
+        #ifdef PER_CORE_SIMD
         vfloat32m1_t vhzi   = vle32_v_f32m1(&sp_ptr[sp + u1]);
         vfloat32m1_t vhzim1 = vle32_v_f32m1(&sp_ptr[sp + u2]);
         vfloat32m1_t vey    = vle32_v_f32m1(&sp_ptr[sp + u0]);
@@ -221,14 +221,14 @@ void tril_fdtd_step2(int mask,
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
 
   // construct vector to help generate ending mask
   // a cresendo
   vint32m1_t cresendo = vmv_v_x_i32m1(0.0f);
   #pragma GCC unroll(16)
-  for (int i = 0; i < NESTED_SIMD_VLEN; i++) {
+  for (int i = 0; i < PER_CORE_SIMD_LEN; i++) {
     cresendo = vslide1down_vx_i32m1(cresendo, i);
   }
 
@@ -278,26 +278,26 @@ void tril_fdtd_step2(int mask,
     int j = 1;
     #endif
 
-    #ifdef NESTED_SIMD
-    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    #ifdef PER_CORE_SIMD
+    size_t l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
     #endif
 
     do {
 
       asm("trillium vissue_delim if_begin vec_body");
 
-      #ifdef NESTED_SIMD
-      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #ifdef PER_CORE_SIMD
+      l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
       #endif
 
       FRAME_START(STEP2_REGION_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < STEP2_UNROLL_LEN; u+=NESTED_SIMD_VLEN) {
+      for (int u = 0; u < STEP2_UNROLL_LEN; u+=PER_CORE_SIMD_LEN) {
         int u0 = u;
         int u1 = STEP2_UNROLL_LEN + u;
-        #ifdef NESTED_SIMD
+        #ifdef PER_CORE_SIMD
         vfloat32m1_t vhz1 = vle32_v_f32m1(&sp_ptr[sp + u1]);
-        vfloat32m1_t vhz  = vfslide1down_vf_f32m1(vhz1, sp_ptr[sp + u1 + NESTED_SIMD_VLEN]);
+        vfloat32m1_t vhz  = vfslide1down_vf_f32m1(vhz1, sp_ptr[sp + u1 + PER_CORE_SIMD_LEN]);
 
         vfloat32m1_t vex  = vle32_v_f32m1(&sp_ptr[sp + u0]);
 
@@ -397,8 +397,8 @@ void tril_fdtd_step3(int mask,
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
   #endif
 
@@ -443,29 +443,29 @@ void tril_fdtd_step3(int mask,
     int j = 0;
     #endif
 
-    #ifdef NESTED_SIMD
-    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    #ifdef PER_CORE_SIMD
+    size_t l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
     #endif
 
     do {
 
       asm("trillium vissue_delim if_begin vec_body");
 
-      #ifdef NESTED_SIMD
-      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #ifdef PER_CORE_SIMD
+      l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
       #endif
 
       FRAME_START(STEP3_REGION_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < STEP3_UNROLL_LEN; u+=NESTED_SIMD_VLEN) {
+      for (int u = 0; u < STEP3_UNROLL_LEN; u+=PER_CORE_SIMD_LEN) {
         int u0 = u;
         int u1 = STEP3_UNROLL_LEN + u;
         int u2 = 2*STEP3_UNROLL_LEN+1 + u;
         int u3 = 3*STEP3_UNROLL_LEN+1 + u;
-        #ifdef NESTED_SIMD
+        #ifdef PER_CORE_SIMD
         vfloat32m1_t vhz  = vle32_v_f32m1(&sp_ptr[sp + u0]);
         vfloat32m1_t vex  = vle32_v_f32m1(&sp_ptr[sp + u1]);
-        vfloat32m1_t vex1 = vfslide1down_vf_f32m1(vex, sp_ptr[sp + u1 + NESTED_SIMD_VLEN]);
+        vfloat32m1_t vex1 = vfslide1down_vf_f32m1(vex, sp_ptr[sp + u1 + PER_CORE_SIMD_LEN]);
         vfloat32m1_t vey1 = vle32_v_f32m1(&sp_ptr[sp + u2]);
         vfloat32m1_t vey  = vle32_v_f32m1(&sp_ptr[sp + u3]);
 

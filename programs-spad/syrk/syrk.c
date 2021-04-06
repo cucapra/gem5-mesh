@@ -11,7 +11,7 @@
 #include "syrk_kernel.h"
 #include "util.h"
 
-#if defined(PACKED_SIMD) || defined(NESTED_SIMD) 
+#if defined(PER_CORE_SIMD)
 #include <riscv_vector.h>
 #endif
 
@@ -34,11 +34,50 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
 
   for (int i = start; i < end; i++) {
+
     for (int j = 0; j < M; j++) {
+
       // TODO not prefetching outframe but should be negligable
       DTYPE c_ij = c[i * N + j] * beta;
-      
-      #ifdef PACKED_SIMD
+      // TODO prob size needs to be greater than 64
+      #if defined(MANYCORE_PREFETCH)
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+      vfloat32m1_t accum = vzero;
+      #endif
+
+      for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
+        prefetch_inner_frame(a, i, j, k, &sp, M);
+        #ifdef PER_CORE_SIMD
+        vsetvl_e32m1(PER_CORE_SIMD_LEN);
+        #endif
+        FRAME_START(INNER_FRAME_SIZE);
+        #pragma GCC unroll(16)
+        for (int kin = 0; kin < INNER_PREFETCH_LEN; kin+=PER_CORE_SIMD_LEN) {
+          #ifdef PER_CORE_SIMD
+          vfloat32m1_t vai = vle32_v_f32m1(&sp_ptr[sp + kin]);
+          vfloat32m1_t vaj = vle32_v_f32m1(&sp_ptr[sp + INNER_PREFETCH_LEN + kin]);
+          vfloat32m1_t vaa = vfmul_vv_f32m1(vai, vaj);
+          vfloat32m1_t vaaa = vfmul_vf_f32m1(vaa, alpha);
+          accum = vfadd_vv_f32m1(accum, vaaa);
+          #else
+          c_ij += alpha * sp_ptr[sp + kin] * sp_ptr[sp + INNER_PREFETCH_LEN + kin];
+          #endif
+        }
+        sp += INNER_FRAME_SIZE;
+        sp = sp % POST_FRAME_WORD;
+        END_FRAME();
+      }
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vcij = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+      c_ij += vfmv_f_s_f32m1_f32(vcij);
+      #endif
+
+      #elif defined(PER_CORE_SIMD)
       // I don't this can be unrolled, would need force vlen? Maybe should
       int chunk = M;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -60,28 +99,13 @@ void syrk_manycore_baseline(DTYPE *a, DTYPE *c, int N, int M, int tid, int dim) 
         // update the accumulation
         c_ij += vfmv_f_s_f32m1_f32(vcij);
       }
-
-      // TODO prob size needs to be greater than 64
-      #elif defined(MANYCORE_PREFETCH)
-      for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
-        prefetch_inner_frame(a, i, j, k, &sp, M);
-
-        FRAME_START(INNER_FRAME_SIZE);
-        #pragma GCC unroll(16)
-        for (int kin = 0; kin < INNER_PREFETCH_LEN; kin++) {
-          c_ij += alpha * sp_ptr[sp + kin] * sp_ptr[sp + INNER_PREFETCH_LEN + kin];
-        }
-        END_FRAME();
-
-        sp += INNER_FRAME_SIZE;
-        sp = sp % POST_FRAME_WORD;
-      }
       #else
       #pragma GCC unroll(16)
       for (int k = 0; k < M; k++) {
         c_ij += alpha * a[i * M + k] * a[j * M + k];
       }
       #endif
+
       FSTORE_NOACK(c_ij, &c[i * N + j], 0);
     }
   }
@@ -102,7 +126,7 @@ void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M,
   int max_chunk_size = ceilToInt((float)N / (float)numGroups);
 
   // cache sp ptrs to avoid global load
-  SETUP_REDUCTION_CORE(fwders, ptid);
+  SETUP_REDUCTION_CORE(fwders, ptid, N, baseGroupId, numGroups);
 
   for (int cnt = 0; cnt < max_chunk_size; cnt++) {
 
@@ -200,8 +224,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   // need to set vlen here so doesn't cause squash in vector core on change in value
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
   #ifdef NUM_FRAMES

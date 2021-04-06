@@ -11,7 +11,7 @@
 #include "covar_kernel.h"
 #include "util.h"
 
-#if defined(PACKED_SIMD) || defined(NESTED_SIMD) 
+#if defined(PER_CORE_SIMD)
 #include <riscv_vector.h>
 #endif
 
@@ -51,7 +51,41 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
   for (int i = start; i < end; i++) { // TODO remove +1, keep for now for eq
     DTYPE mean_i = 0.0f;
 
-    #ifdef PACKED_SIMD
+    #if defined(MANYCORE_PREFETCH)
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+    vfloat32m1_t accum = vzero;
+    #endif
+
+    for (int j = 0; j < M; j+=MEAN_PREFETCH_LEN) {
+      prefetch_mean_frame(data, i, j, &sp, M);
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
+      FRAME_START(MEAN_PREFETCH_LEN);
+      #pragma GCC unroll(16)
+      for (int u = 0; u < MEAN_PREFETCH_LEN; u+=PER_CORE_SIMD_LEN) {
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t vmean = vle32_v_f32m1(&sp_ptr[sp + u]);
+        accum = vfadd_vv_f32m1(accum, vmean);
+        #else
+        mean_i += sp_ptr[sp + u];
+        #endif
+      }
+      sp += MEAN_FRAME_SIZE;
+      sp = sp % POST_FRAME_WORD;
+      END_FRAME();
+    }
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t vmean = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    mean_i += vfmv_f_s_f32m1_f32(vmean);
+    #endif
+
+    #elif defined(PER_CORE_SIMD)
     int chunk = M;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
       l = vsetvl_e32m1(chunk);
@@ -67,20 +101,6 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
       // update the accumulation
       mean_i += vfmv_f_s_f32m1_f32(vsum);
     }
-    #elif defined(MANYCORE_PREFETCH)
-    for (int j = 0; j < M; j+=MEAN_PREFETCH_LEN) {
-      prefetch_mean_frame(data, i, j, &sp, M);
-
-      FRAME_START(MEAN_PREFETCH_LEN);
-      #pragma GCC unroll(16)
-      for (int u = 0; u < MEAN_PREFETCH_LEN; u++) {
-        mean_i += sp_ptr[sp + u];
-      }
-      END_FRAME();
-
-      sp += MEAN_FRAME_SIZE;
-      sp = sp % POST_FRAME_WORD;
-    }
     #else
 
     // compute mean
@@ -91,10 +111,33 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
     #endif
     mean_i /= (DTYPE)FLOAT_N;
 
-    // TODO dont need this
+    // TODO dont need this (but used in vec kernel too so fair)
     FSTORE_NOACK(mean_i, &mean[i], 0);
 
-    #ifdef PACKED_SIMD
+    #if defined(MANYCORE_PREFETCH)
+    for (int j = 0; j < M; j+=MEAN_PREFETCH_LEN) {
+      prefetch_mean_frame(data, i, j, &sp, M);
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
+      FRAME_START(MEAN_FRAME_SIZE);
+      #pragma GCC unroll(16)
+      for (int u = 0; u < MEAN_PREFETCH_LEN; u+=PER_CORE_SIMD_LEN) {
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t vdata = vle32_v_f32m1(&sp_ptr[sp + u]);
+        vfloat32m1_t vmean = vfmv_v_f_f32m1(mean_i);
+        vfloat32m1_t vnew = vfsub_vv_f32m1(vdata, vmean);
+        vse32_v_f32m1(&data[i * M + j + u], vnew);
+        #else
+        DTYPE dat = sp_ptr[sp + u] - mean_i;
+        FSTORE_NOACK(dat, &data[i * N + j + u], 0);
+        #endif
+      }
+      sp += MEAN_FRAME_SIZE;
+      sp = sp % POST_FRAME_WORD;
+      END_FRAME();
+    }
+    #elif defined(PER_CORE_SIMD)
     chunk = M;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
       l = vsetvl_e32m1(chunk);
@@ -106,21 +149,6 @@ void mean_manycore(DTYPE *mean, DTYPE *data, int N, int M, int tid, int dim) {
       vdata = vfsub_vf_f32m1(vdata, mean_i);
 
       vse32_v_f32m1(&data[i * M + base_j], vdata);
-    }
-    #elif defined(MANYCORE_PREFETCH)
-    for (int j = 0; j < M; j+=MEAN_PREFETCH_LEN) {
-      prefetch_mean_frame(data, i, j, &sp, M);
-
-      FRAME_START(MEAN_FRAME_SIZE);
-      #pragma GCC unroll(16)
-      for (int u = 0; u < MEAN_PREFETCH_LEN; u++) {
-        DTYPE dat = sp_ptr[sp + u] - mean_i;
-        FSTORE_NOACK(dat, &data[i * N + j + u], 0);
-      }
-      END_FRAME();
-
-      sp += MEAN_FRAME_SIZE;
-      sp = sp % POST_FRAME_WORD;
     }
     #else
     #pragma GCC unroll(16)
@@ -147,7 +175,42 @@ void covar_manycore(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) 
     for (int i2 = i1; i2 < N; i2++) {
       DTYPE symmat_idx = 0.0f;
 
-      #ifdef PACKED_SIMD
+      #if defined(MANYCORE_PREFETCH)
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+      vfloat32m1_t accum = vzero;
+      #endif
+
+      for (int j = 0; j < M; j+=COVAR_PREFETCH_LEN) {
+        prefetch_covar_frame(data, i1, i2, j, &sp, M);
+        #ifdef PER_CORE_SIMD
+        vsetvl_e32m1(PER_CORE_SIMD_LEN);
+        #endif
+        FRAME_START(COVAR_FRAME_SIZE);
+        #pragma GCC unroll(16)
+        for (int u = 0; u < COVAR_PREFETCH_LEN; u+=PER_CORE_SIMD_LEN) {
+          #ifdef PER_CORE_SIMD
+          vfloat32m1_t vi1 = vle32_v_f32m1(&sp_ptr[sp + u]);
+          vfloat32m1_t vi2 = vle32_v_f32m1(&sp_ptr[sp + COVAR_PREFETCH_LEN + u]);
+          vfloat32m1_t vs = vfmul_vv_f32m1(vi1, vi2);
+          accum = vfadd_vv_f32m1(accum, vs);
+          #else
+          symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_PREFETCH_LEN + u];
+          #endif
+        }
+        sp += COVAR_FRAME_SIZE;
+        sp = sp % POST_FRAME_WORD;
+        END_FRAME();
+      }
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vpartial = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+      symmat_idx += vfmv_f_s_f32m1_f32(vpartial);
+      #endif
+
+      #elif defined(PER_CORE_SIMD)
       int chunk = M;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
         l = vsetvl_e32m1(chunk);
@@ -167,19 +230,6 @@ void covar_manycore(DTYPE *symmat, DTYPE *data, int N, int M, int tid, int dim) 
 
         // update the accumulation
         symmat_idx += vfmv_f_s_f32m1_f32(vs);;
-      }
-      #elif defined(MANYCORE_PREFETCH)
-      for (int j = 0; j < M; j+=COVAR_PREFETCH_LEN) {
-        prefetch_covar_frame(data, i1, i2, j, &sp, M);
-
-        FRAME_START(COVAR_FRAME_SIZE);
-        #pragma GCC unroll(16)
-        for (int u = 0; u < COVAR_PREFETCH_LEN; u++) {
-          symmat_idx += sp_ptr[sp + u] * sp_ptr[sp + COVAR_PREFETCH_LEN + u];
-        }
-        END_FRAME();
-        sp += COVAR_FRAME_SIZE;
-        sp = sp % POST_FRAME_WORD;
       }
       #else
       #pragma GCC unroll(16)
@@ -206,7 +256,7 @@ void mean_reduction(DTYPE *out, int baseGroupId, int numGroups, int N, int M,
   int max_chunk_size = ceilToInt((float)N / (float)numGroups);
 
   // cache sp ptrs to avoid global load
-  SETUP_REDUCTION_CORE(fwders, ptid);
+  SETUP_REDUCTION_CORE(fwders, ptid, N, baseGroupId, numGroups);
 
   for (int cnt = 0; cnt < max_chunk_size; cnt+=ACCUM_GRANULARITY) {
 
@@ -238,7 +288,7 @@ void mean_reduction(DTYPE *out, int baseGroupId, int numGroups, int N, int M,
         sum /= (DTYPE)FLOAT_N;
 
         int i = group_start[g];
-        if (i < 0 || i + a >= max_chunk_size) continue;
+        if (i < 0 || i + a >= group_end[g]) continue; // TODO test b/c wrong before??
 
         FSTORE_NOACK(sum, &out[i + a], 0);
       }
@@ -257,7 +307,7 @@ void covar_reduction(DTYPE *symmat, int baseGroupId, int numGroups, int N, int M
   int max_chunk_size = ceilToInt((float)N / (float)numGroups);
 
   // cache sp ptrs to avoid global load
-  SETUP_REDUCTION_CORE(fwders, ptid);
+  SETUP_REDUCTION_CORE(fwders, ptid, N, baseGroupId, numGroups);
 
   for (int cnt = 0; cnt < max_chunk_size; cnt++) {
 
@@ -428,8 +478,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #endif
 
   // need to set vlen here so doesn't cause squash in vector core on change in value
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
   MOVE_STACK_ONTO_SCRATCHPAD();

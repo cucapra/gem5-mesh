@@ -9,6 +9,7 @@
 #include "spad.h"
 #include "bind_defs.h"
 
-void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y, int n, int start, int end, int ptid, int vtid);
+void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE *y,
+    int n, int start, int end, int ptid, int vtid, int ptidMailer, int linkId);
 
 #endif

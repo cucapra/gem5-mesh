@@ -2,6 +2,7 @@
 #define __CONV2D_H__
 
 #include "bind_defs.h"
+#include "util.h"
 
 // filter size
 #define FILTER_DIM 3
@@ -51,47 +52,19 @@
   vse32_v_f32m1_m(bmask, bPtr, ofmap)
 
 
-// one of these should be defined to dictate config
-// #define NO_VEC 1
-// #define VEC_4_SIMD 1
-// #define VEC_16_SIMD 1
-// #define MANYCORE_PREFETCH
-// #define PACKED_SIMD
-// #define VEC_16_LONGLINES
-// #define NESTED_SIMD_4_4
-// #define VEC_4_LONGLINES
+// NO_VEC
+// MANYCORE_PREFETCH
+// PER_CORE_SIMD
+// [VECTOR_LEN=4,16 + any combo of PER_CORE_SIMD, LONGLINES] 
 
-// vvadd_execute config directives
-#if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
-#define USE_VEC 1
+#ifdef VECTOR_LEN
+#define USE_VEC
+#endif
+#ifdef MANYCORE_PREFETCH
+#define VECTOR_LEN (1)
 #endif
 
-// vector grouping directives
-#if defined(VEC_4_SIMD) || defined(NESTED_SIMD_4_4) || defined(VEC_4_LONGLINES)
-#define VECTOR_LEN 4
-#endif
-#if defined(VEC_16_SIMD) || defined(VEC_16_LONGLINES)
-#define VECTOR_LEN 16
-#endif
-#if defined(MANYCORE_PREFETCH)
-#define VECTOR_LEN 1
-#endif
-
-#if defined(VEC_16_LONGLINES) || defined(NESTED_SIMD_4_4) || defined(VEC_4_LONGLINES)
-#define LONGLINES
-#endif
-
-#if defined(NESTED_SIMD_4_4)
-#define NESTED_SIMD_VLEN 4
-#else
-#define NESTED_SIMD_VLEN 1
-#endif
-
-#if NESTED_SIMD_VLEN > 1
-#define NESTED_SIMD
-#endif
-
-#ifdef PACKED_SIMD
+#if defined(PER_CORE_SIMD) && !defined(USE_VEC) && !defined(MANYCORE_PREFETCH)
 #define CORE_STEP (HARDWARE_VECTOR_LEN - (FILTER_DIM - 1))
 #endif
 
@@ -123,16 +96,17 @@
   #define CENTER_ITERS (CORE_STEP)
 #endif
 
-// requirement CORE_STEP % NESTED_SIMD_VLEN == 0
-#ifdef NESTED_SIMD
-#if CORE_STEP % NESTED_SIMD_VLEN != 0
+// requirement CENTER_ITERS % NESTED_SIMD_STRIDE == 0
+#if defined(PER_CORE_SIMD) && (defined(USE_VEC) || defined(MANYCORE_PREFETCH))
+#define NESTED_SIMD_STRIDE (PER_CORE_SIMD_LEN-(FILTER_DIM-1))
+#if CENTER_ITERS % NESTED_SIMD_STRIDE != 0
 #error Load length and valu len mismatch
 #endif
-#define NESTED_SIMD_STRIDE (NESTED_SIMD_VLEN-(FILTER_DIM-1))
 #else
 #define NESTED_SIMD_STRIDE (1)
 #endif
 
+#define BIG_INT 2000000000
 
 #ifdef LONGLINES
   #define SHARED_REGION_SIZE (2*FILTER_DIM)
@@ -141,6 +115,7 @@
   #define SHARED_OFF (LOADED_REGION_SIZE)
 #else
   #define REGION_SIZE (LOAD_DEPTH*FILTER_DIM)
+  #define LOADED_REGION_SIZE (REGION_SIZE)
 #endif
 
 #define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)

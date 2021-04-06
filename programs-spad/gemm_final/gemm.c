@@ -5,9 +5,7 @@
 #include "gemm.h"
 #include "spad.h"
 #include "bind_defs.h"
-#include "token_queue.h"
 #include "group_templates.h"
-#include "reduction.h"
 
 #include "gemm_kernel.h"
 
@@ -18,7 +16,8 @@ void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int
 
   for(int i=start; i<end; i++){
     for(int j=0; j<a_row; j++){
-      aT[i*a_row+j] = a[j*a_col+i];
+      // aT[i*a_row+j] = a[j*a_col+i];
+      FSTORE_NOACK(a[j*a_col+i], &aT[i*a_row+j], 0);
     }
   }
 
@@ -131,15 +130,15 @@ void kernel(
 
   #ifdef _VEC
 
-  #if VEC_LEN==4
-    SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
-    #elif VEC_LEN==16
-    SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
-    #endif
+  #if VECTOR_LEN==4
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
+  #elif VECTOR_LEN==16
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
+  #endif
 
-    WORK_DIV(m,n)
+  WORK_DIV(m,n)
 
-  // if (ptid==38) printf("mvec %d m manycore %d, weighted avergae %d\n",m_vec,m_manycore,(cinfo.total_groups*VEC_LEN*m)/total_compute_cores);
+  // if (ptid==38) printf("mvec %d m manycore %d, weighted avergae %d\n",m_vec,m_manycore,(cinfo.total_groups*VECTOR_LEN*m)/total_compute_cores);
   // if(cinfo.used && cinfo.is_scalar) printf("used ptid:%d, start=%d end=%d\n",ptid,m_start,m_end);
   // if(!cinfo.used) printf("ptid:%d, start=%d end=%d\n",ptid,m_start,m_end);
   
@@ -152,11 +151,11 @@ void kernel(
   n_start  = ptid_x * BLK_DIM;
 #endif
 
-transpose_manycore(a,m,t,aT,ptid,pdim);
+  transpose_manycore(a,m,t,aT,ptid,pdim);
   // a=aT;
 
 // need to set vlen here so doesn't cause squash in vector core on change in value
-  #ifdef NESTED_SIMD
+  #ifdef PER_CORE_SIMD
   vsetvl_e32m1(HARDWARE_VECTOR_LEN);
   #endif
 
@@ -170,18 +169,18 @@ transpose_manycore(a,m,t,aT,ptid,pdim);
   // if (cinfo.used == 0) return;
 
 
-MOVE_STACK_ONTO_SCRATCHPAD();
+  MOVE_STACK_ONTO_SCRATCHPAD();
 
 
 #if defined _VEC
-if (used){
-  tril_gemm_vec(mask, aT, b, c, m, n, t, m_start, m_end, n_start, n_end, vtid_x, vtid_y, vtid, ptid);
-}
+  if (used){
+    tril_gemm_vec(mask, aT, b, c, m, n, t, m_start, m_end, n_start, n_end, vtid_x, vtid_y, vtid, ptid);
+  }
 #else
-if (used){
-  VECTOR_EPOCH(mask);
-  gemm_manycore(aT, b, c, m, n, t, m_start, n_start, ptid, pdim_x, pdim_y);
-}
+  if (used){
+    VECTOR_EPOCH(mask);
+    gemm_manycore(aT, b, c, m, n, t, m_start, n_start, ptid, pdim_x, pdim_y);
+  }
 #endif
   RECOVER_DRAM_STACK();
 }

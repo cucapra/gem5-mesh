@@ -3,7 +3,7 @@ default: $(BENCHNAME)
 
 # Specify number of CPUs. (TODO: rename to NUM_CPUS)
 N_SPS ?= 16
-EXTRA_FLAGS ?= -DPACKED_SIMD
+EXTRA_FLAGS ?= -DMANYCORE_PREFETCH
 HB_ARGS ?= --options="16 16 16 16 16"
 # DEBUG_FLAGS := --debug-flags=Mesh
 

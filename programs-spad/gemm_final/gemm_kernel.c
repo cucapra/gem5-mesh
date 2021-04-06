@@ -41,11 +41,11 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   ISSUE_VINST(init); // issue vector block early so that vector cores don't stay idol
   int spadRegion = 0;
 
-#if VEC_LEN==4
+#if VECTOR_LEN==4
   int dim_x = 2; //num cpu in a group in x dim
   int dim_y = 2;
 
-#elif VEC_LEN==16
+#elif VECTOR_LEN==16
   int dim_x = 4; //num cpu in a group in x dim
   int dim_y = 4;
 #endif
@@ -143,19 +143,19 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   int spadRegion;
 
   int *ptid_group = getSpAddr(ptid,NUM_REGIONS * REGION_SIZE + BLK_DIM*BLK_DIM + 10);
-  DTYPE *sp_all[VEC_LEN];
+  DTYPE *sp_all[VECTOR_LEN];
 
-  #if VEC_LEN==4
+  #if VECTOR_LEN==4
   int dim_x = 2; //num cpu in a group in x dim
   int dim_y = 2;
 
-  #elif VEC_LEN==16
+  #elif VECTOR_LEN==16
 
   int dim_x = 4; //num cpu in a group in x dim
   int dim_y = 4;
   #endif
 
-  #ifdef NESTED_SIMD
+  #ifdef PER_CORE_SIMD
   vsetvl_e32m1(HARDWARE_VECTOR_LEN);
   #endif
   
@@ -179,7 +179,7 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
       asm("trillium vissue_delim until_next hoist2");
       do
       {
-        #ifdef NESTED_SIMD
+        #ifdef PER_CORE_SIMD
         vsetvl_e32m1(HARDWARE_VECTOR_LEN);
         #endif
 
@@ -189,7 +189,7 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         #pragma GCC unroll(16)
         for (int i = 0; i < BLK_DIM; i++)
         {
-          #ifdef NESTED_SIMD
+          #ifdef PER_CORE_SIMD
           DTYPE vaT = spAddr[spadRegion * REGION_SIZE + i]*ALPHA;
           vfloat32m1_t vb  = vle32_v_f32m1(&spAddr[spadRegion * REGION_SIZE + REGION_SIZE / 2]);
           vfloat32m1_t vc  = vle32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)]);
@@ -215,13 +215,13 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         asm("trillium vissue_delim end at_jump");
       }while (bh3);
     asm("trillium vissue_delim until_next fable4567");
-      #ifdef NESTED_SIMD
+      #ifdef PER_CORE_SIMD
       vsetvl_e32m1(HARDWARE_VECTOR_LEN);
       #endif
       #pragma GCC unroll(16)
       for (int i = 0; i < BLK_DIM; i++)
       {
-        #ifdef NESTED_SIMD
+        #ifdef PER_CORE_SIMD
 
         vfloat32m1_t vc  = vle32_v_f32m1(&c[_idx_(i + i_st, j_st, n)]);
         vfloat32m1_t vspc = vle32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)]);

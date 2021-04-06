@@ -9,9 +9,8 @@
 #include "util.h"
 #include "conv2d_kernel.h"
 
-#ifdef NESTED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
-#define BIG_INT 2000000000
 #endif
 
 /*
@@ -63,13 +62,13 @@ void tril_conv2d(int mask,
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   
   // construct vector to help generate ending mask
   vint32m1_t cresendo = vmv_v_x_i32m1(0.0f);
   #pragma GCC unroll(16)
-  for (int i = 0; i < NESTED_SIMD_VLEN; i++) {
+  for (int i = 0; i < PER_CORE_SIMD_LEN; i++) {
     if (i < NESTED_SIMD_STRIDE)
       cresendo = vslide1down_vx_i32m1(cresendo, i);
     // the last two should always be masked so set to high value
@@ -128,12 +127,10 @@ void tril_conv2d(int mask,
 
       DTYPE *bPtr = b + row * inner_dim + col;
 
-      #ifdef LONGLINES
-
       FRAME_START(LOADED_REGION_SIZE);
 
-      #ifdef NESTED_SIMD
-      vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
       #endif
 
       // need enough instructions here before stores to avoid sync problem
@@ -146,7 +143,7 @@ void tril_conv2d(int mask,
         int sp1i = sp1 + i;
         int sp2i = sp2 + i;
 
-        #ifdef NESTED_SIMD
+        #ifdef PER_CORE_SIMD
         // construct initial vectors
         vfloat32m1_t r1 = vle32_v_f32m1(&sp_ptr[sp0i]);
         vfloat32m1_t r2 = vle32_v_f32m1(&sp_ptr[sp1i]);
@@ -170,6 +167,8 @@ void tril_conv2d(int mask,
         PRED_EQ_FSTORE_NOACK(cond_c, 1, out, bPtr + OUT_PTR_OFFSET + i, 0);
         #endif
       }
+
+      #ifdef LONGLINES
 
       // data to send to previous core
       int first_sp0 = sp0;
@@ -233,25 +232,6 @@ void tril_conv2d(int mask,
 
       int cond_r = vtid != VECTOR_LEN-1 & col + LOAD_DEPTH_M1 <= eff_inner_dim;
       PRED_EQ_FSTORE_NOACK(cond_r, 1, out_r, bPtr + LOAD_DEPTH_M1, 0);
-
-      #else
-
-      FRAME_START(REGION_SIZE);
-      
-      #pragma GCC unroll(14)
-      for (int i = 0; i < CENTER_ITERS; i++) {
-        int sp0i = sp0 + i;
-        int sp1i = sp1 + i;
-        int sp2i = sp2 + i;
-
-        DTYPE out = CONV_3x3(
-          sp_ptr[sp0i + 0], sp_ptr[sp0i + 1], sp_ptr[sp0i + 2],
-          sp_ptr[sp1i + 0], sp_ptr[sp1i + 1], sp_ptr[sp1i + 2],
-          sp_ptr[sp2i + 0], sp_ptr[sp2i + 1], sp_ptr[sp2i + 2]
-        );
-        int cond_c = (col + OUT_PTR_OFFSET + i <= eff_inner_dim);
-        PRED_EQ_FSTORE_NOACK(cond_c, 1, out, bPtr + OUT_PTR_OFFSET + i, 0);
-      }
 
       #endif
 

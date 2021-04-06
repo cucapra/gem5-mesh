@@ -6,44 +6,21 @@
 // data type to do computation with
 #define DTYPE float
 
-// one of these should be defined to dictate config
-// #define NO_VEC 1
-// #define VEC_4_SIMD 1
-// #define VEC_16_SIMD 1
-// #define MANYCORE_PREFETCH
-// #define PACKED_SIMD
-
-// vvadd_execute config directives
-#if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
-#define USE_VEC 1
-#endif
-
 // vector grouping directives
 
 // --------------------------------------------------------------------------------
-#if defined(VEC_4_SIMD) || defined(NESTED_SIMD_4_4) || defined(VEC_4_LONGLINES)
-#define VECTOR_LEN 4
+// NO_VEC
+// MANYCORE_PREFETCH
+// PER_CORE_SIMD
+// [VECTOR_LEN=4,16 + any combo of PER_CORE_SIMD, LONGLINES] 
+
+#ifdef VECTOR_LEN
+#define USE_VEC
 #endif
-#if defined(VEC_16_SIMD) || defined(VEC_16_LONGLINES)
-#define VECTOR_LEN 16
-#endif
-#if defined(MANYCORE_PREFETCH)
-#define VECTOR_LEN 1
+#ifdef MANYCORE_PREFETCH
+#define VECTOR_LEN (1)
 #endif
 
-#if defined(VEC_16_LONGLINES) || defined(NESTED_SIMD_4_4) || defined(VEC_4_LONGLINES)
-#define LONGLINES
-#endif
-
-#if defined(NESTED_SIMD_4_4)
-#define NESTED_SIMD_VLEN 4
-#else
-#define NESTED_SIMD_VLEN 1
-#endif
-
-#if NESTED_SIMD_VLEN > 1
-#define NESTED_SIMD
-#endif
 // --------------------------------------------------------------------------------
 
 // prefetch sizing
@@ -95,7 +72,7 @@
 // -------------------------------------------------------------------------------
 #ifndef ACCUM_GRANULARITY
 // default to coarser b/c can only help. although 2 is probably sufficient
-#define ACCUM_GRANULARITY 1
+#define ACCUM_GRANULARITY 2
 #endif
 #if VECTOR_LEN == 4
 #define NUM_GROUPS_PER_PIPE (3)

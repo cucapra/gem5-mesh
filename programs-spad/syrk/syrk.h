@@ -10,44 +10,16 @@
 #define alpha 12435
 #define beta 4546
 
-// one of these should be defined to dictate config
-// #define NO_VEC 1
-// #define VEC_4_SIMD 1
-// #define VEC_16_SIMD 1
-// #define MANYCORE_PREFETCH
-// #define PACKED_SIMD
-// #define VEC_16_LONGLINES
-// #define NESTED_SIMD_4_4
-// #define VEC_4_LONGLINES
+// NO_VEC
+// MANYCORE_PREFETCH
+// PER_CORE_SIMD
+// [VECTOR_LEN=4,16 + any combo of PER_CORE_SIMD, LONGLINES] 
 
-// vvadd_execute config directives
-#if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
-#define USE_VEC 1
+#ifdef VECTOR_LEN
+#define USE_VEC
 #endif
-
-// vector grouping directives
-#if defined(VEC_4_SIMD) || defined(NESTED_SIMD_4_4) || defined(VEC_4_LONGLINES)
-#define VECTOR_LEN 4
-#endif
-#if defined(VEC_16_SIMD) || defined(VEC_16_LONGLINES)
-#define VECTOR_LEN 16
-#endif
-#if defined(MANYCORE_PREFETCH)
-#define VECTOR_LEN 1
-#endif
-
-#if defined(VEC_16_LONGLINES) || defined(NESTED_SIMD_4_4) || defined(VEC_4_LONGLINES)
-#define LONGLINES
-#endif
-
-#if defined(NESTED_SIMD_4_4)
-#define NESTED_SIMD_VLEN 4
-#else
-#define NESTED_SIMD_VLEN 1
-#endif
-
-#if NESTED_SIMD_VLEN > 1
-#define NESTED_SIMD
+#ifdef MANYCORE_PREFETCH
+#define VECTOR_LEN (1)
 #endif
 
 // prefetch sizing
@@ -68,7 +40,10 @@
 #endif
 
 #ifdef LONGLINES
-  #define INNER_PREFETCH_LEN (CACHE_LINE_SIZE / sizeof(DTYPE) / VECTOR_LEN)
+  #define INNER_PREFETCH_LEN (16)
+  #if INNER_PREFETCH_LEN > (CACHE_LINE_SIZE / 4 / VECTOR_LEN)
+  #error PREFETCH LEN TOO LARGE!
+  #endif
   #define J_STRIDE (1)
   #define K_STRIDE (INNER_PREFETCH_LEN * VECTOR_LEN)
 #else
@@ -157,15 +132,6 @@ inline void prefetch_inner_frame(DTYPE *a, int i, int j, int k, int *sp, int M) 
   #endif
 }
 
-#endif
-
-// grid dim xy assuming always a square
-#if _N_SPS==16
-#define GRID_XDIM 4
-#define GRID_YDIM 4
-#elif _N_SPS==64
-#define GRID_XDIM 8
-#define GRID_YDIM 8
 #endif
 
 // pthread argument for the kernel

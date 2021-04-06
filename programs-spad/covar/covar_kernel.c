@@ -10,7 +10,7 @@
 #include "group_templates.h"
 #include "util.h"
 
-#ifdef NESTED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
@@ -62,8 +62,8 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
 
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
   #endif
 
@@ -156,23 +156,23 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   do {
 
     asm("trillium vissue_delim until_next vec_body_init");
-    #ifdef NESTED_SIMD
+    #ifdef PER_CORE_SIMD
     // NOTE MUST NEVER CHANGE THIS VALUE B/C CANT SQUASH IN VCORES!!!
-    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    size_t l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
     #endif
 
     do {
       asm("trillium vissue_delim if_begin mean_body");
 
-      #ifdef NESTED_SIMD
-      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #ifdef PER_CORE_SIMD
+      l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
       vfloat32m1_t accum = vzero;
       #endif
 
       FRAME_START(MEAN_FRAME_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < MEAN_PREFETCH_LEN; u+=NESTED_SIMD_VLEN) {
-        #ifdef NESTED_SIMD
+      for (int u = 0; u < MEAN_PREFETCH_LEN; u+=PER_CORE_SIMD_LEN) {
+        #ifdef PER_CORE_SIMD
         vfloat32m1_t vmean = vle32_v_f32m1(&sp_ptr[sp + u]);
         accum = vfadd_vv_f32m1(accum, vmean);
         #else
@@ -180,7 +180,7 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
         #endif
       }
 
-      #ifdef NESTED_SIMD
+      #ifdef PER_CORE_SIMD
       vfloat32m1_t vmean_partial = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
       mean_i += vfmv_f_s_f32m1_f32(vmean_partial);
       #endif
@@ -324,8 +324,8 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
   int sp_origin = linkId * PER_CORE_MAILER_FRAME + vtid;
   DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
 
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
   #endif
   #endif
@@ -453,23 +453,23 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
 
     asm("trillium vissue_delim until_next vec_body_init");
     DTYPE symmat_idx = 0.0f;
-    #ifdef NESTED_SIMD
+    #ifdef PER_CORE_SIMD
     // NOTE MUST NEVER CHANGE THIS VALUE B/C CANT SQUASH IN VCORES!!!
-    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    size_t l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
     #endif
 
     do {
       asm("trillium vissue_delim if_begin vec_body");
 
-      #ifdef NESTED_SIMD
-      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #ifdef PER_CORE_SIMD
+      l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
       vfloat32m1_t accum = vzero;
       #endif
 
       FRAME_START(COVAR_FRAME_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < COVAR_PREFETCH_LEN; u+=NESTED_SIMD_VLEN) {
-        #ifdef NESTED_SIMD
+      for (int u = 0; u < COVAR_PREFETCH_LEN; u+=PER_CORE_SIMD_LEN) {
+        #ifdef PER_CORE_SIMD
         vfloat32m1_t vi1 = vle32_v_f32m1(&sp_ptr[sp + u]);
         vfloat32m1_t vi2 = vle32_v_f32m1(&sp_ptr[sp + COVAR_PREFETCH_LEN + u]);
         vfloat32m1_t vs = vfmul_vv_f32m1(vi1, vi2);
@@ -479,7 +479,7 @@ void tril_covar(int mask, DTYPE *symmat, DTYPE *data, int N, int M,
         #endif
       }
 
-      #ifdef NESTED_SIMD
+      #ifdef PER_CORE_SIMD
       vfloat32m1_t vpartial = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
       symmat_idx += vfmv_f_s_f32m1_f32(vpartial);
       #endif
@@ -602,8 +602,8 @@ void tril_reduce(int mask, DTYPE *mean, DTYPE *data, int N, int M,
   int j = vtid*REDUCE_PREFETCH_LEN;
   int sp = 0;
   DTYPE *sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
-  #ifdef NESTED_SIMD
-  vsetvl_e32m1(NESTED_SIMD_VLEN);
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
   #endif
 
@@ -641,22 +641,22 @@ void tril_reduce(int mask, DTYPE *mean, DTYPE *data, int N, int M,
 
     asm("trillium vissue_delim until_next vec_body_init");
 
-    #ifdef NESTED_SIMD
+    #ifdef PER_CORE_SIMD
     // NOTE MUST NEVER CHANGE THIS VALUE B/C CANT SQUASH IN VCORES!!!
-    size_t l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+    size_t l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
     #endif
 
     do {
       asm("trillium vissue_delim if_begin vec_body");
 
-      #ifdef NESTED_SIMD
-      l = vsetvl_e32m1(NESTED_SIMD_VLEN);
+      #ifdef PER_CORE_SIMD
+      l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
       #endif
 
       FRAME_START(REDUCE_FRAME_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < REDUCE_PREFETCH_LEN; u+=NESTED_SIMD_VLEN) {
-        #ifdef NESTED_SIMD 
+      for (int u = 0; u < REDUCE_PREFETCH_LEN; u+=PER_CORE_SIMD_LEN) {
+        #ifdef PER_CORE_SIMD 
         // TODO don't do vector here b/c don't have store noack version?
         vfloat32m1_t vdata = vle32_v_f32m1(&sp_ptr[sp + u]);
         vfloat32m1_t vmean = vle32_v_f32m1(&sp_ptr[sp + REDUCE_PREFETCH_LEN + u]);
