@@ -327,6 +327,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
+#ifdef NESTED_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+  #endif
 // do after tokens to avoid stalling due to region not ready
 // region based mask for scratchpad
 #ifdef _VEC

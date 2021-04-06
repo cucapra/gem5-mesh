@@ -1,5 +1,4 @@
 #include "atax_kernel.h"
-
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
@@ -148,21 +147,47 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
   int col_thread=0;
   DTYPE temp;
   DTYPE* partialVec = _y_partial + ptid*ny;
+
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+  #endif
+
   do {
     // hoist1:
     asm("trillium vissue_delim until_next hoist1");
     temp=0;
     do {
-
+      
+      #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+  #endif
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
       FRAME_START(REGION_SIZE);
+
       #pragma GCC unroll(16)
-      for(int jj=0; jj<PREFETCH_LEN; jj++){
+      for(int jj=0; jj<PREFETCH_LEN; jj+=PER_CORE_SIMD_LEN){
+        #ifdef PER_CORE_SIMD
+
+        vfloat32m1_t vx = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE+REGION_SIZE/2+jj]);
+        vfloat32m1_t va = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj]);
+
+        // multiple together
+        vfloat32m1_t vtemp = vfmul_vv_f32m1(va, vx);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vtemp, vtemp, vzero);
+
+        // update the accumulation
+        float single_val = vfmv_f_s_f32m1_f32(vs);
+        temp += single_val;
+        #else
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *x_on_sp = a_on_sp + REGION_SIZE/2;
 
         temp += (*a_on_sp) * (*x_on_sp);
+        #endif
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
@@ -173,11 +198,23 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
     col_thread=0;
     do {
       
+      #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+  #endif
       // transpose_dp:
       asm("trillium vissue_delim until_next transpose_dp");
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
-      for(int jj=0; jj<PREFETCH_LEN; jj++){ 
+      for(int jj=0; jj<PREFETCH_LEN; jj+=PER_CORE_SIMD_LEN){ 
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj]);
+        vfloat32m1_t vpp = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj+ REGION_SIZE/2]);
+
+        // multiple together
+        vfloat32m1_t vp = vfmul_vf_f32m1(va, temp);
+        vpp = vfadd_vv_f32m1(vpp, vp);
+        vse32_v_f32m1(&partialVec[col_thread+jj], vpp);
+        #else
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *ypart_on_sp = a_on_sp + REGION_SIZE/2;
         DTYPE y_temp;
@@ -186,6 +223,7 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
         FSTORE_NOACK(y_temp, partialVec + col_thread+jj, 0);
         // partialVec[col_thread+jj] = y_temp;
         // partialVec[col_thread+jj] += (*a_on_sp) * temp;
+        #endif
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
@@ -427,7 +465,7 @@ void tril_atax2(int mask, DTYPE *a, DTYPE *ax, DTYPE *_y, int nx, int ny,
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
-    STORE_NOACK(temp, _y + col_thread, 0);
+    FSTORE_NOACK(temp, _y + col_thread, 0);
     col_thread+=dim;
     asm volatile("fence\n\t"); //since I have store noacks I don't move to next iter until all stores are done to partial vec
   } while (bh1);
