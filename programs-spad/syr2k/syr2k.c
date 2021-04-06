@@ -9,6 +9,11 @@
 #include "bind_defs.h"
 #include "group_templates.h"
 #include "syr2k_kernel.h"
+#include "util.h"
+
+#if defined(PER_CORE_SIMD)
+#include <riscv_vector.h>
+#endif
 
 /*
   syrk kernel
@@ -34,23 +39,79 @@ void syr2k_manycore_baseline(DTYPE *a, DTYPE *b, DTYPE *c, int N, int M, int tid
       DTYPE c_ij = c[i * N + j] * beta;
       // c[i * N + j] *= beta;
 
-      #ifdef MANYCORE_PREFETCH
+      #if defined(MANYCORE_PREFETCH)
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+      vfloat32m1_t accum = vzero;
+      #endif
+
       for (int k = 0; k < M; k+=INNER_PREFETCH_LEN) {
         prefetch_inner_frame(a, b, i, j, k, &sp, M);
 
-        FRAME_START();
+        FRAME_START(INNER_FRAME_SIZE);
         #pragma GCC unroll(16)
-        for (int kin = 0; kin < INNER_PREFETCH_LEN; kin++) {
+        for (int kin = 0; kin < INNER_PREFETCH_LEN; kin+=PER_CORE_SIMD_LEN) {
+          #ifdef PER_CORE_SIMD
+          vfloat32m1_t vai = vle32_v_f32m1(&sp_ptr[sp + INNER_PREFETCH_LEN*0 + kin]);
+          vfloat32m1_t vaj = vle32_v_f32m1(&sp_ptr[sp + INNER_PREFETCH_LEN*1 + kin]);
+          vfloat32m1_t vbi = vle32_v_f32m1(&sp_ptr[sp + INNER_PREFETCH_LEN*2 + kin]);
+          vfloat32m1_t vbj = vle32_v_f32m1(&sp_ptr[sp + INNER_PREFETCH_LEN*3 + kin]);
+          vfloat32m1_t vac = vfmul_vv_f32m1(vai, vbj);
+          vac = vfmul_vf_f32m1(vac, alpha);
+          vfloat32m1_t vbc = vfmul_vv_f32m1(vbi, vaj);
+          vbc = vfmul_vf_f32m1(vbc, alpha);
+          vfloat32m1_t vcij = vfadd_vv_f32m1(vac, vbc);
+          accum = vfadd_vv_f32m1(accum, vcij);
+          #else
           c_ij += alpha * sp_ptr[sp + INNER_PREFETCH_LEN*0 + kin] * 
                           sp_ptr[sp + INNER_PREFETCH_LEN*3 + kin] + 
                   alpha * sp_ptr[sp + INNER_PREFETCH_LEN*2 + kin] *
                           sp_ptr[sp + INNER_PREFETCH_LEN*1 + kin];
+          #endif
         }
-        END_FRAME();
-
         sp += INNER_FRAME_SIZE;
         sp = sp % POST_FRAME_WORD;
+        END_FRAME();
       }
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vcij = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+      c_ij += vfmv_f_s_f32m1_f32(vcij);
+      #endif
+
+      #elif defined(PER_CORE_SIMD)
+
+      int chunk = M;
+      for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+        l = vsetvl_e32m1(chunk);
+
+        int base_k = M - chunk;
+
+        vfloat32m1_t vai = vle32_v_f32m1(&a[i * M + base_k]);
+        vfloat32m1_t vaj = vle32_v_f32m1(&a[j * M + base_k]);
+
+        vfloat32m1_t vbi = vle32_v_f32m1(&b[i * M + base_k]);
+        vfloat32m1_t vbj = vle32_v_f32m1(&b[j * M + base_k]);
+
+        vfloat32m1_t vac = vfmul_vv_f32m1(vai, vbj);
+        vac = vfmul_vf_f32m1(vac, alpha);
+
+        vfloat32m1_t vbc = vfmul_vv_f32m1(vbi, vaj);
+        vbc = vfmul_vf_f32m1(vbc, alpha);
+
+        vfloat32m1_t vcij = vfadd_vv_f32m1(vac, vbc);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vcij = vfredsum_vs_f32m1_f32m1(vcij, vcij, vzero);
+
+        // update the accumulation
+        c_ij += vfmv_f_s_f32m1_f32(vcij);
+      }
+
       #else
       #pragma GCC unroll(16)
       for (int k = 0; k < M; k++) {
@@ -58,11 +119,69 @@ void syr2k_manycore_baseline(DTYPE *a, DTYPE *b, DTYPE *c, int N, int M, int tid
         c_ij += alpha * a[i * M + k] * b[j * M + k] + alpha * b[i * M + k] * a[j * M + k];
       }
       #endif
-      STORE_NOACK(c_ij, &c[i * N + j], 0);
+      FSTORE_NOACK(c_ij, &c[i * N + j], 0);
     }
   }
   asm volatile("fence\n\t");
 }
+
+#ifdef LONGLINES
+// partial sum reduction offload
+void mailer(DTYPE *c, int baseGroupId, int numGroups, int N, int M, 
+    int ptid, int *fwders) {
+  // chunk over vector groups. note all might not do the same amount of work
+  int max_chunk_size = ceilToInt((float)N / (float)numGroups);
+
+  // cache sp ptrs to avoid global load
+  SETUP_REDUCTION_CORE(fwders, ptid, N, baseGroupId, numGroups);
+
+  for (int cnt = 0; cnt < max_chunk_size; cnt++) {
+
+    SETUP_GROUP_ITERATION_CHUNKED(baseGroupId, numGroups, cnt);
+
+    for (int j = 0; j < M; j+=J_STRIDE*ACCUM_GRANULARITY) {
+
+      // prefetch c into frame along with partial sums
+      for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
+        int i = group_start[g];
+        if (i < 0) continue;
+        for (int a = 0; a < ACCUM_GRANULARITY; a++) {
+          VPREFETCH_L(sp_self + g + a * SUB_FRAME_SIZE, &c[i * N + j + a], 0, 1, TO_SELF);
+        }
+      }
+
+      REDUCE_SYNC_WITH_SCALAR(group_start, spPtrs, flat_iter);
+
+      // wait for frame and then do sum
+      FRAME_START(expected_elements);
+
+      for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
+
+        #pragma GCC unroll(4)
+        for (int a = 0; a < ACCUM_GRANULARITY; a++) {
+          DTYPE sum = sp_ptr[sp_self + g + a * SUB_FRAME_SIZE] * beta;
+
+          int sum_offset = MAILER_OFFSET + g * PER_CORE_MAILER_FRAME + a * SUB_FRAME_SIZE;
+
+          #pragma GCC unroll(16)
+          for (int k = 0; k < PER_CORE_MAILER_FRAME; k++) {
+            sum += sp_ptr[sum_offset + sp_self + k];
+          }
+
+          int i = group_start[g];
+          if (i < 0) continue;
+
+          FSTORE_NOACK(sum, &c[i * N + j + a], 0);
+        }
+
+      }
+      sp_self += MAILER_FRAME_SIZE;
+      sp_self = sp_self % MAILER_POST_FRAME_WORD; // TOOD branch better??
+      REMEM(expected_elements);
+    }
+  }
+}
+#endif
 
 /*-----------------------------------------------------------------------------------
  * Staging
@@ -71,14 +190,19 @@ void syr2k_manycore_baseline(DTYPE *a, DTYPE *b, DTYPE *c, int N, int M, int tid
 void __attribute__((optimize("-fno-inline"))) syr2k(
     DTYPE *a, DTYPE *b, DTYPE *c,
     int ptid, int vtid, int dim, int N, int M, int groupId, int numGroups,
-    int mask, int used
+    int mask, int used, int ptidMailer, int isMailer, int *ptidFwder, int linkId
   ) {
 
     #ifndef USE_VEC
     syr2k_manycore_baseline(a, b, c, N, M, ptid, dim);
     #else
     if (used)
-      tril_syr2k(mask, a, b, c, N, M, ptid, groupId, numGroups, vtid);
+      tril_syr2k(mask, a, b, c, N, M, ptid, groupId, numGroups, vtid, 
+        ptidMailer, linkId);
+    #ifdef LONGLINES
+    else if (isMailer)
+      mailer(c, groupId, numGroups, N, M, ptid, ptidFwder);
+    #endif
     #endif
 
 }
@@ -92,86 +216,40 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     stats_on();
   }
 
-  // linearize tid and dim
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
-
-  // split into physical and virtual tids + dim
-  int vtid_x = 0;
-  int vtid_y = 0;
-  int vtid   = 0;
-  int vdim_x = 0;
-  int vdim_y = 0;
-  int vdim   = 0;
-  int orig_x = 0;
-  int orig_y = 0;
-  int is_da  = 0;
-  int master_x = 0;
-  int master_y = 0;
-  int unique_id = 0;
-  int total_groups = 0;
-  int used = 0;
-
-  // group construction
-  #ifdef USE_VEC
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
   #elif VECTOR_LEN==16
-  template_info_t tinfo = init_template_8x8_4x4();
-  #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
-
-  vtid = cinfo.vtid;
-  vtid_x = cinfo.vtid_x;
-  vtid_y = cinfo.vtid_y;
-  vdim_x = cinfo.vdim_x;
-  vdim_y = cinfo.vdim_y;
-  orig_x = cinfo.orig_x;
-  orig_y = cinfo.orig_y;
-  is_da  = cinfo.is_scalar;
-  master_x = cinfo.master_x;
-  master_y = cinfo.master_y;
-  unique_id = cinfo.unique_id;
-  total_groups = cinfo.total_groups;
-  used = cinfo.used;
-
-  // printf("ptid %d(%d,%d) da %d vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, is_da, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used);
-
-  #elif !defined(USE_VEC)
-
-  vdim_x = 1;
-  vdim_y = 1;
-  vtid_x = 0;
-  vtid_y = 0;
-  vtid   = 0;
-  used   = 1;
-
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
+  #else
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
   #endif
 
-  // linearize some fields
-  vdim = vdim_x * vdim_y;
+  #ifdef LONGLINES
+  SETUP_REDUCE_CONFIG();
+  #else
+  SETUP_REDUCE_CONFIG_NULL();
+  #endif
 
-  // get behavior of each core
+  // need to set vlen here so doesn't cause squash in vector core on change in value
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  #endif
+
   #ifdef NUM_FRAMES
-  // setup up self prefetch
-  #ifdef MANYCORE_PREFETCH
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
-  int mask = getDebugMask(&cinfo);
-  VECTOR_EPOCH(mask);
-  #else
-  int mask = getSIMDMask(&cinfo);
-  #endif
   // int mask = getDebugMask(&cinfo);
-  SET_PREFETCH_MASK(NUM_FRAMES, INNER_FRAME_SIZE, &start_barrier);
-  #else
-  int mask = 0;
+  if (isMailer) {
+    SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier); 
+  }
+  else { 
+    SET_PREFETCH_MASK(NUM_FRAMES, INNER_FRAME_SIZE, &start_barrier);
+  }
   #endif
 
   MOVE_STACK_ONTO_SCRATCHPAD();
 
   // do the kernel
-  syr2k(a, b, c, ptid, vtid, pdim, N, M, unique_id, total_groups, mask, used);
+  syr2k(a, b, c, ptid, vtid, pdim, N, M, unique_id, total_groups, mask, used,
+    ptidMailer, isMailer, ptidFwders, linkId);
 
   // restore stack pointer
   RECOVER_DRAM_STACK();
@@ -210,7 +288,8 @@ void *pthread_kernel(void *args) {
   kernel(a->a, a->b, a->c, a->N, a->M,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-  pthread_barrier_wait(&start_barrier);
+  // reset scratchpad config
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
 
   if (a->tid_x == 0 && a->tid_y == 0) {
     stats_off();

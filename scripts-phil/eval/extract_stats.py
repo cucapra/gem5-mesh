@@ -39,7 +39,7 @@ metaRegex = re.compile(metaConv)
 
 # try to parse as prog-vec-othermeta
 mc = '[a-zA-Z0-9_]+'
-mcdash = '[a-zA-Z0-9_-]+'
+mcdash = '[a-zA-Z0-9=_-]+'
 dirConv = '({})-({})-({})'.format(mc, mc, mcdash)
 dirRegex = re.compile(dirConv)
 
@@ -121,6 +121,9 @@ def parse_file(fileName, stat_info):
           if (is_hist_stat(v)):
             bucket_range = match.group(1)
             val          = match.group(2)
+          elif('seperate-cores' in v):
+            module_id = int(match.group(1))
+            val = match.group(2)
           else:
             # get value
             val = match.group(1)
@@ -149,7 +152,10 @@ def parse_file(fileName, stat_info):
                 stat_data[k]['buckets'][bucket_range] = 0
               stat_data[k]['buckets'][bucket_range] += arith_val
             elif (is_seperated(v)):
-              stat_data[k]['avg'].append(arith_val)
+              if (len(stat_data[k]['avg']) <= module_id):
+                stat_data[k]['avg'].append(arith_val)
+              else:
+                stat_data[k]['avg'][module_id] += arith_val
             else:
               if ('max' in v and v['max']):
                 if (arith_val > stat_data[k]['avg']):

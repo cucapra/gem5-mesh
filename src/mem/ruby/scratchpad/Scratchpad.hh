@@ -40,7 +40,11 @@
 #include "mem/ruby/system/RubySystem.hh"
 #include "params/Scratchpad.hh"
 
+#include "debug/RiscvVector.hh"
+
 class IOCPU;
+class LLCRequestMsg;
+class LLCResponseMsg;
 
 //-----------------------------------------------------------------------------
 // CpuPort
@@ -214,7 +218,8 @@ class Scratchpad : public AbstractController
     void incConsumerFrame();
 
     // check if the next consumer frame is ready
-    bool isNextConsumerFrameRdy();
+    // parameter cnt, is how much to consume (0, FRAME_SIZE)
+    bool isNextConsumerFrameRdy(int cnt);
 
   private:
     /**
@@ -261,7 +266,8 @@ class Scratchpad : public AbstractController
    //void updateMasterEpoch(const LLCResponseMsg *llc_msg_p);
 
    //edit: Neil for remote access LW to region
-   bool isWordRdyForRemote(Addr addr);
+  bool canHandleRemoteReq(Packet *pkt_p);
+  bool isRegionBeingFilled(Addr addr);
 
    /**
      * For bitarray accessign to make sure load not too early to prefetch
@@ -303,6 +309,14 @@ class Scratchpad : public AbstractController
     void resetAllRegionCntrs();
 
     int getNumClosedFrames();
+
+    std::shared_ptr<LLCRequestMsg> createLLCReqPacket(Packet* pkt_p, Addr wordAddr, int respCnt);
+
+    const uint8_t* decodeRespWord(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_msg_p);
+    Addr decodeRespAddr(PacketPtr pending_pkt_p, const LLCResponseMsg* llc_msg_p);
+
+    // send back packet to confirm no ack req with cpu mem unit
+    void confirmNoAckReq(Packet *pkt_p, bool hardcopy);
 
   private:
     /**
@@ -356,7 +370,50 @@ class Scratchpad : public AbstractController
     /**
      * List of all pending memory packets
      */
-    std::unordered_map<uint64_t, Packet*> m_pending_pkt_map;
+    class pkt_map_entry_t {
+      private:
+      Packet* pkt;
+      int recvResps;
+
+      public:
+      pkt_map_entry_t(Packet* pkt) {
+        this->pkt = pkt;
+        recvResps = 0;
+      }
+
+      void recvMemResp(int numResp) {
+        recvResps+=numResp;
+      }
+
+      bool allRespRecv() {
+        return recvResps == pkt->getRespCnt();
+      }
+
+      Packet* getPacket() {
+        return pkt;
+      }
+
+      // set word of data packet to be return as a whole
+      void setData(Addr addr, const uint8_t *incData, int len) {
+        if (!pkt->isVector()) { // for scalar loads just write data (also the addr is the line addr is his case)
+          pkt->setData(incData);
+          return;
+        }
+
+        // int word = (int)(addr - pkt->getAddr());
+        int word = pkt->getWordOffset(addr);
+
+        auto data = pkt->getPtr<uint8_t>();
+        std::memcpy(&data[word], incData, len);
+        // for (int i = 0; i < wordSize; i++) {
+          // data[word * wordSize + i] = incData[i];
+        // }
+      }
+
+      // ~pkt_map_entry_t() {
+      // }
+    };
+    std::unordered_map<uint64_t, std::shared_ptr<pkt_map_entry_t>> m_pending_pkt_map;
     uint64_t m_cur_seq_num;
     const uint64_t m_max_num_pending_pkts;
 
@@ -454,6 +511,11 @@ class Scratchpad : public AbstractController
      */ 
     int m_cur_consumer_region;
 
+    /**
+     * Maximum size of vector packet over the network
+     */
+    int m_net_word_width;
+
     
     /**
      * Stats to keep track of for the scratchpad
@@ -464,6 +526,8 @@ class Scratchpad : public AbstractController
    Stats::Scalar m_local_stores_region;
    Stats::Scalar m_remote_loads;
    Stats::Scalar m_remote_stores;
+
+   Stats::Scalar m_global_reqs;
 
    Stats::Formula m_local_accesses;
    Stats::Formula m_remote_accesses;

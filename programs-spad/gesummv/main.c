@@ -19,34 +19,42 @@ void fill_array(DTYPE *m, int n)
   }
 }
 
-int check_ax (DTYPE* a, DTYPE* _x, DTYPE* ax, int n){
+// int check_ax (DTYPE* a, DTYPE* _x, DTYPE* ax, int n){
 
-  DTYPE* tmp_ = (DTYPE*)malloc(n*sizeof(DTYPE));
+//   DTYPE* tmp_ = (DTYPE*)malloc(n*sizeof(DTYPE));
+//   for (int i = 0; i < n; i++){
+//     tmp_[i] = CONST;
+//     for (int j = 0; j < n; j++)
+//       tmp_[i] = tmp_[i] + a[i*n+j] * _x[j];
+//     // if(tmp_[i]!=ax[i]){
+//     if (!float_compare(tmp_[i], ax[i], 0.0001f)){
+//       printf("[[FAIL]] for matrix vector product Ax\n");
+//       return 1;
+//     }
+//   }
+//   return 0;
+// }
+
+int check_gesummv(DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *y, int n){
+
+  DTYPE* ax = (DTYPE*)malloc(n*sizeof(DTYPE));
   for (int i = 0; i < n; i++){
-    tmp_[i] = CONST;
+    ax[i] = CONST;
     for (int j = 0; j < n; j++)
-      tmp_[i] = tmp_[i] + a[i*n+j] * _x[j];
-    // if(tmp_[i]!=ax[i]){
-    if (!float_compare(tmp_[i], ax[i], 0.0001f)){
-      printf("[[FAIL]] for matrix vector product Ax\n");
-      return 1;
-    }
+      ax[i] = ax[i] + a[i*n+j] * x[j];
   }
-  return 0;
-}
-
-int check_gesummv(DTYPE *b, DTYPE *x, DTYPE *ax, DTYPE *y, int n){
 
   DTYPE* tmp_ = (DTYPE*)malloc(n*sizeof(DTYPE));
   for (int i = 0; i < n; i++){
     tmp_[i] = CONST;
+    
     for (int j = 0; j < n; j++)
       tmp_[i] = tmp_[i] + b[i*n+j] * x[j];
     tmp_[i] = ALPHA* ax[i] + BETA* tmp_[i];
 
     // if(tmp_[i]!=y[i]){
     if (!float_compare(tmp_[i], y[i], 0.0001f)){
-      printf("[[FAIL]] for GESUMMV\n");
+      printf("[[FAIL]] for GESUMMV %f != %f @ %d\n", tmp_[i], y[i], i);
       return 1;
     }
   }
@@ -139,13 +147,13 @@ int main(int argc, char *argv[])
   * Check result and cleanup data
   *-------------------------------------------------------------------*/
 
-  int fail = check_ax(a,x,tmp,n);
-  if (fail)
-    return 1;
+  // int fail = check_ax(a,x,tmp,n);
+  // if (fail)
+  //   return 1;
   
-  printf("[[mini SUCCESS]] for Ax\n");
+  // printf("[[mini SUCCESS]] for Ax\n");
 
-  fail = check_gesummv(b,x,tmp,y,n);
+  int fail = check_gesummv(a,b,x,y,n);
   if (fail)
     return 1;
 

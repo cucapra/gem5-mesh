@@ -52,6 +52,9 @@ struct RouteInfo
     int vnet;
     NetDest net_dest;
 
+    // record whether request or response flit, which may determine routing
+    bool req;
+
     // src and dest format for topology-specific routing
     int src_ni;
     int src_router;

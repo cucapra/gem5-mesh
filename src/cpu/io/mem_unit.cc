@@ -13,6 +13,8 @@
 #include "mem/page_table.hh"
 #include "mem/ruby/scratchpad/Scratchpad.hh"
 #include "debug/Mesh.hh"
+#include "debug/RiscvVector.hh"
+#include "debug/Frame.hh"
 
 MemUnit::MemUnit(const char* _iew_name, const char* _name,
                  IOCPU* _cpu_p, IOCPUParams* params)
@@ -125,12 +127,18 @@ MemUnit::isBusy() const
 void
 MemUnit::tick()
 {
-  // S2 stage
-  doMemIssue();
-  // S1 stage
-  doTranslation();
-  // S0 stage
+  // 3 stage config
+  // // S2 stage
+  // doMemIssue();
+  // // S1 stage
+  // doTranslation();
+  // // S0 stage
+  // doAddrCalc();
+
+  // 1 stage config
   doAddrCalc();
+  doTranslation();
+  doMemIssue();
 }
 
 void
@@ -280,7 +288,7 @@ MemUnit::tryLdIssue(size_t &num_issued_insts) {
         // exit issue stage early since the dcache is busy
         return;
       } else {
-        DPRINTF(LSQ, "Sent request to memory for inst %s with addr %#x\n", inst->toString(true), pkt->getAddr());
+        DPRINTF(LSQ, "Sent request to memory for inst %s with vaddr %#x paddr %#x\n", inst->toString(true), pkt->req->getVaddr(), pkt->getAddr());
         
         if (m_cpu_p->getEarlyVector()->isSlave()) 
           DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
@@ -320,6 +328,10 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
       pkt->dataStatic(inst->mem_data_p);
       pkt->pushSenderState(new MemUnit::SenderState(inst));
 
+      // save address b/c the packet can be deleted if noack
+      Addr addr = pkt->getAddr();
+      int respCnt = pkt->getRespCnt();
+
       // send request
       if (!m_cpu_p->getDataPort().sendTimingReq(pkt)) {
         DPRINTF(LSQ, "dcache is busy\n");
@@ -333,10 +345,10 @@ MemUnit::tryStIssue(size_t &num_issued_insts) {
         return;
       } else {
         // an outstanding memory request to track
-        m_store_diff_reg++;
-        DPRINTF(LSQ, "Sent request to memory for inst %s with addr %#x\n", inst->toString(true), pkt->getAddr());
+        m_store_diff_reg+=respCnt;
+        DPRINTF(LSQ, "Sent request to memory for inst %s with vaddr %#x paddr %#x\n", inst->toString(true), pkt->req->getVaddr(), addr);
         if (m_cpu_p->getEarlyVector()->getConfigured()) 
-          DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), pkt->getAddr(), m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
+          DPRINTF(Mesh, "Send %s to paddr %#x sp vaddr %#x\n", inst->toString(true), addr, m_cpu_p->readArchIntReg(RiscvISA::StackPointerReg, 0));
 
         // mark this inst as "issued to memory"
         inst->setIssuedToMem();
@@ -500,7 +512,7 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
 {
   // lazy ack so have already completed the store
   if (pkt->isStoreNoAck()) {
-    m_store_diff_reg--;
+    m_store_diff_reg-=pkt->getRespCnt();
     delete pkt;
     return;
   }
@@ -564,7 +576,7 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
                            [&](const IODynInstPtr& inst)
                               { return ss->inst->seq_num == inst->seq_num; } );
     // mark we've recv an outstanding ack
-    m_store_diff_reg--;
+    m_store_diff_reg-=pkt->getRespCnt();
     if (it == m_st_queue.end()) {
       // this inst must have been squashed earlier
       if (!ss->inst->static_inst_p->isAckFree())
@@ -627,9 +639,31 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     addr = addr - imm;
   }
 
+  // vector loads have larger full size, but in some case only a subset will be executed
+  // make sure that is considered before detecting a misaligned address fault
+  // fixed register size is 16 (not something that can be changed in python config)
+  size_t effReqSize = size;
+  if (m_s1_inst->isVector()) {
+    // effReqSize = (size / m_cpu_p->getHardwareVectorLength()) * m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
+    
+    // only make sure one word doesnt go off for vector
+    // will automatically split words in scratchpad
+    // effReqSize = (size / m_cpu_p->getHardwareVectorLength());
+
+    // TODO assume always word sized. above  doesnt work b/c size is hardcoded
+    // and not reflective of hardwareVectorLenght param most of the time
+    effReqSize = sizeof(uint32_t);
+
+    // for same reason need to figure out size of request when writing to scratchpad
+    // (only relevant then)
+    if (m_s1_inst->isStore())
+      size = effReqSize * m_cpu_p->getHardwareVectorLength();
+
+  }
+
   // check if the request is spanning across two cache lines
   size_t line_size = m_cpu_p->getCacheLineSize();
-  if ((addr & (line_size - 1)) + size > line_size) {
+  if ((addr & (line_size - 1)) + effReqSize > line_size) {
 #if THE_ISA == RISCV_ISA
     DPRINTFN("Fault: inst %s\n", inst->toString());
     if (is_load) {
@@ -701,57 +735,76 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       // right : offset = coreOffset + leftCount   rightCount = count - leftCount 
       bool prefetchLeft = m_s1_inst->static_inst_p->isLeftSide();
       size_t lineSize = m_cpu_p->getCacheLineSize();
-      size_t count = bits(imm, 11, 2);
+      size_t countPerCore = bits(imm, 11, 2);
       int config = bits(imm, 1, 0);
+      int vecDimX = m_cpu_p->getEarlyVector()->getXLen();
+      int vecDimY = m_cpu_p->getEarlyVector()->getYLen();
+
+      int numCores = (config == 1) ? vecDimX * vecDimY : 1;
+      size_t totalResp = countPerCore * numCores;
+
       size_t wordOffset = addr & (lineSize - 1);
       size_t wordsRemInLine = (lineSize - wordOffset) / size;
-      size_t leftCount = std::min(wordsRemInLine, count);
+      size_t leftCount = std::min(wordsRemInLine, totalResp);
       m_s1_inst->mem_req_p->prefetchConfig = config;
       if (prefetchLeft) {
         m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
+        m_s1_inst->mem_req_p->subCoreOffset = 0;
         m_s1_inst->mem_req_p->respCnt = leftCount;
-        DPRINTF(Mesh, "send vec load left global %#x spad %#x core offset %d cnt %d\n", 
+        DPRINTF(Frame, "send vec load left global %#x spad %#x core offset %d cpc %d config %d, cnt %d\n", 
           m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
-          m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
+          m_s1_inst->mem_req_p->coreOffset, countPerCore, config, m_s1_inst->mem_req_p->respCnt);
       }
       else {
-        int rightCount = count - wordsRemInLine;
+        int rightCount = totalResp - wordsRemInLine;
         // don't execute this the right prefetch because no overshoot
         if (rightCount <= 0) {
           m_s1_inst->setExecuted();
-          DPRINTF(Mesh, "don't send vec load right global %#x spad %#x cnt %d\n", 
+          DPRINTF(Frame, "don't send vec load right global %#x spad %#x cnt %d\n", 
             m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
             rightCount);
         }
         else {
-          bool isVerticalLoad = (config == 1);
-          if (isVerticalLoad) {
-            m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
-            m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + leftCount * sizeof(uint32_t);
-          }
-          else m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount;
+          // bool isVerticalLoad = (config == 1);
+          // if (isVerticalLoad) {
+          //   m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
+          //   m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + leftCount * sizeof(uint32_t);
+          // }
+          // else m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount;
+          m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount / countPerCore;
+          m_s1_inst->mem_req_p->subCoreOffset = leftCount % countPerCore;
+          // m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + (leftCount ) * sizeof(uint32_t);
           m_s1_inst->mem_req_p->respCnt = rightCount;
           // change vaddr to reflect new baseOffset
           Addr rightVirtAddr = addr + (leftCount * size);
           m_s1_inst->mem_req_p->setVirt(0, rightVirtAddr, size, flags, 
               m_cpu_p->dataMasterId(), m_s1_inst->pc.pc(), amo_op);
 
-          DPRINTF(Mesh, "send vec load right %#x spad %#x offset %d cnt %d\n", 
+          DPRINTF(Frame, "send vec load right %#x spad %#x core offset %d word offset %d cnt %d\n", 
             m_s1_inst->mem_req_p->getVaddr(), m_s1_inst->mem_req_p->prefetchAddr,
-            m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->respCnt);
+            m_s1_inst->mem_req_p->coreOffset, m_s1_inst->mem_req_p->subCoreOffset, m_s1_inst->mem_req_p->respCnt);
         }
       }
 
       assert (m_cpu_p->getEarlyVector());
 
+      m_s1_inst->mem_req_p->countPerCore = countPerCore;
       m_s1_inst->mem_req_p->xDim = m_cpu_p->getEarlyVector()->getXLen();
       m_s1_inst->mem_req_p->yDim = m_cpu_p->getEarlyVector()->getYLen();
-      m_s1_inst->mem_req_p->xOrigin = m_cpu_p->getEarlyVector()->getXOrigin();
-      m_s1_inst->mem_req_p->yOrigin = m_cpu_p->getEarlyVector()->getYOrigin();
-      
+
+      // to self
+      if (config == 2) {
+        m_s1_inst->mem_req_p->xOrigin = m_cpu_p->cpuId(); // flattened so just set as full idx
+        m_s1_inst->mem_req_p->yOrigin = 0; // flattened so just set to 0
+      }
+      else { 
+        m_s1_inst->mem_req_p->xOrigin = m_cpu_p->getEarlyVector()->getXOrigin();
+        m_s1_inst->mem_req_p->yOrigin = m_cpu_p->getEarlyVector()->getYOrigin();
+      }
 
     }
     else {
+      m_s1_inst->mem_req_p->countPerCore = 1;
       m_s1_inst->mem_req_p->xDim = 1;
       m_s1_inst->mem_req_p->yDim = 1;
       m_s1_inst->mem_req_p->xOrigin = 0;
@@ -763,6 +816,58 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     // allow load to issue to spad without getting any acks the load is there
     m_s1_inst->mem_req_p->spadSpec  = m_s1_inst->static_inst_p->isSpadSpeculative();
 
+    // handle packed simd vec request, TODO not sure how to handle, need to serialize similarly to cur vec requests 
+    // but wont be noack, and should come directly into register rather than spad
+    if (m_s1_inst->isVector()) {
+      std::vector<Addr> vecAddrs = m_s1_inst->generateAddresses();
+
+      m_s1_inst->mem_req_p->respCnt = vecAddrs.size(); //;m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
+      // assert(m_s1_inst->mem_req_p->respCnt > 0); // can hit this condition if csr write hasnt happened, ok b/c will be squashed
+      
+      // set executed if wont have any requests (could all be predicated out for example or csr == 0) 
+      if (m_s1_inst->mem_req_p->respCnt == 0) {
+        // m_s1_inst->fault = std::make_shared<RiscvISA::AddressFault>
+        //                                 (addr, RiscvISA::INST_ACCESS);
+        m_s1_inst->setExecuted();
+      }
+      m_s1_inst->mem_req_p->prefetchConfig = 1; // vertical
+      m_s1_inst->mem_req_p->xOrigin = m_cpu_p->cpuId(); // flattened so just set as full idx
+      m_s1_inst->mem_req_p->yOrigin = 0; // flattened so just set to 0
+      m_s1_inst->mem_req_p->coreOffset = 0;
+      m_s1_inst->mem_req_p->subCoreOffset = 0;
+      m_s1_inst->mem_req_p->countPerCore = m_s1_inst->mem_req_p->respCnt; // only fetches for one core
+      m_s1_inst->mem_req_p->xDim = 1;
+      m_s1_inst->mem_req_p->yDim = 1;
+      m_s1_inst->mem_req_p->isNormVector = true;
+
+      
+      // do functional translation of every address
+      for (int i = 0; i < vecAddrs.size(); i++) {
+        Addr vAddr = vecAddrs[i];
+        Addr pAddr;
+        // can prob just do based on relative address of base offset b/c likely
+        // in same page, but dont do b/c overoptimization that could mess us up!
+        assert(m_cpu_p->tcBase(tid)->getProcessPtr()->
+          pTable->translate(vAddr, pAddr));
+
+        vecAddrs[i] = pAddr;
+        // DPRINTF(RiscvVector, "vec addr (%d) %#x\n", i, pAddr);
+      }
+      m_s1_inst->mem_req_p->vecAddrs = vecAddrs;
+
+      // TODO cheap out and just assume words. need to acutally look at instruction
+      // or vsew (vtype) to know
+      // not valid too use getHardwareVectorLength() here.
+      m_s1_inst->mem_req_p->wordSize = sizeof(uint32_t);
+
+      if (vecAddrs.size() > 0)
+        DPRINTF(RiscvVector, "%s send vector request %#x of size %d load ? %d\n", m_s1_inst->toString(true), vecAddrs[0], m_s1_inst->mem_req_p->respCnt, is_load);
+    }
+    else {
+      m_s1_inst->mem_req_p->isNormVector = false;
+    }
+
+
     // this memory will be deleted together with the dynamic instruction
     m_s1_inst->mem_data_p = new uint8_t[size];
 
@@ -771,20 +876,22 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     else
       memset(m_s1_inst->mem_data_p, 0, size);
 
-    // init a translation for this memory request
-    // XXX: Note that we assume address translation is functionally done. No
-    // timing delay in doing translateTiming. That means this translateTiming
-    // function will eventually call MemUnit::finishTranslation in the same
-    // cycle.
-    MemTranslation* trans = new MemTranslation(this);
-    m_cpu_p->dtb->translateTiming(m_s1_inst->mem_req_p,
-                                  m_cpu_p->tcBase(tid),
-                                  trans,
-                                  is_load ? BaseTLB::Read : BaseTLB::Write);
+    if (!m_s1_inst->isFault()) { 
+      // init a translation for this memory request
+      // XXX: Note that we assume address translation is functionally done. No
+      // timing delay in doing translateTiming. That means this translateTiming
+      // function will eventually call MemUnit::finishTranslation in the same
+      // cycle.
+      MemTranslation* trans = new MemTranslation(this);
+      m_cpu_p->dtb->translateTiming(m_s1_inst->mem_req_p,
+                                    m_cpu_p->tcBase(tid),
+                                    trans,
+                                    is_load ? BaseTLB::Read : BaseTLB::Write);
 
-    if (m_s1_inst->isFault()) {
-      DPRINTF(Mesh, "fault could not translate %lx for inst %s\n", addr, m_s1_inst->toString(true));
-      m_s1_inst->setExecuted();
+      if (m_s1_inst->isFault()) {
+        DPRINTF(Mesh, "fault could not translate %lx for inst %s\n", addr, m_s1_inst->toString(true));
+        m_s1_inst->setExecuted();
+      }
     }
   }
 
@@ -815,6 +922,10 @@ MemUnit::finishTranslation(const Fault& fault, RequestPtr req)
     m_s1_inst->setEffAddrValid();
   // set instruction fault
   m_s1_inst->fault = fault;
+
+  if (m_s1_inst->mem_req_p->isSpadPrefetch)
+    DPRINTF(Frame, "pf addr trans %#x -> %#x\n", m_s1_inst->mem_req_p->getVaddr(),
+      m_s1_inst->mem_req_p->getPaddr());
 }
 
 bool

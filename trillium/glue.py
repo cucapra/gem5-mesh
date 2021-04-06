@@ -549,17 +549,18 @@ def glue(raw_scalar_code, all_vector_bbs, rodata_chunks):
     # below the last kernel, as the "header" of the next (nonexistent)
     # kernel. We stitch in the rodata lines and dump the combination to
     # the output.
+    # Insert before ' .ident  "GCC: (GNU) 10.1.0" ' near the end
     if rodata_chunks:
         for i, l in enumerate(header):
-            if '.comm' in l:
-                header[i + 1:i + 1] = (
+            if '.ident' in l:
+                header[i:i] = (
                     ["# trillium: vector constants begin"] +
                     list(itertools.chain.from_iterable(rodata_chunks)) +
                     ["# trillium: vector constants end"]
                 )
                 break
         else:
-            raise ParseError('expected .comm to insert rodata constants')
+            raise ParseError('expected .ident to insert rodata constants')
     out_lines += header
 
     return out_lines

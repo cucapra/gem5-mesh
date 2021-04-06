@@ -21,31 +21,12 @@ inline void vert_prefetch(int *sp_a_offset, int *sp_b_offset, int *spadRegion, i
   {
     for (int xx = 0; xx < dim_x; xx++){
       //fetch a
-      VPREFETCH_L(*sp_a_offset, a + _idx_(k, m_start + yy * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,1);
+      VPREFETCH_L(*sp_a_offset, a + _idx_(k, m_start + yy * BLK_DIM, m), xx + yy * dim_x, BLK_DIM,TO_ONE_CORE);
     
       //fetch b
-      VPREFETCH_L(*sp_b_offset, b + _idx_(k, n_start + xx * BLK_DIM, n), xx + yy * dim_x, BLK_DIM,1);
+      VPREFETCH_L(*sp_b_offset, b + _idx_(k, n_start + xx * BLK_DIM, n), xx + yy * dim_x, BLK_DIM,TO_ONE_CORE);
     }
   }
-  *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
-}
-
-inline void horiz_prefetch(int *sp_a_offset, int *sp_b_offset, int *spadRegion, int offset_y, int offset_x,
-                           int k, int m_start, int n_start, int m , int n, DTYPE *a, DTYPE *b){
-
-  *sp_a_offset = *spadRegion * REGION_SIZE;
-  *sp_b_offset = *sp_a_offset + REGION_SIZE / 2;
-
-  // fetch a
-  for (int i = 0; i < (offset_y / VEC_LEN); i++){
-    VPREFETCH_L(*sp_a_offset + i, a + _idx_(k, m_start + (i * VEC_LEN), m), 0, VEC_LEN,0);
-  }
-
-  // fetch b
-  for (int j = 0; j < (offset_x / VEC_LEN); j++){
-    VPREFETCH_L(*sp_b_offset + j, b + _idx_(k, n_start + (j * VEC_LEN), n), 0, VEC_LEN,0);
-  }
-
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
 }
 
@@ -60,11 +41,11 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   ISSUE_VINST(init); // issue vector block early so that vector cores don't stay idol
   int spadRegion = 0;
 
-#if VEC_LEN==4
+#if VECTOR_LEN==4
   int dim_x = 2; //num cpu in a group in x dim
   int dim_y = 2;
 
-#elif VEC_LEN==16
+#elif VECTOR_LEN==16
   int dim_x = 4; //num cpu in a group in x dim
   int dim_y = 4;
 #endif
@@ -82,13 +63,8 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   /* ------------ prefetch ahead of issuing ----------*/
   int iter_ahead = INIT_FRAMES;
   for (int k = 0; k < iter_ahead; k++){
-    #ifdef SHARING
-    horiz_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, offset_y, offset_x,
-                    k, m_start, n_start, m, n, a, b);
-    #else
     vert_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, dim_y, dim_x, k, 
                   a, m_start, m , b, n_start, n);
-    #endif
   }
   /* ------------ initial prefetch end ----------*/
 
@@ -109,13 +85,8 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         if(vector_iter%level3_size ==0) ISSUE_VINST(hoist2);
 
         // ---------------prefetch region ------------------
-        #ifdef SHARING
-        horiz_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, offset_y, offset_x,
-                        k, i0, j0, m, n, a, b);
-        #else
         vert_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, dim_y, dim_x, k, 
                   a, i0, m , b, j0, n);
-        #endif
         // ----------------prefetch end -------------------- 
 
         ISSUE_VINST(fable123);
@@ -125,7 +96,6 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         if(vector_iter%(level2_size*level3_size)==0) ISSUE_VINST(fable8);
         
       }
-
       
 
     }
@@ -173,23 +143,20 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   int spadRegion;
 
   int *ptid_group = getSpAddr(ptid,NUM_REGIONS * REGION_SIZE + BLK_DIM*BLK_DIM + 10);
-  DTYPE *sp_all[VEC_LEN];
+  DTYPE *sp_all[VECTOR_LEN];
 
-  #if VEC_LEN==4
+  #if VECTOR_LEN==4
   int dim_x = 2; //num cpu in a group in x dim
   int dim_y = 2;
 
-  #elif VEC_LEN==16
+  #elif VECTOR_LEN==16
 
   int dim_x = 4; //num cpu in a group in x dim
   int dim_y = 4;
   #endif
 
-  #ifdef SHARING
-  #pragma GCC unroll (16)
-  for(int i=0;i<VEC_LEN;i++){
-    sp_all[i] = (DTYPE *)getSpAddr(ptid_group[i], 0);
-  }
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
   #endif
   
   DTYPE *spAddr;
@@ -212,42 +179,61 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
       asm("trillium vissue_delim until_next hoist2");
       do
       {
+        #ifdef PER_CORE_SIMD
+        vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+        #endif
+
         // asm("trillium vissue_delim until_next fable123");
         asm("trillium vissue_delim if_begin fable123");
         FRAME_START(REGION_SIZE);
         #pragma GCC unroll(16)
         for (int i = 0; i < BLK_DIM; i++)
         {
+          #ifdef PER_CORE_SIMD
+          DTYPE vaT = spAddr[spadRegion * REGION_SIZE + i]*ALPHA;
+          vfloat32m1_t vb  = vle32_v_f32m1(&spAddr[spadRegion * REGION_SIZE + REGION_SIZE / 2]);
+          vfloat32m1_t vc  = vle32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)]);
+          vfloat32m1_t vcp = vfmul_vf_f32m1(vb,vaT);
+          vc = vfadd_vv_f32m1(vc, vcp);
+          vse32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)], vc);
+          #else
           #pragma GCC unroll(16)
           for (int j = 0; j < BLK_DIM; j++)
           {
-            #ifdef SHARING
-            int which_sp_a = (vtid_y * BLK_DIM + i) % VEC_LEN;
-            int sp_offset_a = (vtid_y * BLK_DIM + i) / VEC_LEN;
-            DTYPE *addr_a = sp_all[which_sp_a] + spadRegion * REGION_SIZE + sp_offset_a;
-
-            int which_sp_b = (vtid_x * BLK_DIM + j) % VEC_LEN;
-            int sp_offset_b = (vtid_x * BLK_DIM + j) / VEC_LEN;
-            DTYPE *addr_b = sp_all[which_sp_b] + spadRegion * REGION_SIZE + REGION_SIZE / 2 + sp_offset_b;
-            #else
             DTYPE *addr_a = spAddr + spadRegion * REGION_SIZE + i;
             DTYPE *addr_b = spAddr + spadRegion * REGION_SIZE + REGION_SIZE / 2 + j;
-            #endif
 
             a_= *addr_a;
             b_= *addr_b;
 
             sp_c[_idx_(i, j, BLK_DIM)] += ALPHA* a_ * b_;
           }
+          #endif
         }
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
         REMEM(REGION_SIZE); //need to do this collectively for all vector cores if values shared!!
         asm("trillium vissue_delim end at_jump");
       }while (bh3);
     asm("trillium vissue_delim until_next fable4567");
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+      #endif
       #pragma GCC unroll(16)
       for (int i = 0; i < BLK_DIM; i++)
       {
+        #ifdef PER_CORE_SIMD
+
+        vfloat32m1_t vc  = vle32_v_f32m1(&c[_idx_(i + i_st, j_st, n)]);
+        vfloat32m1_t vspc = vle32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)]);
+
+        vc = vfmul_vf_f32m1(vc, BETA);
+        vc = vfadd_vv_f32m1(vc, vspc);
+        vse32_v_f32m1(&c[_idx_(i + i_st, j_st, n)], vc);  
+
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vse32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)], vzero);
+
+        #else
         #pragma GCC unroll(16)
         for (int j = 0; j < BLK_DIM; j++)
         {
@@ -256,6 +242,7 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
           STORE_NOACK(temp, c + _idx_(i + i_st, j + j_st, n), 0);
           sp_c[_idx_(i, j, BLK_DIM)] = 0;
         }
+        #endif
       }
       j_st += offset_x;
     }while (bh2);

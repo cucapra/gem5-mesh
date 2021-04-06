@@ -9,11 +9,15 @@
 #include "spad.h"
 #include "bind_defs.h"
 
+#ifdef NESTED_SIMD
+#include <riscv_vector.h>
+#endif
+
 #ifdef REDUCE_VERSION
 void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
       int nx_start, int nx_end, int ptid, int vtid, int dim, int* ptid_group);
 
-#elif defined POLYBENCH_VERSION
+#elif defined(POLYBENCH_VERSION)
 void tril_atax1(int mask, DTYPE *a, DTYPE *_x, DTYPE *ax, int nx, int ny,
       int nx_start, int nx_end, int ptid, int vtid, int dim);
 

@@ -12,6 +12,10 @@
 
 #include "corr_kernel.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 static inline int _idx_(int y, int x, int width)
 {
   return (y * width) + x;
@@ -59,6 +63,22 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       mean_temp += spAddr[sp_offset+jj];
     }
     PF_END(NUM_REGIONS)
+    #elif defined(PACKED_SIMD)
+    int chunk = n;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+      int j = n - chunk;
+
+      vfloat32m1_t vdata = vle32_v_f32m1(&data[i*n+j]);
+
+      // sum
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+      vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vdata, vdata, vzero);
+
+      // update the accumulation
+      float single_val = vfmv_f_s_f32m1_f32(vs);
+      mean_temp += single_val;
+    }
     #else
     _Pragma("GCC unroll(16)")
     for (int j = 0; j < n; j++)
@@ -78,6 +98,26 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       stddev_temp += (spAddr[sp_offset+jj]-mean_temp)*(spAddr[sp_offset+jj]-mean_temp);
     }
     PF_END(NUM_REGIONS)
+    #elif defined(PACKED_SIMD)
+    chunk = n;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+      int j = n - chunk;
+
+      vfloat32m1_t vdata = vle32_v_f32m1(&data[i*n+j]);
+
+      // math
+      vfloat32m1_t vnorm = vfsub_vf_f32m1(vdata, mean_temp);
+      vfloat32m1_t vnorm2 = vfmul_vv_f32m1(vnorm, vnorm);
+
+      // sum
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+      vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vnorm2, vnorm2, vzero);
+
+      // update the accumulation
+      float single_val = vfmv_f_s_f32m1_f32(vs);
+      stddev_temp += single_val;
+    }
     #else
     _Pragma("GCC unroll(16)")
     for (int j = 0; j < n; j++)
@@ -101,6 +141,21 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       STORE_NOACK(data_temp,data+(i*n)+(j+jj),0);
     }
     PF_END(NUM_REGIONS)
+    #elif defined(PACKED_SIMD)
+    chunk = n;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+      int j = n - chunk;
+
+      vfloat32m1_t vdata = vle32_v_f32m1(&data[i*n+j]);
+
+      // math
+      vfloat32m1_t vnorm = vfsub_vf_f32m1(vdata, mean_temp);
+      vfloat32m1_t vstdev = vfdiv_vf_f32m1(vnorm, sqrt(n)*stddev_temp);
+
+      // store
+      vse32_v_f32m1(&data[i*n+j], vstdev);
+    }
     #else
     _Pragma("GCC unroll(16)")
     for (int j = 0; j < n; j++){

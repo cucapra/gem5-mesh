@@ -11,6 +11,10 @@
 
 #include "atax_kernel.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 static inline int _idx_(int y, int x, int width)
 {
   return (y * width) + x;
@@ -37,8 +41,8 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         sp_a_offset = spadRegion * REGION_SIZE;
         sp_x_offset = sp_a_offset + PREFETCH_LEN;
 
-        VPREFETCH_L(sp_a_offset, a + _idx_(i, j, ny), 0, PREFETCH_LEN,1);
-        VPREFETCH_L(sp_x_offset, _x + j, 0, PREFETCH_LEN,1);
+        VPREFETCH_L(sp_a_offset, a + _idx_(i, j, ny), 0, PREFETCH_LEN,TO_SELF);
+        VPREFETCH_L(sp_x_offset, _x + j, 0, PREFETCH_LEN,TO_SELF);
         FRAME_START(REGION_SIZE);
         #pragma GCC unroll(16)
         for(int jj=0; jj<PREFETCH_LEN; jj++){
@@ -46,6 +50,26 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         }
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
         REMEM(REGION_SIZE);
+      }
+      #elif defined(PACKED_SIMD)
+      int chunk = ny;
+      for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+        l = vsetvl_e32m1(chunk);
+        int j = ny - chunk;
+
+        vfloat32m1_t vx = vle32_v_f32m1(&_x[j]);
+        vfloat32m1_t va = vle32_v_f32m1(&a[i*ny+j]);
+
+        // multiple together
+        vfloat32m1_t vtemp = vfmul_vv_f32m1(va, vx);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vtemp, vtemp, vzero);
+
+        // update the accumulation
+        float single_val = vfmv_f_s_f32m1_f32(vs);
+        temp += single_val;
       }
       #else
       #pragma GCC unroll(16)
@@ -60,8 +84,8 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         sp_a_offset = spadRegion * REGION_SIZE;
         sp_partial_offset = sp_a_offset + PREFETCH_LEN;
 
-        VPREFETCH_L(sp_a_offset, a + _idx_(i, j, ny), 0, PREFETCH_LEN,1);
-        VPREFETCH_L(sp_partial_offset, partial_prod + j, 0, PREFETCH_LEN,1);
+        VPREFETCH_L(sp_a_offset, a + _idx_(i, j, ny), 0, PREFETCH_LEN,TO_SELF);
+        VPREFETCH_L(sp_partial_offset, partial_prod + j, 0, PREFETCH_LEN,TO_SELF);
         FRAME_START(REGION_SIZE);
         #pragma GCC unroll(16)
         for(int jj=0; jj<PREFETCH_LEN; jj++){
@@ -70,6 +94,22 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         }
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
         REMEM(REGION_SIZE);
+      }
+      #elif defined(PACKED_SIMD)
+      chunk = ny;
+      for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+        l = vsetvl_e32m1(chunk);
+        int j = ny - chunk;
+
+        vfloat32m1_t va = vle32_v_f32m1(&a[i*ny+j]);
+        vfloat32m1_t vpp = vle32_v_f32m1(&partial_prod[j]);
+
+        // multiple together
+        vfloat32m1_t vp = vfmul_vf_f32m1(va, temp);
+        vpp = vfadd_vv_f32m1(vpp, vp);
+
+
+        vse32_v_f32m1(&partial_prod[j], vpp);
       }
       #else
       #pragma GCC unroll(16)
@@ -81,7 +121,7 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
 }
 
 void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int pdim, int unique_id, int total_groups, int vtid,
-                      int vdim_x, int vdim_y, int phys_dim_x, template_info_t *tinfo){
+                      int vdim_x, int vdim_y, int phys_dim_x){
 
   #ifndef _VEC
   //cores are used
@@ -144,8 +184,8 @@ atax_manycore1(DTYPE *a, DTYPE *_x, DTYPE *ax, int nx, int ny,
         sp_a_offset = spadRegion * REGION_SIZE;
         sp_x_offset = sp_a_offset + PREFETCH_LEN;
 
-        VPREFETCH_L(sp_a_offset, a + _idx_(i, j, ny), 0, PREFETCH_LEN,1);
-        VPREFETCH_L(sp_x_offset, _x + j, 0, PREFETCH_LEN,1);
+        VPREFETCH_L(sp_a_offset, a + _idx_(i, j, ny), 0, PREFETCH_LEN,TO_SELF);
+        VPREFETCH_L(sp_x_offset, _x + j, 0, PREFETCH_LEN,TO_SELF);
         FRAME_START(REGION_SIZE);
         for(int jj=0; jj<PREFETCH_LEN; jj++){
           temp+=spAddr[sp_a_offset+jj]*spAddr[sp_x_offset+jj];
@@ -193,34 +233,29 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     stats_on();
   }
 
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
   int start = 0;
   int end = 0;
-  int vdim;
-  template_info_t tinfo;
+  
 
   #ifdef _VEC
   #if VEC_LEN==4
-  tinfo = init_template_4x4_2x2();
-  #elif VEC_LEN==16
-  tinfo = init_template_8x8_4x4();
-  #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
+    #elif VEC_LEN==16
+    SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
+    #endif
 
-  vdim = cinfo.vdim_x*cinfo.vdim_y;
   int* ptid_group = getSpAddr(ptid,10);
 
-  if(cinfo.used){
+  if(used){
     int alignment = VEC_LEN;
-    start = roundUp((cinfo.unique_id + 0) * nx / cinfo.total_groups, alignment); 
-    end = roundUp((cinfo.unique_id + 1) * nx / cinfo.total_groups, alignment); 
+    start = roundUp((unique_id + 0) * nx / total_groups, alignment); 
+    end = roundUp((unique_id + 1) * nx / total_groups, alignment); 
 
     if(cinfo.is_scalar==1){
       // printf("I'm a DA core:%d\n",ptid);
-      for(int i=0; i<cinfo.vdim_y;i++){
-        for(int j=0; j<cinfo.vdim_x; j++){
-          ptid_group[i*cinfo.vdim_x+j] = get_ptid_from_group(&tinfo, cinfo.unique_id,j,i,pdim_x);
+      for(int i=0; i<vdim_y;i++){
+        for(int j=0; j<vdim_x; j++){
+          ptid_group[i*vdim_x+j] = get_ptid_from_group(&tinfo, unique_id,j,i,pdim_x);
           // if (ptid==0) printf("Ptid: %d\n", ptid_group[i*vdim_x+j]);
         }
       }
@@ -229,23 +264,16 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   }
 
   #else
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
   
   start  = ( ( ptid + 0 ) * nx ) / pdim;
   end    = ( ( ptid + 1 ) * nx ) / pdim;
   #endif
 
 
-  // get behavior of each core
-  #ifdef _VEC
-  int mask = getSIMDMask(&cinfo);
-  #elif defined MANYCORE_PREFETCH
-  int mask = getDebugMask(&cinfo);
-  #else
-  int mask = 0;
+#ifdef NESTED_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
   #endif
-
-
 // do after tokens to avoid stalling due to region not ready
 // region based mask for scratchpad
 #ifdef _VEC
@@ -287,11 +315,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   // MOVE_STACK_ONTO_SCRATCHPAD();
 
   #ifdef REDUCE_VERSION
-  if(cinfo.used!=0){
+  if(used!=0){
     #if defined _VEC
-      tril_atax(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,cinfo.vtid,vdim,ptid_group);
+      tril_atax(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,vtid,vdim,ptid_group);
     #else
-      VECTOR_EPOCH(mask);
       atax_manycore(a,_x,_y_partial,ax,nx,ny,start,end,ptid);
     #endif
 
@@ -300,27 +327,28 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   //requires barrier since each core needs values from all other cores
   pthread_barrier_wait(&start_barrier);
 
-  if (cinfo.used == 0) goto stack_end; //return;
+  if (used == 0) goto stack_end; //return;
   #ifdef _VEC
   if (cinfo.is_scalar) goto stack_end; //return; // scalar cores don't have data to accumulate so should not partcipate
   #endif
   
   
   
-  reduce_parallel(_y_partial, _y, ny, ptid, pdim, cinfo.unique_id, cinfo.total_groups, cinfo.vtid,
-                      cinfo.vdim_x, cinfo.vdim_y, pdim_x, &tinfo);
+  reduce_parallel(_y_partial, _y, ny, ptid, pdim, unique_id, total_groups, vtid,
+                      vdim_x, vdim_y, pdim_x);
 
   #elif defined POLYBENCH_VERSION
 
-  if(cinfo.used!=0){
+  if(used!=0){
     #if defined _VEC
-      tril_atax1(mask,a,_x,ax,nx,ny,start,end,ptid,cinfo.vtid,vdim);
+      tril_atax1(mask,a,_x,ax,nx,ny,start,end,ptid,vtid,vdim);
     #else
-      VECTOR_EPOCH(mask);
       atax_manycore1(a,_x,ax,nx,ny,start,end,ptid);
     #endif
 
   }
+
+  
 
   #ifdef _VEC
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
@@ -330,11 +358,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   pthread_barrier_wait(&start_barrier);
   #endif
 
-  if(cinfo.used!=0){
+  if(used!=0){
     #if defined _VEC
-      tril_atax2(mask,a,ax,_y,nx,ny,start,end,ptid,cinfo.vtid,vdim);
+      tril_atax2(mask,a,ax,_y,nx,ny,start,end,ptid,vtid,vdim);
     #else
-      VECTOR_EPOCH(mask);
       atax_manycore2(a,ax,_y,nx,ny,start,end,ptid);
     #endif
 

@@ -9,17 +9,63 @@
 #include "vvadd_kernel.h"
 #include "util.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
+
 void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, 
     int ptid, int vtid, int dim, int unroll_len) {
   
+  #ifdef PACKED_SIMD
+  // based on https://github.com/riscv/rvv-intrinsic-doc/blob/master/rvv_saxpy.c
+
+  // chunk of array to do
+  int chunk = end - start;
+
+  // starting array idx
+  a += start;
+  b += start;
+  c += start;
+
+  // declare vector integers (int) of size (32) , that all fit in one (m1) vec register
+  vfloat32m1_t va, vb, vc;
+
+  // stripmine over hardware vector length, l <= hw_vlen
+  for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+    // NOTE
+    // compiler will insert a 'setvli max_vlen' here if you dont and will mess up stripmine
+    // even though seems obvious should need with the above???
+    l = vsetvl_e32m1(chunk);
+
+    // load vectors
+    va = vle32_v_f32m1(a);
+    vb = vle32_v_f32m1(b);
+
+    // vector add
+    vc = vfadd_vv_f32m1(va, vb);
+
+    // store vectors
+    vse32_v_f32m1(c, vc);
+
+    // increment pointers by stripmined length
+    a += l;
+    b += l;
+    c += l;
+
+  }
+
+  #else
   for (int i = start + vtid; i < end; i+=unroll_len*dim) {
       DTYPE a_, b_, c_;
       a_ = a[i];
       b_ = b[i];
       // add and then store
       c_ = a_ + b_;
-      STORE_NOACK(c_, c + i, 0);
+      // c[i] = c_;
+      STORE_NOACK(c_, c + i, 0); // UH OH Not working with new compiler, others or just this? maybe a op code conflict??
   }
+  #endif
 }
 
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
@@ -50,7 +96,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
   if (cinfo.used) {
-    int alignment = 16 * VECTOR_LEN;
+    int alignment = LOAD_PER_CORE * VECTOR_LEN;
     start = roundUp((cinfo.unique_id + 0) * n / cinfo.total_groups, alignment);
     end   = roundUp((cinfo.unique_id + 1) * n / cinfo.total_groups, alignment);
   }
@@ -89,6 +135,9 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   int vtid = get_vtid(&cinfo);
   int vdim = get_vdim(&cinfo);
   int is_da = cinfo.is_scalar;
+
+  // // for some reason 0xc22 specifically is problematic, even though have defined in gem5?
+  // asm volatile ("csrw vlenb, 0\n\t");
 
   // move stack onto scratchpad for faster local access than default on DRAM
   MOVE_STACK_ONTO_SCRATCHPAD();

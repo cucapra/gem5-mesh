@@ -12,6 +12,8 @@
 #include "debug/IEW.hh"
 
 #include "debug/Mesh.hh"
+#include "debug/RiscvVector.hh"
+#include "debug/Frame.hh"
 
 //-----------------------------------------------------------------------------
 // IEW
@@ -23,7 +25,8 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
       m_issue_width(params->issueWidth),
       m_wb_width(params->writebackWidth),
       m_scoreboard_p(nullptr),
-      m_pred_flag(true)
+      m_pred_flag(true),
+      m_in_frame_stall(false)
 {
   // create Int ALU exec unit
   assert(params->intAluOpLatency == 1); // need branch to check in one cycle for trace
@@ -64,6 +67,37 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
   m_op_to_unit_map[Enums::FloatMult]    = idx;
   m_op_to_unit_map[Enums::FloatMultAcc] = idx;
   m_op_to_unit_map[Enums::FloatMisc]    = idx;
+
+  idx++;
+  m_exec_units.push_back(new PipelinedExecUnit(this->name().c_str(), "FpSIMD",
+                                               params->fpMulOpLatency));
+  m_op_to_unit_map[Enums::SimdFloatMisc] = idx;
+  m_op_to_unit_map[Enums::SimdFloatMultAcc] = idx;
+
+  m_op_to_unit_map[Enums::SimdFloatMult] = idx; // longer lat
+  m_op_to_unit_map[Enums::SimdFloatSqrt] = idx;
+
+  m_op_to_unit_map[Enums::SimdFloatDiv] = idx; // should be unpipelined
+
+  m_op_to_unit_map[Enums::SimdMisc] = idx;
+  m_op_to_unit_map[Enums::SimdMult]  = idx;
+  m_op_to_unit_map[Enums::SimdMultAcc] = idx;
+  m_op_to_unit_map[Enums::SimdSqrt] = idx;
+  m_op_to_unit_map[Enums::SimdFloatReduceAdd] = idx;
+
+
+  m_op_to_unit_map[Enums::SimdFloatAdd]  = idx;
+  m_op_to_unit_map[Enums::SimdFloatAlu]  = idx;
+  m_op_to_unit_map[Enums::SimdFloatCmp]  = idx;
+  m_op_to_unit_map[Enums::SimdFloatCvt]  = idx;
+  m_op_to_unit_map[Enums::SimdAdd]  = idx; // should have int unit
+  m_op_to_unit_map[Enums::SimdAddAcc]  = idx;
+  m_op_to_unit_map[Enums::SimdAlu]  = idx;
+  m_op_to_unit_map[Enums::SimdCmp]  = idx;
+  m_op_to_unit_map[Enums::SimdCvt] = idx;
+  m_op_to_unit_map[Enums::SimdShift] = idx;
+  m_op_to_unit_map[Enums::SimdShiftAcc] = idx;
+
 
   // create memory unit
   idx++;
@@ -297,6 +331,11 @@ IEW::doWriteback()
           }
         }
 
+
+        if (inst->isVector()) {
+          DPRINTF(RiscvVector, "%s\n", inst->toString(true));
+        }
+
         // // debug during vec sections
         // if (m_cpu_p->getEarlyVector()->isSlave() && !inst->isFloating()) {
         //   if (inst->numDestRegs() > 0 && inst->numSrcRegs() > 1) {
@@ -316,6 +355,10 @@ IEW::doWriteback()
         //     DPRINTF(Mesh, "writeback %s %lx %lx\n", inst->toString(true),
         //       m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(1)));
         // }
+
+        if (inst->isVector()) {
+          DPRINTF(RiscvVector, "writeback %s\n", inst->toString(true));
+        }
 
         // // set values as temp renamed dest reg
         // if (inst->static_inst_p->isBroadcast()) {
@@ -501,20 +544,33 @@ IEW::doIssue()
 
     // frame start can stall if there aren't enough tokens to being the frame
     // also need to wait for remem to take away tokens
-    if (inst->static_inst_p->isFrameStart() && (m_robs[tid]->getRememInstCount() > 0 || 
-        /*m_cpu_p->getMemTokens() < m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0))*/
-        !m_cpu_p->isNextFrameReady())) {
-      if (m_robs[tid]->getRememInstCount() > 0) {
-        m_frame_start_remem++;
-        DPRINTF(Mesh, "[sn:%d] Can't issue frame start because remem in flight\n", inst->seq_num);
+    if (inst->static_inst_p->isFrameStart()) {
+      int reqCnt = m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0));
+      int numRememInFlight = m_robs[tid]->getRememInstCount();
+      // check if needs to stall and log the reason
+      if (numRememInFlight > 0 || !m_cpu_p->isNextFrameReady(reqCnt)) {
+        if (!m_in_frame_stall) {
+          m_frame_stall_start = curTick();
+          m_in_frame_stall = true;
+        }
+        if (m_in_frame_stall && (curTick() - m_frame_stall_start > 500000000)) { // allow 500000 cycles to stall
+          fatal("deadlock due to waiting on frame on core %d\n", m_cpu_p->cpuId());
+        }
+        if (numRememInFlight > 0) {
+          m_frame_start_remem++;
+          DPRINTF(Mesh, "[sn:%d] Can't issue frame start because remem in flight\n", inst->seq_num);
+        }
+        else {
+          m_frame_start_tokens++;
+          DPRINTF(Mesh, "[sn:%d] Can't issue frame start because not enough tokens %d\n", inst->seq_num, reqCnt);
+        }
+        // stall inst
+        return;
       }
       else {
-        m_frame_start_tokens++;
-        DPRINTF(Mesh, "[sn:%d] Can't issue frame start because not enough tokens\n", inst->seq_num);
-        // DPRINTF(Mesh, "[sn:%d] Can't issue frame start because not enough tokens. Have %d need %d\n", inst->seq_num,
-        //   m_cpu_p->getMemTokens(), m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0)));
+        m_in_frame_stall = false;
+        DPRINTF(Frame, "pass frame start with cnt %d\n", reqCnt);
       }
-      return;
     }
     
     // if (inst->static_inst_p->isSpadPrefetch() && m_robs[tid]->getUnresolvedCondInstCount() > 0) {

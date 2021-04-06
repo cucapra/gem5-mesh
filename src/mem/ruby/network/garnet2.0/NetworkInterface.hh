@@ -75,6 +75,8 @@ class NetworkInterface : public ClockedObject, public Consumer
     uint32_t functionalWrite(Packet *);
     bool functionalRead(Packet* pkt);
 
+    void regStats();
+
   private:
     GarnetNetwork *m_net_ptr;
     const NodeID m_id;
@@ -117,6 +119,13 @@ class NetworkInterface : public ClockedObject, public Consumer
     void sendCredit(flit *t_flit, bool is_free);
 
     void incrementStats(flit *t_flit);
+
+    Stats::Scalar m_no_channel_avail;
+    Stats::Scalar m_no_credit_avail;
+    Stats::Scalar m_order_violation_stall;
+    Stats::Scalar m_not_ready_vc;
+    Stats::Scalar m_no_credit_vc;
+    Stats::Scalar m_msg_queued_not_ready;
 };
 
 #endif // __MEM_RUBY_NETWORK_GARNET2_0_NETWORKINTERFACE_HH__

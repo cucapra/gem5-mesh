@@ -99,6 +99,7 @@ int check_matmul(DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t)
         c_temp += ALPHA* a[i * t + k] * b[k * n + j];
       }
       // if (c[i * n + j] != c_temp)
+      // printf("%f %f at i:%d, j:%d\n",c[i * n + j],c_temp, i,j);
       if (polybenchCompare(c[i * n + j], c_temp))
       {
         printf("%f %f at i:%d, j:%d\n",c[i * n + j],c_temp, i,j);

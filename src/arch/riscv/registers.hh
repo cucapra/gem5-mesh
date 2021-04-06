@@ -65,17 +65,19 @@ using RiscvISAInst::MaxInstDestRegs;
 const int MaxMiscDestRegs = 1;
 
 // Not applicable to RISC-V
-using VecElem = ::DummyVecElem;
-using VecReg = ::DummyVecReg;
-using ConstVecReg = ::DummyConstVecReg;
-using VecRegContainer = ::DummyVecRegContainer;
-constexpr unsigned NumVecElemPerVecReg = ::DummyNumVecElemPerVecReg;
+// this doesnt have to match the compiler because rvv is supposed to be arch agnostic
+// if exceed this idx, then will just wrap around back to 0 (wont go to next register or assert fail)
+constexpr unsigned NumVecElemPerVecReg = 16;
+using VecElem = uint64_t;
+using VecReg = ::VecRegT<VecElem, NumVecElemPerVecReg, false>;
+using ConstVecReg = ::VecRegT<VecElem, NumVecElemPerVecReg, true>;
+using VecRegContainer = VecReg::Container;
 constexpr size_t VecRegSizeBytes = ::DummyVecRegSizeBytes;
 
 // Not applicable to RISC-V
-using VecPredReg = ::DummyVecPredReg;
-using ConstVecPredReg = ::DummyConstVecPredReg;
-using VecPredRegContainer = ::DummyVecPredRegContainer;
+using VecPredReg = ::VecPredRegT<bool, NumVecElemPerVecReg, true, false>;
+using ConstVecPredReg = ::VecPredRegT<bool, NumVecElemPerVecReg, true, true>;
+using VecPredRegContainer = VecPredReg::Container;
 constexpr size_t VecPredRegSizeBits = ::DummyVecPredRegSizeBits;
 constexpr bool VecPredRegHasPackedRepr = ::DummyVecPredRegHasPackedRepr;
 
@@ -84,7 +86,7 @@ const int NumMicroIntRegs = 1;
 const int NumIntRegs = NumIntArchRegs + NumMicroIntRegs;
 const int NumFloatRegs = 32;
 
-const unsigned NumVecRegs = 1;  // Not applicable to RISC-V
+const unsigned NumVecRegs = 32;  // Not applicable to RISC-V
                                 // (1 to prevent warnings)
 const int NumVecPredRegs = 1;  // Not applicable to RISC-V
                                // (1 to prevent warnings)
@@ -126,6 +128,17 @@ const std::vector<std::string> FloatRegNames = {
     "fs4", "fs5", "fs6", "fs7",
     "fs8", "fs9", "fs10", "fs11",
     "ft8", "ft9", "ft10", "ft11"
+};
+
+const std::vector<std::string> VectorRegNames = {
+    "v0",  "v1",  "v2",  "v3",
+    "v4",  "v5",  "v6",  "v7",
+    "v8",  "v9",  "v10", "v11",
+    "v12", "v13", "v14", "v15",
+    "v16", "v17", "v18", "v19",
+    "v20", "v21", "v22", "v23",
+    "v24", "v25", "v26", "v27",
+    "v28", "v29", "v30", "v31"
 };
 
 enum MiscRegIndex {
@@ -247,6 +260,9 @@ enum MiscRegIndex {
     MISCREG_SATP,
 
     MISCREG_UTVEC,
+    MISCREG_VL,
+    MISCREG_VTYPE,
+    MISCREG_VLENB,
     MISCREG_USCRATCH,
     MISCREG_UEPC,
     MISCREG_UCAUSE,
@@ -392,6 +408,12 @@ enum CSRIndex {
     CSR_MHPMCOUNTER29 = 0xC1D,
     CSR_MHPMCOUNTER30 = 0xC1E,
     CSR_MHPMCOUNTER31 = 0xC1F,
+
+    CSR_VL = 0xC20,
+    CSR_VTYPE = 0xC21,
+    CSR_VLENB = 0xC22,
+
+
     // MHPMCOUNTERH rv32 only
     CSR_MHPMEVENT03 = 0x323,
     CSR_MHPMEVENT04 = 0x324,
@@ -614,7 +636,11 @@ const std::map<int, CSRMetadata> CSRData = {
     {CSR_EXE, {"executemesh", MISCREG_EXE}},
     {CSR_FETCH, {"fetchmesh", MISCREG_FETCH}},
 
-    {CSR_PREFETCH, {"padprefetch", MISCREG_PREFETCH}}
+    {CSR_PREFETCH, {"padprefetch", MISCREG_PREFETCH}},
+
+    {CSR_VL, {"vl", MISCREG_VL}},
+    {CSR_VTYPE, {"vtype", MISCREG_VTYPE}},
+    {CSR_VLENB, {"vlenb", MISCREG_VLENB}},
 };
 
 /**

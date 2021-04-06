@@ -61,7 +61,7 @@ unameFunc64(SyscallDesc *desc, int callnum, Process *process,
 
     strcpy(name->sysname, "Linux");
     strcpy(name->nodename,"sim.gem5.org");
-    strcpy(name->release, "3.0.0");
+    strcpy(name->release, process->release.c_str());
     strcpy(name->version, "#1 Mon Aug 18 11:32:15 EDT 2003");
     strcpy(name->machine, "riscv64");
 
@@ -79,7 +79,7 @@ unameFunc32(SyscallDesc *desc, int callnum, Process *process,
 
     strcpy(name->sysname, "Linux");
     strcpy(name->nodename,"sim.gem5.org");
-    strcpy(name->release, "3.0.0");
+    strcpy(name->release, process->release.c_str());
     strcpy(name->version, "#1 Mon Aug 18 11:32:15 EDT 2003");
     strcpy(name->machine, "riscv32");
 

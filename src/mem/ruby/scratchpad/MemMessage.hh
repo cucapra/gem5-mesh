@@ -29,8 +29,9 @@ class MemMessage : public Message
 
     MessageSizeType& getMessageSize() override;
 
+    // i dont think should ever need to functional read/write data marshalled between scratchpads
     bool functionalRead(Packet* pkt) override
-    { panic("MemMessage does not support functionalRead\n"); }
+    { printf("warn: MemMessage does not support functionalRead\n"); return false; /*panic("MemMessage does not support functionalRead\n");*/ }
 
     bool functionalWrite(Packet* pkt) override
     { printf("warn: MemMessage does not support functionalWrite\n"); return false; /*panic("MemMessage does not support functionalWrite\n");*/ }

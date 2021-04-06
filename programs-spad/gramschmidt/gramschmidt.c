@@ -11,6 +11,10 @@
 #include "gram_kernel.h"
 #include "util.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 /*
   Gram-Schmidt Orthonormalization
 
@@ -84,6 +88,19 @@ void u_normalize_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors,
     sp+=FRAME_SIZE_NORM;
     sp = sp % POST_FRAME_WORD_NORM;
   }
+  #elif defined(PACKED_SIMD)
+  int size = end - start;
+  int chunk = size;
+  for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+    l = vsetvl_e32m1(chunk);
+    int i = start + size - chunk;
+
+    vfloat32m1_t va = vlse32_v_f32m1(&a[i * numVectors + k], numVectors * sizeof(float));
+
+    va = vfdiv_vf_f32m1(va, r_cache);
+
+    vsse32_v_f32m1(&q[i * numVectors + k], numVectors * sizeof(float), va);
+  }
   #else
   #pragma GCC unroll(16)
   for (int i = start; i < end; i++) {
@@ -143,7 +160,39 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
       END_FRAME();
       sp = (sp + FRAME_SIZE_SUB) % POST_FRAME_WORD_SUB;
     }
-    
+    #elif defined(PACKED_SIMD)
+    int chunk = vectorLen;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+      int i = vectorLen - chunk;
+
+      vfloat32m1_t va = vlse32_v_f32m1(&a[i * numVectors + j], numVectors * sizeof(float));
+      vfloat32m1_t vq = vlse32_v_f32m1(&q[i * numVectors + k], numVectors * sizeof(float));
+
+      va = vfmul_vv_f32m1(va, vq);
+
+      // sum
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+      vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(va, va, vzero);
+
+      // update the accumulation
+      float single_val = vfmv_f_s_f32m1_f32(vs);
+      r_cache += single_val;
+    }
+
+    chunk = vectorLen;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+      int i = vectorLen - chunk;
+
+      vfloat32m1_t va = vlse32_v_f32m1(&a[i * numVectors + j], numVectors * sizeof(float));
+      vfloat32m1_t vq = vlse32_v_f32m1(&q[i * numVectors + k], numVectors * sizeof(float));
+
+      vq = vfmul_vf_f32m1(vq, r_cache);
+      va = vfsub_vv_f32m1(va, vq);
+
+      vsse32_v_f32m1(&a[i * numVectors + j], numVectors * sizeof(float), va);
+    }
     #else
     #pragma GCC unroll(16)
     for (int i = 0; i < vectorLen; i++) {

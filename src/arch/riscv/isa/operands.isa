@@ -40,7 +40,15 @@ def operand_types {{
     'sd' : 'int64_t',
     'ud' : 'uint64_t',
     'sf' : 'float',
-    'df' : 'double'
+    'df' : 'double',
+    'uB': 'std::array< uint8_t, NumVecElemPerVecReg>',
+    'sB': 'std::array<  int8_t, NumVecElemPerVecReg>',
+    'uH': 'std::array<uint16_t, NumVecElemPerVecReg>',
+    'sH': 'std::array< int16_t, NumVecElemPerVecReg>',
+    'uW': 'std::array<uint32_t, NumVecElemPerVecReg>',
+    'sW': 'std::array< int32_t, NumVecElemPerVecReg>',
+    'uD': 'std::array<uint64_t, NumVecElemPerVecReg>',
+    'sD': 'std::array< int64_t, NumVecElemPerVecReg>'
 }};
 
 def operands {{
@@ -73,8 +81,21 @@ def operands {{
 
 #Memory Operand
     'Mem': ('Mem', 'ud', None, ('IsMemRef', 'IsLoad', 'IsStore'), 5),
+    'VMem': ('Mem', 'uD', None, 'IsVector', 5),
+
+#Vector CSR
+    'VLEN': ('ControlReg', 'ud', 'MISCREG_VL', (None, None, 'IsVector'), 6),
+    'VTYPE': ('ControlReg', 'ud', 'MISCREG_VTYPE', (None, None, 'IsVector'), 6),
+    'VLENB': ('ControlReg', 'ud', 'MISCREG_VLENB', (None, None, 'IsVector'), 6),
 
 #Program Counter Operands
     'PC': ('PCState', 'ud', 'pc', (None, None, 'IsControl'), 7),
     'NPC': ('PCState', 'ud', 'npc', (None, None, 'IsControl'), 8),
+
+#Vector Operands
+    'Vd' : ('VecReg', 'ud', 'VD' , 'IsVector',  1),
+    'Vs1': ('VecReg', 'ud', 'VS1', 'IsVector',  2),
+    'Vs2': ('VecReg', 'ud', 'VS2', 'IsVector',  3),
+    'Vs3': ('VecReg', 'ud', 'VS3', 'IsVector',  4),
+    'Vm' : ('VecReg', 'ud', '0'  , 'IsVector',  7),
 }};

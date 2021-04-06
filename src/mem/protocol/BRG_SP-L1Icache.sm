@@ -204,6 +204,9 @@ machine(MachineType:L1Cache, "SP_LLC (L1I Cache)")
       out_msg.MessageSize := MessageSizeType:Request_Control;
       out_msg.XDim := 1;
       out_msg.YDim := 1;
+      out_msg.WordAddress := address;
+      out_msg.RespCnt := 1; // todo should be multiple?
+      out_msg.PrefetchConfig := 0;
     }
   }
 

@@ -42,5 +42,8 @@
 // Include formats for nonstandard extensions
 ##include "compressed.isa"
 
+// Include vector formats
+##include "vector.isa"
+
 // Include the unknown
 ##include "unknown.isa"

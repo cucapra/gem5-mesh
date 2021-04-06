@@ -136,6 +136,7 @@ BaseCPU::BaseCPU(Params *p, bool is_checker)
       previousCycle(0), previousState(CPU_STATE_SLEEP),
       functionTraceStream(nullptr), currentFunctionStart(0),
       currentFunctionEnd(0), functionEntryTick(0),
+      hardwareVectorLength(p->hw_vector_length),
       addressMonitor(p->numThreads),
       syscallRetryLatency(p->syscallRetryLatency),
       pwrGatingLatency(p->pwr_gating_latency),

@@ -174,12 +174,11 @@ int main(int argc, char *argv[]) {
   //   printf("\n");
   // }
 
-
   for (int i = 0; i < M; i++) {
     for (int j = 0; j < N; j++) {
       int idx = i*N + j;
       // if (!float_compare(data[idx], data_exp[idx], 0.001f)) {
-      if (!float_compare(symmat[idx], symmat_exp[idx], 0.001f)) {
+      if (!float_compare(symmat[idx], symmat_exp[idx], 0.01f)) {
         printf("i %d j %d idx %d | %f != %f\n", i, j, idx, symmat[idx], symmat_exp[idx]);
         printf("[[FAIL]]\n");
         return 1;      

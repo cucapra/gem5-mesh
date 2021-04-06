@@ -831,6 +831,31 @@ class Packet : public Printable
      */ 
     bool isStoreNoAck() const { return req->isStoreNoAck; }
 
+    /**
+     * Whether this is a vector request (normal blocking vector load)
+     */ 
+    bool isVector() const { return req->isNormVector; }
+
+    /**
+     * Get word size which might be different than full size
+     */ 
+    unsigned int getWordSize() const { return req->getWordSize(); }
+
+    /**
+     * Get addrs
+     */ 
+    std::vector<Addr> getVecAddrs() const { return req->vecAddrs; }
+
+    // figure out which word this was for
+    int getWordOffset(Addr addr) {
+        if (!isVector()) return 0;
+        for (int i = 0; i < getVecAddrs().size(); i++) {
+            if (addr == getVecAddrs()[i])
+            return i * getWordSize();
+        }
+        assert(false);
+    }
+
     // packet type for processing scratchpad
     typedef enum RespPktType {
         NotVal = 0,

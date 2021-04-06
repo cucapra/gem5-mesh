@@ -1,12 +1,21 @@
 #ifndef __3MM_H__
 #define __3MM_H__
 
-// #define VEC_LEN 4
-#ifdef VEC_LEN
+// #define VECTOR_LEN 4
+#ifdef VECTOR_LEN
 #define _VEC
 #endif
 
-#define BLK_DIM 4 //tile size
+//tile size
+#ifndef BLK_DIM
+#ifdef PER_CORE_SIMD
+// match blk dim to simd length for ease of use
+// 16 * 16 * 4 = 1kB space so fits in 4kB spad
+#define BLK_DIM 16
+#else
+#define BLK_DIM 4
+#endif
+#endif
 
 // #define MANYCORE_PREFETCH
 
@@ -23,14 +32,14 @@
 
 typedef float DTYPE;
 
-#if VEC_LEN==4 && _N_SPS==64
+#if VECTOR_LEN==4 && _N_SPS==64
 #define WORK_DIV(m,n) \
   tg_x = 4; \
   tg_y = 3; \
-  uid_x = cinfo.unique_id%tg_x; \
-  uid_y = cinfo.unique_id/tg_x; \
-  if(cinfo.used) { \
-    int alignment = BLK_DIM * cinfo.vdim_x; \
+  uid_x = unique_id%tg_x; \
+  uid_y = unique_id/tg_x; \
+  if(used) { \
+    int alignment = BLK_DIM * vdim_x; \
     m_start = roundUp((uid_y + 0) * m / tg_y, alignment); \
     m_end = roundUp((uid_y + 1) * m / tg_y, alignment); \
     n_start = roundUp((uid_x + 0) * n / tg_x, alignment); \
@@ -42,10 +51,10 @@ typedef float DTYPE;
 #define WORK_DIV(m,n) \
   tg_x = 3; \
   tg_y = 1; \
-  uid_x = cinfo.unique_id%tg_x; \
-  uid_y = cinfo.unique_id/tg_x; \
-  if(cinfo.used) { \
-    int alignment = BLK_DIM * cinfo.vdim_x; \
+  uid_x = unique_id%tg_x; \
+  uid_y = unique_id/tg_x; \
+  if(used) { \
+    int alignment = BLK_DIM * vdim_x; \
     m_start = roundUp((uid_y + 0) * m / tg_y, alignment); \
     m_end = roundUp((uid_y + 1) * m / tg_y, alignment); \
     n_start = roundUp((uid_x + 0) * n / tg_x, alignment); \

@@ -6,10 +6,18 @@
 #define _VEC
 #endif
 
+#ifdef NESTED_SIMD
+#define NESTED_SIMD_VLEN (HARDWARE_VECTOR_LEN)
+#else
+#define NESTED_SIMD_VLEN 1
+#endif
+
 // #define MANYCORE_PREFETCH
 
+#ifdef NESTED_SIMD
+#define REDUCE_VERSION
 // only v16 better this way so use it
-#if VEC_LEN==16
+#elif VEC_LEN==16
 #define POLYBENCH_VERSION
 #else
 #define REDUCE_VERSION
@@ -19,6 +27,7 @@
 #define INIT_FRAMES 2
 #endif
 
+//make sure prefetch length is divisble by hardware vector length!
 #define PREFETCH_LEN 16
 #define REGION_SIZE (PREFETCH_LEN * 2)
 #define NUM_REGIONS (512 / REGION_SIZE)

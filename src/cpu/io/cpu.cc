@@ -1074,8 +1074,8 @@ IOCPU::setArchCCReg(int reg_idx, RegVal val, ThreadID tid)
 // }
 
 bool
-IOCPU::isNextFrameReady() {
-  return getLocalScratchpad()->isNextConsumerFrameRdy();
+IOCPU::isNextFrameReady(int cnt) {
+  return getLocalScratchpad()->isNextConsumerFrameRdy(cnt);
 }
 
 void

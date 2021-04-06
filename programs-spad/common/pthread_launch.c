@@ -4,6 +4,10 @@
 #include <math.h>
 #include <sys/sysinfo.h>
  
+#define CACHE_LINE_SIZE_LOG2 ((unsigned long long)ceil(log2(CACHE_LINE_SIZE)))
+
+pthread_barrier_t start_barrier;
+
 void launch_kernel(void* (*kernel)(void*), void **args, int cores_x, int cores_y) {
   
   // device threads will be pthreads
@@ -74,10 +78,10 @@ int get_dimensions(int *cores_x, int *cores_y) {
 
 
 void *malloc_cache_aligned(size_t element_size, size_t num_elements, void **orig_ptr) {
-  void *ptr = malloc(element_size * (num_elements + 64));
+  void *ptr = malloc(element_size * (num_elements + CACHE_LINE_SIZE));
   *orig_ptr = ptr;
   if (element_size == sizeof(int)) {
-    ptr = (void*)((unsigned long long)((int*)ptr + 64) & ~((1ULL << 6) - 1));
+    ptr = (void*)((unsigned long long)((int*)ptr + CACHE_LINE_SIZE) & ~((1ULL << CACHE_LINE_SIZE_LOG2) - 1));
   }
   else {
     return NULL;

@@ -5,7 +5,7 @@
 import numpy as np
 from math import floor, ceil, isnan
 from copy import deepcopy
-from graph_king import bar_plot, line_plot
+from graph_king import bar_plot, line_plot, heatmap
 from table_king import make_table
 from layout_helper import get_mesh_dist_sequence
 from scipy.stats.mstats import gmean
@@ -32,7 +32,12 @@ def sort_by_sub_label(cur_order, values, desired_order):
 def format_bar_series(labels, sub_labels, values, desired_order):
   labels = deepcopy(labels)
   sub_labels = deepcopy(sub_labels)
-  desired_order = deepcopy(desired_order)
+
+  # if no desired order just show everything
+  if len(desired_order) == 0:
+    desired_order = deepcopy(sub_labels)
+  else:
+    desired_order = deepcopy(desired_order)
 
   # remove any labels that have no fields
   j = 0
@@ -198,7 +203,7 @@ def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar
 
 # group together similar series and get preferred field
 # expects 3 meta fields(prog, config, meta) along with desired_field
-def group_bar_data(data, desired_field, desired_config_order= [ 'NV', 'NV_PF', 'V4', 'V16', 'GPU' ]):
+def group_bar_data(data, desired_field, desired_config_order= [ 'NV', 'NV_PF', 'PACKED_SIMD', 'V4', 'V16', 'GPU' ]):
   # hash of hash
   values = {}
 
@@ -248,6 +253,40 @@ def group_bar_data(data, desired_field, desired_config_order= [ 'NV', 'NV_PF', '
   (labels, sub_labels, values) = format_bar_series(labels, config_map, flat_values, desired_config_order)
 
   return (labels, sub_labels, values)
+
+# get the matrix data for a single config for a certain field, specifiying xdim
+def group_heatmap_data(data, desired_config, desired_field, desired_prog, ncols):
+  matrix_data = []
+  for row in data:
+    if (not desired_field in row):
+      continue
+    if (row['config'] != desired_config):
+      continue
+    if (row['prog'] != desired_prog):
+      continue
+
+    # make 2d array of data
+    c = 0
+    r = 0
+    matrix_row = []
+    for d in row[desired_field]:
+      # needs to be float for heatmap
+      matrix_row.append(d)
+      c += 1
+      if (c == ncols):
+        r += 1
+        c = 0
+        matrix_data.append(matrix_row)
+        matrix_row = []
+
+  xlabels = np.arange(ncols)
+  ylabels = np.arange(len(matrix_data))
+
+
+
+  return (matrix_data, xlabels, ylabels)
+
+
 
 # try to normalize to NV otherwise do from first value
 def normalize(sub_labels, values, pref_base='NV'):
@@ -307,7 +346,7 @@ def add_geo_mean(labels, values):
 # plot speedup
 # group together same benchmark (if metadata the same)
 def plot_speedup(data):
-  (labels, sub_labels, values) = group_bar_data(data, 'cycles')
+  (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=[])
 
   # flip from cycles to speedup normalized to NV
   normalize(sub_labels, values)
@@ -419,8 +458,9 @@ def plot_frame_stalls(data):
   # title = 'Frame_Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
   # line_plot(xaxes, values, labels, 'Hops', 'Frame stalls relative to total vector cycles', title, False)
 
-  (labels, sub_labels, values) = group_bar_data(data, 'frac_token_stalls', desired_config_order=['V4', 'V4_I0'])
-  add_geo_mean(labels, values)
+  (labels, sub_labels, values) = group_bar_data(data, 'frac_token_stalls', desired_config_order=['V4'])
+  # dont do geomean b/c some values are 0
+  add_arith_mean(labels, values)
 
   bar_plot(labels, sub_labels, values, 'Fraction of Vector Cycles Waiting for a Frame', 'Frame_Stalls_v4')
 
@@ -523,6 +563,61 @@ def rename_prog(data, prog_name, new_name):
       print('rename {} -> {}'.format(row['prog'], new_name))
       row['prog'] = new_name
 
+def plot_llc_request_stalls(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'llcRequestStallTime')
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'reqstall', 'reqstall', False) 
+
+def plot_llc_response_stalls(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'llcResponseStallTime')
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'respstall', 'respstall', False) 
+
+def plot_mem_response_stalls(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'memResponseStallTime')
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'memrespstall', 'memrespstall', False) 
+
+def plot_llc_busy_cycles(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'frac_LLC_Busy_Cycles')
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'fracllcbusy', 'fracllcbusy', False) 
+
+def plot_llc_miss_rate(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'llcMissRate')
+  # normalize(sub_labels, values)
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'LLC Misses', 'LLC_Misses', False) 
+
+def plot_llc_access_rate(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'llcAccessRate')
+  # normalize(sub_labels, values)
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, 'LLC Access Rate', 'LLC_Access_Rate', False)
+
+
+def plot_router_in_heatmap(data):
+  (mdata, xlabel, ylabel) = group_heatmap_data(data, 'V4', 'router_in_stalls', 'bicg', 8)
+  heatmap(mdata, xlabel, ylabel, 'routerin')
+  (mdata, xlabel, ylabel) = group_heatmap_data(data, 'NV', 'router_in_stalls', 'bicg', 8)
+  heatmap(mdata, xlabel, ylabel, 'routerin_nv')
+
+def plot_router_out_heatmap(data):
+  (mdata, xlabel, ylabel) = group_heatmap_data(data, 'V4', 'router_out_stalls', 'bicg', 8)
+  heatmap(mdata, xlabel, ylabel, 'routerout')
+  (mdata, xlabel, ylabel) = group_heatmap_data(data, 'NV', 'router_out_stalls', 'bicg', 8)
+  heatmap(mdata, xlabel, ylabel, 'routerout_nv')
+
+def plot_all_router_stalls(data):
+  (labels, sub_labels, values) = group_bar_data(data, 'router_in_stalls_all')
+  bar_plot(labels, sub_labels, values, 'RouteVCSstalls', 'RouteVCSstalls', False)
+
+  (labels, sub_labels, values) = group_bar_data(data, 'router_in_no_req_stalls_all')
+  bar_plot(labels, sub_labels, values, 'RouteReqStall', 'RouteReqStall', False)
+
+  (labels, sub_labels, values) = group_bar_data(data, 'router_out_stalls_all')
+  bar_plot(labels, sub_labels, values, 'RouteOutStall', 'RouteOutStall', False)
+
 # top level for analysis passes. generates all plots sequentially
 def make_plots_and_tables(all_data):
   print("Removing unwanted series")
@@ -555,12 +650,12 @@ def make_plots_and_tables(all_data):
   plot_dmem_energy(all_data)
   print("Plot llc energy")
   plot_llc_energy(all_data)
-  print("Plot frame rdy")
-  plot_first_frame_rdy(all_data)
   print("Plot cpi")
   plot_cpi(all_data)
   print("Plot inet stalls")
   plot_inet_stalls(all_data)
+  print("Plot frame rdy")
+  plot_first_frame_rdy(all_data)
   print("Plot frame stalls")
   plot_frame_stalls(all_data)
   print("Plot prefetch coverage")
@@ -569,3 +664,14 @@ def make_plots_and_tables(all_data):
   plot_init_frames(all_data)
   print("Plot backpressure")
   plot_backpressure(all_data)
+  print("Plot llc stalls")
+  plot_llc_request_stalls(all_data)
+  plot_llc_response_stalls(all_data)
+  plot_mem_response_stalls(all_data)
+  plot_llc_busy_cycles(all_data)
+  plot_llc_miss_rate(all_data)
+  plot_llc_access_rate(all_data)
+  print("Plot router stalls")
+  plot_router_in_heatmap(all_data)
+  plot_router_out_heatmap(all_data)
+  plot_all_router_stalls(all_data)

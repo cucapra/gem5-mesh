@@ -2,17 +2,20 @@
 #define __VVADD_H__
 
 // data type to do computation with
-#define DTYPE int
+#define DTYPE float
 
 // one of these should be defined to dictate config
 // #define NO_VEC 1
 // #define VEC_4_SIMD 1
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
+// #define VEC_4_SIMD_BIGBOI 1
+// #define PACKED_SIMD 1
 
 // in current system cacheline size is 16 so doesn't make sense to go beyond this for now
 // #define VEC_16_SIMD 1
 // #define VEC_16_SIMD_VERTICAL 1
+// #define VEC_16_SIMD_BIGBOI 1
 // #define VEC_16_SIMD_SPATIAL_UNROLLED 1
 
 // can also input orthogonal #ifdefs
@@ -21,31 +24,43 @@
 // PREFETCH_LEN
 
 // vvadd_execute config directives
-#if !defined(NO_VEC)
+#if !defined(NO_VEC) && !defined(PACKED_SIMD)
 #define USE_VEC 1
 #endif
-#if defined(VEC_4_SIMD_VERTICAL) || defined(VEC_16_SIMD_VERTICAL)
+#if defined(VEC_4_SIMD_VERTICAL) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_4_SIMD_BIGBOI) ||  defined(VEC_16_SIMD_BIGBOI)
 #define VERTICAL_LOADS 1
 #endif
 #if defined(VEC_4_SIMD_SPATIAL_UNROLLED) || defined(VEC_16_SIMD_SPATIAL_UNROLLED)
 #define SPATIAL_UNROLL 1
 #endif
+#if defined(VEC_4_SIMD_BIGBOI) || defined(VEC_16_SIMD_BIGBOI)
+#define BIGBOI 1
+#endif
 
 // vector grouping directives
-#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED)
+#if defined(VEC_4_SIMD) || defined(VEC_4_SIMD_BCAST) || defined(VEC_4_SIMD_VERTICAL) || defined(VEC_4_SIMD_SPATIAL_UNROLLED) || defined(VEC_4_SIMD_BIGBOI)
 #define VECTOR_LEN 4
 #endif
-#if defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_16_SPATIAL_UNROLLED)
+#if defined(VEC_16_SIMD) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_16_SPATIAL_UNROLLED) ||  defined(VEC_16_SIMD_BIGBOI)
 #define VECTOR_LEN 16
 #endif
 
 // prefetch sizings
 #define POST_REGION_WORD 512
+
+#ifndef INIT_FRAMES
 #define INIT_FRAMES 1
+#endif
+
 #if defined(VERTICAL_LOADS) || defined(SPATIAL_UNROLL)
 // load 16 words (whole cacheline at a time)
-#define LOAD_LEN 16
-#define REGION_SIZE (LOAD_LEN * 2)
+#define LOAD_LEN (CACHE_LINE_SIZE/sizeof(uint32_t))
+#ifdef BIGBOI
+#define LOAD_PER_CORE (LOAD_LEN / VECTOR_LEN)
+#else
+#define LOAD_PER_CORE (LOAD_LEN)
+#endif
+#define REGION_SIZE (LOAD_PER_CORE * 2)
 #define NUM_REGIONS (POST_REGION_WORD / REGION_SIZE)
 #elif defined(USE_VEC)
 #define REGION_SIZE 2

@@ -42,6 +42,11 @@ void initScratchpads() {
     // send the base addr of the scratchpad to the scratchpad
     // do this so that xcel sees this message and knows where its scratchpad is
     // *(spm_base_addr_ptr_arr[i]) = (uint64_t)(spm_base_ptr_arr[i]);
+
+    // // also set memory to zero
+    // for (int j = 0; j < SP_SIZE / sizeof(uint32_t); j++) {
+    //   *(uint32_t*)getSpAddr(i, j) = 0;
+    // }
   }
 #endif
 }

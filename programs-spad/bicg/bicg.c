@@ -10,6 +10,10 @@
 #include "group_templates.h"
 #include "bicg_kernel.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 /*
   big c
 */
@@ -25,14 +29,42 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
   int start = ((tid + 0) * NY) / dim;
   int end   = ((tid + 1) * NY) / dim;
 
+  #ifdef MANYCORE_PREFETCH
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+  #endif
 
   for (int j = start; j < end; j++) {
     // s[j] = 0.0f;
     DTYPE s_local = 0.0f;
 
-    #ifdef MANYCORE_PREFETCH
+    #ifdef PACKED_SIMD
+    int chunk = NX;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+
+      int base_i = NX - chunk;
+
+      // TODO should we try to do prefetching here??
+
+      // strided load
+      vfloat32m1_t va = vlse32_v_f32m1(&a[base_i * NY + j], NY * sizeof(float));
+
+      // can vectorize load to r
+      vfloat32m1_t vr = vle32_v_f32m1(&r[base_i]);
+
+      // multiple together
+      vfloat32m1_t vs = vfmul_vv_f32m1(va, vr);
+
+      // sum
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+      vs = vfredsum_vs_f32m1_f32m1(vs, vs, vzero);
+
+      // update the accumulation
+      float single_val = vfmv_f_s_f32m1_f32(vs);
+      s_local += single_val;
+    }
+    #elif defined(MANYCORE_PREFETCH)
     for (int i = 0; i < NX; i+=Q_PREFETCH_LEN) {
       prefetch_s_frame(a, r, i, j, &sp, NY);
 
@@ -68,14 +100,42 @@ void compute_q_manycore_baseline(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, i
   int start = ((tid + 0) * NX) / dim;
   int end   = ((tid + 1) * NX) / dim;
 
+  #ifdef MANYCORE_PREFETCH
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+  #endif
 
   for (int i = start; i < end; i++) {
     // q[i] = 0.0f;
     DTYPE q_local = 0.0f;
 
-    #ifdef MANYCORE_PREFETCH
+    #ifdef PACKED_SIMD
+    int chunk = NY;
+    for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+      l = vsetvl_e32m1(chunk);
+
+      int base_j = NY - chunk;
+
+      // TODO should we try to do prefetching here??
+
+      // can vectorize load to a
+      vfloat32m1_t va = vle32_v_f32m1(&a[i * NY + base_j]);
+
+      // can vectorize load to p
+      vfloat32m1_t vp = vle32_v_f32m1(&p[base_j]);
+
+      // multiple together
+      vfloat32m1_t vq = vfmul_vv_f32m1(va, vp);
+
+      // sum
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+      vq = vfredsum_vs_f32m1_f32m1(vq, vq, vzero);
+
+      // update the accumulation
+      float single_val = vfmv_f_s_f32m1_f32(vq);
+      q_local += single_val;
+    }
+    #elif defined(MANYCORE_PREFETCH)
     for (int j = 0; j < NY; j+=Q_PREFETCH_LEN) {
       prefetch_q_frame(a, p, i, j, &sp, NY);
 

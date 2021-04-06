@@ -2,11 +2,12 @@ BENCHNAME := conv2d
 default: $(BENCHNAME)
 
 # run small sim for test
-PROB_SIZE := 40
-N_SPS ?= 64
-EXTRA_FLAGS ?= -DMANYCORE_PREFETCH
-HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
-# GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Mesh
+PROB_SIZE := 64
+N_SPS ?= 16
+CL_LEN := 256
+EXTRA_FLAGS ?= -DMANYCORE_PREFETCH -DPER_CORE_SIMD -DCACHE_LINE_SIZE=$(CL_LEN)
+HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)" --cacheline_size=$(CL_LEN)
+# GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Frame
 
 # Build the kernel with trilliasm.
 TRILLIASM_KERNEL := conv2d_kernel.c

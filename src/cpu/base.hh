@@ -615,6 +615,16 @@ class BaseCPU : public ClockedObject
 
         return total;
     }
+  
+  protected:
+    // hardware vector length
+    unsigned hardwareVectorLength;
+
+  public:
+    // get the hardware vector length
+    unsigned getHardwareVectorLength() {
+      return hardwareVectorLength;
+    }
 
   public:
     // Number of CPU cycles simulated

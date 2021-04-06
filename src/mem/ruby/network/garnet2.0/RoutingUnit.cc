@@ -39,11 +39,15 @@
 #include "mem/ruby/network/garnet2.0/Router.hh"
 #include "mem/ruby/slicc_interface/Message.hh"
 
+#include "debug/Frame.hh"
+
 RoutingUnit::RoutingUnit(Router *router)
 {
     m_router = router;
     m_routing_table.clear();
-    m_weight_table.clear();
+    // m_weight_table.clear();
+    m_req_weight_table.clear();
+    m_resp_weight_table.clear();
 }
 
 void
@@ -55,7 +59,40 @@ RoutingUnit::addRoute(const NetDest& routing_table_entry)
 void
 RoutingUnit::addWeight(int link_weight)
 {
-    m_weight_table.push_back(link_weight);
+    // m_weight_table.push_back(link_weight);
+
+    // assume request path is specified, reverse for response path
+    // assumes other weights 1 or 2
+    m_req_weight_table.push_back(link_weight);
+    if (link_weight == 1)
+        link_weight = 2;
+    else if (link_weight == 2)
+        link_weight = 1;
+    else
+        fatal("Doesn't support weight %d must be 1 or 2\n", link_weight);
+    m_resp_weight_table.push_back(link_weight);
+
+    std::string str = "";
+
+
+    if(m_req_weight_table.size() == 6) {
+        for (int i = 0; i < m_req_weight_table.size(); i++) {
+            str += std::to_string(m_req_weight_table[i]) + " ";
+        }
+        DPRINTF(Frame, "req %s\n", str.c_str());
+    }
+    // if(m_resp_weight_table.size() == m_router->get_num_outports())DPRINTF(Frame, "resp %d %d %d %d\n", m_resp_weight_table[0], m_resp_weight_table[1], m_resp_weight_table[2], m_resp_weight_table[3]);
+
+    // DPRINTF(Frame, "%d\n", m_req_weight_table.size());
+
+}
+
+int
+RoutingUnit::getLinkWeight(int link, bool isReq) {
+    if (isReq)
+        return m_req_weight_table[link];
+    else
+        return m_resp_weight_table[link];
 }
 
 /*
@@ -66,7 +103,7 @@ RoutingUnit::addWeight(int link_weight)
  */
 
 int
-RoutingUnit::lookupRoutingTable(int vnet, NetDest msg_destination)
+RoutingUnit::lookupRoutingTable(int vnet, NetDest msg_destination, bool isReq)
 {
     // First find all possible output link candidates
     // For ordered vnet, just choose the first
@@ -84,8 +121,8 @@ RoutingUnit::lookupRoutingTable(int vnet, NetDest msg_destination)
     for (int link = 0; link < m_routing_table.size(); link++) {
         if (msg_destination.intersectionIsNotEmpty(m_routing_table[link])) {
 
-        if (m_weight_table[link] <= min_weight)
-            min_weight = m_weight_table[link];
+        if (getLinkWeight(link, isReq) <= min_weight)
+            min_weight = getLinkWeight(link, isReq);
         }
     }
 
@@ -93,7 +130,7 @@ RoutingUnit::lookupRoutingTable(int vnet, NetDest msg_destination)
     for (int link = 0; link < m_routing_table.size(); link++) {
         if (msg_destination.intersectionIsNotEmpty(m_routing_table[link])) {
 
-            if (m_weight_table[link] == min_weight) {
+            if (getLinkWeight(link, isReq) == min_weight) {
 
                 num_candidates++;
                 output_link_candidates.push_back(link);
@@ -147,7 +184,7 @@ RoutingUnit::outportCompute(RouteInfo route, int inport,
         // Multiple NIs may be connected to this router,
         // all with output port direction = "Local"
         // Get exact outport id from table
-        outport = lookupRoutingTable(route.vnet, route.net_dest);
+        outport = lookupRoutingTable(route.vnet, route.net_dest, route.req);
         return outport;
     }
 
@@ -158,14 +195,14 @@ RoutingUnit::outportCompute(RouteInfo route, int inport,
 
     switch (routing_algorithm) {
         case TABLE_:  outport =
-            lookupRoutingTable(route.vnet, route.net_dest); break;
+            lookupRoutingTable(route.vnet, route.net_dest, route.req); break;
         case XY_:     outport =
             outportComputeXY(route, inport, inport_dirn); break;
         // any custom algorithm
         case CUSTOM_: outport =
             outportComputeCustom(route, inport, inport_dirn); break;
         default: outport =
-            lookupRoutingTable(route.vnet, route.net_dest); break;
+            lookupRoutingTable(route.vnet, route.net_dest, route.req); break;
     }
 
     assert(outport != -1);

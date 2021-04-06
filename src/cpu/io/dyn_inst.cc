@@ -35,7 +35,8 @@ IODynInst::IODynInst(const StaticInstPtr& static_inst,
       replaced(false),
       cond_resolved(false),
       broadcast_val(0),
-      pred_at_issue(true)
+      pred_at_issue(true),
+      squash_if_squash_after(true)
 { 
       master_info.fill(0);
 
@@ -55,6 +56,15 @@ IODynInst::~IODynInst()
 Fault
 IODynInst::execute()
 {
+  // check if should squash after
+  // for vsetvli was squashing a lot b/c was every loop, but we only need
+  // to do so if it would change VLEN, which happens a minority of the time
+
+  // check in current context if will change state
+  // use sparingly b/c not super realistic call
+  // Needs to be computed before isSquashAfter() is called in the pipeline (just commit for now)
+  squash_if_squash_after = static_inst_p->willChangeState(this);
+
   this->fault = static_inst_p->execute(this, nullptr);
   return this->fault;
 }
@@ -69,6 +79,12 @@ Fault
 IODynInst::completeAcc(PacketPtr pkt)
 {
   return static_inst_p->completeAcc(pkt, this, nullptr);
+}
+
+std::vector<Addr>
+IODynInst::generateAddresses()
+{
+  return static_inst_p->generateAddresses(this);
 }
 
 bool

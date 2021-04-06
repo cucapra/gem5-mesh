@@ -10,6 +10,43 @@
 // checker from polybench. single core implementation
 #include <math.h>
 
+
+float absVal(float a)
+{
+	if(a < 0)
+	{
+		return (a * -1);
+	}
+   	else
+	{ 
+		return a;
+	}
+}
+
+
+#define SMALL_FLOAT_VAL 0.00000001f
+float percentDiff(float val1, float val2)
+{
+	if ((absVal(val1) < 0.01) && (absVal(val2) < 0.01))
+	{
+		return 0.0f;
+	}
+
+	else
+	{
+    		return 100.0f * (absVal(absVal(val1 - val2) / absVal(val1 + SMALL_FLOAT_VAL)));
+	}
+} 
+
+//define the error threshold for the results "not matching"
+#define PERCENT_DIFF_ERROR_THRESHOLD 0.05
+// ret 1 if fail
+// ret 0 if sucess
+int polybenchCompare(float val1, float val2) {
+  return (percentDiff(val1, val2) > PERCENT_DIFF_ERROR_THRESHOLD);
+}
+
+
 void gramschmidt(DTYPE* A, DTYPE* R, DTYPE* Q, int N, int M)
 {
 	int i,j,k;
@@ -169,7 +206,8 @@ int main(int argc, char *argv[]) {
     for (int i = 0; i < num_vectors; i++) {
       int idx = j * num_vectors + i;
       // if (!float_compare(a[idx], A_exp[idx], A_exp[idx] * 0.001f)) {
-      if (a[idx] != A_exp[idx]) {
+      if (polybenchCompare(a[idx], A_exp[idx])) {
+      // if (a[idx] != A_exp[idx]) {
         printf("vec %d element %d | %f != %f\n", i, j, a[idx], A_exp[idx]);
         printf("[[FAIL]]\n");
         return 1;

@@ -136,7 +136,12 @@ Commit::doCommit()
       // if this requires squash after commit, then do it here. 
       // don't wait for 1 cycle like trap case below
       if (head_inst->isSquashAfter()) {
-        initiateSquash(head_inst);
+        // In vector mode only allow squashes from devec
+        bool isVector = m_cpu_p->getEarlyVector()->isSlave();
+        if (isVector && !head_inst->isDevec())
+          DPRINTF(Mesh, "supress non-devec squash in vec mode %s\n", head_inst->toString(true));
+        else
+          initiateSquash(head_inst);
       }
 
     } else {

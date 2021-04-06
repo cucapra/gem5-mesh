@@ -13,6 +13,23 @@ void *getSpTop(int pad);
 size_t getSpadNumBytes();
 
 
+// moves top of stack onto scratchpad and adjust $sp to that location on spad
+// NOTE GCC10 produces literally incorrect code if do
+// asm volatile ( \
+// "addi %[dest], sp, 0\n\t" \
+// "addi sp, %[spad], 0\n\t" \
+// : [ dest ] "=r"(stackLoc) \
+// : [ spad ] "r"(spTop))
+// 
+// ->
+//  11948:	00010993          	mv	s3,sp
+//  1194c:	00098113          	mv	sp,s3
+//
+// should be more like
+//  11958:	00010b13          	mv	s6,sp
+//  1195c:	00050113          	mv	sp,a0
+// do weird sequence to resolve
+
 #define MOVE_STACK_ONTO_SCRATCHPAD()          \
   unsigned long long *spTop = getSpTop(ptid); \
   spTop -= 30;                                \
@@ -26,8 +43,9 @@ size_t getSpadNumBytes();
                 : [id] "i"(i*8), [spad] "r"(spTop) : "memory"); \
   }                                                   \
   asm volatile (                                      \
-      "addi %[dest], sp, 0\n\t"                       \
+      "addi t0, sp, 0\n\t"                            \
       "addi sp, %[spad], 0\n\t"                       \
+      "addi %[dest], t0, 0\n\t"                       \
       : [ dest ] "=r"(stackLoc)                       \
       : [ spad ] "r"(spTop))
 

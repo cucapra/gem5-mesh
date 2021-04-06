@@ -12,6 +12,10 @@
 
 #include "mvt_kernel.h"
 
+#ifdef PACKED_SIMD
+#include <riscv_vector.h>
+#endif
+
 #define STACK_COPY
 
 
@@ -35,6 +39,25 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, int st
         temp+= spAddr[sp_a_offset+jj]*spAddr[sp_y_offset+jj];
       }
       PF_END(NUM_REGIONS)
+      #elif defined(PACKED_SIMD)
+      int chunk = n;
+      for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+        l = vsetvl_e32m1(chunk);
+        int j = n - chunk;
+
+        vfloat32m1_t va = vle32_v_f32m1(&a[i*n+j]);
+        vfloat32m1_t vy1 = vle32_v_f32m1(&y1[j]);
+
+        vfloat32m1_t vay1 = vfmul_vv_f32m1(va, vy1);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vay1, vay1, vzero);
+
+        // update the accumulation
+        float single_val = vfmv_f_s_f32m1_f32(vs);
+        temp += single_val;
+      }
       #else
       #pragma GCC unroll(16)
       for(int j=0; j<n; j++){
@@ -50,6 +73,25 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, int st
         temp+=a[(j+jj)*n+i] * spAddr[sp_y_offset+jj];
       }
       PF_END(NUM_REGIONS)
+      #elif defined(PACKED_SIMD)
+      chunk = n;
+      for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
+        l = vsetvl_e32m1(chunk);
+        int j = n - chunk;
+
+        vfloat32m1_t va = vlse32_v_f32m1(&a[j*n+i], n * sizeof(float));
+        vfloat32m1_t vy2 = vle32_v_f32m1(&y2[j]);
+
+        vfloat32m1_t vay2 = vfmul_vv_f32m1(va, vy2);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vay2, vay2, vzero);
+
+        // update the accumulation
+        float single_val = vfmv_f_s_f32m1_f32(vs);
+        temp += single_val;
+      }
       #else
       #pragma GCC unroll(16)
       for(int j=0; j<n; j++){

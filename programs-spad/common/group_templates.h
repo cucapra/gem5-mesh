@@ -6,24 +6,96 @@
 // ---------------------------------------------------------------------------------------------------
 // structs to represent groups/set of gropus
 // ---------------------------------------------------------------------------------------------------
+#define MAX_TEMPLATE_GROUPS 8
+#define MAX_GROUP_AFFINITY 3
+
+typedef struct core_coord_t {
+  int x;
+  int y;
+} core_coord_t;
+
+inline core_coord_t init_core_coord(int x, int y) {
+  core_coord_t coords;
+  coords.x = x;
+  coords.y = y;
+  return coords;
+}
+
+inline int coords_eq(core_coord_t a, core_coord_t b) {
+  if (a.x == b.x && a.y == b.y)
+    return 1;
+  else
+    return 0;
+}
+
+inline int get_flat_coord(core_coord_t a, int minor_dim) {
+  return a.x + a.y * minor_dim;
+}
+
+inline core_coord_t coord_add(core_coord_t a, core_coord_t b) {
+  core_coord_t c;
+  c.x = a.x + b.x;
+  c.y = a.y + b.y;
+  return c;
+}
+
+inline core_coord_t coord_sub(core_coord_t a, core_coord_t b) {
+  core_coord_t c;
+  c.x = a.x - b.x;
+  c.y = a.y - b.y;
+  return c;
+}
+
+inline core_coord_t coord_mul(core_coord_t a, core_coord_t b) {
+  core_coord_t c;
+  c.x = a.x * b.x;
+  c.y = a.y * b.y;
+  return c ;
+}
+
+inline core_coord_t coord_div(core_coord_t a, core_coord_t b) {
+  core_coord_t c;
+  c.x = a.x / b.x;
+  c.y = a.y / b.y;
+  return c;
+}
+
+inline core_coord_t coord_mod(core_coord_t a, core_coord_t b) {
+  core_coord_t c;
+  c.x = a.x % b.x;
+  c.y = a.y % b.y;
+  return c;
+}
+
+inline int within_bounds(core_coord_t pt, core_coord_t lower, core_coord_t upper) {
+  if (pt.x >= lower.x && pt.x < upper.x && 
+    pt.y >= lower.y && pt.y < upper.y)
+    return 1;
+  else
+    return 0;
+}
 
 // information required to define a rectangular group
 typedef struct group_info_t {
-  int scalar_x;
-  int scalar_y;
-  int vector_start_x;
-  int vector_start_y;
-  int vector_dim_x;
-  int vector_dim_y;
+  core_coord_t scalar;
+  core_coord_t vector_start;
+  core_coord_t vector_dim;
 } group_info_t;
 
+// information for extra core available to groups
+typedef struct extra_core_info_t {
+  core_coord_t coord;
+  // preferred vector groups to work with
+  int group_affinity[MAX_GROUP_AFFINITY];
+} extra_core_info_t;
+
 // information about a template that can "stamped" multiple times over a larger mesh
-#define MAX_TEMPLATE_GROUPS 8
 typedef struct template_info_t {
   int num_groups_in_template;
-  int template_dim_x;
-  int template_dim_y;
+  int num_extra_in_template;
+  core_coord_t template_dim;
   group_info_t groups[MAX_TEMPLATE_GROUPS];
+  extra_core_info_t extra[MAX_TEMPLATE_GROUPS];
 } template_info_t;
 
 // group constructor
@@ -40,22 +112,25 @@ void get_template_offset(int group_id, template_info_t *tinfo, int *offset_x, in
 typedef struct core_config_info_t {
   // whether this core is used or not
   int used;
-  // virtual tid and dimensions within the gorup
-  int vtid;
-  int vtid_x;
-  int vtid_y;
-  int vdim_x;
-  int vdim_y;
+  // virtual tid and dimensions within the group
+  int vtid_flat;
+  core_coord_t vtid;
+  core_coord_t vdim;
   // whether this is a scalar core
   int is_scalar;
   // pointers to scalar core and first vector core
-  int orig_x;
-  int orig_y;
-  int master_x;
-  int master_y;
+  core_coord_t orig;
+  core_coord_t master;
   // info about which group this is relative to all vector groups
   int unique_id;
   int total_groups;
+  // pointers to core used for software pipelining
+  int num_next_cores;
+  int num_prev_cores;
+  // which core in software link you are (may or may not be the same as unique id)
+  int link_id[MAX_GROUP_AFFINITY];
+  int next_cores[MAX_GROUP_AFFINITY];
+  int prev_cores[MAX_GROUP_AFFINITY];
 } core_config_info_t;
 
 void reset_core_config_info(core_config_info_t *cinfo);
@@ -79,20 +154,17 @@ template_info_t init_template_debug();
 
 // design a rectangular vector group with an attached scalar core
 inline void rect_vector_group(
-    int group_id, int scalar_x, int scalar_y, int vector_start_x, int vector_start_y, int vector_dim_x, int vector_dim_y, int id_x, int id_y,
+    int group_id, core_coord_t scalar, core_coord_t vector_start, core_coord_t vector_dim, core_coord_t id,
     core_config_info_t *info) {
   
-  int vector_end_x = vector_start_x + vector_dim_x;
-  int vector_end_y = vector_start_y + vector_dim_y;
+  core_coord_t vector_end = coord_add(vector_start, vector_dim);
 
-  int is_vector_group = id_x >= vector_start_x && id_x < vector_end_x && 
-    id_y >= vector_start_y && id_y < vector_end_y;
+  int is_vector_group = within_bounds(id, vector_start, vector_end);
 
-  int is_scalar_group = id_x == scalar_x && id_y == scalar_y;
+  int is_scalar_group = coords_eq(id, scalar);
   if (is_vector_group) {
-    info->vtid_x = id_x - vector_start_x;
-    info->vtid_y = id_y - vector_start_y;
-    info->vtid   = info->vtid_x + info->vtid_y * vector_dim_x;
+    info->vtid      = coord_sub(id, vector_start);
+    info->vtid_flat = get_flat_coord(info->vtid, vector_dim.x);
   }
   if (is_scalar_group) {
     info->is_scalar = 1;
@@ -100,15 +172,64 @@ inline void rect_vector_group(
   if (is_vector_group || is_scalar_group) {
     // *start = roundUp((chunk_offset + group_num + 0) * n / vGroups, alignment);
     // *end   = roundUp((chunk_offset + group_num + 1) * n / vGroups, alignment); // make sure aligned to cacheline 
-    info->orig_x = vector_start_x;
-    info->orig_y = vector_start_y;
-    info->master_x = scalar_x;
-    info->master_y = scalar_y;
+    info->orig = vector_start;
+    info->master = scalar;
     info->used = 1;
     info->unique_id = group_id;
-    info->vdim_x = vector_dim_x;
-    info->vdim_y = vector_dim_y;
+    info->vdim = vector_dim;
   }
+}
+
+inline void setup_software_pipeline(
+    template_info_t *tinfo, core_coord_t template_id, core_coord_t template_shift, int template_offset, int meshdim_x,
+    core_config_info_t *cinfo) {
+  // determine which cores can be used for software pipelining
+  int num_extra_in_template = tinfo->num_extra_in_template;
+  int is_extra_core = 0;
+  int extra_core_id = -1;
+  for (int i = 0; i < num_extra_in_template; i++) {
+    if (coords_eq(template_id, tinfo->extra[i].coord)) {
+      is_extra_core = 1;
+      extra_core_id = i;
+    }
+  }
+  
+  // if extra core find id that should wait for
+  if (is_extra_core) {
+    cinfo->num_prev_cores = 0;
+    cinfo->num_next_cores = 0;
+    // log all scalar cores with affinity
+    for (int i = 0; i < MAX_GROUP_AFFINITY; i++) {
+      int groupAffinity = tinfo->extra[extra_core_id].group_affinity[i];
+      if (groupAffinity >= 0) {
+        // add and shift to template offset (and flatten)
+        core_coord_t abs_coord = coord_add(tinfo->groups[groupAffinity].scalar, template_shift);
+        cinfo->prev_cores[cinfo->num_prev_cores] = get_flat_coord(abs_coord, meshdim_x);
+
+        // set link id to group we're associate with
+        cinfo->link_id[cinfo->num_prev_cores] = groupAffinity + template_offset;
+
+        cinfo->num_prev_cores++;
+      }
+    }
+  }
+  // otherwise find scalar core that should send to
+  else {
+    cinfo->num_next_cores = 1;
+    cinfo->num_prev_cores = 0;
+    // based on group affinity assign link
+    for (int i = 0; i < tinfo->num_extra_in_template; i++) {
+      for (int j = 0; j < MAX_GROUP_AFFINITY; j++) {
+        if (cinfo->unique_id == tinfo->extra[i].group_affinity[j]) {
+          core_coord_t abs_coord = coord_add(tinfo->extra[i].coord, template_shift);
+          cinfo->next_cores[0] = get_flat_coord(abs_coord, meshdim_x);
+          cinfo->link_id[0] = j;
+        }
+      }
+    }
+  }
+
+
 }
 
 // for parity make a manycore config as well
@@ -121,14 +242,11 @@ inline core_config_info_t manycore_template(
   reset_core_config_info(&cinfo);
 
   cinfo.is_scalar = 0;
-  cinfo.vtid = 0;
-  cinfo.vtid_x = 0;
-  cinfo.vtid_y = 0;
-  cinfo.vdim_x = 1;
-  cinfo.vdim_y = 1;
+  cinfo.vtid_flat = 0;
+  cinfo.vtid = init_core_coord(0, 0);
+  cinfo.vdim = init_core_coord(1, 1);
   cinfo.used = 1;
-  cinfo.orig_x = ptid_x;
-  cinfo.orig_y = ptid_y;
+  cinfo.orig = init_core_coord(ptid_x, ptid_y);
   cinfo.unique_id = ptid_x + ptid_y * pdim_x;
   cinfo.total_groups = pdim_x * pdim_y;
 
@@ -148,105 +266,103 @@ inline core_config_info_t vector_group_template(
   cinfo.used = 0;
 
   // recover trivial fields
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
+  // int ptid_flat = ptid_x + ptid_y * pdim_x;
+  // int pdim_flat = pdim_x * pdim_y;
+
+  core_coord_t ptid = init_core_coord(ptid_x, ptid_y);
+  core_coord_t pdim = init_core_coord(pdim_x, pdim_y);
 
   // figure out how many times we need to stamp this template
-  int template_dim_x = tinfo->template_dim_x;
-  int template_dim_y = tinfo->template_dim_y;
-  int template_dim = template_dim_x * template_dim_y;
-  int template_id_x = ptid_x % template_dim_x;
-  int template_id_y = ptid_y % template_dim_y;
-  int template_id = template_id_x + template_id_y * template_dim_x;
+  core_coord_t template_dim = tinfo->template_dim;
+  core_coord_t template_id = coord_mod(ptid, template_dim);
 
   // which group it belongs to for absolute core coordinates
-  int template_group_x = ptid_x / template_dim_x;
-  int template_group_y = ptid_y / template_dim_y;
-  int template_group_dim_x = pdim_x / template_dim_x;
-  int template_group_dim_y = pdim_y / template_dim_y;
-  int template_group_dim = template_group_dim_x * template_group_dim_y;
-  int template_group = template_group_x + template_group_y * template_group_dim_x;
+  core_coord_t template_group = coord_div(ptid, template_dim);
+  core_coord_t template_group_dim = coord_div(pdim, template_dim);
+  int template_group_dim_flat = template_group_dim.x * template_group_dim.y;
+  int template_group_flat = get_flat_coord(template_group, template_group_dim.x);
+  core_coord_t template_shift = coord_mul(template_group, template_dim);
 
   // used to determine a unique group id
   int groups_per_template = tinfo->num_groups_in_template;
-  cinfo.total_groups = groups_per_template * template_group_dim;
+  cinfo.total_groups = groups_per_template * template_group_dim_flat;
 
-  int template_offset = template_group * groups_per_template;
+  int template_offset = template_group_flat * groups_per_template;
 
   // figure out the configurations for core within the groups
   for (int i = 0; i < groups_per_template; i++) {
     group_info_t ginfo = get_group_info(i, tinfo);
-    rect_vector_group(i, ginfo.scalar_x, ginfo.scalar_y, ginfo.vector_start_x, ginfo.vector_start_y,
-      ginfo.vector_dim_x, ginfo.vector_dim_y, template_id_x, template_id_y,
-      &cinfo);
+    rect_vector_group(i, ginfo.scalar, ginfo.vector_start,
+      ginfo.vector_dim, template_id, &cinfo);
   }
+
+  // setup links for a potential software pipeline
+  setup_software_pipeline(tinfo, template_id, template_shift, template_offset, pdim_x, &cinfo);
 
   cinfo.unique_id += template_offset;
 
   // need to shift the absolute coordinates based on which group this is for
-  cinfo.orig_x   = cinfo.orig_x + template_group_x * template_dim_x;
-  cinfo.orig_y   = cinfo.orig_y + template_group_y * template_dim_y;
-  cinfo.master_x = cinfo.master_x + template_group_x * template_dim_x;
-  cinfo.master_y = cinfo.master_y + template_group_y * template_dim_y;
+  cinfo.orig = coord_add(cinfo.orig, template_shift);
+  cinfo.master = coord_add(cinfo.master, template_shift);
 
   return cinfo;
   
 }
 
 
-// if don't inline then need to copy stack pointer up to addr 88, which too lazy to do atm
-// create a template for a vlen=4 config that can copy and paste multiple times on a large mesh
-// ret whether core used in template
-inline int vector_group_template_4(
-    // inputs
-    int ptid_x, int ptid_y, int pdim_x, int pdim_y,
-    // outputs
-    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
-    int *unique_id, int *total_groups
-  ) {
-  // printf("DEPRECATED use of vector_group_template_4() use vector_group_template()\n");
-  template_info_t tinfo = init_template_4x4_2x2();
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
+// // if don't inline then need to copy stack pointer up to addr 88, which too lazy to do atm
+// // create a template for a vlen=4 config that can copy and paste multiple times on a large mesh
+// // ret whether core used in template
+// inline int vector_group_template_4(
+//     // inputs
+//     int ptid_x, int ptid_y, int pdim_x, int pdim_y,
+//     // outputs
+//     int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
+//     int *unique_id, int *total_groups
+//   ) {
+//   // printf("DEPRECATED use of vector_group_template_4() use vector_group_template()\n");
+//   template_info_t tinfo = init_template_4x4_2x2();
+//   core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
-  *vtid = cinfo.vtid;
-  *vtid_x = cinfo.vtid_x;
-  *vtid_y = cinfo.vtid_y;
-  *is_scalar = cinfo.is_scalar;
-  *orig_x = cinfo.orig_x;
-  *orig_y = cinfo.orig_y;
-  *master_x = cinfo.master_x;
-  *master_y = cinfo.master_y;
-  *unique_id = cinfo.unique_id;
-  *total_groups = cinfo.total_groups;
+//   *vtid = cinfo.vtid;
+//   *vtid_x = cinfo.vtid_x;
+//   *vtid_y = cinfo.vtid_y;
+//   *is_scalar = cinfo.is_scalar;
+//   *orig_x = cinfo.orig_x;
+//   *orig_y = cinfo.orig_y;
+//   *master_x = cinfo.master_x;
+//   *master_y = cinfo.master_y;
+//   *unique_id = cinfo.unique_id;
+//   *total_groups = cinfo.total_groups;
 
-  return cinfo.used;
+//   return cinfo.used;
   
-}
+// }
 
-inline int vector_group_template_16(
-    // inputs
-    int ptid_x, int ptid_y, int pdim_x, int pdim_y,
-    // outputs
-    int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
-    int *unique_id, int *total_groups
-  ) {
-  // printf("DEPRECATED use of vector_group_template_16() use vector_group_template()\n");
-  template_info_t tinfo = init_template_8x8_4x4();
-  core_config_info_t cinfo =  vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
+// inline int vector_group_template_16(
+//     // inputs
+//     int ptid_x, int ptid_y, int pdim_x, int pdim_y,
+//     // outputs
+//     int *vtid, int *vtid_x, int *vtid_y, int *is_scalar, int *orig_x, int *orig_y, int *master_x, int *master_y,
+//     int *unique_id, int *total_groups
+//   ) {
+//   // printf("DEPRECATED use of vector_group_template_16() use vector_group_template()\n");
+//   template_info_t tinfo = init_template_8x8_4x4();
+//   core_config_info_t cinfo =  vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
   
-  *vtid = cinfo.vtid;
-  *vtid_x = cinfo.vtid_x;
-  *vtid_y = cinfo.vtid_y;
-  *is_scalar = cinfo.is_scalar;
-  *orig_x = cinfo.orig_x;
-  *orig_y = cinfo.orig_y;
-  *master_x = cinfo.master_x;
-  *master_y = cinfo.master_y;
-  *unique_id = cinfo.unique_id;
-  *total_groups = cinfo.total_groups;
+//   *vtid = cinfo.vtid;
+//   *vtid_x = cinfo.vtid_x;
+//   *vtid_y = cinfo.vtid_y;
+//   *is_scalar = cinfo.is_scalar;
+//   *orig_x = cinfo.orig_x;
+//   *orig_y = cinfo.orig_y;
+//   *master_x = cinfo.master_x;
+//   *master_y = cinfo.master_y;
+//   *unique_id = cinfo.unique_id;
+//   *total_groups = cinfo.total_groups;
 
-  return cinfo.used;
-}
+//   return cinfo.used;
+// }
 
 // ---------------------------------------------------------------------------------------------------
 // helper to figure out where cores in other vector groups are
@@ -255,15 +371,16 @@ inline int vector_group_template_16(
 // TODO need to define this for every group size
 void group_id_to_origin(template_info_t *tinfo, int group_id, int *x, int *y);
 
+void group_id_to_scalar(template_info_t *tinfo, int group_id, int *x, int *y);
+
 int get_ptid_from_group(template_info_t *tinfo, int group_id, int vid_x, int vid_y, int phys_dim_x);
 
-
 inline int get_vtid(core_config_info_t *cinfo) {
-  return cinfo->vtid_x + cinfo->vtid_y * cinfo->vdim_x;
+  return get_flat_coord(cinfo->vtid, cinfo->vdim.x);
 }
 
 inline int get_vdim(core_config_info_t *cinfo) {
-  return cinfo->vdim_x * cinfo->vdim_y;
+  return cinfo->vdim.x * cinfo->vdim.y;
 }
 
 #endif

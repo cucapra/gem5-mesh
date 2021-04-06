@@ -5,23 +5,12 @@
 #include "3mm.h"
 #include "spad.h"
 #include "bind_defs.h"
-#include "token_queue.h"
 #include "group_templates.h"
-#include "reduction.h"
 #include "util.h"
 
 #include "gemm.h"
 #include "gemm_kernel.h"
 
-void transpose(DTYPE *a, int row, int col, DTYPE *aT){
-
-  for(int i=0; i<row; i++){
-    for(int j=i; j<col; j++){
-      aT[i*col+j] = a[j*row+i];
-      aT[j*row+i] = a[i*col+j];
-    }
-  }
-}
 
 void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int pdim){
 
@@ -30,7 +19,8 @@ void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int
 
   for(int i=start; i<end; i++){
     for(int j=0; j<a_row; j++){
-      aT[i*a_row+j] = a[j*a_col+i];
+      // aT[i*a_row+j] = a[j*a_col+i];
+      FSTORE_NOACK(a[j*a_col+i], &aT[i*a_row+j], 0);
     }
   }
 
@@ -46,45 +36,30 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *cT, DTYPE 
     stats_on();
   }
 
-  // linearize tid and dim
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
   int m_start = 0;
   int m_end = m;
   int n_start = 0;
   int n_end = n;
-  int vdim;
-  template_info_t tinfo;
+
+  #ifdef _VEC
+  #if VECTOR_LEN==4
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
+  #elif VECTOR_LEN==16
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
+  #endif
+  #else
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
+
+  //do work division here
+  m_start  = ptid_y * BLK_DIM;
+  n_start  = ptid_x * BLK_DIM;
+
+  #endif
 
   transpose_manycore(a,m,t1,aT,ptid,pdim);
   a=aT;
   transpose_manycore(c,k,t2,cT,ptid,pdim);
   c=cT;
-
-  #ifdef _VEC
-  #if VEC_LEN==4
-  tinfo = init_template_4x4_2x2();
-  #elif VEC_LEN==16
-  tinfo = init_template_8x8_4x4();
-  #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
-  vdim = cinfo.vdim_x*cinfo.vdim_y;
-  #else
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
-
-  //do work division here
-  m_start  = ptid_y * BLK_DIM;
-  n_start  = ptid_x * BLK_DIM;
-  #endif
-
-  // get behavior of each core
-  #ifdef _VEC
-  int mask = getSIMDMask(&cinfo);
-  #elif defined MANYCORE_PREFETCH
-  int mask = getDebugMask(&cinfo);
-  #else
-  int mask = 0;
-  #endif
 
 
   // move stack onto scratchpad for faster local access than default on DRAM
@@ -117,13 +92,14 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *cT, DTYPE 
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   // E = A(m,t1).B(t1,k)
   WORK_DIV(m,k)
-  if(cinfo.used) {
+  if(used) {
     // //do work division here
     // int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
     // m_start = roundUp((cinfo.unique_id + 0) * m / cinfo.total_groups, alignment); 
     // m_end = roundUp((cinfo.unique_id + 1) * m / cinfo.total_groups, alignment);
 
-    tril_gemm_vec(mask, a, b, e, m, k, t1, m_start, m_end, n_start, n_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
+    tril_gemm_vec(mask, a, b, e, m, k, t1, m_start, m_end, n_start, n_end, 
+      vtid_x, vtid_y, vtid, ptid);
   }
 
   // if(ptid==0)printf("Done 1MM\n");
@@ -131,13 +107,14 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *cT, DTYPE 
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   // F = C(k,t2).D(t2,n)
   WORK_DIV(k,n)
-  if(cinfo.used) {
+  if(used) {
     //do work division here
     // int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
     // m_start = roundUp((cinfo.unique_id + 0) * k / cinfo.total_groups, alignment); 
     // m_end = roundUp((cinfo.unique_id + 1) * k / cinfo.total_groups, alignment);
     
-    tril_gemm_vec(mask, c, d, f, k, n, t2, m_start, m_end, n_start, n_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
+    tril_gemm_vec(mask, c, d, f, k, n, t2, m_start, m_end, n_start, n_end, 
+      vtid_x, vtid_y, vtid, ptid);
   }
   // if(ptid==0)printf("Done 2MM\n");
   pthread_barrier_wait(&start_barrier);
@@ -149,25 +126,24 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *cT, DTYPE 
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   // G = E(m,k).F(k,n)
   WORK_DIV(m,n)
-  if(cinfo.used) {
+  if(used) {
     //do work division here
     // int alignment = BLK_DIM * cinfo.vdim_x; //each group should have elements of multiple of this number
     // m_start = roundUp((cinfo.unique_id + 0) * m / cinfo.total_groups, alignment); 
     // m_end = roundUp((cinfo.unique_id + 1) * m / cinfo.total_groups, alignment);
     
-    tril_gemm_vec(mask, eT, f, g, m, n, k, m_start, m_end, n_start, n_end, cinfo.vtid_x, cinfo.vtid_y, cinfo.vtid, ptid);
+    tril_gemm_vec(mask, eT, f, g, m, n, k, m_start, m_end, n_start, n_end, 
+      vtid_x, vtid_y, vtid, ptid);
   }
   // if(ptid==0)printf("Done 3MM\n");
 #elif defined MANYCORE_PREFETCH
 
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
-  VECTOR_EPOCH(mask);
   // E = A(m,t1).B(t1,k)
   gemm_manycore(a, b, e, m, k, t1, m_start, n_start, ptid, pdim_x, pdim_y);
   
 
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
-  VECTOR_EPOCH(mask);
   // F = C(k,t2).D(t2,n)
   gemm_manycore(c, d, f, k, n, t2, m_start, n_start, ptid, pdim_x, pdim_y);
 
@@ -177,7 +153,6 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *cT, DTYPE 
   transpose_manycore(e,m,k,eT,ptid,pdim);
 
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
-  VECTOR_EPOCH(mask);
   // G = E(m,k).F(k,n)
   gemm_manycore(eT, f, g, m, n, k, m_start, n_start, ptid, pdim_x, pdim_y);
 

@@ -1,21 +1,49 @@
 '''
   Sim configurations
 '''
+from copy import deepcopy
 
 # helper set of vec configs you can use in a benchmark (assuming it supports)
-ALL_CONFIGS = ['NO_VEC', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
-ALL_NEIL_CONFIGS = ['NO_VEC', 'VEC_LEN=4', 'VEC_LEN=16', [ 'NO_VEC', 'MANYCORE_PREFETCH' ]]
-INIT0_CONFIGS = [ [ 'VEC_4_SIMD', 'INIT_FRAMES=0' ] ]
-INIT0_NEIL_CONFIGS = [ [ 'VEC_LEN=4', 'INIT_FRAMES=0' ] ]
+ALL_CONFIGS = ['NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
 
+# TODO hardware opts should automatically determine cache line size
+# b/c wnat to do vec 4 with 256. might be more natural
+HW_OPTS = [
+  '--net-width=1', 
+  # '--net-width=2', 
+  # '--net-width=4',
+  # '--net-width=16'
+  ]
+# HW_OPTS = ['']
+ALL_CONFIGS = [
+  ['VECTOR_LEN=16', 'LONGLINES', 'CACHE_LINE_SIZE=1024'],
+  ['VECTOR_LEN=4', 'LONGLINES', 'CACHE_LINE_SIZE=256'],
+  ['VECTOR_LEN=4'],
+  ['VECTOR_LEN=16'],
+  ['VECTOR_LEN=4', 'PER_CORE_SIMD'],
+  ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
+  [ 'NO_VEC', 'MANYCORE_PREFETCH' ],
+  ['PER_CORE_SIMD', 'MANYCORE_PREFETCH'],
+  ['PER_CORE_SIMD'],
+  ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
+  ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=256'],
+  ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
+  ['VECTOR_LEN=4', 'PER_CORE_SIMD'],
+  ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
+  'NO_VEC',
+  ]
+
+# ALL_CONFIGS = ['VEC_16_SIMD', ['VEC_16_SIMD', 'INIT_FRAMES=5'], 'VEC_4_SIMD', ['VEC_4_SIMD', 'INIT_FRAMES=5'], 'PACKED_SIMD']
+INIT0_CONFIGS = []
 
 # choose which programs to run via script and with what configs
 sim_configs = {
   # Test programs, not actual benchmarks
 
   # 'vvadd': {
-  #   'vec'  : ALL_CONFIGS,
-  #   'argv' : ['131072'] # ['1024']
+  #   'vec'  : [['VEC_16_SIMD_BIGBOI', 'CACHE_LINE_SIZE=1024'], ['VEC_16_SIMD_VERTICAL', 'CACHE_LINE_SIZE=64'], ['NO_VEC']],
+  #   'argv' : ['1048576'], # ['1024']
+  #   'hw_opts' : HW_OPTS
   # },
   # 'stencil': {
   #   'vec'  : ['VEC_4_SIMD'],
@@ -24,78 +52,148 @@ sim_configs = {
 
   # Benchmarks
 
-  'bicg'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['2048']
-  },
-  'gram'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['320']
-  },
+  # 'bicg'   : {
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+  #   'argv' : ['2048'],
+  #   'hw_opts' : HW_OPTS
+  # },
+  # 'gram'   : {
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+  #   'argv' : ['320'],
+  #   'hw_opts' : HW_OPTS
+  # },
   'syrk'   : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256']
+    'argv' : ['256'],
+    'hw_opts' : HW_OPTS
   },
   'syr2k'  : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256']
+    'argv' : ['256'],
+    'hw_opts' : HW_OPTS
   },
   'covar'   : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['512']
+    'argv' : ['512'],
+    'hw_opts' : HW_OPTS
   },
   'conv2d' : {
-    'vec'  : [ 'NO_VEC', 'VEC_4_SIMD_VERTICAL', 'VEC_16_SIMD_VERTICAL', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], ['VEC_4_SIMD_VERTICAL', 'INIT_FRAMES=0' ] ],
-    'argv' : ['2048']
-  },
-  'conv3d' : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256']
+    'argv' : ['2048'],
+    'hw_opts' : HW_OPTS
   },
+  # 'conv3d' : {
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+  #   'argv' : ['256'],
+  #   'hw_opts' : HW_OPTS
+  # },
   'fdtd' : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['512', '30']
+    'argv' : ['512', '30'],
+    'hw_opts' : HW_OPTS
   },
 
-  'atax'   : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['2048'] # ['128']
-  },
-  'mvt'    : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['4096'] # ['128']
-  },
-  'gemm'   : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['256'] #['64']
-  },
+  # 'atax'   : {
+  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'argv' : ['2048'], # ['128']
+  #   'hw_opts' : HW_OPTS
+  # },
+  # 'mvt'    : {
+  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'argv' : ['4096'], # ['128']
+  #   'hw_opts' : HW_OPTS
+  # },
+  # 'gemm'   : {
+  #   'vec'  : ['NO_VEC', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], 'VEC_LEN=4', 'VEC_LEN=16', ['NESTED_SIMD', 'VEC_LEN=4'], ['NESTED_SIMD', 'VEC_LEN=16']],
+  #   'argv' : ['256'], #['64']
+  #   'hw_opts' : HW_OPTS
+  # },
   'gesummv'   : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['4096'] #['128'] 
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['4096'], #['128']
+    'hw_opts' : HW_OPTS 
   },
-  'corr'   : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['512'] #['64']
-  },
-  '2mm' : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['256'] #['64']
-  },
-  '3mm' : {
-    'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-    'argv' : ['256'] #['32']
-  },
+  # 'corr'   : {
+  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'argv' : ['512'], #['64']
+  #   'hw_opts' : HW_OPTS
+  # },
+  # '2mm' : {
+  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'argv' : ['256'], #['64']
+  #   'hw_opts' : HW_OPTS
+  # },
+  # '3mm' : {
+  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'argv' : ['256'], #['32']
+  #   'hw_opts' : HW_OPTS
+  # },
 
 }
 
 
+def string_to_cacheline_arg(a):
+  if (a[0:16] == 'CACHE_LINE_SIZE='):
+    return int(a[16:len(a)])
+  elif (a[0:16] == 'CACHE_LINE_SIZE_'):
+    return int(a[16:len(a)])
+  else:
+    return -1
 
+def string_to_hwvlen_arg(a):
+  if (a[0:20] == 'HARDWARE_VECTOR_LEN='):
+    return int(a[20:len(a)])
+  elif (a[0:20] == 'HARDWARE_VECTOR_LEN_'):
+    return int(a[20:len(a)])
+  else:
+    return -1
+
+# find an appropriate hardware cachelines size
+# if cant find defined in software, then default to 64 
+def get_cacheline_opt(args):
+  found = False
+  if (isinstance(args, list)):
+    for a in args:
+      cl_sw_size = string_to_cacheline_arg(a)
+      if (cl_sw_size > 0):
+        cl_hw_size = cl_sw_size
+        found = True
+  else:
+    cl_sw_size = string_to_cacheline_arg(args)
+    if (cl_sw_size > 0):
+      cl_hw_size = cl_sw_size
+      found = True
+
+  if (found):
+    return '--cacheline_size=' + str(cl_hw_size)
+  else:
+    return ''
+
+def get_hardware_vlen(args):
+  found = False
+  if (isinstance(args, list)):
+    for a in args:
+      vl_sw_size = string_to_hwvlen_arg(a)
+      if (vl_sw_size > 0):
+        vl_hw_size = vl_sw_size
+        found = True
+  else:
+    vl_sw_size = string_to_hwvlen_arg(args)
+    if (vl_sw_size > 0):
+      vl_hw_size = vl_sw_size
+      found = True
+  
+  if (found):
+    return '--hw-vlen=' + str(vl_hw_size)
+  else:
+    return ''
 
 # make a shorthand to represent the config output name
+# note replace '=' with '_' because converted when called
 def abbreviate_config(config):
-  if (config == 'VEC_4_SIMD' or config == 'VEC_LEN=4'):
+  if (config == 'VEC_4_SIMD' or config == 'VEC_LEN_4' or config == 'VECTOR_LEN_4' ):
     return 'V4'
-  elif (config == 'VEC_16_SIMD' or config == 'VEC_LEN=16'):
+  elif (config == 'VEC_16_SIMD' or config == 'VEC_LEN_16' or config == 'VECTOR_LEN_16' ):
     return 'V16'
   elif (config == 'NO_VEC'):
     return 'NV'
@@ -103,12 +201,20 @@ def abbreviate_config(config):
     return 'R'
   elif (config == 'MANYCORE_PREFETCH'):
     return 'PF'
-  elif (config == 'INIT_FRAMES=0'):
+  elif (config == 'INIT_FRAMES_0'):
     return 'I0'
+  elif (config == 'LONGLINES'):
+    return 'LL'
+  elif (config == 'PER_CORE_SIMD'):
+    return 'PCV'
+  elif (config == 'CACHE_LINE_SIZE_1024'):
+    return 'CL1024'
+  elif (config == 'CACHE_LINE_SIZE_256'):
+    return 'CL256'
   elif (config[0:11] == 'VECTOR_LEN='):
-    return a[11:len(a)]
+    return config[11:len(config)]
   elif (config[0:3] == 'PF='):
-    return a[3:len(a)]
+    return config[3:len(config)]
   else:
     return config
 
@@ -122,7 +228,49 @@ def strings_to_make_args(args):
     cmd_line += '\''
   else:
     cmd_line += '-D' + args + '\''
+
+  # DONE in makefile currently
+  # # add which compiler to use
+  # uses_tril_vec = False
+  # if (isinstance(args, list)):
+  #   for a in args:
+  #     if (is_tril_vec_config(a)):
+  #       uses_tril_vec = True
+  # else:
+  #   if (is_tril_vec_config(args)):
+  #     uses_tril_vec = True
+
+  # if (uses_tril_vec):
+  #   cmd_line += ' ENV_GCC_VER=8'
+  # else:
+  #   cmd_line += ' ENV_GCC_VER=10'
+
   return cmd_line
+
+# remove dashes from hardware args so annoation is nicer to read and parse
+# then call strings_to_metadata after transformation
+def preprocess_metadata(arg):
+  out_str = ''
+  for l in arg:
+    # swap - and = with _
+    if (l == '-' or l == '=' or l == ' '):
+      next_char = '_'
+    else:
+      next_char = l
+    out_str += next_char
+  return out_str
+
+# turn hardware config command line into part of run annoation
+# similar to strings_to_metadata() but first does some processing on format
+def preprocess_and_convert_to_metadata(args):
+  converted_args = deepcopy(args)
+  if (isinstance(args, list)):
+    for i in range(0, len(converted_args)):
+      converted_args[i] = preprocess_metadata(converted_args[i])
+  else:
+    converted_args = preprocess_metadata(converted_args)
+
+  return strings_to_metadata(converted_args)
 
 # turn config into metadata to make which run was used
 def strings_to_metadata(args):
@@ -139,7 +287,7 @@ def strings_to_metadata(args):
   return meta
 
 def get_binary_name(prog_key, vec_config):
-  return prog_key + '_' + strings_to_metadata(vec_config)
+  return prog_key + '_' + preprocess_and_convert_to_metadata(vec_config)
 
 
 # specify programs. with the path to the program, the executible name, the default options, and string to check to see if successful (opt)

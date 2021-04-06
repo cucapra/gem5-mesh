@@ -15,6 +15,9 @@
 // macro args
 #define COMMA ,
 
+#define FENCE() \
+  asm volatile("fence\n\t" ::: "memory")
+
 // https://forums.sifive.com/t/confusion-regarding-freedom-e-sdk-inline-asm/383
 // # is stringify, 'reg' must be explictliy written out
 // 'val' must be defined at compile time
@@ -55,7 +58,7 @@
   asm volatile (".insn i 0x1b, 0x3, x0, x0, 0\n\t"::: "memory")
 
 #define FRAME_START(count)                                                     \
-  START_FRAME()
+  asm volatile (".insn i 0x1b, 0x3, x0, %[cnt], 0\n\t":: [cnt] "r" (count) : "memory")
 
   // asm volatile (".insn i 0x1b, 0x3, x0, %[src0], 0\n\t":: [src0] "r" (count) : "memory")
 
@@ -109,8 +112,12 @@
   else
 
 // config defs for prefetch. horizontal or vertical prefetching
-#define HORIZONTAL 0
-#define VERTICAL   1
+// #define HORIZONTAL 0
+// #define VERTICAL   1
+
+#define TO_ONE_CORE 0
+#define TO_ALL_CORES 1
+#define TO_SELF 2
 
 // set mask and do barrier because need to wait for all cores to be on same page about frame size
 // CSR writes in gem5 require the data to have changed for some reason, so need to switch to 0 before updating
@@ -132,33 +139,80 @@
 //   asm volatile (".insn sb 0x23, 0x4, %[spad], %[off](%[mem])\n\t" :: \
 //     [spad] "r" (spadAddr), [mem] "r" (memAddr), [off] "i" ((group_start << 6) | (group_end - group_start)))
 
-#define VPREFETCH_L(spadOffset, memAddr, coreOffset, count, config)   \
-  asm volatile (".insn sb 0x23, 0x6, %[spad], %[off](%[mem])\n\t" ::  \
-    [spad] "r" ((coreOffset << 12) | spadOffset),                     \
-    [mem] "r" (memAddr),                                              \
-    [off] "i" ((count << 2) | config))
-
-#define VPREFETCH_R(spadOffset, memAddr, coreOffset, count, config)   \
-  asm volatile (".insn sb 0x23, 0x7, %[spad], %[off](%[mem])\n\t" ::  \
-    [spad] "r" ((coreOffset << 12) | spadOffset),                     \
-    [mem] "r" (memAddr),                                              \
-    [off] "i" ((count << 2) | config))
-
-#define VPREFETCH_LR(sp, memIdx, core, len, style)  \
-  VPREFETCH_L(sp, memIdx, core, len, style);        \
-  VPREFETCH_R(sp, memIdx, core, len, style)
-
 #define LWSPEC(dest, spadAddr, offset)                    \
   asm volatile (                                          \
     ".insn s 0x03, 0x7, %[destreg], %[off](%[mem])\n\t"   \
     : [destreg] "=r" (dest)                               \
     : [mem] "r" (spadAddr), [off] "i" (offset))         
 
+#if __GNUC__ >= 10
+#define STORE_NOACK(data, memAddr, offset) \
+  asm volatile (".insn s 0x23, 0x5, %[dataReg], %[off](%[mem])\n\t" :: \
+    [dataReg] "r" (data), [mem] "r" (memAddr), [off] "i" (offset))     
+
+#define FSTORE_NOACK(data, memAddr, offset) \
+  asm volatile (".insn s 0x23, 0x4, %[dataReg], %[off](%[mem])\n\t" :: \
+    [dataReg] "f" (data), [mem] "r" (memAddr), [off] "i" (offset))  
+
+#define VPREFETCH_L(spadOffset, memAddr, coreOffset, count, config)   \
+  asm volatile (".insn s 0x23, 0x6, %[spad], %[off](%[mem])\n\t" ::   \
+    [spad] "r" ((coreOffset << 12) | spadOffset),                     \
+    [mem] "r" (memAddr),                                              \
+    [off] "i" ((count << 2) | config))
+
+#define VPREFETCH_R(spadOffset, memAddr, coreOffset, count, config)   \
+  asm volatile (".insn s 0x23, 0x7, %[spad], %[off](%[mem])\n\t" ::   \
+    [spad] "r" ((coreOffset << 12) | spadOffset),                     \
+    [mem] "r" (memAddr),                                              \
+    [off] "i" ((count << 2) | config))
+#else
 #define STORE_NOACK(data, memAddr, offset) \
   asm volatile (".insn sb 0x23, 0x5, %[dataReg], %[off](%[mem])\n\t" :: \
     [dataReg] "r" (data), [mem] "r" (memAddr), [off] "i" (offset))     
 
+#define FSTORE_NOACK(data, memAddr, offset) \
+  asm volatile (".insn sb 0x23, 0x4, %[dataReg], %[off](%[mem])\n\t" :: \
+    [dataReg] "f" (data), [mem] "r" (memAddr), [off] "i" (offset)) 
+
+#define VPREFETCH_L(spadOffset, memAddr, coreOffset, count, config)   \
+  asm volatile (".insn sb 0x23, 0x6, %[spad], %[off](%[mem])\n\t" ::   \
+    [spad] "r" ((coreOffset << 12) | spadOffset),                     \
+    [mem] "r" (memAddr),                                              \
+    [off] "i" ((count << 2) | config))
+
+#define VPREFETCH_R(spadOffset, memAddr, coreOffset, count, config)   \
+  asm volatile (".insn sb 0x23, 0x7, %[spad], %[off](%[mem])\n\t" ::   \
+    [spad] "r" ((coreOffset << 12) | spadOffset),                     \
+    [mem] "r" (memAddr),                                              \
+    [off] "i" ((count << 2) | config))
+#endif
+
+#define VPREFETCH_LR(sp, memIdx, core, len, style)  \
+  VPREFETCH_L(sp, memIdx, core, len, style);        \
+  VPREFETCH_R(sp, memIdx, core, len, style)
   
+#if __GNUC__ >= 10
+// block of instructions to avoid reordering
+// PRED_EQ(cond)
+// STORE_NOACK()
+// PRED_EQ(0, 0)
+#define PRED_EQ_STORE_NOACK(cond0, cond1, val, addr, offset)            \
+  asm volatile(                                                         \
+    ".insn r 0x33, 0x7, 0x5, x0, %[c0], %[c1]\n\t"                      \
+    ".insn s 0x23, 0x5, %[dataReg], %[off](%[mem])\n\t"                 \
+    ".insn r 0x33, 0x7, 0x5, x0, x0, x0\n\t"                            \
+  :: [c0] "r" (cond0), [c1] "r" (cond1), [dataReg] "r" (val),           \
+    [mem] "r" (addr), [off] "i" (offset))     
+
+#define PRED_EQ_FSTORE_NOACK(cond0, cond1, val, addr, offset)           \
+  asm volatile(                                                         \
+    ".insn r 0x33, 0x7, 0x5, x0, %[c0], %[c1]\n\t"                      \
+    ".insn s 0x23, 0x4, %[dataReg], %[off](%[mem])\n\t"                 \
+    ".insn r 0x33, 0x7, 0x5, x0, x0, x0\n\t"                            \
+  :: [c0] "r" (cond0), [c1] "r" (cond1), [dataReg] "f" (val),           \
+    [mem] "r" (addr), [off] "i" (offset))                                     
+#endif
+
 static inline void stats_on()
 {
 #if !defined(__x86_64__) && !defined(__i386__)
@@ -307,14 +361,14 @@ static int getSIMDMaskHoriz(Vector2_t master, Vector2_t origin, Vector2_t tid, V
 // is_master  --> whether this core is the master or not
 static int getSIMDMask(core_config_info_t *cinfo) {
   // unpack struct
-  int master_x  = cinfo->master_x;
-  int master_y  = cinfo->master_y;
-  int origin_x  = cinfo->orig_x;
-  int origin_y  = cinfo->orig_y;
-  int tid_x     = cinfo->vtid_x;
-  int tid_y     = cinfo->vtid_y;
-  int dim_x     = cinfo->vdim_x;
-  int dim_y     = cinfo->vdim_y;
+  int master_x  = cinfo->master.x;
+  int master_y  = cinfo->master.y;
+  int origin_x  = cinfo->orig.x;
+  int origin_y  = cinfo->orig.y;
+  int tid_x     = cinfo->vtid.x;
+  int tid_y     = cinfo->vtid.y;
+  int dim_x     = cinfo->vdim.x;
+  int dim_y     = cinfo->vdim.y;
   int is_master = cinfo->is_scalar;
   
   // TODO does not handle case where master is above or below due to nesting order?????????
@@ -390,10 +444,10 @@ static int getSIMDMask(core_config_info_t *cinfo) {
 // Avoid overfilling the scratchpad because may overwrite incorretly
 static int getDebugMask(core_config_info_t *cinfo) {
   // unpack
-  int origin_x  = cinfo->orig_x;
-  int origin_y  = cinfo->orig_y;
-  int dim_x     = cinfo->vdim_x;
-  int dim_y     = cinfo->vdim_y;
+  int origin_x  = cinfo->orig.x;
+  int origin_y  = cinfo->orig.y;
+  int dim_x     = cinfo->vdim.x;
+  int dim_y     = cinfo->vdim.y;
   int is_master = cinfo->is_scalar;
 
   return (origin_x << FET_XORIGIN_SHAMT) | (origin_y << FET_YORIGIN_SHAMT) | (dim_x << FET_XLEN_SHAMT) | (dim_y << FET_YLEN_SHAMT) | (is_master << FET_DAE_SHAMT);

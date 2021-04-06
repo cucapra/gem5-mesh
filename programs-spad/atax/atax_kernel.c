@@ -1,5 +1,4 @@
 #include "atax_kernel.h"
-
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
@@ -16,8 +15,8 @@ inline void prefetch_ax_frame(DTYPE *a, DTYPE *b, int i, int j, int n, int *spad
   int sp_x_offset = sp_a_offset + REGION_SIZE/2;
   
   for (int d = 0; d < VEC_LEN; d++){
-    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, PREFETCH_LEN,1); //load A, hopefully cache alligned so no vprefetch_R
-    VPREFETCH_L(sp_x_offset, b + j, d, PREFETCH_LEN,1); //load x
+    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, PREFETCH_LEN,TO_ONE_CORE); //load A, hopefully cache alligned so no vprefetch_R
+    VPREFETCH_L(sp_x_offset, b + j, d, PREFETCH_LEN,TO_ONE_CORE); //load x
   }
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
 }
@@ -28,8 +27,8 @@ inline void prefetch_ay_frame(DTYPE *a, DTYPE *b, int i, int j, int n, int *ptid
   int sp_ypart_offset = sp_a_offset + REGION_SIZE/2;
   
   for (int d = 0; d < VEC_LEN; d++){
-    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, PREFETCH_LEN ,1);
-    VPREFETCH_L(sp_ypart_offset, b + ptid_group_sp[d]*n +j, d, PREFETCH_LEN ,1); 
+    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, PREFETCH_LEN ,TO_ONE_CORE);
+    VPREFETCH_L(sp_ypart_offset, b + ptid_group_sp[d]*n +j, d, PREFETCH_LEN ,TO_ONE_CORE); 
   }
   
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
@@ -42,10 +41,10 @@ inline void prefetch_horizontal(DTYPE *a, DTYPE *ax, int i, int j, int n, int *s
   int sp_ax_offset = sp_a_offset + PREFETCH_LEN;
   
   for(int u=0; u<PREFETCH_LEN; u++){
-    VPREFETCH_LR(sp_a_offset+u, a + _idx_(i+u,j,n), 0, VEC_LEN ,0);
+    VPREFETCH_LR(sp_a_offset+u, a + _idx_(i+u,j,n), 0, 1 ,TO_ALL_CORES);
   }
   for (int d = 0; d < VEC_LEN; d++){
-    VPREFETCH_LR(sp_ax_offset, ax +i, d, PREFETCH_LEN ,1); 
+    VPREFETCH_LR(sp_ax_offset, ax +i, d, PREFETCH_LEN ,TO_ONE_CORE); 
   }
   
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
@@ -145,44 +144,83 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
   int col_thread=0;
   DTYPE temp;
   DTYPE* partialVec = _y_partial + ptid*ny;
+
+  #ifdef NESTED_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+  #endif
+
   do {
     // hoist1:
     asm("trillium vissue_delim until_next hoist1");
     temp=0;
     do {
-
+      
+      #ifdef NESTED_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+  #endif
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
       FRAME_START(REGION_SIZE);
+
       #pragma GCC unroll(16)
-      for(int jj=0; jj<PREFETCH_LEN; jj++){
+      for(int jj=0; jj<PREFETCH_LEN; jj+=NESTED_SIMD_VLEN){
+        #ifdef NESTED_SIMD
+
+        vfloat32m1_t vx = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE+REGION_SIZE/2+jj]);
+        vfloat32m1_t va = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj]);
+
+        // multiple together
+        vfloat32m1_t vtemp = vfmul_vv_f32m1(va, vx);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vtemp, vtemp, vzero);
+
+        // update the accumulation
+        float single_val = vfmv_f_s_f32m1_f32(vs);
+        temp += single_val;
+        #else
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *x_on_sp = a_on_sp + REGION_SIZE/2;
 
         temp += (*a_on_sp) * (*x_on_sp);
+        #endif
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
-    STORE_NOACK(temp, ax + row_thread, 0);
+    FSTORE_NOACK(temp, ax + row_thread, 0);
     col_thread=0;
     do {
       
+      #ifdef NESTED_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+  #endif
       // transpose_dp:
       asm("trillium vissue_delim until_next transpose_dp");
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
-      for(int jj=0; jj<PREFETCH_LEN; jj++){ 
+      for(int jj=0; jj<PREFETCH_LEN; jj+=NESTED_SIMD_VLEN){ 
+        #ifdef NESTED_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj]);
+        vfloat32m1_t vpp = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj+ REGION_SIZE/2]);
+
+        // multiple together
+        vfloat32m1_t vp = vfmul_vf_f32m1(va, temp);
+        vpp = vfadd_vv_f32m1(vpp, vp);
+        vse32_v_f32m1(&partialVec[col_thread+jj], vpp);
+        #else
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *ypart_on_sp = a_on_sp + REGION_SIZE/2;
         DTYPE y_temp;
 
         y_temp = *ypart_on_sp + (*a_on_sp) * temp;
-        STORE_NOACK(y_temp, partialVec + col_thread+jj, 0);
+        FSTORE_NOACK(y_temp, partialVec + col_thread+jj, 0);
         // partialVec[col_thread+jj] = y_temp;
         // partialVec[col_thread+jj] += (*a_on_sp) * temp;
+        #endif
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
@@ -295,7 +333,7 @@ void tril_atax1(int mask, DTYPE *a, DTYPE *_x, DTYPE *ax, int nx, int ny,
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
-    STORE_NOACK(temp, ax + row_thread, 0);
+    FSTORE_NOACK(temp, ax + row_thread, 0);
     row_thread+=dim;
     asm volatile("fence\n\t"); //since I have store noacks I don't move to next iter until all stores are done to partial vec
   } while (bh1);
@@ -396,7 +434,7 @@ void tril_atax2(int mask, DTYPE *a, DTYPE *ax, DTYPE *_y, int nx, int ny,
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
-    STORE_NOACK(temp, _y + col_thread, 0);
+    FSTORE_NOACK(temp, _y + col_thread, 0);
     col_thread+=dim;
     asm volatile("fence\n\t"); //since I have store noacks I don't move to next iter until all stores are done to partial vec
   } while (bh1);

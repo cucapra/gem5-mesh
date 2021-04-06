@@ -11,9 +11,10 @@
 // #define VEC_4_SIMD 1
 // #define VEC_16_SIMD 1
 // #define MANYCORE_PREFETCH
+// #define PACKED_SIMD
 
 // vvadd_execute config directives
-#if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH)
+#if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
 #define USE_VEC 1
 #endif
 

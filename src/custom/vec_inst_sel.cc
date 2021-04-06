@@ -175,16 +175,16 @@ VecInstSel::dequeueInst() {
     if (cmd->isInst) {
       ret = cmd->inst;
 
-      DPRINTF(Mesh, "pop inst %s\n", ret->toString(true));
-
       // TODO move this pop into process head?
       _vecCmds.pop();
+
+      DPRINTF(Mesh, "pop inst %s rem in queue %llu\n", ret->toString(true), _vecCmds.size());
     }
   }
 
   // remove the block if its a devec
   // TODO should prob pass flag into process head
-  if (ret && ret->isSquashAfter()) {
+  if (ret && ret->isDevec()) {
     cleanCurIssueBlock();
     _vecCmds.pop();
   }

@@ -86,9 +86,12 @@ def get_processes(options):
 # The first (n_rows - 1) rows are connected to either CPUs and/or xcels
 # The last row is connected to L2 banks
 
-def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
+def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_l2,
                      IntLink, ExtLink, Router):
-  assert(n_rows >= 2)
+  if (double_l2):
+    assert(n_rows >= 3)
+  else:
+    assert(n_rows >= 2)
   assert(n_cols >= 1)
 
   num_routers = n_rows * n_cols;
@@ -105,14 +108,17 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
   xcel_sps  = system.scratchpads[n_cpus:]
   l2s       = system.l2_cntrls
 
-
   print('cpu {} router {} pad {} l2s {}'.format(
     n_cpus, num_routers, len(cpu_sps), len(l2s)))
   assert(len(icaches) == n_cpus)
   assert(len(cpu_sps) == n_cpus)
   assert(n_cpus <= num_routers)
   assert(n_xcels <= num_routers)
-  assert(len(l2s) <= n_cols)
+
+  if (double_l2):
+    assert(len(l2s) <= n_cols*2)
+  else:
+    assert(len(l2s) <= n_cols)
   #assert(len(l2s) + n_cpus + n_xcels == num_routers)
 
   # create all routers
@@ -129,18 +135,34 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
 
   ext_links = []
 
+  router_idx = 0
+  l2_idx = 0
+
+  # l2s to first row of l2s if duplicationg
+  if (double_l2):
+    for i in xrange(len(l2s)/2):
+      if l2_idx < len(l2s)/2:
+        l2_ext_link = ExtLink(link_id   = link_count,
+                              ext_node  = l2s[l2_idx],
+                              int_node  = routers[i],
+                              latency   = link_latency)
+        l2_idx += 1
+        link_count += 1
+        router_idx += 1
+        ext_links.append(l2_ext_link)
+
   # add all CPU I-caches and SPs to the first few routers
   for i in xrange(n_cpus):
     icache_ext_link = ExtLink(link_id   = link_count,
                               ext_node  = icaches[i],
-                              int_node  = routers[i],
+                              int_node  = routers[i + router_idx],
                               latency   = link_latency)
     link_count += 1
     ext_links.append(icache_ext_link)
 
     cpu_sp_ext_link = ExtLink(link_id   = link_count,
                               ext_node  = cpu_sps[i],
-                              int_node  = routers[i],
+                              int_node  = routers[i + router_idx],
                               latency   = link_latency)
     link_count += 1
     ext_links.append(cpu_sp_ext_link)
@@ -149,13 +171,12 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
   for i in xrange(n_xcels):
     xcel_ext_link = ExtLink(link_id   = link_count,
                             ext_node  = xcel_sps[i],
-                            int_node  = routers[i],
+                            int_node  = routers[i + router_idx],
                             latency   = link_latency)
     link_count += 1
     ext_links.append(xcel_ext_link)
 
   # add all l2s to bottom routers
-  l2_idx = 0
   for i in xrange(n_cols * (n_rows - 1), num_routers):
     if l2_idx < len(l2s):
       l2_ext_link = ExtLink(link_id   = link_count,
@@ -176,10 +197,10 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
 
   # will try to take minimum weight path
   horiz_weight = 1
-  # TODO would of expected these two to be switched
-  # but worse prefetch latencies
-  towards_l2_weight = 1
-  away_l2_weight = 1
+  verti_weight = 2
+
+
+  # add another row of routers at bottom to connect
 
   # East output to West input links (weight = 1)
   for row in xrange(n_rows):
@@ -223,7 +244,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                                  src_outport  = "North",
                                  dst_inport   = "South",
                                  latency      = link_latency,
-                                 weight       = away_l2_weight ))
+                                 weight       = verti_weight ))
         link_count += 1
 
   # South output to North input links (weight = 2)
@@ -238,7 +259,7 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
                                  src_outport  = "South",
                                  dst_inport   = "North",
                                  latency      = link_latency,
-                                 weight       = towards_l2_weight ))
+                                 weight       = verti_weight ))
         link_count += 1
 
   network.int_links = int_links
@@ -335,6 +356,15 @@ parser.add_option("--stream-width", type = "int", default = 8)
 parser.add_option("--vector", action="store_true", default=False,
   help="Use vector stage in pipe")
 
+parser.add_option("--net-width", default=1,
+  help="How many words wide the network is")
+
+parser.add_option("--hw-vlen", default=4,
+  help="Hardware vector length in number of words")
+
+parser.add_option("--mesh-queue-len", default=2,
+  help="How many instructions can be stored between cores in vector mode")
+
 (options, args) = parser.parse_args()
 
 # set large mem-size needed for larger problem sizes
@@ -345,6 +375,8 @@ n_cpus  = options.num_cpus
 n_xcels = 0 #options.num_xcels
 n_tiles = n_cpus + n_xcels
 
+double_L2 = True
+
 # mesh size is determined by the number of xcels and device cpus
 n_cols  = int(math.sqrt(n_tiles))
 
@@ -352,6 +384,14 @@ n_cols  = int(math.sqrt(n_tiles))
 n_rows  = n_cols + 1
 
 n_l2s   = n_cols
+
+# add another row if doing 2nd row on edge
+if (double_L2):
+  n_rows += 1
+
+if (double_L2):
+  n_l2s += n_cols
+
 
 # network classes
 #assert(options.network == "garnet2.0")
@@ -374,16 +414,26 @@ process = get_processes(options)[0]
 # CPU class
 CPUClass = IOCPU (
   includeVector = options.vector,
-  meshBufferSize = 2
+  meshBufferSize = options.mesh_queue_len,
+  numROBEntries = 8,
+  # remember to set in util.h
+  hw_vector_length = options.hw_vlen
+  # latencies from https://github.com/bespoke-silicon-group/riscv-gcc/blob/bsg_manycore_gcc/gcc/config/riscv/bsg_vanilla_2020.md
   ,
-  numROBEntries = 8
+  intAluOpLatency = 1,
+  intMulOpLatency = 2,
+  divOpLatency    = 20,
+  fpAluOpLatency  = 3,
+  fpMulOpLatency  = 3
+  # , numLoadQueueEntries = 8,
+  # numStoreQueueEntries = 8
 )
 
 # Create top-level system
 system = System(cpu = [ CPUClass(cpu_id = i) for i in xrange(n_cpus) ],
                         mem_mode = CPUClass.memory_mode(),
                         mem_ranges = [ AddrRange(options.mem_size) ],
-                        cache_line_size = 64) #options.cacheline_size)
+                        cache_line_size = options.cacheline_size)
 
 # Create a top-level voltage domain
 system.voltage_domain = VoltageDomain(voltage = options.sys_voltage)
@@ -408,13 +458,14 @@ for cpu in system.cpu:
 # Assign workload to CPUs
 for i in xrange(n_cpus):
   system.cpu[i].workload = process
+  system.cpu[i].workload[0].release = '99.99.99'
   system.cpu[i].createThreads()
 
 #------------------------------------------------------------------------------
 # Construct Ruby memory system
 #------------------------------------------------------------------------------
 
-system.ruby = RubySystem()
+system.ruby = RubySystem(block_size_bytes=options.cacheline_size)
 
 # Construct network
 network = NetworkClass (ruby_system = system.ruby,
@@ -423,7 +474,7 @@ network = NetworkClass (ruby_system = system.ruby,
                         int_links = [],
                         netifs = [],
                         number_of_virtual_networks = 2, # what does it mean to have two networks??
-                        #vcs_per_vnet=virt_channels
+                        # vcs_per_vnet=32
                         )
                         
 
@@ -511,6 +562,10 @@ elif n_l2s == 4:
   l2_size = '64kB'
 elif n_l2s == 8:
   l2_size = '32kB'
+elif n_l2s == 16:
+  l2_size = '32kB'
+elif n_l2s % n_cols == 0:
+  l2_size = '32kB'
 else:
   fatal("Invalid number of L2 banks")
 
@@ -523,6 +578,7 @@ for i in xrange(n_l2s):
                                 meshDimY = n_cols,
                                 ruby_system = system.ruby
                                 ,
+                                netWidth = options.net_width,
                                 cache_resp_latency = 1,
                                 to_memory_controller_latency = 1,
                                 mem_to_cpu_latency = 1 # TODO this needs to be the same as cache_resp_latency b/c same ordered queue?
@@ -546,7 +602,7 @@ system.l2_cntrls = l2_cntrls
 # Connect all controllers to network
 #------------------------------------------------------------------------------
 
-makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network,
+makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_L2, 
                  IntLinkClass, ExtLinkClass, RouterClass)
 
 init_network(options, network, InterfaceClass)
@@ -561,7 +617,10 @@ system.system_port = system.ruby.sys_port_proxy.slave
 #------------------------------------------------------------------------------
 
 if (options.vector):
-  makeSystolicTopology(system, n_rows - 1, n_cols)
+  eff_rows = n_rows - 1
+  if (double_L2):
+    eff_rows = n_rows - 2
+  makeSystolicTopology(system, eff_rows, n_cols)
 
 #------------------------------------------------------------------------------
 # Construct memory controller
@@ -570,26 +629,38 @@ if (options.vector):
 system.mem_mode = 'timing'
 system.mem_ranges = [ AddrRange(options.mem_size) ]
 
-system.mem_ctrl = SimpleMemory()
-system.mem_ctrl.range = system.mem_ranges[0]
-system.mem_ctrl.latency = '60ns'
-system.mem_ctrl.bandwidth = '16GB/s'
 
-# TODO need to config this more like in MemConfig.py?
-# I don't think need to do when only one address range?
-# Perf drops by about 2x. I think bw, a little less ~13GB/s, but also more complex model might be causing perf slowdown
-# Also wall-clock sim time is about 30% slower
-# system.mem_ctrl = DDR3_1600_8x8()
-# system.mem_ctrl.range = system.mem_ranges[0]
+# so HammerBlade uses 1 channels per 16 caches (which is 16GB/s total)
+
+# HBM_1000_4H_1x128 * 8  (HBMv1)
+# eac is 16GB/s so -> 8B/c (@1GHZ). so 16*num_channel = 128B/c
+# HBM_1000_4H_1x64  * 16 (HBMv2)
+# each is 8GB/s, -> 8B/c (@1GHZ). so 8*num_channel B/c
+bytes_per_cycle = 16
+
+system.mem_ctrl = SimpleMemory()
+system.mem_ctrl.latency = '60ns' 
+system.mem_ctrl.bandwidth = str(bytes_per_cycle) + 'GB/s' # HBM is 128GB/s HBM2 is 256GB/s (1024bit bus...high overhead to route, slower clock than ddr but comparable?)
+system.mem_ctrl.range = system.mem_ranges[0]
+
+# num_channels = 2
+# nbr_mem_ctrls = num_channels
+# intlv_size = max(128, system.cache_line_size.value)
+# intlv_bits = int(math.log(nbr_mem_ctrls, 2))
+# mem_ctrls = []
+# for i in range(num_channels):
+#   mc = MemConfig.create_mem_ctrl(HBM_1000_4H_1x128, system.mem_ranges[0], i, nbr_mem_ctrls, intlv_bits, intlv_size)
+#   mem_ctrls.append(mc)
+# system.mem_ctrls = mem_ctrls
 
 #------------------------------------------------------------------------------
 # Construct a crossbar that connects L2s and mem_ctrl
 #------------------------------------------------------------------------------
-
+# TODO is this crossbar realistic w/ multiple channels? or should one channel be connected to one cache? (if so should do HBMv2 w/ 16 channels b/c nicer link)
 system.l2_bus = NoncoherentXBar()
 
 # 16 bytes per cycle. This is set to match with the mem_ctrl.bandwidth
-system.l2_bus.width = 16
+system.l2_bus.width = bytes_per_cycle
 system.l2_bus.frontend_latency = 1
 system.l2_bus.forward_latency = 1
 system.l2_bus.response_latency = 1
@@ -597,6 +668,9 @@ system.l2_bus.clk_domain = system.clk_domain
 
 for i in xrange(n_l2s):
   system.l2_bus.slave = system.l2_cntrls[i].memory
+
+# for i in xrange(nbr_mem_ctrls):
+#   system.l2_bus.master = system.mem_ctrls[i].port
 
 system.l2_bus.master = system.mem_ctrl.port
 
