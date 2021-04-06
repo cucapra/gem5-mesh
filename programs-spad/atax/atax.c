@@ -5,13 +5,12 @@
 #include "atax.h"
 #include "spad.h"
 #include "bind_defs.h"
-#include "token_queue.h"
 #include "group_templates.h"
 #include "util.h"
 
 #include "atax_kernel.h"
 
-#ifdef PACKED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
@@ -19,6 +18,53 @@ static inline int _idx_(int y, int x, int width)
 {
   return (y * width) + x;
 }
+
+#ifdef LONGLINES
+// partial sum reduction offload
+void atax1_reduction(DTYPE *out, int baseGroupId, int numGroups, int N, 
+    int ptid, int *fwders) {
+  // chunk over vector groups. note all might not do the same amount of work
+  int max_chunk_size = ceilToInt((float)N / (float)numGroups);
+
+  // cache sp ptrs to avoid global load
+  SETUP_REDUCTION_CORE(fwders, ptid, N, baseGroupId, numGroups);
+
+  for (int cnt = 0; cnt < max_chunk_size; cnt+=ACCUM_GRANULARITY) {
+
+    SETUP_GROUP_ITERATION_CHUNKED_1NEST(baseGroupId, numGroups, cnt, max_chunk_size);
+
+    REDUCE_SYNC_WITH_SCALAR(group_start, spPtrs, flat_iter);
+
+    // wait for frame and then do sum
+    FRAME_START(expected_elements);
+
+    for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
+
+      #pragma GCC unroll(4)
+      for (int a = 0; a < ACCUM_GRANULARITY; a++) {
+        DTYPE sum = 0.0f;
+
+        int sum_offset = g * PER_CORE_MAILER_FRAME + a * SUB_FRAME_SIZE;
+
+        #pragma GCC unroll(16)
+        for (int k = 0; k < PER_CORE_MAILER_FRAME; k++) {
+          sum += sp_ptr[sum_offset + sp_self + k];
+        }
+
+        int i = group_start[g];
+
+        if (i < 0 || i + a >= group_end[g]) continue;
+
+        FSTORE_NOACK(sum, &out[i + a], 0);
+      }
+
+    }
+    sp_self += MAILER_FRAME_SIZE;
+    sp_self = sp_self % MAILER_POST_FRAME_WORD; // TOOD branch better??
+    REMEM(expected_elements);
+  }
+}
+#endif
 
 #ifdef REDUCE_VERSION
 void __attribute__((optimize("-fno-inline")))
@@ -51,7 +97,7 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
         REMEM(REGION_SIZE);
       }
-      #elif defined(PACKED_SIMD)
+      #elif defined(PER_CORE_SIMD)
       int chunk = ny;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
         l = vsetvl_e32m1(chunk);
@@ -95,7 +141,7 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
         REMEM(REGION_SIZE);
       }
-      #elif defined(PACKED_SIMD)
+      #elif defined(PER_CORE_SIMD)
       chunk = ny;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
         l = vsetvl_e32m1(chunk);
@@ -143,7 +189,7 @@ void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int pdim, int 
   start+=vtid;
 
   DTYPE temp;
-  for(int i=start; i<end; i+=VEC_LEN){
+  for(int i=start; i<end; i+=VECTOR_LEN){
     temp=0;
     for(int j=0; j<pdim; j++){
       temp+=partial[j*n+i];
@@ -198,7 +244,7 @@ atax_manycore1(DTYPE *a, DTYPE *_x, DTYPE *ax, int nx, int ny,
         temp += a[i*ny+j] * _x[j];
       }
       #endif
-      STORE_NOACK(temp, ax + i, 0);
+      FSTORE_NOACK(temp, ax + i, 0);
     }
 }
 
@@ -213,7 +259,7 @@ atax_manycore2(DTYPE *a, DTYPE *ax, DTYPE *_y, int nx, int ny,
       for(int i=0; i<nx; i++){
         temp += a[i*ny+j]*ax[i];
       }
-      STORE_NOACK(temp, _y + j, 0);
+      FSTORE_NOACK(temp, _y + j, 0);
     }
     
 }
@@ -238,16 +284,16 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   
 
   #ifdef _VEC
-  #if VEC_LEN==4
+  #if VECTOR_LEN==4
   SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
-    #elif VEC_LEN==16
-    SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
-    #endif
+  #elif VECTOR_LEN==16
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
+  #endif
 
   int* ptid_group = getSpAddr(ptid,10);
 
   if(used){
-    int alignment = VEC_LEN;
+    int alignment = VECTOR_LEN;
     start = roundUp((unique_id + 0) * nx / total_groups, alignment); 
     end = roundUp((unique_id + 1) * nx / total_groups, alignment); 
 
@@ -270,17 +316,29 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   end    = ( ( ptid + 1 ) * nx ) / pdim;
   #endif
 
+  #ifdef LONGLINES
+  SETUP_REDUCE_CONFIG();
+  #else
+  SETUP_REDUCE_CONFIG_NULL();
+  #endif
+
+  // need to set vlen here so doesn't cause squash in vector core on change in value
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  #endif
 
 // do after tokens to avoid stalling due to region not ready
 // region based mask for scratchpad
 #ifdef _VEC
-  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+  if (isMailer) {
+    SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier);
+  }
+  else {
+    SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+  }
 #elif defined MANYCORE_PREFETCH
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
 #endif
-
-  // only let certain tids continue
-  // if (used == 0) return; moved this part later
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
@@ -336,16 +394,16 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
 
   #elif defined POLYBENCH_VERSION
 
-  if(used!=0){
-    #if defined _VEC
-      tril_atax1(mask,a,_x,ax,nx,ny,start,end,ptid,vtid,vdim);
-    #else
-      atax_manycore1(a,_x,ax,nx,ny,start,end,ptid);
-    #endif
-
-  }
-
-  
+  #if defined _VEC
+  if (used)
+    tril_atax1(mask,a,_x,ax,nx,ny,start,end,ptid,vtid,ptidMailer,linkId);
+  #ifdef LONGLINES
+  else if (isMailer)
+    atax1_reduction(ax, unique_id, total_groups, nx, ptid, ptidFwders);
+  #endif
+  #else
+  atax_manycore1(a,_x,ax,nx,ny,start,end,ptid);
+  #endif
 
   #ifdef _VEC
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);

@@ -5,7 +5,7 @@
 
 #ifdef _VEC
 
-static inline int _idx_(int y, int x, int width)
+inline int _idx_(int y, int x, int width)
 {
   return (y * width) + x;
 }
@@ -14,11 +14,16 @@ inline void prefetch_ax_frame(DTYPE *a, DTYPE *b, int i, int j, int n, int *spad
 
   int sp_a_offset = *spadRegion * REGION_SIZE;
   int sp_x_offset = sp_a_offset + REGION_SIZE/2;
-  
-  for (int d = 0; d < VEC_LEN; d++){
+
+  #ifdef LONGLINES
+  VPREFETCH_LR(sp_a_offset, a + _idx_(i,j,n), 0, PREFETCH_LEN,TO_ALL_CORES); //load A, hopefully cache alligned so no vprefetch_R
+  VPREFETCH_LR(sp_x_offset, b + j, 0, PREFETCH_LEN,TO_ALL_CORES); //load x
+  #else     
+  for (int d = 0; d < VECTOR_LEN; d++){
     VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, PREFETCH_LEN,TO_ONE_CORE); //load A, hopefully cache alligned so no vprefetch_R
     VPREFETCH_L(sp_x_offset, b + j, d, PREFETCH_LEN,TO_ONE_CORE); //load x
   }
+  #endif
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
 }
 
@@ -26,8 +31,8 @@ inline void prefetch_ay_frame(DTYPE *a, DTYPE *b, int i, int j, int n, int *ptid
 
   int sp_a_offset = *spadRegion * REGION_SIZE;
   int sp_ypart_offset = sp_a_offset + REGION_SIZE/2;
-  
-  for (int d = 0; d < VEC_LEN; d++){
+
+  for (int d = 0; d < VECTOR_LEN; d++){
     VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, PREFETCH_LEN ,TO_ONE_CORE);
     VPREFETCH_L(sp_ypart_offset, b + ptid_group_sp[d]*n +j, d, PREFETCH_LEN ,TO_ONE_CORE); 
   }
@@ -44,16 +49,14 @@ inline void prefetch_horizontal(DTYPE *a, DTYPE *ax, int i, int j, int n, int *s
   for(int u=0; u<PREFETCH_LEN; u++){
     VPREFETCH_LR(sp_a_offset+u, a + _idx_(i+u,j,n), 0, 1 ,TO_ALL_CORES);
   }
-  for (int d = 0; d < VEC_LEN; d++){
+  for (int d = 0; d < VECTOR_LEN; d++){
     VPREFETCH_LR(sp_ax_offset, ax +i, d, PREFETCH_LEN ,TO_ONE_CORE); 
   }
   
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
 }
 
-
-
-#ifdef REDUCE_VERSION
+#if defined(REDUCE_VERSION)
 
 void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
       int nx_start, int nx_end, int ptid, int vtid, int dim, int* ptid_group)
@@ -166,7 +169,7 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
-    STORE_NOACK(temp, ax + row_thread, 0);
+    FSTORE_NOACK(temp, ax + row_thread, 0);
     col_thread=0;
     do {
       
@@ -180,7 +183,7 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
         DTYPE y_temp;
 
         y_temp = *ypart_on_sp + (*a_on_sp) * temp;
-        STORE_NOACK(y_temp, partialVec + col_thread+jj, 0);
+        FSTORE_NOACK(y_temp, partialVec + col_thread+jj, 0);
         // partialVec[col_thread+jj] = y_temp;
         // partialVec[col_thread+jj] += (*a_on_sp) * temp;
       }
@@ -208,7 +211,7 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
 
 
 void tril_atax1(int mask, DTYPE *a, DTYPE *_x, DTYPE *ax, int nx, int ny,
-      int nx_start, int nx_end, int ptid, int vtid, int dim)
+      int nx_start, int nx_end, int ptid, int vtid, int ptidMailer, int linkId)
 {
 
   
@@ -220,24 +223,35 @@ void tril_atax1(int mask, DTYPE *a, DTYPE *_x, DTYPE *ax, int nx, int ny,
   int spadRegion = 0;
   int sp_a_offset, sp_x_offset, sp_ypart_offset;
 
-  int startOffset = INIT_FRAMES*PREFETCH_LEN;
+  int startOffset = min(INIT_FRAMES*J_STRIDE, ny);
 
-  DTYPE temp;
-  for (int i = nx_start; i < nx_end; i+=dim) {
-    temp=0;
+  #ifdef LONGLINES
+  int numCompleted = 0;
+  volatile int *sp_ptr = (int*)getSpAddr(ptid, 0);
+  #endif
+
+  for (int i = nx_start; i < nx_end; i+=I_STRIDE) {
     ISSUE_VINST(hoist1);
 
     //init
-    for (int j = 0; j < startOffset; j+=PREFETCH_LEN) prefetch_ax_frame(a,_x, i,j, ny, &spadRegion);
+    for (int j = 0; j < startOffset; j+=J_STRIDE) {
+      prefetch_ax_frame(a,_x, i,j, ny, &spadRegion);
+    }
 
     //steady state
-    for(int j=startOffset; j<ny; j+=PREFETCH_LEN){
+    for(int j=startOffset; j<ny; j+=J_STRIDE){
       prefetch_ax_frame(a,_x, i,j, ny, &spadRegion);
       ISSUE_VINST(dotprod);
     }
 
     //final vissue
-    for (int j = 0; j < startOffset; j+=PREFETCH_LEN) ISSUE_VINST(dotprod);
+    for (int j = 0; j < startOffset; j+=J_STRIDE) {
+      ISSUE_VINST(dotprod);
+    }
+
+    #ifdef LONGLINES
+    SCALAR_SYNC_WITH_REDUCTION(sp_ptr, numCompleted);
+    #endif
 
     ISSUE_VINST(store_dp);
   }
@@ -254,37 +268,48 @@ void tril_atax1(int mask, DTYPE *a, DTYPE *_x, DTYPE *ax, int nx, int ny,
   
   init:
     asm("trillium glue_point init");
+    exit(1);
   hoist1:
     asm("trillium glue_point hoist1");
+    exit(1);
   dotprod:
     asm("trillium glue_point dotprod");
+    exit(1);
   store_dp:
     asm("trillium glue_point store_dp");
+    exit(1);
   vector_stack:
     asm("trillium glue_point vector_stack");
+    exit(1);
 
   #elif defined VECTOR_CORE
   // init:;
   asm("trillium vissue_delim until_next init");
-  volatile int bh1,bh2,bh3;
+  volatile int bh1,bh2;
   
   int spadRegion =0;
   DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
 
+  #ifdef LONGLINES
+  // int row_thread=nx_start;
+  // int col_thread = vtid*PREFETCH_LEN;
+  int sp_origin = (linkId * PER_CORE_MAILER_FRAME) + vtid;
+  DTYPE* sp_origin_ptr = (DTYPE*)getSpAddr(ptidMailer, 0);
+  #else
   int row_thread=nx_start+vtid;
   int col_thread=0;
-  DTYPE temp;
+  #endif
   do {
     // hoist1:
     asm("trillium vissue_delim until_next hoist1");
-    temp=0;
+    DTYPE temp=0;
     do {
 
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
-      for(int jj=0; jj<PREFETCH_LEN; jj++){
+      for(int jj=0; jj<PREFETCH_LEN; jj+=PER_CORE_SIMD_LEN){
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *x_on_sp = a_on_sp + REGION_SIZE/2;
 
@@ -295,9 +320,15 @@ void tril_atax1(int mask, DTYPE *a, DTYPE *_x, DTYPE *ax, int nx, int ny,
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
-    STORE_NOACK(temp, ax + row_thread, 0);
-    row_thread+=dim;
-    asm volatile("fence\n\t"); //since I have store noacks I don't move to next iter until all stores are done to partial vec
+
+    #ifdef LONGLINES
+    FSTORE_NOACK(temp, &sp_origin_ptr[sp_origin], 0);
+    sp_origin+=SUB_FRAME_SIZE;
+    sp_origin = sp_origin % MAILER_POST_FRAME_WORD;
+    #else
+    FSTORE_NOACK(temp, ax + row_thread, 0);
+    row_thread+=I_STRIDE;
+    #endif
   } while (bh1);
 
   // mark vector stack cleanup assembly

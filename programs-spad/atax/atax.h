@@ -1,17 +1,18 @@
-#ifndef __TEMP_H__
-#define __TEMP_H__
+#ifndef __ATAX_H__
+#define __ATAX_H__
 
-// #define VEC_LEN 4
-#ifdef VEC_LEN
+// #define VECTOR_LEN 4
+#ifdef VECTOR_LEN
 #define _VEC
 #endif
 
 // #define MANYCORE_PREFETCH
 
 // only v16 better this way so use it
-#if VEC_LEN==16
+#if VECTOR_LEN==16 || defined(LONGLINES)
 #define POLYBENCH_VERSION
 #else
+// longlines derives from this, because reduction at the end might be terrible w/ longlines
 #define REDUCE_VERSION
 #endif
 
@@ -19,9 +20,48 @@
 #define INIT_FRAMES 2
 #endif
 
-#define PREFETCH_LEN 16
+#ifdef LONGLINES
+  #define PREFETCH_LEN 16
+  #define J_STRIDE (PREFETCH_LEN*VECTOR_LEN)
+  #define I_STRIDE (1)
+#else
+  #define PREFETCH_LEN 16
+  #define J_STRIDE (PREFETCH_LEN)
+  #define I_STRIDE (VECTOR_LEN)
+#endif
 #define REGION_SIZE (PREFETCH_LEN * 2)
-#define NUM_REGIONS (512 / REGION_SIZE)
+#define POST_FRAME_WORD (512)
+#define NUM_REGIONS (POST_FRAME_WORD / REGION_SIZE)
+
+
+// stuff for partial reduction
+#ifndef ACCUM_GRANULARITY
+#define ACCUM_GRANULARITY 4
+#endif
+
+// TODO hardcode this based on spipe
+#if VECTOR_LEN == 4
+#define NUM_GROUPS_PER_PIPE (3)
+#else
+#define NUM_GROUPS_PER_PIPE (1)
+#endif
+
+#define SUB_FRAME_SIZE (VECTOR_LEN * NUM_GROUPS_PER_PIPE)
+#define MAILER_FRAME_SIZE (SUB_FRAME_SIZE * ACCUM_GRANULARITY)
+#define MAILER_NUM_FRAMES (POST_FRAME_WORD / MAILER_FRAME_SIZE)
+#define MAILER_POST_FRAME_WORD (MAILER_FRAME_SIZE * MAILER_NUM_FRAMES)
+
+// needs to be maxed at number of frame counters
+#if MAILER_NUM_FRAMES < 5
+#define FRAMES_TO_SYNC_AFTER (MAILER_NUM_FRAMES)
+#else
+#define FRAMES_TO_SYNC_AFTER (5)
+#endif
+
+// how much vector core will write
+#define PER_CORE_MAILER_FRAME (VECTOR_LEN)
+// includes also if any base value to the sum
+#define PER_CORE_FULL_MAILER_FRAME (PER_CORE_MAILER_FRAME)
 
 typedef float DTYPE;
 
