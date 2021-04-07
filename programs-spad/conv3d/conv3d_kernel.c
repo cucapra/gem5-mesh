@@ -162,7 +162,7 @@ void tril_conv3d(int mask,
       do {
       asm("trillium vissue_delim if_begin vec_body");
 
-        FRAME_START();
+        FRAME_START(REGION_SIZE);
 
 
         // prefetching all 0s

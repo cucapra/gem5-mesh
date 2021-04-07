@@ -7,8 +7,9 @@
 #include "spad.h"
 #include "bind_defs.h"
 #include "conv3d_kernel.h"
+#include "util.h"
 
-#ifdef PACKED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
@@ -24,7 +25,7 @@ void conv3d_manycore(DTYPE *a, DTYPE *b, int NI, int NJ, int NK, int ptid, int p
 
   DEF_WEIGHTS();
 
-  #ifdef PACKED_SIMD
+  #ifdef PER_CORE_SIMD
   for (int i = outer_start; i < outer_end; i++) {
     for (int j = 1; j < NJ - 1; j++) {
       for (int k = 1; k < NK - 1; k+=16) {
@@ -98,7 +99,7 @@ void conv3d_manycore(DTYPE *a, DTYPE *b, int NI, int NJ, int NK, int ptid, int p
       for (int k = 1; k < NK - 1; k+=UNROLL_LEN) {
         prefetch_horiz_frame(a, i, j, k, NJ, NK, &sp);
 
-        START_FRAME();
+        FRAME_START(REGION_SIZE);
         // unroll doesn't seem to help here
         // #pragma GCC unroll(8)
         for (int u = 0; u < UNROLL_LEN; u++) {
@@ -143,7 +144,7 @@ void conv3d_manycore(DTYPE *a, DTYPE *b, int NI, int NJ, int NK, int ptid, int p
             sp_ptr[sp + 9], sp_ptr[sp + 10]
           );
           #endif
-          STORE_NOACK(out, &b[IDX(i, j, k + u, NJ, NK)], 0);
+          FSTORE_NOACK(out, &b[IDX(i, j, k + u, NJ, NK)], 0);
         }
         END_FRAME();
         sp += REGION_SIZE;
@@ -164,7 +165,7 @@ void conv3d_manycore(DTYPE *a, DTYPE *b, int NI, int NJ, int NK, int ptid, int p
             a[IDX(i+1, j-1, k+1, NJ, NK)], a[IDX(i+1, j+0, k+1, NJ, NK)], 
             a[IDX(i+1, j+1, k+1, NJ, NK)]
           );
-        STORE_NOACK(out, &b[IDX(i, j, k, NJ, NK)], 0);
+        FSTORE_NOACK(out, &b[IDX(i, j, k, NJ, NK)], 0);
       }
     }
   }
@@ -182,99 +183,28 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     stats_on();
   }
 
-  // linearize tid and dim
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
+  #if VECTOR_LEN==4
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
+  #elif VECTOR_LEN==16
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
+  #else
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
+  #endif
 
-  // split into physical and virtual tids + dim
-  int vtid_x = 0;
-  int vtid_y = 0;
-  int vtid   = 0;
-  int vdim_x = 0;
-  int vdim_y = 0;
-  int vdim   = 0;
-  int unique_id = 0;
-  int total_groups = 0;
-  int used = 0;
+  #ifdef USE_VEC
   int start = 0;
   int end = 0;
-
-  // group construction
-  #ifdef USE_VEC
-
-  #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
-  #elif VECTOR_LEN==16
-  template_info_t tinfo = init_template_8x8_4x4();
-  #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
-
-  vtid = cinfo.vtid;
-  vtid_x = cinfo.vtid_x;
-  vtid_y = cinfo.vtid_y;
-  vdim_x = cinfo.vdim_x;
-  vdim_y = cinfo.vdim_y;
-  unique_id = cinfo.unique_id;
-  total_groups = cinfo.total_groups;
-  used = cinfo.used;
-
   if (used) {
     start = 1 + ( (unique_id + 0) * (NI-2) ) / total_groups;
     end   = 1 + ( (unique_id + 1) * (NI-2) ) / total_groups;
     // printf("%d->%d\n", start, end); 
   }
-
-  #elif !defined(USE_VEC)
-
-  vdim_x = 1;
-  vdim_y = 1;
-  vtid_x = 0;
-  vtid_y = 0;
-  vtid   = 0;
-  // start  = ( ( ptid + 0 ) * NI ) / pdim;
-  // end    = ( ( ptid + 1 ) * NI ) / pdim;
-
-  // printf("%d->%d\n", start, end); 
-
   #endif
 
-  // linearize some fields
-  vdim = vdim_x * vdim_y;
-
-  // printf("ptid %d(%d,%d) vtid %d(%d,%d) dim %d(%d,%d) %d->%d\n", ptid, ptid_x, ptid_y, vtid, vtid_x, vtid_y, vdim, vdim_x, vdim_y, start, end); 
 
   #ifdef NUM_REGIONS
-  #ifdef MANYCORE_PREFETCH
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
-  int mask = getDebugMask(&cinfo);
-  VECTOR_EPOCH(mask);
-  #else
-  int mask = getSIMDMask(&cinfo);
-  #endif
   SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
   #endif
-
-  // each vector group size is rated to do a certain problem size and multiples of that problem size
-  // for the mod of this we need to do the rest on the flexible manycore version
-  // int rated_size = 0;
-  // #ifdef REUSE
-  // rated_size = ( VECTOR_LEN * FILTER_DIM - (FILTER_DIM - 1) );
-  // #elif defined(VERTICAL_LOADS)
-  // rated_size = ( VECTOR_LEN * CORE_STEP );
-  // #elif defined(VECTOR_LEN)
-  // rated_size = ( VECTOR_LEN );
-  // #else
-  // rated_size = 1;
-  // #endif
-
-  // // cols without the edge case
-  // int eff_len = NJ - (FILTER_DIM-1);
-  // // mapped len is schedule on main config, unmapped will be scheduled on base manycore
-  // int unmapped_len = eff_len % rated_size;
-  // int mapped_len = eff_len - unmapped_len;
-
-  // printf("%d %xd\n", mapped_len, unmapped_len);
 
   // move stack onto scratchpad for faster local access than default on DRAM
   MOVE_STACK_ONTO_SCRATCHPAD();
@@ -328,7 +258,8 @@ void *pthread_kernel(void *args) {
   kernel(a->a, a->b, a->NI, a->NJ, a->NK,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-  pthread_barrier_wait(&start_barrier);
+  // reset scratchpad config
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
 
   if (a->tid_x == 0 && a->tid_y == 0) {
     stats_off();
