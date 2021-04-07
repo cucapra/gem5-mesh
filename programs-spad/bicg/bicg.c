@@ -9,8 +9,9 @@
 #include "bind_defs.h"
 #include "group_templates.h"
 #include "bicg_kernel.h"
+#include "util.h"
 
-#ifdef PACKED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
@@ -38,7 +39,7 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
     // s[j] = 0.0f;
     DTYPE s_local = 0.0f;
 
-    #ifdef PACKED_SIMD
+    #ifdef PER_CORE_SIMD
     int chunk = NX;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
       l = vsetvl_e32m1(chunk);
@@ -68,7 +69,7 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
     for (int i = 0; i < NX; i+=Q_PREFETCH_LEN) {
       prefetch_s_frame(a, r, i, j, &sp, NY);
 
-      FRAME_START();
+      FRAME_START(FRAME_SIZE);
       #pragma GCC unroll(16)
       for (int iin = 0; iin < Q_PREFETCH_LEN; iin++) {
         s_local += sp_ptr[sp + iin] * sp_ptr[sp + Q_PREFETCH_LEN + iin];
@@ -109,7 +110,7 @@ void compute_q_manycore_baseline(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, i
     // q[i] = 0.0f;
     DTYPE q_local = 0.0f;
 
-    #ifdef PACKED_SIMD
+    #ifdef PER_CORE_SIMD
     int chunk = NY;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
       l = vsetvl_e32m1(chunk);
@@ -139,7 +140,7 @@ void compute_q_manycore_baseline(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, i
     for (int j = 0; j < NY; j+=Q_PREFETCH_LEN) {
       prefetch_q_frame(a, p, i, j, &sp, NY);
 
-      FRAME_START();
+      FRAME_START(FRAME_SIZE);
       #pragma GCC unroll(16)
       for (int jin = 0; jin < Q_PREFETCH_LEN; jin++) {
         q_local += sp_ptr[sp + jin] * sp_ptr[sp + Q_PREFETCH_LEN + jin];
@@ -172,6 +173,9 @@ void __attribute__((optimize("-fno-inline"))) bicg(
     int ptid, int vtid, int dim, int NX, int NY, int groupId, int numGroups,
     int mask, int used
   ) {
+    #if defined(USE_VEC) || defined(MANYCORE_PREFETCH)
+    SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
+    #endif
 
     #ifndef USE_VEC
     compute_s_manycore_baseline(a, r, s, NX, NY, ptid, dim);
@@ -205,80 +209,23 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     stats_on();
   }
 
-  // linearize tid and dim
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
-
-  // split into physical and virtual tids + dim
-  int vtid_x = 0;
-  int vtid_y = 0;
-  int vtid   = 0;
-  int vdim_x = 0;
-  int vdim_y = 0;
-  int vdim   = 0;
-  int orig_x = 0;
-  int orig_y = 0;
-  int is_da  = 0;
-  int master_x = 0;
-  int master_y = 0;
-  int unique_id = 0;
-  int total_groups = 0;
-  int used = 0;
-
-  // group construction
-  #ifdef USE_VEC
-
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
   #elif VECTOR_LEN==16
-  template_info_t tinfo = init_template_8x8_4x4();
-  #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
-
-  vtid = cinfo.vtid;
-  vtid_x = cinfo.vtid_x;
-  vtid_y = cinfo.vtid_y;
-  vdim_x = cinfo.vdim_x;
-  vdim_y = cinfo.vdim_y;
-  orig_x = cinfo.orig_x;
-  orig_y = cinfo.orig_y;
-  is_da  = cinfo.is_scalar;
-  master_x = cinfo.master_x;
-  master_y = cinfo.master_y;
-  unique_id = cinfo.unique_id;
-  total_groups = cinfo.total_groups;
-  used = cinfo.used;
-
-  // printf("ptid %d(%d,%d) da %d vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, is_da, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used);
-
-  #elif !defined(USE_VEC)
-
-  vdim_x = 1;
-  vdim_y = 1;
-  vtid_x = 0;
-  vtid_y = 0;
-  vtid   = 0;
-  used   = 1;
-
-  #endif
-
-  // linearize some fields
-  vdim = vdim_x * vdim_y;
-
-  // get behavior of each core
-  #ifdef NUM_FRAMES
-  // setup up self prefetch
-  #ifdef MANYCORE_PREFETCH
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
-  int mask = getDebugMask(&cinfo);
-  VECTOR_EPOCH(mask);
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
   #else
-  int mask = getSIMDMask(&cinfo);
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
   #endif
-  SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
+
+  #ifdef LONGLINES
+  SETUP_REDUCE_CONFIG();
   #else
-  int mask = 0;
+  SETUP_REDUCE_CONFIG_NULL();
+  #endif
+
+  // need to set vlen here so doesn't cause squash in vector core on change in value
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
   MOVE_STACK_ONTO_SCRATCHPAD();
@@ -325,7 +272,8 @@ void *pthread_kernel(void *args) {
   kernel(a->a, a->r, a->p, a->s, a->q, a->NX, a->NY,
       a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-  pthread_barrier_wait(&start_barrier);
+  // reset scratchpad config
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
 
   if (a->tid_x == 0 && a->tid_y == 0) {
     stats_off();
