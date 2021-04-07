@@ -39,7 +39,43 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
     // s[j] = 0.0f;
     DTYPE s_local = 0.0f;
 
+    #if defined(MANYCORE_PREFETCH)
+
     #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+    vfloat32m1_t accum = vzero;
+    #endif
+
+    for (int i = 0; i < NX; i+=Q_PREFETCH_LEN) {
+      prefetch_s_frame(a, r, i, j, &sp, NY);
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
+      FRAME_START(FRAME_SIZE);
+      #pragma GCC unroll(16)
+      for (int iin = 0; iin < Q_PREFETCH_LEN; iin+=PER_CORE_SIMD_LEN) {
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(&sp_ptr[sp + iin]);
+        vfloat32m1_t vr = vle32_v_f32m1(&sp_ptr[sp + Q_PREFETCH_LEN + iin]);
+        vfloat32m1_t vs = vfmul_vv_f32m1(va, vr);
+        accum = vfadd_vv_f32m1(accum, vs);
+        #else
+        s_local += sp_ptr[sp + iin] * sp_ptr[sp + Q_PREFETCH_LEN + iin];
+        #endif
+      }
+      sp += FRAME_SIZE;
+      sp = sp % POST_FRAME_WORD;
+      END_FRAME();
+    }
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t vslocal = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    s_local += vfmv_f_s_f32m1_f32(vslocal);
+    #endif
+
+    #elif defined(PER_CORE_SIMD)
     int chunk = NX;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
       l = vsetvl_e32m1(chunk);
@@ -64,20 +100,6 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
       // update the accumulation
       float single_val = vfmv_f_s_f32m1_f32(vs);
       s_local += single_val;
-    }
-    #elif defined(MANYCORE_PREFETCH)
-    for (int i = 0; i < NX; i+=Q_PREFETCH_LEN) {
-      prefetch_s_frame(a, r, i, j, &sp, NY);
-
-      FRAME_START(FRAME_SIZE);
-      #pragma GCC unroll(16)
-      for (int iin = 0; iin < Q_PREFETCH_LEN; iin++) {
-        s_local += sp_ptr[sp + iin] * sp_ptr[sp + Q_PREFETCH_LEN + iin];
-      }
-      END_FRAME();
-
-      sp += FRAME_SIZE;
-      sp = sp % POST_FRAME_WORD;
     }
     #else
     #pragma GCC unroll(16)
@@ -110,7 +132,43 @@ void compute_q_manycore_baseline(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, i
     // q[i] = 0.0f;
     DTYPE q_local = 0.0f;
 
+    #if defined(MANYCORE_PREFETCH)
+
     #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+    vfloat32m1_t accum = vzero;
+    #endif
+
+    for (int j = 0; j < NY; j+=Q_PREFETCH_LEN) {
+      prefetch_q_frame(a, p, i, j, &sp, NY);
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
+      FRAME_START(FRAME_SIZE);
+      #pragma GCC unroll(16)
+      for (int jin = 0; jin < Q_PREFETCH_LEN; jin+=PER_CORE_SIMD_LEN) {
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(&sp_ptr[sp + jin]);
+        vfloat32m1_t vp = vle32_v_f32m1(&sp_ptr[sp + Q_PREFETCH_LEN + jin]);
+        vfloat32m1_t vq = vfmul_vv_f32m1(va, vp);
+        accum = vfadd_vv_f32m1(accum, vq);
+        #else
+        q_local += sp_ptr[sp + jin] * sp_ptr[sp + Q_PREFETCH_LEN + jin];
+        #endif
+      }
+      sp += FRAME_SIZE;
+      sp = sp % POST_FRAME_WORD;
+      END_FRAME();
+    }
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t vqlocal = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    q_local += vfmv_f_s_f32m1_f32(vqlocal);
+    #endif
+
+    #elif defined(PER_CORE_SIMD)
     int chunk = NY;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
       l = vsetvl_e32m1(chunk);
@@ -135,20 +193,6 @@ void compute_q_manycore_baseline(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, i
       // update the accumulation
       float single_val = vfmv_f_s_f32m1_f32(vq);
       q_local += single_val;
-    }
-    #elif defined(MANYCORE_PREFETCH)
-    for (int j = 0; j < NY; j+=Q_PREFETCH_LEN) {
-      prefetch_q_frame(a, p, i, j, &sp, NY);
-
-      FRAME_START(FRAME_SIZE);
-      #pragma GCC unroll(16)
-      for (int jin = 0; jin < Q_PREFETCH_LEN; jin++) {
-        q_local += sp_ptr[sp + jin] * sp_ptr[sp + Q_PREFETCH_LEN + jin];
-      }
-      END_FRAME();
-
-      sp += FRAME_SIZE;
-      sp = sp % POST_FRAME_WORD;
     }
     #else
     #pragma GCC unroll(16)

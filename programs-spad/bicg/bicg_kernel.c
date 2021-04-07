@@ -9,6 +9,10 @@
 #include "bind_defs.h"
 #include "util.h"
 
+#ifdef PER_CORE_SIMD
+#include <riscv_vector.h>
+#endif
+
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
@@ -55,6 +59,12 @@ void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int pti
   DTYPE s_local = 0.0f;
   int sp = 0;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+  vfloat32m1_t accum = vzero;
+  #endif  
   #endif
 
   #ifdef SCALAR_CORE
@@ -88,22 +98,44 @@ void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int pti
   do {
     do {
       asm("trillium vissue_delim if_begin vec_body");
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
+
       FRAME_START(FRAME_SIZE);
 
       #pragma GCC unroll(16)
-      for (int i = 0; i < Q_PREFETCH_LEN; i++) {
+      for (int i = 0; i < Q_PREFETCH_LEN; i+=PER_CORE_SIMD_LEN) {
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(&sp_ptr[sp + i]);
+        vfloat32m1_t vr = vle32_v_f32m1(&sp_ptr[sp + Q_PREFETCH_LEN + i]);
+        vfloat32m1_t vs = vfmul_vv_f32m1(va, vr);
+        accum = vfadd_vv_f32m1(accum, vs);
+        #else
         s_local += sp_ptr[sp + i] * sp_ptr[sp + Q_PREFETCH_LEN + i];
+        #endif
       }
       REMEM(FRAME_SIZE);
       sp+=FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
+
       asm("trillium vissue_delim end at_jump");
     } while(BH);
 
     asm("trillium vissue_delim until_next vec_body_end");
-    STORE_NOACK(s_local, &s[j], 0);
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t vslocal = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    s_local += vfmv_f_s_f32m1_f32(vslocal);
+    accum = vzero;
+    #endif
+
+    FSTORE_NOACK(s_local, &s[j], 0);
     j+=VECTOR_LEN;
     s_local = 0.0f;
+
+ 
 
   } while(BH);
 
@@ -143,14 +175,6 @@ vector_return_label:
 
 void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int ptid, int groupId, int numGroups, int vtid) {
 
-  // // chunk over vector gorups
-  // int start = ((groupId + 0) * NX) / numGroups;
-  // int end   = ((groupId + 1) * NX) / numGroups;
-
-  // // make it a factor of vector group mapping size
-  // start = roundUp(start, VECTOR_LEN);
-  // end   = roundUp(end  , VECTOR_LEN);
-
   #ifdef SCALAR_CORE
   // goto vector mode
   VECTOR_EPOCH(mask);
@@ -170,14 +194,20 @@ void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int pti
   #endif
 
   #ifdef VECTOR_CORE
-    asm("trillium vissue_delim until_next vector_init");
-    int start = ((groupId + 0) * NX) / numGroups;
-    start = roundUp(start, VECTOR_LEN);
+  asm("trillium vissue_delim until_next vector_init");
+  int start = ((groupId + 0) * NX) / numGroups;
+  start = roundUp(start, VECTOR_LEN);
 
-    int i = start + vtid;
-    DTYPE q_local = 0.0f;
-    int sp = 0;
-    DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+  int i = start + vtid;
+  DTYPE q_local = 0.0f;
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+  vfloat32m1_t accum = vzero;
+  #endif 
   #endif
 
   // TODO seems like can use c functors to implement this pattern
@@ -218,11 +248,22 @@ void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int pti
   do {
     do {
       asm("trillium vissue_delim if_begin vec_body");
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
+
       FRAME_START(FRAME_SIZE);
 
       #pragma GCC unroll(16)
-      for (int j = 0; j < Q_PREFETCH_LEN; j++) { 
+      for (int j = 0; j < Q_PREFETCH_LEN; j+=PER_CORE_SIMD_LEN) { 
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(&sp_ptr[sp + j]);
+        vfloat32m1_t vp = vle32_v_f32m1(&sp_ptr[sp + Q_PREFETCH_LEN + j]);
+        vfloat32m1_t vq = vfmul_vv_f32m1(va, vp);
+        accum = vfadd_vv_f32m1(accum, vq);
+        #else
         q_local += sp_ptr[sp + j] * sp_ptr[sp + Q_PREFETCH_LEN + j];
+        #endif
       }
       REMEM(FRAME_SIZE);
       sp += FRAME_SIZE;
@@ -232,7 +273,15 @@ void tril_bicg_q(int mask, DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, int pti
     } while(BH);
 
     asm("trillium vissue_delim until_next vec_body_end");
-    STORE_NOACK(q_local, &q[i], 0);
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t vqlocal = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    q_local += vfmv_f_s_f32m1_f32(vqlocal);
+    accum = vzero;
+    #endif
+
+    FSTORE_NOACK(q_local, &q[i], 0);
     i += VECTOR_LEN;
     q_local = 0.0f;
 
