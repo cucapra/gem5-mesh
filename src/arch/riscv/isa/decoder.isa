@@ -3104,6 +3104,24 @@ decode QUADRANT default Unknown::unknown() {
                     }
                 }
 
+                0x19: decode VM {
+                    // vmand_mm
+                    0x1: VOPMVV::vmand_mm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            Vd_sd[i] = Vs2_sd[i] && Vs1_sd[i];
+                        }
+                    }}, flags=['SimdCmpOp']);
+
+                    // vmand_mmm
+                    0x0: VOPMVV::vmand_mmm({{
+                        for (auto i = 0; i < VLEN; i++) {
+                            if (Vm_ud[i] & 0x1llu) {
+                                Vd_sd[i] = Vs2_sd[i] && Vs1_sd[i];
+                            }
+                        }
+                    }}, flags=['SimdCmpOp']);
+                }
+
                 // vmul
                 0x25: decode VM {
                     // vmul_vv
