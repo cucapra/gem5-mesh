@@ -109,7 +109,7 @@ void compute_s_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, i
     }
     #endif
     // s[j] = s_local;
-    STORE_NOACK(s_local, &s[j], 0);
+    FSTORE_NOACK(s_local, &s[j], 0);
   }
 
   asm volatile("fence\n\t");
@@ -202,7 +202,7 @@ void compute_q_manycore_baseline(DTYPE *a, DTYPE *p, DTYPE *q, int NX, int NY, i
     }
     #endif
     // q[i] = q_local;
-    STORE_NOACK(q_local, &q[i], 0);
+    FSTORE_NOACK(q_local, &q[i], 0);
   }
 
   asm volatile("fence\n\t");
