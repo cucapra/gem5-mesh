@@ -365,6 +365,9 @@ parser.add_option("--hw-vlen", default=4,
 parser.add_option("--mesh-queue-len", default=2,
   help="How many instructions can be stored between cores in vector mode")
 
+parser.add_option("--llc-max-size", default="16kB",
+  help="How large should llc slices be if more than 8slices")
+
 (options, args) = parser.parse_args()
 
 # set large mem-size needed for larger problem sizes
@@ -563,9 +566,9 @@ elif n_l2s == 4:
 elif n_l2s == 8:
   l2_size = '32kB'
 elif n_l2s == 16:
-  l2_size = '32kB'
+  l2_size = options.llc_max_size
 elif n_l2s % n_cols == 0:
-  l2_size = '32kB'
+  l2_size = options.llc_max_size
 else:
   fatal("Invalid number of L2 banks")
 
