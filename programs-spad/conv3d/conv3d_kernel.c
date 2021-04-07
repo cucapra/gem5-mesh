@@ -178,9 +178,10 @@ void tril_conv3d(int mask,
 
         int idx = IDX(i, j, k, NJ, NK);
         int gt = (k >= NK);
-        PRED_EQ(gt, 0);
-        STORE_NOACK(out, b + idx, 0);
-        PRED_EQ(gt, gt);
+        PRED_EQ_FSTORE_NOACK(gt, 0, out, b + idx, 0);
+        // PRED_EQ(gt, 0);
+        // STORE_NOACK(out, b + idx, 0);
+        // PRED_EQ(gt, gt);
 
         k+=VECTOR_LEN; // this line getting group with bIdx
         // bIdx += VECTOR_LEN;
