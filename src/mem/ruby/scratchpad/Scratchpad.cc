@@ -1341,9 +1341,13 @@ Scratchpad::isPrefetchAhead(Addr addr) {
   // // TODO issue if don't consume the whole mem token frame
   // bool wouldOverlap = m_cpu_p->getMemTokens() + getRegionElements() >= getAllRegionSize();
 
-  // TODO i dont think this does anything anymore
-  // might need to use max(m_num_frame_cntrs, and num_regions) here
-  bool wouldOverlap = (getCurPrefetchRegion(m_num_frame_cntrs) == getCurConsumerRegion(0));
+  // int effRegions = std::min(m_num_frame_cntrs, getNumRegions());
+  // bool wouldOverlap = (getCurPrefetchRegion(effRegions) == getCurConsumerRegion(0));
+  
+  // check if this would write to future frame that happens to wrap to the consumer frame
+  // okay if writes to first frame and thats also the consumer frame (b/c they move together)
+  bool wouldOverlap =  (pktEpochMod != getCurPrefetchRegion(0)) &&
+     (pktEpochMod == getCurConsumerRegion(0));
 
   DPRINTF(Frame, "wouldOverlap %d ahead %d pktEpoch %d consumerRegion %d prefetchRegion %d region cntr %d\n", 
     wouldOverlap, aheadCntr, pktEpochMod, m_cur_consumer_region, m_cur_prefetch_region, m_region_cntrs[0]);
