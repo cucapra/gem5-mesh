@@ -23,16 +23,6 @@
 #ifdef USE_VEC
 void tril_bicg_s(int mask, DTYPE *a, DTYPE *r, DTYPE *s, int NX, int NY, int ptid, int groupId, int numGroups, int vtid) {
 
-  // CANT DO CODE HERE, also can't share code between scalar and vector here
-  // shared code should happen before go into this function
-  // // chunk over vector gorups
-  // int start = ((groupId + 0) * NY) / numGroups;
-  // int end   = ((groupId + 1) * NY) / numGroups;
-
-  // // make it a factor of vector group mapping size
-  // start = roundUp(start, VECTOR_LEN);
-  // end   = roundUp(end  , VECTOR_LEN);
-
   #ifdef SCALAR_CORE
   VECTOR_EPOCH(mask);
 
