@@ -7,7 +7,6 @@
 #include "gramschmidt.h"
 #include "spad.h"
 #include "bind_defs.h"
-#include "token_queue.h"
 #include "group_templates.h"
 #include "util.h"
 
@@ -75,11 +74,11 @@ void tril_u_normalize(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   do {
     asm("trillium vissue_delim if_begin vec_body");
     // q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
-    START_FRAME();
+    FRAME_START(FRAME_SIZE_NORM);
     #pragma GCC unroll(2)
     for (int u = 0; u < UNROLL_LEN_NORM; u++) {
       DTYPE val =  sp_ptr[sp + u] / r_cache;
-      STORE_NOACK(val, &q[(i + u*VECTOR_LEN) * numVectors + k], 0);
+      FSTORE_NOACK(val, &q[(i + u*VECTOR_LEN) * numVectors + k], 0);
     }
     END_FRAME();
     i+=STRIDE_NORM;
@@ -227,7 +226,7 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   do {
     asm("trillium vissue_delim if_begin vec_body_1");
     // get data regardless of predication
-    START_FRAME();
+    FRAME_START(FRAME_SIZE_SUB);
 
     // predicate loop
     int gt = (j >= end);
@@ -263,14 +262,14 @@ void tril_u_dot_subtract(int mask, DTYPE *a, DTYPE *r, DTYPE *q,
   do {
     asm("trillium vissue_delim if_begin vec_body_2");
 
-    START_FRAME();
+    FRAME_START(FRAME_SIZE_SUB);
 
     int gt = (j >= end);
     PRED_EQ(gt, 0);
     #pragma GCC unroll(4)
     for (int u = 0; u < UNROLL_LEN_SUB; u++) {
       DTYPE val = sp_ptr[sp + UNROLL_LEN_SUB + u] - sp_ptr[sp + u] * r_cache;
-      STORE_NOACK(val, &a[(i + u) * numVectors + j], 0);
+      FSTORE_NOACK(val, &a[(i + u) * numVectors + j], 0);
     }
     PRED_EQ(gt, gt);
 

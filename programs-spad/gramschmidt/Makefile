@@ -4,9 +4,9 @@ default: $(BENCHNAME)
 # run small sim for test
 PROB_SIZE := 32
 N_SPS ?= 16
-EXTRA_FLAGS ?=-DPACKED_SIMD
+EXTRA_FLAGS ?=-DVECTOR_LEN=4
 HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
-# GEM5_ARGS := --remote-gdb-port=0 --debug-flags=Mesh
+# GEM5_ARGS := --remote-gdb-port=0 --debug-flags=Frame
 
 # Build the kernel with trilliasm.
 TRILLIASM_KERNEL := gram_kernel.c

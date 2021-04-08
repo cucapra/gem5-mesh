@@ -6,27 +6,16 @@
 // data type to do computation with
 #define DTYPE float
 
-// one of these should be defined to dictate config
-// #define NO_VEC 1
-// #define VEC_4_SIMD 1
-// #define VEC_16_SIMD 1
-// #define MANYCORE_PREFETCH
-// #define PACKED_SIMD
+// NO_VEC
+// MANYCORE_PREFETCH
+// PER_CORE_SIMD
+// [VECTOR_LEN=4,16 + any combo of PER_CORE_SIMD, LONGLINES] 
 
-// vvadd_execute config directives
-#if !defined(NO_VEC) && !defined(MANYCORE_PREFETCH) && !defined(PACKED_SIMD)
-#define USE_VEC 1
+#ifdef VECTOR_LEN
+#define USE_VEC
 #endif
-
-// vector grouping directives
-#if defined(VEC_4_SIMD)
-#define VECTOR_LEN 4
-#endif
-#if defined(VEC_16_SIMD)
-#define VECTOR_LEN 16
-#endif
-#if defined(MANYCORE_PREFETCH)
-#define VECTOR_LEN 1
+#ifdef MANYCORE_PREFETCH
+#define VECTOR_LEN (1)
 #endif
 
 // prefetch sizings
@@ -64,12 +53,20 @@
   VPREFETCH_LR(sp, memIdx, core, len, style)
 #endif
 
+#ifdef MANYCORE_PREFETCH
+  #define VERTICAL_FETCH_TYPE (TO_SELF)
+  #define HORIZONTAL_FETCH_TYPE (TO_SELF)
+#else
+  #define VERTICAL_FETCH_TYPE (TO_ONE_CORE)
+  #define HORIZONTAL_FETCH_TYPE (TO_ALL_CORES)
+#endif
+
 
 inline void prefetch_normalize_frame(DTYPE *a, int i, int k, int numVectors, int *sp) {
   for (int u = 0; u < UNROLL_LEN_NORM; u++) {
     for (int core = 0; core < VECTOR_LEN; core++) {
       int i_idx = i + core + u*VECTOR_LEN;
-      VPREFETCH_L(*sp + u, &a[i_idx * numVectors + k], core, PREFETCH_LEN_NORM, VERTICAL);
+      VPREFETCH_L(*sp + u, &a[i_idx * numVectors + k], core, PREFETCH_LEN_NORM, VERTICAL_FETCH_TYPE);
     }
   }
 
@@ -83,12 +80,12 @@ inline void prefetch_dot_frame(DTYPE *q, DTYPE *a, int i, int j, int k, int numV
   // fetch the same q to each core
   for (int u = 0; u < UNROLL_LEN_SUB; u++) {
     for (int core = 0; core < VECTOR_LEN; core++) {
-      VPREFETCH_L(*sp + u, &q[(i + u) * numVectors + k], core, 1, VERTICAL);
+      VPREFETCH_L(*sp + u, &q[(i + u) * numVectors + k], core, 1, VERTICAL_FETCH_TYPE);
     }
   }
 
   for (int u = 0; u < UNROLL_LEN_SUB; u++) {
-    VPREFETCH_LR_FAIR(*sp + UNROLL_LEN_SUB + u, &a[(i + u) * numVectors + j], 0, VECTOR_LEN, HORIZONTAL);
+    VPREFETCH_LR_FAIR(*sp + UNROLL_LEN_SUB + u, &a[(i + u) * numVectors + j], 0, 1, HORIZONTAL_FETCH_TYPE);
   }
 
 // q[i * numVectors + k] * a[i * numVectors + j];
@@ -99,16 +96,6 @@ inline void prefetch_dot_frame(DTYPE *q, DTYPE *a, int i, int j, int k, int numV
   #endif
 }
 
-#endif
-
-
-// grid dim xy assuming always a square
-#if _N_SPS==16
-#define GRID_XDIM 4
-#define GRID_YDIM 4
-#elif _N_SPS==64
-#define GRID_XDIM 8
-#define GRID_YDIM 8
 #endif
 
 // pthread argument for the kernel

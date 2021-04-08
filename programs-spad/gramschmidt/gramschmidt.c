@@ -11,7 +11,7 @@
 #include "gram_kernel.h"
 #include "util.h"
 
-#ifdef PACKED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
@@ -78,17 +78,17 @@ void u_normalize_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors,
   for (int i = start; i < end; i+=UNROLL_LEN_NORM) {
     prefetch_normalize_frame(a, i, k, numVectors, &sp);
 
-    START_FRAME();
+    FRAME_START(FRAME_SIZE_NORM);
     #pragma GCC unroll(16)
     for (int u = 0; u < UNROLL_LEN_NORM; u++) {
       DTYPE val =  sp_ptr[sp + u] / r_cache;
-      STORE_NOACK(val, &q[(i + u) * numVectors + k], 0);
+      FSTORE_NOACK(val, &q[(i + u) * numVectors + k], 0);
     }
     END_FRAME();
     sp+=FRAME_SIZE_NORM;
     sp = sp % POST_FRAME_WORD_NORM;
   }
-  #elif defined(PACKED_SIMD)
+  #elif defined(PER_CORE_SIMD)
   int size = end - start;
   int chunk = size;
   for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -107,7 +107,7 @@ void u_normalize_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVectors,
     // q[i * numVectors + k] = a[i * numVectors + k] / r_cache;
 
     // NOTE this adds a fmv instruction. no way around this unless want to modify the compiler to treat instruction as floating point
-    STORE_NOACK(a[i * numVectors + k] / r_cache, &q[i * numVectors + k], 0);
+    FSTORE_NOACK(a[i * numVectors + k] / r_cache, &q[i * numVectors + k], 0);
   }
   #endif
 
@@ -122,6 +122,11 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
   int start = ( k + 1 ) + ( ( ( tid + 0 ) * numProjs ) / dim );
   int end   = ( k + 1 ) + ( ( ( tid + 1 ) * numProjs ) / dim );
 
+  #ifdef MANYCORE_PREFETCH
+  int sp = 0;
+  DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
+  #endif
+
   // for each subsequent vector we need to off its component of the k'th vector
   for (int j = start; j < end; j++) {
 
@@ -131,12 +136,10 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
 
     // do the dot product with j'th vector that needs the component of the k'th vector taken off
     #ifdef MANYCORE_PREFETCH
-    int sp = 0;
-    DTYPE* sp_ptr = (DTYPE*)getSpAddr(tid, 0);
     for (int i = 0; i < vectorLen; i+=UNROLL_LEN_SUB) {
       prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
 
-      START_FRAME();
+      FRAME_START(FRAME_SIZE_SUB);
       #pragma GCC unroll(16)
       for (int u = 0; u < UNROLL_LEN_SUB; u++) { 
         DTYPE val = sp_ptr[sp + u]  * sp_ptr[sp + UNROLL_LEN_SUB + u];
@@ -151,16 +154,16 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
     for (int i = 0; i < vectorLen; i+=UNROLL_LEN_SUB) {
       prefetch_dot_frame(q, a, i, j, k, numVectors, &sp);
 
-      START_FRAME();
+      FRAME_START(FRAME_SIZE_SUB);
       #pragma GCC unroll(16)
       for (int u = 0; u < UNROLL_LEN_SUB; u++) { 
         DTYPE val = sp_ptr[sp + UNROLL_LEN_SUB + u] - sp_ptr[sp + u] * r_cache;
-        STORE_NOACK(val, &a[(i + u) * numVectors + j], 0);
+        FSTORE_NOACK(val, &a[(i + u) * numVectors + j], 0);
       }
       END_FRAME();
       sp = (sp + FRAME_SIZE_SUB) % POST_FRAME_WORD_SUB;
     }
-    #elif defined(PACKED_SIMD)
+    #elif defined(PER_CORE_SIMD)
     int chunk = vectorLen;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
       l = vsetvl_e32m1(chunk);
@@ -207,7 +210,7 @@ void u_dot_subtract_manycore_baseline(DTYPE *a, DTYPE *r, DTYPE *q, int numVecto
       // a[i * numVectors + j] -= q[i * numVectors + k] * r[k * numVectors + j];
       // a[i * numVectors + j] -= q[i * numVectors + k] * r_cache;
       DTYPE val = a[i * numVectors + j] - q[i * numVectors + k] * r_cache;
-      STORE_NOACK(val, &a[i * numVectors + j], 0);
+      FSTORE_NOACK(val, &a[i * numVectors + j], 0);
     }
     #endif
   }
@@ -295,87 +298,13 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     stats_on();
   }
 
-  // linearize tid and dim
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
-
-  // split into physical and virtual tids + dim
-  int vtid_x = 0;
-  int vtid_y = 0;
-  int vtid   = 0;
-  int vdim_x = 0;
-  int vdim_y = 0;
-  int vdim   = 0;
-  int orig_x = 0;
-  int orig_y = 0;
-  int is_da  = 0;
-  int master_x = 0;
-  int master_y = 0;
-  int unique_id = 0;
-  int total_groups = 0;
-  int used = 0;
-
-  // group construction
-  #ifdef USE_VEC
-
   #if VECTOR_LEN==4
-  template_info_t tinfo = init_template_4x4_2x2();
-  // template_info_t tinfo = init_template_debug();
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
   #elif VECTOR_LEN==16
-  template_info_t tinfo = init_template_8x8_4x4();
-  #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
-
-  vtid = cinfo.vtid;
-  vtid_x = cinfo.vtid_x;
-  vtid_y = cinfo.vtid_y;
-  vdim_x = cinfo.vdim_x;
-  vdim_y = cinfo.vdim_y;
-  orig_x = cinfo.orig_x;
-  orig_y = cinfo.orig_y;
-  is_da  = cinfo.is_scalar;
-  master_x = cinfo.master_x;
-  master_y = cinfo.master_y;
-  unique_id = cinfo.unique_id;
-  total_groups = cinfo.total_groups;
-  used = cinfo.used;
-
-  // printf("ptid %d(%d,%d) da %d vtid %d(%d,%d) dim %d(%d,%d) %d->%d used? %d\n", ptid, ptid_x, ptid_y, is_da, vtid, vtid_x, vtid_y, 4, vdim_x, vdim_y, start, end, used);
-
-  #elif !defined(USE_VEC)
-
-  vdim_x = 1;
-  vdim_y = 1;
-  vtid_x = 0;
-  vtid_y = 0;
-  vtid   = 0;
-  used   = 1;
-
-  #endif
-
-  // linearize some fields
-  vdim = vdim_x * vdim_y;
-
-  // get behavior of each core
-  #ifdef NUM_FRAMES_NORM
-  // setup up self prefetch
-  #ifdef MANYCORE_PREFETCH
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
-  int mask = getDebugMask(&cinfo);
-  VECTOR_EPOCH(mask);
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
   #else
-  int mask = getSIMDMask(&cinfo);
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
   #endif
-  #else
-  int mask = 0;
-  #endif
-
-  // #ifdef USE_VEC
-  // SET_PREFETCH_MASK(NUM_FRAMES, FRAME_SIZE, &start_barrier);
-  // #else
-  // // single barrier before kernel start
-  // // pthread_barrier_wait(&start_barrier);
-  // #endif
 
   MOVE_STACK_ONTO_SCRATCHPAD();
 
