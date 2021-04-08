@@ -306,6 +306,10 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
   #endif
 
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+  #endif
+
   MOVE_STACK_ONTO_SCRATCHPAD();
 
   // gramschmidt
