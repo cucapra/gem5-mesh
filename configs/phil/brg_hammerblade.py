@@ -368,6 +368,9 @@ parser.add_option("--mesh-queue-len", default=2,
 parser.add_option("--llc-max-size", default="16kB",
   help="How large should llc slices be if more than 8slices")
 
+parser.add_option("--dram-bw", default=16,
+  help="Target dram bandwidth in gb/s")
+
 (options, args) = parser.parse_args()
 
 # set large mem-size needed for larger problem sizes
@@ -639,7 +642,7 @@ system.mem_ranges = [ AddrRange(options.mem_size) ]
 # eac is 16GB/s so -> 8B/c (@1GHZ). so 16*num_channel = 128B/c
 # HBM_1000_4H_1x64  * 16 (HBMv2)
 # each is 8GB/s, -> 8B/c (@1GHZ). so 8*num_channel B/c
-bytes_per_cycle = 16
+bytes_per_cycle = options.dram_bw
 
 system.mem_ctrl = SimpleMemory()
 system.mem_ctrl.latency = '60ns' 
