@@ -9,6 +9,10 @@
 #include "util.h"
 #include "conv3d_kernel.h"
 
+#ifdef PER_CORE_SIMD
+#include <riscv_vector.h>
+#endif
+
 /*
   3x3 stencil with a single 3x3 filter
   Filter is cached in each spad.
@@ -71,13 +75,25 @@ void tril_conv3d(int mask,
   int j;
   int k;
   DTYPE* sp_ptr = (DTYPE*)getSpAddr(ptid, 0);
+
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  
+  // construct vector to help generate ending mask
+  vint32m1_t cresendo = vmv_v_x_i32m1(0.0f);
+  #pragma GCC unroll(16)
+  for (int i = 0; i < PER_CORE_SIMD_LEN; i++) {
+    cresendo = vslide1down_vx_i32m1(cresendo, i);
+  }
+  #endif
+
   #endif
 
   #ifdef SCALAR_CORE
   // if (is_da) {
   int sp = 0;
   int eff_NK = NK - (FILTER_DIM-1);
-  int beginK = min(INIT_FRAMES * VECTOR_LEN, eff_NK);
+  int beginK = min(INIT_FRAMES * VEC_K_STRIDE, eff_NK);
 
   for (int i = outer_start; i < outer_end; i++) {
 
@@ -88,18 +104,18 @@ void tril_conv3d(int mask,
       ISSUE_VINST(k_body_begin_label);
 
       // initial warmup
-      for (int k = 1; k < 1 + beginK; k+=VECTOR_LEN) {
+      for (int k = 1; k < 1 + beginK; k+=VEC_K_STRIDE) {
         prefetch_horiz_frame(a, i, j, k, NJ, NK, &sp);
       }
 
       // steady state
-      for (int k = 1 + beginK; k < 1 + eff_NK; k+=VECTOR_LEN) {
+      for (int k = 1 + beginK; k < 1 + eff_NK; k+=VEC_K_STRIDE) {
         prefetch_horiz_frame(a, i, j, k, NJ, NK, &sp);
         ISSUE_VINST(vec_body_label);
       }
 
       // cooldown
-      for (int k = 1 + eff_NK - beginK; k < 1 + eff_NK; k+=VECTOR_LEN) {
+      for (int k = 1 + eff_NK - beginK; k < 1 + eff_NK; k+=VEC_K_STRIDE) {
         ISSUE_VINST(vec_body_label);
       }
 
@@ -157,33 +173,65 @@ void tril_conv3d(int mask,
       asm("trillium vissue_delim until_next k_body_begin");
       // bIdx += unmappedK;
       // bIdx += NK;
-      k = 1 + vtid;
+      k = 1 + vtid*UNROLL_LEN;
 
       do {
       asm("trillium vissue_delim if_begin vec_body");
 
+        #ifdef PER_CORE_SIMD
+        vsetvl_e32m1(PER_CORE_SIMD_LEN);
+        #endif
+
         FRAME_START(REGION_SIZE);
 
+        #ifdef PER_CORE_SIMD
+        // uses audit2 strategy instead b/c dont know how to do horizontal version
 
-        // prefetching all 0s
+        for (int u = 0; u < UNROLL_LEN; u+=PER_CORE_SIMD_LEN) {
+          vsetvl_e32m1(PER_CORE_SIMD_LEN);
+          int ul = UNROLL_LEN;
+          int ml = UNROLL_LEN + 2;
+          // check if exceeds k
+          vbool32_t bmask2 = vmslt_vx_i32m1_b32(cresendo, (NK - 1) - (k + u));
+          // check if exceeds the unroll amount
+          vbool32_t bmask1 = vmslt_vx_i32m1_b32(cresendo, UNROLL_LEN - u);
+          vbool32_t bmask = vmand_mm_b32(bmask1, bmask2);
+
+          vfloat32m1_t a111 = vle32_v_f32m1(&sp_ptr[sp + 0*ul + u]);
+          vfloat32m1_t a113 = vle32_v_f32m1(&sp_ptr[sp + 0*ul + u + 2]);
+          vfloat32m1_t a123 = vle32_v_f32m1(&sp_ptr[sp + 1*ml + u]);
+          vfloat32m1_t a133 = vle32_v_f32m1(&sp_ptr[sp + 1*ul+1*ml + u]);
+          vfloat32m1_t a212 = vle32_v_f32m1(&sp_ptr[sp + 2*ul+1*ml + u]);
+          vfloat32m1_t a222 = vle32_v_f32m1(&sp_ptr[sp + 3*ul+1*ml + u]);
+          vfloat32m1_t a232 = vle32_v_f32m1(&sp_ptr[sp + 4*ul+1*ml + u]);
+          vfloat32m1_t a311 = vle32_v_f32m1(&sp_ptr[sp + 5*ul+1*ml + u]);
+          vfloat32m1_t a313 = vle32_v_f32m1(&sp_ptr[sp + 5*ul+1*ml + u + 2]);
+          vfloat32m1_t a323 = vle32_v_f32m1(&sp_ptr[sp + 5*ul+2*ml + u]);
+          vfloat32m1_t a333 = vle32_v_f32m1(&sp_ptr[sp + 6*ul+2*ml + u]);
+
+          VCONV_15(a111, a113, a123, a133, a212, a222, a232, a311, a313, a323, a333);
+
+          vse32_v_f32m1_m(bmask, &b[IDX(i, j, k + u, NJ, NK)], ofmap);
+
+        }
+        #else
         DTYPE out = CONV_15(
           sp_ptr[sp + 0], sp_ptr[sp + 1], sp_ptr[sp + 2],
           sp_ptr[sp + 3], sp_ptr[sp + 4], sp_ptr[sp + 5],
           sp_ptr[sp + 6], sp_ptr[sp + 7], sp_ptr[sp + 8],
           sp_ptr[sp + 9], sp_ptr[sp + 10]
         );
+        #endif
 
         END_FRAME();
 
-
-        int idx = IDX(i, j, k, NJ, NK);
+        #ifndef PER_CORE_SIMD
+        int idx = IDX(i, j, k, NJ, NK);        
         int gt = (k >= NK);
         PRED_EQ_FSTORE_NOACK(gt, 0, out, b + idx, 0);
-        // PRED_EQ(gt, 0);
-        // STORE_NOACK(out, b + idx, 0);
-        // PRED_EQ(gt, gt);
+        #endif
 
-        k+=VECTOR_LEN; // this line getting group with bIdx
+        k+=VEC_K_STRIDE; // this line getting group with bIdx
         // bIdx += VECTOR_LEN;
         sp += REGION_SIZE;
         sp = sp % POST_REGION_WORD;
