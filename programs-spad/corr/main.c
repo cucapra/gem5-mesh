@@ -27,7 +27,7 @@ void transpose(DTYPE *a, int row, int col, DTYPE *aT){
   }
 }
 
-int check_corr(DTYPE* orig_data, DTYPE* symmat_out, int m, int n){
+int check_corr(DTYPE* orig_data, DTYPE* kernel_dataT, DTYPE* kernel_mean, DTYPE* kernel_stddev, DTYPE* symmat_out, int m, int n){
 
   /* Determine mean of column vectors of input data matrix */
   DTYPE* mean = (DTYPE*)malloc(m*sizeof(DTYPE));
@@ -38,6 +38,17 @@ int check_corr(DTYPE* orig_data, DTYPE* symmat_out, int m, int n){
 	      mean[j] += orig_data[i*m+j];
       mean[j] /= n;
     }
+  
+  for (int j = 0; j < m; j++)
+    {
+      if (!float_compare(mean[j], kernel_mean[j], 0.0001f)){
+          printf("[[FAIL]] for corr mean\n");
+          printf("kernel out:%f, actual out:%f, j:%d\n",kernel_mean[j],mean[j],j);
+          return 1;
+        }
+    }
+
+  
 
   /* Determine standard deviations of column vectors of data matrix. */
   double eps = 0.1f;
@@ -54,6 +65,15 @@ int check_corr(DTYPE* orig_data, DTYPE* symmat_out, int m, int n){
 	 divide. */
       stddev[j] = stddev[j] <= eps ? 1.0 : stddev[j];
     }
+  
+  for (int j = 0; j < m; j++)
+    {
+      if (!float_compare(stddev[j], kernel_stddev[j], 0.0001f)){
+          printf("[[FAIL]] for corr stddev\n");
+          printf("kernel out:%f, actual out:%f, j:%d\n",kernel_stddev[j],stddev[j],j);
+          return 1;
+        }
+    }
 
   /* Center and reduce the column vectors. */
   for (int i = 0; i < n; i++)
@@ -62,6 +82,18 @@ int check_corr(DTYPE* orig_data, DTYPE* symmat_out, int m, int n){
 	orig_data[i*m+j] -= mean[j];
 	orig_data[i*m+j] /= sqrt(n) * stddev[j];
       }
+
+  for (int i = 0; i < n; i++){
+    for (int j = 0; j < m; j++)
+      {
+        if (!float_compare(orig_data[i*m+j], kernel_dataT[j*n+i], 0.0001f)){
+          printf("[[FAIL]] for corr data\n");
+          printf("kernel out:%f, actual out:%f, i:%d, j:%d\n",kernel_dataT[j*n+i],orig_data[i*m+j],i,j);
+          return 1;
+        }
+      }
+  }
+  
 
   /* Calculate the m * m correlation matrix. */
   DTYPE* symmat_actual = (DTYPE*)malloc(m*m*sizeof(DTYPE));
@@ -187,7 +219,7 @@ int main(int argc, char *argv[])
 
   int fail;
 
-  fail = check_corr(data_copy, symmat,m,n);
+  fail = check_corr(data_copy, dataT, mean, stddev, symmat,m,n);
   if (fail)
     return 1;
 
