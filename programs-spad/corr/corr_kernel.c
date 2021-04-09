@@ -142,16 +142,17 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
     } while(bh2);
     asm("trillium vissue_delim until_next hoist3");
     stddev_temp = stddev_temp/n;
-    stddev_temp = sqrt(stddev_temp);
+    float stddev_temp1 = sqrt(stddev_temp);
     
-    int cond = stddev_temp <= eps;
+    volatile int cond2 = stddev_temp <= eps; //redundant but here to avoid some compiler movement which causes stddev to get doubly sqrted
+    int cond = stddev_temp1 <= eps;
     volatile int compiler_hack = 1;
     PRED_EQ(cond,1);
     if(compiler_hack){
-      stddev_temp = 1.0;
+      stddev_temp1 = 1.0;
     }
     PRED_EQ(ptid,ptid);
-    FSTORE_NOACK(stddev_temp, stddev + i, 0);
+    FSTORE_NOACK(stddev_temp1, stddev + i, 0);
     // stddev[i] = stddev_temp;
     
 
@@ -162,7 +163,7 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       #pragma GCC unroll(16)
       for(int jj=0; jj<REGION_SIZE; jj++){
         data_temp= (spAddr[sp_offset+jj]-mean_temp);
-        data_temp/=(sqrt(n)*stddev_temp);
+        data_temp/=(sqrt(n)*stddev_temp1);
         FSTORE_NOACK(data_temp, data + i*n+j+jj, 0);
         // data[i*n+j+jj]= data_temp;
       }
