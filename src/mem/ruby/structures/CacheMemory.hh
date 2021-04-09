@@ -127,6 +127,8 @@ class CacheMemory : public SimObject
     bool checkResourceAvailable(CacheResourceType res, Addr addr);
     void recordRequestType(CacheRequestType requestType, Addr addr);
 
+    void incDemandHits(int cnt);
+    void incDemandMisses(int cnt);
   public:
     Stats::Scalar m_demand_hits;
     Stats::Scalar m_demand_misses;

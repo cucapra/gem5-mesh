@@ -863,15 +863,17 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     //   DPRINTF(Mesh, "Doing a local access for pkt %s coreepoch %d prefetchEpoch %d cnt%d\n", 
     //     pkt_p->print(), getCoreEpoch(), m_cur_prefetch_region, m_region_cntr);
 
-    if (isRegionAccess(pkt_p) && pkt_p->isRead()) m_local_loads_region++;
-    if (isRegionAccess(pkt_p) && pkt_p->isWrite()) m_local_stores_region++;
+    // number of words (count as multiple to make fair with scalar)
+    int numAccesses = pkt_p->getRespCnt();
+    if (isRegionAccess(pkt_p) && pkt_p->isRead()) m_local_loads_region+=numAccesses;
+    if (isRegionAccess(pkt_p) && pkt_p->isWrite()) m_local_stores_region+=numAccesses;
     // record local access here
     if (pkt_p->isRead())
     {
-      m_local_loads++;
+      m_local_loads+=numAccesses;
       DPRINTF(LoadTrack, "Processing local load with addr %#x\n", pkt_p->getAddr());
     }
-    else if (pkt_p->isWrite()) m_local_stores++;
+    else if (pkt_p->isWrite()) m_local_stores+=numAccesses;
     
     // NOTE vector accesses to scratchpad happen in one cycle (i.e., modeling wide io between cpu and spad. prob fine b/c local)
     accessDataArray(pkt_p);
@@ -1381,6 +1383,8 @@ Scratchpad::isPrefetchAhead(Addr addr) {
 }
 
 bool Scratchpad::canHandleRemoteReq(Packet *pkt_p) {
+  assert(pkt_p->getRespCnt() == 1);
+
   // can always handle a normal remote req
   if (!isRegionAccess(pkt_p)) return true;
 

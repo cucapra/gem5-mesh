@@ -1125,6 +1125,24 @@ machine(MachineType:L2Cache, "SP LLC cache")
     ++cacheMemory.demand_misses;
   }
 
+  // profile the entire vector access on hit (respCnts)
+  action(pvh_profileVectorAccessHit, "pvh", desc = "Profile vector access on hit") {
+    peek(requestNetwork_in, LLCRequestMsg) {
+      assert(is_valid(cache_entry));
+      cacheMemory.incDemandHits(in_msg.RespCnt);
+    }
+  }
+
+  // profile the entire vector access on hit (respCnts - 1)
+  action(pvm_profileVectorAccessMiss, "pvm", desc = "Profile vector access on miss") {
+    peek(memQueue_in, MemoryMsg) {
+      assert(is_valid(tbe));
+      assert(is_valid(cache_entry));
+      // ++cacheMemory.demand_misses; // 1 miss (first one) already profiled on vread0
+      cacheMemory.incDemandHits(tbe.RespCnt-1);   // all others, count as hits
+    }
+  }
+
   action(z_stall, "z", desc="stall") {
     // built-in
   }
@@ -1252,20 +1270,24 @@ machine(MachineType:L2Cache, "SP LLC cache")
     wua_wakeupAllDependents;
   }
   
+  // single loads for vector, kinda hacky my dude!
   transition({V, M}, SPLOAD) {
     //pah_prefetchAckHit; // TODO don't need this? and acutally prob bad to wait in CPU
     smu_setMRU;
     rsc_remoteStoreFromCache;
+    pvh_profileVectorAccessHit;
     prq_popRequestQueue;
-    pht_profileHitAccess;
+    // pht_profileHitAccess;
+    
   }
   
   transition(IV, SP_Mem_Data, V) {
     wdc_writeDataToCache;
     smu_setMRU;
     rsm_remoteStoreFromMem;
+    pvm_profileVectorAccessMiss;
     dtb_deallocateTBE;
-    // pms_profileMissAccess; // I think this double counts
+    // pms_profileMissAccess; // I think this double counts (profiled on I state)
     pmq_popMemResponseQueue;
     wua_wakeupAllDependents;
   }
@@ -1286,7 +1308,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     // and this potentially can starve other ports of transition cycles
     mvl_markVectorRespThisCycleLLC;
     //pah_prefetchAckHit;
-    pht_profileHitAccess; // TODO could seperate reqs vs resps, but for now just look at resps
+    // pht_profileHitAccess; // TODO could seperate reqs vs resps, but for now just look at resps
   }
 
   transition(M, VREAD0, VM) {
@@ -1295,30 +1317,32 @@ machine(MachineType:L2Cache, "SP LLC cache")
     rsc_remoteStoreFromCache;
     ivc_incVectorCount;
     mvl_markVectorRespThisCycleLLC;
-    pht_profileHitAccess; // TODO could seperate reqs vs resps, but for now just look at resps
+    // pht_profileHitAccess; // TODO could seperate reqs vs resps, but for now just look at resps
   }
   
   transition({VV, VM}, VREAD1) {
+    smu_setMRU;
     rsc_remoteStoreFromCache;
     ivc_incVectorCount;
     mvl_markVectorRespThisCycleLLC;
-    pht_profileHitAccess; // TODO could seperate reqs vs resps, but for now just look at resps
+    // pht_profileHitAccess; // TODO could seperate reqs vs resps, but for now just look at resps
   }
   
   transition(VV, VREAD2, V) {
-    // smu_setMRU;
     rsc_remoteStoreFromCache;
-    rvl_resetVectorFromLLC; // last read (vector or not vector) so reset count
+    rvl_resetVectorFromLLC;
+    pvh_profileVectorAccessHit;
     prq_popRequestQueue;
-    pht_profileHitAccess;
+    // pht_profileHitAccess;
     wua_wakeupAllDependents;
   }
 
   transition(VM, VREAD2, M) {
     rsc_remoteStoreFromCache;
     rvl_resetVectorFromLLC;
+    pvh_profileVectorAccessHit;
     prq_popRequestQueue;
-    pht_profileHitAccess;
+    // pht_profileHitAccess;
     wua_wakeupAllDependents;
   }
   
@@ -1329,15 +1353,16 @@ machine(MachineType:L2Cache, "SP LLC cache")
     rsm_remoteStoreFromMem;
     ivt_incVectorCountTBE;
     mvm_markVectorRespThisCycleMem;
-    pht_profileHitAccess; // count as a hit, only count the last one as a miss
+    // pht_profileHitAccess; // count as a hit, only count the last one as a miss
     //pam_prefetchAckMiss;
   }
   
   transition(IV, VData1) {
+    smu_setMRU;
     rsm_remoteStoreFromMem;
     ivt_incVectorCountTBE;
     mvm_markVectorRespThisCycleMem;
-    pht_profileHitAccess; // count as a hit, only count the last one as a miss
+    // pht_profileHitAccess; // count as a hit, only count the last one as a miss
   }
   
   transition(IV, VData2, V) {
@@ -1345,8 +1370,9 @@ machine(MachineType:L2Cache, "SP LLC cache")
     // smu_setMRU;
     rsm_remoteStoreFromMem;
     rvm_resetVectorFromMem;
+    pvm_profileVectorAccessMiss;
     dtb_deallocateTBE;
-    pms_profileMissAccess; // count the final one as the miss
+    // pms_profileMissAccess; // count the final one as the miss
     pmq_popMemResponseQueue;
     wua_wakeupAllDependents;
   }

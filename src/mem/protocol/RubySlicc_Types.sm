@@ -210,6 +210,9 @@ structure (CacheMemory, external = "yes") {
   int getCacheSize();
   int getNumBlocks();
   Addr getAddressAtIdx(int);
+  
+  void incDemandHits(int);
+  void incDemandMisses(int);
 
   Scalar demand_misses;
   Scalar demand_hits;

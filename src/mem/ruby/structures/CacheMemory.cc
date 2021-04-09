@@ -653,3 +653,13 @@ CacheMemory::isBlockNotBusy(int64_t cache_set, int64_t loc)
 {
   return (m_cache[cache_set][loc]->m_Permission != AccessPermission_Busy);
 }
+
+void
+CacheMemory::incDemandHits(int cnt) {
+    m_demand_hits+=cnt;
+}
+
+void
+CacheMemory::incDemandMisses(int cnt) {
+    m_demand_misses+=cnt;
+}
