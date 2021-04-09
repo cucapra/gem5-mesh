@@ -260,13 +260,7 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   #else
   SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
   #endif
-
-  #ifdef LONGLINES
-  SETUP_REDUCE_CONFIG();
-  #else
-  SETUP_REDUCE_CONFIG_NULL();
-  #endif
-
+  
   // need to set vlen here so doesn't cause squash in vector core on change in value
   #ifdef PER_CORE_SIMD
   vsetvl_e32m1(PER_CORE_SIMD_LEN);
