@@ -140,19 +140,37 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       // if(sp_offset==NUM_REGIONS)sp_offset=0;
       sp_offset = sp_offset%(NUM_REGIONS*REGION_SIZE);
     } while(bh2);
+
     asm("trillium vissue_delim until_next hoist3");
     stddev_temp = stddev_temp/n;
-    float stddev_temp1 = sqrt(stddev_temp);
+    asm volatile ("fsqrt.s	%[dest], %[src]" : 
+      [dest] "=f" (stddev_temp) : [src] "f" (stddev_temp));
     
-    volatile int cond2 = stddev_temp <= eps; //redundant but here to avoid some compiler movement which causes stddev to get doubly sqrted
-    int cond = stddev_temp1 <= eps;
+
+    // int cond = stddev_temp <= eps;
+    // float dummy;// = stddev_temp;
+    // asm volatile(                                                         
+    //   ".insn r 0x33, 0x7, 0x5, x0, %[c0], %[c1]\n\t"                      
+    //   "fmv.s %[dest], %[src]\n\t"
+    //   ".insn r 0x33, 0x7, 0x5, x0, x0, x0\n\t"
+    //   : [dest] "=f" (dummy)
+    //   : [c0] "r" (cond), [c1] "r" (1), [src] "f" (1.0f));     
+
+    // stddev_temp = dummy;
+
+    // volatile int cond2 = stddev_temp <= eps; //redundant but here to avoid some compiler movement which causes stddev to get doubly sqrted
+    int cond = stddev_temp <= eps;
     volatile int compiler_hack = 1;
     PRED_EQ(cond,1);
     if(compiler_hack){
-      stddev_temp1 = 1.0;
+      stddev_temp = 1.0;
     }
     PRED_EQ(ptid,ptid);
-    FSTORE_NOACK(stddev_temp1, stddev + i, 0);
+
+    
+
+
+    FSTORE_NOACK(stddev_temp, stddev + i, 0);
     // stddev[i] = stddev_temp;
     
 
@@ -163,7 +181,11 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       #pragma GCC unroll(16)
       for(int jj=0; jj<REGION_SIZE; jj++){
         data_temp= (spAddr[sp_offset+jj]-mean_temp);
-        data_temp/=(sqrt(n)*stddev_temp1);
+        float nsqrt;
+        asm volatile ("fsqrt.s	%[dest], %[src]\n\t" : 
+          [dest] "=f" (nsqrt) : [src] "f" ((float)n));
+    
+        data_temp/=(nsqrt*stddev_temp);
         FSTORE_NOACK(data_temp, data + i*n+j+jj, 0);
         // data[i*n+j+jj]= data_temp;
       }
