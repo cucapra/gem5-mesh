@@ -5,14 +5,12 @@
 #include "corr.h"
 #include "spad.h"
 #include "bind_defs.h"
-#include "token_queue.h"
 #include "group_templates.h"
-#include "reduction.h"
 #include "util.h"
 
 #include "corr_kernel.h"
 
-#ifdef PACKED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
@@ -63,7 +61,7 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       mean_temp += spAddr[sp_offset+jj];
     }
     PF_END(NUM_REGIONS)
-    #elif defined(PACKED_SIMD)
+    #elif defined(PER_CORE_SIMD)
     int chunk = n;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
       l = vsetvl_e32m1(chunk);
@@ -98,7 +96,7 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       stddev_temp += (spAddr[sp_offset+jj]-mean_temp)*(spAddr[sp_offset+jj]-mean_temp);
     }
     PF_END(NUM_REGIONS)
-    #elif defined(PACKED_SIMD)
+    #elif defined(PER_CORE_SIMD)
     chunk = n;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
       l = vsetvl_e32m1(chunk);
@@ -141,7 +139,7 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       STORE_NOACK(data_temp,data+(i*n)+(j+jj),0);
     }
     PF_END(NUM_REGIONS)
-    #elif defined(PACKED_SIMD)
+    #elif defined(PER_CORE_SIMD)
     chunk = n;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
       l = vsetvl_e32m1(chunk);
@@ -243,7 +241,7 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
     #endif
     mean_temp /= n;
     // mean[j]=mean_temp;
-    STORE_NOACK(mean_temp,mean+j,0);
+    FSTORE_NOACK(mean_temp,mean+j,0);
 
     //stddev
     stddev_temp = 0;
@@ -273,7 +271,7 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       data_temp = spAddr[sp_offset+jj]-mean_temp;
       data_temp = data_temp/(sqrt(n)*stddev_temp);
       // data[(i+jj)*m+(j)] = data_temp;
-      STORE_NOACK(data_temp,data+((i+jj)*m)+j,0);
+      FSTORE_NOACK(data_temp,data+((i+jj)*m)+j,0);
     }
     PF_END(NUM_REGIONS)
     #else
@@ -316,8 +314,8 @@ corr_manycore_2(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
         sym_temp+=data[i*m+j1]*data[i*m+j2];
       }
       #endif
-      STORE_NOACK(sym_temp,symmat+(j1*m)+j2,0);
-      STORE_NOACK(sym_temp,symmat+(j2*m)+j1,0);
+      FSTORE_NOACK(sym_temp,symmat+(j1*m)+j2,0);
+      FSTORE_NOACK(sym_temp,symmat+(j2*m)+j1,0);
       // symmat[j1*m+j2]=sym_temp;
       // symmat[j2*m+j1]=sym_temp;
     }
@@ -338,56 +336,37 @@ void kernel(DTYPE *data, DTYPE *dataT, DTYPE *symmat, DTYPE *mean, DTYPE *stddev
     stats_on();
   }
 
-  
-
-  // linearize tid and dim
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
   int start = 0;
   int end = 0;
   float eps=0.1;
-  template_info_t tinfo;
-
-  //transpose matrix
-  #ifdef OPTIMIZED_TRANSPOSE
-  transpose_manycore(data,n,m,dataT,ptid,pdim);
-  data=dataT;
-  #endif
 
   #ifdef _VEC
-  #if VEC_LEN==4
-  tinfo = init_template_4x4_2x2();
-  #elif VEC_LEN==16
-  tinfo = init_template_8x8_4x4();
+  #if VECTOR_LEN==4
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
+  #elif VECTOR_LEN==16
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
   #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
-  
-  if(cinfo.used){
+  if(used){
     //do work division here
-    int alignment = VEC_LEN; //each group should have elements of multiple of this number
+    int alignment = VECTOR_LEN; //each group should have elements of multiple of this number
     start = roundUp((cinfo.unique_id + 0) * m / cinfo.total_groups, alignment); 
     end = roundUp((cinfo.unique_id + 1) * m / cinfo.total_groups, alignment); 
   }
 
   #else
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
   
   //do work division here
   start  = ( ( ptid + 0 ) * m ) / pdim;
   end    = ( ( ptid + 1 ) * m ) / pdim;
   #endif
 
-
-   // get behavior of each core
-  #ifdef _VEC
-  int mask = getSIMDMask(&cinfo);
-  #elif defined MANYCORE_PREFETCH
-  int mask = getDebugMask(&cinfo);
-  #else
-  int mask = 0;
+  //transpose matrix
+  #ifdef OPTIMIZED_TRANSPOSE
+  transpose_manycore(data,n,m,dataT,ptid,pdim);
+  data=dataT;
   #endif
-
 
  // region based mask for scratchpad
 #ifdef _VEC
@@ -424,11 +403,10 @@ void kernel(DTYPE *data, DTYPE *dataT, DTYPE *symmat, DTYPE *mean, DTYPE *stddev
       : [ dest ] "=r"(stackLoc)
       : [ spad ] "r"(spTop));
 
-  if(cinfo.used!=0){
+  if(used!=0){
     #if defined _VEC
-      tril_corr_vec_1(mask, data, symmat, mean, stddev, m, n, start, end, cinfo.vtid, cinfo.vdim_x*cinfo.vdim_y, ptid, eps);
+      tril_corr_vec_1(mask, data, symmat, mean, stddev, m, n, start, end, vtid, vdim, ptid, eps);
     #else
-      VECTOR_EPOCH(mask);
       corr_manycore_1(data, symmat, mean, stddev, m, n, start, end, ptid, eps);
     #endif
   }
@@ -441,25 +419,19 @@ void kernel(DTYPE *data, DTYPE *dataT, DTYPE *symmat, DTYPE *mean, DTYPE *stddev
   pthread_barrier_wait(&start_barrier);
   #endif
 
-  // if (ptid== 0)
-  // {
-  //   stats_on();
-  // }
-
-  if (cinfo.used == 0) goto stack_end;
+  if (used == 0) goto stack_end;
   //redistribute work for 2nd kernel
   #ifdef _VEC
-  start = cinfo.unique_id*VEC_LEN;
-  int stride = cinfo.total_groups*VEC_LEN;
+  start = cinfo.unique_id*VECTOR_LEN;
+  int stride = cinfo.total_groups*VECTOR_LEN;
   #else
   start  = ptid;
   int stride = pdim;
   #endif
 
   #if defined _VEC
-    tril_corr_vec_2(mask,data, symmat, mean, stddev, m, n, start, stride, cinfo.vtid, cinfo.vdim_x*cinfo.vdim_y, ptid);
+    tril_corr_vec_2(mask,data, symmat, mean, stddev, m, n, start, stride, vtid, vdim, ptid);
   #else
-    VECTOR_EPOCH(mask);
     corr_manycore_2(data, symmat, mean, stddev, m, n, start, stride, ptid);
   #endif
 

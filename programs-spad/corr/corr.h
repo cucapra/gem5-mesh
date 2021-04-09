@@ -3,8 +3,8 @@
 
 #include <math.h>
 
-// #define VEC_LEN 4 //vec group size
-#ifdef VEC_LEN
+// #define VECTOR_LEN 4 //vec group size
+#ifdef VECTOR_LEN
 #define _VEC
 #endif
 
@@ -41,17 +41,17 @@
 #ifdef OPTIMIZED_TRANSPOSE
 #define PF1(off,idx) \
   off = spadRegion * REGION_SIZE; \
-  VPREFETCH_L(off, data + idx, 0, REGION_SIZE,1); \
-  FRAME_START(); \
+  VPREFETCH_L(off, data + idx, 0, REGION_SIZE,TO_SELF); \
+  FRAME_START(REGION_SIZE); \
   _Pragma("GCC unroll(16)") \
   for(int jj=0; jj<REGION_SIZE; jj++)
 
 #define PF2(off1,off2,idx1,idx2) \
   off1 = spadRegion * REGION_SIZE_K2; \
   off2 = off1 + REGION_SIZE_K2/2; \
-  VPREFETCH_L(off1, data + idx1, 0, REGION_SIZE_K2/2,1); \
-  VPREFETCH_L(off2, data + idx2, 0, REGION_SIZE_K2/2,1); \
-  FRAME_START(); \
+  VPREFETCH_L(off1, data + idx1, 0, REGION_SIZE_K2/2,TO_SELF); \
+  VPREFETCH_L(off2, data + idx2, 0, REGION_SIZE_K2/2,TO_SELF); \
+  FRAME_START(REGION_SIZE_K2); \
   _Pragma("GCC unroll(16)") \
   for(int jj=0; jj<REGION_SIZE_K2/2; jj++)
 
@@ -59,9 +59,9 @@
 #define PF1(off,i,j,m) \
   off = spadRegion * REGION_SIZE; \
   for (int u = 0; u < REGION_SIZE; u++){ \
-    VPREFETCH_L(off+u, data + (i+u)*m +j, 0, 1, 0); \
+    VPREFETCH_L(off+u, data + (i+u)*m +j, 0, 1, TO_SELF); \
   } \
-  FRAME_START(); \
+  FRAME_START(REGION_SIZE); \
   _Pragma("GCC unroll(16)") \
   for(int jj=0; jj<REGION_SIZE; jj++)
 
@@ -69,10 +69,10 @@
   off1 = spadRegion * REGION_SIZE_K2; \
   off2 = off1 + REGION_SIZE_K2/2; \
   for (int u = 0; u < REGION_SIZE_K2/2; u++){ \
-    VPREFETCH_L(off1+u, data + (i+u)*m + j1, 0, 1,0); \
-    VPREFETCH_L(off2+u, data + (i+u)*m + j2, 0, 1,0); \
+    VPREFETCH_L(off1+u, data + (i+u)*m + j1, 0, 1,TO_SELF); \
+    VPREFETCH_L(off2+u, data + (i+u)*m + j2, 0, 1,TO_SELF); \
   } \
-  FRAME_START(); \
+  FRAME_START(REGION_SIZE_K2); \
   _Pragma("GCC unroll(16)") \
   for(int jj=0; jj<REGION_SIZE_K2/2; jj++)
 
