@@ -12,7 +12,7 @@
 
 #include "mvt_kernel.h"
 
-#ifdef PACKED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
@@ -39,7 +39,7 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, int st
         temp+= spAddr[sp_a_offset+jj]*spAddr[sp_y_offset+jj];
       }
       PF_END(NUM_REGIONS)
-      #elif defined(PACKED_SIMD)
+      #elif defined(PER_CORE_SIMD)
       int chunk = n;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
         l = vsetvl_e32m1(chunk);
@@ -73,7 +73,7 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, int st
         temp+=a[(j+jj)*n+i] * spAddr[sp_y_offset+jj];
       }
       PF_END(NUM_REGIONS)
-      #elif defined(PACKED_SIMD)
+      #elif defined(PER_CORE_SIMD)
       chunk = n;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
         l = vsetvl_e32m1(chunk);
@@ -103,8 +103,8 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, int st
 }
 
 void __attribute__((optimize("-fno-inline")))
-mvt_main(core_config_info_t cinfo, int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, 
-                  int start, int end, int ptid, int pdim, int pdim_x, template_info_t tinfo){
+mvt_main(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, 
+                  int start, int end, int ptid, int pdim, int pdim_x, int used, int vtid){
 
   // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
   // reset after the kernel is done
@@ -115,10 +115,10 @@ mvt_main(core_config_info_t cinfo, int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTY
   MOVE_STACK_ONTO_SCRATCHPAD();
   #endif
 
-  if(cinfo.used!=0){
+  if(used!=0){
     // if(ptid==0)printf("2. ptid pointer %x\n",ptid_group);
     #if defined _VEC
-      tril_mvt_vec(mask,a,y1,y2,x1,x2,n,start,end,ptid, cinfo.vtid);
+      tril_mvt_vec(mask,a,y1,y2,x1,x2,n,start,end,ptid, vtid);
 
     #else
       VECTOR_EPOCH(mask);
@@ -140,52 +140,38 @@ void kernel(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n,
   {
     stats_on();
   }
-
-
-  
-  int ptid = ptid_x + ptid_y * pdim_x;
-  int pdim = pdim_x * pdim_y;
   int start = 0;
   int end = 0;
-  template_info_t tinfo;
   // int* ptid_group = getSpAddr(ptid,REGION_SIZE*NUM_REGIONS);
 
   #ifdef _VEC
-  #if VEC_LEN==4
-  tinfo = init_template_4x4_2x2();
-  #elif VEC_LEN==16
-  tinfo = init_template_8x8_4x4();
+  #if VECTOR_LEN==4
+  SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
+  #elif VECTOR_LEN==16
+  SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
   #endif
-  core_config_info_t cinfo = vector_group_template(ptid_x, ptid_y, pdim_x, pdim_y, &tinfo);
 
   // if(ptid==0) printf("Total groups %d\n",cinfo.total_groups);
-  if(cinfo.used){
+  if(used){
     //do work division here
-    int alignment = VEC_LEN; //each group should have elements of multiple of this number
-    start = roundUp((cinfo.unique_id + 0) * n / cinfo.total_groups, alignment); 
-    end = roundUp((cinfo.unique_id + 1) * n / cinfo.total_groups, alignment); 
+    int alignment = VECTOR_LEN; //each group should have elements of multiple of this number
+    start = roundUp((unique_id + 0) * n / total_groups, alignment); 
+    end = roundUp((unique_id + 1) * n / total_groups, alignment); 
 
     // if(cinfo.is_scalar==1) printf("ptid:%d, start=%d and end=%d\n",ptid,start,end);
   }
 
   #else
-  core_config_info_t cinfo = manycore_template(ptid_x, ptid_y, pdim_x, pdim_y);
+  SET_USEFUL_VARIABLES_MANYCORE(ptid_x, ptid_y, pdim_x, pdim_y);
   
   //do work division here
   start  = ( ( ptid + 0 ) * n ) / pdim;
   end    = ( ( ptid + 1 ) * n ) / pdim;
   #endif
 
-  // get behavior of each core
-  #ifdef _VEC
-  int mask = getSIMDMask(&cinfo);
-  #elif defined MANYCORE_PREFETCH
-  int mask = getDebugMask(&cinfo);
-  #else
-  int mask = 0;
+#ifdef PER_CORE_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
   #endif
-
-
   // region based mask for scratchpad
 #ifdef _VEC
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
@@ -196,7 +182,7 @@ void kernel(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n,
 // only let certain tids continue
   // if (used == 0) return;
 
-  mvt_main(cinfo, mask,a,y1,y2,x1,x2,n,start,end,ptid, pdim, pdim_x, tinfo);
+  mvt_main(mask,a,y1,y2,x1,x2,n,start,end,ptid, pdim, pdim_x,used,vtid);
 }
 
 // helper functions
