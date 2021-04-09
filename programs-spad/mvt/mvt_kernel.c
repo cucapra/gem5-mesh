@@ -14,9 +14,9 @@ inline void prefetch_mvt_frame_y1(DTYPE *a, DTYPE *y1, int i, int j, int n, int 
   int sp_a_offset = *spadRegion * REGION_SIZE;
   int sp_y1_offset = sp_a_offset + REGION_SIZE/2;
 
-  for (int d = 0; d < VEC_LEN; d++){
-    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/2,1); //load A, hopefully cache alligned so no vprefetch_R
-    VPREFETCH_L(sp_y1_offset, y1 + j, d, REGION_SIZE/2,1); //load x
+  for (int d = 0; d < VECTOR_LEN; d++){
+    VPREFETCH_L(sp_a_offset, a + _idx_(i+d,j,n), d, REGION_SIZE/2,TO_ONE_CORE); //load A, hopefully cache alligned so no vprefetch_R
+    VPREFETCH_L(sp_y1_offset, y1 + j, d, REGION_SIZE/2,TO_ONE_CORE); //load x
   }
 
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
@@ -25,7 +25,7 @@ inline void prefetch_mvt_frame_y1(DTYPE *a, DTYPE *y1, int i, int j, int n, int 
 inline void prefetch_mvt_frame_x1(DTYPE *x1, int i, int *spadRegion) {
   int sp_x1_offset = *spadRegion * REGION_SIZE;
   for (int d = 0; d < REGION_SIZE; d++){
-      VPREFETCH_L(sp_x1_offset+d, x1+i, 0, VEC_LEN ,0); //issue same request to fill region
+      VPREFETCH_L(sp_x1_offset+d, x1+i, 0, 1 ,TO_ALL_CORES); //issue same request to fill region
   }
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
 }
@@ -35,10 +35,10 @@ inline void prefetch_mvt_frame_y2(DTYPE *a, DTYPE *y2, int i, int j, int n, int 
   int sp_y2_offset = sp_a_offset + REGION_SIZE/2;
 
   for(int ii=0; ii<REGION_SIZE/2; ii++){
-    VPREFETCH_L(sp_a_offset+ii, a+_idx_(j+ii,i,n), 0, VEC_LEN ,0);
+    VPREFETCH_L(sp_a_offset+ii, a+_idx_(j+ii,i,n), 0, 1 ,TO_ALL_CORES);
   }
-  for (int d = 0; d < VEC_LEN; d++){
-    VPREFETCH_L(sp_y2_offset, y2+j, d, REGION_SIZE/2 ,1); 
+  for (int d = 0; d < VECTOR_LEN; d++){
+    VPREFETCH_L(sp_y2_offset, y2+j, d, REGION_SIZE/2 ,TO_ONE_CORE); 
   }
 
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
@@ -47,7 +47,7 @@ inline void prefetch_mvt_frame_y2(DTYPE *a, DTYPE *y2, int i, int j, int n, int 
 inline void prefetch_mvt_frame_x2(DTYPE *x2, int i, int *spadRegion) {
   int sp_x2_offset = *spadRegion * REGION_SIZE;
   for (int d = 0; d < REGION_SIZE; d++){
-      VPREFETCH_L(sp_x2_offset+d, x2+i, 0, VEC_LEN ,0);
+      VPREFETCH_L(sp_x2_offset+d, x2+i, 0, 1 ,TO_ALL_CORES);
   }
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
 }
@@ -77,7 +77,7 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
   int startOffset = INIT_FRAMES*stride;
 
   DTYPE temp;
-  for (int i = start; i < end; i+=VEC_LEN) {
+  for (int i = start; i < end; i+=VECTOR_LEN) {
     temp=0;
     ISSUE_VINST(hoist1_label);
     
@@ -167,20 +167,38 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
     do {
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
+      #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+  #endif
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
-      for(int jj=0; jj<REGION_SIZE/2; jj++){
+      for(int jj=0; jj<REGION_SIZE/2; jj+=PER_CORE_SIMD_LEN){
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj]);
+        vfloat32m1_t vy1 = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj +REGION_SIZE/2]);
+
+        vfloat32m1_t vay1 = vfmul_vv_f32m1(va, vy1);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vay1, vay1, vzero);
+
+        // update the accumulation
+        float single_val = vfmv_f_s_f32m1_f32(vs);
+        temp += single_val;
+        #else
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *y1_on_sp = a_on_sp + REGION_SIZE/2;
 
         temp += (*a_on_sp) * (*y1_on_sp);
+        #endif
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
-    x1[row_thread]+=temp;
+    // x1[row_thread]+=temp;
 
     FRAME_START(REGION_SIZE);
     temp += *(spAddr + spadRegion*REGION_SIZE);
@@ -189,7 +207,7 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
     spadRegion = (spadRegion + 1) % NUM_REGIONS;
 
     // so can get 1 frame in for v16
-    #if VEC_LEN==16
+    #if VECTOR_LEN==16
     #pragma GCC unroll(16)
     for (int nop = 0; nop < 1; nop++) {
       asm volatile("nop\n\t");
@@ -202,13 +220,30 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
       
       // transpose_dp:
       asm("trillium vissue_delim until_next transpose_dp");
+      #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+  #endif
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
-      for(int jj=0; jj<REGION_SIZE/2; jj++){
+      for(int jj=0; jj<REGION_SIZE/2; jj+=PER_CORE_SIMD_LEN){
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj]);
+        vfloat32m1_t vy2 = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj+REGION_SIZE/2]);
+
+        vfloat32m1_t vay2 = vfmul_vv_f32m1(va, vy2);
+
+        // sum
+        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+        vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vay2, vay2, vzero);
+        // update the accumulation
+        float single_val = vfmv_f_s_f32m1_f32(vs);
+        temp += single_val;
+        #else
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *y2_on_sp = a_on_sp + REGION_SIZE/2;
 
         temp+= *a_on_sp * (*y2_on_sp);
+        #endif
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
@@ -224,7 +259,7 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
     
     // x2[row_thread]+=temp;
 
-    row_thread+=VEC_LEN;
+    row_thread+=VECTOR_LEN;
     asm volatile("fence\n\t");
   } while(bh1);
 
