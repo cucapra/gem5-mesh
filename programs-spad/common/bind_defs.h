@@ -213,6 +213,11 @@
     [mem] "r" (addr), [off] "i" (offset))                                     
 #endif
 
+// sqrtf without checking if -ve
+#define SQRTF_UNSAFE(output, input)                                     \
+  asm volatile ("fsqrt.s	%[dest], %[src]" :                            \
+      [dest] "=f" (output) : [src] "f" (input))
+
 static inline void stats_on()
 {
 #if !defined(__x86_64__) && !defined(__i386__)
