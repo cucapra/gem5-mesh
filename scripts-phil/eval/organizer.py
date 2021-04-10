@@ -132,6 +132,53 @@ def group_line_data(data, desired_field, desired_configs=[], label_with_config=F
 
   return (labels, configs, values)
 
+# takes data and return only the best categories per defined groups
+def filter_best_data(data, deciding_field, minimize=True, category_renames = ['BV'], 
+    category_configs=[['V4', 'V4_LL', 'V16', 'V16_LL']]):
+  # going to paste the best configs for each category
+  best_data = []
+
+  # helper to check in same category
+  def get_category_num(config):
+    # check in configs
+    for i in range(0, len(category_configs)):
+      if (config in category_configs[i]):
+        return i
+      # also consider renames
+      if (config in category_renames[i]):
+        return i
+    return -1
+
+  for row in data:
+    this_cat = get_category_num(row['config'])
+    # check for match in best data
+    isNewCat = True
+    for b in range(len(best_data)):
+      brow = best_data[b]
+      other_cat = get_category_num(brow['config'])
+      # check if in the same category
+      if (brow['prog'] == row['prog'] and this_cat != -1 and other_cat != -1 and this_cat == other_cat):
+        # do comparison based on deciding field
+        if ((minimize and row[deciding_field] < brow[deciding_field]) or 
+              (not minimize and row[deciding_field] > brow[deciding_field])):
+          # replace
+          new_row = deepcopy(row)
+          new_row['config'] = category_renames[this_cat]
+          best_data[b] = new_row
+        
+        # mark that nothing else should be done with this row
+        isNewCat = False
+
+    # Insert if cat doesn't exist
+    if (isNewCat):
+      new_row = deepcopy(row)
+      # change name if belongs to group
+      if (this_cat >= 0):
+        new_row['config'] = category_renames[this_cat]
+      best_data.append(new_row)
+
+  return best_data
+
 def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar=False):
   # figure out xaxis (#hops) depending on config. 
   # remove certain values if scalar or inactive core
@@ -465,37 +512,37 @@ def plot_frame_stalls(data):
   bar_plot(labels, sub_labels, values, 'Fraction of Vector Cycles Waiting for a Frame', 'Frame_Stalls_v4')
 
 
-def plot_prefetch_coverage(data):
-  (labels, sub_labels, values_v) = group_bar_data(data, 'vertical_pfs')
-  (labels, sub_labels, values_h) = group_bar_data(data, 'horizontal_pfs')
-  (labels, sub_labels, values_s) = group_bar_data(data, 'scalar_pfs')
+# def plot_prefetch_coverage(data):
+#   (labels, sub_labels, values_v) = group_bar_data(data, 'vertical_pfs')
+#   (labels, sub_labels, values_h) = group_bar_data(data, 'horizontal_pfs')
+#   (labels, sub_labels, values_s) = group_bar_data(data, 'scalar_pfs')
 
-  # TODO stack the bars
-  # for now just show for v4 config
-  v_pfs = []
-  h_pfs = []
-  s_pfs = []
-  for j in range(len(labels)):
-    for i in range(len(sub_labels)):
-      if (sub_labels[i] == 'V4'):
-        v_pf = values_v[i][j]
-        h_pf = values_h[i][j]
-        s_pf = values_s[i][j]
-        total = v_pf + h_pf + s_pf
-        if (total > 0):
-          v_pf = float(v_pf) / float(total)
-          h_pf = float(h_pf) / float(total)
-          s_pf = float(s_pf) / float(total)
-        v_pfs.append(v_pf)
-        h_pfs.append(h_pf)
-        s_pfs.append(s_pf)
+#   # TODO stack the bars
+#   # for now just show for v4 config
+#   v_pfs = []
+#   h_pfs = []
+#   s_pfs = []
+#   for j in range(len(labels)):
+#     for i in range(len(sub_labels)):
+#       if (sub_labels[i] == 'V4'):
+#         v_pf = values_v[i][j]
+#         h_pf = values_h[i][j]
+#         s_pf = values_s[i][j]
+#         total = v_pf + h_pf + s_pf
+#         if (total > 0):
+#           v_pf = float(v_pf) / float(total)
+#           h_pf = float(h_pf) / float(total)
+#           s_pf = float(s_pf) / float(total)
+#         v_pfs.append(v_pf)
+#         h_pfs.append(h_pf)
+#         s_pfs.append(s_pf)
 
-  sub_labels = [ 'Vertical', 'Horizontal', 'Scalar' ]
-  values = [ v_pfs, h_pfs, s_pfs ]
+#   sub_labels = [ 'Vertical', 'Horizontal', 'Scalar' ]
+#   values = [ v_pfs, h_pfs, s_pfs ]
 
-  add_arith_mean(labels, values, True)
+#   add_arith_mean(labels, values, True)
 
-  bar_plot(labels, sub_labels, values, 'Number of Decoupled Access Insts. Relative to Total', 'coverage_v4') 
+#   bar_plot(labels, sub_labels, values, 'Number of Decoupled Access Insts. Relative to Total', 'coverage_v4') 
 
 def plot_init_frames(data):
   (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=['V4', 'V4_I0'])
@@ -618,16 +665,33 @@ def plot_all_router_stalls(data):
   (labels, sub_labels, values) = group_bar_data(data, 'router_out_stalls_all')
   bar_plot(labels, sub_labels, values, 'RouteOutStall', 'RouteOutStall', False)
 
+def plot_best_speedup(data):
+  # filter by min cycles
+
+  data = filter_best_data(data, 'cycles', 
+    category_configs=[['V4', 'V4_LL', 'V16', 'V16_LL', 'V16_LL_CL1024', 
+      'V16_LL_PCV_CL1024', 'V4_LL_PCV_CL1024', 'V4_PCV']])
+
+  (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=[])
+
+  # flip from cycles to speedup normalized to NV
+  normalize(sub_labels, values)
+  inverse(values)
+  add_geo_mean(labels, values)
+
+  bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline (NV)', 'Best-Speedup', ylim=[0, 15], horiz_line=1)
+
+
 # top level for analysis passes. generates all plots sequentially
 def make_plots_and_tables(all_data):
-  print("Removing unwanted series")
-  # use vertical for conv2d
-  substitute_field(all_data, 'conv2d', 'VEC_16_SIMD_VERTICAL', 'V16')
-  substitute_field(all_data, 'conv2d', 'VEC_4_SIMD_VERTICAL', 'V4')
-  substitute_field(all_data, 'conv2d', 'VEC_4_SIMD_VERTICAL_I0', 'V4_I0')
+  # print("Removing unwanted series")
+  # # use vertical for conv2d
+  # substitute_field(all_data, 'conv2d', 'VEC_16_SIMD_VERTICAL', 'V16')
+  # substitute_field(all_data, 'conv2d', 'VEC_4_SIMD_VERTICAL', 'V4')
+  # substitute_field(all_data, 'conv2d', 'VEC_4_SIMD_VERTICAL_I0', 'V4_I0')
 
-  # delete reuse
-  remove_field(all_data, 'conv2d', 'VEC_4_REUSE_VERTICAL')
+  # # delete reuse
+  # remove_field(all_data, 'conv2d', 'VEC_4_REUSE_VERTICAL')
 
   # rename programs to fancier name
   rename_prog(all_data, 'conv2d', '2dconv')
@@ -638,6 +702,7 @@ def make_plots_and_tables(all_data):
 
   print("Plot speedup")
   plot_speedup(all_data)
+  plot_best_speedup(all_data)
   print("Plot energy")
   plot_energy(all_data)
   print("Plot Inst Energy")
@@ -646,7 +711,7 @@ def make_plots_and_tables(all_data):
   plot_icache_energy(all_data)
   print("Plot icache access")
   plot_icache_access(all_data)
-  print("plot dmen energy")
+  print("plot dmem energy")
   plot_dmem_energy(all_data)
   print("Plot llc energy")
   plot_llc_energy(all_data)
@@ -658,8 +723,6 @@ def make_plots_and_tables(all_data):
   plot_first_frame_rdy(all_data)
   print("Plot frame stalls")
   plot_frame_stalls(all_data)
-  print("Plot prefetch coverage")
-  plot_prefetch_coverage(all_data)
   print("Plot init frames")
   plot_init_frames(all_data)
   print("Plot backpressure")
