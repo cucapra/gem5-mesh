@@ -10,7 +10,7 @@
 // #define VEC_4_SIMD_VERTICAL 1
 // #define VEC_4_SIMD_SPATIAL_UNROLLED 1
 // #define VEC_4_SIMD_BIGBOI 1
-// #define PACKED_SIMD 1
+// #define PER_CORE_SIMD 1
 
 // in current system cacheline size is 16 so doesn't make sense to go beyond this for now
 // #define VEC_16_SIMD 1
@@ -24,7 +24,7 @@
 // PREFETCH_LEN
 
 // vvadd_execute config directives
-#if !defined(NO_VEC) && !defined(PACKED_SIMD)
+#if !defined(NO_VEC) && !defined(PER_CORE_SIMD)
 #define USE_VEC 1
 #endif
 #if defined(VEC_4_SIMD_VERTICAL) || defined(VEC_16_SIMD_VERTICAL) || defined(VEC_4_SIMD_BIGBOI) ||  defined(VEC_16_SIMD_BIGBOI)
