@@ -30,6 +30,20 @@ inline void vert_prefetch(int *sp_a_offset, int *sp_b_offset, int *spadRegion, i
   *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
 }
 
+inline void prefetch_c(int *sp_c_offset, int *spadRegion, int dim_y, int dim_x, int i0, int j0,
+                          DTYPE *c, int n){
+  
+  *sp_c_offset = *spadRegion * REGION_SIZE;
+  for (int yy = 0; yy < dim_y; yy++)
+  {
+    for (int xx = 0; xx < dim_x; xx++){
+      //fetch c
+      VPREFETCH_L(*sp_c_offset, c + _idx_(i0+yy * BLK_DIM, j0 + xx * BLK_DIM, n), xx + yy * dim_x, BLK_DIM,TO_ONE_CORE);
+    }
+  }
+  *spadRegion = (*spadRegion + 1) % NUM_REGIONS;
+}
+
 void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
                    int m_start, int m_end, int n_start, int n_end, int vtid_x, int vtid_y, int vtid, int ptid)
 {
@@ -55,9 +69,10 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   offset_y = BLK_DIM * dim_y;
 
   int sp_a_offset, sp_b_offset;
+  int sp_c_offset;
 
   int vector_iter=0;
-  int level3_size = t;
+  int level3_size = t+BLK_DIM;
   int level2_size = (n_end-n_start)/offset_x;
 
   /* ------------ prefetch ahead of issuing ----------*/
@@ -77,26 +92,26 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
       int start_k=0;
       if(i0== m_start && j0==n_start) start_k = iter_ahead; // due to prefetch earlier
 
-      for (int k = start_k; k < t; k++)
+      for (int k = start_k; k < t + BLK_DIM; k++)
       {
 
         //first thing to do is issue vector cores to compute (don't want to starve them) if scalar core is ahead, if not then send after prefetch
         if(vector_iter%(level2_size*level3_size)==0) ISSUE_VINST(hoist1);
         if(vector_iter%level3_size ==0) ISSUE_VINST(hoist2);
+        if(vector_iter%level3_size ==t) ISSUE_VINST(hoist3);
+        if (k<t)vert_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, dim_y, dim_x, k, a, i0, m , b, j0, n);
+        else prefetch_c(&sp_c_offset, &spadRegion, dim_y, dim_x, i0+(k-t), j0,c, n);
 
-        // ---------------prefetch region ------------------
-        vert_prefetch(&sp_a_offset, &sp_b_offset, &spadRegion, dim_y, dim_x, k, 
-                  a, i0, m , b, j0, n);
-        // ----------------prefetch end -------------------- 
-
-        ISSUE_VINST(fable123);
+        if (vector_iter%level3_size<t) {
+          ISSUE_VINST(fable123);
+        }
+        else{
+          ISSUE_VINST(fable4567);
+        }
         vector_iter++;
-
-        if(vector_iter%level3_size ==0) ISSUE_VINST(fable4567);
-        if(vector_iter%(level2_size*level3_size)==0) ISSUE_VINST(fable8);
-        
+        if(vector_iter%(level3_size)==0) ISSUE_VINST(fable8);
+        if(vector_iter%(level2_size*level3_size)==0) ISSUE_VINST(fable9);
       }
-      
 
     }
   }
@@ -104,9 +119,14 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
 
   /* ------------ bunch of vissues to finish off ---------------*/
   for (int k = 0; k < iter_ahead; k++){
-    ISSUE_VINST(fable123);
+    if(vector_iter%level3_size ==t) ISSUE_VINST(hoist3);
+    if (vector_iter%level3_size<t) {
+          ISSUE_VINST(fable123);
+    }
+    else{
+      ISSUE_VINST(fable4567);
+    }
     vector_iter++;
-    if(vector_iter%level3_size ==0) ISSUE_VINST(fable4567);
   }
   /* ------------------finish -----------------------------------*/
 
@@ -127,10 +147,14 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
     asm("trillium glue_point hoist2");
   fable123:
     asm("trillium glue_point fable123");
+  hoist3:
+    asm("trillium glue_point hoist3");
   fable4567:
     asm("trillium glue_point fable4567");
   fable8:
     asm("trillium glue_point fable8");
+  fable9:
+    asm("trillium glue_point fable9");
   vector_stack:
     asm("trillium glue_point vector_stack");
 
@@ -141,6 +165,7 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
   volatile int bh1, bh2, bh3;
   DTYPE a_, b_;
   int spadRegion;
+  int i;
 
   int *ptid_group = getSpAddr(ptid,NUM_REGIONS * REGION_SIZE + BLK_DIM*BLK_DIM + 10);
   DTYPE *sp_all[VECTOR_LEN];
@@ -214,16 +239,17 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         REMEM(REGION_SIZE); //need to do this collectively for all vector cores if values shared!!
         asm("trillium vissue_delim end at_jump");
       }while (bh3);
-    asm("trillium vissue_delim until_next fable4567");
-      #ifdef PER_CORE_SIMD
-      vsetvl_e32m1(HARDWARE_VECTOR_LEN);
-      #endif
-      #pragma GCC unroll(16)
-      for (int i = 0; i < BLK_DIM; i++)
-      {
+      asm("trillium vissue_delim until_next hoist3");
+      i=0;
+      do{
+        asm("trillium vissue_delim until_next fable4567");
         #ifdef PER_CORE_SIMD
-
-        vfloat32m1_t vc  = vle32_v_f32m1(&c[_idx_(i + i_st, j_st, n)]);
+        vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+        #endif
+        
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t vc  = vle32_v_f32m1(&spAddr[spadRegion * REGION_SIZE]);
+        // vfloat32m1_t vc  = vle32_v_f32m1(&c[_idx_(i + i_st, j_st, n)]);
         vfloat32m1_t vspc = vle32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)]);
 
         vc = vfmul_vf_f32m1(vc, BETA);
@@ -234,19 +260,25 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         vse32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)], vzero);
 
         #else
+        FRAME_START(BLK_DIM);
         #pragma GCC unroll(16)
         for (int j = 0; j < BLK_DIM; j++)
         {
-          DTYPE temp = c[_idx_(i+i_st, j+j_st, n)]*BETA;
+          DTYPE temp = spAddr[spadRegion * REGION_SIZE+j]*BETA;
+          // DTYPE temp = c[_idx_(i+i_st, j+j_st, n)]*BETA;
           temp += sp_c[_idx_(i, j, BLK_DIM)];
           STORE_NOACK(temp, c + _idx_(i + i_st, j + j_st, n), 0);
           sp_c[_idx_(i, j, BLK_DIM)] = 0;
         }
         #endif
-      }
+        spadRegion = (spadRegion + 1) % NUM_REGIONS;
+        REMEM();
+        i+=1;
+      }while(bh3);
+      asm("trillium vissue_delim until_next fable8");
       j_st += offset_x;
     }while (bh2);
-    asm("trillium vissue_delim until_next fable8");
+    asm("trillium vissue_delim until_next fable9");
     i_st += offset_y;
   }while (bh1);
 

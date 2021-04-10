@@ -23,11 +23,11 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
 
   DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
 
-  #ifdef MANYCORE_PREFETCH
+  #if defined(MANYCORE_PREFETCH)
   int spadRegion = 0;
   DTYPE *sp_c = spAddr + NUM_REGIONS * REGION_SIZE;
   int sp_a_offset,sp_b_offset;
-  int sp_c_offset[2];
+  int sp_c_offset;
   #else
   DTYPE *sp_c = spAddr;
   #endif
@@ -115,10 +115,20 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
       #pragma GCC unroll(16)
       for (int i = 0; i < BLK_DIM; i++)
       {
+        #ifdef MANYCORE_PREFETCH
+        // fetch c in scratchpad
+        sp_c_offset = spadRegion * REGION_SIZE;
+        VPREFETCH_L(sp_c_offset, c + _idx_(i + i0, j0, n), 0, BLK_DIM,TO_SELF);
+        FRAME_START(BLK_DIM);
+        #endif
 
         #ifdef PER_CORE_SIMD
         
+        #ifdef MANYCORE_PREFETCH
+        vfloat32m1_t vc  = vle32_v_f32m1(&spAddr[sp_c_offset]);
+        #else
         vfloat32m1_t vc  = vle32_v_f32m1(&c[_idx_(i + i0, j0, n)]);
+        #endif
         vfloat32m1_t vspc = vle32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)]);
 
         vc = vfmul_vf_f32m1(vc, BETA);
@@ -134,12 +144,21 @@ gemm_manycore(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
         for (int j = 0; j < BLK_DIM; j++)
         {
           DTYPE temp;
+          #ifdef MANYCORE_PREFETCH
+          temp = spAddr[sp_c_offset+j]*BETA;
+          #else
           temp = c[_idx_(i + i0, j + j0, n)]*BETA;
+          #endif
           temp += sp_c[_idx_(i, j, BLK_DIM)];
           // c[_idx_(i + i0, j + j0, n)] = temp;
-          STORE_NOACK(temp, c + _idx_(i + i0, j + j0, n), 0);
+          FSTORE_NOACK(temp, c + _idx_(i + i0, j + j0, n), 0);
           sp_c[_idx_(i, j, BLK_DIM)] = 0;
         }
+        #endif
+
+        #ifdef MANYCORE_PREFETCH
+        spadRegion = (spadRegion + 1) % NUM_REGIONS;
+        REMEM();
         #endif
       }
 
