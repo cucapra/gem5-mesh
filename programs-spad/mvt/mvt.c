@@ -5,9 +5,7 @@
 #include "mvt.h"
 #include "spad.h"
 #include "bind_defs.h"
-#include "token_queue.h"
 #include "group_templates.h"
-#include "reduction.h"
 #include "util.h"
 
 #include "mvt_kernel.h"
@@ -30,15 +28,40 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, int st
   int sp_a_offset, sp_y_offset;
   #endif
 
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+  #endif
+
   for (int i = start; i < end; i++) {
       temp=0;
       #ifdef MANYCORE_PREFETCH
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+      vfloat32m1_t accum = vzero;
+      #endif
+
       PF_BEGIN(REGION_SIZE/2)
       PF2(sp_a_offset,sp_y_offset,a,y1,i*n+j,j)
       {
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(&spAddr[sp_a_offset+jj]);
+        vfloat32m1_t vy1 = vle32_v_f32m1(&spAddr[sp_y_offset+jj]);
+        vfloat32m1_t vay1 = vfmul_vv_f32m1(va, vy1);
+        accum = vfadd_vv_f32m1(accum, vay1);
+        #else
         temp+= spAddr[sp_a_offset+jj]*spAddr[sp_y_offset+jj];
+        #endif
       }
       PF_END(NUM_REGIONS)
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+      temp += vfmv_f_s_f32m1_f32(vtempred);
+      #endif
+
       #elif defined(PER_CORE_SIMD)
       int chunk = n;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -67,12 +90,34 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, int st
       x1[i]+=temp;
       temp=0;
       #ifdef MANYCORE_PREFETCH
-      PF_BEGIN(REGION_SIZE)
-      PF1(sp_y_offset,y2,j)
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      accum = vzero;
+      #endif
+
+      PF_BEGIN(REGION_SIZE/2)
+      PF1(sp_y_offset,sp_a_offset,y2,a,j,i,n)
       {
-        temp+=a[(j+jj)*n+i] * spAddr[sp_y_offset+jj];
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(&spAddr[sp_a_offset + jj]);
+        vfloat32m1_t vy2 = vle32_v_f32m1(&spAddr[sp_y_offset+jj]);
+        vfloat32m1_t vay2 = vfmul_vv_f32m1(va, vy2);
+        accum = vfadd_vv_f32m1(accum, vay2);
+        #else
+        // temp+=a[(j+jj)*n+i] * spAddr[sp_y_offset+jj];
+        temp+=spAddr[sp_a_offset+jj] * spAddr[sp_y_offset+jj];
+        
+        #endif
       }
       PF_END(NUM_REGIONS)
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+      temp += vfmv_f_s_f32m1_f32(vtempred);
+      #endif
+
       #elif defined(PER_CORE_SIMD)
       chunk = n;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -98,7 +143,8 @@ mvt_manycore(DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2, int n, int st
         temp+= a[j*n+i] * y2[j];
       }
       #endif
-      x2[i]+=temp;
+      // x2[i]+=temp;
+      FSTORE_NOACK(x2[i] + temp, &x2[i], 0);
   }
 }
 
