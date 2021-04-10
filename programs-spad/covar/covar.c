@@ -11,7 +11,7 @@
 #include "covar_kernel.h"
 #include "util.h"
 
-#if defined(PER_CORE_SIMD)
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
