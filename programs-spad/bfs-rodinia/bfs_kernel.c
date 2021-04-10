@@ -22,7 +22,7 @@ void tril_bfs_vec1(int mask, Node *h_graph_nodes, int *h_graph_edges, char *h_gr
   //prefetch variables
   int spadRegion = 0;
 
-  for (int i = start; i < end; i+=VEC_LEN) {
+  for (int i = start; i < end; i+=VECTOR_LEN) {
     ISSUE_VINST(check_frontier_label);
 
     for(int j=0; j<max_edges; j++){
@@ -101,7 +101,7 @@ void tril_bfs_vec1(int mask, Node *h_graph_nodes, int *h_graph_edges, char *h_gr
     }
     asm("trillium vissue_delim until_next increment_loop");
     PRED_EQ(vtid,vtid);
-    tid+=VEC_LEN;
+    tid+=VECTOR_LEN;
   } while(bh1);
 
   asm("trillium vissue_delim return vector_stack"); //return delimiter
@@ -121,7 +121,7 @@ void tril_bfs_vec2(int mask, char *h_graph_mask, char *h_updating_graph_mask, ch
 
   int spadRegion = 0;
 
-  for (int i = start; i < end; i+=VEC_LEN) {
+  for (int i = start; i < end; i+=VECTOR_LEN) {
     ISSUE_VINST(update_graph_label);
   }
 
@@ -160,7 +160,7 @@ void tril_bfs_vec2(int mask, char *h_graph_mask, char *h_updating_graph_mask, ch
       h_updating_graph_mask[tid]=false;
     }
     PRED_EQ(vtid,vtid);
-    tid+=VEC_LEN;
+    tid+=VECTOR_LEN;
   }while(bh1);
 
   asm("trillium vissue_delim return vector_stack"); //return delimiter
