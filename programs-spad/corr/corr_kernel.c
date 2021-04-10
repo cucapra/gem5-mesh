@@ -1,5 +1,9 @@
 #include "corr_kernel.h"
 
+#ifdef PER_CORE_SIMD
+#include <riscv_vector.h>
+#endif
+
 // #define SCALAR_CORE
 // #define VECTOR_CORE
 
@@ -38,7 +42,7 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
   int sp_data_offset=0;
 
   int prefetch_stride = REGION_SIZE;
-  int startOffset = INIT_FRAMES*prefetch_stride;
+  int startOffset = min(INIT_FRAMES*prefetch_stride,n);
 
   for (int i = start; i < end; i+=vdim){
     ISSUE_VINST(hoist1_label);
@@ -106,16 +110,35 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
 
   DTYPE one = 1;
   // double eps = 0.1;
+  
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+  #endif
 
   do{
     asm("trillium vissue_delim until_next hoist1");
     mean_temp=0;
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t accum = vzero;
+    #endif
+
     do{
       asm("trillium vissue_delim until_next mean");
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
-      for(int jj=0; jj<REGION_SIZE; jj++){
+      for(int jj=0; jj<REGION_SIZE; jj+=PER_CORE_SIMD_LEN){
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t vmean = vle32_v_f32m1(&spAddr[sp_offset+jj]);
+        accum = vfadd_vv_f32m1(accum, vmean);
+        #else
         mean_temp+= spAddr[sp_offset+jj];
+        #endif
       }
       REMEM(REGION_SIZE);
       sp_offset += REGION_SIZE;
@@ -123,17 +146,37 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       sp_offset = sp_offset%(NUM_REGIONS*REGION_SIZE);
     } while(bh2); 
     asm("trillium vissue_delim until_next hoist2");
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    mean_temp += vfmv_f_s_f32m1_f32(vtempred);
+    #endif
     mean_temp/=n;
     FSTORE_NOACK(mean_temp, mean + i, 0);
     // mean[i]=mean_temp;
 
     stddev_temp=0;
+
+    #ifdef PER_CORE_SIMD
+    accum = vzero;
+    #endif
+
     do {
       asm("trillium vissue_delim until_next stddev");
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
-      for(int jj=0; jj<REGION_SIZE; jj++){
+      for(int jj=0; jj<REGION_SIZE; jj+=PER_CORE_SIMD_LEN){
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t vdata = vle32_v_f32m1(&spAddr[sp_offset+jj]);
+        vfloat32m1_t vnorm = vfsub_vf_f32m1(vdata, mean_temp);
+        vfloat32m1_t vnorm2 = vfmul_vv_f32m1(vnorm, vnorm);
+        accum = vfadd_vv_f32m1(accum, vnorm2);
+        #else
         stddev_temp+= (spAddr[sp_offset+jj]-mean_temp)*(spAddr[sp_offset+jj]-mean_temp);
+        #endif
       }
       REMEM(REGION_SIZE);
       sp_offset += REGION_SIZE;
@@ -142,6 +185,11 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
     } while(bh2);
 
     asm("trillium vissue_delim until_next hoist3");
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    stddev_temp += vfmv_f_s_f32m1_f32(vtempred);
+    #endif
     stddev_temp = stddev_temp/n;
     SQRTF_UNSAFE(stddev_temp, stddev_temp);
 
@@ -170,23 +218,33 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
 
     FSTORE_NOACK(stddev_temp, stddev + i, 0);
     // stddev[i] = stddev_temp;
-    
+
+    float nsqrt;
+    SQRTF_UNSAFE(nsqrt, (float)n);
 
     j=0;
     do {
       asm("trillium vissue_delim until_next center");
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
-      for(int jj=0; jj<REGION_SIZE; jj++){
+      for(int jj=0; jj<REGION_SIZE; jj+=PER_CORE_SIMD_LEN){
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t vdata = vle32_v_f32m1(&spAddr[sp_offset+jj]);
+        vfloat32m1_t vnorm = vfsub_vf_f32m1(vdata, mean_temp);
+        vfloat32m1_t vstdev = vfdiv_vf_f32m1(vnorm, nsqrt*stddev_temp);
+        vse32_v_f32m1(&data[i*n+j+jj], vstdev);
+        #else
         data_temp= (spAddr[sp_offset+jj]-mean_temp);
-        float nsqrt;
         // asm volatile ("fsqrt.s	%[dest], %[src]\n\t" : 
         //   [dest] "=f" (nsqrt) : [src] "f" ((float)n));
-        SQRTF_UNSAFE(nsqrt, (float)n);
 
         data_temp/=(nsqrt*stddev_temp);
         FSTORE_NOACK(data_temp, data + i*n+j+jj, 0);
         // data[i*n+j+jj]= data_temp;
+        #endif
       }
       REMEM(REGION_SIZE);
       sp_offset += REGION_SIZE;
@@ -235,7 +293,7 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
   int sp_data_offset=0;
 
   int prefetch_stride = REGION_SIZE_K2/2;
-  int startOffset = INIT_FRAMES*prefetch_stride;
+  int startOffset = min(INIT_FRAMES*prefetch_stride,n);
 
   for (int i1 = start; i1 < m-1; i1+=stride){
     ISSUE_VINST(hoist1_label);
@@ -305,19 +363,38 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
   int j=0;
   DTYPE symmat_temp=0;
 
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+  #endif
+
   do{
     asm("trillium vissue_delim until_next hoist1");
     i2=i1+1;
     do {
       asm("trillium vissue_delim until_next hoist2");
       symmat_temp=0;
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t accum = vzero;
+      #endif
       j=0;
       do {
         asm("trillium vissue_delim until_next symmat");
+        #ifdef PER_CORE_SIMD
+        vsetvl_e32m1(PER_CORE_SIMD_LEN);
+        #endif
         FRAME_START(REGION_SIZE_K2);
         #pragma GCC unroll(16)
-        for(int jj=0; jj<REGION_SIZE_K2/2; jj++){
+        for(int jj=0; jj<REGION_SIZE_K2/2; jj+=PER_CORE_SIMD_LEN){
+          #ifdef PER_CORE_SIMD
+          vfloat32m1_t vi1 = vle32_v_f32m1(&spAddr[sp_offset+jj]);
+          vfloat32m1_t vi2 = vle32_v_f32m1(&spAddr[sp_offset+REGION_SIZE_K2/2+jj]);
+          vfloat32m1_t vii = vfmul_vv_f32m1(vi1, vi2);
+          accum = vfadd_vv_f32m1(accum, vii);
+          #else
           symmat_temp+= spAddr[sp_offset+jj]*spAddr[sp_offset+REGION_SIZE_K2/2+jj];
+          #endif
         }
         REMEM();
         sp_offset += REGION_SIZE_K2;
@@ -327,6 +404,11 @@ void tril_corr_vec_2(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       } while(bh3);
 
       asm("trillium vissue_delim until_next i2");
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+      symmat_temp += vfmv_f_s_f32m1_f32(vtempred);
+      #endif
       int cond = (i2<m);
       volatile int compiler_hack = 1;
       PRED_EQ(cond,1);
