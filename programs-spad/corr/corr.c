@@ -27,7 +27,8 @@ void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int
 
   for(int i=start; i<end; i++){
     for(int j=0; j<a_row; j++){
-      aT[i*a_row+j] = a[j*a_col+i];
+      // aT[i*a_row+j] = a[j*a_col+i];
+      FSTORE_NOACK(a[j*a_col+i], &aT[i*a_row+j], 0);
     }
   }
 
@@ -78,7 +79,7 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       mean_temp += single_val;
     }
     #else
-    _Pragma("GCC unroll(16)")
+    #pragma GCC unroll(16)
     for (int j = 0; j < n; j++)
       mean_temp += data[i*n+j];
     #endif
@@ -117,12 +118,14 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       stddev_temp += single_val;
     }
     #else
-    _Pragma("GCC unroll(16)")
+    #pragma GCC unroll(16)
     for (int j = 0; j < n; j++)
       stddev_temp += (data[i*n+j]-mean_temp)*(data[i*n+j]-mean_temp);
     #endif
     stddev_temp = stddev_temp/n;
-    stddev_temp = sqrt(stddev_temp);
+    // stddev_temp = sqrt(stddev_temp);
+    SQRTF_UNSAFE(stddev_temp, stddev_temp);
+
     stddev_temp = stddev_temp <= eps ? 1.0 : stddev_temp;
     // stddev[i] = stddev_temp;
     STORE_NOACK(stddev_temp,stddev+i,0);
@@ -134,9 +137,11 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
     PF1(sp_offset,_idx_(i,j,n))
     {
       data_temp = spAddr[sp_offset+jj]-mean_temp;
-      data_temp = data_temp/(sqrt(n)*stddev_temp);
+      float nsqrt;
+      SQRTF_UNSAFE(nsqrt, (float)n);
+      data_temp = data_temp/(nsqrt*stddev_temp);
       // data[i*n+(j+jj)] = data_temp;
-      STORE_NOACK(data_temp,data+(i*n)+(j+jj),0);
+      FSTORE_NOACK(data_temp,data+(i*n)+(j+jj),0);
     }
     PF_END(NUM_REGIONS)
     #elif defined(PER_CORE_SIMD)
@@ -155,12 +160,14 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       vse32_v_f32m1(&data[i*n+j], vstdev);
     }
     #else
-    _Pragma("GCC unroll(16)")
+    #pragma GCC unroll(16)
     for (int j = 0; j < n; j++){
       data_temp = data[i*n+j]-mean_temp;
-      data_temp = data_temp/(sqrt(n)*stddev_temp);
+      float nsqrt;
+      SQRTF_UNSAFE(nsqrt, (float)n);
+      data_temp = data_temp/(nsqrt*stddev_temp);
       // data[i*n+j] = data_temp/(sqrt(n)*stddev_temp);
-      STORE_NOACK(data_temp,data+(i*n)+j,0);
+      FSTORE_NOACK(data_temp,data+(i*n)+j,0);
     }
     #endif
 
@@ -193,13 +200,13 @@ corr_manycore_2(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       }
       PF_END(NUM_REGIONS_K2)
       #else
-      _Pragma("GCC unroll(16)")
+      #pragma GCC unroll(16)
       for(int j=0; j<n; j++){
         sym_temp+=data[i1*n+j]*data[i2*n+j];
       }
       #endif
-      STORE_NOACK(sym_temp,symmat+(i1*m)+i2,0);
-      STORE_NOACK(sym_temp,symmat+(i2*m)+i1,0);
+      FSTORE_NOACK(sym_temp,symmat+(i1*m)+i2,0);
+      FSTORE_NOACK(sym_temp,symmat+(i2*m)+i1,0);
       // symmat[i1*m+i2]=sym_temp;
       // symmat[i2*m+i1]=sym_temp;
     }

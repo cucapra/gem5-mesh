@@ -143,9 +143,7 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
 
     asm("trillium vissue_delim until_next hoist3");
     stddev_temp = stddev_temp/n;
-    asm volatile ("fsqrt.s	%[dest], %[src]" : 
-      [dest] "=f" (stddev_temp) : [src] "f" (stddev_temp));
-    
+    SQRTF_UNSAFE(stddev_temp, stddev_temp);
 
     // int cond = stddev_temp <= eps;
     // float dummy;// = stddev_temp;
@@ -182,9 +180,10 @@ void tril_corr_vec_1(int mask, DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *s
       for(int jj=0; jj<REGION_SIZE; jj++){
         data_temp= (spAddr[sp_offset+jj]-mean_temp);
         float nsqrt;
-        asm volatile ("fsqrt.s	%[dest], %[src]\n\t" : 
-          [dest] "=f" (nsqrt) : [src] "f" ((float)n));
-    
+        // asm volatile ("fsqrt.s	%[dest], %[src]\n\t" : 
+        //   [dest] "=f" (nsqrt) : [src] "f" ((float)n));
+        SQRTF_UNSAFE(nsqrt, (float)n);
+
         data_temp/=(nsqrt*stddev_temp);
         FSTORE_NOACK(data_temp, data + i*n+j+jj, 0);
         // data[i*n+j+jj]= data_temp;
