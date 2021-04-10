@@ -734,7 +734,9 @@ def make_plots_and_tables(all_data):
   plot_llc_busy_cycles(all_data)
   plot_llc_miss_rate(all_data)
   plot_llc_access_rate(all_data)
-  print("Plot router stalls")
-  plot_router_in_heatmap(all_data)
-  plot_router_out_heatmap(all_data)
-  plot_all_router_stalls(all_data)
+
+  # need to pick specifc bench for this, so only use when needed
+  # print("Plot router stalls")
+  # plot_router_in_heatmap(all_data)
+  # plot_router_out_heatmap(all_data)
+  # plot_all_router_stalls(all_data)
