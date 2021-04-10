@@ -7,7 +7,7 @@ PROB_SIZE := 64
 N_SPS ?= 16
 CL_LEN := 256
 # CL_LEN := 64
-EXTRA_FLAGS ?= -DMANYCORE_PREFETCH -DPER_CORE_SIMD -DCACHE_LINE_SIZE=$(CL_LEN)
+EXTRA_FLAGS ?= -DVECTOR_LEN=4 -DLONGLINES -DPER_CORE_SIMD -DCACHE_LINE_SIZE=$(CL_LEN)
 HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)" --cacheline_size=$(CL_LEN) --net-width=16
 # GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=Frame
 
