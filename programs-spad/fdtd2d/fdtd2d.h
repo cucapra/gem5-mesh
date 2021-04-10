@@ -51,7 +51,7 @@
 
 
 // prefetch sizings for step2
-#define STEP2_UNROLL_LEN 8
+#define STEP2_UNROLL_LEN 16
 #ifdef LONGLINES
   #define STEP2_J_STRIDE (STEP2_UNROLL_LEN*VECTOR_LEN)
   #define STEP2_I_STRIDE (1)
@@ -64,7 +64,7 @@
 #define STEP2_POST_FRAME_WORD (STEP2_REGION_SIZE*STEP2_NUM_REGIONS)
 
 // prefetch sizings for step3
-#define STEP3_UNROLL_LEN 8
+#define STEP3_UNROLL_LEN 16
 #ifdef LONGLINES
   #define STEP3_J_STRIDE (STEP3_UNROLL_LEN*VECTOR_LEN)
   #define STEP3_I_STRIDE (1)
