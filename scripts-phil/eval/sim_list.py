@@ -4,37 +4,45 @@
 from copy import deepcopy
 
 # helper set of vec configs you can use in a benchmark (assuming it supports)
-ALL_CONFIGS = ['NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
+# ALL_CONFIGS = ['NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
 
 # TODO hardware opts should automatically determine cache line size
 # b/c wnat to do vec 4 with 256. might be more natural
 HW_OPTS = [
   '--net-width=1', 
   # '--net-width=2', 
-  # '--net-width=4',
+  '--net-width=4',
   # '--net-width=16'
   ]
 # HW_OPTS = ['']
 ALL_CONFIGS = [
-  ['VECTOR_LEN=16', 'LONGLINES', 'CACHE_LINE_SIZE=1024'],
-  ['VECTOR_LEN=4', 'LONGLINES', 'CACHE_LINE_SIZE=256'],
+  # ['VECTOR_LEN=16', 'LONGLINES', 'CACHE_LINE_SIZE=1024'],
+  # ['VECTOR_LEN=4', 'LONGLINES', 'CACHE_LINE_SIZE=256'],
   ['VECTOR_LEN=4'],
   ['VECTOR_LEN=16'],
   ['VECTOR_LEN=4', 'PER_CORE_SIMD'],
-  ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
-  [ 'NO_VEC', 'MANYCORE_PREFETCH' ],
+  # ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
+  # [ 'NO_VEC', 'MANYCORE_PREFETCH' ],
   ['PER_CORE_SIMD', 'MANYCORE_PREFETCH'],
-  ['PER_CORE_SIMD'],
-  ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
-  ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=256'],
-  ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
-  ['VECTOR_LEN=4', 'PER_CORE_SIMD'],
-  ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
-  'NO_VEC',
+  # ['PER_CORE_SIMD', 'MANYCORE_PREFETCH', 'HARDWARE_VECTOR_LEN=8'],
+  # ['PER_CORE_SIMD'],
+  # ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
+  # ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=256'],
+  # ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
+  # ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024', 'HARDWARE_VECTOR_LEN=8'],
+  # 'NO_VEC',
   ]
 
-# ALL_CONFIGS = ['VEC_16_SIMD', ['VEC_16_SIMD', 'INIT_FRAMES=5'], 'VEC_4_SIMD', ['VEC_4_SIMD', 'INIT_FRAMES=5'], 'PACKED_SIMD']
+# ALL_CONFIGS = ['VEC_16_SIMD']
 INIT0_CONFIGS = []
+
+LONGLINES_CONFIGS = [
+  ['VECTOR_LEN=16', 'LONGLINES', 'CACHE_LINE_SIZE=1024'],
+  ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
+  ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
+]
+
+BFS_CONFIGS = ['NO_VEC', 'VECTOR_LEN=4', 'VECTOR_LEN=16']
 
 # choose which programs to run via script and with what configs
 sim_configs = {
@@ -52,23 +60,23 @@ sim_configs = {
 
   # Benchmarks
 
-  # 'bicg'   : {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['2048'],
-  #   'hw_opts' : HW_OPTS
-  # },
-  # 'gram'   : {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['320'],
-  #   'hw_opts' : HW_OPTS
-  # },
-  'syrk'   : {
+  'bicg'   : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['2048'],
+    'hw_opts' : HW_OPTS
+  },
+  'gram'   : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['320'],
+    'hw_opts' : HW_OPTS
+  },
+  'syrk'   : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
     'argv' : ['256'],
     'hw_opts' : HW_OPTS
   },
   'syr2k'  : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
     'argv' : ['256'],
     'hw_opts' : HW_OPTS
   },
@@ -78,57 +86,61 @@ sim_configs = {
     'hw_opts' : HW_OPTS
   },
   'conv2d' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
     'argv' : ['2048'],
     'hw_opts' : HW_OPTS
   },
-  # 'conv3d' : {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['256'],
-  #   'hw_opts' : HW_OPTS
-  # },
-  'fdtd' : {
+  'conv3d' : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['256'],
+    'hw_opts' : HW_OPTS
+  },
+  'fdtd' : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
     'argv' : ['512', '30'],
     'hw_opts' : HW_OPTS
   },
 
-  # 'atax'   : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-  #   'argv' : ['2048'], # ['128']
-  #   'hw_opts' : HW_OPTS
-  # },
-  # 'mvt'    : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-  #   'argv' : ['4096'], # ['128']
-  #   'hw_opts' : HW_OPTS
-  # },
-  # 'gemm'   : {
-  #   'vec'  : ['NO_VEC', [ 'NO_VEC', 'MANYCORE_PREFETCH' ], 'VEC_LEN=4', 'VEC_LEN=16', ['NESTED_SIMD', 'VEC_LEN=4'], ['NESTED_SIMD', 'VEC_LEN=16']],
-  #   'argv' : ['256'], #['64']
-  #   'hw_opts' : HW_OPTS
-  # },
-  'gesummv'   : {
+  'atax'   : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['2048'], # ['128']
+    'hw_opts' : HW_OPTS
+  },
+  'mvt'    : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['4096'], # ['128']
+    'hw_opts' : HW_OPTS
+  },
+  'gemm'   : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['256'], #['64']
+    'hw_opts' : HW_OPTS
+  },
+  'gesummv'   : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
     'argv' : ['4096'], #['128']
     'hw_opts' : HW_OPTS 
   },
-  # 'corr'   : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
-  #   'argv' : ['512'], #['64']
-  #   'hw_opts' : HW_OPTS
-  # },
+  'corr'   : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['512'], #['64']
+    'hw_opts' : HW_OPTS
+  },
   # '2mm' : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
   #   'argv' : ['256'], #['64']
   #   'hw_opts' : HW_OPTS
   # },
   # '3mm' : {
-  #   'vec'  : ALL_NEIL_CONFIGS + INIT0_NEIL_CONFIGS,
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
   #   'argv' : ['256'], #['32']
   #   'hw_opts' : HW_OPTS
   # },
-
+  'bfs' : {
+    'vec'  : BFS_CONFIGS,
+    'argv' : ['../../programs-spad/bfs-rodinia/data/graph4k.txt'],
+    'hw_opts' : HW_OPTS
+  },
 }
 
 
@@ -361,6 +373,10 @@ programs = {
   'fdtd' : { 'name': 'fdtd', 'path' : progDir0 + 'fdtd2d/fdtd2d', 
     'options' : "{0} {0} {1}",
     'serialize' : '-NX{0}-NY{0}-t{1}',
+  },
+  'bfs' : { 'name': 'bfs', 'path' : progDir0 + 'bfs-rodinia/bfs', 
+    'options' : "{0}",
+    'serialize' : '',
   },
 }
 
