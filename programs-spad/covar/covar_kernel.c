@@ -204,11 +204,21 @@ void tril_mean(int mask, DTYPE *mean, DTYPE *data, int N, int M,
 
     do {
       asm("trillium vissue_delim if_begin center_body");
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
       FRAME_START(MEAN_FRAME_SIZE);
       #pragma GCC unroll(16)
-      for (int u = 0; u < MEAN_PREFETCH_LEN; u++) {
+      for (int u = 0; u < MEAN_PREFETCH_LEN; u+=PER_CORE_SIMD_LEN) {
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t vdata = vle32_v_f32m1(&sp_ptr[sp + u]);
+        vfloat32m1_t vmean = vfmv_v_f_f32m1(mean_i);
+        vfloat32m1_t vnew = vfsub_vv_f32m1(vdata, vmean);
+        vse32_v_f32m1(&data[i * M + j + u], vnew);
+        #else
         DTYPE dat = sp_ptr[sp + u] - mean_i;
         FSTORE_NOACK(dat, &data[i * N + j + u], 0);
+        #endif
       }
       j+=MEAN_PREFETCH_LEN;
       sp += MEAN_FRAME_SIZE;

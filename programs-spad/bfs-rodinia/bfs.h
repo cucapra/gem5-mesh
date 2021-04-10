@@ -4,8 +4,8 @@
 #include <stdbool.h> 
 
 
-// #define VEC_LEN 4
-#ifdef VEC_LEN
+// #define VECTOR_LEN 4
+#ifdef VECTOR_LEN
 #define _VEC
 #endif
 

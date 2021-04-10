@@ -83,6 +83,13 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
     for (int i = nx_start; i < nx_end; i++) {
       temp=0;
       #ifdef MANYCORE_PREFETCH
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+      vfloat32m1_t accum = vzero;
+      #endif
+
       for(int j=0; j<ny; j+=PREFETCH_LEN){
         sp_a_offset = spadRegion * REGION_SIZE;
         sp_x_offset = sp_a_offset + PREFETCH_LEN;
@@ -91,12 +98,26 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         VPREFETCH_L(sp_x_offset, _x + j, 0, PREFETCH_LEN,TO_SELF);
         FRAME_START(REGION_SIZE);
         #pragma GCC unroll(16)
-        for(int jj=0; jj<PREFETCH_LEN; jj++){
+        for(int jj=0; jj<PREFETCH_LEN; jj+=PER_CORE_SIMD_LEN){
+          #ifdef PER_CORE_SIMD
+          vfloat32m1_t vx = vle32_v_f32m1(&spAddr[sp_x_offset+jj]);
+          vfloat32m1_t va = vle32_v_f32m1(&spAddr[sp_a_offset+jj]);
+          vfloat32m1_t vtemp = vfmul_vv_f32m1(va, vx);
+          accum = vfadd_vv_f32m1(accum, vtemp);
+          #else
           temp+=spAddr[sp_a_offset+jj]*spAddr[sp_x_offset+jj];
+          #endif
         }
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
         REMEM(REGION_SIZE);
       }
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+      temp += vfmv_f_s_f32m1_f32(vtempred);
+      #endif
+
       #elif defined(PER_CORE_SIMD)
       int chunk = ny;
       for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -123,7 +144,7 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         temp += a[i*ny+j] * _x[j];
       }
       #endif
-      STORE_NOACK(temp, ax + i, 0);
+      FSTORE_NOACK(temp, ax + i, 0);
 
       #ifdef MANYCORE_PREFETCH
       for(int j=0; j<ny; j+=PREFETCH_LEN){
@@ -134,9 +155,17 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
         VPREFETCH_L(sp_partial_offset, partial_prod + j, 0, PREFETCH_LEN,TO_SELF);
         FRAME_START(REGION_SIZE);
         #pragma GCC unroll(16)
-        for(int jj=0; jj<PREFETCH_LEN; jj++){
+        for(int jj=0; jj<PREFETCH_LEN; jj+=PER_CORE_SIMD_LEN){
+          #ifdef PER_CORE_SIMD
+          vfloat32m1_t va = vle32_v_f32m1(&spAddr[sp_a_offset+jj]);
+          vfloat32m1_t vpp = vle32_v_f32m1(&spAddr[sp_partial_offset+jj]);
+          vfloat32m1_t vp = vfmul_vf_f32m1(va, temp);
+          vpp = vfadd_vv_f32m1(vpp, vp);
+          vse32_v_f32m1(partial_prod + j+jj, vpp);
+          #else
           DTYPE partial_temp= spAddr[sp_partial_offset+jj] + spAddr[sp_a_offset+jj]*temp;
-          STORE_NOACK(partial_temp, partial_prod + j+jj, 0);
+          FSTORE_NOACK(partial_temp, partial_prod + j+jj, 0);
+          #endif
         }
         spadRegion = (spadRegion + 1) % NUM_REGIONS;
         REMEM(REGION_SIZE);
@@ -160,10 +189,13 @@ atax_manycore(DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int nx, int ny,
       #else
       #pragma GCC unroll(16)
       for(int j=0; j<ny; j++){
-        partial_prod[j] += a[i*ny+j] * temp;
+        // partial_prod[j] += a[i*ny+j] * temp;
+        DTYPE pprod = partial_prod[j] + a[i*ny+j] * temp;
+        FSTORE_NOACK(pprod, &partial_prod[j], 0);
       }
       #endif
     }
+    FENCE();
 }
 
 void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int pdim, int unique_id, int total_groups, int vtid,
@@ -180,7 +212,8 @@ void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int pdim, int 
     for(int j=0; j<pdim; j++){
       temp+=partial[j*n+i];
     }
-    out[i]+=temp;
+    // out[i]+=temp;
+    FSTORE_NOACK(out[i] + temp, out + i, 0);
   }
 
   #else
@@ -202,9 +235,11 @@ void reduce_parallel(DTYPE* partial, DTYPE *out, int n, int ptid, int pdim, int 
     //     }
     //   }
     // }
-    out[i]+=temp;
+    // out[i]+=temp;
+    FSTORE_NOACK(out[i] + temp, out + i, 0);
   }
   #endif
+  FENCE();
   return;
 
 }
@@ -327,18 +362,22 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
-#ifdef NESTED_SIMD
+#ifdef PER_CORE_SIMD
   vsetvl_e32m1(HARDWARE_VECTOR_LEN);
   #endif
 // do after tokens to avoid stalling due to region not ready
 // region based mask for scratchpad
 #ifdef _VEC
+#ifdef LONGLINES
   if (isMailer) {
     SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier);
   }
   else {
+#endif
     SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+#ifdef LONGLINES
   }
+#endif
 #elif defined MANYCORE_PREFETCH
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
 #endif

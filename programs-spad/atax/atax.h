@@ -34,9 +34,10 @@
 #define NUM_REGIONS (POST_FRAME_WORD / REGION_SIZE)
 
 
+#ifdef LONGLINES
 // stuff for partial reduction
 #ifndef ACCUM_GRANULARITY
-#define ACCUM_GRANULARITY 4
+#define ACCUM_GRANULARITY 1
 #endif
 
 // TODO hardcode this based on spipe
@@ -62,6 +63,7 @@
 #define PER_CORE_MAILER_FRAME (VECTOR_LEN)
 // includes also if any base value to the sum
 #define PER_CORE_FULL_MAILER_FRAME (PER_CORE_MAILER_FRAME)
+#endif
 
 typedef float DTYPE;
 

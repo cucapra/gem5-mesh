@@ -160,32 +160,35 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
   int row_thread=start+vtid;
   int col_thread=0;
   DTYPE temp;
+
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+  #endif
+
   do {
     // hoist1:
     asm("trillium vissue_delim until_next hoist1");
     temp=0;
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+    vfloat32m1_t accum = vzero;
+    #endif
+
     do {
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
       #ifdef PER_CORE_SIMD
-  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
-  #endif
+      vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+      #endif
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
       for(int jj=0; jj<REGION_SIZE/2; jj+=PER_CORE_SIMD_LEN){
         #ifdef PER_CORE_SIMD
         vfloat32m1_t va = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj]);
         vfloat32m1_t vy1 = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj +REGION_SIZE/2]);
-
         vfloat32m1_t vay1 = vfmul_vv_f32m1(va, vy1);
-
-        // sum
-        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
-        vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vay1, vay1, vzero);
-
-        // update the accumulation
-        float single_val = vfmv_f_s_f32m1_f32(vs);
-        temp += single_val;
+        accum = vfadd_vv_f32m1(accum, vay1);
         #else
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *y1_on_sp = a_on_sp + REGION_SIZE/2;
@@ -199,6 +202,12 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
     // x1[row_thread]+=temp;
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    temp += vfmv_f_s_f32m1_f32(vtempred);
+    #endif
 
     FRAME_START(REGION_SIZE);
     temp += *(spAddr + spadRegion*REGION_SIZE);
@@ -216,28 +225,26 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
 
     col_thread=0;
     temp=0;
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    accum = vzero;
+    #endif
+
     do {
       
       // transpose_dp:
       asm("trillium vissue_delim until_next transpose_dp");
       #ifdef PER_CORE_SIMD
-  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
-  #endif
+      vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+      #endif
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
       for(int jj=0; jj<REGION_SIZE/2; jj+=PER_CORE_SIMD_LEN){
         #ifdef PER_CORE_SIMD
         vfloat32m1_t va = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj]);
         vfloat32m1_t vy2 = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj+REGION_SIZE/2]);
-
         vfloat32m1_t vay2 = vfmul_vv_f32m1(va, vy2);
-
-        // sum
-        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
-        vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vay2, vay2, vzero);
-        // update the accumulation
-        float single_val = vfmv_f_s_f32m1_f32(vs);
-        temp += single_val;
+        accum = vfadd_vv_f32m1(accum, vay2);
         #else
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *y2_on_sp = a_on_sp + REGION_SIZE/2;
@@ -251,6 +258,11 @@ void tril_mvt_vec(int mask, DTYPE *a, DTYPE *y1, DTYPE *y2, DTYPE *x1, DTYPE *x2
     } while(bh3);
 
     asm("trillium vissue_delim until_next loop_end");
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    temp += vfmv_f_s_f32m1_f32(vtempred);
+    #endif
     FRAME_START(REGION_SIZE);
     temp += *(spAddr + spadRegion*REGION_SIZE);
     REMEM(REGION_SIZE);

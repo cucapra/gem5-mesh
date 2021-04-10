@@ -5,7 +5,6 @@
 #include "bfs.h"
 #include "spad.h"
 #include "bind_defs.h"
-#include "token_queue.h"
 #include "group_templates.h"
 #include "util.h"
 
@@ -148,15 +147,15 @@ void kernel(Node* h_graph_nodes, char *h_graph_mask, char *h_updating_graph_mask
   int end   = 0;
 
   #ifdef _VEC
-  #if VEC_LEN==4
+  #if VECTOR_LEN==4
   SET_USEFUL_VARIABLES_V4(ptid_x, ptid_y, pdim_x, pdim_y);
-    #elif VEC_LEN==16
+    #elif VECTOR_LEN==16
     SET_USEFUL_VARIABLES_V16(ptid_x, ptid_y, pdim_x, pdim_y);
     #endif
 
   if(used){
     //do work division here
-    int alignment = VEC_LEN; //each group should have elements of multiple of this number
+    int alignment = VECTOR_LEN; //each group should have elements of multiple of this number
     start = roundUp((unique_id + 0) * no_of_nodes / total_groups, alignment); 
     end = roundUp((unique_id + 1) * no_of_nodes / total_groups, alignment); 
     

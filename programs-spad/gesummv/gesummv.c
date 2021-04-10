@@ -30,9 +30,10 @@ void reduction(DTYPE *out, DTYPE *tmp, int baseGroupId, int numGroups, int N,
 
     for (int g = 0; g < NUM_GROUPS_PER_PIPE; g++) {
       int i = group_start[g];
-      if (i < 0 /*|| i + a >= N*/) continue;
 
       for (int a = 0; a < ACCUM_GRANULARITY; a++) {
+        if (i < 0 || i + a >= group_end[g]) continue;
+
         VPREFETCH_L(sp_self + g * OFFSET_PER_CORE + a * SUB_FRAME_SIZE + 0, 
           &out[i + a], 0, 1, TO_SELF);
         VPREFETCH_L(sp_self + g * OFFSET_PER_CORE + a * SUB_FRAME_SIZE + 1,

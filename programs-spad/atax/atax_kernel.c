@@ -149,20 +149,25 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
   DTYPE* partialVec = _y_partial + ptid*ny;
 
   #ifdef PER_CORE_SIMD
-  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
   #endif
 
   do {
     // hoist1:
     asm("trillium vissue_delim until_next hoist1");
     temp=0;
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t accum = vzero;
+    #endif
+
     do {
-      
-      #ifdef PER_CORE_SIMD
-  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
-  #endif
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+      #endif
       FRAME_START(REGION_SIZE);
 
       #pragma GCC unroll(16)
@@ -176,12 +181,7 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
         vfloat32m1_t vtemp = vfmul_vv_f32m1(va, vx);
 
         // sum
-        vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
-        vfloat32m1_t vs = vfredsum_vs_f32m1_f32m1(vtemp, vtemp, vzero);
-
-        // update the accumulation
-        float single_val = vfmv_f_s_f32m1_f32(vs);
-        temp += single_val;
+        accum = vfadd_vv_f32m1(accum, vtemp);
         #else
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *x_on_sp = a_on_sp + REGION_SIZE/2;
@@ -194,13 +194,22 @@ void tril_atax(int mask, DTYPE *a, DTYPE *_x, DTYPE *_y_partial, DTYPE *ax, int 
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    // NOTE very important to do this outside of the loop otherwise won't
+    // mix iterations together and will have poor depedency distances
+    vfloat32m1_t vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    temp += vfmv_f_s_f32m1_f32(vtempred);
+    #endif
+
     FSTORE_NOACK(temp, ax + row_thread, 0);
     col_thread=0;
     do {
       
       #ifdef PER_CORE_SIMD
-  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
-  #endif
+      vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+      #endif
       // transpose_dp:
       asm("trillium vissue_delim until_next transpose_dp");
       FRAME_START(REGION_SIZE);
@@ -337,27 +346,56 @@ void tril_atax1(int mask, DTYPE *a, DTYPE *_x, DTYPE *ax, int nx, int ny,
   int row_thread=nx_start+vtid;
   int col_thread=0;
   #endif
+
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+  #endif
+
   do {
     // hoist1:
     asm("trillium vissue_delim until_next hoist1");
     DTYPE temp=0;
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t accum = vzero;
+    #endif
+
     do {
 
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(HARDWARE_VECTOR_LEN);
+      #endif
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
       for(int jj=0; jj<PREFETCH_LEN; jj+=PER_CORE_SIMD_LEN){
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + jj]);
+        vfloat32m1_t vx = vle32_v_f32m1(&spAddr[spadRegion*REGION_SIZE + REGION_SIZE/2 + jj]);
+        vfloat32m1_t vtemp = vfmul_vv_f32m1(va, vx);
+        accum = vfadd_vv_f32m1(accum, vtemp);
+        #else
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + jj;
         DTYPE *x_on_sp = a_on_sp + REGION_SIZE/2;
 
         temp += (*a_on_sp) * (*x_on_sp);
+        #endif
       }
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    // NOTE very important to do this outside of the loop otherwise won't
+    // mix iterations together and will have poor depedency distances
+    vfloat32m1_t vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    temp += vfmv_f_s_f32m1_f32(vtempred);
+    #endif
 
     #ifdef LONGLINES
     FSTORE_NOACK(temp, &sp_origin_ptr[sp_origin], 0);
@@ -443,31 +481,59 @@ void tril_atax2(int mask, DTYPE *a, DTYPE *ax, DTYPE *_y, int nx, int ny,
 
   int col_thread=ny_start+vtid;
   int row_thread=0;
+
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+  #endif
+
   DTYPE temp;
   do {
     // hoist1:
     asm("trillium vissue_delim until_next hoist1");
     temp=0;
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t accum = vzero;
+    #endif
     do {
 
       // dotprod:
       asm("trillium vissue_delim until_next dotprod");
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      #endif
       FRAME_START(REGION_SIZE);
       #pragma GCC unroll(16)
-      for(int ii=0; ii<PREFETCH_LEN; ii++){
+      for(int ii=0; ii<PREFETCH_LEN; ii+=PER_CORE_SIMD_LEN){
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t va = vle32_v_f32m1(spAddr + spadRegion*REGION_SIZE + ii);
+        vfloat32m1_t vax = vle32_v_f32m1(spAddr + spadRegion*REGION_SIZE + REGION_SIZE/2 + ii);
+        vfloat32m1_t vtemp = vfmul_vv_f32m1(va, vax);
+        accum = vfadd_vv_f32m1(accum, vtemp);
+        #else
         DTYPE *a_on_sp = spAddr + spadRegion*REGION_SIZE + ii;
         DTYPE *ax_on_sp = a_on_sp + REGION_SIZE/2;
 
         temp += (*a_on_sp) * (*ax_on_sp);
+        #endif
       }
       REMEM(REGION_SIZE);
       spadRegion = (spadRegion + 1) % NUM_REGIONS;
     } while(bh2);
     // store_dp:
     asm("trillium vissue_delim until_next store_dp");
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    // NOTE very important to do this outside of the loop otherwise won't
+    // mix iterations together and will have poor depedency distances
+    vfloat32m1_t vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    temp += vfmv_f_s_f32m1_f32(vtempred);
+    #endif
+
     FSTORE_NOACK(temp, _y + col_thread, 0);
     col_thread+=dim;
-    asm volatile("fence\n\t"); //since I have store noacks I don't move to next iter until all stores are done to partial vec
   } while (bh1);
 
   // mark vector stack cleanup assembly

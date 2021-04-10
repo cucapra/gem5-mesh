@@ -12,7 +12,7 @@
 #define INIT_FRAMES 2
 #endif
 
-#define REGION_SIZE 24 //configure using LCM of required frame/region sizes, multiple of 3(loading 3 arrays) and 4(cache aligned acccess)
+#define REGION_SIZE 48 //configure using LCM of required frame/region sizes, multiple of 3(loading 3 arrays) and 4(cache aligned acccess)
 #define NUM_REGIONS 10
 #define POST_FRAME_WORD (REGION_SIZE * NUM_REGIONS)
 
@@ -56,13 +56,6 @@
 #define PER_CORE_MAILER_FRAME (VECTOR_LEN)
 // includes also if any base value to the sum
 #define PER_CORE_FULL_MAILER_FRAME (PER_CORE_MAILER_FRAME + OFFSET_PER_CORE)
-
-#ifdef PER_CORE_SIMD
-  #define PER_CORE_SIMD_LEN (HARDWARE_VECTOR_LEN)
-#else
-  #define PER_CORE_SIMD_LEN (1)
-#endif
-
 
 #define ALPHA 3
 #define BETA 2

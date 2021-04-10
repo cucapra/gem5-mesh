@@ -60,6 +60,7 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
   #ifdef PER_CORE_SIMD
   vsetvl_e32m1(PER_CORE_SIMD_LEN);
   vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f); // splat 0
+  vfloat32m1_t accum = vzero;
   #endif
   #endif
 
@@ -168,18 +169,17 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
     c_ij = 0;
     #endif
 
-    #ifdef PER_CORE_SIMD
-    // NOTE MUST NEVER CHANGE THIS VALUE B/C CANT SQUASH IN VCORES!!!
-    size_t l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
-    #endif
+    // #ifdef PER_CORE_SIMD
+    // // NOTE MUST NEVER CHANGE THIS VALUE B/C CANT SQUASH IN VCORES!!!
+    // size_t l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    // #endif
 
     do {
 
       asm("trillium vissue_delim if_begin vec_body");
 
       #ifdef PER_CORE_SIMD
-      l = vsetvl_e32m1(PER_CORE_SIMD_LEN);
-      vfloat32m1_t accum = vzero;
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
       #endif
 
       // do innermost loop body (k)
@@ -214,13 +214,6 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
         #endif
       }
 
-      #ifdef PER_CORE_SIMD
-      // NOTE very important to do this outside of the loop otherwise won't
-      // mix iterations together and will have poor depedency distances
-      vfloat32m1_t vcij = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
-      c_ij += vfmv_f_s_f32m1_f32(vcij);
-      #endif
-
       sp+=INNER_FRAME_SIZE;
       sp = sp % POST_FRAME_WORD;
       // if (sp == POST_FRAME_WORD) sp = 0;
@@ -231,6 +224,15 @@ void tril_syr2k(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int N, int M,
 
     asm("trillium vissue_delim if_begin vec_body_end");
     
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    // NOTE very important to do this outside of the loop otherwise won't
+    // mix iterations together and will have poor depedency distances
+    vfloat32m1_t vcij = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    c_ij += vfmv_f_s_f32m1_f32(vcij);
+    accum = vfmv_v_f_f32m1(0.0f);
+    #endif
+
     #ifdef LONGLINES
     // store partial sum to scalar core
     FSTORE_NOACK(c_ij, &sp_origin_ptr[sp_origin], 0);

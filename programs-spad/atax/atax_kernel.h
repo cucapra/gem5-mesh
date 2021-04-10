@@ -10,7 +10,7 @@
 #include "bind_defs.h"
 #include "util.h"
 
-#ifdef NESTED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 

@@ -48,17 +48,17 @@ void run_bfs_cpu(int no_of_nodes, Node *h_graph_nodes, int edge_list_size, \
 }
 
 int compare_results(int *h_cost_ref, int *h_cost, int n){
-  printf("Ref values\n");
-  for (int i=0; i<n; i++){
-    printf("%d ",h_cost_ref[i]);
-  }
-  printf("\n");
+  // printf("Ref values\n");
+  // for (int i=0; i<n; i++){
+  //   printf("%d ",h_cost_ref[i]);
+  // }
+  // printf("\n");
 
-  printf("Manycore values\n");
-  for (int i=0; i<n; i++){
-    printf("%d ",h_cost[i]);
-  }
-  printf("\n");
+  // printf("Manycore values\n");
+  // for (int i=0; i<n; i++){
+  //   printf("%d ",h_cost[i]);
+  // }
+  // printf("\n");
 
   for (int i=0; i<n; i++){
     if (h_cost_ref[i]!=h_cost[i]){

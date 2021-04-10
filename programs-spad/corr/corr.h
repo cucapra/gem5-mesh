@@ -2,6 +2,7 @@
 #define __TEMP_H__
 
 #include <math.h>
+#include "util.h"
 
 // #define VECTOR_LEN 4 //vec group size
 #ifdef VECTOR_LEN
@@ -44,7 +45,7 @@
   VPREFETCH_L(off, data + idx, 0, REGION_SIZE,TO_SELF); \
   FRAME_START(REGION_SIZE); \
   _Pragma("GCC unroll(16)") \
-  for(int jj=0; jj<REGION_SIZE; jj++)
+  for(int jj=0; jj<REGION_SIZE; jj+=PER_CORE_SIMD_LEN)
 
 #define PF2(off1,off2,idx1,idx2) \
   off1 = spadRegion * REGION_SIZE_K2; \
@@ -53,7 +54,7 @@
   VPREFETCH_L(off2, data + idx2, 0, REGION_SIZE_K2/2,TO_SELF); \
   FRAME_START(REGION_SIZE_K2); \
   _Pragma("GCC unroll(16)") \
-  for(int jj=0; jj<REGION_SIZE_K2/2; jj++)
+  for(int jj=0; jj<REGION_SIZE_K2/2; jj+=PER_CORE_SIMD_LEN)
 
 #elif defined POLYBENCH_VERSION
 #define PF1(off,i,j,m) \

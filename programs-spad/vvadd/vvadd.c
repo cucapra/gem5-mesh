@@ -9,7 +9,7 @@
 #include "vvadd_kernel.h"
 #include "util.h"
 
-#ifdef PACKED_SIMD
+#ifdef PER_CORE_SIMD
 #include <riscv_vector.h>
 #endif
 
@@ -17,7 +17,7 @@
 void vvadd(DTYPE *a, DTYPE *b, DTYPE *c, int start, int end, 
     int ptid, int vtid, int dim, int unroll_len) {
   
-  #ifdef PACKED_SIMD
+  #ifdef PER_CORE_SIMD
   // based on https://github.com/riscv/rvv-intrinsic-doc/blob/master/rvv_saxpy.c
 
   // chunk of array to do

@@ -27,7 +27,8 @@ void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int
 
   for(int i=start; i<end; i++){
     for(int j=0; j<a_row; j++){
-      aT[i*a_row+j] = a[j*a_col+i];
+      // aT[i*a_row+j] = a[j*a_col+i];
+      FSTORE_NOACK(a[j*a_col+i], &aT[i*a_row+j], 0);
     }
   }
 
@@ -44,6 +45,15 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
   DTYPE stddev_temp=0;
   DTYPE data_temp;
 
+  float nsqrt;
+  SQRTF_UNSAFE(nsqrt, (float)n);
+
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+  #endif
+
+
   #ifdef MANYCORE_PREFETCH
   int spadRegion = 0;
   DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
@@ -55,12 +65,29 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
     mean_temp = 0;
 
     #ifdef MANYCORE_PREFETCH
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t accum = vzero;
+    #endif
+
     PF_BEGIN(REGION_SIZE)
     PF1(sp_offset,_idx_(i,j,n))
     {
+      #ifdef PER_CORE_SIMD
+      vfloat32m1_t vmean = vle32_v_f32m1(&spAddr[sp_offset+jj]);
+      accum = vfadd_vv_f32m1(accum, vmean);
+      #else
       mean_temp += spAddr[sp_offset+jj];
+      #endif
     }
     PF_END(NUM_REGIONS)
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vfloat32m1_t vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    mean_temp += vfmv_f_s_f32m1_f32(vtempred);
+    #endif
+
     #elif defined(PER_CORE_SIMD)
     int chunk = n;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -78,24 +105,44 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       mean_temp += single_val;
     }
     #else
-    _Pragma("GCC unroll(16)")
+    #pragma GCC unroll(16)
     for (int j = 0; j < n; j++)
       mean_temp += data[i*n+j];
     #endif
     mean_temp /= n;
     // mean[i]=mean_temp;
-    STORE_NOACK(mean_temp,mean+i,0);
+    FSTORE_NOACK(mean_temp,mean+i,0);
 
     //stddev
     stddev_temp = 0;
 
     #ifdef MANYCORE_PREFETCH
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    accum = vzero;
+    #endif
+
     PF_BEGIN(REGION_SIZE)
     PF1(sp_offset,_idx_(i,j,n))
     {
+      #ifdef PER_CORE_SIMD
+      vfloat32m1_t vdata = vle32_v_f32m1(&spAddr[sp_offset+jj]);
+      vfloat32m1_t vnorm = vfsub_vf_f32m1(vdata, mean_temp);
+      vfloat32m1_t vnorm2 = vfmul_vv_f32m1(vnorm, vnorm);
+      accum = vfadd_vv_f32m1(accum, vnorm2);
+      #else
       stddev_temp += (spAddr[sp_offset+jj]-mean_temp)*(spAddr[sp_offset+jj]-mean_temp);
+      #endif
     }
     PF_END(NUM_REGIONS)
+
+    #ifdef PER_CORE_SIMD
+    vsetvl_e32m1(PER_CORE_SIMD_LEN);
+    vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+    stddev_temp += vfmv_f_s_f32m1_f32(vtempred);
+    #endif
+
     #elif defined(PER_CORE_SIMD)
     chunk = n;
     for (size_t l; (l = vsetvl_e32m1(chunk)) > 0; chunk -= l) {
@@ -117,15 +164,17 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
       stddev_temp += single_val;
     }
     #else
-    _Pragma("GCC unroll(16)")
+    #pragma GCC unroll(16)
     for (int j = 0; j < n; j++)
       stddev_temp += (data[i*n+j]-mean_temp)*(data[i*n+j]-mean_temp);
     #endif
     stddev_temp = stddev_temp/n;
-    stddev_temp = sqrt(stddev_temp);
+    // stddev_temp = sqrt(stddev_temp);
+    SQRTF_UNSAFE(stddev_temp, stddev_temp);
+
     stddev_temp = stddev_temp <= eps ? 1.0 : stddev_temp;
     // stddev[i] = stddev_temp;
-    STORE_NOACK(stddev_temp,stddev+i,0);
+    FSTORE_NOACK(stddev_temp,stddev+i,0);
 
     //center
 
@@ -133,10 +182,17 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
     PF_BEGIN(REGION_SIZE)
     PF1(sp_offset,_idx_(i,j,n))
     {
+      #ifdef PER_CORE_SIMD
+      vfloat32m1_t vdata = vle32_v_f32m1(&spAddr[sp_offset+jj]);
+      vfloat32m1_t vnorm = vfsub_vf_f32m1(vdata, mean_temp);
+      vfloat32m1_t vstdev = vfdiv_vf_f32m1(vnorm, nsqrt*stddev_temp);
+      vse32_v_f32m1(&data[i*n+j+jj], vstdev);
+      #else
       data_temp = spAddr[sp_offset+jj]-mean_temp;
-      data_temp = data_temp/(sqrt(n)*stddev_temp);
+      data_temp = data_temp/(nsqrt*stddev_temp);
       // data[i*n+(j+jj)] = data_temp;
-      STORE_NOACK(data_temp,data+(i*n)+(j+jj),0);
+      FSTORE_NOACK(data_temp,data+(i*n)+(j+jj),0);
+      #endif
     }
     PF_END(NUM_REGIONS)
     #elif defined(PER_CORE_SIMD)
@@ -149,18 +205,18 @@ corr_manycore_1(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
 
       // math
       vfloat32m1_t vnorm = vfsub_vf_f32m1(vdata, mean_temp);
-      vfloat32m1_t vstdev = vfdiv_vf_f32m1(vnorm, sqrt(n)*stddev_temp);
+      vfloat32m1_t vstdev = vfdiv_vf_f32m1(vnorm, nsqrt*stddev_temp);
 
       // store
       vse32_v_f32m1(&data[i*n+j], vstdev);
     }
     #else
-    _Pragma("GCC unroll(16)")
+    #pragma GCC unroll(16)
     for (int j = 0; j < n; j++){
       data_temp = data[i*n+j]-mean_temp;
-      data_temp = data_temp/(sqrt(n)*stddev_temp);
+      data_temp = data_temp/(nsqrt*stddev_temp);
       // data[i*n+j] = data_temp/(sqrt(n)*stddev_temp);
-      STORE_NOACK(data_temp,data+(i*n)+j,0);
+      FSTORE_NOACK(data_temp,data+(i*n)+j,0);
     }
     #endif
 
@@ -181,25 +237,49 @@ corr_manycore_2(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
   int sp_i1_offset,sp_i2_offset;
   #endif
 
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  vfloat32m1_t vzero = vfmv_v_f_f32m1(0.0f);
+  #endif
+
   DTYPE sym_temp=0;
   for (int i1 = start; i1 < m-1; i1+=stride){
     for (int i2 = i1+1; i2 < m; i2++){
       sym_temp=0;
       #ifdef MANYCORE_PREFETCH
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t accum = vzero;
+      #endif
+
       PF_BEGIN(REGION_SIZE_K2/2)
       PF2(sp_i1_offset,sp_i2_offset,_idx_(i1, j, n),_idx_(i2, j, n))
       {
+        #ifdef PER_CORE_SIMD
+        vfloat32m1_t vi1 = vle32_v_f32m1(&spAddr[sp_i1_offset+jj]);
+        vfloat32m1_t vi2 = vle32_v_f32m1(&spAddr[sp_i2_offset+jj]);
+        vfloat32m1_t vii = vfmul_vv_f32m1(vi1, vi2);
+        accum = vfadd_vv_f32m1(accum, vii);
+        #else
         sym_temp+=spAddr[sp_i1_offset+jj]*spAddr[sp_i2_offset+jj];
+        #endif
       }
       PF_END(NUM_REGIONS_K2)
+
+      #ifdef PER_CORE_SIMD
+      vsetvl_e32m1(PER_CORE_SIMD_LEN);
+      vfloat32m1_t vtempred = vfredsum_vs_f32m1_f32m1(accum, accum, vzero);
+      sym_temp += vfmv_f_s_f32m1_f32(vtempred);
+      #endif
+
       #else
-      _Pragma("GCC unroll(16)")
+      #pragma GCC unroll(16)
       for(int j=0; j<n; j++){
         sym_temp+=data[i1*n+j]*data[i2*n+j];
       }
       #endif
-      STORE_NOACK(sym_temp,symmat+(i1*m)+i2,0);
-      STORE_NOACK(sym_temp,symmat+(i2*m)+i1,0);
+      FSTORE_NOACK(sym_temp,symmat+(i1*m)+i2,0);
+      FSTORE_NOACK(sym_temp,symmat+(i2*m)+i1,0);
       // symmat[i1*m+i2]=sym_temp;
       // symmat[i2*m+i1]=sym_temp;
     }
@@ -360,6 +440,10 @@ void kernel(DTYPE *data, DTYPE *dataT, DTYPE *symmat, DTYPE *mean, DTYPE *stddev
   //do work division here
   start  = ( ( ptid + 0 ) * m ) / pdim;
   end    = ( ( ptid + 1 ) * m ) / pdim;
+  #endif
+
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
   //transpose matrix
