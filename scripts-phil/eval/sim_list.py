@@ -9,10 +9,11 @@ from copy import deepcopy
 # TODO hardware opts should automatically determine cache line size
 # b/c wnat to do vec 4 with 256. might be more natural
 HW_OPTS = [
-  '--net-width=1', 
+  # '--net-width=1', 
   # '--net-width=2', 
-  '--net-width=4',
+  # '--net-width=4',
   # '--net-width=16'
+  ''
   ]
 # HW_OPTS = ['']
 ALL_CONFIGS = [
@@ -22,7 +23,7 @@ ALL_CONFIGS = [
   ['VECTOR_LEN=16'],
   ['VECTOR_LEN=4', 'PER_CORE_SIMD'],
   # ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
-  # [ 'NO_VEC', 'MANYCORE_PREFETCH' ],
+  [ 'NO_VEC', 'MANYCORE_PREFETCH' ],
   ['PER_CORE_SIMD', 'MANYCORE_PREFETCH'],
   # ['PER_CORE_SIMD', 'MANYCORE_PREFETCH', 'HARDWARE_VECTOR_LEN=8'],
   # ['PER_CORE_SIMD'],
@@ -376,7 +377,7 @@ programs = {
   },
   'bfs' : { 'name': 'bfs', 'path' : progDir0 + 'bfs-rodinia/bfs', 
     'options' : "{0}",
-    'serialize' : '',
+    'serialize' : '-4k',
   },
 }
 
