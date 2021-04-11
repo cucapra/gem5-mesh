@@ -68,23 +68,37 @@ def parse_inst_cost_file(file_name, target_node):
 
   return data
 
+# cache instruction costs
 def update_inst_cost():
   data = cost_dicts['inst']
   for inst_key, i in data['Costs'].items():
-    # take relevant fields to calculate total energy cost
-    # Add most fields. For mul and div that have multiple cycle executions 
-    #   incorporate by increasing mul cost by that factor
-    # excluding the following
-    #   I$
-    #   VM
-    #   D$
-    #   CTS - i assume this is counters
-    # # i['PC'] + i['IF_Rest'] + \
-    data[inst_key] = \
+    # scalar instruction
+    data[inst_key] = get_inst_cost(i, 1)
+
+    # cache some vector versions are well
+    data['EstVec4' + inst_key] =  get_inst_cost(i, 4)
+
+# calculate cost for just doing instruction
+# For estimated vector, multiply MUL, ALU, EX_Rest, and WB by vlen for total
+# can't scale register read b/c not clear how to do, but shouldn't have huge impact
+def get_inst_cost(i, vlen):
+  # take relevant fields to calculate total energy cost
+  # Add most fields. For mul and div that have multiple cycle executions 
+  #   incorporate by increasing mul cost by that factor
+  # excluding the following
+  #   I$
+  #   VM
+  #   D$
+  #   CTS - i assume this is counters
+  # # i['PC'] + i['IF_Rest'] + \
+  total_cost = \
       i['DEC'] + i['ID_Rest'] + \
       i['IS'] + \
-      i['LS'] + (i['MUL'] * i['Ex_Cycles']) + i['ALU'] + i['EX_Rest'] + \
-      i['WB'] + i['CSR'] + i['Rest']
+      i['LS'] + ((i['MUL'] * i['Ex_Cycles']) + i['ALU'] + i['EX_Rest']) * vlen + \
+      (i['WB'] * vlen) + i['CSR'] + i['Rest']
+
+  return total_cost
+
 
 def update_icache_cost():
   # bake in energy from fetch stage into this icache access
@@ -115,6 +129,7 @@ def parse_memory_file(file_name):
 # get cost for specified name
 def get_cost(name, field):
   if (not name in cost_dicts or not field in cost_dicts[name]):
+    assert(False)
     return 0
   else:
     return cost_dicts[name][field]
@@ -157,7 +172,8 @@ def get_instruction_energy(cnts):
 
   floatMult = \
     cnts['FloatMult'] + \
-    cnts['FloatMultAcc']
+    cnts['FloatMultAcc'] + \
+    cnts['FloatSqrt']
 
   # just the core energy to do (AFAIK)
   memRead = \
@@ -170,10 +186,30 @@ def get_instruction_energy(cnts):
 
   # ignoring the follwoing
     # branch T/NT (just using NT for now)
-    # cnts['FloatCvt']
-    # cnts['FloatSqrt']
+
+  vecAdd = \
+    cnts['SimdAdd'] + \
+    cnts['SimdAlu'] + \
+    cnts['SimdCmp'] + \
+    cnts['SimdMisc'] + \
+    cnts['SimdShift'] + \
+    cnts['SimdFloatAdd'] + \
+    cnts['SimdFloatAlu'] + \
+    cnts['SimdFloatCmp'] + \
+    cnts['SimdReduceAdd'] + \
+    cnts['SimdFloatReduceAdd']
+
+  vecMul = \
+    cnts['SimdMult'] + \
+    cnts['SimdFloatMult'] + \
+    cnts['SimdFloatSqrt']
+
+  vecDiv = \
+    cnts['SimdFloatDiv']
+
 
   # merge counts with costs
+  # SIMD costs assum vlen of 4!!
   return \
     get_cost('inst', 'IntAlu')    * intAlu    + \
     get_cost('inst', 'IntMult')   * intMult   + \
@@ -181,7 +217,10 @@ def get_instruction_energy(cnts):
     get_cost('inst', 'IntAlu')    * floatAdd  + \
     get_cost('inst', 'IntMult')   * floatMult + \
     get_cost('inst', 'MemOp')     * memRead   + \
-    get_cost('inst', 'MemOp')     * memWrite
+    get_cost('inst', 'MemOp')     * memWrite  + \
+    get_cost('inst', 'EstVec4IntAlu')   * vecAdd + \
+    get_cost('inst', 'EstVec4IntMult')  * vecMul + \
+    get_cost('inst', 'EstVec4IntDiv')   * vecDiv
 
 # define options
 def define_options(parser):
