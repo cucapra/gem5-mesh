@@ -32,11 +32,11 @@ size_t getSpadNumBytes();
 
 #define MOVE_STACK_ONTO_SCRATCHPAD()          \
   unsigned long long *spTop = getSpTop(ptid); \
-  spTop -= 30;                                \
+  spTop -= 35;                                \
   unsigned long long stackLoc;                \
   unsigned long long temp;                    \
-  _Pragma("GCC unroll(30)")                   \
-  for(int i=0;i<30;i++){                      \
+  _Pragma("GCC unroll(35)")                   \
+  for(int i=0;i<35;i++){                      \
     asm volatile("ld t0, %[id](sp)\n\t"       \
                 "sd t0, %[id](%[spad])\n\t"   \
                 : "=r"(temp)                  \

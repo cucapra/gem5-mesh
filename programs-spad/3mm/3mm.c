@@ -78,11 +78,11 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *cT, DTYPE 
                 : "=r"(temp)
                 : [id] "i"(i*8), [spad] "r"(spTop));
   }
-  asm volatile (// save the stack ptr
-      "addi %[dest], sp, 0\n\t"
-      // overwrite stack ptr
-      "addi sp, %[spad], 0\n\t"
-      : [ dest ] "=r"(stackLoc)
+  asm volatile (                                      
+      "addi t0, sp, 0\n\t"                            
+      "addi sp, %[spad], 0\n\t"                       
+      "addi %[dest], t0, 0\n\t"                       
+      : [ dest ] "=r"(stackLoc)                       
       : [ spad ] "r"(spTop));
 
   
@@ -221,9 +221,10 @@ void *pthread_kernel(void *args)
 
   kernel(a->a, a->aT, a->b, a->e, a->c, a->cT, a->d, a->f, a->eT, a->g, a->m, a->t1, a->k, a->t2, a->n,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
+  
+  // reset scratchpad config
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
 
-
-  pthread_barrier_wait(&start_barrier);
   if (a->tid_x == 0 && a->tid_y == 0)
   {
     stats_off();

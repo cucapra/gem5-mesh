@@ -178,7 +178,6 @@ void kernel(
   }
 #else
   if (used){
-    VECTOR_EPOCH(mask);
     gemm_manycore(aT, b, c, m, n, t, m_start, n_start, ptid, pdim_x, pdim_y);
   }
 #endif
@@ -220,7 +219,9 @@ void *pthread_kernel(void *args)
   kernel(a->a, a->aT, a->b, a->c, a->m, a->n, a->t,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-  pthread_barrier_wait(&start_barrier);
+  // reset scratchpad config
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
+
   if (a->tid_x == 1 && a->tid_y == 1)
   {
     stats_off();

@@ -105,7 +105,7 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE 
   n_start  = ptid_x * BLK_DIM;
   #endif
 
-  transpose_manycore(a,m,t1,aT,ptid,pdim);
+  transpose_manycore(a,m,t1,aT,ptid,pdim_x*pdim_y);
   a=aT;
 
   #ifdef PER_CORE_SIMD
@@ -113,28 +113,7 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE 
   #endif
 
   // move stack onto scratchpad for faster local access than default on DRAM
-  // MOVE_STACK_ONTO_SCRATCHPAD();
-
-  unsigned long long *spTop = getSpTop(ptid);
-  // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
-  spTop -= 100;
-
-  unsigned long long stackLoc;
-  unsigned long long temp;
-  #pragma GCC unroll(100)
-  for(int i=0;i<100;i++){
-    asm volatile("ld t0, %[id](sp)\n\t"
-                "sd t0, %[id](%[spad])\n\t"
-                : "=r"(temp)
-                : [id] "i"(i*8), [spad] "r"(spTop));
-  }
-  // if(ptid==0) printf("done copying elements on spad\n");
-  asm volatile (// save the stack ptr
-      "addi %[dest], sp, 0\n\t"
-      // overwrite stack ptr
-      "addi sp, %[spad], 0\n\t"
-      : [ dest ] "=r"(stackLoc)
-      : [ spad ] "r"(spTop));
+  MOVE_STACK_ONTO_SCRATCHPAD();
 
   kernel_2mm(used, mask, a, b,c,cT,d,e,m,n,t1,t2,
             m_start, m_end, n_start, n_end, ptid, pdim_x, pdim_y, vtid_x, vtid_y, vtid, unique_id, vdim_x);
@@ -182,8 +161,9 @@ void *pthread_kernel(void *args)
   kernel(a->a, a->aT, a->b, a->c, a->cT, a->d, a->e, a->m, a->n, a->t1, a->t2,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-
-  pthread_barrier_wait(&start_barrier);
+  // reset scratchpad config
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
+  
   if (a->tid_x == 0 && a->tid_y == 0)
   {
     stats_off();
