@@ -4,9 +4,9 @@ default: $(BENCHNAME)
 SIZE ?= 64
 OUT ?= $(EXEC)-vec0-$(SIZE)
 
-N_SPS ?= 64  # This benchmark expects 16 CPUs for now.
+N_SPS ?= 64
 CL_LEN := 64
-EXTRA_FLAGS ?= -DVECTOR_LEN=16 -DPER_CORE_SIMD -DCACHE_LINE_SIZE=$(CL_LEN)
+EXTRA_FLAGS ?= -DVECTOR_LEN=4 -DPER_CORE_SIMD -DCACHE_LINE_SIZE=$(CL_LEN)
 # GEM5_ARGS := --debug-flags=Frame #-d ../../results/$(OUT)
 HB_ARGS := --options="$(SIZE) $(SIZE)" --cacheline_size=$(CL_LEN)
 

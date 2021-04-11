@@ -303,6 +303,81 @@ atax_manycore2(DTYPE *a, DTYPE *ax, DTYPE *_y, int nx, int ny,
 
 #endif
 
+void __attribute__((optimize("-fno-inline"))) atax(
+    DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *_y_partial, DTYPE *ax,
+    int ptid, int vtid, int dim, int nx, int ny, int groupId, int numGroups,
+    int mask, int used, int is_scalar, int start, int end, 
+    int vdim_x, int vdim_y, int *ptid_group
+  ) {
+
+
+#ifdef _VEC
+#ifdef LONGLINES
+  if (isMailer) {
+    SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier);
+  }
+  else {
+#endif
+    SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+#ifdef LONGLINES
+  }
+#endif
+#elif defined MANYCORE_PREFETCH
+  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+#endif
+
+ #ifdef REDUCE_VERSION
+  if (used) {
+    #if defined _VEC
+      tril_atax(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,vtid,VECTOR_LEN,ptid_group);
+    #else
+      atax_manycore(a,_x,_y_partial,ax,nx,ny,start,end,ptid);
+    #endif
+  }
+
+  //requires barrier since each core needs values from all other cores
+  pthread_barrier_wait(&start_barrier);
+  
+  if (used && !is_scalar) {
+    reduce_parallel(_y_partial, _y, ny, ptid, dim, groupId, numGroups, vtid,
+                        vdim_x, vdim_y, GRID_XDIM);
+  }
+
+  #elif defined POLYBENCH_VERSION
+
+  #if defined _VEC
+  if (used)
+    tril_atax1(mask,a,_x,ax,nx,ny,start,end,ptid,vtid);
+  #ifdef LONGLINES
+  else if (isMailer)
+    atax1_reduction(ax, unique_id, total_groups, nx, ptid, ptidFwders);
+  #endif
+  #else
+  atax_manycore1(a,_x,ax,nx,ny,start,end,ptid);
+  #endif
+
+  #ifdef _VEC
+  SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
+  #elif defined MANYCORE_PREFETCH
+  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+  #else
+  pthread_barrier_wait(&start_barrier);
+  #endif
+
+  if(used!=0){
+    #if defined _VEC
+      tril_atax2(mask,a,ax,_y,nx,ny,start,end,ptid,vtid,VECTOR_LEN);
+    #else
+      atax_manycore2(a,ax,_y,nx,ny,start,end,ptid);
+    #endif
+
+  }
+
+  #endif
+
+}
+
+
 void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
     DTYPE *a, DTYPE *_x, DTYPE *_y, DTYPE *ax, DTYPE *_y_partial, int nx, int ny,
     int ptid_x, int ptid_y, int pdim_x, int pdim_y)
@@ -349,6 +424,8 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   
   start  = ( ( ptid + 0 ) * nx ) / pdim;
   end    = ( ( ptid + 1 ) * nx ) / pdim;
+
+  int *ptid_group;
   #endif
 
   #ifdef LONGLINES
@@ -362,117 +439,13 @@ void __attribute__((optimize("-freorder-blocks-algorithm=simple"))) kernel(
   vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
-#ifdef PER_CORE_SIMD
-  vsetvl_e32m1(HARDWARE_VECTOR_LEN);
-  #endif
-// do after tokens to avoid stalling due to region not ready
-// region based mask for scratchpad
-#ifdef _VEC
-#ifdef LONGLINES
-  if (isMailer) {
-    SET_PREFETCH_MASK(MAILER_NUM_FRAMES, MAILER_FRAME_SIZE, &start_barrier);
-  }
-  else {
-#endif
-    SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
-#ifdef LONGLINES
-  }
-#endif
-#elif defined MANYCORE_PREFETCH
-  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
-#endif
+  MOVE_STACK_ONTO_SCRATCHPAD();
 
-  // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
-  // reset after the kernel is done
-  // do before the function call so the arg stack frame is on the spad
-  // store the the current spAddr to restore later
+  atax(a, _x, _y, _y_partial, ax, ptid, vtid, pdim, nx, ny, unique_id, total_groups,
+    mask, used, is_da, start, end, vdim_x, vdim_y, ptid_group);
 
-  unsigned long long *spTop = getSpTop(ptid);
-  // // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
-  spTop -= 60;
-
-  unsigned long long stackLoc;
-  unsigned long long temp;
-  #pragma GCC unroll(60)
-  for(int i=0;i<60;i++){
-    asm volatile("ld t0, %[id](sp)\n\t"
-                "sd t0, %[id](%[spad])\n\t"
-                : "=r"(temp)
-                : [id] "i"(i*8), [spad] "r"(spTop));
-  }
-  asm volatile (// save the stack ptr
-      "addi %[dest], sp, 0\n\t"
-      // overwrite stack ptr
-      "addi sp, %[spad], 0\n\t"
-      : [ dest ] "=r"(stackLoc)
-      : [ spad ] "r"(spTop));
-
-  // move stack onto scratchpad for faster local access than default on DRAM
-  // TODO needs 60, but default is 30
-  // MOVE_STACK_ONTO_SCRATCHPAD();
-
-  #ifdef REDUCE_VERSION
-  if(used!=0){
-    #if defined _VEC
-      tril_atax(mask,a,_x,_y_partial,ax,nx,ny,start,end,ptid,vtid,vdim,ptid_group);
-    #else
-      atax_manycore(a,_x,_y_partial,ax,nx,ny,start,end,ptid);
-    #endif
-
-  }
-
-  //requires barrier since each core needs values from all other cores
-  pthread_barrier_wait(&start_barrier);
-
-  if (used == 0) goto stack_end; //return;
-  #ifdef _VEC
-  if (cinfo.is_scalar) goto stack_end; //return; // scalar cores don't have data to accumulate so should not partcipate
-  #endif
-  
-  
-  
-  reduce_parallel(_y_partial, _y, ny, ptid, pdim, unique_id, total_groups, vtid,
-                      vdim_x, vdim_y, pdim_x);
-
-  #elif defined POLYBENCH_VERSION
-
-  #if defined _VEC
-  if (used)
-    tril_atax1(mask,a,_x,ax,nx,ny,start,end,ptid,vtid,ptidMailer,linkId);
-  #ifdef LONGLINES
-  else if (isMailer)
-    atax1_reduction(ax, unique_id, total_groups, nx, ptid, ptidFwders);
-  #endif
-  #else
-  atax_manycore1(a,_x,ax,nx,ny,start,end,ptid);
-  #endif
-
-  #ifdef _VEC
-  SET_PREFETCH_MASK(NUM_REGIONS, REGION_SIZE, &start_barrier);
-  #elif defined MANYCORE_PREFETCH
-  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
-  #else
-  pthread_barrier_wait(&start_barrier);
-  #endif
-
-  if(used!=0){
-    #if defined _VEC
-      tril_atax2(mask,a,ax,_y,nx,ny,start,end,ptid,vtid,vdim);
-    #else
-      atax_manycore2(a,ax,_y,nx,ny,start,end,ptid);
-    #endif
-
-  }
-
-  #endif
-
-  stack_end:
   // restore stack pointer to DRAM
   RECOVER_DRAM_STACK();
-  return;
-
-  
-  
 }
 
 // helper functions
@@ -510,8 +483,8 @@ void *pthread_kernel(void *args)
   kernel(a->a, a->_x, a->_y, a->ax, a->_y_partial, a->nx, a->ny,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-
-  pthread_barrier_wait(&start_barrier);
+  // reset scratchpad config
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
 
   if (a->tid_x == 1 && a->tid_y == 0)
   {
