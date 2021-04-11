@@ -356,7 +356,7 @@ parser.add_option("--stream-width", type = "int", default = 8)
 parser.add_option("--vector", action="store_true", default=False,
   help="Use vector stage in pipe")
 
-parser.add_option("--net-width", default=1,
+parser.add_option("--net-width", default=4,
   help="How many words wide the network is")
 
 parser.add_option("--hw-vlen", default=4,
