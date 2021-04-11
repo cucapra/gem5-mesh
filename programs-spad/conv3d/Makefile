@@ -2,7 +2,7 @@ BENCHNAME := conv3d
 default: $(BENCHNAME)
 
 # run small sim for test
-PROB_SIZE := 16 16 16
+PROB_SIZE := 32 32 32
 N_SPS ?= 16
 EXTRA_FLAGS ?= -DVECTOR_LEN=4 -DPER_CORE_SIMD
 HB_ARGS := --options="$(PROB_SIZE)"

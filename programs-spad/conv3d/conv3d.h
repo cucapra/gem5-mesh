@@ -110,7 +110,7 @@
 #define UNROLL_LEN 14
 #define PREFETCH_LEN (UNROLL_LEN)
 #define REGION_SIZE (7*UNROLL_LEN+2*(UNROLL_LEN+2))
-#define NUM_REGIONS 2
+#define NUM_REGIONS 5
 #else
 #define UNROLL_LEN 1
 #define PREFETCH_LEN VECTOR_LEN
@@ -180,20 +180,20 @@ inline void prefetch_horiz_frame(DTYPE *a, int i, int j, int k, int NJ, int NK, 
   for (int core = 0; core < VECTOR_LEN; core++) {
     // VPREFETCH_LR(*sp + 0*ul , a + IDX(i-1, j-1+core, k-1, NJ, NK), core, PREFETCH_LEN, VERTICAL); // merge
     // VPREFETCH_LR(*sp + 1*ul , a + IDX(i-1, j-1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL); //
-    VPREFETCH_LR(*sp + 0*ul   , a + IDX(i-1, j-1+core, k-1, NJ, NK), core, PREFETCH_LEN + 2, VERTICAL_FETCH_TYPE); // merge
+    VPREFETCH_LR(*sp + 0*ul   , a + IDX(i-1, j-1, k-1+core, NJ, NK), core, PREFETCH_LEN + 2, VERTICAL_FETCH_TYPE); // merge
 
-    VPREFETCH_LR(*sp + 1*ml   , a + IDX(i-1, j+0+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
-    VPREFETCH_LR(*sp + ul+ml  , a + IDX(i-1, j+1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
-    VPREFETCH_LR(*sp + 2*ul+ml, a + IDX(i+0, j-1+core, k+0, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
-    VPREFETCH_LR(*sp + 3*ul+ml, a + IDX(i+0, j+0+core, k+0, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
-    VPREFETCH_LR(*sp + 4*ul+ml, a + IDX(i+0, j+1+core, k+0, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + 1*ml   , a + IDX(i-1, j+0, k+1+core, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + ul+ml  , a + IDX(i-1, j+1, k+1+core, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + 2*ul+ml, a + IDX(i+0, j-1, k+0+core, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + 3*ul+ml, a + IDX(i+0, j+0, k+0+core, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + 4*ul+ml, a + IDX(i+0, j+1, k+0+core, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
 
     // VPREFETCH_LR(*sp + 7*ul , a + IDX(i+1, j-1+core, k-1, NJ, NK), core, PREFETCH_LEN, VERTICAL); // merge
     // VPREFETCH_LR(*sp + 8*ul , a + IDX(i+1, j-1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL); // 
-    VPREFETCH_LR(*sp + 5*ul+ml, a + IDX(i+1, j-1+core, k-1, NJ, NK), core, PREFETCH_LEN + 2, VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + 5*ul+ml, a + IDX(i+1, j-1, k-1+core, NJ, NK), core, PREFETCH_LEN + 2, VERTICAL_FETCH_TYPE);
 
-    VPREFETCH_LR(*sp + 5*ul+2*ml , a + IDX(i+1, j+0+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
-    VPREFETCH_LR(*sp + 6*ul+2*ml, a + IDX(i+1, j+1+core, k+1, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + 5*ul+2*ml , a + IDX(i+1, j+0, k+1+core, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
+    VPREFETCH_LR(*sp + 6*ul+2*ml, a + IDX(i+1, j+1, k+1+core, NJ, NK), core, PREFETCH_LEN, VERTICAL_FETCH_TYPE);
   }
   #else
   // NOTE vector config uses this
