@@ -404,7 +404,60 @@ corr_manycore_2(DTYPE *data, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, i
 }
 #endif
 
+void __attribute__((optimize("-fno-inline"))) corr(
+    DTYPE *data, DTYPE *dataT, DTYPE *mean, DTYPE *stddev, DTYPE *symmat,
+    int ptid, int vtid, int dim, int n, int m, int groupId, int numGroups,
+    int mask, int used, int start, int end, float eps
+  ) {
 
+  //transpose matrix
+  #ifdef OPTIMIZED_TRANSPOSE
+  transpose_manycore(data,n,m,dataT,ptid,dim);
+  data=dataT;
+  #endif
+
+  // region based mask for scratchpad
+  #ifdef _VEC
+  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+  #elif defined MANYCORE_PREFETCH
+  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+  #endif
+
+
+  if (used) {
+    #if defined _VEC
+    tril_corr_vec_1(mask, data, symmat, mean, stddev, m, n, start, end, vtid, VECTOR_LEN, ptid, eps);
+    #else
+    corr_manycore_1(data, symmat, mean, stddev, m, n, start, end, ptid, eps);
+    #endif
+  }
+
+  #ifdef _VEC
+  SET_PREFETCH_MASK(NUM_REGIONS_K2, REGION_SIZE_K2, &start_barrier);
+  #elif defined MANYCORE_PREFETCH
+  SET_PREFETCH_MASK(NUM_REGIONS_K2,REGION_SIZE_K2,&start_barrier);
+  #else
+  pthread_barrier_wait(&start_barrier);
+  #endif
+
+  if (used) {
+    //redistribute work for 2nd kernel
+    #ifdef _VEC
+    start = groupId*VECTOR_LEN;
+    int stride = numGroups*VECTOR_LEN;
+    #else
+    start  = ptid;
+    int stride = dim;
+    #endif
+
+    #if defined _VEC
+    tril_corr_vec_2(mask,data, symmat, mean, stddev, m, n, start, stride, vtid, VECTOR_LEN, ptid);
+    #else
+    corr_manycore_2(data, symmat, mean, stddev, m, n, start, stride, ptid);
+    #endif
+  }
+
+}
 
 void kernel(DTYPE *data, DTYPE *dataT, DTYPE *symmat, DTYPE *mean, DTYPE *stddev, int m, int n,
     int ptid_x, int ptid_y, int pdim_x, int pdim_y)
@@ -446,83 +499,12 @@ void kernel(DTYPE *data, DTYPE *dataT, DTYPE *symmat, DTYPE *mean, DTYPE *stddev
   vsetvl_e32m1(PER_CORE_SIMD_LEN);
   #endif
 
-  //transpose matrix
-  #ifdef OPTIMIZED_TRANSPOSE
-  transpose_manycore(data,n,m,dataT,ptid,pdim);
-  data=dataT;
-  #endif
+  MOVE_STACK_ONTO_SCRATCHPAD();
 
- // region based mask for scratchpad
-#ifdef _VEC
-  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
-#elif defined MANYCORE_PREFETCH
-  SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
-#endif
+  corr(data, dataT, mean, stddev, symmat, ptid, vtid, pdim, n, m,
+    unique_id, total_groups, mask, used, start, end, eps);
 
-// only let certain tids continue
-  // if (used == 0) return;
-
-  // save the stack pointer to top of spad and change the stack pointer to point into the scratchpad
-  // reset after the kernel is done
-  // do before the function call so the arg stack frame is on the spad
-  // store the the current spAddr to restore later
-
-  unsigned long long *spTop = getSpTop(ptid);
-  // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
-  spTop -= 50;
-
-  unsigned long long stackLoc;
-  unsigned long long temp;
-  #pragma GCC unroll(50)
-  for(int i=0;i<50;i++){
-    asm volatile("ld t0, %[id](sp)\n\t"
-                "sd t0, %[id](%[spad])\n\t"
-                : "=r"(temp)
-                : [id] "i"(i*8), [spad] "r"(spTop));
-  }
-  asm volatile (// save the stack ptr
-      "addi %[dest], sp, 0\n\t"
-      // overwrite stack ptr
-      "addi sp, %[spad], 0\n\t"
-      : [ dest ] "=r"(stackLoc)
-      : [ spad ] "r"(spTop));
-
-  if(used!=0){
-    #if defined _VEC
-      tril_corr_vec_1(mask, data, symmat, mean, stddev, m, n, start, end, vtid, vdim, ptid, eps);
-    #else
-      corr_manycore_1(data, symmat, mean, stddev, m, n, start, end, ptid, eps);
-    #endif
-  }
-
-  #ifdef _VEC
-  SET_PREFETCH_MASK(NUM_REGIONS_K2, REGION_SIZE_K2, &start_barrier);
-  #elif defined MANYCORE_PREFETCH
-  SET_PREFETCH_MASK(NUM_REGIONS_K2,REGION_SIZE_K2,&start_barrier);
-  #else
-  pthread_barrier_wait(&start_barrier);
-  #endif
-
-  if (used == 0) goto stack_end;
-  //redistribute work for 2nd kernel
-  #ifdef _VEC
-  start = cinfo.unique_id*VECTOR_LEN;
-  int stride = cinfo.total_groups*VECTOR_LEN;
-  #else
-  start  = ptid;
-  int stride = pdim;
-  #endif
-
-  #if defined _VEC
-    tril_corr_vec_2(mask,data, symmat, mean, stddev, m, n, start, stride, vtid, vdim, ptid);
-  #else
-    corr_manycore_2(data, symmat, mean, stddev, m, n, start, stride, ptid);
-  #endif
-
-  stack_end:
-  // restore stack pointer
-  asm volatile(
-      "addi sp, %[stackTop], 0\n\t" ::[stackTop] "r"(stackLoc));
+  RECOVER_DRAM_STACK();
 }
 
 // helper functions
@@ -560,7 +542,9 @@ void *pthread_kernel(void *args)
   kernel(a->data, a->dataT, a->symmat, a->mean, a->stddev, a->m, a->n,
          a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-  pthread_barrier_wait(&start_barrier);
+  // reset scratchpad config
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
+
   if (a->tid_x == 0 && a->tid_y == 0)
   {
     stats_off();
