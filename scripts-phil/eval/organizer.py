@@ -410,7 +410,7 @@ def plot_energy(data):
   # need to have a buttom=[] when define bar. where bottom is sum of prev
 
 def plot_inst_energy(data):
-  (labels, sub_labels, values) = group_bar_data(data, 'inst-cnts-energy(nJ)')
+  (labels, sub_labels, values) = group_bar_data(data, 'inst-cnts-energy(nJ)', desired_config_order=[])
   normalize(sub_labels, values)
   add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'InstEnergy relative to Baseline Manycore', 'Instruction_Energy', True)

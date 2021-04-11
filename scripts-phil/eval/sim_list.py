@@ -3,11 +3,7 @@
 '''
 from copy import deepcopy
 
-# helper set of vec configs you can use in a benchmark (assuming it supports)
-# ALL_CONFIGS = ['NO_VEC', 'PACKED_SIMD', 'VEC_4_SIMD', 'VEC_16_SIMD', [ 'NO_VEC', 'MANYCORE_PREFETCH' ] ]
-
-# TODO hardware opts should automatically determine cache line size
-# b/c wnat to do vec 4 with 256. might be more natural
+# hardware configs given to gem5 config script (use a single string for all)
 HW_OPTS = [
   # '--net-width=1', 
   # '--net-width=2', 
@@ -15,34 +11,29 @@ HW_OPTS = [
   # '--net-width=16'
   ''
   ]
-# HW_OPTS = ['']
+
+# default software configs, encode as list of flags (will be converted to -D<x> when compile)
+# NOTE CACHE_LINE_SIZE=x and HARDWARE_VECTOR_LEN=y will be automatically inserted into HW_OPTS if appears here
 ALL_CONFIGS = [
-  # ['VECTOR_LEN=16', 'LONGLINES', 'CACHE_LINE_SIZE=1024'],
-  # ['VECTOR_LEN=4', 'LONGLINES', 'CACHE_LINE_SIZE=256'],
   ['VECTOR_LEN=4'],
   ['VECTOR_LEN=16'],
   ['VECTOR_LEN=4', 'PER_CORE_SIMD'],
-  # ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
+  ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
   [ 'NO_VEC', 'MANYCORE_PREFETCH' ],
   ['PER_CORE_SIMD', 'MANYCORE_PREFETCH'],
-  # ['PER_CORE_SIMD', 'MANYCORE_PREFETCH', 'HARDWARE_VECTOR_LEN=8'],
-  # ['PER_CORE_SIMD'],
-  # ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
-  # ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=256'],
-  # ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
-  # ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024', 'HARDWARE_VECTOR_LEN=8'],
-  # 'NO_VEC',
+  'NO_VEC',
   ]
 
-# ALL_CONFIGS = ['VEC_16_SIMD']
 INIT0_CONFIGS = []
 
+# some benchmarks have longline configs (5 in total)
 LONGLINES_CONFIGS = [
   ['VECTOR_LEN=16', 'LONGLINES', 'CACHE_LINE_SIZE=1024'],
   ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
   ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
 ]
 
+# bfs only supports a small set of configs
 BFS_CONFIGS = ['NO_VEC', 'VECTOR_LEN=4', 'VECTOR_LEN=16']
 
 # choose which programs to run via script and with what configs
@@ -127,16 +118,16 @@ sim_configs = {
     'argv' : ['512'], #['64']
     'hw_opts' : HW_OPTS
   },
-  # '2mm' : {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['256'], #['64']
-  #   'hw_opts' : HW_OPTS
-  # },
-  # '3mm' : {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['256'], #['32']
-  #   'hw_opts' : HW_OPTS
-  # },
+  '2mm' : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['256'], #['64']
+    'hw_opts' : HW_OPTS
+  },
+  '3mm' : {
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+    'argv' : ['256'], #['32']
+    'hw_opts' : HW_OPTS
+  },
   'bfs' : {
     'vec'  : BFS_CONFIGS,
     'argv' : ['../../programs-spad/bfs-rodinia/data/graph4k.txt'],
