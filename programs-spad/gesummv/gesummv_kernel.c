@@ -185,9 +185,9 @@ void tril_gesummv_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *x, DTYPE *tmp, DTYPE 
         temp2 += (*b_on_sp) * (*x_on_sp);
         #endif
       }
-
-      spadRegion = (spadRegion + 1) % NUM_REGIONS;
       REMEM(REGION_SIZE);
+      spadRegion = (spadRegion + 1) % NUM_REGIONS;
+     
       // sp_offset += REGION_SIZE;
       // if (sp_offset == NUM_REGIONS*REGION_SIZE) sp_offset=0;
       // asm("trillium vissue_delim end at_jump");

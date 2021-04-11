@@ -28,7 +28,7 @@
 
 // stuff for partial reduction
 #ifndef ACCUM_GRANULARITY
-#define ACCUM_GRANULARITY 4
+#define ACCUM_GRANULARITY 8
 #endif
 
 // TODO hardcode this based on spipe
