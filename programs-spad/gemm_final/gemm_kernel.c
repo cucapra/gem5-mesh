@@ -247,6 +247,7 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         vsetvl_e32m1(HARDWARE_VECTOR_LEN);
         #endif
         
+        FRAME_START(BLK_DIM);
         #ifdef PER_CORE_SIMD
         vfloat32m1_t vc  = vle32_v_f32m1(&spAddr[spadRegion * REGION_SIZE]);
         // vfloat32m1_t vc  = vle32_v_f32m1(&c[_idx_(i + i_st, j_st, n)]);
@@ -260,14 +261,13 @@ void tril_gemm_vec(int mask, DTYPE *a, DTYPE *b, DTYPE *c, int m, int n, int t,
         vse32_v_f32m1(&sp_c[_idx_(i, 0, BLK_DIM)], vzero);
 
         #else
-        FRAME_START(BLK_DIM);
         #pragma GCC unroll(16)
         for (int j = 0; j < BLK_DIM; j++)
         {
           DTYPE temp = spAddr[spadRegion * REGION_SIZE+j]*BETA;
           // DTYPE temp = c[_idx_(i+i_st, j+j_st, n)]*BETA;
           temp += sp_c[_idx_(i, j, BLK_DIM)];
-          STORE_NOACK(temp, c + _idx_(i + i_st, j + j_st, n), 0);
+          FSTORE_NOACK(temp, c + _idx_(i + i_st, j + j_st, n), 0);
           sp_c[_idx_(i, j, BLK_DIM)] = 0;
         }
         #endif
