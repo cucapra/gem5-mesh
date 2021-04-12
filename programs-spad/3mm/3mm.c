@@ -56,6 +56,10 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *cT, DTYPE 
 
   #endif
 
+  #ifdef PER_CORE_SIMD
+  vsetvl_e32m1(PER_CORE_SIMD_LEN);
+  #endif
+
   transpose_manycore(a,m,t1,aT,ptid,pdim);
   a=aT;
   transpose_manycore(c,k,t2,cT,ptid,pdim);
