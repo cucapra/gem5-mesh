@@ -11,7 +11,7 @@
 #ifdef PER_CORE_SIMD
 // match blk dim to simd length for ease of use
 // 16 * 16 * 4 = 1kB space so fits in 4kB spad
-#define BLK_DIM 16
+#define BLK_DIM HARDWARE_VECTOR_LEN
 #else
 #define BLK_DIM 4
 #endif

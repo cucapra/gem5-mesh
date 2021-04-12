@@ -20,7 +20,7 @@ void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int
       FSTORE_NOACK(a[j*a_col+i], &aT[i*a_row+j], 0);
     }
   }
-
+  FENCE();
 }
 
 static inline int _idx_(int y, int x, int width)

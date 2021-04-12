@@ -21,7 +21,7 @@ void transpose_manycore(DTYPE *a, int a_row, int a_col, DTYPE *aT, int ptid, int
       FSTORE_NOACK(a[j*a_col+i], &aT[i*a_row+j], 0);
     }
   }
-
+  FENCE();
 }
 
 void __attribute__((optimize("-fno-inline")))
