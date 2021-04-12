@@ -234,13 +234,13 @@ void tril_conv2d(int mask,
       PRED_EQ_FSTORE_NOACK(cond_r, 1, out_r, bPtr + LOAD_DEPTH_M1, 0);
 
       #endif
-
+      END_FRAME();
       col += C_STRIDE;
      
       sp += REGION_SIZE;
       sp = sp % POST_REGION_WORD; // not a power of 2 --> if cheaper than mod?
       // if (sp == POST_REGION_WORD) sp = 0;
-      END_FRAME();
+      
       asm("trillium vissue_delim end at_jump");
     } while (BH);
 
