@@ -113,7 +113,27 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *c, DTYPE *cT, DTYPE *d, DTYPE 
   #endif
 
   // move stack onto scratchpad for faster local access than default on DRAM
-  MOVE_STACK_ONTO_SCRATCHPAD();
+  // MOVE_STACK_ONTO_SCRATCHPAD();
+
+  unsigned long long *spTop = getSpTop(ptid);
+  // // guess the remaining of the part of the frame (n) that might be needed?? here n = 30
+  spTop -= 100;
+
+  unsigned long long stackLoc;
+  unsigned long long temp;
+  #pragma GCC unroll(100)
+  for(int i=0;i<100;i++){
+    asm volatile("ld t0, %[id](sp)\n\t"
+                "sd t0, %[id](%[spad])\n\t"
+                : "=r"(temp)
+                : [id] "i"(i*8), [spad] "r"(spTop));
+  }
+  asm volatile (                                      
+      "addi t0, sp, 0\n\t"                            
+      "addi sp, %[spad], 0\n\t"                       
+      "addi %[dest], t0, 0\n\t"                       
+      : [ dest ] "=r"(stackLoc)                       
+      : [ spad ] "r"(spTop));
 
   kernel_2mm(used, mask, a, b,c,cT,d,e,m,n,t1,t2,
             m_start, m_end, n_start, n_end, ptid, pdim_x, pdim_y, vtid_x, vtid_y, vtid, unique_id, vdim_x);
