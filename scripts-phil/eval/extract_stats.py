@@ -4,7 +4,7 @@
 
 '''
 
-import os, subprocess, time, argparse, re
+import os, subprocess, time, argparse, re, pickle
 from stat_list import cpu_stats, gpu_stats
 import get_energy
 import organizer
@@ -410,5 +410,10 @@ with open(args.outfile, 'w+') as fout:
   #   fout.write(histCSV[i])
   #   fout.write('\n')
   
+# write the data to pickle so can reuse. takes to long to rerun
+with open(args.outfile + '.pickle', 'wb') as fout:
+  pickle.dump(all_data, fout)
+
 # plot data to graphs and tables
 organizer.make_plots_and_tables(all_data)
+
