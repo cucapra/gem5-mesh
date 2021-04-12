@@ -20,7 +20,11 @@
 // #define MANYCORE_PREFETCH
 
 #ifndef INIT_FRAMES
+#ifdef PER_CORE_SIMD
+#define INIT_FRAMES 1
+#else
 #define INIT_FRAMES 2
+#endif
 #endif
 
 #define REGION_SIZE (BLK_DIM * 2)
