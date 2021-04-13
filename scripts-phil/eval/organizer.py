@@ -507,11 +507,11 @@ def plot_frame_stalls(data):
   # title = 'Frame_Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
   # line_plot(xaxes, values, labels, 'Hops', 'Frame stalls relative to total vector cycles', title, False)
 
-  (labels, sub_labels, values) = group_bar_data(data, 'frac_token_stalls', desired_config_order=['V4'])
+  (labels, sub_labels, values) = group_bar_data(data, 'frac_token_stalls', desired_config_order=['NV_PF','V4'])
   # dont do geomean b/c some values are 0
   add_arith_mean(labels, values)
 
-  bar_plot(labels, sub_labels, values, 'Fraction of Vector Cycles Waiting for a Frame', 'Frame_Stalls_v4')
+  bar_plot(labels, sub_labels, values, 'Fraction of Total Cycles Waiting for a Frame', 'Frame_Stalls_v4')
 
 
 # def plot_prefetch_coverage(data):
@@ -671,13 +671,14 @@ def plot_best_speedup(data):
   # filter by min cycles
 
   data = filter_best_data(data, 'cycles', 
-    category_configs=[['V4', 'V4_LL', 'V16', 'V16_LL', 'V16_LL_CL1024', 
-      'V16_LL_PCV_CL1024', 'V4_LL_PCV_CL1024', 'V4_PCV']])
+    category_renames=['BNOVEC', 'BVEC'],
+    category_configs=[['NV', 'NV_PF', 'PCV_PF'], ['V4', 'V4_LL', 'V16', 'V16_LL', 'V16_LL_CL1024', 
+      'V16_LL_PCV_CL1024', 'V4_LL_PCV_CL1024', 'V4_PCV', 'V16_PCV']])
 
   (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=[])
 
   # flip from cycles to speedup normalized to NV
-  normalize(sub_labels, values)
+  normalize(sub_labels, values, pref_base='BNOVEC')
   inverse(values)
   add_geo_mean(labels, values)
 

@@ -171,8 +171,10 @@ cpu_stats = OrderedDict([
     'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
     'seperate-cores' : True,
   }),
+  # prob should be 'vec_cycles' for accuracy, but then cant compare to NV_PF
+  # 10-20% different in results
   ('frac_token_stalls' , {
-    'formula' : ['token_stalls', 'vec_cycles'],
+    'formula' : ['token_stalls', 'cycles'],
     'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
   }),
   ('frac_backpressure_stall_sep' , {
