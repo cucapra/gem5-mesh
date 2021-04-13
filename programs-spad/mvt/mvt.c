@@ -265,8 +265,9 @@ void *pthread_kernel(void *args)
   kernel(a->a, a->y1, a->y2, a->x1, a->x2, a->n,
           a->tid_x, a->tid_y, a->dim_x, a->dim_y);
 
-
-  pthread_barrier_wait(&start_barrier);
+  // reset scratchpad config
+  SET_PREFETCH_MASK(0, 0, &start_barrier);
+  
   if (a->tid_x == 0 && a->tid_y == 0)
   {
     stats_off();
