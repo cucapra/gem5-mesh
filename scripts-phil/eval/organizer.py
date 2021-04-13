@@ -181,6 +181,16 @@ def filter_best_data(data, deciding_field, minimize=True, category_renames = ['B
 
   return best_data
 
+# only keep or remove the specified programs
+def filter_progs(data, progs = [''], filter_out = True):
+  ret_data = []
+
+  for row in data:
+    if ((row['prog'] in progs and not filter_out) or (not row['prog'] in progs and filter_out)):
+      ret_data.append(deepcopy(row))
+
+  return ret_data
+
 def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar=False):
   # figure out xaxis (#hops) depending on config. 
   # remove certain values if scalar or inactive core
@@ -702,6 +712,8 @@ def make_plots_and_tables(all_data):
   rename_prog(all_data, 'fdtd', 'fdtd-2d')
   rename_prog(all_data, 'gram_schmidt', 'gramschm')
 
+  # completely remove bfs for now
+  all_data = filter_progs(all_data, ['bfs'], True)
 
   print("Plot speedup")
   plot_speedup(all_data)
