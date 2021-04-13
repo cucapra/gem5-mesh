@@ -89,6 +89,8 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
   plt.savefig(str(title) + '.png')
   plt.savefig(str(title) + '.pdf')
 
+  plt.close()
+
 
 def single_plot(x_axes, y_axes, duplicate_x, ax, plot_id=-1):
   for i in range(len(y_axes)):
@@ -158,6 +160,8 @@ def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, d
   plt.savefig(str(title) + '.png')
   plt.savefig(str(title) + '.pdf')
 
+  plt.close()
+
 
 def heatmap(data_matrix, x_labels, y_labels, title):
   fig, ax = plt.subplots()
@@ -180,4 +184,6 @@ def heatmap(data_matrix, x_labels, y_labels, title):
   fig.tight_layout()
 
   plt.savefig(str(title) + '.png')
+
+  plt.close()
 
