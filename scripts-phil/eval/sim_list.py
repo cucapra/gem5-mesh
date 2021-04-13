@@ -58,7 +58,7 @@ sim_configs = {
     'hw_opts' : HW_OPTS
   },
   'gram'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + 'PER_CORE_SIMD',
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + ['PER_CORE_SIMD'],
     'argv' : ['320'],
     'hw_opts' : HW_OPTS
   },
