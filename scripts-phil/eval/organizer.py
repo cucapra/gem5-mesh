@@ -404,21 +404,21 @@ def add_geo_mean(labels, values):
 
 # plot speedup
 # group together same benchmark (if metadata the same)
-def plot_speedup(data):
-  (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=[])
+def plot_speedup(data, desired_configs=[], yaxis_name='Speedup Relative to Baseline (NV)', graph_name='Speedup'):
+  (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=desired_configs)
 
   # flip from cycles to speedup normalized to NV
   normalize(sub_labels, values)
   inverse(values)
   add_geo_mean(labels, values)
 
-  bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline (NV)', 'Speedup', ylim=[0, 15], horiz_line=1)
+  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, ylim=[0, 15], horiz_line=1)
 
-def plot_energy(data):
-  (labels, sub_labels, values) = group_bar_data(data, 'energy-sum(nJ)')
+def plot_energy(data, desired_configs=[], yaxis_name='Total On-Chip Energy Relative to Baseline (NV)', graph_name='Energy'):
+  (labels, sub_labels, values) = group_bar_data(data, 'energy-sum(nJ)', desired_config_order=desired_configs)
   normalize(sub_labels, values)
   add_geo_mean(labels, values)
-  bar_plot(labels, sub_labels, values, 'Total On-Chip Energy Relative to Baseline (NV)', 'Energy', horiz_line=1)
+  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, horiz_line=1)
   # need to have a buttom=[] when define bar. where bottom is sum of prev
 
 def plot_inst_energy(data):
@@ -439,11 +439,11 @@ def plot_icache_energy(data, norm = False):
     yaxis = 'Icache Energy relative to Baseline Manycore'
   bar_plot(labels, sub_labels, values, yaxis, name, horiz_line=1)
 
-def plot_icache_access(data):
-  (labels, sub_labels, values) = group_bar_data(data, 'icache_access')
+def plot_icache_access(data, desired_configs=[], yaxis_name='I-Cache Accesses Relative to Baseline (NV)', graph_name='icache_accesses'):
+  (labels, sub_labels, values) = group_bar_data(data, 'icache_access', desired_config_order=desired_configs)
   normalize(sub_labels, values)
   add_geo_mean(labels, values)
-  bar_plot(labels, sub_labels, values, 'I-Cache Accesses Relative to Baseline (NV)', 'icache_accesses', horiz_line=1)
+  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, horiz_line=1)
 
 def plot_dmem_energy(data):
   (labels, sub_labels, values) = group_bar_data(data, 'dmem-access-energy(nJ)')
@@ -467,15 +467,9 @@ def plot_cpi(data):
   add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
 
-def plot_inet_stalls(data):
-  # # generate v4 plot
-  # (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=['V4'])
-  # (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, True, False)
-  # line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', 'Stalls_v4', False)
-  # # generate v16 plot
-  # (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=['V16'])
-  # (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, False, True)
-  # line_plot(xaxes, values, labels, 'Hops', 'INET stalls relative to total vector cycles', 'Stalls_v16', False)
+def plot_inet_stalls(data, prog_subset=['bfs', 'gemm', '2dconv', 'bicg', 'syr2k']):
+  # only do a subset
+  data = filter_progs(data, prog_subset, False)
 
   # generate v4 plot
   (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=['V4'])
@@ -494,7 +488,10 @@ def plot_inet_stalls(data):
   line_plot(xaxes, values, labels, xlabels, 'Input inet stalls relative to total vector cycles', 'inet_stalls', False, sub_plots_x=2, bbox=(0.925, 0.15), legend_loc='lower right', width_ratio=[1, 3])
 
 
-def plot_backpressure(data):
+def plot_backpressure(data, prog_subset=['bfs', 'gemm', '2dconv', 'bicg', 'syr2k']):
+  # only do a subset
+  data = filter_progs(data, prog_subset, False)
+
   # generate v4 plot
   (labels, configs, values) = group_line_data(data, 'frac_backpressure_stall_sep', desired_configs=['V4'])
   (labels_v4, configs_v4, values_v4, xaxes_v4) = avg_by_hops(labels, configs, values, True, False, True)
@@ -642,11 +639,11 @@ def plot_llc_busy_cycles(data):
   add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'fracllcbusy', 'fracllcbusy', False) 
 
-def plot_llc_miss_rate(data):
-  (labels, sub_labels, values) = group_bar_data(data, 'llcMissRate')
+def plot_llc_miss_rate(data, desired_configs=[], yaxis_name='LLC Miss Rate', graph_name='LLC_Misses'):
+  (labels, sub_labels, values) = group_bar_data(data, 'llcMissRate', desired_config_order=desired_configs)
   # normalize(sub_labels, values)
   add_geo_mean(labels, values)
-  bar_plot(labels, sub_labels, values, 'LLC Misses', 'LLC_Misses', False) 
+  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, False) 
 
 def plot_llc_access_rate(data):
   (labels, sub_labels, values) = group_bar_data(data, 'llcAccessRate')
@@ -677,23 +674,51 @@ def plot_all_router_stalls(data):
   (labels, sub_labels, values) = group_bar_data(data, 'router_out_stalls_all')
   bar_plot(labels, sub_labels, values, 'RouteOutStall', 'RouteOutStall', False)
 
-def plot_best_speedup(data):
+def plot_best_speedup(data, category_renames, category_configs, yaxis_name, graph_name):
   # filter by min cycles
 
   data = filter_best_data(data, 'cycles', 
-    category_renames=['BNOVEC', 'BVEC'],
-    category_configs=[['NV', 'NV_PF', 'PCV_PF'], ['V4', 'V4_LL', 'V16', 'V16_LL', 'V16_LL_CL1024', 
-      'V16_LL_PCV_CL1024', 'V4_LL_PCV_CL1024', 'V4_PCV', 'V16_PCV']])
+    category_renames=category_renames,
+    category_configs=category_configs)
 
-  (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=[])
+  (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=category_renames)
 
   # flip from cycles to speedup normalized to NV
-  normalize(sub_labels, values, pref_base='BNOVEC')
+  normalize(sub_labels, values, pref_base=category_renames[0])
   inverse(values)
   add_geo_mean(labels, values)
 
-  bar_plot(labels, sub_labels, values, 'Speedup Relative to Baseline (NV)', 'Best-Speedup', ylim=[0, 15], horiz_line=1)
+  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, ylim=[0, 15], horiz_line=1)
 
+
+def plot_best_energy(data, category_renames, category_configs, yaxis_name='Total On-Chip Energy Relative to Baseline (NV)', graph_name='Energy'):
+  data = filter_best_data(data, 'cycles', 
+    category_renames=category_renames,
+    category_configs=category_configs)
+  
+  (labels, sub_labels, values) = group_bar_data(data, 'energy-sum(nJ)', desired_config_order=category_renames)
+  normalize(sub_labels, values, pref_base=category_renames[0])
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, horiz_line=1)
+
+def plot_best_icache_access(data, category_renames, category_configs, yaxis_name='I-Cache Accesses Relative to Baseline (NV)', graph_name='icache_accesses'):
+  data = filter_best_data(data, 'cycles', 
+    category_renames=category_renames,
+    category_configs=category_configs)
+   
+  (labels, sub_labels, values) = group_bar_data(data, 'icache_access', desired_config_order=category_renames)
+  normalize(sub_labels, values, pref_base=category_renames[0])
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, horiz_line=1)
+
+def plot_best_llc_miss_rate(data, category_renames, category_configs, yaxis_name='LLC Miss Rate', graph_name='LLC_Misses'):
+  data = filter_best_data(data, 'cycles', 
+    category_renames=category_renames,
+    category_configs=category_configs)
+
+  (labels, sub_labels, values) = group_bar_data(data, 'llcMissRate', desired_config_order=category_renames)
+  add_geo_mean(labels, values)
+  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, False) 
 
 # top level for analysis passes. generates all plots sequentially
 def make_plots_and_tables(all_data):
@@ -712,42 +737,130 @@ def make_plots_and_tables(all_data):
   rename_prog(all_data, 'fdtd', 'fdtd-2d')
   rename_prog(all_data, 'gram_schmidt', 'gramschm')
 
+  # might want to remove same gram series that dont use simd
+  # gram_schmidt-PCV_PF-vecs320-len320/
+  # gram_schmidt-V16_PCV-vecs320-len320/
+  # gram_schmidt-V4_PCV-vecs320-len320/
+
+  # maybe this b/c failed checker, but 2mm and 3mm work with same kernel
+  # also not performant so prob wont show up anyway
+  # gemm-PCV-N256-M256-T256
+
+  # do graphs with bfs before remove it
+  print("Plot inet stalls")
+  plot_inet_stalls(all_data)
+  print("Plot backpressure")
+  plot_backpressure(all_data)
+
+
   # completely remove bfs for now
   all_data = filter_progs(all_data, ['bfs'], True)
 
+  # config groups
+  main_cat_names  = ['NV', 'NV_PF', 'BEST_TRIL']
+  main_cat_groups = [['NV'], ['NV_PF'], ['V4', 'V16', 'V4_LL_CL1024', 'V16_LL_CL1024']]
+
+  fixed_vec_cat_names = ['NV_PF', 'PCV', 'BEST_TRIL', 'BEST_TRIL_PCV', 'GPU']
+  fixed_vec_cat_groups = [
+    ['NV_PF'], 
+    ['PCV_PF', 'PCV'], 
+    ['V4', 'V16', 'V4_LL_CL1024', 'V16_LL_CL1024'], 
+    ['V16_LL_PCV_CL1024', 'V4_LL_PCV_CL1024', 'V4_PCV', 'V16_PCV'], 
+    ['GPU']
+  ]
+
+  flexible_cat_names = ['V4', 'V16', 'V4_LL_CL1024', 'V16_LL_CL1024', 'V4_PCV', 'V16_PCV', 'V16_LL_PCV_CL1024']
+
   print("Plot speedup")
   plot_speedup(all_data)
-  plot_best_speedup(all_data)
+  plot_best_speedup(all_data,
+    category_renames=main_cat_names,
+    category_configs=main_cat_groups,
+    yaxis_name = 'Speedup Relative to Baseline (NV)',
+    graph_name = 'speedup_nv_best_tril')
+  plot_best_speedup(all_data,
+    category_renames=fixed_vec_cat_names,
+    category_configs=fixed_vec_cat_groups,
+    yaxis_name = 'Speedup Relative to Baseline (NV_PF)',
+    graph_name = 'speedup_fixed_vec')
+  plot_speedup(all_data,
+    desired_configs=flexible_cat_names,
+    yaxis_name = 'Speedup Relative to V4',
+    graph_name = 'speedup_between_vecs')
   print("Plot energy")
   plot_energy(all_data)
+  plot_best_energy(all_data,
+    category_renames=main_cat_names,
+    category_configs=main_cat_groups,
+    yaxis_name = 'Total On-Chip Energy Relative to Baseline (NV)',
+    graph_name = 'energy_nv_best_tril')
+  plot_best_energy(all_data,
+    category_renames=fixed_vec_cat_names,
+    category_configs=fixed_vec_cat_groups,
+    yaxis_name = 'Total On-Chip Energy Relative to Baseline (NV_PF)',
+    graph_name = 'energy_fixed_vec')
+  plot_energy(all_data,
+    desired_configs=flexible_cat_names,
+    yaxis_name = 'Total On-Chip Energy Relative to V4',
+    graph_name = 'energy_between_vecs')
+
+  print("Plot icache access")
+  plot_icache_access(all_data)
+  plot_best_icache_access(all_data,
+    category_renames=main_cat_names,
+    category_configs=main_cat_groups,
+    yaxis_name = 'I-Cache Accesses Relative to Baseline (NV)',
+    graph_name = 'icache_nv_best_tril')
+  plot_best_icache_access(all_data,
+    category_renames=fixed_vec_cat_names,
+    category_configs=fixed_vec_cat_groups,
+    yaxis_name = 'I-Cache Accesses Relative to Baseline (NV_PF)',
+    graph_name = 'icache_fixed_vec')
+  plot_icache_access(all_data,
+    desired_configs=flexible_cat_names,
+    yaxis_name = 'I-Cache Accesses Relative to V4',
+    graph_name = 'icache_between_vecs')
+
+  print("Plot frame stalls")
+  plot_frame_stalls(all_data)
+
   print("Plot Inst Energy")
   plot_inst_energy(all_data)
   print("Plot icache energy")
   plot_icache_energy(all_data)
-  print("Plot icache access")
-  plot_icache_access(all_data)
   print("plot dmem energy")
   plot_dmem_energy(all_data)
   print("Plot llc energy")
   plot_llc_energy(all_data)
+
+  print("Plot llc miss rate")
+  plot_llc_miss_rate(all_data)
+  plot_best_llc_miss_rate(all_data,
+    category_renames=main_cat_names,
+    category_configs=main_cat_groups,
+    yaxis_name = 'LLC Miss Rate',
+    graph_name = 'llc_nv_best_tril')
+  plot_best_llc_miss_rate(all_data,
+    category_renames=fixed_vec_cat_names,
+    category_configs=fixed_vec_cat_groups,
+    yaxis_name = 'LLC Miss Rate',
+    graph_name = 'llc_fixed_vec')
+  plot_llc_miss_rate(all_data,
+    desired_configs=flexible_cat_names,
+    yaxis_name = 'LLC Miss Rate',
+    graph_name = 'llc_between_vecs')
+
   print("Plot cpi")
   plot_cpi(all_data)
-  print("Plot inet stalls")
-  plot_inet_stalls(all_data)
   print("Plot frame rdy")
   plot_first_frame_rdy(all_data)
-  print("Plot frame stalls")
-  plot_frame_stalls(all_data)
   print("Plot init frames")
   plot_init_frames(all_data)
-  print("Plot backpressure")
-  plot_backpressure(all_data)
   print("Plot llc stalls")
   plot_llc_request_stalls(all_data)
   plot_llc_response_stalls(all_data)
   plot_mem_response_stalls(all_data)
   plot_llc_busy_cycles(all_data)
-  plot_llc_miss_rate(all_data)
   plot_llc_access_rate(all_data)
 
   # need to pick specifc bench for this, so only use when needed
