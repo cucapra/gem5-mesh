@@ -737,15 +737,6 @@ def make_plots_and_tables(all_data):
   rename_prog(all_data, 'fdtd', 'fdtd-2d')
   rename_prog(all_data, 'gram_schmidt', 'gramschm')
 
-  # might want to remove same gram series that dont use simd
-  # gram_schmidt-PCV_PF-vecs320-len320/
-  # gram_schmidt-V16_PCV-vecs320-len320/
-  # gram_schmidt-V4_PCV-vecs320-len320/
-
-  # maybe this b/c failed checker, but 2mm and 3mm work with same kernel
-  # also not performant so prob wont show up anyway
-  # gemm-PCV-N256-M256-T256
-
   # do graphs with bfs before remove it
   print("Plot inet stalls")
   plot_inet_stalls(all_data)
@@ -758,18 +749,18 @@ def make_plots_and_tables(all_data):
 
   # config groups
   main_cat_names  = ['NV', 'NV_PF', 'BEST_TRIL']
-  main_cat_groups = [['NV'], ['NV_PF'], ['V4', 'V16', 'V4_LL_CL1024', 'V16_LL_CL1024']]
+  main_cat_groups = [['NV'], ['NV_PF'], ['V4', 'V16']]
 
   fixed_vec_cat_names = ['NV_PF', 'PCV', 'BEST_TRIL', 'BEST_TRIL_PCV', 'GPU']
   fixed_vec_cat_groups = [
     ['NV_PF'], 
     ['PCV_PF', 'PCV'], 
-    ['V4', 'V16', 'V4_LL_CL1024', 'V16_LL_CL1024'], 
-    ['V16_LL_PCV_CL1024', 'V4_LL_PCV_CL1024', 'V4_PCV', 'V16_PCV'], 
+    ['V4', 'V16'], 
+    ['V4_PCV', 'V16_PCV'], 
     ['GPU']
   ]
 
-  flexible_cat_names = ['V4', 'V16', 'V4_LL_CL1024', 'V16_LL_CL1024', 'V4_PCV', 'V16_PCV', 'V16_LL_PCV_CL1024']
+  flexible_cat_names = ['V4', 'V4_PCV', 'V4_LL_CL1024', 'V16', 'V16_PCV', 'V16_LL_CL1024']
 
   print("Plot speedup")
   plot_speedup(all_data)
