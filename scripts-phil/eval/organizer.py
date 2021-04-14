@@ -467,7 +467,7 @@ def plot_cpi(data):
   add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
 
-def plot_inet_stalls(data, prog_subset=['bfs', 'gemm', '2dconv', 'bicg', 'syr2k']):
+def plot_inet_stalls(data, prog_subset=['3dconv', 'gemm', '2dconv', 'bicg', 'syr2k']):
   # only do a subset
   data = filter_progs(data, prog_subset, False)
 
@@ -488,7 +488,7 @@ def plot_inet_stalls(data, prog_subset=['bfs', 'gemm', '2dconv', 'bicg', 'syr2k'
   line_plot(xaxes, values, labels, xlabels, 'Input inet stalls relative to total vector cycles', 'inet_stalls', False, sub_plots_x=2, bbox=(0.925, 0.15), legend_loc='lower right', width_ratio=[1, 3])
 
 
-def plot_backpressure(data, prog_subset=['bfs', 'gemm', '2dconv', 'bicg', 'syr2k']):
+def plot_backpressure(data, prog_subset=['3dconv', 'gemm', '2dconv', 'bicg', 'syr2k']):
   # only do a subset
   data = filter_progs(data, prog_subset, False)
 
@@ -819,7 +819,7 @@ def make_plots_and_tables(all_data):
   plot_inst_energy(all_data)
   print("Plot icache energy")
   plot_icache_energy(all_data)
-  print("plot dmem energy")
+  print("Plot dmem energy")
   plot_dmem_energy(all_data)
   print("Plot llc energy")
   plot_llc_energy(all_data)
