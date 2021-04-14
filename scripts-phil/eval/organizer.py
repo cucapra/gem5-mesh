@@ -766,7 +766,7 @@ def make_plots_and_tables(all_data):
     ['GPU']
   ]
 
-  flexible_cat_names = ['V4', 'V4_PCV', 'V4_LL_CL1024', 'V16', 'V16_PCV', 'V16_LL_CL1024']
+  flexible_cat_names = ['V4', 'V4_PCV', 'V4_LL_PCV_CL1024', 'V16', 'V16_PCV', 'V16_LL_PCV_CL1024']
 
   print("Plot speedup")
   plot_speedup(all_data)
