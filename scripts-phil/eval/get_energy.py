@@ -228,7 +228,7 @@ def define_options(parser):
   parser.add_argument('--used-node', default='32', help='Desired technology node to scale to')
   parser.add_argument('--icache-file', default='../data/memory/4kB_icache.out', help='Path to file containing params for icache')
   parser.add_argument('--dmem-file', default='../data/memory/4kB_spad.out', help='Path to file containing params for local data mem')
-  parser.add_argument('--llc-file', default='../data/memory/32kb_llc.out', help='Path to file containing params for llc')
+  parser.add_argument('--llc-file', default='../data/memory/16kb_llc.out', help='Path to file containing params for llc')
 
 # do parsing into member/global variables
 def setup_energy_model(args):
