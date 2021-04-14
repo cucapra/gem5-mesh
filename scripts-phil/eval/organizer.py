@@ -566,7 +566,7 @@ def plot_init_frames(data):
 
   bar_plot(labels, sub_labels, values, 'Speedup Relative to V4', 'Init_Frame_Speedup', horiz_line=1)
 
-# substitue field in extracted data (do before analyses above)
+# substitute field in extracted data (do before analyses above)
 def substitute_field(data, prog, from_config, to_config):
 
   # find field to move
@@ -600,6 +600,18 @@ def substitute_field(data, prog, from_config, to_config):
 
   # delete moved
   data.pop(move_idx)
+
+# to the replacement for every program
+def substitute_field_for_all_progs(data, from_config, to_config):
+  # figure out which programs exist
+  prog_list = []
+  for row in data:
+    if (row['prog'] not in prog_list):
+      prog_list.append(row['prog'])
+
+  # do sub for each field
+  for prog in prog_list:
+    substitute_field(data, prog, from_config, to_config)
 
 # delete field in extracted data (do before analyses above)
 def remove_field(data, prog, config):
@@ -722,20 +734,14 @@ def plot_best_llc_miss_rate(data, category_renames, category_configs, yaxis_name
 
 # top level for analysis passes. generates all plots sequentially
 def make_plots_and_tables(all_data):
-  # print("Removing unwanted series")
-  # # use vertical for conv2d
-  # substitute_field(all_data, 'conv2d', 'VEC_16_SIMD_VERTICAL', 'V16')
-  # substitute_field(all_data, 'conv2d', 'VEC_4_SIMD_VERTICAL', 'V4')
-  # substitute_field(all_data, 'conv2d', 'VEC_4_SIMD_VERTICAL_I0', 'V4_I0')
-
-  # # delete reuse
-  # remove_field(all_data, 'conv2d', 'VEC_4_REUSE_VERTICAL')
 
   # rename programs to fancier name
   rename_prog(all_data, 'conv2d', '2dconv')
   rename_prog(all_data, 'conv3d', '3dconv')
   rename_prog(all_data, 'fdtd', 'fdtd-2d')
   rename_prog(all_data, 'gram_schmidt', 'gramschm')
+
+  # substitute_field_for_all_progs(all_data, 'V4', 'V4_I0')
 
   # do graphs with bfs before remove it
   print("Plot inet stalls")
