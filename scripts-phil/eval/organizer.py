@@ -741,7 +741,30 @@ def make_plots_and_tables(all_data):
   rename_prog(all_data, 'fdtd', 'fdtd-2d')
   rename_prog(all_data, 'gram_schmidt', 'gramschm')
 
-  # substitute_field_for_all_progs(all_data, 'V4', 'V4_I0')
+  # rename config data to something better
+  substitute_field_for_all_progs(all_data, 'V4__net_width_1', 'V4_NW1')
+  substitute_field_for_all_progs(all_data, 'V16__net_width_1', 'V16_NW1')
+  substitute_field_for_all_progs(all_data, 'NV__net_width_1', 'NV_NW1')
+  substitute_field_for_all_progs(all_data, 'NV_PF__net_width_1', 'NV_PF_NW1')
+  substitute_field_for_all_progs(all_data, 'PCV_PF__net_width_1', 'PCV_PF_NW1')
+  substitute_field_for_all_progs(all_data, 'PCV__net_width_1', 'PCV_NW1')
+  substitute_field_for_all_progs(all_data, 'V4_PCV__net_width_1', 'V4_PCV_NW1')
+  substitute_field_for_all_progs(all_data, 'V16_PCV__net_width_1', 'V16_PCV_NW1')
+  substitute_field_for_all_progs(all_data, 'V4_LL_PCV_CL1024__net_width_1', 'V4_LL_PCV_CL1024_NW1')
+  substitute_field_for_all_progs(all_data, 'V16_LL_PCV_CL1024__net_width_1', 'V16_LL_PCV_CL1024_NW1')
+  substitute_field_for_all_progs(all_data, 'V16_LL_CL1024__net_width_1', 'V16_LL_CL1024_NW1')
+
+  substitute_field_for_all_progs(all_data, 'V4__llc_max_size_32kB', 'V4_32kB')
+  substitute_field_for_all_progs(all_data, 'V16__llc_max_size_32kB', 'V16_32kB')
+  substitute_field_for_all_progs(all_data, 'NV__llc_max_size_32kB', 'NV_32kB')
+  substitute_field_for_all_progs(all_data, 'NV_PF__llc_max_size_32kB', 'NV_PF_32kB')
+  substitute_field_for_all_progs(all_data, 'PCV_PF__llc_max_size_32kB', 'PCV_PF_32kB')
+  substitute_field_for_all_progs(all_data, 'PCV__llc_max_size_32kB', 'PCV_32kB')
+  substitute_field_for_all_progs(all_data, 'V4_PCV__llc_max_size_32kB', 'V4_PCV_32kB')
+  substitute_field_for_all_progs(all_data, 'V16_PCV__llc_max_size_32kB', 'V16_PCV_32kB')
+  substitute_field_for_all_progs(all_data, 'V4_LL_PCV_CL1024__llc_max_size_32kB', 'V4_LL_PCV_CL1024_32kB')
+  substitute_field_for_all_progs(all_data, 'V16_LL_PCV_CL1024__llc_max_size_32kB', 'V16_LL_PCV_CL1024_32kB')
+  substitute_field_for_all_progs(all_data, 'V16_LL_CL1024__llc_max_size_32kB', 'V16_LL_CL1024_32kB')
 
   # do graphs with bfs before remove it
   print("Plot inet stalls")
@@ -768,6 +791,10 @@ def make_plots_and_tables(all_data):
 
   flexible_cat_names = ['V4', 'V4_PCV', 'V4_LL_PCV_CL1024', 'V16', 'V16_PCV', 'V16_LL_PCV_CL1024']
 
+  netwidth_cat_names = ['NV_PF_NW1', 'NV_PF', 'V4_NW1', 'V4', 'V16_LL_CL1024_NW1', 'V16_LL_CL1024']
+
+  cache_cat_names = ['NV_PF_32kB', 'NV_PF', 'V4_32kB', 'V4', 'V16_LL_CL1024_32kB', 'V16_LL_CL1024']
+
   print("Plot speedup")
   plot_speedup(all_data)
   plot_best_speedup(all_data,
@@ -784,6 +811,18 @@ def make_plots_and_tables(all_data):
     desired_configs=flexible_cat_names,
     yaxis_name = 'Speedup Relative to V4',
     graph_name = 'speedup_between_vecs')
+
+  # compare hardware configs speedup
+  plot_speedup(all_data,
+    desired_configs=netwidth_cat_names,
+    yaxis_name = 'Speedup Relative to NV_PF_NW1',
+    graph_name = 'speedup_netwidth')
+
+  plot_speedup(all_data,
+    desired_configs=cache_cat_names,
+    yaxis_name = 'Speedup Relative to NV_PF_32kB',
+    graph_name = 'speedup_llc_size')
+
   print("Plot energy")
   plot_energy(all_data)
   plot_best_energy(all_data,
