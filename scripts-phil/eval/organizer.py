@@ -887,7 +887,7 @@ def make_plots_and_tables(all_data):
 
   print("Plot llc miss rate")
   plot_llc_miss_rate(all_data)
-  main_llc_cat_names  = ['NV', 'NV_PF', 'BEST_TRIL', 'V16_LL_CL1024']
+  main_llc_cat_names  = ['NV', 'NV_PF', 'BEST_V', 'V16_LL_CL1024']
   main_llc_cat_groups = [['NV'], ['NV_PF'], ['V4', 'V16'], ['V16_LL_CL1024']]
   plot_best_llc_miss_rate(all_data,
     category_renames=main_llc_cat_names,
