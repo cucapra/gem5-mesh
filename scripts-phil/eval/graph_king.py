@@ -10,6 +10,10 @@ from cycler import cycler
 import numpy as np
 from math import floor, ceil
 from copy import deepcopy
+import json
+
+COLOR_JSON = "color_engine.json"
+USE_COLOR = True
 
 default_prop_cycle = mpl.rcParams['axes.prop_cycle']
 
@@ -31,10 +35,17 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
 
   first_bar_offset = width / -2 * (num_sub_bars-1)
 
+  if USE_COLOR:
+    with open(COLOR_JSON) as f:
+      all_colors = json.load(f)
+
   fig, ax = plt.subplots()
   rects = []
   for i in range(num_sub_bars):
-    new_rect = ax.bar(x + first_bar_offset + i * width, values[i], width, label=sub_labels[i])
+    if USE_COLOR and str(num_sub_bars) in all_colors.keys():
+      new_rect = ax.bar(x + first_bar_offset + i * width, values[i], width, color= all_colors[str(num_sub_bars)][i], label=sub_labels[i])
+    else:
+      new_rect = ax.bar(x + first_bar_offset + i * width, values[i], width, label=sub_labels[i])
     rects.append(new_rect)
   # rects1 = ax.bar(x - width/2, men_means, width, label='Men')
   # rects2 = ax.bar(x + width/2, women_means, width, label='Women')
