@@ -147,7 +147,7 @@ def filter_best_data(data, deciding_field, minimize=True, category_renames = ['B
       if (config in category_configs[i]):
         return i
       # also consider renames
-      if (config in category_renames[i]):
+      if (config == category_renames[i]):
         return i
     return -1
 
