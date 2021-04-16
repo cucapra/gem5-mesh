@@ -796,7 +796,7 @@ def make_plots_and_tables(all_data):
   main_cat_names  = ['NV', 'NV_PF', 'BEST_V']
   main_cat_groups = [['NV'], ['NV_PF'], ['V4', 'V16']]
 
-  fixed_vec_cat_names = ['NV_PF', 'PCV', 'BEST_V', 'BEST_V_PCV', 'GPU']
+  fixed_vec_cat_names = ['NV_PF', 'PCV_PF', 'BEST_V', 'BEST_V_PCV', 'GPU']
   fixed_vec_cat_groups = [
     ['NV_PF'], 
     ['PCV_PF', 'PCV'], 
