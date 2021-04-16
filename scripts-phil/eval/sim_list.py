@@ -9,6 +9,7 @@ HW_OPTS = [
   # '--net-width=2', 
   # '--net-width=4',
   # '--net-width=16'
+  # '--llc-max-size=32kB'
   ''
   ]
 
@@ -92,7 +93,6 @@ sim_configs = {
     'argv' : ['512', '30'],
     'hw_opts' : HW_OPTS
   },
-
   'atax'   : {
     'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
     'argv' : ['2048'], # ['128']
