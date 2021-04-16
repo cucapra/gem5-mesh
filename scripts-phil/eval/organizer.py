@@ -567,7 +567,7 @@ def plot_init_frames(data):
   bar_plot(labels, sub_labels, values, 'Speedup Relative to V4', 'Init_Frame_Speedup', horiz_line=1)
 
 # substitute field in extracted data (do before analyses above)
-def substitute_field(data, prog, from_config, to_config):
+def substitute_field(data, prog, from_config, to_config, remove_src=True):
 
   # find field to move
   move_idx = -1
@@ -588,9 +588,16 @@ def substitute_field(data, prog, from_config, to_config):
 
   # if cant replace just change the config
   if (replace_idx < 0):
-    data[move_idx]['config'] = to_config
-    print('rename {} {}->{}'.format(prog, from_config, to_config))
-    return
+    if (remove_src):
+      data[move_idx]['config'] = to_config
+      print('rename {} {}->{}'.format(prog, from_config, to_config))
+      return
+    else:
+      copied_row = deepcopy(data[move_idx])
+      copied_row['config'] = to_config
+      data.append(copied_row)
+      print('copy {} {}->{}'.format(prog, from_config, to_config))
+      return
 
   print('replaced {} {}->{}'.format(prog, from_config, to_config))
 
@@ -599,7 +606,8 @@ def substitute_field(data, prog, from_config, to_config):
   data[replace_idx]['config'] = to_config
 
   # delete moved
-  data.pop(move_idx)
+  if (remove_src):
+    data.pop(move_idx)
 
 # to the replacement for every program
 def substitute_field_for_all_progs(data, from_config, to_config):
@@ -740,6 +748,10 @@ def make_plots_and_tables(all_data):
   rename_prog(all_data, 'conv3d', '3dconv')
   rename_prog(all_data, 'fdtd', 'fdtd-2d')
   rename_prog(all_data, 'gram_schmidt', 'gramschm')
+
+  # gram schmidt doesnt have V4_PCV or V16_PCV, just copy from V4 for completion
+  substitute_field(all_data, 'gramschm', 'V4',  'V4_PCV',  False)
+  substitute_field(all_data, 'gramschm', 'V16', 'V16_PCV', False)
 
   # rename config data to something better
   substitute_field_for_all_progs(all_data, 'V4__net_width_1', 'V4_NW1')
