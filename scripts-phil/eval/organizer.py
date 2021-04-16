@@ -694,7 +694,7 @@ def plot_all_router_stalls(data):
   (labels, sub_labels, values) = group_bar_data(data, 'router_out_stalls_all')
   bar_plot(labels, sub_labels, values, 'RouteOutStall', 'RouteOutStall', False)
 
-def plot_best_speedup(data, category_renames, category_configs, yaxis_name, graph_name):
+def plot_best_speedup(data, category_renames, category_configs, yaxis_name, graph_name, ylim=[0, 15]):
   # filter by min cycles
 
   data = filter_best_data(data, 'cycles', 
@@ -708,7 +708,7 @@ def plot_best_speedup(data, category_renames, category_configs, yaxis_name, grap
   inverse(values)
   add_geo_mean(labels, values)
 
-  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, ylim=[0, 15], horiz_line=1)
+  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, ylim=ylim, horiz_line=1)
 
 
 def plot_best_energy(data, category_renames, category_configs, yaxis_name='Total On-Chip Energy Relative to Baseline (NV)', graph_name='Energy'):
@@ -794,22 +794,25 @@ def make_plots_and_tables(all_data):
 
   # config groups
   main_cat_names  = ['NV', 'NV_PF', 'BEST_V']
-  main_cat_groups = [['NV'], ['NV_PF'], ['V4', 'V16']]
+  main_cat_groups = [['NV'], ['NV_PF'], ['V4', 'V16', 'V16_LL']]
 
   fixed_vec_cat_names = ['NV_PF', 'PCV_PF', 'BEST_V', 'BEST_V_PCV', 'GPU']
   fixed_vec_cat_groups = [
     ['NV_PF'], 
     ['PCV_PF', 'PCV'], 
-    ['V4', 'V16'], 
-    ['V4_PCV', 'V16_PCV'], 
+    ['V4', 'V16', 'V16_LL'], 
+    ['V4_PCV', 'V16_PCV', 'V4_LL_PCV', 'V16_LL_PCV'], 
     ['GPU']
   ]
 
-  flexible_cat_names = ['V4', 'V4_PCV', 'V4_LL_PCV', 'V16', 'V16_PCV', 'V16_LL_PCV']
+  flexible_cat_names = ['V4', 'V4_LL_PCV', 'V16', 'V16_LL_PCV']
 
-  netwidth_cat_names = ['NV_PF_NW1', 'NV_PF', 'V4_NW1', 'V4', 'V16_LL_NW1', 'V16_LL']
+  # going to do names changes with best speedup (kinda hacky!)
+  netwidth_cat_names = ['NV_PF_NW1', 'NV_PF_NW4', 'V4_NW1', 'V4_NW4', 'V16_LL_NW1', 'V16_LL_NW4']
+  netwidth_cat_actual = [['NV_PF_NW1'], ['NV_PF'], ['V4_NW1'], ['V4'], ['V16_LL_NW1'], ['V16_LL']]
 
-  cache_cat_names = ['NV_PF_32kB', 'NV_PF', 'V4_32kB', 'V4', 'V16_LL_32kB', 'V16_LL']
+  cache_cat_names = ['NV_PF_16kB', 'NV_PF_32kB', 'V4_16kB', 'V4_32kB', 'V16_LL_16kB', 'V16_LL_32kB']
+  cache_cat_actual = ['NV_PF', 'NV_PF_32kB', 'V4', 'V4_32kB', 'V16_LL', 'V16_LL_32kB']
 
   print("Plot speedup")
   plot_speedup(all_data)
@@ -822,20 +825,23 @@ def make_plots_and_tables(all_data):
     category_renames=fixed_vec_cat_names,
     category_configs=fixed_vec_cat_groups,
     yaxis_name = 'Speedup Relative to Baseline (NV_PF)',
-    graph_name = 'speedup_fixed_vec')
+    graph_name = 'speedup_fixed_vec',
+    ylim=[0, 5.5])
   plot_speedup(all_data,
     desired_configs=flexible_cat_names,
     yaxis_name = 'Speedup Relative to V4',
     graph_name = 'speedup_between_vecs')
 
   # compare hardware configs speedup
-  plot_speedup(all_data,
-    desired_configs=netwidth_cat_names,
+  plot_best_speedup(all_data,
+    category_renames=netwidth_cat_names,
+    category_configs=netwidth_cat_actual,
     yaxis_name = 'Speedup Relative to NV_PF_NW1',
     graph_name = 'speedup_netwidth')
 
-  plot_speedup(all_data,
-    desired_configs=cache_cat_names,
+  plot_best_speedup(all_data,
+    category_renames=cache_cat_names,
+    category_configs=cache_cat_actual,
     yaxis_name = 'Speedup Relative to NV_PF_32kB',
     graph_name = 'speedup_llc_size')
 
