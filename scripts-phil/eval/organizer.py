@@ -812,7 +812,7 @@ def make_plots_and_tables(all_data):
   netwidth_cat_actual = [['NV_PF_NW1'], ['NV_PF'], ['V4_NW1'], ['V4'], ['V16_LL_NW1'], ['V16_LL']]
 
   cache_cat_names = ['NV_PF_16kB', 'NV_PF_32kB', 'V4_16kB', 'V4_32kB', 'V16_LL_16kB', 'V16_LL_32kB']
-  cache_cat_actual = ['NV_PF', 'NV_PF_32kB', 'V4', 'V4_32kB', 'V16_LL', 'V16_LL_32kB']
+  cache_cat_actual = [['NV_PF'], ['NV_PF_32kB'], ['V4'], ['V4_32kB'], ['V16_LL'], ['V16_LL_32kB']]
 
   print("Plot speedup")
   plot_speedup(all_data)
