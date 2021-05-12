@@ -104,6 +104,10 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
 
 
 def single_plot(x_axes, y_axes, duplicate_x, ax, plot_id=-1):
+  if USE_COLOR:
+    with open(COLOR_JSON) as f:
+      all_colors = json.load(f)
+
   for i in range(len(y_axes)):
     if (duplicate_x):
       x_axis = x_axes
@@ -113,7 +117,7 @@ def single_plot(x_axes, y_axes, duplicate_x, ax, plot_id=-1):
     y_axis = y_axes[i]
 
     if (plot_id >= 0):
-      ax[plot_id].plot(x_axis, y_axis)
+      ax[plot_id].plot(x_axis, y_axis,  color= all_colors[str(5)][i])
     else:
       ax.plot(x_axis, y_axis)
 

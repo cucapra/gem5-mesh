@@ -184,10 +184,12 @@ void tril_conv3d(int mask,
 
         FRAME_START(REGION_SIZE);
 
-        #ifdef PER_CORE_SIMD
+        #ifdef USE_AUDIT2
+        
         // uses audit2 strategy instead b/c dont know how to do horizontal version
 
         for (int u = 0; u < UNROLL_LEN; u+=PER_CORE_SIMD_LEN) {
+          #ifdef PER_CORE_SIMD
           vsetvl_e32m1(PER_CORE_SIMD_LEN);
           int ul = UNROLL_LEN;
           int ml = UNROLL_LEN + 2;
@@ -212,6 +214,25 @@ void tril_conv3d(int mask,
           VCONV_15(a111, a113, a123, a133, a212, a222, a232, a311, a313, a323, a333);
 
           vse32_v_f32m1_m(bmask, &b[IDX(i, j, k + u, NJ, NK)], ofmap);
+          #else
+          int ul = UNROLL_LEN;
+          int ml = UNROLL_LEN + 2;
+          DTYPE out = CONV_15(
+            sp_ptr[sp + 0*ul + u], 
+            sp_ptr[sp + 0*ul + u + 2], 
+            sp_ptr[sp + 1*ml + u],
+            sp_ptr[sp + 1*ul+1*ml + u], 
+            sp_ptr[sp + 2*ul+1*ml + u],
+            sp_ptr[sp + 3*ul+1*ml + u],
+            sp_ptr[sp + 4*ul+1*ml + u], 
+            sp_ptr[sp + 5*ul+1*ml + u], 
+            sp_ptr[sp + 5*ul+1*ml + u + 2],
+            sp_ptr[sp + 5*ul+2*ml + u], 
+            sp_ptr[sp + 6*ul+2*ml + u]
+          );
+          int cond = (k + u) < (NK - 1);
+          PRED_EQ_FSTORE_NOACK(cond, 1, out, &b[IDX(i, j, k + u, NJ, NK)], 0);
+          #endif
 
         }
         #else
@@ -225,7 +246,7 @@ void tril_conv3d(int mask,
 
         END_FRAME();
 
-        #ifndef PER_CORE_SIMD
+        #ifndef USE_AUDIT2
         int idx = IDX(i, j, k, NJ, NK);        
         int gt = (k >= NK);
         PRED_EQ_FSTORE_NOACK(gt, 0, out, b + idx, 0);

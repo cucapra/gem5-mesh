@@ -910,6 +910,13 @@ def make_plots_and_tables(all_data):
     yaxis_name = 'LLC Miss Rate',
     graph_name = 'llc_between_vecs')
 
+
+  plot_best_llc_miss_rate(all_data,
+    category_renames=cache_cat_names,
+    category_configs=cache_cat_actual,
+    yaxis_name = 'LLC miss to NV_PF_32kB',
+    graph_name = 'llc_miss_llc_size')
+
   # print("Plot cpi")
   # plot_cpi(all_data)
   # print("Plot frame rdy")

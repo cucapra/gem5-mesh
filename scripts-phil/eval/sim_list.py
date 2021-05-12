@@ -5,12 +5,12 @@ from copy import deepcopy
 
 # hardware configs given to gem5 config script (use a single string for all)
 HW_OPTS = [
-  # '--net-width=1', 
+  '',
+  '--net-width=1', 
   # '--net-width=2', 
   # '--net-width=4',
   # '--net-width=16'
-  # '--llc-max-size=32kB'
-  ''
+  '--llc-max-size=32kB'
   ]
 
 # default software configs, encode as list of flags (will be converted to -D<x> when compile)

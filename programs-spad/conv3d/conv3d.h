@@ -96,7 +96,7 @@
 #define USE_AUDIT1
 #endif
 
-#if defined(AUDIT2) && (defined(MANYCORE_PREFETCH) || (defined(PER_CORE_SIMD) && defined(USE_VEC)))
+#if defined(AUDIT2) && (defined(MANYCORE_PREFETCH) || ((defined(PER_CORE_SIMD) || (VECTOR_LEN==4)) && defined(USE_VEC)))
 #define USE_AUDIT2
 #endif
 
