@@ -417,23 +417,26 @@ process = get_processes(options)[0]
 # Construct CPUs
 #------------------------------------------------------------------------------
 
-# CPU class
-CPUClass = IOCPU (
-  includeVector = options.vector,
-  meshBufferSize = options.mesh_queue_len,
-  numROBEntries = 8,
-  # remember to set in util.h
-  hw_vector_length = options.hw_vlen
-  # latencies from https://github.com/bespoke-silicon-group/riscv-gcc/blob/bsg_manycore_gcc/gcc/config/riscv/bsg_vanilla_2020.md
-  ,
-  intAluOpLatency = 1,
-  intMulOpLatency = 2,
-  divOpLatency    = 20,
-  fpAluOpLatency  = 3,
-  fpMulOpLatency  = 3
-  # , numLoadQueueEntries = 8,
-  # numStoreQueueEntries = 8
-)
+if (options.cpu_type == 'DerivO3CPU'):
+  CPUClass = CpuConfig.get('DerivO3CPU')
+else:
+  # CPU class
+  CPUClass = IOCPU (
+    includeVector = options.vector,
+    meshBufferSize = options.mesh_queue_len,
+    numROBEntries = 8,
+    # remember to set in util.h
+    hw_vector_length = options.hw_vlen
+    # latencies from https://github.com/bespoke-silicon-group/riscv-gcc/blob/bsg_manycore_gcc/gcc/config/riscv/bsg_vanilla_2020.md
+    ,
+    intAluOpLatency = 1,
+    intMulOpLatency = 2,
+    divOpLatency    = 20,
+    fpAluOpLatency  = 3,
+    fpMulOpLatency  = 3
+    # , numLoadQueueEntries = 8,
+    # numStoreQueueEntries = 8
+  )
 
 # Create top-level system
 system = System(cpu = [ CPUClass(cpu_id = i) for i in xrange(n_cpus) ],
@@ -622,7 +625,7 @@ system.system_port = system.ruby.sys_port_proxy.slave
 # Construct systolic network
 #------------------------------------------------------------------------------
 
-if (options.vector):
+if (options.vector and options.cpu_type == 'IOCPU'):
   eff_rows = n_rows - 1
   if (double_L2):
     eff_rows = n_rows - 2

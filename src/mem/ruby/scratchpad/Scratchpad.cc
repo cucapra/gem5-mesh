@@ -473,7 +473,7 @@ Scratchpad::wakeup()
       if (pkt_p->isRead())
         DPRINTF(LoadTrack, "Handling remote SP load locally %#x\n", pkt_p->getAddr());
 
-      if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Scratchpad, "Recv remote resp pkt %#x\n", pkt_p->getAddr());
+      if (m_cpu_p->getVectorConfigured()) DPRINTF(Scratchpad, "Recv remote resp pkt %#x\n", pkt_p->getAddr());
 
       DPRINTF(RubyNetwork, "spad pull msg %p @addr %#x\n", mem_msg_p, pkt_p->getAddr());
 
@@ -755,6 +755,8 @@ typedef struct WordAndCnt_t {
 std::vector<WordAndCnt_t> getNeededReqs(Packet* pkt_p) {
   std::vector<WordAndCnt_t> reqs;
 
+  assert(pkt_p->getRespCnt()==1);
+
   if (!pkt_p->isVector()) 
     reqs.push_back(WordAndCnt_t(pkt_p->getAddr(), pkt_p->getRespCnt()));
   // try to merge loads into single vector if possible
@@ -836,7 +838,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // If this is a speculative load and the data isn't present, then
     // allow the packets equal to ld queue size be buffered here
     // if (pkt_p->getSpecSpad() && !isWordRdy(pkt_p->getAddr())) {
-    if (m_cpu_p->getEarlyVector()->isSlave() && !pkt_p->isWrite()){
+    if (m_cpu_p->isVectorCore() && !pkt_p->isWrite()){
       if (isRegionAccess(pkt_p) && !isWordRdy(pkt_p->getAddr())){
         //m_packet_buffer.push_back(pkt_p);
         //assert(m_packet_buffer.size() <= m_spec_buf_size);
@@ -963,7 +965,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     // This packet will be delivered to LLC
     if (m_pending_pkt_map.size() == m_max_num_pending_pkts && !noLLCAck) {
       DPRINTF(Scratchpad, "Blocking. Pending pkt buffer is full\n");
-      if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Scratchpad, "Blocking. Pending pkt buffer is full\n");
+      if (m_cpu_p->getVectorConfigured()) DPRINTF(Scratchpad, "Blocking. Pending pkt buffer is full\n");
       m_exceed_stream_width++;
       return false;
     } else {
@@ -1016,7 +1018,7 @@ Scratchpad::handleCpuReq(Packet* pkt_p)
     DPRINTF(Scratchpad, "Sending pkt %s to %s\n", pkt_p->print(), dst_port);
     if (pkt_p->isRead())
       DPRINTF(LoadTrack, "Sending Load request to remote SP %#x\n", pkt_p->getAddr());
-    if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Frame, "Sending remote req pkt %#x to %s\n", pkt_p->getAddr(), dst_port);
+    if (m_cpu_p->getVectorConfigured()) DPRINTF(Frame, "Sending remote req pkt %#x to %s\n", pkt_p->getAddr(), dst_port);
 
 
     if (pkt_p->isStoreNoAck()) {
@@ -1055,7 +1057,7 @@ Scratchpad::handleRemoteReq(Packet* pkt_p, MachineID remote_sender)
   MachineID src_port = m_machineID;
   MachineID dst_port = remote_sender;
 
-  if (m_cpu_p->getEarlyVector()->getConfigured()) DPRINTF(Scratchpad, "Recv remote req pkt %#x\n", pkt_p->getAddr());
+  if (m_cpu_p->getVectorConfigured()) DPRINTF(Scratchpad, "Recv remote req pkt %#x\n", pkt_p->getAddr());
 
   bool respond_sender = true;
 
@@ -1246,7 +1248,8 @@ Scratchpad::getL2BankFromAddr(Addr addr) const
   NodeID l2_node_id = (NodeID) bitSelect(addr, low_bit, hig_bit);
   assert(l2_node_id < m_num_l2s);
 
-  m_cpu_p->getSystemPtr()->m_spad_l2_bank_util[l2_node_id]++;
+  if (m_cpu_p->getSystemPtr())
+    m_cpu_p->getSystemPtr()->m_spad_l2_bank_util[l2_node_id]++;
 
   return l2_node_id;
 }
@@ -1301,8 +1304,9 @@ Scratchpad::isRegionAccess(Packet* pkt_p) {
 
 bool
 Scratchpad::controlDiverged() {
-  Vector *vec = m_cpu_p->getEarlyVector();
-  return vec && vec->isCurDiverged();
+  // Vector *vec = m_cpu_p->getEarlyVector();
+  // return vec && vec->isCurDiverged();
+  return false;
 }
 
 bool

@@ -443,7 +443,7 @@ class Scratchpad : public AbstractController
      * Keep a pointer to the local CPU to allow reading of some of its 
      * register. This is valid according to the DJ
      */ 
-    IOCPU *m_cpu_p;
+    BaseCPU *m_cpu_p;
     
     /**
      * Store the current epoch of the proccessor, given by pkt

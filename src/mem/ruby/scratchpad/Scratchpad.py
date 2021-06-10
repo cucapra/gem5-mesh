@@ -27,4 +27,4 @@ class Scratchpad(RubyController):
 
   numFrameCntrs     = Param.Int(4, "Number of frames that can be counted at the same time")
   
-  cpu               = Param.IOCPU("")
+  cpu               = Param.BaseCPU("")

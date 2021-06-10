@@ -402,7 +402,7 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
+          coreOffset(0), respCnt(1), prefetchConfig(0), isStoreNoAck(false),
           isNormVector(false), wordSize(0), countPerCore(0), subCoreOffset(0)
     {}
 
@@ -414,7 +414,7 @@ class Request
           _reqInstSeqNum(seq_num), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
+          coreOffset(0), respCnt(1), prefetchConfig(0), isStoreNoAck(false),
           isNormVector(false), wordSize(size), countPerCore(0), subCoreOffset(0)
     {
         setPhys(paddr, size, flags, mid, curTick());
@@ -434,7 +434,7 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
+          coreOffset(0), respCnt(1), prefetchConfig(0), isStoreNoAck(false),
           isNormVector(false), wordSize(size), countPerCore(0), subCoreOffset(0)
     {
         setPhys(paddr, size, flags, mid, curTick());
@@ -447,7 +447,7 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
+          coreOffset(0), respCnt(1), prefetchConfig(0), isStoreNoAck(false),
           isNormVector(false), wordSize(size), countPerCore(0), subCoreOffset(0)
     {
         setPhys(paddr, size, flags, mid, time);
@@ -461,7 +461,7 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false),
-          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
+          coreOffset(0), respCnt(1), prefetchConfig(0), isStoreNoAck(false),
           isNormVector(false), wordSize(size), countPerCore(0), subCoreOffset(0)
     {
         setPhys(paddr, size, flags, mid, time);
@@ -476,7 +476,7 @@ class Request
           _reqInstSeqNum(0), atomicOpFunctor(nullptr), translateDelta(0),
           accessDelta(0), depth(0), xDim(1), yDim(1), xOrigin(0), yOrigin(0),
           prefetchAddr(0), spadSpec(false), isSpadPrefetch(false), 
-          coreOffset(0), respCnt(0), prefetchConfig(0), isStoreNoAck(false),
+          coreOffset(0), respCnt(1), prefetchConfig(0), isStoreNoAck(false),
           isNormVector(false), wordSize(size), countPerCore(0), subCoreOffset(0)
     {
         setVirt(asid, vaddr, size, flags, mid, pc);
@@ -571,6 +571,19 @@ class Request
         translateDelta = 0;
         atomicOpFunctor = amo_op;
         wordSize = _size;
+        respCnt = 1;
+        xDim = 1;
+        yDim = 1;
+        isStoreNoAck = false;
+        xOrigin = 0;
+        yOrigin = 0;
+        prefetchAddr = 0;
+        spadSpec = false;
+        isSpadPrefetch = false;
+        coreOffset = 0;
+        prefetchConfig = 0; 
+        countPerCore = 1;
+        subCoreOffset = 0;
     }
 
     /**

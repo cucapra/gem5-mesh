@@ -37,6 +37,18 @@ LONGLINES_CONFIGS = [
 # bfs only supports a small set of configs
 BFS_CONFIGS = ['NO_VEC', 'VECTOR_LEN=4', 'VECTOR_LEN=16']
 
+
+ALL_CONFIGS = [ 'NO_VEC',  [ 'NO_VEC', 'MANYCORE_PREFETCH' ]]
+LONGLINES_CONFIGS = []
+BFS_CONFIGS = [ ]
+HW_OPTS = [
+  '--num-cpus=1',
+  '--num-cpus=4',
+  '--num-cpus=16',
+  '--num-cpus=64'
+  ]
+
+
 # choose which programs to run via script and with what configs
 sim_configs = {
   # Test programs, not actual benchmarks
