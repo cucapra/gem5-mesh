@@ -762,8 +762,6 @@ typedef struct WordAndCnt_t {
 std::vector<WordAndCnt_t> getNeededReqs(Packet* pkt_p) {
   std::vector<WordAndCnt_t> reqs;
 
-  assert(pkt_p->getRespCnt()==1);
-
   if (!pkt_p->isVector()) 
     reqs.push_back(WordAndCnt_t(pkt_p->getAddr(), pkt_p->getRespCnt()));
   // try to merge loads into single vector if possible
