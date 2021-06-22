@@ -419,6 +419,9 @@ process = get_processes(options)[0]
 
 if (options.cpu_type == 'DerivO3CPU'):
   CPUClass = CpuConfig.get('DerivO3CPU')
+
+  # make sure stream width matches lsq size
+  options.stream_width = CPUClass.LQEntries + CPUClass.SQEntries
 else:
   # CPU class
   CPUClass = IOCPU (
