@@ -580,6 +580,7 @@ class Request
         prefetchAddr = 0;
         spadSpec = false;
         isSpadPrefetch = false;
+        isNormVector = false;
         coreOffset = 0;
         prefetchConfig = 0; 
         countPerCore = 1;

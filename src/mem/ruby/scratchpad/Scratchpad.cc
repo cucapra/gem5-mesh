@@ -77,7 +77,12 @@ CpuPort::recvTimingReq(Packet *pkt)
   setRetry();
   return false;*/
   
-  return m_scratchpad_p->handleCpuReq(pkt);
+  bool ret = m_scratchpad_p->handleCpuReq(pkt);
+  if (!ret) {
+    DPRINTF(Scratchpad, "set pending retry\n");
+    setRetry();
+  }
+  return ret;
 }
 
 void
@@ -356,11 +361,12 @@ Scratchpad::processRespToSpad() {
         
   }
   
-  // if CPU needs to retry, wake it up
-  if (m_cpu_port_p->needRetry()) {
-    m_cpu_port_p->sendRetryReq();
-    m_cpu_port_p->clearRetry();
-  }
+  // // if CPU needs to retry, wake it up
+  // if (m_cpu_port_p->needRetry()) {
+  //   DPRINTF(Scratchpad, "send retry.\n");
+  //   m_cpu_port_p->sendRetryReq();
+  //   m_cpu_port_p->clearRetry();
+  // }
   
   
   
@@ -632,7 +638,8 @@ Scratchpad::wakeup()
   }
 
   // if CPU needs to retry, wake it up
-  if (m_cpu_port_p->needRetry()) {
+  if (m_cpu_port_p->needRetry() && m_pending_pkt_map.size() != m_max_num_pending_pkts) {
+    DPRINTF(Scratchpad, "send retry\n");
     m_cpu_port_p->sendRetryReq();
     m_cpu_port_p->clearRetry();
   }
