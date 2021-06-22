@@ -205,12 +205,13 @@ def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar
 
   v4_configs = [
     'V4',
-    'VEC_4_SIMD_VERTICAL',
-    'VEC_4_REUSE_VERTICAL',
-    'VEC_4_SIMD_UNROLL'
+    'V4_PCV',
+    'V4_LL_PCV'
   ]
   v16_configs = [
-    'V16'
+    'V16',
+    'V16_PCV',
+    'V16_LL_PCV'
   ]
 
   i = 0
@@ -467,15 +468,15 @@ def plot_cpi(data):
   add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'CPI (Active Cores)', 'CPI', False) 
 
-def plot_inet_stalls(data, prog_subset=['3dconv', 'gemm', '2dconv', 'bicg', 'syr2k']):
+def plot_inet_stalls(data, prog_subset=['3dconv', 'gemm', '2dconv', 'bicg', 'syr2k'], desired_config_v4=['V4'], desired_config_v16=['V16'], graph_name='inet_stalls'):
   # only do a subset
   data = filter_progs(data, prog_subset, False)
 
   # generate v4 plot
-  (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=['V4'])
+  (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=desired_config_v4)
   (labels_v4, configs_v4, values_v4, xaxes_v4) = avg_by_hops(labels, configs, values, True, False)
   # generate v16 plot
-  (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=['V16'])
+  (labels, configs, values) = group_line_data(data, 'frac_mesh_stall_sep', desired_configs=desired_config_v16)
   (labels_v16, configs_v16, values_v16, xaxes_v16) = avg_by_hops(labels, configs, values, False, True)
 
   # merge for multiple plots
@@ -485,7 +486,7 @@ def plot_inet_stalls(data, prog_subset=['3dconv', 'gemm', '2dconv', 'bicg', 'syr
   labels = labels_v4
   xlabels = ['V4 Hops', 'V16 Hops']
 
-  line_plot(xaxes, values, labels, xlabels, 'Input inet stalls relative to total vector cycles', 'inet_stalls', False, sub_plots_x=2, bbox=(0.925, 0.15), legend_loc='lower right', width_ratio=[1, 3])
+  line_plot(xaxes, values, labels, xlabels, 'Input inet stalls relative to total vector cycles', graph_name, False, sub_plots_x=2, bbox=(0.925, 0.15), legend_loc='lower right', width_ratio=[1, 3])
 
 
 def plot_backpressure(data, prog_subset=['3dconv', 'gemm', '2dconv', 'bicg', 'syr2k']):
@@ -508,17 +509,17 @@ def plot_backpressure(data, prog_subset=['3dconv', 'gemm', '2dconv', 'bicg', 'sy
 
   line_plot(xaxes, values, labels, xlabels, 'Backpressure stalls relative to total vector cycles', 'backpressure_stalls', False, sub_plots_x=2, bbox=(0.925, 0.5), legend_loc='lower right', width_ratio=[1, 2.3333333])
 
-def plot_frame_stalls(data):
+def plot_frame_stalls(data, desired_config_order=['NV_PF','V4'], graph_name='Frame_Stalls_v4'):
   # (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep', desired_configs=['V4', 'V16'])
   # (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, includeV4, includeV16)
   # title = 'Frame_Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
   # line_plot(xaxes, values, labels, 'Hops', 'Frame stalls relative to total vector cycles', title, False)
 
-  (labels, sub_labels, values) = group_bar_data(data, 'frac_token_stalls', desired_config_order=['NV_PF','V4'])
+  (labels, sub_labels, values) = group_bar_data(data, 'frac_token_stalls', desired_config_order=desired_config_order)
   # dont do geomean b/c some values are 0
   add_arith_mean(labels, values)
 
-  bar_plot(labels, sub_labels, values, 'Fraction of Total Cycles Waiting for a Frame', 'Frame_Stalls_v4')
+  bar_plot(labels, sub_labels, values, 'Fraction of Total Cycles Waiting for a Frame', graph_name)
 
 
 # def plot_prefetch_coverage(data):
@@ -785,6 +786,7 @@ def make_plots_and_tables(all_data):
   # do graphs with bfs before remove it
   print("Plot inet stalls")
   plot_inet_stalls(all_data)
+  plot_inet_stalls(all_data, desired_config_v4=['V4_PCV'], desired_config_v16=['V16_PCV'], graph_name='inet_stalls_pcv')
   print("Plot backpressure")
   plot_backpressure(all_data)
 
@@ -881,6 +883,8 @@ def make_plots_and_tables(all_data):
 
   print("Plot frame stalls")
   plot_frame_stalls(all_data)
+  plot_frame_stalls(all_data, ['NV_PF', 'PCV_PF'], 'frame_stalls_nv_pcv')
+  plot_frame_stalls(all_data, ['V4', 'V4_PCV'], 'frame_stalls_v4_v4pcv')
 
   print("Plot Inst Energy")
   plot_inst_energy(all_data)
