@@ -2,7 +2,13 @@
 #define __VECTOR_UTIL_H__
 
 // grid dim xy assuming always a square
-#if _N_SPS==16
+#if _N_SPS==1
+#define GRID_XDIM 1
+#define GRID_YDIM 1
+#elif _N_SPS==4
+#define GRID_XDIM 2
+#define GRID_YDIM 2
+#elif _N_SPS==16
 #define GRID_XDIM 4
 #define GRID_YDIM 4
 #elif _N_SPS==64

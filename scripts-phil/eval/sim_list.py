@@ -15,6 +15,7 @@ HW_OPTS = [
 
 # default software configs, encode as list of flags (will be converted to -D<x> when compile)
 # NOTE CACHE_LINE_SIZE=x and HARDWARE_VECTOR_LEN=y will be automatically inserted into HW_OPTS if appears here
+# To change the number of CPUS, use NCPUS=z
 ALL_CONFIGS = [
   ['VECTOR_LEN=4'],
   ['VECTOR_LEN=16'],
@@ -38,14 +39,20 @@ LONGLINES_CONFIGS = [
 BFS_CONFIGS = ['NO_VEC', 'VECTOR_LEN=4', 'VECTOR_LEN=16']
 
 
-ALL_CONFIGS = [ 'NO_VEC',  [ 'NO_VEC', 'MANYCORE_PREFETCH' ]]
+ALL_CONFIGS = [ 
+  ['NO_VEC', 'NCPUS=1'],
+  ['NO_VEC', 'NCPUS=4'],
+  ['NO_VEC', 'NCPUS=16'],
+  ['NO_VEC', 'NCPUS=64'],
+  [ 'NO_VEC', 'MANYCORE_PREFETCH', 'NCPUS=1' ],
+  [ 'NO_VEC', 'MANYCORE_PREFETCH', 'NCPUS=4' ],
+  [ 'NO_VEC', 'MANYCORE_PREFETCH', 'NCPUS=16' ],
+  [ 'NO_VEC', 'MANYCORE_PREFETCH', 'NCPUS=64' ]
+]
 LONGLINES_CONFIGS = []
 BFS_CONFIGS = [ ]
 HW_OPTS = [
-  '--num-cpus=1',
-  '--num-cpus=4',
-  '--num-cpus=16',
-  '--num-cpus=64'
+  ''
   ]
 
 
@@ -54,8 +61,8 @@ sim_configs = {
   # Test programs, not actual benchmarks
 
   # 'vvadd': {
-  #   'vec'  : [['VEC_16_SIMD_BIGBOI', 'CACHE_LINE_SIZE=1024'], ['VEC_16_SIMD_VERTICAL', 'CACHE_LINE_SIZE=64'], ['NO_VEC']],
-  #   'argv' : ['1048576'], # ['1024']
+  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
+  #   'argv' : ['65536'], #['1048576'], # ['1024']
   #   'hw_opts' : HW_OPTS
   # },
   # 'stencil': {
@@ -164,6 +171,14 @@ def string_to_hwvlen_arg(a):
   else:
     return -1
 
+def string_to_num_cpus(a):
+  if (a[0:6] == 'NCPUS='):
+    return int(a[6:len(a)])
+  elif (a[0:6] == 'NCPUS_'):
+    return int(a[6:len(a)])
+  else:
+    return -1
+
 # find an appropriate hardware cachelines size
 # if cant find defined in software, then default to 64 
 def get_cacheline_opt(args):
@@ -203,6 +218,26 @@ def get_hardware_vlen(args):
     return '--hw-vlen=' + str(vl_hw_size)
   else:
     return ''
+
+def get_num_cpus(args, default_cpus=64):
+  found = False
+  found_num_cpus = 0
+  if (isinstance(args, list)):
+    for a in args:
+      num_cpus = string_to_num_cpus(a)
+      if (num_cpus > 0):
+        found_num_cpus = num_cpus
+        found = True
+  else:
+    num_cpus = string_to_num_cpus(args)
+    if (num_cpus > 0):
+      found_num_cpus = num_cpus
+      found = True
+
+  if (found):
+    return found_num_cpus
+  else:
+    return default_cpus
 
 # make a shorthand to represent the config output name
 # note replace '=' with '_' because converted when called
