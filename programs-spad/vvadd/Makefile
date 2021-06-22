@@ -1,9 +1,9 @@
 BENCHNAME := vvadd
 default: $(BENCHNAME)
 
-N_SPS ?= 1
+N_SPS ?= 64
 EXTRA_FLAGS ?= -DNO_VEC
-HB_ARGS := --options="65536" --num-cpus=1 --cpu-type=DerivO3CPU
+HB_ARGS := --options="65536" --cpu-type=DerivO3CPU
 GEM5_ARGS ?= --remote-gdb-port=0
 
 # Build the kernel with trilliasm.
