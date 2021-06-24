@@ -10,7 +10,7 @@ from table_king import make_table
 from layout_helper import get_mesh_dist_sequence
 from scipy.stats.mstats import gmean
 
-import argparse, pickle
+import argparse, pickle, re
 
 # sort data according to specified order (for bar data)
 def sort_by_sub_label(cur_order, values, desired_order):
@@ -373,6 +373,24 @@ def inverse(values):
       except:
         values[j][i] = 0
 
+# find cpu count from config
+def find_core_count(config):
+  core_regex = re.compile('NCPUS_([0-9]+)')
+  match = core_regex.search(config)
+  if (match):
+    return float(match.group(1))
+  else:
+    return 64.0
+
+
+def normalize_by_core_count(sub_labels, values):
+  for i in range(len(sub_labels)):
+    config = sub_labels[i]
+    ncpus = find_core_count(config)
+    for j in range(len(values[i])):
+      values[i][j] /= ncpus
+
+
 def add_arith_mean(labels, values, include_zeros=False):
   # add an average column
   labels.append("ArithMean")
@@ -694,7 +712,7 @@ def plot_all_router_stalls(data):
   (labels, sub_labels, values) = group_bar_data(data, 'router_out_stalls_all')
   bar_plot(labels, sub_labels, values, 'RouteOutStall', 'RouteOutStall', False)
 
-def plot_best_speedup(data, category_renames, category_configs, yaxis_name, graph_name, ylim=[0, 15]):
+def plot_best_speedup(data, category_renames, category_configs, yaxis_name, graph_name, ylim=[0, 15], do_norm_to_cores=False):
   # filter by min cycles
 
   data = filter_best_data(data, 'cycles', 
@@ -706,6 +724,10 @@ def plot_best_speedup(data, category_renames, category_configs, yaxis_name, grap
   # flip from cycles to speedup normalized to NV
   normalize(sub_labels, values, pref_base=category_renames[0])
   inverse(values)
+
+  if (do_norm_to_cores):
+    normalize_by_core_count(sub_labels, values)
+
   add_geo_mean(labels, values)
 
   bar_plot(labels, sub_labels, values, yaxis_name, graph_name, ylim=ylim, horiz_line=1)
@@ -781,6 +803,33 @@ def make_plots_and_tables(all_data):
   substitute_field_for_all_progs(all_data, 'V4_LL_PCV_CL1024', 'V4_LL_PCV')
   substitute_field_for_all_progs(all_data, 'V16_LL_PCV_CL1024', 'V16_LL_PCV')
   substitute_field_for_all_progs(all_data, 'V16_LL_CL1024', 'V16_LL')
+
+
+  # plot ncpus graphs
+  # should prob plot speedup/ncpus
+  # ncpu_cat_names = [ 'NV_NCPUS_1_', 'NV_NCPUS_4', 'NV_NCPUS_16', 'NV_NCPUS_64' ]
+  # ncpu_cat_actual = [ ['NV_NCPUS_1'], ['NV_NCPUS_4'], ['NV_NCPUS_16'], ['NV_NCPUS_64'] ]
+  
+  # good scalability up to 16. 64 has very sublinear. Also better scalabilty than NV
+  # ncpu_cat_names = [ 'NV_PF_NCPUS_1', 'NV_PF_NCPUS_4', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64' ]
+  # ncpu_cat_actual = [ ['NV_PF_NCPUS_1'], ['NV_PF_NCPUS_4'], ['NV_PF_NCPUS_16'], ['NV_PF_NCPUS_64'] ]
+
+
+
+  ncpu_cat_names = [ 'NV_PF_NCPUS_1', 'NV_PF_NCPUS_4', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64', 'NV_NCPUS_1_O3', 'NV_NCPUS_4_O3', 'NV_NCPUS_16_O3' ]
+  ncpu_cat_actual = [ ['NV_PF_NCPUS_1'], ['NV_PF_NCPUS_4'], ['NV_PF_NCPUS_16'], ['NV_PF_NCPUS_64'] , ['NV_NCPUS_1_O3'], ['NV_NCPUS_4_O3'], ['NV_NCPUS_16_O3'] ]
+
+  # for d in all_data:
+  #   print(d['cycles_cpu'])
+  plot_best_speedup(all_data,
+    category_renames=ncpu_cat_names,
+    category_configs=ncpu_cat_actual,
+    yaxis_name = 'Speedup Relative to Baseline (NV_NCPUS_1)',
+    graph_name = 'speedup_nv_cpus',
+    ylim = [0, 30],
+    do_norm_to_cores=True)
+
+  exit()
 
   # do graphs with bfs before remove it
   print("Plot inet stalls")
