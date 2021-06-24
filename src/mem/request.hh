@@ -488,6 +488,20 @@ class Request
             AtomicOpFunctor *atomic_op)
     {
         setVirt(asid, vaddr, size, flags, mid, pc, atomic_op);
+        respCnt = 1;
+        xDim = 1;
+        yDim = 1;
+        isStoreNoAck = false;
+        xOrigin = 0;
+        yOrigin = 0;
+        prefetchAddr = 0;
+        spadSpec = false;
+        isSpadPrefetch = false;
+        isNormVector = false;
+        coreOffset = 0;
+        prefetchConfig = 0; 
+        countPerCore = 0;
+        subCoreOffset = 0;
         setContext(cid);
     }
 
@@ -571,20 +585,6 @@ class Request
         translateDelta = 0;
         atomicOpFunctor = amo_op;
         wordSize = _size;
-        respCnt = 1;
-        xDim = 1;
-        yDim = 1;
-        isStoreNoAck = false;
-        xOrigin = 0;
-        yOrigin = 0;
-        prefetchAddr = 0;
-        spadSpec = false;
-        isSpadPrefetch = false;
-        isNormVector = false;
-        coreOffset = 0;
-        prefetchConfig = 0; 
-        countPerCore = 1;
-        subCoreOffset = 0;
     }
 
     /**
