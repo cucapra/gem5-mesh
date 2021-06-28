@@ -420,6 +420,20 @@ process = get_processes(options)[0]
 if (options.cpu_type == 'DerivO3CPU'):
   CPUClass = CpuConfig.get('DerivO3CPU')
 
+  # 4-way, 16lq+16sq (default 8-way, 32lq+32sq)
+  cpuWidth = 4
+  CPUClass.fetchWidth = cpuWidth
+  CPUClass.decodeWidth = cpuWidth
+  CPUClass.renameWidth = cpuWidth
+  CPUClass.dispatchWidth = cpuWidth
+  CPUClass.issueWidth = cpuWidth
+  CPUClass.wbWidth = cpuWidth
+  CPUClass.commitWidth = cpuWidth
+  CPUClass.squashWidth = cpuWidth
+
+  CPUClass.LQEntries = 16
+  CPUClass.SQEntries = 16
+
   # make sure stream width matches lsq size
   options.stream_width = CPUClass.LQEntries + CPUClass.SQEntries
 else:
@@ -594,6 +608,7 @@ for i in xrange(n_l2s):
                                 cache_resp_latency = 1,
                                 to_memory_controller_latency = 1,
                                 mem_to_cpu_latency = 1 # TODO this needs to be the same as cache_resp_latency b/c same ordered queue?
+                                , number_of_TBEs = 64
                                 )
                                 #number_of_TBEs = 1)
 
