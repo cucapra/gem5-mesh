@@ -807,27 +807,49 @@ def make_plots_and_tables(all_data):
 
   # plot ncpus graphs
   # should prob plot speedup/ncpus
-  # ncpu_cat_names = [ 'NV_NCPUS_1_', 'NV_NCPUS_4', 'NV_NCPUS_16', 'NV_NCPUS_64' ]
-  # ncpu_cat_actual = [ ['NV_NCPUS_1'], ['NV_NCPUS_4'], ['NV_NCPUS_16'], ['NV_NCPUS_64'] ]
+  ncpu_io_cat_names = [ 'NV_NCPUS_1', 'NV_NCPUS_4', 'NV_NCPUS_16', 'NV_NCPUS_64' ]
+  ncpu_io_cat_actual = [ ['NV_NCPUS_1'], ['NV_NCPUS_4'], ['NV_NCPUS_16'], ['NV_NCPUS_64'] ]
   
   # good scalability up to 16. 64 has very sublinear. Also better scalabilty than NV
-  # ncpu_cat_names = [ 'NV_PF_NCPUS_1', 'NV_PF_NCPUS_4', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64' ]
-  # ncpu_cat_actual = [ ['NV_PF_NCPUS_1'], ['NV_PF_NCPUS_4'], ['NV_PF_NCPUS_16'], ['NV_PF_NCPUS_64'] ]
+  ncpu_nvpf_cat_names = [ 'NV_PF_NCPUS_1', 'NV_PF_NCPUS_4', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64' ]
+  ncpu_nvpf_cat_actual = [ ['NV_PF_NCPUS_1'], ['NV_PF_NCPUS_4'], ['NV_PF_NCPUS_16'], ['NV_PF_NCPUS_64'] ]
 
+  ncpu_o3_cat_names = [ 'NV_NCPUS_1_O3', 'NV_NCPUS_4_O3', 'NV_NCPUS_16_O3' ]
+  ncpu_o3_cat_actual = [ ['NV_NCPUS_1_O3'], ['NV_NCPUS_4_O3'], ['NV_NCPUS_16_O3'] ]
 
+  ncpu_varied_names = ['NV_NCPUS_1', 'NV_NCPUS_64', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64', 'NV_NCPUS_1_O3', 'NV_NCPUS_4_O3', 'NV_NCPUS_16_O3']
+  ncpu_varied_actual = [ ['NV_NCPUS_1'], ['NV_NCPUS_64'], ['NV_PF_NCPUS_16'], ['NV_PF_NCPUS_64'], ['NV_NCPUS_1_O3'], ['NV_NCPUS_4_O3'], ['NV_NCPUS_16_O3']]
 
-  ncpu_cat_names = [ 'NV_PF_NCPUS_1', 'NV_PF_NCPUS_4', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64', 'NV_NCPUS_1_O3', 'NV_NCPUS_4_O3', 'NV_NCPUS_16_O3' ]
-  ncpu_cat_actual = [ ['NV_PF_NCPUS_1'], ['NV_PF_NCPUS_4'], ['NV_PF_NCPUS_16'], ['NV_PF_NCPUS_64'] , ['NV_NCPUS_1_O3'], ['NV_NCPUS_4_O3'], ['NV_NCPUS_16_O3'] ]
-
-  # for d in all_data:
-  #   print(d['cycles_cpu'])
   plot_best_speedup(all_data,
-    category_renames=ncpu_cat_names,
-    category_configs=ncpu_cat_actual,
-    yaxis_name = 'Speedup Relative to Baseline (NV_NCPUS_1)',
-    graph_name = 'speedup_nv_cpus',
+    category_renames=ncpu_io_cat_names,
+    category_configs=ncpu_io_cat_actual,
+    yaxis_name = 'Scalability ( Rel Speedup to NV_1 / NCORES )',
+    graph_name = 'speedup_io_cpus',
     ylim = [0, 30],
     do_norm_to_cores=True)
+
+  plot_best_speedup(all_data,
+    category_renames=ncpu_nvpf_cat_names,
+    category_configs=ncpu_nvpf_cat_actual,
+    yaxis_name = 'Scalability ( Rel Speedup to NVPF_1 / NCORES )',
+    graph_name = 'speedup_iopf_cpus',
+    ylim = [0, 30],
+    do_norm_to_cores=True)
+
+  plot_best_speedup(all_data,
+    category_renames=ncpu_o3_cat_names,
+    category_configs=ncpu_o3_cat_actual,
+    yaxis_name = 'Scalability ( Rel Speedup to O3_1 / NCORES )',
+    graph_name = 'speedup_o3_cpus',
+    ylim = [0, 30],
+    do_norm_to_cores=True)
+
+  plot_best_speedup(all_data,
+    category_renames=ncpu_varied_names,
+    category_configs=ncpu_varied_actual,
+    yaxis_name = 'Speedup Relative to Baseline (NV_NCPUS_1)',
+    graph_name = 'speedup_nv_cpus',
+    ylim = [0, 30])
 
   exit()
 
