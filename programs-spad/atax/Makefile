@@ -2,12 +2,11 @@ BENCHNAME := atax
 default: $(BENCHNAME)
 
 SIZE ?= 64
-OUT ?= $(EXEC)-vec0-$(SIZE)
 
-N_SPS ?= 64
+N_SPS ?= 1
 CL_LEN := 64
-EXTRA_FLAGS ?= -DVECTOR_LEN=4 -DPER_CORE_SIMD -DCACHE_LINE_SIZE=$(CL_LEN)
-# GEM5_ARGS := --debug-flags=Frame #-d ../../results/$(OUT)
+EXTRA_FLAGS ?= -DNO_VEC -DCACHE_LINE_SIZE=$(CL_LEN)
+# GEM5_ARGS := --debug-flags=Frame
 HB_ARGS := --options="$(SIZE) $(SIZE)" --cacheline_size=$(CL_LEN)
 
 # Build the kernel with trilliasm.

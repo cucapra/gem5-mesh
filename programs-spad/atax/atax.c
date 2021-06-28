@@ -486,7 +486,7 @@ void *pthread_kernel(void *args)
   // reset scratchpad config
   SET_PREFETCH_MASK(0, 0, &start_barrier);
 
-  if (a->tid_x == 1 && a->tid_y == 0)
+  if (a->tid_x == 0 && a->tid_y == 0)
   {
     stats_off();
   }
