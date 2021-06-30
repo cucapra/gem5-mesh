@@ -140,7 +140,7 @@ def single_label(x_axes, infer_ticks, xlabel, ylabel, ax, plot_id=-1):
 
 # create specified lineplot and write to file
 # provide all y_axes and either a single or multiple x_axes
-def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, duplicate_x=False, sub_plots_x=1, bbox='', legend_loc='', width_ratio=[1,1]):
+def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, duplicate_x=False, sub_plots_x=1, bbox='', legend_loc='', width_ratio=[1,1], slope=float('nan')):
   mpl.rcParams['axes.prop_cycle'] = cycler(linestyle=['-', '--', '-.']) * default_prop_cycle
 
   if (sub_plots_x == 1):
@@ -165,6 +165,12 @@ def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, d
       a.label_outer()
       
 
+  # add a line with m=1
+  if (slope != float('nan')):
+    ylines = []
+    for x in x_axes[0]:
+      ylines.append(x * slope)
+    ax.plot(x_axes[0], ylines, linestyle='dashed', color='black')
 
   # ax.set_title(title)
   # if bbox(x,y) included then loc specifies which corner your moving

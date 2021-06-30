@@ -12,6 +12,19 @@ from scipy.stats.mstats import gmean
 
 import argparse, pickle, re
 
+# check if has the required series to make the graph
+def require_configs(data, plot_name, configs=[]):
+  configs = deepcopy(configs)
+  for row in data:
+    if (row['config'] in configs):
+      configs.remove(row['config'])
+
+  if len(configs) == 0:
+    return True
+  else:
+    print('Skipping plot of ' + plot_name + ' because missing required series ' + configs)
+    return False
+
 # sort data according to specified order (for bar data)
 def sort_by_sub_label(cur_order, values, desired_order):
   sorted_values = []
@@ -526,6 +539,69 @@ def plot_backpressure(data, prog_subset=['3dconv', 'gemm', '2dconv', 'bicg', 'sy
 
   line_plot(xaxes, values, labels, xlabels, 'Backpressure stalls relative to total vector cycles', 'backpressure_stalls', False, sub_plots_x=2, bbox=(0.925, 0.5), legend_loc='lower right', width_ratio=[1, 2.3333333])
 
+def plot_scalability_avg(data):
+
+  ncpu_io_cat_names = [ 'NV_NCPUS_1', 'NV_NCPUS_4', 'NV_NCPUS_16', 'NV_NCPUS_64' ]
+  ncpu_io_cat_actual = [ ['NV_NCPUS_1'], ['NV_NCPUS_4'], ['NV_NCPUS_16'], ['NV_NCPUS_64'] ]
+  
+  ncpu_nvpf_cat_names = [ 'NV_PF_NCPUS_1', 'NV_PF_NCPUS_4', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64' ]
+  ncpu_nvpf_cat_actual = [ ['NV_PF_NCPUS_1'], ['NV_PF_NCPUS_4'], ['NV_PF_NCPUS_16'], ['NV_PF_NCPUS_64'] ]
+
+  ncpu_o3_cat_names = [ 'NV_NCPUS_1_O3', 'NV_NCPUS_4_O3', 'NV_NCPUS_16_O3' ]
+  ncpu_o3_cat_actual = [ ['NV_NCPUS_1_O3'], ['NV_NCPUS_4_O3'], ['NV_NCPUS_16_O3'] ]
+
+  cat_names_arr = [ ncpu_io_cat_names, ncpu_nvpf_cat_names, ncpu_o3_cat_names ]
+  cat_actual_arr = [ ncpu_io_cat_actual, ncpu_nvpf_cat_actual, ncpu_o3_cat_actual ]
+
+
+  if (not require_configs(data, 'line_scalability', [ 'NV_NCPUS_1', 'NV_PF_NCPUS_1', 'NV_NCPUS_1_O3' ])):
+    return
+
+  series_data = []
+
+  for i in range(len(cat_names_arr)):
+
+    inst_data = filter_best_data(data, 'cycles', 
+      category_renames=cat_names_arr[i],
+      category_configs=cat_actual_arr[i])
+
+    (labels, sub_labels, values) = group_bar_data(inst_data, 'cycles', desired_config_order=cat_names_arr[i])
+
+    # flip from cycles to speedup normalized to NV
+    normalize(sub_labels, values, pref_base=cat_names_arr[i][0])
+    inverse(values)
+    add_geo_mean(labels, values)
+
+    # only take the avg
+    series = []
+    for v in values:
+      series.append(v[-1])
+    series_data.append(series)
+
+  # merge for multiple plots
+  xaxes  = [ [1, 4, 16, 64 ] ]
+
+  # reformat line data so that organized by x rather than series
+  line_values = []
+  for x in range(len(xaxes[0])):
+    xvals = []
+    for s in series_data:
+      if (x < len(s)):
+        xvals.append(s[x])
+      else:
+        xvals.append(float('nan'))
+    line_values.append(xvals)
+
+  values = [ line_values ]
+
+  labels = [ 'NV', 'NV_PF', 'O3', 'Ideal' ]
+  xlabels = 'Num Cores'
+
+  line_plot(xaxes, values, labels, xlabels, 'Avg Rel Speedup', 'line_scalability', False, 
+    sub_plots_x=1, bbox=(0.925, 0.5), legend_loc='lower right', width_ratio=[1, 2.3333333],
+    slope=1)
+
+
 def plot_frame_stalls(data):
   # (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep', desired_configs=['V4', 'V16'])
   # (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, includeV4, includeV16)
@@ -719,6 +795,9 @@ def plot_best_speedup(data, category_renames, category_configs, yaxis_name, grap
     category_renames=category_renames,
     category_configs=category_configs)
 
+  if (not require_configs(data, graph_name, [ category_renames[0] ])):
+    return
+
   (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=category_renames)
 
   # flip from cycles to speedup normalized to NV
@@ -849,7 +928,10 @@ def make_plots_and_tables(all_data):
     category_configs=ncpu_varied_actual,
     yaxis_name = 'Speedup Relative to Baseline (NV_NCPUS_1)',
     graph_name = 'speedup_nv_cpus',
-    ylim = [0, 30])
+    ylim = [0, 40])
+
+
+  plot_scalability_avg(all_data)
 
   exit()
 
