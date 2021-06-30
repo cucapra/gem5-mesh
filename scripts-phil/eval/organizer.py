@@ -539,37 +539,57 @@ def plot_backpressure(data, prog_subset=['3dconv', 'gemm', '2dconv', 'bicg', 'sy
 
   line_plot(xaxes, values, labels, xlabels, 'Backpressure stalls relative to total vector cycles', 'backpressure_stalls', False, sub_plots_x=2, bbox=(0.925, 0.5), legend_loc='lower right', width_ratio=[1, 2.3333333])
 
-def plot_scalability_avg(data):
+def plot_scalability_avg(data, stat_name='cycles', normalize_result=True, inverse_result=True, graph_name='line_scalability', yaxis_name='Avg Rel Speedup', shared_base=False, slope=float('nan'), mul_factor=1.0):
 
-  ncpu_io_cat_names = [ 'NV_NCPUS_1', 'NV_NCPUS_4', 'NV_NCPUS_16', 'NV_NCPUS_64' ]
-  ncpu_io_cat_actual = [ ['NV_NCPUS_1'], ['NV_NCPUS_4'], ['NV_NCPUS_16'], ['NV_NCPUS_64'] ]
-  
-  ncpu_nvpf_cat_names = [ 'NV_PF_NCPUS_1', 'NV_PF_NCPUS_4', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64' ]
-  ncpu_nvpf_cat_actual = [ ['NV_PF_NCPUS_1'], ['NV_PF_NCPUS_4'], ['NV_PF_NCPUS_16'], ['NV_PF_NCPUS_64'] ]
+  if (shared_base):
+    ncpu_io_cat_names = [ 'NV_NCPUS_1', 'NV_NCPUS_4', 'NV_NCPUS_16', 'NV_NCPUS_64' ]
+    ncpu_io_cat_actual = [ ['NV_NCPUS_1'], ['NV_NCPUS_4'], ['NV_NCPUS_16'], ['NV_NCPUS_64'] ]
+    
+    ncpu_nvpf_cat_names = [ 'NV_NCPUS_1', 'NV_PF_NCPUS_4', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64' ]
+    ncpu_nvpf_cat_actual = [ ['NV_NCPUS_1'], ['NV_PF_NCPUS_4'], ['NV_PF_NCPUS_16'], ['NV_PF_NCPUS_64'] ]
 
-  ncpu_o3_cat_names = [ 'NV_NCPUS_1_O3', 'NV_NCPUS_4_O3', 'NV_NCPUS_16_O3' ]
-  ncpu_o3_cat_actual = [ ['NV_NCPUS_1_O3'], ['NV_NCPUS_4_O3'], ['NV_NCPUS_16_O3'] ]
+    ncpu_o3_cat_names = [ 'NV_NCPUS_1', 'NV_NCPUS_4_O3', 'NV_NCPUS_16_O3' ]
+    ncpu_o3_cat_actual = [ ['NV_NCPUS_1'], ['NV_NCPUS_4_O3'], ['NV_NCPUS_16_O3'] ]
+  else:
+    ncpu_io_cat_names = [ 'NV_NCPUS_1', 'NV_NCPUS_4', 'NV_NCPUS_16', 'NV_NCPUS_64' ]
+    ncpu_io_cat_actual = [ ['NV_NCPUS_1'], ['NV_NCPUS_4'], ['NV_NCPUS_16'], ['NV_NCPUS_64'] ]
+    
+    ncpu_nvpf_cat_names = [ 'NV_PF_NCPUS_1', 'NV_PF_NCPUS_4', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64' ]
+    ncpu_nvpf_cat_actual = [ ['NV_PF_NCPUS_1'], ['NV_PF_NCPUS_4'], ['NV_PF_NCPUS_16'], ['NV_PF_NCPUS_64'] ]
+
+    ncpu_o3_cat_names = [ 'NV_NCPUS_1_O3', 'NV_NCPUS_4_O3', 'NV_NCPUS_16_O3' ]
+    ncpu_o3_cat_actual = [ ['NV_NCPUS_1_O3'], ['NV_NCPUS_4_O3'], ['NV_NCPUS_16_O3'] ]
+
 
   cat_names_arr = [ ncpu_io_cat_names, ncpu_nvpf_cat_names, ncpu_o3_cat_names ]
   cat_actual_arr = [ ncpu_io_cat_actual, ncpu_nvpf_cat_actual, ncpu_o3_cat_actual ]
 
 
-  if (not require_configs(data, 'line_scalability', [ 'NV_NCPUS_1', 'NV_PF_NCPUS_1', 'NV_NCPUS_1_O3' ])):
+  if (not require_configs(data, graph_name, [ 'NV_NCPUS_1', 'NV_PF_NCPUS_1', 'NV_NCPUS_1_O3' ])):
     return
 
   series_data = []
 
   for i in range(len(cat_names_arr)):
 
-    inst_data = filter_best_data(data, 'cycles', 
+    inst_data = filter_best_data(data, stat_name, 
       category_renames=cat_names_arr[i],
       category_configs=cat_actual_arr[i])
 
-    (labels, sub_labels, values) = group_bar_data(inst_data, 'cycles', desired_config_order=cat_names_arr[i])
+    (labels, sub_labels, values) = group_bar_data(inst_data, stat_name, desired_config_order=cat_names_arr[i])
+
+    # multiply by a factor
+    for v in values:
+      for vv in range(len(v)):
+        v[vv] *= mul_factor
 
     # flip from cycles to speedup normalized to NV
-    normalize(sub_labels, values, pref_base=cat_names_arr[i][0])
-    inverse(values)
+    if (normalize_result):
+      normalize(sub_labels, values, pref_base=cat_names_arr[i][0])
+    
+    if (inverse_result):
+      inverse(values)
+    
     add_geo_mean(labels, values)
 
     # only take the avg
@@ -597,9 +617,9 @@ def plot_scalability_avg(data):
   labels = [ 'NV', 'NV_PF', 'O3', 'Ideal' ]
   xlabels = 'Num Cores'
 
-  line_plot(xaxes, values, labels, xlabels, 'Avg Rel Speedup', 'line_scalability', False, 
+  line_plot(xaxes, values, labels, xlabels, yaxis_name, graph_name, False, 
     sub_plots_x=1, bbox=(0.925, 0.5), legend_loc='lower right', width_ratio=[1, 2.3333333],
-    slope=1)
+    slope=slope)
 
 
 def plot_frame_stalls(data):
@@ -931,7 +951,19 @@ def make_plots_and_tables(all_data):
     ylim = [0, 40])
 
 
-  plot_scalability_avg(all_data)
+  plot_scalability_avg(all_data, slope=1)
+  plot_scalability_avg(all_data, graph_name='line_scale_nv1', shared_base=True, slope=1)
+  plot_scalability_avg(all_data, stat_name='dram_bw_used', normalize_result=False, inverse_result=False, graph_name='dram_scale', yaxis_name='DRAM BW')
+
+  plot_scalability_avg(all_data, stat_name='llcAccessRate', normalize_result=False, inverse_result=False, graph_name='llcAccessRate_scale', yaxis_name='LLC Access / Cycle')
+  plot_scalability_avg(all_data, stat_name='llcMissRate', normalize_result=False, inverse_result=False, graph_name='llcMissRate_scale', yaxis_name='LLC Miss Rate')
+
+  # divide by 1000 because in ticks not cycles. see MessageBuffer.cc:249
+  plot_scalability_avg(all_data, stat_name='llcRequestStallTime', normalize_result=False, inverse_result=False, graph_name='llcRequestStallTime_scale', yaxis_name='LLC Avg Request Stall Cycles', mul_factor=1.0/1000.0)
+  plot_scalability_avg(all_data, stat_name='llcResponseStallTime', normalize_result=False, inverse_result=False, graph_name='llcResponseStallTime_scale', yaxis_name='LLC Avg Response Cycles', mul_factor=1.0/1000.0)
+  plot_scalability_avg(all_data, stat_name='frac_LLC_Busy_Cycles', normalize_result=False, inverse_result=False, graph_name='llcBusy_scale', yaxis_name='LLC Busy Cycles / Cycles')
+
+
 
   exit()
 
