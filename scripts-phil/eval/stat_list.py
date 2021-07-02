@@ -9,7 +9,7 @@ intRegexStr = '([0-9]+)'
 
 cpu_stats = OrderedDict([ 
   ('cycles' , { 
-    'regex' : re.compile('system.cpu0+.numCycles\s*' + intRegexStr),
+    'regex' : re.compile('system.cpu[0-9]*.numCycles\s*' + intRegexStr),
     'ignore-zero' : False,
   }), 
   ('icache_access' , { 
@@ -245,8 +245,15 @@ cpu_stats = OrderedDict([
   ('llcAccessRate', {
     'formula' : ['llc_access', 'cycles'],
     'formula_op' : lambda args: float(args[0]) / float(args[1]) if args[1] > 0 else 0,
-  })
+  }),
 
+
+  ('cpi-stack' ,  { 
+    'regex' : re.compile('system.cpu[0-9]*.iew.cpi_stack.cpi_stack_0::([a-zA-Z_]+)\s+' + intRegexStr),
+    'hist' : True,
+    'average' : True,
+    'split' : True
+  })
 
 ])
 

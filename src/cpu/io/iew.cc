@@ -26,7 +26,8 @@ IEW::IEW(IOCPU* _cpu_p, IOCPUParams* params, size_t in_size, size_t out_size)
       m_wb_width(params->writebackWidth),
       m_scoreboard_p(nullptr),
       m_pred_flag(true),
-      m_in_frame_stall(false)
+      m_in_frame_stall(false),
+      m_cpi_stack(name(), *params->clk_domain)
 {
   // create Int ALU exec unit
   assert(params->intAluOpLatency == 1); // need branch to check in one cycle for trace
@@ -205,6 +206,8 @@ IEW::regStats()
   executed_insts.ysubnames(Enums::OpClassStrings);
 
   m_mem_unit_p->regStats();
+
+  m_cpi_stack.regStats();
 }
 
 void
@@ -516,7 +519,20 @@ IEW::doIssue()
         if (inst_dep_on)
         {
           iew_dep_on[0][inst_dep_on->static_inst_p->opClass()]++;
+
+          auto opClass = inst_dep_on->static_inst_p->opClass();
+          if (opClass == OpClass::FloatMemRead || opClass == OpClass::MemRead) {
+            m_cpi_stack.setEventThisCycle(CPIStackInterace::CPIEvents::Stallon_Load);
+          }
+          else { 
+            m_cpi_stack.setEventThisCycle(CPIStackInterace::CPIEvents::Stallon_DepOther);
+          }
         }
+        else {
+          // not really sure what this means
+          m_cpi_stack.setEventThisCycle(CPIStackInterace::CPIEvents::Stallon_DepNone);
+        }
+
         return;
       }
     }
@@ -531,6 +547,8 @@ IEW::doIssue()
       m_stage_status.set(IEWStatus::IssueInitStall);
 #endif
       m_mem_barrier_stalls++;
+
+      m_cpi_stack.setEventThisCycle(CPIStackInterace::CPIEvents::Stallon_MemBarrier);
       return;
     }
 
@@ -558,10 +576,12 @@ IEW::doIssue()
         }
         if (numRememInFlight > 0) {
           m_frame_start_remem++;
+          m_cpi_stack.setEventThisCycle(CPIStackInterace::CPIEvents::Stallon_Remem);
           DPRINTF(Mesh, "[sn:%d] Can't issue frame start because remem in flight\n", inst->seq_num);
         }
         else {
           m_frame_start_tokens++;
+          m_cpi_stack.setEventThisCycle(CPIStackInterace::CPIEvents::Stallon_Frame);
           DPRINTF(Mesh, "[sn:%d] Can't issue frame start because not enough tokens %d\n", inst->seq_num, reqCnt);
         }
         // stall inst
@@ -597,6 +617,14 @@ IEW::doIssue()
       auto head_inst = rob->getHead();
       m_stall_rob_head_insts[0][head_inst->static_inst_p->opClass()]++;
 
+      auto opClass = head_inst->static_inst_p->opClass();
+      if (opClass == OpClass::MemWrite || opClass == OpClass::FloatMemWrite) {
+        m_cpi_stack.setEventThisCycle(CPIStackInterace::CPIEvents::Stallon_ROB_Store);
+      }
+      else {
+        m_cpi_stack.setEventThisCycle(CPIStackInterace::CPIEvents::Stallon_ROB_Other);
+      }
+
       return;
     }
 
@@ -618,6 +646,7 @@ IEW::doIssue()
       if (inst->static_inst_p->isSpadPrefetch())
         DPRINTF(Mesh, "[sn:%d] exec unit busy for prelw\n", inst->seq_num);
       m_exe_unit_busy_stalls++;
+      m_cpi_stack.setEventThisCycle(CPIStackInterace::CPIEvents::Stallon_ExeUnit);
       return;
     }
 
@@ -677,6 +706,17 @@ IEW::doIssue()
 #endif
   }
 
+  // if got here then either issued or no instructions
+  if (num_issued_insts > 0) {
+    m_cpi_stack.setEventThisCycle(CPIStackInterace::CPIEvents::Issued);
+  }
+  else {
+    assert (m_insts.empty());
+    if (m_cpu_p->getVectorConfigured())
+      m_cpi_stack.setEventThisCycle(CPIStackInterace::CPIEvents::Stallon_INET_Pull);
+    else
+      m_cpi_stack.setEventThisCycle(CPIStackInterace::CPIEvents::Stallon_Fetch);
+  }
   
 }
 

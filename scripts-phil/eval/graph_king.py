@@ -8,7 +8,7 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt
 from cycler import cycler
 import numpy as np
-from math import floor, ceil
+from math import floor, ceil, isnan
 from copy import deepcopy
 import json
 
@@ -21,7 +21,7 @@ def is_number(obj):
   return (isinstance(obj, (int, float)) and not isinstance(obj, bool))
 
 # create specified barplot and write to file
-def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[], horiz_line=''):
+def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[], horiz_line='', stacked=False):
   mpl.rcParams['axes.prop_cycle'] = default_prop_cycle
   # labels = ['G1', 'G2', 'G3', 'G4', 'G5']
   # men_means = [20, 34, 30, 35, 27]
@@ -31,9 +31,12 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
   # figure out bar dimensions
   slack = 0.3
   num_sub_bars = len(sub_labels)
-  width = (1 - slack) / num_sub_bars # the width of a single bar
-
-  first_bar_offset = width / -2 * (num_sub_bars-1)
+  if (stacked):
+    width = (1 - slack)
+    first_bar_offset = 0
+  else:
+    width = (1 - slack) / num_sub_bars # the width of a single bar
+    first_bar_offset = width / -2 * (num_sub_bars-1)
 
   if USE_COLOR:
     with open(COLOR_JSON) as f:
@@ -42,10 +45,24 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
   fig, ax = plt.subplots()
   rects = []
   for i in range(num_sub_bars):
-    if USE_COLOR and str(num_sub_bars) in all_colors.keys():
-      new_rect = ax.bar(x + first_bar_offset + i * width, values[i], width, color= all_colors[str(num_sub_bars)][i], label=sub_labels[i])
+    x_pos = x + first_bar_offset
+    y_pos = np.zeros(len(labels))
+    # print('start subbar ' + str(i))
+    if (stacked):
+      # loop over each val in cluster
+      for rcontain in rects:
+        # print('start rcontain')
+        # loop over all series
+        for rect_idx in range(len(rcontain)):
+          prev_rect = rcontain[rect_idx]
+          # print(str(y_pos) + ' += ' + str(prev_rect.get_height()))
+          y_pos[rect_idx] += prev_rect.get_height()
     else:
-      new_rect = ax.bar(x + first_bar_offset + i * width, values[i], width, label=sub_labels[i])
+      x_pos += i * width
+    if USE_COLOR and str(num_sub_bars) in all_colors.keys():
+      new_rect = ax.bar(x_pos, values[i], width, color= all_colors[str(num_sub_bars)][i], label=sub_labels[i], bottom=y_pos)
+    else:
+      new_rect = ax.bar(x_pos, values[i], width, label=sub_labels[i], bottom=y_pos)
     rects.append(new_rect)
   # rects1 = ax.bar(x - width/2, men_means, width, label='Men')
   # rects2 = ax.bar(x + width/2, women_means, width, label='Women')
@@ -166,7 +183,7 @@ def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, d
       
 
   # add a line with m=1
-  if (slope != float('nan')):
+  if (not isnan(slope)):
     ylines = []
     for x in x_axes[0]:
       ylines.append(x * slope)

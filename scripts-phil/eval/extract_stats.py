@@ -68,6 +68,9 @@ def parse_dir_name(dirName):
 def is_hist_stat(v):
   return ('hist' in v) and v['hist']
 
+def is_split_hist_stat(v):
+  return is_hist_stat(v) and (('split' in v) and v['split'])
+
 def is_formula_stat(v):
   return ('formula' in v)
 
@@ -100,6 +103,7 @@ def parse_file(fileName, stat_info):
     #   pass
     if (is_hist_stat(v)):
       stat_data[k]['buckets'] = {}
+      stat_data[k]['counts'] = {}
       stat_data[k]['avg'] = 0
     elif (is_seperated(v)):
       # relying on order to be 0-64
@@ -148,9 +152,12 @@ def parse_file(fileName, stat_info):
           
           if ((not (ignore_zero and (arith_val == 0))) and (not has_upper_bound or arith_val < upper_bound)):
             if (is_hist_stat(v)):
+              # print('check hist stat ' + k + ' ' + bucket_range + ' ' + str(arith_val))
               if (not bucket_range in stat_data[k]['buckets']):
                 stat_data[k]['buckets'][bucket_range] = 0
+                stat_data[k]['counts'][bucket_range] = 0
               stat_data[k]['buckets'][bucket_range] += arith_val
+              stat_data[k]['counts'][bucket_range] += 1
             elif (is_seperated(v)):
               if (len(stat_data[k]['avg']) <= module_id):
                 stat_data[k]['avg'].append(arith_val)
@@ -176,9 +183,15 @@ def parse_file(fileName, stat_info):
       average = v['average']
 
     if (average):
+      # create avg by dividing by count
       if (not is_hist_stat(v)):
         if (stat_data[k]['count'] > 0):
           stat_data[k]['avg'] /= stat_data[k]['count']
+      # for split hist keep each series average seperate
+      if (is_split_hist_stat(v)):
+        for bk, bv in stat_data[k]['buckets'].items():
+          if (stat_data[k]['counts'][bk] > 0):
+            stat_data[k]['buckets'][bk] /= stat_data[k]['counts'][bk]
 
     # check if should do energy analysis
     if ('energy' in v):
@@ -270,7 +283,12 @@ def parse_results_dir(results_dir_name, stats_info):
     for k,v in annos.items():
       stat_dict[k] = v
     for k,v in rawStats.items():
-      stat_dict[k] = v['avg']
+      # if split hist then need to take buckets
+      if (is_split_hist_stat(stats_info[k])):
+        stat_dict[k] = v['buckets']
+      # otherwise just take the average
+      else:
+        stat_dict[k] = v['avg']
 
     stat_dict['_path_'] = dirPath
 
@@ -340,7 +358,7 @@ for data in all_data:
     # else:
     if (k in data):
       dat = ''
-      if (isinstance(data[k], list)):
+      if (isinstance(data[k], list) or isinstance(data[k], dict)):
         # for d in data[k]:
         #   dat += '{} '.format(d)
         dat = 'not shown due to space'
@@ -362,8 +380,8 @@ for data in all_data:
 
     dat = 0
     if (k in data):
-      # dont handle lists
-      if (isinstance(data[k], list)):
+      # dont handle lists or dicts
+      if (isinstance(data[k], list) or isinstance(data[k], dict)):
         dat = 0
       else:
         dat = data[k]

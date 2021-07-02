@@ -22,7 +22,7 @@ def require_configs(data, plot_name, configs=[]):
   if len(configs) == 0:
     return True
   else:
-    print('Skipping plot of ' + plot_name + ' because missing required series ' + configs)
+    print('Skipping plot of ' + plot_name + ' because missing required series ' + str(configs))
     return False
 
 # sort data according to specified order (for bar data)
@@ -275,26 +275,45 @@ def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar
 
 # group together similar series and get preferred field
 # expects 3 meta fields(prog, config, meta) along with desired_field
-def group_bar_data(data, desired_field, desired_config_order= [ 'NV', 'NV_PF', 'PACKED_SIMD', 'V4', 'V16', 'GPU' ]):
+def group_bar_data(data, desired_field, desired_config_order= [ 'NV', 'NV_PF', 'PACKED_SIMD', 'V4', 'V16', 'GPU' ], do_single_config=''):
   # hash of hash
   values = {}
 
+  process_stat_dict = do_single_config != ''
+
   # extra data
   for row in data:
+    if (process_stat_dict):
+      if row['config'] != do_single_config:
+        continue
+
     # first check if we have something to match. both prog and meta should match
     label_str = row['prog'] + row['meta']
     if (not label_str in values):
       values[label_str] = {}
       values[label_str]['_meta_'] = {}
 
+    # if process stat dict then look at dict of stats for one config
+    if (process_stat_dict):
+      
+      if (desired_field in row):
+        sub_vals = row[desired_field]
+      else:
+        sub_vals = {}
 
-    if (desired_field in row):
-      single_val = row[desired_field]
+      # turn sub stats into seperate series
+      for k,v in sub_vals.items():
+        values[label_str][k] = v
+      values[label_str]['_meta_']['prog_name'] = row['prog']
+    # if processing a single stat, then can look at multiple configs
     else:
-      single_val = 0
+      if (desired_field in row):
+        single_val = row[desired_field]
+      else:
+        single_val = 0
 
-    values[label_str][row['config']] = single_val
-    values[label_str]['_meta_']['prog_name'] = row['prog']
+      values[label_str][row['config']] = single_val
+      values[label_str]['_meta_']['prog_name'] = row['prog']
 
   # flatten labels and values for display
   labels = []
@@ -621,6 +640,19 @@ def plot_scalability_avg(data, stat_name='cycles', normalize_result=True, invers
     sub_plots_x=1, bbox=(0.925, 0.5), legend_loc='lower right', width_ratio=[1, 2.3333333],
     slope=slope)
 
+def plot_cpi_stack(data):
+
+  # TODO prob want to get a field for everything recorded here - totalCycles!
+
+  (labels, sub_labels, values) = group_bar_data(data, 'cpi-stack', 
+    ['Issued', 'Stallon_Fetch', 'Stallon_INET_Pull', 'Stallon_Load', 'Stallon_DepOther', 'Stallon_Frame', 'Stallon_ExeUnit', 'Stallon_ROB_Other'], 
+    'NV_PF_NCPUS_64__dram_bw_32')
+  
+  normalize(sub_labels, values, pref_base='Issued')
+  add_arith_mean(labels, values) # geomean doesnt make sense
+  
+  bar_plot(labels, sub_labels, values, 'CPI Stack', 'cpi_stack_nvpf', stacked=True)
+  # (labels, sub_labels, values) = group_bar_data(data, disp_stat, desired_config_order=category_renames)
 
 def plot_frame_stalls(data):
   # (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep', desired_configs=['V4', 'V16'])
@@ -808,21 +840,23 @@ def plot_all_router_stalls(data):
   (labels, sub_labels, values) = group_bar_data(data, 'router_out_stalls_all')
   bar_plot(labels, sub_labels, values, 'RouteOutStall', 'RouteOutStall', False)
 
-def plot_best_speedup(data, category_renames, category_configs, yaxis_name, graph_name, ylim=[0, 15], do_norm_to_cores=False):
+def plot_best_speedup(data, category_renames, category_configs, yaxis_name, graph_name, ylim=[0, 15], do_norm_to_cores=False, cmp_stat='cycles', disp_stat='cycles', normalize_result=True, inverse_result=True):
   # filter by min cycles
 
-  data = filter_best_data(data, 'cycles', 
+  data = filter_best_data(data, cmp_stat, 
     category_renames=category_renames,
     category_configs=category_configs)
 
   if (not require_configs(data, graph_name, [ category_renames[0] ])):
     return
 
-  (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=category_renames)
+  (labels, sub_labels, values) = group_bar_data(data, disp_stat, desired_config_order=category_renames)
 
   # flip from cycles to speedup normalized to NV
-  normalize(sub_labels, values, pref_base=category_renames[0])
-  inverse(values)
+  if (normalize_result):
+    normalize(sub_labels, values, pref_base=category_renames[0])
+  if (inverse_result):
+    inverse(values)
 
   if (do_norm_to_cores):
     normalize_by_core_count(sub_labels, values)
@@ -963,7 +997,21 @@ def make_plots_and_tables(all_data):
   plot_scalability_avg(all_data, stat_name='llcResponseStallTime', normalize_result=False, inverse_result=False, graph_name='llcResponseStallTime_scale', yaxis_name='LLC Avg Response Cycles', mul_factor=1.0/1000.0)
   plot_scalability_avg(all_data, stat_name='frac_LLC_Busy_Cycles', normalize_result=False, inverse_result=False, graph_name='llcBusy_scale', yaxis_name='LLC Busy Cycles / Cycles')
 
+  plot_scalability_avg(all_data, stat_name='dram_reads', normalize_result=True, inverse_result=False, graph_name='dramReads', yaxis_name='DRAM Reads Rel to 1core')
 
+
+  plot_best_speedup(all_data,
+    category_renames=ncpu_nvpf_cat_names,
+    category_configs=ncpu_nvpf_cat_actual,
+    yaxis_name = 'DRAM BW',
+    graph_name = 'iopf_dram',
+    ylim = [0, float('inf')],
+    do_norm_to_cores=False,
+    inverse_result=False,
+    normalize_result=False,
+    disp_stat='dram_bw_used')
+
+  plot_cpi_stack(all_data)
 
   exit()
 
