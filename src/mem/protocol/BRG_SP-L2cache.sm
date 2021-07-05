@@ -128,6 +128,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
     void deallocate(Addr);
     bool isPresent(Addr);
     bool areNSlotsAvailable(int, Tick);
+    TBE getNULL();
   }
 
   //---------------------------------------------------------------------------
@@ -650,7 +651,7 @@ machine(MachineType:L2Cache, "SP LLC cache")
             DPRINTF(Frame, "no tbes req addr %#x line %#x curCnt %d to cnt %d\n", 
               in_msg.WordAddress, LineAddress, getPortVecCnt(true), respCnt);
           }
-          TBE tbe := TBEs[LineAddress];
+          TBE tbe := TBEs.getNULL(); // := TBEs[LineAddress];
           trigger(Event:STALL, LineAddress, cache_entry, tbe);
         }
       }

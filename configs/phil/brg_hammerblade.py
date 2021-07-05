@@ -437,6 +437,8 @@ if (options.cpu_type == 'DerivO3CPU'):
   # make sure stream width matches lsq size
   options.stream_width = CPUClass.LQEntries + CPUClass.SQEntries
 else:
+  if (options.cpu_type != 'IOCPU'):
+    print('WARNING: Only support IOCPU (w or w/o vector) or DerivO3Cpu (w/o vector)')
   # CPU class
   CPUClass = IOCPU (
     includeVector = options.vector,

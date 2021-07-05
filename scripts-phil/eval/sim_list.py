@@ -39,11 +39,13 @@ LONGLINES_CONFIGS = [
 BFS_CONFIGS = ['NO_VEC', 'VECTOR_LEN=4', 'VECTOR_LEN=16']
 
 
+# ALL_CONFIGS = [ 
+#   ['NO_VEC', 'NCPUS=1'],
+#   ['NO_VEC', 'NCPUS=4'],
+#   ['NO_VEC', 'NCPUS=16'],
+#   ['NO_VEC', 'NCPUS=64']
+# ]
 ALL_CONFIGS = [ 
-  ['NO_VEC', 'NCPUS=1'],
-  ['NO_VEC', 'NCPUS=4'],
-  ['NO_VEC', 'NCPUS=16'],
-  ['NO_VEC', 'NCPUS=64'],
   [ 'NO_VEC', 'MANYCORE_PREFETCH', 'NCPUS=1' ],
   [ 'NO_VEC', 'MANYCORE_PREFETCH', 'NCPUS=4' ],
   [ 'NO_VEC', 'MANYCORE_PREFETCH', 'NCPUS=16' ],
@@ -51,8 +53,13 @@ ALL_CONFIGS = [
 ]
 LONGLINES_CONFIGS = []
 BFS_CONFIGS = [ ]
+# HW_OPTS = [
+#   '',
+#   '--cpu-type=DerivO3CPU'
+#   ]
 HW_OPTS = [
-  ''
+  '',
+  '--dram-bw=32'
   ]
 
 
@@ -78,7 +85,7 @@ sim_configs = {
     'hw_opts' : HW_OPTS
   },
   'gram'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + ['PER_CORE_SIMD'],
+    'vec'  : ALL_CONFIGS + INIT0_CONFIGS, # + ['PER_CORE_SIMD'],
     'argv' : ['320'],
     'hw_opts' : HW_OPTS
   },
@@ -262,6 +269,8 @@ def abbreviate_config(config):
     return 'CL1024'
   elif (config == 'CACHE_LINE_SIZE_256'):
     return 'CL256'
+  elif (config == '__cpu_type_DerivO3CPU'):
+    return '_O3'
   elif (config[0:11] == 'VECTOR_LEN='):
     return config[11:len(config)]
   elif (config[0:3] == 'PF='):

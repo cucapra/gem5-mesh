@@ -57,7 +57,7 @@ from network import Network
 
 def define_options(parser):
     # By default, ruby uses the simple timing cpu
-    parser.set_defaults(cpu_type="TimingSimpleCPU")
+    parser.set_defaults(cpu_type="IOCPU")
 
     parser.add_option("--ruby-clock", action="store", type="string",
                       default='2GHz',
