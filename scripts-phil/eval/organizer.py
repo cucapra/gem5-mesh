@@ -7,7 +7,7 @@ from math import floor, ceil, isnan
 from copy import deepcopy
 from graph_king import bar_plot, line_plot, heatmap
 from table_king import make_table
-from layout_helper import get_mesh_dist_sequence
+from layout_helper import get_mesh_dist_sequence, is_vec_4_config, is_vec_16_config, is_vec_config
 from scipy.stats.mstats import gmean
 
 import argparse, pickle, re
@@ -216,23 +216,13 @@ def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar
   # print(v16_hops)
   xaxes = []
 
-  v4_configs = [
-    'V4',
-    'VEC_4_SIMD_VERTICAL',
-    'VEC_4_REUSE_VERTICAL',
-    'VEC_4_SIMD_UNROLL'
-  ]
-  v16_configs = [
-    'V16'
-  ]
-
   i = 0
   while (i < len(configs)):
-    if (((configs[i] in v4_configs) and include_v4) or
-        ((configs[i] in v16_configs) and include_v16)):
+    if (((is_vec_4_config(configs[i])) and include_v4) or
+        ((is_vec_16_config(configs[i])) and include_v16)):
       hop_avgs = []
       hop_cnts = []
-      max_hops = 7 if configs[i] in v16_configs else 3
+      max_hops = 7 if is_vec_16_config(configs[i]) else 3
       min_cnt = 1
       max_cnt = max_hops+1
       if include_scalar:
@@ -245,7 +235,7 @@ def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar
 
       xaxes.append(np.arange(min_cnt, max_cnt))
 
-      hop_list = v16_hops if (configs[i] in v16_configs) else v4_hops
+      hop_list = v16_hops if (is_vec_16_config(configs[i])) else v4_hops
       for j in range(len(hop_list)):
         # avg >0
         hops = hop_list[j]
@@ -640,18 +630,53 @@ def plot_scalability_avg(data, stat_name='cycles', normalize_result=True, invers
     sub_plots_x=1, bbox=(0.925, 0.5), legend_loc='lower right', width_ratio=[1, 2.3333333],
     slope=slope)
 
-def plot_cpi_stack(data):
+def plot_cpi_stack(data, config_name='NV_PF_NCPUS_64__dram_bw_32', graph_name='cpi_stack_nvpf', yaxis_name='CPI Stack'):
+
+  if (not require_configs(data, graph_name, [config_name])):
+    return
+
+  series_name = 'cpi-stack'
+
+  # determine if vector config, in which case want to just look at for expander cores IMO
+  if (is_vec_config(config_name)):
+    if (is_vec_4_config(config_name)):
+      hops = get_mesh_dist_sequence('V4')
+    else:
+      hops = get_mesh_dist_sequence('V16')
+
+    # average everything at hop 1
+    new_series_name = 'cpi-stack-expander'
+    data = deepcopy(data)
+    for row in data:
+      if (row['config'] != config_name):
+        continue
+
+      row[new_series_name] = {}
+
+      for k,v in row['cpi-stack-sep'].items():
+        avg = 0
+        cnt = 0
+        # look at each cores and check where it is in a group
+        for h_idx in range(len(hops)):
+          # only consider hop 1 cores (expander)
+          if (hops[h_idx] == 1):
+            # print(str(h_idx) + ' ' + str(v[h_idx]))
+            avg += v[h_idx]
+            cnt += 1
+        row[new_series_name][k] = avg / cnt
+
+    series_name = new_series_name
+
 
   # TODO prob want to get a field for everything recorded here - totalCycles!
-
-  (labels, sub_labels, values) = group_bar_data(data, 'cpi-stack', 
+  (labels, sub_labels, values) = group_bar_data(data, series_name, 
     ['Issued', 'Stallon_Fetch', 'Stallon_INET_Pull', 'Stallon_Load', 'Stallon_DepOther', 'Stallon_Frame', 'Stallon_ExeUnit', 'Stallon_ROB_Other'], 
-    'NV_PF_NCPUS_64__dram_bw_32')
+    config_name)
   
   normalize(sub_labels, values, pref_base='Issued')
   add_arith_mean(labels, values) # geomean doesnt make sense
   
-  bar_plot(labels, sub_labels, values, 'CPI Stack', 'cpi_stack_nvpf', stacked=True)
+  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, stacked=True)
   # (labels, sub_labels, values) = group_bar_data(data, disp_stat, desired_config_order=category_renames)
 
 def plot_frame_stalls(data):
@@ -1012,6 +1037,7 @@ def make_plots_and_tables(all_data):
     disp_stat='dram_bw_used')
 
   plot_cpi_stack(all_data)
+  plot_cpi_stack(all_data, config_name='V4', graph_name='v4_cpi')
 
   exit()
 

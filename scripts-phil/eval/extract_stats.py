@@ -151,17 +151,31 @@ def parse_file(fileName, stat_info):
             arith_val = float(val)
           
           if ((not (ignore_zero and (arith_val == 0))) and (not has_upper_bound or arith_val < upper_bound)):
+            # handle hist stat parsing
             if (is_hist_stat(v)):
               # print('check hist stat ' + k + ' ' + bucket_range + ' ' + str(arith_val))
               if (not bucket_range in stat_data[k]['buckets']):
-                stat_data[k]['buckets'][bucket_range] = 0
-                stat_data[k]['counts'][bucket_range] = 0
-              stat_data[k]['buckets'][bucket_range] += arith_val
-              stat_data[k]['counts'][bucket_range] += 1
+                # if bucket doesnt exist, then add it
+                if (is_seperated(v)):
+                  stat_data[k]['buckets'][bucket_range] = []
+                  stat_data[k]['counts'][bucket_range] = []
+                else:
+                  stat_data[k]['buckets'][bucket_range] = 0
+                  stat_data[k]['counts'][bucket_range] = 0
+              
+              # add val, if seperated append to list or doing avg then sum
+              # appending is fine b/c gaurenteed cores in order
+              if (is_seperated(v)):
+                stat_data[k]['buckets'][bucket_range].append(arith_val)
+              else:
+                stat_data[k]['buckets'][bucket_range] += arith_val
+                stat_data[k]['counts'][bucket_range] += 1
+            # handle where scalar stat is saved per core and not averaged
             elif (is_seperated(v)):
               if (len(stat_data[k]['avg']) <= module_id):
                 stat_data[k]['avg'].append(arith_val)
               else:
+                # dont think this case is needed b/c stat file has cores in order?
                 stat_data[k]['avg'][module_id] += arith_val
             else:
               if ('max' in v and v['max']):

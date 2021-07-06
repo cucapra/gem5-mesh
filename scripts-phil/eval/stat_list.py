@@ -253,6 +253,14 @@ cpu_stats = OrderedDict([
     'hist' : True,
     'average' : True,
     'split' : True
+  }),
+
+  ('cpi-stack-sep' ,  { 
+    'regex' : re.compile('system.cpu[0-9]*.iew.cpi_stack.cpi_stack_0::([a-zA-Z_]+)\s+' + intRegexStr),
+    'hist' : True,
+    'average' : False,
+    'split' : True,
+    'seperate-cores' : True
   })
 
 ])

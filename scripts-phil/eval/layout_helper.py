@@ -49,6 +49,17 @@ v16_layout = {
   ]
 }
 
+# names that are associated with vector configs
+v4_configs = [
+  'V4',
+  'VEC_4_SIMD_VERTICAL',
+  'VEC_4_REUSE_VERTICAL',
+  'VEC_4_SIMD_UNROLL'
+]
+v16_configs = [
+  'V16'
+]
+
 # get the layout correspnding to the name
 def get_layout(config_name):
   if (config_name == 'V4'):
@@ -103,3 +114,11 @@ def get_mesh_dist_sequence(config_name, num_cpus=64):
     seq.append(get_mesh_dist(config_name, i, num_cpus))
   return seq
 
+def is_vec_4_config(config_name):
+  return config_name in v4_configs
+
+def is_vec_16_config(config_name):
+  return config_name in v16_configs
+
+def is_vec_config(config_name):
+  return is_vec_4_config(config_name) or is_vec_16_config(config_name)
