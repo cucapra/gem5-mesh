@@ -630,53 +630,73 @@ def plot_scalability_avg(data, stat_name='cycles', normalize_result=True, invers
     sub_plots_x=1, bbox=(0.925, 0.5), legend_loc='lower right', width_ratio=[1, 2.3333333],
     slope=slope)
 
-def plot_cpi_stack(data, config_name='NV_PF_NCPUS_64__dram_bw_32', graph_name='cpi_stack_nvpf', yaxis_name='CPI Stack'):
+def plot_cpi_stack(data, config_names=['NV_PF_NCPUS_64__dram_bw_32'], graph_name='cpi_stack_nvpf', yaxis_name='CPI Stack'):
 
-  if (not require_configs(data, graph_name, [config_name])):
+  if (not require_configs(data, graph_name, config_names)):
     return
 
   series_name = 'cpi-stack'
+  # hist_series = ['Issued', 'Stallon_Fetch', 'Stallon_INET_Pull', 'Stallon_Load', 'Stallon_DepOther', 'Stallon_Frame', 'Stallon_ExeUnit', 'Stallon_ROB_Other']
+  hist_series = ['Issued', 'Stallon_INET_Pull', 'Stallon_Frame']
 
-  # determine if vector config, in which case want to just look at for expander cores IMO
-  if (is_vec_config(config_name)):
-    if (is_vec_4_config(config_name)):
-      hops = get_mesh_dist_sequence('V4')
-    else:
-      hops = get_mesh_dist_sequence('V16')
+  # 'Other' includes everything not plotted
+  plotted_series = hist_series + ['Other']
 
-    # average everything at hop 1
-    new_series_name = 'cpi-stack-expander'
-    data = deepcopy(data)
-    for row in data:
-      if (row['config'] != config_name):
-        continue
+  data = deepcopy(data)
 
-      row[new_series_name] = {}
+  merged_sub_labels = []
+  merged_values = []
 
-      for k,v in row['cpi-stack-sep'].items():
-        avg = 0
-        cnt = 0
-        # look at each cores and check where it is in a group
-        for h_idx in range(len(hops)):
-          # only consider hop 1 cores (expander)
-          if (hops[h_idx] == 1):
-            # print(str(h_idx) + ' ' + str(v[h_idx]))
-            avg += v[h_idx]
-            cnt += 1
-        row[new_series_name][k] = avg / cnt
+  # determine if vector config, in which case want to just look at for expander cores IMO (just replace the data of the other one)
+  for config_name in config_names:
+    if (is_vec_config(config_name)):
+      if (is_vec_4_config(config_name)):
+        hops = get_mesh_dist_sequence('V4')
+      else:
+        hops = get_mesh_dist_sequence('V16')
 
-    series_name = new_series_name
+      # average everything at hop 1
+      # new_series_name = 'cpi-stack-expander'
+      
+      for row in data:
+        if (row['config'] != config_name):
+          continue
 
+        # row[new_series_name] = {}
 
-  # TODO prob want to get a field for everything recorded here - totalCycles!
-  (labels, sub_labels, values) = group_bar_data(data, series_name, 
-    ['Issued', 'Stallon_Fetch', 'Stallon_INET_Pull', 'Stallon_Load', 'Stallon_DepOther', 'Stallon_Frame', 'Stallon_ExeUnit', 'Stallon_ROB_Other'], 
-    config_name)
+        for k,v in row['cpi-stack-sep'].items():
+          avg = 0
+          cnt = 0
+          # look at each cores and check where it is in a group
+          for h_idx in range(len(hops)):
+            # only consider hop 1 cores (expander)
+            if (hops[h_idx] == 1):
+              # print(str(h_idx) + ' ' + str(v[h_idx]))
+              avg += v[h_idx]
+              cnt += 1
+          row[series_name][k] = avg / cnt
+
+      # series_name = new_series_name
+
+        # Calculate "Other" including series dont plot and any missed cycles (small amount <5%)
+        sum_plotted = 0
+        for h in hist_series:
+          sum_plotted += row[series_name][h]
+        row[series_name]['Other'] = row['cycles'] - sum_plotted
+
+    # get single formatted series
+    (labels, sub_labels, values) = group_bar_data(data, series_name, plotted_series, config_name)
+    normalize(sub_labels, values, pref_base='Issued')
+    add_arith_mean(labels, values) # geomean doesnt make sense
+    
+    # need to merge the values Sub_label -> Label (so just need to append arrays)
+    for config_data in values:
+      merged_values.append(config_data)
+
+    for slabel in sub_labels:
+      merged_sub_labels.append(slabel)
   
-  normalize(sub_labels, values, pref_base='Issued')
-  add_arith_mean(labels, values) # geomean doesnt make sense
-  
-  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, stacked=True)
+  bar_plot(labels, merged_sub_labels, merged_values, yaxis_name, graph_name, stacked=True, stacknum=len(plotted_series))
   # (labels, sub_labels, values) = group_bar_data(data, disp_stat, desired_config_order=category_renames)
 
 def plot_frame_stalls(data):
@@ -1036,8 +1056,11 @@ def make_plots_and_tables(all_data):
     normalize_result=False,
     disp_stat='dram_bw_used')
 
-  plot_cpi_stack(all_data)
-  plot_cpi_stack(all_data, config_name='V4', graph_name='v4_cpi')
+  # plot_cpi_stack(all_data)
+  plot_cpi_stack(all_data, config_names=['V4', 'V16'], graph_name='v4_cpi')
+  # plot_cpi_stack(all_data, config_names=['V4__dram_bw_32'], graph_name='v4_dr32_cpi')
+  # plot_cpi_stack(all_data, config_names=['V16'], graph_name='v16_cpi')
+  # plot_cpi_stack(all_data, config_names=['V4_PCV'], graph_name='v4pcv_cpi')
 
   exit()
 

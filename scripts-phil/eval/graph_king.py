@@ -21,7 +21,18 @@ def is_number(obj):
   return (isinstance(obj, (int, float)) and not isinstance(obj, bool))
 
 # create specified barplot and write to file
-def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[], horiz_line='', stacked=False):
+# Labels are the x axis names
+# Sub labels are clustered/stacked field names
+# Values is the data formatted as SubLabel_Data -> Label_Data (?)
+# Ylabel is y axis title
+# Title is graph name
+# Annotate will display value of field is clips the graph dimensinos
+# Ylim is the bound of y axis
+# Horiz_line will insert a line at specified point
+# Stack is whether to sub label bars instead of cluster
+# Stacknum is how many to stack before creating another sub field in cluster. -1 means all stack
+# TODO for stacked clustered might want have config labels. Could do with second axis place below or do annotations below each bar (like what do with clipping)
+def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[], horiz_line='', stacked=False, stacknum=-1):
   mpl.rcParams['axes.prop_cycle'] = default_prop_cycle
   # labels = ['G1', 'G2', 'G3', 'G4', 'G5']
   # men_means = [20, 34, 30, 35, 27]
@@ -31,38 +42,61 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
   # figure out bar dimensions
   slack = 0.3
   num_sub_bars = len(sub_labels)
+
+  # how many clustred bars should have (not stacked)
   if (stacked):
-    width = (1 - slack)
-    first_bar_offset = 0
+    if (stacknum <= 0):
+      num_cluster_bars = 1
+    else:
+      num_cluster_bars = num_sub_bars / stacknum
   else:
-    width = (1 - slack) / num_sub_bars # the width of a single bar
-    first_bar_offset = width / -2 * (num_sub_bars-1)
+    num_cluster_bars = num_sub_bars
+
+  width = (1 - slack) / num_cluster_bars # the width of a single bar
+  first_bar_offset = width / -2 * (num_cluster_bars-1)
+  stack_count = ( num_sub_bars / num_cluster_bars)
 
   if USE_COLOR:
     with open(COLOR_JSON) as f:
       all_colors = json.load(f)
 
-  fig, ax = plt.subplots()
+    # need to be able to force to the same color when stacked and clustered
+    if (stacked and num_cluster_bars > 1):
+      assert(str(stack_count) in all_colors.keys())
+
+  # if both stacked and clustered then increase figsize over default of figsize=(6.4,4.8)
+  if (stacked and num_cluster_bars > 1):
+    fig, ax = plt.subplots(figsize=(12.8,4.8))
+    edgecolor='black'
+  else:
+    fig, ax = plt.subplots()
+    edgecolor='none'
   rects = []
   for i in range(num_sub_bars):
-    x_pos = x + first_bar_offset
+    cluster_idx = i / stack_count
+    stack_idx = i % stack_count
+    x_pos = x + first_bar_offset + cluster_idx * width
     y_pos = np.zeros(len(labels))
+    bar_label = sub_labels[stack_idx]
     # print('start subbar ' + str(i))
     if (stacked):
-      # loop over each val in cluster
-      for rcontain in rects:
+      # dont double label if stacked and clustered
+      if cluster_idx > 0:
+        bar_label = ''
+
+      # loop over each val in the same stack
+      for rcontain_idx in range(cluster_idx*stack_count, len(rects)):
+        rcontain = rects[rcontain_idx]
         # print('start rcontain')
         # loop over all series
         for rect_idx in range(len(rcontain)):
           prev_rect = rcontain[rect_idx]
           # print(str(y_pos) + ' += ' + str(prev_rect.get_height()))
           y_pos[rect_idx] += prev_rect.get_height()
+    if USE_COLOR and str(stack_count) in all_colors.keys():
+      new_rect = ax.bar(x_pos, values[i], width, color= all_colors[str(stack_count)][stack_idx], label=bar_label, bottom=y_pos, edgecolor=edgecolor)
     else:
-      x_pos += i * width
-    if USE_COLOR and str(num_sub_bars) in all_colors.keys():
-      new_rect = ax.bar(x_pos, values[i], width, color= all_colors[str(num_sub_bars)][i], label=sub_labels[i], bottom=y_pos)
-    else:
-      new_rect = ax.bar(x_pos, values[i], width, label=sub_labels[i], bottom=y_pos)
+      new_rect = ax.bar(x_pos, values[i], width, label=bar_label, bottom=y_pos)
     rects.append(new_rect)
   # rects1 = ax.bar(x - width/2, men_means, width, label='Men')
   # rects2 = ax.bar(x + width/2, women_means, width, label='Women')
@@ -104,12 +138,25 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
 
       ax.set_ylim(top=max_top)
 
-
-  
-
   # add horizontal line if requested
   if (is_number(horiz_line)):
     ax.axhline(y=horiz_line, linewidth=1, color='black', linestyle='dashed')
+
+  # for grouped and stacked add cluster bar labels as annoation?
+  if (stacked and num_cluster_bars > 1):
+    annotations = ['B', '1', '2', '3']
+    for r_idx in range(len(rects)):
+      if (r_idx % stack_count != 0):
+        continue
+      for rect in rects[r_idx]:
+        height = rect.get_height()
+        ax.annotate(annotations[r_idx / stack_count],
+                    xy=(rect.get_x() + rect.get_width() / 2, 0),
+                      xytext=(0, -9),  # 3 points vertical offset
+                      textcoords="offset points",
+                      ha='center', va='bottom',
+                      fontsize=7)
+
 
   fig.tight_layout()
   # plt.show()
