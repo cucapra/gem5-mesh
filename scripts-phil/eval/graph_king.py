@@ -53,7 +53,7 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
     num_cluster_bars = num_sub_bars
 
   width = (1 - slack) / num_cluster_bars # the width of a single bar
-  first_bar_offset = width / -2 * (num_cluster_bars-1)
+  first_bar_offset = (width / -2) * (num_cluster_bars-1)
   stack_count = ( num_sub_bars / num_cluster_bars)
 
   if USE_COLOR:
@@ -63,6 +63,15 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
     # need to be able to force to the same color when stacked and clustered
     if (stacked and num_cluster_bars > 1):
       assert(str(stack_count) in all_colors.keys())
+
+    config_color = True
+    # if too many color dont use
+    if stacked and not str(stack_count) in all_colors.keys():
+      config_color = False
+    if not stacked and not str(num_cluster_bars) in all_colors.keys():
+      config_color = False
+  else:
+    config_color = False
 
   # if both stacked and clustered then increase figsize over default of figsize=(6.4,4.8)
   if (stacked and num_cluster_bars > 1):
@@ -77,9 +86,10 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
     stack_idx = i % stack_count
     x_pos = x + first_bar_offset + cluster_idx * width
     y_pos = np.zeros(len(labels))
-    bar_label = sub_labels[stack_idx]
+    
     # print('start subbar ' + str(i))
     if (stacked):
+      bar_label = sub_labels[stack_idx]
       # dont double label if stacked and clustered
       if cluster_idx > 0:
         bar_label = ''
@@ -93,8 +103,15 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
           prev_rect = rcontain[rect_idx]
           # print(str(y_pos) + ' += ' + str(prev_rect.get_height()))
           y_pos[rect_idx] += prev_rect.get_height()
-    if USE_COLOR and str(stack_count) in all_colors.keys():
-      new_rect = ax.bar(x_pos, values[i], width, color= all_colors[str(stack_count)][stack_idx], label=bar_label, bottom=y_pos, edgecolor=edgecolor)
+    else:
+      bar_label = sub_labels[cluster_idx]
+
+    if config_color:
+      if (stacked):
+        color = all_colors[str(stack_count)][stack_idx]
+      else:
+        color = all_colors[str(num_cluster_bars)][cluster_idx]
+      new_rect = ax.bar(x_pos, values[i], width, color=color, label=bar_label, bottom=y_pos, edgecolor=edgecolor)
     else:
       new_rect = ax.bar(x_pos, values[i], width, label=bar_label, bottom=y_pos)
     rects.append(new_rect)
