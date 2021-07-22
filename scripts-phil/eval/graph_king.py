@@ -11,6 +11,7 @@ import numpy as np
 from math import floor, ceil, isnan
 from copy import deepcopy
 import json
+from matplotlib.patches import Rectangle
 
 COLOR_JSON = "color_engine.json"
 USE_COLOR = True
@@ -32,7 +33,7 @@ def is_number(obj):
 # Stack is whether to sub label bars instead of cluster
 # Stacknum is how many to stack before creating another sub field in cluster. -1 means all stack
 # TODO for stacked clustered might want have config labels. Could do with second axis place below or do annotations below each bar (like what do with clipping)
-def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[], horiz_line='', stacked=False, stacknum=-1):
+def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[], horiz_line='', stacked=False, stacknum=-1, sub_sub_labels=[]):
   mpl.rcParams['axes.prop_cycle'] = default_prop_cycle
   # labels = ['G1', 'G2', 'G3', 'G4', 'G5']
   # men_means = [20, 34, 30, 35, 27]
@@ -122,7 +123,7 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
   # ax.set_title(title)
   ax.set_xticks(x)
   ax.set_xticklabels(labels, rotation=45, ha='right')
-  ax.legend()
+  orig_legend = ax.legend()
   def autolabel(rects, height=''):
       """Attach a text label above each bar in *rects*, displaying its height."""
       for rect in rects:
@@ -173,7 +174,29 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
                       textcoords="offset points",
                       ha='center', va='bottom',
                       fontsize=7)
+    # add text explaining cluster axis (put below current legend
+    # lp = legend.get_window_extent()
+    # print('{} {} {} {}'.format(lp.p0[0], lp.p0[1], lp.p1[0], lp.p1[1]))
+    # ax.annotate('bruv', (lp.p0[0], lp.p1[1]), (lp.p0[0], lp.p1[1]))
 
+    # text_str = 'B: NV_PF\n1: NV_PF_2x\n2: NV_PF_WTF\n3: WOWOWO'
+    # ax.text(0.01, 0.97, text_str, linespacing=1.5, transform=ax.transAxes, ha='left', va='top', bbox=dict(boxstyle='round', ec='gray', fc='white', alpha=0.8))
+
+    # need to manually add first legend otherwise will be deleted
+    fig.gca().add_artist(orig_legend)
+
+    dummy_handle = Rectangle((0, 0), 1, 1, fc='w', fill=False, edgecolor='none', linewidth=0)
+    handles = []
+    handle_names = []
+    for l_idx in range(len(sub_sub_labels)):
+      handles.append(dummy_handle)
+      # use latex rendering mode r"$...$" to get bold 
+      handle_str = r"$\bf{" + annotations[l_idx] + r":}$ " + sub_sub_labels[l_idx]
+      handle_names.append(handle_str)
+    cluster_legend = ax.legend(handles, handle_names, loc='upper left', handlelength=0, handletextpad=0)
+
+
+    # fig.gca().add_artist(cluster_legend)
 
   fig.tight_layout()
   # plt.show()
