@@ -2,169 +2,67 @@
   Sim configurations
 '''
 from copy import deepcopy
+import json
 
-# hardware configs given to gem5 config script (use a single string for all)
-HW_OPTS = [
-  '',
-  '--net-width=1', 
-  # '--net-width=2', 
-  # '--net-width=4',
-  # '--net-width=16'
-  '--llc-max-size=32kB'
-  ]
+# get configs (resolves config groups)
+def get_configs(config_list, config_info, config_groups):
+  flat_configs = []
+  for config_name in config_list:
+    # if a config group add all sub config_infos
+    if config_name in config_groups:
+      for c in config_groups[config_name]:
+        if (c in config_info):
+          flat_configs.append(c)
+    # otherwise just add config
+    elif config_name in config_info:
+      flat_configs.append(config_name)
 
-# default software configs, encode as list of flags (will be converted to -D<x> when compile)
-# NOTE CACHE_LINE_SIZE=x and HARDWARE_VECTOR_LEN=y will be automatically inserted into HW_OPTS if appears here
-# To change the number of CPUS, use NCPUS=z
-ALL_CONFIGS = [
-  ['VECTOR_LEN=4'],
-  ['VECTOR_LEN=16'],
-  ['VECTOR_LEN=4', 'PER_CORE_SIMD'],
-  ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
-  [ 'NO_VEC', 'MANYCORE_PREFETCH' ],
-  ['PER_CORE_SIMD', 'MANYCORE_PREFETCH'],
-  'NO_VEC',
-  ]
+  return flat_configs
 
-INIT0_CONFIGS = []
+# get simconfig from json
+def generate_sim_config_from_file(filename):
+  with open(filename) as fin:
+    sim_json = json.load(fin)
 
-# some benchmarks have longline configs (5 in total)
-LONGLINES_CONFIGS = [
-  ['VECTOR_LEN=16', 'LONGLINES', 'CACHE_LINE_SIZE=1024'],
-  ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
-  ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
-]
+  sim_configs = []
 
-# bfs only supports a small set of configs
-BFS_CONFIGS = ['NO_VEC', 'VECTOR_LEN=4', 'VECTOR_LEN=16']
+  config_groups = {}
 
+  benchmarks = sim_json['Benchmarks']
+  config_info = sim_json['ConfigInfo']
+  if 'ConfigGroups' in sim_json:
+    config_groups = sim_json['ConfigGroups']
 
-# ALL_CONFIGS = [ 
-#   ['NO_VEC', 'NCPUS=1'],
-#   ['NO_VEC', 'NCPUS=4'],
-#   ['NO_VEC', 'NCPUS=16'],
-#   ['NO_VEC', 'NCPUS=64']
-# ]
-  # [ 'NO_VEC', 'MANYCORE_PREFETCH', 'NCPUS=1' ],
-  # [ 'NO_VEC', 'MANYCORE_PREFETCH', 'NCPUS=4' ],
-  # [ 'NO_VEC', 'MANYCORE_PREFETCH', 'NCPUS=16' ],
-  # [ 'NO_VEC', 'MANYCORE_PREFETCH', 'NCPUS=64' ]
-ALL_CONFIGS = [ 
-  ['VECTOR_LEN=4'],
-  ['VECTOR_LEN=16'],
-  ['VECTOR_LEN=4', 'PER_CORE_SIMD'],
-  ['VECTOR_LEN=16', 'PER_CORE_SIMD']
-]
-# LONGLINES_CONFIGS = []
-BFS_CONFIGS = [ ]
-# HW_OPTS = [
-#   '',
-#   '--cpu-type=DerivO3CPU'
-#   ]
-HW_OPTS = [
-  '',
-  '--dram-bw=32'
-  ]
+  # generate run description for each program and hw/sw configurations
+  for k,v in benchmarks.items():
+    # get configurations (if diff config, then make a new entry in sim_configs)
+    flat_configs = get_configs(v['Configs'], config_info, config_groups)
+    for config_name in flat_configs:
+      config = config_info[config_name]
 
+      # get hardware and software info (all combinations applied)
+      soft_configs = []
+      hard_configs = []
+      for s in config['Software']:
+        soft_configs.append(s)
+      for h in config['Hardware']:
+        hard_configs.append(h)
 
-# choose which programs to run via script and with what configs
-sim_configs = {
-  # Test programs, not actual benchmarks
+      # run descriptions is:
+      #    bench
+      #    argv
+      #    SoftwareConfig
+      #    HardwareConfig
+      run_desc = {
+        'program' : k,
+        'argv'    : v['Argv'],
+        'software': soft_configs,
+        'hardware': hard_configs
+      }
 
-  # 'vvadd': {
-  #   'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-  #   'argv' : ['65536'], #['1048576'], # ['1024']
-  #   'hw_opts' : HW_OPTS
-  # },
-  # 'stencil': {
-  #   'vec'  : ['VEC_4_SIMD'],
-  #   'argv' : ['1730', '60']
-  # },
+      sim_configs.append(run_desc)
 
-  # Benchmarks
-
-  'bicg'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['2048'],
-    'hw_opts' : HW_OPTS
-  },
-  'gram'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS, # + ['PER_CORE_SIMD'],
-    'argv' : ['320'],
-    'hw_opts' : HW_OPTS
-  },
-  'syrk'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
-    'argv' : ['256'],
-    'hw_opts' : HW_OPTS
-  },
-  'syr2k'  : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
-    'argv' : ['256'],
-    'hw_opts' : HW_OPTS
-  },
-  'covar'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['512'],
-    'hw_opts' : HW_OPTS
-  },
-  'conv2d' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
-    'argv' : ['2048'],
-    'hw_opts' : HW_OPTS
-  },
-  'conv3d' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256'],
-    'hw_opts' : HW_OPTS
-  },
-  'fdtd' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
-    'argv' : ['512', '30'],
-    'hw_opts' : HW_OPTS
-  },
-  'atax'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['2048'], # ['128']
-    'hw_opts' : HW_OPTS
-  },
-  'mvt'    : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['4096'], # ['128']
-    'hw_opts' : HW_OPTS
-  },
-  'gemm'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256'], #['64']
-    'hw_opts' : HW_OPTS
-  },
-  'gesummv'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
-    'argv' : ['4096'], #['128']
-    'hw_opts' : HW_OPTS 
-  },
-  'corr'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['512'], #['64']
-    'hw_opts' : HW_OPTS
-  },
-  '2mm' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256'], #['64']
-    'hw_opts' : HW_OPTS
-  },
-  '3mm' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256'], #['32']
-    'hw_opts' : HW_OPTS
-  },
-  'bfs' : {
-    'vec'  : BFS_CONFIGS,
-    'argv' : ['../../programs-spad/bfs-rodinia/data/graph4k.txt'],
-    'hw_opts' : HW_OPTS
-  },
-}
-
+  return sim_configs
 
 def string_to_cacheline_arg(a):
   if (a[0:16] == 'CACHE_LINE_SIZE='):

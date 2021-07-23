@@ -1,0 +1,172 @@
+{
+    "ConfigInfo" : {
+        "NV_Scaling" : {
+            "Software" : [
+                ["NO_VEC", "NCPUS=1"],
+                ["NO_VEC", "NCPUS=4"],
+                ["NO_VEC", "NCPUS=16"],
+                ["NO_VEC", "NCPUS=64"]
+            ],
+            "Hardware" : [
+                ""
+            ]
+        },
+        "NVPF_Scaling" : {
+            "Software" : [
+                ["NO_VEC", "MANYCORE_PREFETCH", "NCPUS=1"],
+                ["NO_VEC", "MANYCORE_PREFETCH", "NCPUS=4"],
+                ["NO_VEC", "MANYCORE_PREFETCH", "NCPUS=16"],
+                ["NO_VEC", "MANYCORE_PREFETCH", "NCPUS=64"]
+            ],
+            "Hardware" : [
+                "",
+                "--dram-bw=32"
+            ]
+        },
+        "O3_Scaling" : {
+            "Software" : [
+                ["NO_VEC", "NCPUS=1"],
+                ["NO_VEC", "NCPUS=4"],
+                ["NO_VEC", "NCPUS=16"]
+            ],
+            "Hardware" : [
+                "--cpu-type=DerivO3CPU"
+            ]
+        },
+        "PCVPF_Scaling" : {
+            "Software" : [
+                ["PER_CORE_SIMD", "MANYCORE_PREFETCH", "NCPUS=1"],
+                ["PER_CORE_SIMD", "MANYCORE_PREFETCH", "NCPUS=64"]
+            ],
+            "Hardware" : [
+                ""
+            ]
+        },
+        "Vector" : {
+            "Software" : [
+                ["VECTOR_LEN=4"],
+                ["VECTOR_LEN=16"],
+                ["VECTOR_LEN=4", "PER_CORE_SIMD"],
+                ["VECTOR_LEN=16", "PER_CORE_SIMD"]
+            ],
+            "Hardware" : [
+                ""
+            ]
+        },
+        "Longlines" : {
+            "Software" : [
+                ["VECTOR_LEN=16", "LONGLINES", "CACHE_LINE_SIZE=1024"],
+                ["VECTOR_LEN=4", "LONGLINES", "PER_CORE_SIMD", "CACHE_LINE_SIZE=1024"],
+                ["VECTOR_LEN=16", "LONGLINES", "PER_CORE_SIMD", "CACHE_LINE_SIZE=1024"]
+            ],
+            "Hardware" : [
+                ""
+            ]
+        },
+        "CacheNet" : {
+            "Software" : [
+                ["VECTOR_LEN=4"],
+                ["NO_VEC", "MANYCORE_PREFETCH", "NCPUS=64"]
+            ],
+            "Hardware" : [
+                "--net-width=1",
+                "--llc-max-size=32kB"
+            ]
+        },
+        "CacheNet_Longlines" : {
+            "Software" : [
+                ["VECTOR_LEN=16", "LONGLINES", "CACHE_LINE_SIZE=1024"]
+            ],
+            "Hardware" : [
+                "--net-width=1",
+                "--llc-max-size=32kB"
+            ]
+        },
+        "BFSConfigs" : {
+            "Software" : [
+                ["NO_VEC"],
+                ["VECTOR_LEN=4"],
+                ["VECTOR_LEN=16"]
+            ],
+            "Hardware" : [
+                ""
+            ]
+        },
+        "PCVConfigs" : {
+            "Software" : [
+                ["PER_CORE_SIMD"]
+            ],
+            "Hardware" : [
+                ""
+            ]
+        }
+    },
+
+    "ConfigGroups" : {
+        "Grouped_Normal" : [ "NV_Scaling", "NVPF_Scaling", "O3_Scaling", "PCVPF_Scaling", "Vector", "CacheNet" ],
+        "Grouped_Longlines" : [ "Longlines", "CacheNet_Longlines" ]
+    },
+
+    "Benchmarks" : {
+        "bicg" : {
+            "Configs" : [ "Grouped_Normal" ],
+            "Argv"    : [ "2048" ]
+        },
+        "gram" : {
+            "Configs" : [ "Grouped_Normal", "PCVConfigs" ],
+            "Argv"    : [ "320" ]
+        },
+        "syrk" : {
+            "Configs" : [ "Grouped_Normal", "Grouped_Longlines" ],
+            "Argv"    : [ "256" ]
+        },
+        "syr2k" : {
+            "Configs" : [ "Grouped_Normal", "Grouped_Longlines" ],
+            "Argv"    : [ "256" ]
+        },
+        "covar" : {
+            "Configs" : [ "Grouped_Normal" ],
+            "Argv"    : [ "512" ]
+        },
+        "conv2d" : {
+            "Configs" : [ "Grouped_Normal", "Grouped_Longlines" ],
+            "Argv"    : [ "2048" ]
+        },
+        "conv3d" : {
+            "Configs" : [ "Grouped_Normal" ],
+            "Argv"    : [ "256" ]
+        },
+        "fdtd" : {
+            "Configs" : [ "Grouped_Normal", "Grouped_Longlines" ],
+            "Argv"    : [ "512", "30" ]
+        },
+        "mvt" : {
+            "Configs" : [ "Grouped_Normal" ],
+            "Argv"    : [ "4096" ]
+        },
+        "gemm" : {
+            "Configs" : [ "Grouped_Normal" ],
+            "Argv"    : [ "256" ]
+        },
+        "gesummv" : {
+            "Configs" : [ "Grouped_Normal", "Grouped_Longlines" ],
+            "Argv"    : [ "4096" ]
+        },
+        "corr" : {
+            "Configs" : [ "Grouped_Normal" ],
+            "Argv"    : [ "512" ]
+        },
+        "2mm" : {
+            "Configs" : [ "Grouped_Normal" ],
+            "Argv"    : [ "256" ]
+        },
+        "3mm" : {
+            "Configs" : [ "Grouped_Normal" ],
+            "Argv"    : [ "256" ]
+        },
+        "bfs" : {
+            "Configs" : [ "BFSConfig" ],
+            "Argv"    : [ "../../programs-spad/bfs-rodinia/data/graph4k.txt" ]
+        }
+    }
+}
