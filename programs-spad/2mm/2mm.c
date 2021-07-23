@@ -59,6 +59,8 @@ int m_start, int m_end, int n_start, int n_end, int ptid, int pdim_x, int pdim_y
 
 
   #else
+  // need to wait after tranpose!
+  pthread_barrier_wait(&start_barrier);
   gemm_manycore(a, b, c, m, t2, t1, m_start, n_start, ptid, pdim_x, pdim_y);
   pthread_barrier_wait(&start_barrier);
   //do transpose
