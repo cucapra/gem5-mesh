@@ -1,0 +1,74 @@
+{
+    "ConfigInfo" : {
+        "Config0" : {
+            "Software" : [
+                [ "NO_VEC" ],
+                [ "NO_VEC", "MANYCORE_PREFETCH" ],
+                [ "VECTOR_LEN=4" ],
+                [ "VECTOR_LEN=16" ]
+            ],
+            "Hardware" : [
+                ""
+            ]
+        }
+    },
+
+    "Benchmarks" : {
+        "bicg" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "2048" ]
+        },
+        "gram" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "320" ]
+        },
+        "syrk" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "256" ]
+        },
+        "syr2k" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "256" ]
+        },
+        "covar" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "512" ]
+        },
+        "conv2d" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "2048" ]
+        },
+        "conv3d" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "256" ]
+        },
+        "fdtd" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "512", "30" ]
+        },
+        "mvt" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "4096" ]
+        },
+        "gemm" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "256" ]
+        },
+        "gesummv" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "4096" ]
+        },
+        "corr" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "512" ]
+        },
+        "2mm" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "256" ]
+        },
+        "3mm" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "256" ]
+        }
+    }
+}
