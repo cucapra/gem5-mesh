@@ -44,6 +44,10 @@
             "Configs" : [ "Config0" ],
             "Argv"    : [ "512", "30" ]
         },
+        "atax" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "2048" ]
+        },
         "mvt" : {
             "Configs" : [ "Config0" ],
             "Argv"    : [ "4096" ]
