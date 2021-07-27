@@ -140,6 +140,10 @@
             "Configs" : [ "Grouped_Normal", "Grouped_Longlines" ],
             "Argv"    : [ "512", "30" ]
         },
+        "atax" : {
+            "Configs" : [ "Grouped_Normal" ],
+            "Argv"    : [ "2048" ]
+        },
         "mvt" : {
             "Configs" : [ "Grouped_Normal" ],
             "Argv"    : [ "4096" ]

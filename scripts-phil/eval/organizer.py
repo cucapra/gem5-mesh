@@ -1,5 +1,7 @@
 '''
   Analyze and organize data in interesting ways
+
+  Authors: Philip Bedoukian
 '''
 
 import numpy as np
@@ -213,8 +215,6 @@ def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar
 
   # average together series with the same number of hops
 
-  # print(v4_hops)
-  # print(v16_hops)
   xaxes = []
 
   i = 0
@@ -446,6 +446,10 @@ def add_geo_mean(labels, values):
 # plot speedup
 # group together same benchmark (if metadata the same)
 def plot_speedup(data, desired_configs=[], yaxis_name='Speedup Relative to Baseline (NV)', graph_name='Speedup'):
+  if len(desired_configs) > 0: # if specified order check if have the normalizing series
+    if (not require_configs(data, graph_name, [ desired_configs[0] ])):
+      return
+
   (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=desired_configs)
 
   # flip from cycles to speedup normalized to NV
@@ -634,7 +638,6 @@ def plot_cpi_stack(data, config_names=['NV_PF_NCPUS_64__dram_bw_32'], graph_name
   if (len(benchmarks) > 0):
     data = filter_progs(data, benchmarks, False)
 
-
   if (not require_configs(data, graph_name, config_names)):
     return
 
@@ -709,8 +712,10 @@ def plot_cpi_stack(data, config_names=['NV_PF_NCPUS_64__dram_bw_32'], graph_name
     for slabel in sub_labels:
       merged_sub_labels.append(slabel)
   
-  bar_plot(labels, merged_sub_labels, merged_values, yaxis_name, graph_name, stacked=True, stacknum=len(plotted_series), sub_sub_labels=cluster_labels)
-  # (labels, sub_labels, values) = group_bar_data(data, disp_stat, desired_config_order=category_renames)
+  try:
+    bar_plot(labels, merged_sub_labels, merged_values, yaxis_name, graph_name, stacked=True, stacknum=len(plotted_series), sub_sub_labels=cluster_labels)
+  except ValueError:
+    print('Missing CPI series. Skip plot ' + graph_name)
 
 def plot_frame_stalls(data, graph_name, benchmarks=[]):
   # (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep', desired_configs=['V4', 'V16'])

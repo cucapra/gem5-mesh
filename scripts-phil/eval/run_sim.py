@@ -8,6 +8,8 @@
   
   Might consider dropping a json in the results dir with run info rather than in dir name?
   Also need to be able to recompile the program when want to add more cores or disable/enable vector
+
+  Authors: Philip Bedoukian
 '''
 
 import os, subprocess, time, argparse, re, random
@@ -117,9 +119,10 @@ def run_config(vec_config, num_cpus, prog_key, argv, hw_opts):
 # MAIN
 # 
 
-# limit to 16 threads, each benchmark in parallel, but configs are serial
+# limit parallel threads, each benchmark in parallel, but configs are serial
 pool = multiprocessing.Pool(processes=70)
 jobs = []
+compiled_binaries = []
 
 sim_configs = sim_list.generate_sim_config_from_file(args.sim_list)
 for config in sim_configs:
@@ -130,11 +133,20 @@ for config in sim_configs:
 
   for sw in sw_configs:
     num_cpus = sim_list.get_num_cpus(sw, args.num_cpus)
-    # compile serially so can launch job with overwritting binary
-    # if fails, kill all jobs and exit
-    if (not compile_prog(num_cpus, prog_key, sw)):
-      pool.terminate()
-      quit()
+
+    # compile if havent compiled in this run
+    binary_name = sim_list.get_binary_name(prog_key, sw)
+    if not binary_name in compiled_binaries:
+      # compile serially so can launch job with overwritting binary
+      # if fails, kill all jobs and exit
+      if (not compile_prog(num_cpus, prog_key, sw)):
+        pool.terminate()
+        quit()
+    else:
+      print('[[INFO]] Skip recompilation of ' + binary_name + ' for ' + str(sw) + ' ' + str(hw_configs))
+
+    # remember that we compiled the program so dont do it again
+    compiled_binaries.append(binary_name)
 
     for hw in hw_configs:
       # the new file will have the same name as the old file, but also specify the new dir

@@ -2,6 +2,7 @@
 
   Extract a collection of stats files from completed simulations and write a csv
 
+  Authors: Philip Bedoukian
 '''
 
 import os, subprocess, time, argparse, re, pickle
@@ -19,6 +20,8 @@ parser.add_argument('--cpu-sims', default='../../results', help='Path with manyc
 parser.add_argument('--gpu-sims', default='../../../gem5-gcn3/results/', help='Path with gpu results you want to analyze')
 parser.add_argument('--outfile', default='./extract.csv', help='CSV Path where extracted data should go')
 parser.add_argument('--prefix', default='', help='prefix of directory name to parse, could be program for example')
+parser.add_argument('--skip-graph', action="store_true", help='Whether to skip graphing after extract')
+parser.add_argument('--print-preview', action="store_true", help='Whether to print some extracted data to stdout')
 get_energy.define_options(parser)
 args = parser.parse_args()
 
@@ -360,25 +363,26 @@ for k in keys:
 for data in all_data:
   dirPath = data['_path_']
 
-  print(dirPath)
+  if (args.print_preview):
+    print(dirPath)
 
-  for k in keys:
-    if (k == '_path_'):
-      continue
+    for k in keys:
+      if (k == '_path_'):
+        continue
 
-    # if (not can_normal_write(v)):
-    #   for b,d in d[k]['buckets'].items():
-    #     print('\t{0}::{1}: {2}'.format(k, b, str(d)))
-    # else:
-    if (k in data):
-      dat = ''
-      if (isinstance(data[k], list) or isinstance(data[k], dict)):
-        # for d in data[k]:
-        #   dat += '{} '.format(d)
-        dat = 'not shown due to space'
-      else:
-        dat = data[k]
-      print('\t{0}: {1}'.format(k, dat))
+      # if (not can_normal_write(v)):
+      #   for b,d in d[k]['buckets'].items():
+      #     print('\t{0}::{1}: {2}'.format(k, b, str(d)))
+      # else:
+      if (k in data):
+        dat = ''
+        if (isinstance(data[k], list) or isinstance(data[k], dict)):
+          # for d in data[k]:
+          #   dat += '{} '.format(d)
+          dat = 'not shown due to space'
+        else:
+          dat = data[k]
+        print('\t{0}: {1}'.format(k, dat))
     
   # 
   # serialize parameters and data into string row by row
@@ -403,49 +407,19 @@ for data in all_data:
       dat = 0
 
     dataCSV += '{}, '.format(str(dat))
-  
-#dataCSV += '\n'
-
-# hist data. from right to left base on run
-# TODO don't put into extract stats currently
-# for k, v in stats.items():
-#   if (is_hist_stat(v)):
-#     buckets = v['buckets']
-#     buck_len = len(buckets)
-#     for i in range(0, find_max_buckets()):
-#       if (i < buck_len):
-#         (b, d) = buckets[i]
-#         if (not 'meta' in annos):
-#           annos['meta'] = ''
-#         histCSV[i] += '{0}:{1},{2},{3},,'.format(annos['meta'], v['name'], str(b), str(d))
-#       else:
-#         histCSV[i] += ',,,,'
 
 #
 # write output to a csv
 
 with open(args.outfile, 'w+') as fout:
-  # header line
-  # fout.write('run' + ', ')
-  # for k, v in stats.items():
-  #   if (can_normal_write(v)):
-  #     fout.write('{0}, '.format(v['name']))
-      
-  #fout.write('\n')
-
   # add all of the data
   fout.write(dataCSV)
 
-  # # write hist
-  # fout.write('\n\n')
-  # for i in range(len(histCSV)):
-  #   fout.write(histCSV[i])
-  #   fout.write('\n')
-  
 # write the data to pickle so can reuse. takes to long to rerun
 with open(args.outfile + '.pickle', 'wb') as fout:
   pickle.dump(all_data, fout)
 
-# plot data to graphs and tables
-organizer.make_plots_and_tables(all_data)
+if (not args.skip_graph):
+  # plot data to graphs and tables
+  organizer.make_plots_and_tables(all_data)
 

@@ -1,5 +1,7 @@
 '''
   Sim configurations
+
+  Authors: Philip Bedoukian
 '''
 from copy import deepcopy
 import json

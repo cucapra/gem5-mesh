@@ -20,10 +20,10 @@
         },
         "Config2" : {
             "Software" : [
-                [ "VECTOR_LEN=16" ]
+                [ "NO_VEC", "MANYCORE_PREFETCH" ]
             ],
             "Hardware" : [
-                ""
+                "--dram-bw=64"
             ]
         }
     },

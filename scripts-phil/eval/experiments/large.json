@@ -10,6 +10,14 @@
             "Hardware" : [
                 ""
             ]
+        },
+        "Longlines" : {
+            "Software" : [
+                ["VECTOR_LEN=16", "LONGLINES", "CACHE_LINE_SIZE=1024"]
+            ],
+            "Hardware" : [
+                ""
+            ]
         }
     },
 
@@ -23,11 +31,11 @@
             "Argv"    : [ "320" ]
         },
         "syrk" : {
-            "Configs" : [ "Config0" ],
+            "Configs" : [ "Config0", "Longlines" ],
             "Argv"    : [ "256" ]
         },
         "syr2k" : {
-            "Configs" : [ "Config0" ],
+            "Configs" : [ "Config0", "Longlines" ],
             "Argv"    : [ "256" ]
         },
         "covar" : {
@@ -35,7 +43,7 @@
             "Argv"    : [ "512" ]
         },
         "conv2d" : {
-            "Configs" : [ "Config0" ],
+            "Configs" : [ "Config0", "Longlines" ],
             "Argv"    : [ "2048" ]
         },
         "conv3d" : {
@@ -43,7 +51,7 @@
             "Argv"    : [ "256" ]
         },
         "fdtd" : {
-            "Configs" : [ "Config0" ],
+            "Configs" : [ "Config0", "Longlines" ],
             "Argv"    : [ "512", "30" ]
         },
         "atax" : {
@@ -59,7 +67,7 @@
             "Argv"    : [ "256" ]
         },
         "gesummv" : {
-            "Configs" : [ "Config0" ],
+            "Configs" : [ "Config0", "Longlines" ],
             "Argv"    : [ "4096" ]
         },
         "corr" : {

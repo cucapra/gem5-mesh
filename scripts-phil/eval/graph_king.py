@@ -1,5 +1,8 @@
 '''
   Takes data created by extract_stats.py and makes graphs
+
+  Authors: Philip Bedoukian
+           Neil Adit
 '''
 
 import matplotlib as mpl
@@ -35,9 +38,7 @@ def is_number(obj):
 # TODO for stacked clustered might want have config labels. Could do with second axis place below or do annotations below each bar (like what do with clipping)
 def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[], horiz_line='', stacked=False, stacknum=-1, sub_sub_labels=[]):
   mpl.rcParams['axes.prop_cycle'] = default_prop_cycle
-  # labels = ['G1', 'G2', 'G3', 'G4', 'G5']
-  # men_means = [20, 34, 30, 35, 27]
-  # women_means = [25, 32, 34, 20, 25]
+
   x = np.arange(len(labels))  # the label locations
 
   # figure out bar dimensions
@@ -88,7 +89,6 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
     x_pos = x + first_bar_offset + cluster_idx * width
     y_pos = np.zeros(len(labels))
     
-    # print('start subbar ' + str(i))
     if (stacked):
       bar_label = sub_labels[stack_idx]
       # dont double label if stacked and clustered
@@ -98,11 +98,9 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
       # loop over each val in the same stack
       for rcontain_idx in range(cluster_idx*stack_count, len(rects)):
         rcontain = rects[rcontain_idx]
-        # print('start rcontain')
         # loop over all series
         for rect_idx in range(len(rcontain)):
           prev_rect = rcontain[rect_idx]
-          # print(str(y_pos) + ' += ' + str(prev_rect.get_height()))
           y_pos[rect_idx] += prev_rect.get_height()
     else:
       bar_label = sub_labels[cluster_idx]
@@ -116,8 +114,7 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
     else:
       new_rect = ax.bar(x_pos, values[i], width, label=bar_label, bottom=y_pos)
     rects.append(new_rect)
-  # rects1 = ax.bar(x - width/2, men_means, width, label='Men')
-  # rects2 = ax.bar(x + width/2, women_means, width, label='Women')
+
   # Add some text for labels, title and custom x-axis tick labels, etc.
   ax.set_ylabel(ylabel)
   # ax.set_title(title)
@@ -174,14 +171,8 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
                       textcoords="offset points",
                       ha='center', va='bottom',
                       fontsize=7)
-    # add text explaining cluster axis (put below current legend
-    # lp = legend.get_window_extent()
-    # print('{} {} {} {}'.format(lp.p0[0], lp.p0[1], lp.p1[0], lp.p1[1]))
-    # ax.annotate('bruv', (lp.p0[0], lp.p1[1]), (lp.p0[0], lp.p1[1]))
 
-    # text_str = 'B: NV_PF\n1: NV_PF_2x\n2: NV_PF_WTF\n3: WOWOWO'
-    # ax.text(0.01, 0.97, text_str, linespacing=1.5, transform=ax.transAxes, ha='left', va='top', bbox=dict(boxstyle='round', ec='gray', fc='white', alpha=0.8))
-
+    # add text explaining cluster axis (put below current legend)
     # need to manually add first legend otherwise will be deleted
     fig.gca().add_artist(orig_legend)
 
@@ -194,9 +185,6 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
       handle_str = r"$\bf{" + annotations[l_idx] + r":}$ " + sub_sub_labels[l_idx]
       handle_names.append(handle_str)
     cluster_legend = ax.legend(handles, handle_names, loc='upper left', handlelength=0, handletextpad=0)
-
-
-    # fig.gca().add_artist(cluster_legend)
 
   fig.tight_layout()
   # plt.show()
