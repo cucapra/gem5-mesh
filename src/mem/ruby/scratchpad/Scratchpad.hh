@@ -103,18 +103,6 @@ class CpuPort : public SlavePort
     bool m_need_retry;
 };
 
-// We reserve the following fields for control flags. Since this is scratchpad,
-// software should be fully aware of those flags and their locations in each
-// scratchpad
-//
-// +-----------------------+-----------------------+-------------------------+
-// | SPMBaseAddr (64 bits) | xcelgo flag (32 bits) | xceldone flag (32 bits) |
-// +-----------------------+-----------------------+-------------------------+
-
-// #define SPM_BASE_ADDR_OFFSET  0
-// #define SPM_GO_FLAG_OFFSET    (SPM_BASE_ADDR_OFFSET + sizeof(uint64_t))
-// #define SPM_DONE_FLAG_OFFSET  (SPM_GO_FLAG_OFFSET   + sizeof(uint32_t))
-// #define SPM_ARGS_OFFSET       (SPM_DONE_FLAG_OFFSET + sizeof(uint32_t))
 #define SPM_DATA_WORD_OFFSET  0
 
 class Scratchpad : public AbstractController
@@ -127,8 +115,6 @@ class Scratchpad : public AbstractController
     /**
      * Return slave port
      */
-    //BaseSlavePort& getSlavePort(const std::string& if_name,
-    //                            PortID idx = InvalidPortID); //override;
     Port &getPort(const std::string &if_name,
                   PortID idx=InvalidPortID) override;
 
@@ -256,14 +242,9 @@ class Scratchpad : public AbstractController
    int getCoreEpoch();
    int getNumRegions();
    int getRegionElements();
-   //void updateEpoch(int epoch);
    bool controlDiverged();
    bool memoryDiverged(Addr addr);
    bool isPrefetchAhead(Addr addr);
-   //bool cpuIsLate(int pktEpoch);
-   //bool cpuIsEarly(int pktEpoch);
-   //bool cpuIsSynced(int pktEpoch);
-   //void updateMasterEpoch(const LLCResponseMsg *llc_msg_p);
 
    //edit: Neil for remote access LW to region
   bool canHandleRemoteReq(Packet *pkt_p);
@@ -400,37 +381,16 @@ class Scratchpad : public AbstractController
           return;
         }
 
-        // int word = (int)(addr - pkt->getAddr());
         int word = pkt->getWordOffset(addr);
 
         auto data = pkt->getPtr<uint8_t>();
         std::memcpy(&data[word], incData, len);
-        // for (int i = 0; i < wordSize; i++) {
-          // data[word * wordSize + i] = incData[i];
-        // }
       }
 
-      // ~pkt_map_entry_t() {
-      // }
     };
     std::unordered_map<uint64_t, std::shared_ptr<pkt_map_entry_t>> m_pending_pkt_map;
     uint64_t m_cur_seq_num;
     const uint64_t m_max_num_pending_pkts;
-
-    /**
-     * Queue of pending control requests
-     */
-    // typedef std::pair<MachineID, Packet*> CtrlReq;
-    // CtrlReq m_pending_base_addr_req;
-    // CtrlReq m_pending_go_flag_req;
-    // CtrlReq m_pending_done_flag_req;
-
-    /**
-     * Pointers to control fields
-     */
-    // uint64_t* const m_base_addr_p;
-    // uint32_t* const m_go_flag_p;
-    // uint32_t* const m_done_flag_p;
 
     // Number of L2 banks
     const int m_num_l2s;
@@ -446,11 +406,6 @@ class Scratchpad : public AbstractController
     BaseCPU *m_cpu_p;
     
     /**
-     * Store the current epoch of the proccessor, given by pkt
-     */ 
-    //int m_proc_epoch;
-    
-    /**
      * The number of outstanding sp.loads allowed
      */ 
     const int m_max_pending_sp_prefetches;
@@ -459,12 +414,6 @@ class Scratchpad : public AbstractController
      * The number of frame cntrs we can have
      */ 
     const int m_num_frame_cntrs;
-    
-    /**
-     * Bit array for each word tracking whether a prefetch has arrived
-     * Reset on every trace prefetch, and set when recv the prefetch from master
-     */ 
-    // std::vector<int> m_fresh_array;
     
     /**
      * Event to process a mem resp packet

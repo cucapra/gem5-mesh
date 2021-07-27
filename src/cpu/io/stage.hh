@@ -2,6 +2,8 @@
 // stage.hh
 //-----------------------------------------------------------------------------
 // Parent class for all stages in the io model
+// Authors: Tuan Ta
+//          Philip Bedoukian
 
 #ifndef __CPU_IO_STAGE_HH__
 #define __CPU_IO_STAGE_HH__

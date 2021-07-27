@@ -226,17 +226,9 @@ Commit::commitHead(ThreadID tid)
     inst->updateMiscRegs();
     
   // update remem cntr
-  // if (inst->static_inst_p->isRevec()) {
-  //   m_cpu_p->incRevecEpoch();
-  // }
   if (inst->static_inst_p->isRemem()) {
     // extract immediate b/c this is how much to remove
     m_cpu_p->consumeFrame();
-    // m_cpu_p->incMemEpoch();
-    // if (inst->srcRegIdx(0).index() != 0) {
-    //   int tokens = m_cpu_p->readIntReg(inst->renamedSrcRegIdx(0));
-    //   m_cpu_p->consumeMemTokens(tokens);
-    // }
   }
 
   // update last committed instruction
@@ -304,7 +296,6 @@ Commit::initiateSquash(IODynInstPtr faulty_inst)
   // if this is a devec/vectorissue, then don't use the jump target to advance the PC
   // TODO not sure about other advance calls...
   if (faulty_inst->static_inst_p->isVectorIssue()) {
-    // next_pc.advance();
     RiscvISA::PCState fixedState = RiscvISA::PCState(next_pc.pc() + sizeof(RiscvISA::MachInst));
     next_pc = fixedState;
   }

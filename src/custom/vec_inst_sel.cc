@@ -1,3 +1,5 @@
+// Authors: Philip Bedoukian
+
 #include "custom/vec_inst_sel.hh"
 #include "custom/vector.hh"
 #include "cpu/io/cpu.hh"
@@ -42,9 +44,7 @@ VecInstSel::enqueueTiming(PacketPtr pkt) {
     auto msg = ss->master_data;
     assert(!_toEnqueue); // structural hazard
     _toEnqueue = msg;
-    // if schedule for next cycle, chance core tick is before it arrives. 
-    // schedule curTIck + 1 so not this cycle, but def before next core tick cycle 
-    // m_cpu_p->schedule(_enqueueEvent, m_cpu_p->clockEdge(Cycles(1)));
+    // if schedule for next cycle, chance core tick is before it arrives.
     m_cpu_p->schedule(_enqueueEvent, curTick() + 1);
     if (!_toEnqueue->isInst) {
       _tempBlocksRecv++;
@@ -111,11 +111,6 @@ VecInstSel::dequeueInst() {
 
   DequeueReqs++;
 
-  // // profile no instruction, want call this if no instruction
-  // if (!_lastICacheResp && !_vecCmds.empty() && !_vecCmds.front()->isInst) {
-  //   NoFetchedInst++;
-  // }
-
   // if we have an icache resp, then prioritize that
   if (_lastICacheResp) {
     // this assumes icache response will be recv at the beginning of the cycle
@@ -128,7 +123,6 @@ VecInstSel::dequeueInst() {
 
     if (ret && ret->static_inst_p->isRemem()) {
       _tempREMEMS++;
-      // DPRINTF(Mesh, "create remem %s count %d\n", ret->toString(true), _tempREMEMS);
     }
 
 
@@ -152,10 +146,6 @@ VecInstSel::dequeueInst() {
         // when making a nop that will get copied, can't actually use nopStaticInstPtr?
         RiscvISA::Decoder dec;
         ret->static_inst_p = dec.decode(0x00000033, 0);
-        // ret =
-        //   std::make_shared<IODynInst>(StaticInst::nopStaticInstPtr, ret->pc,
-        //                               ret->seq_num,
-        //                               ret->thread_id, m_cpu_p);
       }
     }
     // TODO this will happen in decode so should still log an additional icache access that will be squashed
@@ -238,9 +228,6 @@ VecInstSel::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
     _uopPC = squashInfo.next_pc;
 
     resetStallWait();
-    // _stallUntilJumpPC = false;
-    // // send out a request now b/c vector stage won't tick this if there is no uop present...
-    // tryReqNextUop();
   }
 }
 
@@ -294,7 +281,7 @@ VecInstSel::recvIcacheResp(PacketPtr pkt) {
 
   // we really request 32bits but the whole line was returned by ICache, so get the 32bits we want
   // NOTE make sure these are both physical addresses
-  size_t offset = 0; //(_uopPC.instAddr() - pkt->getAddr()) / sizeof(TheISA::MachInst);
+  size_t offset = 0;
   TheISA::MachInst mach_inst = TheISA::gtoh(cache_insts[offset]);
 
   // decode 32bit instruction
@@ -357,8 +344,6 @@ VecInstSel::isPCGenActive() {
 
 void
 VecInstSel::sendICacheReq(int tid, Addr instAddr) {
-  // Addr lineAddr = instAddr & ~(m_cpu_p->getCacheLineSize() - 1);
-  // int fetchSize = m_cpu_p->getCacheLineSize();
   int fetchSize = sizeof(RiscvISA::MachInst);
 
   RequestPtr req = std::make_shared<Request>
@@ -370,9 +355,6 @@ VecInstSel::sendICacheReq(int tid, Addr instAddr) {
   // translate instruction addr atomically (right now!)
   Fault fault = m_cpu_p->itb->translateAtomic(req, m_cpu_p->tcBase(tid), BaseTLB::Execute);
   assert(fault == NoFault);
-  
-  // Addr lineAddr = instAddr & ~(m_cpu_p->getCacheLineSize() - 1);
-  // DPRINTF(Mesh, "request lineAddr %#x addr %#x\n", lineAddr, instAddr);
 
   // send the req to the cache
   PacketPtr inst_pkt = new Packet(req, MemCmd::ReadReq);

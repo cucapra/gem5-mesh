@@ -521,14 +521,6 @@ MemUnit::processCacheCompletion(PacketPtr pkt)
   MemUnit::SenderState* ss =
                       safe_cast<MemUnit::SenderState*>(pkt->popSenderState());
   assert(ss && ss->inst);
-  // assert(ss);
-  // // lazy ack so have already completed the store
-  // if (!ss->inst && pkt->isWrite()) {
-  //     m_store_diff_reg--;
-  //     delete ss;
-  //     delete pkt;
-  //     return;
-  // }
   DPRINTF(LSQ, "Received response pkt for inst %s\n", ss->inst->toString());
 
   if (ss->inst->isLoad()) {
@@ -644,11 +636,6 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
   // fixed register size is 16 (not something that can be changed in python config)
   size_t effReqSize = size;
   if (m_s1_inst->isVector()) {
-    // effReqSize = (size / m_cpu_p->getHardwareVectorLength()) * m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
-    
-    // only make sure one word doesnt go off for vector
-    // will automatically split words in scratchpad
-    // effReqSize = (size / m_cpu_p->getHardwareVectorLength());
 
     // TODO assume always word sized. above  doesnt work b/c size is hardcoded
     // and not reflective of hardwareVectorLenght param most of the time
@@ -765,12 +752,6 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
             rightCount);
         }
         else {
-          // bool isVerticalLoad = (config == 1);
-          // if (isVerticalLoad) {
-          //   m_s1_inst->mem_req_p->coreOffset = baseCoreOffset;
-          //   m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + leftCount * sizeof(uint32_t);
-          // }
-          // else m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount;
           m_s1_inst->mem_req_p->coreOffset = baseCoreOffset + leftCount / countPerCore;
           m_s1_inst->mem_req_p->subCoreOffset = leftCount % countPerCore;
           // m_s1_inst->mem_req_p->prefetchAddr = spadPAddr + (leftCount ) * sizeof(uint32_t);
@@ -810,7 +791,6 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
       m_s1_inst->mem_req_p->xOrigin = 0;
       m_s1_inst->mem_req_p->yOrigin = 0;
       m_s1_inst->mem_req_p->respCnt = 1;
-      // m_s1_inst->mem_req_p->coreOffset = m_s1_inst->seq_num; // for debugging normal loads and stores
     }
     
     // allow load to issue to spad without getting any acks the load is there
@@ -821,13 +801,10 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
     if (m_s1_inst->isVector()) {
       std::vector<Addr> vecAddrs = m_s1_inst->generateAddresses();
 
-      m_s1_inst->mem_req_p->respCnt = vecAddrs.size(); //;m_cpu_p->readMiscRegNoEffect(RiscvISA::MISCREG_VL, 0);
-      // assert(m_s1_inst->mem_req_p->respCnt > 0); // can hit this condition if csr write hasnt happened, ok b/c will be squashed
+      m_s1_inst->mem_req_p->respCnt = vecAddrs.size();
       
       // set executed if wont have any requests (could all be predicated out for example or csr == 0) 
       if (m_s1_inst->mem_req_p->respCnt == 0) {
-        // m_s1_inst->fault = std::make_shared<RiscvISA::AddressFault>
-        //                                 (addr, RiscvISA::INST_ACCESS);
         m_s1_inst->setExecuted();
       }
       m_s1_inst->mem_req_p->prefetchConfig = 1; // vertical
@@ -851,7 +828,6 @@ MemUnit::pushMemReq(IODynInst* inst, bool is_load, uint8_t* data,
           pTable->translate(vAddr, pAddr));
 
         vecAddrs[i] = pAddr;
-        // DPRINTF(RiscvVector, "vec addr (%d) %#x\n", i, pAddr);
       }
       m_s1_inst->mem_req_p->vecAddrs = vecAddrs;
 
@@ -967,10 +943,6 @@ MemUnit::checkLdStDependency(IODynInstPtr ld_inst)
 // annoying have to define scratchpad here, removing modularity, but watevs
 void
 MemUnit::clearPortRetry() {
-  /*BaseSlavePort *slave_port = &(m_cpu_p->getDataPort().getSlavePort());
-  if (CpuPort *slaveSpadPort = dynamic_cast<CpuPort*>(slave_port)) {
-    return slaveSpadPort->clearRetry();
-  }*/
 }
 
 void

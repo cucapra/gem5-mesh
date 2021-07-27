@@ -5,6 +5,7 @@
  * Handles instruction communication over the mesh network:
  * sends, recvs, and syncs with neighbors.
  * 
+ * Authors: Philip Bedoukian
  */ 
 
 #include "cpu/io/stage.hh"
@@ -68,12 +69,6 @@ class Vector : public Stage {
     // a new state for their local fsms
     void informNeighbors();
     
-    // set appropriate mesh node as ready
-    //void setRdy(bool rdy);
-    
-    // set appropriate mesh node ports as valid
-    //void setVal(bool val);
-    
     // check if we need to stall due to the internal pipeline
     bool isInternallyStalled();
     
@@ -87,29 +82,6 @@ class Vector : public Stage {
     VecInstSel &getVecInstSel() { return _vecUops; }
 
   protected:
-    // // information to use to create local IODynInst
-    // // currenlty cheating and using all possible info
-    // struct MasterData {
-    //     IODynInstPtr inst;
-    //     bool isInst; // inst or PC
-    //     TheISA::PCState pc;
-
-    //     // sending an instruction
-    //     MasterData(IODynInstPtr inst) {
-    //       this->inst = inst;
-    //       isInst = true;
-    //     }
-
-    //     // sending a PC
-    //     MasterData(TheISA::PCState pc) {
-    //       this->pc = pc;
-    //       isInst = false;
-    //     }
-
-    //     MasterData() {
-
-    //     }
-    // };
 
     // create a dynamic instruction
     IODynInstPtr createInstruction(const IODynInstPtr &instInfo);
@@ -141,9 +113,6 @@ class Vector : public Stage {
     // reset all mesh node port settings
     void resetActive();
     
-    // TEMP get an instruction from the master
-    // IODynInstPtr getMeshPortInst(Mesh_Dir dir);
-    
     // get received data from the specified mesh port
     uint64_t getMeshPortData(Mesh_Dir dir);
     
@@ -152,17 +121,6 @@ class Vector : public Stage {
     
     // get a machinst from the local fetch2
     IODynInstPtr getFetchInput();
-    
-    // check if this stage can proceed
-    //bool shouldStall();
-    
-    // is stalled due to mesh
-    //bool meshStalled();
-    
-    // encode + decode of information over mesh net
-    // requires 32 + 1 = 33bits currently
-    //Minor::ForwardVectorData decodeMeshData(uint64_t data);
-    //uint64_t encodeMeshData(const Minor::ForwardVectorData &instInfo);
     
     // take credits from previous stage, stage should have 0 credits after this
     void stealCredits();
@@ -177,18 +135,6 @@ class Vector : public Stage {
 
     // profile any stalling
     void profile();
-
-    // // PC gen for uop decomposition
-    // // I think this would be in the normal fetch PC GEN in real RTL
-    // // but easier to just replicate in the game5 model
-    // // don't need to unstall fetch or worry about ordering
-    // // can also try to do functionalReq to get the icache resp immedietly as if did last cycle?
-    // // fine as long as assume warmed up cache and not enough microops to ever warrant icache miss <4kB
-    // void setPCGen(TheISA::PCState issuePC, int cnt);
-    // bool isPCGenActive();
-    // IODynInstPtr nextAtomicInstFetch();
-    // RiscvISA::MachInst doICacheFuncRead(int tid, Addr instAddr, int fetchSize);
-    // int extractInstCntFromVissue(IODynInstPtr inst);
 
    public:
     // helpers to figure out settings of this stage
@@ -247,10 +193,6 @@ protected:
     void recvICacheResp(PacketPtr pkt);
      
   protected:
-  
-    // define the ports we're going to use for to access the mesh net
-    //std::vector<ToMeshPort> _toMeshPort;
-    //std::vector<FromMeshPort> _fromMeshPort;
     
     // number of ports currently actively communicating
     int _numInPortsActive;
@@ -281,16 +223,6 @@ protected:
     // whether we've seen a revec instruction and whats it's value (?)
     int _meshRevecId;
     int _pipeRevecId;
-    
-    // count the number of revecs we've recved in the past
-    //int _revecCntr;
-
-    // // the current uop PC
-    // TheISA::PCState _uopPC;
-    // // number of uops to get before completion (<8 or so, can make hardware small)
-    // int _uopIssueLen;
-    // // the current number of uops
-    // int _uopCnt;
 
     // unit to provide instructions from the mesh either full inst or uop from fetch it did
     VecInstSel _vecUops;

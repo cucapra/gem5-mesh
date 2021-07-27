@@ -85,9 +85,6 @@ class SwitchAllocator : public Consumer
     std::vector<std::vector<int>> m_vc_winners; // a list for each outport
     std::vector<InputUnit *> m_input_unit;
     std::vector<OutputUnit *> m_output_unit;
-
-    // debug
-    std::vector<char> m_wakeup_info;
 };
 
 #endif // __MEM_RUBY_NETWORK_GARNET2_0_SWITCHALLOCATOR_HH__

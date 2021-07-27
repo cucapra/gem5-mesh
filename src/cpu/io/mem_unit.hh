@@ -171,13 +171,6 @@ class MemUnit : public ExecUnit
     bool isSQReadyToWB() const;
     
     /**
-     * A spad prefetch cannot issue unless speculative loads to that spad
-     * have completed
-     */ 
-    //bool canIssueSpadPrefetch(IODynInstPtr tryInst);
-    //bool canIssueSpecLoad(IODynInstPtr tryInst);
-    
-    /**
      * FIXME Problem with lwspec, where can be squashed but still pending a retry
      * Then a new packet is sent before the retry can be resolved by a packet 
      * coming in for the spad. Don't know if this is gem5 specific hack or how 

@@ -1,8 +1,9 @@
+// Authors: Philip Bedoukian
+
 #include "arch/registers.hh"
 #include "base/bitfield.hh"
 #include "custom/vector.hh"
 #include "cpu/io/cpu.hh"
-//#include "arch/utility.hh"
 
 #include "debug/Mesh.hh"
 
@@ -317,21 +318,8 @@ Vector::doSquash(SquashComm::BaseSquash &squashInfo, StageIdx initiator) {
   
   // do squash in subunit
   _vecUops.doSquash(squashInfo, initiator);
-
-  // if squash due to a traced instruction, then we need to exit trace mode
-  // TODO probably want to go to 'transparent' where recv and send as before
-  // but still doing own seperate fetch and instruction stream.
-  // + Don't run into issue when one core diverges and causes rest to diverge b/c dominates them
-  // - Potentially wasted energy on instruction pass throughs (especially if low usage)
-  // - This core can potentially stall b/c target is stalled, but that's awkward b/c this is working on diff stream
-  // if (initiator == StageIdx::IEWIdx && squash_inst->from_trace) {
-  //   DPRINTF(Mesh, "[[INFO]] trace divergence [%s]\n", squash_inst->toString(true));
-  //   //m_cpu_p->setMiscReg(RiscvISA::MISCREG_FETCH, 0, tid);
-  //   _vecPassThrough = true;
-  //   restoreCredits();
-  // }
   
-  // if this was a config squash and if we are a slave, then takeaway all credits?
+  // if this was a config squash and if we are a vector, then takeaway all credits?
   // but not sure we can make this check based on when the csr file is written and credits
   //
   // could have small wire carrying slave bit from commit stage -- ok
@@ -353,10 +341,6 @@ void
 Vector::passInstructions() {
   while (!m_insts.empty() && !checkStall()) {
     IODynInstPtr inst = m_insts.front();
-    //ThreadID tid = inst->thread_id;
-    //DPRINTF(Mesh, "[tid:%d] Decoding inst [sn:%lli] with PC %s\n",
-    //                tid, inst->seq_num, inst->pc);
-    // DPRINTF(Mesh, "%s %#x\n", inst->toString(true), m_cpu_p->readArchIntReg(2, 0));
     
     // send out this inst
     sendInstToNextStage(inst);
@@ -420,20 +404,6 @@ Vector::forwardInstruction(const IODynInstPtr& inst) {
   else if (isDecoupledAccess()) {
     return;
   }
-  // if (isDecoupledAccess()) {
-  //   if (instInfo.inst->static_inst_p->isVectorIssue()) {
-  //     forwardInst = MasterData(instInfo.inst->branchTarget());
-  //   }
-  //   else {
-  //     return;
-  //   }
-  // }
-
-  // if this is a vector issue instruction then we need to turn this into a PC addr
-  // MasterData forwardInst = instInfo;
-  // if (instInfo.isInst && instInfo.inst->static_inst_p->isVectorIssue()) {
-  //   forwardInst = MasterData(instInfo.inst->branchTarget());
-  // }
   
   if (forwardInst.isInst)
     DPRINTF(Mesh, "Forward to mesh net %s\n", forwardInst.inst->toString(true));
@@ -443,18 +413,7 @@ Vector::forwardInstruction(const IODynInstPtr& inst) {
   // send a packet in each direction
   for (int i = 0; i < out.size(); i++) {
     Mesh_Dir dir = out[i].outDir;
-    //Mesh_Out_Src src = out[i].src;
-    
-    
-    /*if (instInfo.inst->isCondCtrl()) {
-      DPRINTF(Mesh, "bne sent pred taken %d target %#x\n", instInfo.inst->predicted_taken, instInfo.inst->readPredTarg());
-    }*/
-    
-    //uint64_t meshData = encodeMeshData(instInfo);
-    //DPRINTF(Mesh, "Sending mesh request %d from %d with val %#x %d %d = %#x\n", 
-    //    dir, src, instInfo.machInst, instInfo.predictTaken, instInfo.mispredicted, meshData);
-    //if (instInfo.predictTaken) DPRINTF(Mesh, "predict taken %d\n", instInfo.predictTaken);
-    //if (instInfo.mispredicted) DPRINTF(Mesh, "mispredicted %d\n", instInfo.mispredicted);
+
     PacketPtr new_pkt = createMeshPacket(forwardInst);
     getMeshMasterPorts()[dir].sendTimingReq(new_pkt);
     
@@ -473,34 +432,19 @@ Vector::pullPipeInstruction(IODynInstPtr &instInfo) {
     consumeInst();
 }
 
-// if slave, pull from the mesh
+// if vector, pull from the mesh
 // Recently changed so that there is a single buffer for all of the mesh ports
 // there won't be a structural hazard because only one input will be active at once
 void
 Vector::pullMeshInstruction(IODynInstPtr &instInfo) {
-  
   instInfo = _vecUops.dequeueInst();
-
-  // Mesh_Dir recvDir;
-  // if (MeshHelper::fetCsrToInSrc(_curCsrVal, recvDir)) {
-  //   auto dataPtr = getMeshPortInst(recvDir);
-  //   if (dataPtr->isInst) {
-  //     instInfo = MasterData(dataPtr->inst);
-  //     DPRINTF(Mesh, "get inst %s\n", instInfo.inst->toString(true));
-  //   }
-  //   else {
-  //     instInfo = MasterData(dataPtr->pc);
-  //     // also pass the inst information for extra metadata, that will need encode when go to RTL
-  //     instInfo.inst = dataPtr->inst;
-  //     DPRINTF(Mesh, "get PC %#x\n", instInfo.pc);
-  //   }
-  // }
 }
 
 IODynInstPtr
 Vector::createInstruction(const IODynInstPtr &inst) {
   // make a dynamic instruction to pass to the decode stage
-  // a slave core will track its seq num (incr on every instruction, i.e. nth dynamic inst), 
+  // a vector core will track its seq num (incr on every instruction, i.e. nth dynamic inst), 
+  // TODO does not support compressed instructions!!!
   
   // in trace mode don't know pc yet, so just give dummy value
   TheISA::PCState cur_pc = 0;
@@ -509,22 +453,14 @@ Vector::createInstruction(const IODynInstPtr &inst) {
   // 1) vec loads
   // 2) scalar instructions
   StaticInstPtr static_inst;
-  // bool force32bit;
   if (inst->static_inst_p->isSpadPrefetch()) {
-    // TODO this makes pc + 2, when need pc + 4 (the prefetch is 32 bits)
-    // compensate in iew logic
-    static_inst = StaticInst::nopStaticInstPtr; 
-    // force32bit = true;
+    static_inst = StaticInst::nopStaticInstPtr;
   }
   // otherwise copy the sent instruction
   else {
     TheISA::MachInst machInst = (TheISA::MachInst)inst->static_inst_p->machInst;
     static_inst = extractInstruction(machInst, cur_pc);
-    // force32bit = false;
   }
-  // TheISA::MachInst machInst = (TheISA::MachInst)instInfo.inst->static_inst_p->machInst;
-  // static_inst = extractInstruction(machInst, cur_pc);
-  // force32bit = false;
   
   int tid = 0;
   IODynInstPtr copied_inst =
@@ -532,23 +468,6 @@ Vector::createInstruction(const IODynInstPtr &inst) {
                                       m_cpu_p->getAndIncrementInstSeq(),
                                       tid, m_cpu_p);
   DPRINTF(Mesh, "[tid:%d]: built inst %s from %s\n", tid, copied_inst->toString(true), inst->toString(true));  
-  
-  // // mark instruction as from a stream traced by master core
-  // if (!static_inst->isVectorIssue()) {
-  //   copied_inst->from_trace = true;
-  //   copied_inst->replaced = force32bit;
-    
-  //   // iew will pass a mispredicted branch forward, we don't want to send 
-  //   // this to slave core because it will be wasted work, however you still need
-  //   // to check the branch here. if it fails with update then we know there is divergence
-    
-  //     copied_inst->master_targ  = inst->master_targ;
-  //     copied_inst->master_taken = inst->master_taken;
-    
-  //   if (inst->isControl()) {
-  //     DPRINTF(Mesh, "master targed %d %s. pred targ %d %s\n", inst->master_taken, inst->master_targ, inst->predicted_taken, inst->readPredTarg() );
-  //   }
-  // }  
 
   return copied_inst;
 }
@@ -557,10 +476,9 @@ void
 Vector::pushPipeInstToNextStage(const IODynInstPtr &inst) {
   sendInstToNextStage(inst);
     
-  //DPRINTF(Mesh, "Push inst to decode %s\n", instInfo.inst->toString(true));
+  // if end of pipeline count stat, TODO dont even think used anymore
   if (m_stage_idx == LateVectorIdx) {
     _numInstructions++;
-    // DPRINTF(Mesh, "[%s] num instructions seen %d\n", inst->toString(true), _numInstructions);
   }
 }
 
@@ -574,12 +492,6 @@ Vector::pushMeshInstToNextStage(const IODynInstPtr &instInfo) {
 
 void
 Vector::sendInstToNextStage(IODynInstPtr dynInst) {
-  //DPRINTF(Mesh, "push instruction to decode %s\n", dynInst->toString(true));
-  
-  // TODO add epoch # here, but really shouldn't be because these things can be squashed
-  //dynInst->epoch = getRevecEpoch();
-  //DPRINTF(Mesh, "revec # %d\n", dynInst->epoch);
-  
   Stage::sendInstToNextStage(dynInst);
   
   // if any one of the stages calls this, then the processor will tick
@@ -599,8 +511,6 @@ Vector::setupConfig(int csrId, RegVal csrVal) {
   resetActive();
   
   DPRINTF(Mesh, "csrVal %d\n", csrVal);
-  
-  //int csrId = MeshHelper::stageToCsr(_stage);
   
   // get the internal src to be send of each of the output ports
   std::vector<Mesh_Dir> outDirs;
@@ -640,10 +550,7 @@ Vector::extractInstruction(const TheISA::MachInst inst, TheISA::PCState& cur_pc)
     } else {
         cur_pc.npc(cur_pc.instAddr() + sizeof(RiscvISA::MachInst));
     }
-  // need to figure out how long insturction is (emulates the following process that happens in fetch and rv decoder
-  //decoder.moreBytes(cur_pc, 0x0, inst);
-  //assert(decoder.instReady());
-  //StaticInstPtr ret = decoder.decode(cur_pc);
+  // need to figure out how long insturction is (emulates the following process that happens in fetch and rv decoder)
   StaticInstPtr ret = decoder.decode(inst, 0x0);
   return ret;
 }
@@ -714,17 +621,6 @@ Vector::getInVal() {
   // just check vecUop, only need a single buffer for all in port 
   // b/c only one will be active at once
   return _vecUops.getVal();
-
-  // bool allVal = true;
-  
-  // for (int i = 0; i < getMeshSlavePorts().size(); i++) {
-  //   if (getMeshSlavePorts()[i].getActive() == _stage) {
-  //     if (!getMeshSlavePorts()[i].getPairVal()) allVal = false;
-  //     //if (!_fromMeshPort[i].pktExists()) allVal = false;
-  //   }
-  // }
-  
-  // return allVal;
 }
 
 void
@@ -732,32 +628,27 @@ Vector::resetActive() {
   _numInPortsActive = 0;
   _numOutPortsActive = 0;
   
-  // TODO need to prevent this reset if this is not the driver?
-  // if (!getConfigured() || canWriteMesh()) {
-    
-    for (int i = 0; i < getMeshMasterPorts().size(); i++) {
-      getMeshMasterPorts()[i].setActive(NONE);
-    
-      // set the stage driving the ports (effectively setting mux select)
-      if (canWriteMesh()) {
-        if (!getConfigured()) getMeshMasterPorts()[i].setDriver(nullptr);
-        else getMeshMasterPorts()[i].setDriver(this);
-      }
-    }
-  // }
-  
-  // if (!getConfigured() || canReadMesh()) {
 
-    for (int i = 0; i < getMeshSlavePorts().size(); i++) {
-      getMeshSlavePorts()[i].setActive(NONE);
-     
-      // set the stage driving the ports (effectively setting mux select)
-      if (canReadMesh()) {
-        if (!getConfigured()) getMeshSlavePorts()[i].setDriver(nullptr);
-        else getMeshSlavePorts()[i].setDriver(this);
-      }
+  for (int i = 0; i < getMeshMasterPorts().size(); i++) {
+    getMeshMasterPorts()[i].setActive(NONE);
+  
+    // set the stage driving the ports (effectively setting mux select)
+    if (canWriteMesh()) {
+      if (!getConfigured()) getMeshMasterPorts()[i].setDriver(nullptr);
+      else getMeshMasterPorts()[i].setDriver(this);
     }
-  // }
+  }
+
+
+  for (int i = 0; i < getMeshSlavePorts().size(); i++) {
+    getMeshSlavePorts()[i].setActive(NONE);
+    
+    // set the stage driving the ports (effectively setting mux select)
+    if (canReadMesh()) {
+      if (!getConfigured()) getMeshSlavePorts()[i].setDriver(nullptr);
+      else getMeshSlavePorts()[i].setDriver(this);
+    }
+  }
   
 }
 
@@ -819,25 +710,7 @@ Vector::getRevecStall() {
 // inform that there has been an update
 void
 Vector::neighborUpdate() {
-  /*if ((getNumPortsActive(EXECUTE) > 0) || (getNumPortsActive(FETCH) > 0)) {
-  
-  DPRINTF(Mesh, "to_mesh:\nactive   %d %d %d %d\nself val %d %d %d %d\npair rdy %d %d %d %d\n",
-    toMeshPort[0].getActive(), toMeshPort[1].getActive(), toMeshPort[2].getActive(), toMeshPort[3].getActive(),
-    toMeshPort[0].getVal(), toMeshPort[1].getVal(), toMeshPort[2].getVal(), toMeshPort[3].getVal(),
-    toMeshPort[0].getPairRdy(), toMeshPort[1].getPairRdy(), toMeshPort[2].getPairRdy(), toMeshPort[3].getPairRdy());
-    
-  DPRINTF(Mesh, "from_mesh:\nactive   %d %d %d %d\nself rdy %d %d %d %d\npair val %d %d %d %d\n",
-    fromMeshPort[0].getActive(), fromMeshPort[1].getActive(), fromMeshPort[2].getActive(), fromMeshPort[3].getActive(),
-    fromMeshPort[0].getRdy(), fromMeshPort[1].getRdy(), fromMeshPort[2].getRdy(), fromMeshPort[3].getRdy(),
-    fromMeshPort[0].getPairVal(), fromMeshPort[1].getPairVal(), fromMeshPort[2].getPairVal(), fromMeshPort[3].getPairVal());
-  }*/
-  
-  // update the statemachines
-  //_fsm->neighborEvent();
-  
-  
   signalActivity();
-  
 }
 
 
@@ -850,21 +723,10 @@ Vector::informNeighbors() {
   }
 }
 
-// std::shared_ptr<MasterData>
-// Vector::getMeshPortInst(Mesh_Dir dir) {
-//   PacketPtr pkt = getMeshPortPkt(dir);
-//   Vector::SenderState* ss =
-//               safe_cast<Vector::SenderState*>(pkt->popSenderState());
-//   auto msg = ss->master_data;
-//   delete ss;
-//   return msg;
-// }
-
 uint64_t
 Vector::getMeshPortData(Mesh_Dir dir) {
   PacketPtr pkt = getMeshPortPkt(dir);
   return FromMeshPort::getPacketData(pkt);
-  //return fromMeshPort[dir].getPacketData();
 }
 
 PacketPtr
@@ -908,11 +770,6 @@ Vector::stealCredits() {
     _stolenCredits = m_max_num_credits;
     auto& pipeline = m_cpu_p->getPipeline();
     pipeline.setPrevStageUnemployed(m_stage_idx, true);
-    //m_outgoing_credit_wire->to_prev_stage(m_next_stage_credit_idx) -= _stolenCredits;
-    
-    // we also need to not stall ourselves so give us a bump in credits
-    // for future cycles
-    //m_num_credits += _stolenCredits;
   }
   DPRINTF(Mesh, "steal credits %d\n", _stolenCredits); 
   
@@ -953,6 +810,7 @@ Vector::handleRevec(const IODynInstPtr pipeInst, const IODynInstPtr meshInst) {
     return;
   }
   
+  // REVEC Deprecated
   if (meshInst && meshInst->static_inst_p->isRevec()) {
     // set revec, TODO how to check value, or it even appropriate to check here?
     setMeshRevec(0);
@@ -1082,22 +940,6 @@ int
 Vector::getYOrigin() {
   return MeshHelper::getYOrigin(_curCsrVal);
 }
-
-/*int
-Vector::getPrefetchXLen() {
-  if (isRootMaster())
-    return getXLen();
-  else
-    return 1;
-}
-
-int
-Vector::getPrefetchYLen() {
-  if (isRootMaster())
-    return getYLen();
-  else
-    return 1;
-}*/
 
 std::vector<ToMeshPort>&
 Vector::getMeshMasterPorts() {

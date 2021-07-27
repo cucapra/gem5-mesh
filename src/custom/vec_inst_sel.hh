@@ -3,6 +3,8 @@
 
 /*
  * Handles storage of recv instructions/pcs from the mesh net
+ *
+ * Authors: Philip Bedoukian
  */ 
 
 #include "cpu/io/stage.hh"
@@ -110,11 +112,6 @@ class VecInstSel : public Named {
 
     // max number of vec cmds available
     int _maxVecCmds;
-
-    // current mach_inst (in case we need to build it due to compressed instructions)
-    // NOTE we are going to not compile with compressed instructions anymore. 
-    // hammerblade doesn't do it and honestly just a pain in the butt
-    // RiscvISA::MachInst _curMachAcc;
 
     // built icache instruction
     IODynInstPtr _lastICacheResp;

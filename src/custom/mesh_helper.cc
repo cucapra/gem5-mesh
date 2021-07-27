@@ -1,3 +1,5 @@
+// Authors: Philip Bedoukian
+
 #include <cassert>
 
 #include "arch/registers.hh"
@@ -94,11 +96,6 @@ MeshHelper::getCSRCodes() {
   return csrs;
 }
 
-/*int
-MeshHelper::csrSrcSends(uint64_t csrVal, Mesh_Out_Src src) {
-  for (int i = 0; i < Mesh_
-}*/
-
 bool
 MeshHelper::rangeToMeshDir(uint64_t csrVal, int hi, int lo, Mesh_Dir &dir) {
   uint64_t ret = bits(csrVal, hi, lo);
@@ -156,20 +153,6 @@ MeshHelper::isVectorMaster(uint64_t csrVal) {
   std::vector<Mesh_Dir> dirs;
   return (fetCsrToOutDests(csrVal, dirs));
 }
-
-// bool
-// MeshHelper::fetCsrToCount(uint64_t csrVal, int &count) {
-//   count = bits(csrVal, FET_COUNT_HI, FET_COUNT_LO);
-//   return (count > 0);
-// }
-
-// bool
-// MeshHelper::fetCsrToLockedInst(uint64_t csrVal, Locked_Insts &inst) {
-//   // only does anything if dir set to lock
-//   inst = (Locked_Insts)bits(csrVal, FET_INST_HI, FET_INST_LO);
-//   int lockedInt = bits(csrVal, FET_IN_SRC_HI, FET_IN_SRC_LO);
-//   return (lockedInt == (FET_I_INST_LOCK >> FET_I_INST_SHAMT));
-// }
 
 bool
 MeshHelper::isDecoupledAccess(RegVal csrVal) {
@@ -298,24 +281,3 @@ bool
 MeshHelper::hasForwardingPath(RegVal csrVal) {
   return isVectorMaster(csrVal) || isVectorSlave(csrVal);
 }
-
-// reproduce the isa file here, b/c not sure how to get the info from the
-// weirdo isa language
-/*
-StaticInstPtr
-MeshHelper::nameToStaticInst(Locked_Insts inst) {
-  switch(inst) {
-    case ADD:
-      MachInst mach = 0b00000000000000000000000000110011;
-      return new StaticInst("add", mach, IntALUOp);
-    case MUL:
-      MachInst mach = 0b00000010000000000000000000110011
-      return new StaticInst("mul", mach, IntMultOp);
-    case SUB:
-      MachInst mach = 0b01000000000000000000000000110011
-      return new StaticInst("sub", mach, IntALUOp);
-    case LW:
-      
-  }
-}
-*/
