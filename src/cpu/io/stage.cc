@@ -1,3 +1,6 @@
+// Authors: Tuan Ta
+//          Philip Bedoukian
+
 #include "cpu/io/stage.hh"
 #include "cpu/io/cpu.hh"
 

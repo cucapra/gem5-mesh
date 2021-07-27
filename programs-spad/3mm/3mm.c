@@ -162,6 +162,8 @@ void kernel(DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *e, DTYPE *c, DTYPE *cT, DTYPE 
 
 
 #else
+  // need to wait after tranpose!
+  pthread_barrier_wait(&start_barrier);
   // E = A(m,t1).B(t1,k)
   gemm_manycore(a, b, e, m, k, t1, m_start, n_start, ptid, pdim_x, pdim_y);
 

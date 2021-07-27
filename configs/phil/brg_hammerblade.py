@@ -3,7 +3,8 @@
 #==============================================================================
 # Python configuration file for BRG scratchpad system
 #
-# Author: Tuan Ta
+# Authors: Tuan Ta
+#          Philip Bedoukian
 # Date  : 19/07/09
 
 import optparse
@@ -99,9 +100,6 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_l2
   link_latency = 1
   router_latency = 1
 
-  #n_cpus = len(system.cpu)
-  #n_xcels = len(system.xcel)
-
   # all controllers
   icaches   = system.icaches
   cpu_sps   = system.scratchpads[:n_cpus]
@@ -119,7 +117,6 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_l2
     assert(len(l2s) <= n_cols*2)
   else:
     assert(len(l2s) <= n_cols)
-  #assert(len(l2s) + n_cpus + n_xcels == num_routers)
 
   # create all routers
   routers = [ Router(router_id = i,
@@ -273,8 +270,6 @@ def makeSystolicTopology(system, tiles_x, tiles_y):
   # get reference to the cpus already in the system
   cpus = system.cpu
 
-  #print ('harnesses: {0}'.format(len(system.harness)))
-
   for y in range(tiles_y):
     for x in range(tiles_x):
       # do all mesh connections
@@ -286,8 +281,6 @@ def makeSystolicTopology(system, tiles_x, tiles_y):
       idx_l = x - 1 + y         * tiles_x
       idx_u = x     + ( y - 1 ) * tiles_x
       idx_d = x     + ( y + 1 ) * tiles_x
-    
-      #print('Connecting ({0}, {1}) = {2}'.format(x, y, idx))
     
       to_right = 0
       from_left = 2
@@ -342,7 +335,6 @@ def makeSystolicTopology(system, tiles_x, tiles_y):
 parser = optparse.OptionParser()
 Options.addCommonOptions(parser)
 Options.addSEOptions(parser)
-#Options.addBRGOptions(parser)
 Ruby.define_options(parser)
 
 # Scratchpad size
@@ -417,23 +409,45 @@ process = get_processes(options)[0]
 # Construct CPUs
 #------------------------------------------------------------------------------
 
-# CPU class
-CPUClass = IOCPU (
-  includeVector = options.vector,
-  meshBufferSize = options.mesh_queue_len,
-  numROBEntries = 8,
-  # remember to set in util.h
-  hw_vector_length = options.hw_vlen
-  # latencies from https://github.com/bespoke-silicon-group/riscv-gcc/blob/bsg_manycore_gcc/gcc/config/riscv/bsg_vanilla_2020.md
-  ,
-  intAluOpLatency = 1,
-  intMulOpLatency = 2,
-  divOpLatency    = 20,
-  fpAluOpLatency  = 3,
-  fpMulOpLatency  = 3
-  # , numLoadQueueEntries = 8,
-  # numStoreQueueEntries = 8
-)
+if (options.cpu_type == 'DerivO3CPU'):
+  CPUClass = CpuConfig.get('DerivO3CPU')
+
+  # 4-way, 16lq+16sq (default 8-way, 32lq+32sq)
+  cpuWidth = 4
+  CPUClass.fetchWidth = cpuWidth
+  CPUClass.decodeWidth = cpuWidth
+  CPUClass.renameWidth = cpuWidth
+  CPUClass.dispatchWidth = cpuWidth
+  CPUClass.issueWidth = cpuWidth
+  CPUClass.wbWidth = cpuWidth
+  CPUClass.commitWidth = cpuWidth
+  CPUClass.squashWidth = cpuWidth
+
+  CPUClass.LQEntries = 16
+  CPUClass.SQEntries = 16
+
+  # make sure stream width matches lsq size
+  options.stream_width = CPUClass.LQEntries + CPUClass.SQEntries
+else:
+  if (options.cpu_type != 'IOCPU'):
+    print('WARNING: Only support IOCPU (w or w/o vector) or DerivO3Cpu (w/o vector)')
+  # CPU class
+  CPUClass = IOCPU (
+    includeVector = options.vector,
+    meshBufferSize = options.mesh_queue_len,
+    numROBEntries = 8,
+    # remember to set in util.h
+    hw_vector_length = options.hw_vlen
+    # latencies from https://github.com/bespoke-silicon-group/riscv-gcc/blob/bsg_manycore_gcc/gcc/config/riscv/bsg_vanilla_2020.md
+    ,
+    intAluOpLatency = 1,
+    intMulOpLatency = 2,
+    divOpLatency    = 20,
+    fpAluOpLatency  = 3,
+    fpMulOpLatency  = 3
+    # , numLoadQueueEntries = 8,
+    # numStoreQueueEntries = 8
+  )
 
 # Create top-level system
 system = System(cpu = [ CPUClass(cpu_id = i) for i in xrange(n_cpus) ],
@@ -588,6 +602,7 @@ for i in xrange(n_l2s):
                                 cache_resp_latency = 1,
                                 to_memory_controller_latency = 1,
                                 mem_to_cpu_latency = 1 # TODO this needs to be the same as cache_resp_latency b/c same ordered queue?
+                                , number_of_TBEs = 64
                                 )
                                 #number_of_TBEs = 1)
 
@@ -622,7 +637,7 @@ system.system_port = system.ruby.sys_port_proxy.slave
 # Construct systolic network
 #------------------------------------------------------------------------------
 
-if (options.vector):
+if (options.vector and options.cpu_type == 'IOCPU'):
   eff_rows = n_rows - 1
   if (double_L2):
     eff_rows = n_rows - 2

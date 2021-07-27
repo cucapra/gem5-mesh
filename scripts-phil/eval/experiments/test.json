@@ -1,0 +1,45 @@
+{
+    "ConfigInfo" : {
+        "Config0" : {
+            "Software" : [
+                [ "NO_VEC", "MANYCORE_PREFETCH"],
+                "NO_VEC"
+            ],
+            "Hardware" : [
+                "",
+                "--dram-bw=32"
+            ]
+        },
+        "Config1" : {
+            "Software" : [
+                [ "VECTOR_LEN=4" ]
+            ],
+            "Hardware" : [
+                ""
+            ]
+        },
+        "Config2" : {
+            "Software" : [
+                [ "NO_VEC", "MANYCORE_PREFETCH" ]
+            ],
+            "Hardware" : [
+                "--dram-bw=64"
+            ]
+        }
+    },
+
+    "ConfigGroups" : {
+        "Grouped_Normal" : [ "Config0", "Config1" ]
+    },
+
+    "Benchmarks" : {
+        "bicg" : {
+            "Configs" : [ "Grouped_Normal", "Config2" ],
+            "Argv"    : [ "2048" ]
+        },
+        "syrk" : {
+            "Configs" : [ "Grouped_Normal" ],
+            "Argv"    : [ "256" ]
+        }
+    }
+}

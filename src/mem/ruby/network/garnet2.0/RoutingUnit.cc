@@ -79,11 +79,7 @@ RoutingUnit::addWeight(int link_weight)
         for (int i = 0; i < m_req_weight_table.size(); i++) {
             str += std::to_string(m_req_weight_table[i]) + " ";
         }
-        DPRINTF(Frame, "req %s\n", str.c_str());
     }
-    // if(m_resp_weight_table.size() == m_router->get_num_outports())DPRINTF(Frame, "resp %d %d %d %d\n", m_resp_weight_table[0], m_resp_weight_table[1], m_resp_weight_table[2], m_resp_weight_table[3]);
-
-    // DPRINTF(Frame, "%d\n", m_req_weight_table.size());
 
 }
 

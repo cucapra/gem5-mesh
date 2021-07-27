@@ -1,0 +1,36 @@
+{
+    "ConfigInfo" : {
+        "Config0" : {
+            "Software" : [
+                [ "NO_VEC", "MANYCORE_PREFETCH" ],
+                [ "VECTOR_LEN=4" ]
+            ],
+            "Hardware" : [
+                ""
+            ]
+        }
+    },
+
+    "Benchmarks" : {
+        "bicg" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "2048" ]
+        },
+        "syrk" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "256" ]
+        },
+        "conv2d" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "2048" ]
+        },
+        "gemm" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "256" ]
+        },
+        "covar" : {
+            "Configs" : [ "Config0" ],
+            "Argv"    : [ "512" ]
+        }
+    }
+}

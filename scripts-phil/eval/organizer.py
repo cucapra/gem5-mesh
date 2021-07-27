@@ -1,5 +1,7 @@
 '''
   Analyze and organize data in interesting ways
+
+  Authors: Philip Bedoukian
 '''
 
 import numpy as np
@@ -7,10 +9,23 @@ from math import floor, ceil, isnan
 from copy import deepcopy
 from graph_king import bar_plot, line_plot, heatmap
 from table_king import make_table
-from layout_helper import get_mesh_dist_sequence
+from layout_helper import get_mesh_dist_sequence, is_vec_4_config, is_vec_16_config, is_vec_config
 from scipy.stats.mstats import gmean
 
-import argparse, pickle
+import argparse, pickle, re
+
+# check if has the required series to make the graph
+def require_configs(data, plot_name, configs=[]):
+  configs = deepcopy(configs)
+  for row in data:
+    if (row['config'] in configs):
+      configs.remove(row['config'])
+
+  if len(configs) == 0:
+    return True
+  else:
+    print('Skipping plot of ' + plot_name + ' because missing required series ' + str(configs))
+    return False
 
 # sort data according to specified order (for bar data)
 def sort_by_sub_label(cur_order, values, desired_order):
@@ -31,7 +46,7 @@ def sort_by_sub_label(cur_order, values, desired_order):
 
   return (desired_order, sorted_values)
 
-def format_bar_series(labels, sub_labels, values, desired_order):
+def format_bar_series(labels, sub_labels, values, desired_order, remove_zero_fields):
   labels = deepcopy(labels)
   sub_labels = deepcopy(sub_labels)
 
@@ -42,25 +57,26 @@ def format_bar_series(labels, sub_labels, values, desired_order):
     desired_order = deepcopy(desired_order)
 
   # remove any labels that have no fields
-  j = 0
-  while (j < len(desired_order)):
-    l = desired_order[j]
-    idx = -1
-    for i in range(len(sub_labels)):
-      if sub_labels[i] == l:
-        idx = i
+  if (remove_zero_fields):
+    j = 0
+    while (j < len(desired_order)):
+      l = desired_order[j]
+      idx = -1
+      for i in range(len(sub_labels)):
+        if sub_labels[i] == l:
+          idx = i
 
-    has_nz = False
-    if (idx >= 0):
-      for v in values[idx]:
-        if (v != 0 and not isnan(v)):
-          has_nz = True
+      has_nz = False
+      if (idx >= 0):
+        for v in values[idx]:
+          if (v != 0 and not isnan(v)):
+            has_nz = True
 
-    if (not has_nz):
-      desired_order.remove(l)
-      j -= 1
+      if (not has_nz):
+        desired_order.remove(l)
+        j -= 1
 
-    j += 1
+      j += 1
 
   # sort sub bar series
   if len(desired_order) > 0:
@@ -199,28 +215,15 @@ def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar
 
   # average together series with the same number of hops
 
-  # print(v4_hops)
-  # print(v16_hops)
   xaxes = []
-
-  v4_configs = [
-    'V4',
-    'V4_PCV',
-    'V4_LL_PCV'
-  ]
-  v16_configs = [
-    'V16',
-    'V16_PCV',
-    'V16_LL_PCV'
-  ]
 
   i = 0
   while (i < len(configs)):
-    if (((configs[i] in v4_configs) and include_v4) or
-        ((configs[i] in v16_configs) and include_v16)):
+    if (((is_vec_4_config(configs[i])) and include_v4) or
+        ((is_vec_16_config(configs[i])) and include_v16)):
       hop_avgs = []
       hop_cnts = []
-      max_hops = 7 if configs[i] in v16_configs else 3
+      max_hops = 7 if is_vec_16_config(configs[i]) else 3
       min_cnt = 1
       max_cnt = max_hops+1
       if include_scalar:
@@ -233,7 +236,7 @@ def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar
 
       xaxes.append(np.arange(min_cnt, max_cnt))
 
-      hop_list = v16_hops if (configs[i] in v16_configs) else v4_hops
+      hop_list = v16_hops if (is_vec_16_config(configs[i])) else v4_hops
       for j in range(len(hop_list)):
         # avg >0
         hops = hop_list[j]
@@ -263,26 +266,45 @@ def avg_by_hops(labels, configs, values, include_v4, include_v16, include_scalar
 
 # group together similar series and get preferred field
 # expects 3 meta fields(prog, config, meta) along with desired_field
-def group_bar_data(data, desired_field, desired_config_order= [ 'NV', 'NV_PF', 'PACKED_SIMD', 'V4', 'V16', 'GPU' ]):
+def group_bar_data(data, desired_field, desired_config_order= [ 'NV', 'NV_PF', 'PACKED_SIMD', 'V4', 'V16', 'GPU' ], do_single_config='', remove_zero_fields=True):
   # hash of hash
   values = {}
 
+  process_stat_dict = do_single_config != ''
+
   # extra data
   for row in data:
+    if (process_stat_dict):
+      if row['config'] != do_single_config:
+        continue
+
     # first check if we have something to match. both prog and meta should match
     label_str = row['prog'] + row['meta']
     if (not label_str in values):
       values[label_str] = {}
       values[label_str]['_meta_'] = {}
 
+    # if process stat dict then look at dict of stats for one config
+    if (process_stat_dict):
+      
+      if (desired_field in row):
+        sub_vals = row[desired_field]
+      else:
+        sub_vals = {}
 
-    if (desired_field in row):
-      single_val = row[desired_field]
+      # turn sub stats into seperate series
+      for k,v in sub_vals.items():
+        values[label_str][k] = v
+      values[label_str]['_meta_']['prog_name'] = row['prog']
+    # if processing a single stat, then can look at multiple configs
     else:
-      single_val = 0
+      if (desired_field in row):
+        single_val = row[desired_field]
+      else:
+        single_val = 0
 
-    values[label_str][row['config']] = single_val
-    values[label_str]['_meta_']['prog_name'] = row['prog']
+      values[label_str][row['config']] = single_val
+      values[label_str]['_meta_']['prog_name'] = row['prog']
 
   # flatten labels and values for display
   labels = []
@@ -310,7 +332,7 @@ def group_bar_data(data, desired_field, desired_config_order= [ 'NV', 'NV_PF', '
         flat_values[i].append(0)
 
   # format
-  (labels, sub_labels, values) = format_bar_series(labels, config_map, flat_values, desired_config_order)
+  (labels, sub_labels, values) = format_bar_series(labels, config_map, flat_values, desired_config_order, remove_zero_fields)
 
   return (labels, sub_labels, values)
 
@@ -374,6 +396,24 @@ def inverse(values):
       except:
         values[j][i] = 0
 
+# find cpu count from config
+def find_core_count(config):
+  core_regex = re.compile('NCPUS_([0-9]+)')
+  match = core_regex.search(config)
+  if (match):
+    return float(match.group(1))
+  else:
+    return 64.0
+
+
+def normalize_by_core_count(sub_labels, values):
+  for i in range(len(sub_labels)):
+    config = sub_labels[i]
+    ncpus = find_core_count(config)
+    for j in range(len(values[i])):
+      values[i][j] /= ncpus
+
+
 def add_arith_mean(labels, values, include_zeros=False):
   # add an average column
   labels.append("ArithMean")
@@ -406,6 +446,10 @@ def add_geo_mean(labels, values):
 # plot speedup
 # group together same benchmark (if metadata the same)
 def plot_speedup(data, desired_configs=[], yaxis_name='Speedup Relative to Baseline (NV)', graph_name='Speedup'):
+  if len(desired_configs) > 0: # if specified order check if have the normalizing series
+    if (not require_configs(data, graph_name, [ desired_configs[0] ])):
+      return
+
   (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=desired_configs)
 
   # flip from cycles to speedup normalized to NV
@@ -509,13 +553,182 @@ def plot_backpressure(data, prog_subset=['3dconv', 'gemm', '2dconv', 'bicg', 'sy
 
   line_plot(xaxes, values, labels, xlabels, 'Backpressure stalls relative to total vector cycles', 'backpressure_stalls', False, sub_plots_x=2, bbox=(0.925, 0.5), legend_loc='lower right', width_ratio=[1, 2.3333333])
 
-def plot_frame_stalls(data, desired_config_order=['NV_PF','V4'], graph_name='Frame_Stalls_v4'):
+def plot_scalability_avg(data, stat_name='cycles', normalize_result=True, inverse_result=True, graph_name='line_scalability', yaxis_name='Avg Rel Speedup', shared_base=False, slope=float('nan'), mul_factor=1.0, do_norm_to_cores=False):
+
+  # names of configs to plot on the same line
+  ncpu_io_cat_names = [ 'NV_NCPUS_1', 'NV_NCPUS_4', 'NV_NCPUS_16', 'NV_NCPUS_64' ]
+  ncpu_nvpf_cat_names = [ 'NV_PF_NCPUS_1', 'NV_PF_NCPUS_4', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64' ]
+  ncpu_o3_cat_names = [ 'NV_NCPUS_1_O3', 'NV_NCPUS_4_O3', 'NV_NCPUS_16_O3' ]
+
+  # going to plot 3 lines
+  cat_names_arr = [ ncpu_io_cat_names, ncpu_nvpf_cat_names, ncpu_o3_cat_names ]
+
+  # dont procede if dont have the data we need
+  if (not require_configs(data, graph_name, [ 'NV_NCPUS_1', 'NV_PF_NCPUS_1', 'NV_NCPUS_1_O3' ])):
+    return
+
+  series_data = []
+
+  for i in range(len(cat_names_arr)):
+
+    # get the data for the given configs
+    (labels, sub_labels, values) = group_bar_data(data, stat_name, desired_config_order=cat_names_arr[i])
+
+    if (shared_base):
+      if (i == 0):
+        base_values = deepcopy(values[0])
+
+    # multiply by a factor
+    for v in values:
+      for vv in range(len(v)):
+        v[vv] *= mul_factor
+
+    # flip from cycles to speedup normalized to NV
+    if (normalize_result):
+      # if shared base normalize to first series first field
+      if (shared_base):
+          for j in range(len(values)):
+            for i in range(len(values[j])):
+              values[j][i] = float(values[j][i]) / float(base_values[i])
+        # normalize(sub_labels, values, pref_base=cat_names_arr[0][0])
+      # otherwise normalize to your series first field
+      else:
+        normalize(sub_labels, values, pref_base=cat_names_arr[i][0])
+    
+    if (inverse_result):
+      inverse(values)
+
+    if (do_norm_to_cores):
+      normalize_by_core_count(sub_labels, values)
+
+    add_geo_mean(labels, values)
+
+    # only take the avg
+    series = []
+    for v in values:
+      series.append(v[-1])
+    series_data.append(series)
+
+  # merge for multiple plots
+  xaxes  = [ [1, 4, 16, 64 ] ]
+
+  # reformat line data so that organized by x rather than series
+  line_values = []
+  for x in range(len(xaxes[0])):
+    xvals = []
+    for s in series_data:
+      if (x < len(s)):
+        xvals.append(s[x])
+      else:
+        xvals.append(float('nan'))
+    line_values.append(xvals)
+
+  values = [ line_values ]
+
+  labels = [ 'NV', 'NV_PF', 'O3', 'Ideal' ]
+  xlabels = 'Num Cores'
+
+  line_plot(xaxes, values, labels, xlabels, yaxis_name, graph_name, False, 
+    sub_plots_x=1, bbox=(0.925, 0.5), legend_loc='lower right', width_ratio=[1, 2.3333333],
+    slope=slope)
+
+def plot_cpi_stack(data, config_names=['NV_PF_NCPUS_64__dram_bw_32'], graph_name='cpi_stack_nvpf', yaxis_name='CPI Stack', benchmarks=[], cluster_labels=[]):
+
+  # filter programs want to keep
+  if (len(benchmarks) > 0):
+    data = filter_progs(data, benchmarks, False)
+
+  if (not require_configs(data, graph_name, config_names)):
+    return
+
+  series_name = 'cpi-stack'
+  # hist_series = ['Issued', 'Stallon_Fetch', 'Stallon_INET_Pull', 'Stallon_Load', 'Stallon_DepOther', 'Stallon_Frame', 'Stallon_ExeUnit', 'Stallon_ROB_Other']
+
+  hist_series = ['Issued', 'Stallon_Frame']
+  # if any vector series then add inetstuff
+  for config_name in config_names:
+    if is_vec_config(config_name):
+      hist_series += ['Stallon_INET_Pull']
+      break
+  
+
+  # 'Other' includes everything not plotted
+  plotted_series = hist_series + ['Other']
+
+  data = deepcopy(data)
+
+  merged_sub_labels = []
+  merged_values = []
+
+  # determine if vector config, in which case want to just look at for expander cores IMO (just replace the data of the other one)
+  for config_name in config_names:
+    if (is_vec_config(config_name)):
+      if (is_vec_4_config(config_name)):
+        hops = get_mesh_dist_sequence('V4')
+      else:
+        hops = get_mesh_dist_sequence('V16')
+
+      # average everything at hop 1
+      # new_series_name = 'cpi-stack-expander'
+      
+      for row in data:
+        if (row['config'] != config_name):
+          continue
+
+        # row[new_series_name] = {}
+
+        for k,v in row['cpi-stack-sep'].items():
+          avg = 0
+          cnt = 0
+          # look at each cores and check where it is in a group
+          for h_idx in range(len(hops)):
+            # only consider hop 1 cores (expander)
+            if (hops[h_idx] == 1):
+              # print(str(h_idx) + ' ' + str(v[h_idx]))
+              avg += v[h_idx]
+              cnt += 1
+          row[series_name][k] = avg / cnt
+
+      # series_name = new_series_name
+
+    # Calculate "Other" including series dont plot and any missed cycles (small amount <5%)
+    for row in data:
+      if (row['config'] != config_name):
+          continue
+      sum_plotted = 0
+      for h in hist_series:
+        sum_plotted += row[series_name][h]
+      row[series_name]['Other'] = row['cycles'] - sum_plotted
+
+    # get single formatted series
+    (labels, sub_labels, values) = group_bar_data(data, series_name, plotted_series, config_name, remove_zero_fields=False)
+    normalize(sub_labels, values, pref_base='Issued')
+    add_arith_mean(labels, values) # geomean doesnt make sense
+    
+    # need to merge the values Sub_label -> Label (so just need to append arrays)
+    for config_data in values:
+      merged_values.append(config_data)
+
+    for slabel in sub_labels:
+      merged_sub_labels.append(slabel)
+  
+  try:
+    bar_plot(labels, merged_sub_labels, merged_values, yaxis_name, graph_name, stacked=True, stacknum=len(plotted_series), sub_sub_labels=cluster_labels)
+  except ValueError:
+    print('Missing CPI series. Skip plot ' + graph_name)
+
+def plot_frame_stalls(data, graph_name, benchmarks=[]):
   # (labels, configs, values) = group_line_data(data, 'frac_token_stall_sep', desired_configs=['V4', 'V16'])
   # (labels, configs, values, xaxes) = avg_by_hops(labels, configs, values, includeV4, includeV16)
   # title = 'Frame_Stalls_{}{}'.format('v4' if includeV4 else '', 'v16' if includeV16 else '')
   # line_plot(xaxes, values, labels, 'Hops', 'Frame stalls relative to total vector cycles', title, False)
 
-  (labels, sub_labels, values) = group_bar_data(data, 'frac_token_stalls', desired_config_order=desired_config_order)
+  # filter programs want to keep
+  if (len(benchmarks) > 0):
+    data = filter_progs(data, benchmarks, False)
+
+
+  (labels, sub_labels, values) = group_bar_data(data, 'frac_token_stalls', desired_config_order=['NV_PF','V4'])
   # dont do geomean b/c some values are 0
   add_arith_mean(labels, values)
 
@@ -603,7 +816,7 @@ def substitute_field(data, prog, from_config, to_config, remove_src=True):
   print('replaced {} {}->{}'.format(prog, from_config, to_config))
 
   # do replacement for bench
-  data[replace_idx] = data[move_idx]
+  data[replace_idx] = deepcopy(data[move_idx])
   data[replace_idx]['config'] = to_config
 
   # delete moved
@@ -660,7 +873,11 @@ def plot_llc_busy_cycles(data):
   add_geo_mean(labels, values)
   bar_plot(labels, sub_labels, values, 'fracllcbusy', 'fracllcbusy', False) 
 
-def plot_llc_miss_rate(data, desired_configs=[], yaxis_name='LLC Miss Rate', graph_name='LLC_Misses'):
+def plot_llc_miss_rate(data, desired_configs=[], yaxis_name='LLC Miss Rate', graph_name='LLC_Misses', benchmarks=[]):
+  # filter programs want to keep
+  if (len(benchmarks) > 0):
+    data = filter_progs(data, benchmarks, False)
+
   (labels, sub_labels, values) = group_bar_data(data, 'llcMissRate', desired_config_order=desired_configs)
   # normalize(sub_labels, values)
   add_geo_mean(labels, values)
@@ -695,21 +912,54 @@ def plot_all_router_stalls(data):
   (labels, sub_labels, values) = group_bar_data(data, 'router_out_stalls_all')
   bar_plot(labels, sub_labels, values, 'RouteOutStall', 'RouteOutStall', False)
 
-def plot_best_speedup(data, category_renames, category_configs, yaxis_name, graph_name, ylim=[0, 15]):
+# plot speedup
+# Category_Renames are the names 
+# If want to take best of multiple categories to put under a name (or even rename) can specificy matching config(s) with category_configs
+# cmp_stat is stat to use to take best config
+# disp_stat is what is plotted in the end
+# normalize_results is wehther to normalize to first field in category_renames
+# inverse_results is whether to inverse (i.e., execution time -> speedup)
+# do_norm_to_cores is whether should divide by the number of cores in the config
+# benchmarks is if want to only show certain benchmarks (defaults to all)
+def plot_best_speedup(data, category_renames, yaxis_name, graph_name, category_configs=[], ylim=[0, 15], 
+    do_norm_to_cores=False, cmp_stat='cycles', disp_stat='cycles', normalize_result=True, inverse_result=True,
+    benchmarks=[], line_height=1):
+
+  # if nothing specified for category configs just infer from names
+  if len(category_configs) == 0:
+    cat_configs = []
+    for name in category_renames:
+      cat_configs.append([name])
+
+  # NOTE if modify default value then change will sticky
+  cat_configs = category_configs
+
+  # filter programs want to keep
+  if (len(benchmarks) > 0):
+    data = filter_progs(data, benchmarks, False)
+
   # filter by min cycles
-
-  data = filter_best_data(data, 'cycles', 
+  data = filter_best_data(data, cmp_stat, 
     category_renames=category_renames,
-    category_configs=category_configs)
+    category_configs=cat_configs)
 
-  (labels, sub_labels, values) = group_bar_data(data, 'cycles', desired_config_order=category_renames)
+  if (not require_configs(data, graph_name, [ category_renames[0] ])):
+    return
+
+  (labels, sub_labels, values) = group_bar_data(data, disp_stat, desired_config_order=category_renames)
 
   # flip from cycles to speedup normalized to NV
-  normalize(sub_labels, values, pref_base=category_renames[0])
-  inverse(values)
+  if (normalize_result):
+    normalize(sub_labels, values, pref_base=category_renames[0])
+  if (inverse_result):
+    inverse(values)
+
+  if (do_norm_to_cores):
+    normalize_by_core_count(sub_labels, values)
+
   add_geo_mean(labels, values)
 
-  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, ylim=ylim, horiz_line=1)
+  bar_plot(labels, sub_labels, values, yaxis_name, graph_name, ylim=ylim, horiz_line=line_height)
 
 
 def plot_best_energy(data, category_renames, category_configs, yaxis_name='Total On-Chip Energy Relative to Baseline (NV)', graph_name='Energy'):
@@ -783,6 +1033,70 @@ def make_plots_and_tables(all_data):
   substitute_field_for_all_progs(all_data, 'V16_LL_PCV_CL1024', 'V16_LL_PCV')
   substitute_field_for_all_progs(all_data, 'V16_LL_CL1024', 'V16_LL')
 
+
+  # completely remove bfs for now
+  all_data = filter_progs(all_data, ['bfs'], True)
+
+  # plot ncpus graphs
+  ncpu_io_cat_names = [ 'NV_NCPUS_1', 'NV_NCPUS_4', 'NV_NCPUS_16', 'NV_NCPUS_64' ]
+  ncpu_nvpf_cat_names = [ 'NV_PF_NCPUS_1', 'NV_PF_NCPUS_4', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64' ]
+  ncpu_o3_cat_names = [ 'NV_NCPUS_1_O3', 'NV_NCPUS_4_O3', 'NV_NCPUS_16_O3' ]
+  ncpu_varied_names = ['NV_NCPUS_1', 'NV_NCPUS_64', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64', 'NV_NCPUS_1_O3', 'NV_NCPUS_4_O3', 'NV_NCPUS_16_O3']
+
+  # categories to group benchmarks based on what is bottleneck
+  compute_bench = [ '2mm', '3mm', 'gemm' ]
+  cache_bench = [ 'bicg', 'mvt' ]
+  scalar_bench = ['gramschm']
+  dram_bench = [ '2dconv', '3dconv', 'covar', 'syr2k', 'syrk']
+  inet_bench = [ 'atax', 'corr', 'fdtd-2d', 'gesummv' ] # majority of v4 stalls are from inet
+
+  longlines_bench = [ '2dconv', 'fdtd-2d', 'gesummv', 'syr2k', 'syrk' ]
+
+  # scalability analysis for nv, nvpf, o3
+  plot_scalability_avg(all_data, slope=1)
+  # scalability analysis for nv, nvpf, o3 all normalized nv_1core
+  plot_scalability_avg(all_data, graph_name='line_scale_nv1', shared_base=True, yaxis_name='Avg Speedup Relative to NV_NCPUS_1')
+  # scalability analysis for used dram bw
+  plot_scalability_avg(all_data, stat_name='dram_bw_used', normalize_result=False, inverse_result=False, graph_name='dram_scale', yaxis_name='DRAM BW')
+  plot_scalability_avg(all_data, stat_name='dram_bw_used', normalize_result=False, inverse_result=False, graph_name='dram_deriv', yaxis_name='DRAM BW Per Core', do_norm_to_cores=True)
+
+  # scalability analysis for the miss rate 
+  plot_scalability_avg(all_data, stat_name='llcMissRate', normalize_result=False, inverse_result=False, graph_name='llcMissRate_scale', yaxis_name='LLC Miss Rate')
+  # scalability anlaysis for request buffer stall time
+  # divide by 1000 because in ticks not cycles. see MessageBuffer.cc:249
+  plot_scalability_avg(all_data, stat_name='llcRequestStallTime', normalize_result=False, inverse_result=False, graph_name='llcRequestStallTime_scale', yaxis_name='LLC Avg Request Stall Cycles', mul_factor=1.0/1000.0)
+
+  # breakdown of usage of dram per benchmark
+  plot_best_speedup(all_data,
+    category_renames=ncpu_nvpf_cat_names,
+    yaxis_name = 'DRAM BW',
+    graph_name = 'iopf_dram',
+    ylim = [0, float('inf')],
+    do_norm_to_cores=False,
+    inverse_result=False,
+    normalize_result=False,
+    disp_stat='dram_bw_used',
+    line_height=16000000000)
+  plot_best_speedup(all_data,
+    category_renames=ncpu_nvpf_cat_names,
+    yaxis_name = 'Speedup Relative to NV_PF_NCPUS_1',
+    graph_name = 'iopf_speedup',
+    ylim = [0, 40],
+    do_norm_to_cores=False,
+    inverse_result=True,
+    normalize_result=True,
+    disp_stat='cycles')
+
+  # cpi stack for scalability
+  plot_cpi_stack(all_data, config_names=['NV_PF_NCPUS_1', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64'], graph_name='nvpf_scale_cpi', cluster_labels=['NV_PF_1', 'NV_PF_16', 'NV_PF_64'])
+  plot_cpi_stack(all_data, config_names=['NV_PF_NCPUS_1', 'NV_PF_NCPUS_64', 'NV_PF_NCPUS_64__dram_bw_32'], graph_name='nvpf_cpi', cluster_labels=['NV_PF_1', 'NV_PF_64', 'NV_PF_64_2xBW'])
+  plot_cpi_stack(all_data, config_names=['NV_PF_NCPUS_64', 'NV_PF_NCPUS_64__dram_bw_32', 'V4'], graph_name='v4_cpi', cluster_labels=['NV_PF', 'NV_PF_2xBW', 'V4']) # TODO should be bestV
+  plot_cpi_stack(all_data, config_names=['V4', 'V16'], graph_name='vec_cmp_cpi', cluster_labels=['V4', 'V16'])
+  plot_cpi_stack(all_data, config_names=['NV_PF_NCPUS_64', 'PCV_PF_NCPUS_64'], graph_name='nvpcv_pcv_cpi', cluster_labels=['NV_PF', 'PCV_PF'])
+  plot_cpi_stack(all_data, config_names=['PCV_PF_NCPUS_1', 'PCV_PF_NCPUS_64'], graph_name='pcv_cpi', cluster_labels=['PCV_PF_1', 'PCV_PF_64'])
+  plot_cpi_stack(all_data, config_names=['V4', 'V4_PCV'], graph_name='vec_pcv_cpi', cluster_labels=['V4', 'V4_PCV'])
+  plot_cpi_stack(all_data, config_names=['V16', 'V16_LL'], graph_name='v16_ll_cpi', benchmarks=longlines_bench, cluster_labels=['V16', 'V16_LL'])
+
   # do graphs with bfs before remove it
   print("Plot inet stalls")
   plot_inet_stalls(all_data)
@@ -790,13 +1104,19 @@ def make_plots_and_tables(all_data):
   print("Plot backpressure")
   plot_backpressure(all_data)
 
-
-  # completely remove bfs for now
-  all_data = filter_progs(all_data, ['bfs'], True)
+  # rename 64 cores to the main config
+  substitute_field_for_all_progs(all_data, 'NV_NCPUS_64', 'NV')
+  substitute_field_for_all_progs(all_data, 'NV_PF_NCPUS_64', 'NV_PF')
+  substitute_field_for_all_progs(all_data, 'PCV_PF_NCPUS_64', 'PCV_PF')
 
   # config groups
   main_cat_names  = ['NV', 'NV_PF', 'BEST_V']
-  main_cat_groups = [['NV'], ['NV_PF'], ['V4', 'V16', 'V16_LL']]
+  # main_cat_groups = [['NV'], ['NV_PF'], ['V4', 'V16', 'V16_LL']]
+  main_cat_groups = [['NV'], ['NV_PF'], ['V4', 'V16']]
+
+  # for comparing specific bench want to focus more on certain configs
+  bench_cat_names  = ['NV_PF', 'BEST_V']
+  bench_cat_groups = [['NV_PF'], ['V4', 'V16']]
 
   fixed_vec_cat_names = ['NV_PF', 'PCV_PF', 'BEST_V', 'BEST_V_PCV', 'GPU']
   fixed_vec_cat_groups = [
@@ -817,7 +1137,6 @@ def make_plots_and_tables(all_data):
   cache_cat_actual = [['NV_PF'], ['NV_PF_32kB'], ['V4'], ['V4_32kB'], ['V16_LL'], ['V16_LL_32kB']]
 
   print("Plot speedup")
-  plot_speedup(all_data)
   plot_best_speedup(all_data,
     category_renames=main_cat_names,
     category_configs=main_cat_groups,
@@ -833,6 +1152,43 @@ def make_plots_and_tables(all_data):
     desired_configs=flexible_cat_names,
     yaxis_name = 'Speedup Relative to V4',
     graph_name = 'speedup_between_vecs')
+  plot_speedup(all_data,
+    desired_configs=['NV_PF_NCPUS_1', 'PCV_PF_NCPUS_1'],
+    yaxis_name = 'Speedup Relative to NV_PF_NCPU_1',
+    graph_name = 'speedup_simd_unit_1core')
+
+  print("Plot category speedup")
+  plot_best_speedup(all_data,
+    category_renames=bench_cat_names,
+    category_configs=bench_cat_groups,
+    yaxis_name = 'Speedup Relative to Baseline (NV)',
+    graph_name = 'speedup_nv_compute',
+    benchmarks = compute_bench)
+  plot_best_speedup(all_data,
+    category_renames=bench_cat_names,
+    category_configs=bench_cat_groups,
+    yaxis_name = 'Speedup Relative to Baseline (NV)',
+    graph_name = 'speedup_nv_cache',
+    benchmarks = cache_bench)
+  plot_best_speedup(all_data,
+    category_renames=bench_cat_names,
+    category_configs=bench_cat_groups,
+    yaxis_name = 'Speedup Relative to Baseline (NV)',
+    graph_name = 'speedup_nv_dram',
+    benchmarks = dram_bench)
+  plot_best_speedup(all_data,
+    category_renames=bench_cat_names,
+    category_configs=bench_cat_groups,
+    yaxis_name = 'Speedup Relative to Baseline (NV)',
+    graph_name = 'speedup_nv_inet',
+    benchmarks = inet_bench)
+  plot_best_speedup(all_data,
+    category_renames=['V16', 'V16_LL', 'V16_LL_PCV'],
+    yaxis_name = 'Speedup Relative to Baseline (V16)',
+    graph_name = 'speedup_v16_ll',
+    benchmarks = longlines_bench)
+  
+  # TODO should prob specifically show miss and other stuff specficially for categories
 
   # compare hardware configs speedup
   plot_best_speedup(all_data,
@@ -882,9 +1238,10 @@ def make_plots_and_tables(all_data):
     graph_name = 'icache_between_vecs')
 
   print("Plot frame stalls")
-  plot_frame_stalls(all_data)
-  plot_frame_stalls(all_data, ['NV_PF', 'PCV_PF'], 'frame_stalls_nv_pcv')
-  plot_frame_stalls(all_data, ['V4', 'V4_PCV'], 'frame_stalls_v4_v4pcv')
+  plot_frame_stalls(all_data, graph_name='Frame_Stalls_v4')
+  plot_frame_stalls(all_data, graph_name='Frame_Stalls_dram_bench', benchmarks=dram_bench)
+  plot_frame_stalls(all_data, graph_name='Frame_Stalls_inet_bench', benchmarks=inet_bench)
+  plot_frame_stalls(all_data, graph_name='Frame_Stalls_compute_bench', benchmarks=compute_bench)
 
   print("Plot Inst Energy")
   plot_inst_energy(all_data)
@@ -913,7 +1270,15 @@ def make_plots_and_tables(all_data):
     desired_configs=flexible_cat_names,
     yaxis_name = 'LLC Miss Rate',
     graph_name = 'llc_between_vecs')
-
+  plot_llc_miss_rate(all_data,
+    desired_configs=['NV_PF', 'V4'],
+    yaxis_name = 'LLC Miss Rate',
+    graph_name = 'llc_miss_v4_baseline')
+  plot_llc_miss_rate(all_data,
+    desired_configs=['NV_PF', 'V4'],
+    yaxis_name = 'LLC Miss Rate',
+    graph_name = 'llc_miss_v4_baseline_spatial',
+    benchmarks=['bicg', 'mvt'])
 
   plot_best_llc_miss_rate(all_data,
     category_renames=cache_cat_names,

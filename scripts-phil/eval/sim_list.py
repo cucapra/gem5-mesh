@@ -1,140 +1,70 @@
 '''
   Sim configurations
+
+  Authors: Philip Bedoukian
 '''
 from copy import deepcopy
+import json
 
-# hardware configs given to gem5 config script (use a single string for all)
-HW_OPTS = [
-  '',
-  '--net-width=1', 
-  # '--net-width=2', 
-  # '--net-width=4',
-  # '--net-width=16'
-  '--llc-max-size=32kB'
-  ]
+# get configs (resolves config groups)
+def get_configs(config_list, config_info, config_groups):
+  flat_configs = []
+  for config_name in config_list:
+    # if a config group add all sub config_infos
+    if config_name in config_groups:
+      for c in config_groups[config_name]:
+        if (c in config_info):
+          flat_configs.append(c)
+    # otherwise just add config
+    elif config_name in config_info:
+      flat_configs.append(config_name)
 
-# default software configs, encode as list of flags (will be converted to -D<x> when compile)
-# NOTE CACHE_LINE_SIZE=x and HARDWARE_VECTOR_LEN=y will be automatically inserted into HW_OPTS if appears here
-ALL_CONFIGS = [
-  ['VECTOR_LEN=4'],
-  ['VECTOR_LEN=16'],
-  ['VECTOR_LEN=4', 'PER_CORE_SIMD'],
-  ['VECTOR_LEN=16', 'PER_CORE_SIMD'],
-  [ 'NO_VEC', 'MANYCORE_PREFETCH' ],
-  ['PER_CORE_SIMD', 'MANYCORE_PREFETCH'],
-  'NO_VEC',
-  ]
+  return flat_configs
 
-INIT0_CONFIGS = []
+# get simconfig from json
+def generate_sim_config_from_file(filename):
+  with open(filename) as fin:
+    sim_json = json.load(fin)
 
-# some benchmarks have longline configs (5 in total)
-LONGLINES_CONFIGS = [
-  ['VECTOR_LEN=16', 'LONGLINES', 'CACHE_LINE_SIZE=1024'],
-  ['VECTOR_LEN=4', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
-  ['VECTOR_LEN=16', 'LONGLINES', 'PER_CORE_SIMD', 'CACHE_LINE_SIZE=1024'],
-]
+  sim_configs = []
 
-# bfs only supports a small set of configs
-BFS_CONFIGS = ['NO_VEC', 'VECTOR_LEN=4', 'VECTOR_LEN=16']
+  config_groups = {}
 
-# choose which programs to run via script and with what configs
-sim_configs = {
-  # Test programs, not actual benchmarks
+  benchmarks = sim_json['Benchmarks']
+  config_info = sim_json['ConfigInfo']
+  if 'ConfigGroups' in sim_json:
+    config_groups = sim_json['ConfigGroups']
 
-  # 'vvadd': {
-  #   'vec'  : [['VEC_16_SIMD_BIGBOI', 'CACHE_LINE_SIZE=1024'], ['VEC_16_SIMD_VERTICAL', 'CACHE_LINE_SIZE=64'], ['NO_VEC']],
-  #   'argv' : ['1048576'], # ['1024']
-  #   'hw_opts' : HW_OPTS
-  # },
-  # 'stencil': {
-  #   'vec'  : ['VEC_4_SIMD'],
-  #   'argv' : ['1730', '60']
-  # },
+  # generate run description for each program and hw/sw configurations
+  for k,v in benchmarks.items():
+    # get configurations (if diff config, then make a new entry in sim_configs)
+    flat_configs = get_configs(v['Configs'], config_info, config_groups)
+    for config_name in flat_configs:
+      config = config_info[config_name]
 
-  # Benchmarks
+      # get hardware and software info (all combinations applied)
+      soft_configs = []
+      hard_configs = []
+      for s in config['Software']:
+        soft_configs.append(s)
+      for h in config['Hardware']:
+        hard_configs.append(h)
 
-  'bicg'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['2048'],
-    'hw_opts' : HW_OPTS
-  },
-  'gram'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + ['PER_CORE_SIMD'],
-    'argv' : ['320'],
-    'hw_opts' : HW_OPTS
-  },
-  'syrk'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
-    'argv' : ['256'],
-    'hw_opts' : HW_OPTS
-  },
-  'syr2k'  : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
-    'argv' : ['256'],
-    'hw_opts' : HW_OPTS
-  },
-  'covar'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['512'],
-    'hw_opts' : HW_OPTS
-  },
-  'conv2d' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
-    'argv' : ['2048'],
-    'hw_opts' : HW_OPTS
-  },
-  'conv3d' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256'],
-    'hw_opts' : HW_OPTS
-  },
-  'fdtd' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
-    'argv' : ['512', '30'],
-    'hw_opts' : HW_OPTS
-  },
-  'atax'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['2048'], # ['128']
-    'hw_opts' : HW_OPTS
-  },
-  'mvt'    : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['4096'], # ['128']
-    'hw_opts' : HW_OPTS
-  },
-  'gemm'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256'], #['64']
-    'hw_opts' : HW_OPTS
-  },
-  'gesummv'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS + LONGLINES_CONFIGS,
-    'argv' : ['4096'], #['128']
-    'hw_opts' : HW_OPTS 
-  },
-  'corr'   : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['512'], #['64']
-    'hw_opts' : HW_OPTS
-  },
-  '2mm' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256'], #['64']
-    'hw_opts' : HW_OPTS
-  },
-  '3mm' : {
-    'vec'  : ALL_CONFIGS + INIT0_CONFIGS,
-    'argv' : ['256'], #['32']
-    'hw_opts' : HW_OPTS
-  },
-  'bfs' : {
-    'vec'  : BFS_CONFIGS,
-    'argv' : ['../../programs-spad/bfs-rodinia/data/graph4k.txt'],
-    'hw_opts' : HW_OPTS
-  },
-}
+      # run descriptions is:
+      #    bench
+      #    argv
+      #    SoftwareConfig
+      #    HardwareConfig
+      run_desc = {
+        'program' : k,
+        'argv'    : v['Argv'],
+        'software': soft_configs,
+        'hardware': hard_configs
+      }
 
+      sim_configs.append(run_desc)
+
+  return sim_configs
 
 def string_to_cacheline_arg(a):
   if (a[0:16] == 'CACHE_LINE_SIZE='):
@@ -149,6 +79,14 @@ def string_to_hwvlen_arg(a):
     return int(a[20:len(a)])
   elif (a[0:20] == 'HARDWARE_VECTOR_LEN_'):
     return int(a[20:len(a)])
+  else:
+    return -1
+
+def string_to_num_cpus(a):
+  if (a[0:6] == 'NCPUS='):
+    return int(a[6:len(a)])
+  elif (a[0:6] == 'NCPUS_'):
+    return int(a[6:len(a)])
   else:
     return -1
 
@@ -192,6 +130,26 @@ def get_hardware_vlen(args):
   else:
     return ''
 
+def get_num_cpus(args, default_cpus=64):
+  found = False
+  found_num_cpus = 0
+  if (isinstance(args, list)):
+    for a in args:
+      num_cpus = string_to_num_cpus(a)
+      if (num_cpus > 0):
+        found_num_cpus = num_cpus
+        found = True
+  else:
+    num_cpus = string_to_num_cpus(args)
+    if (num_cpus > 0):
+      found_num_cpus = num_cpus
+      found = True
+
+  if (found):
+    return found_num_cpus
+  else:
+    return default_cpus
+
 # make a shorthand to represent the config output name
 # note replace '=' with '_' because converted when called
 def abbreviate_config(config):
@@ -215,6 +173,8 @@ def abbreviate_config(config):
     return 'CL1024'
   elif (config == 'CACHE_LINE_SIZE_256'):
     return 'CL256'
+  elif (config == '__cpu_type_DerivO3CPU'):
+    return '_O3'
   elif (config[0:11] == 'VECTOR_LEN='):
     return config[11:len(config)]
   elif (config[0:3] == 'PF='):

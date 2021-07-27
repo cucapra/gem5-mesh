@@ -37,7 +37,7 @@ from m5.util import addToPath, fatal
 
 def define_options(parser):
     # By default, ruby uses the simple timing cpu
-    parser.set_defaults(cpu_type="TimingSimpleCPU")
+    parser.set_defaults(cpu_type="IOCPU")
 
     parser.add_option("--topology", type="string", default="Crossbar",
                       help="check configs/topologies for complete set")

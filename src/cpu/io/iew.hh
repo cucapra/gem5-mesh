@@ -37,6 +37,8 @@
 #include "params/IOCPU.hh"
 #include "cpu/io/stage.hh"
 
+#include "custom/cpi_stack.hh"
+
 /**
  * IEW stage: Issue, Execute, Writeback stages
  */
@@ -156,6 +158,9 @@ class IEW : public Stage
     /** Remember when frame stall started so we can detect deadlock */
     Tick m_frame_stall_start;
     bool m_in_frame_stall;
+
+    CPIStack m_cpi_stack;
+
 
 #ifdef DEBUG
     /** Stage's status (for line trace) */

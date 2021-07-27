@@ -656,6 +656,17 @@ class BaseCPU : public ClockedObject
     const Cycles pwrGatingLatency;
     const bool powerGatingOnIdle;
     EventFunctionWrapper enterPwrGatingEvent;
+
+  // stuff for sdv
+  public:
+    virtual bool getVectorConfigured() { return false; }
+    virtual bool isVectorCore() { return false; }
+    virtual int getSpadNumRegions() { return 0; }
+    virtual int getSpadRegionSize() { return 0; }
+    virtual System* getSystemPtr() { return nullptr; }
+
+
+
 };
 
 #endif // THE_ISA == NULL_ISA

@@ -3,6 +3,8 @@
 
 /*
  * Mesh ports used in TimingSimpleCPU
+ *
+ * Authors: Philip Bedoukian
  */ 
 
 
@@ -63,11 +65,6 @@ class ToMeshPort : public MasterPort {
     SensitiveStage getActive() const { return active; }
     bool isActive() const { return (active != NONE); }
     
-    //void setValIfActive(bool val, SensitiveStage stage);
-    
-    // check if this port is rdy and the slave port is valid
-    //bool checkHandshake();
-    
     // call tryUnblock() in cpu attach to slave port of this
     void tryUnblockNeighbor();
 
@@ -82,10 +79,6 @@ class ToMeshPort : public MasterPort {
     
     // idx for debug
     int idx;
-    
-    // whether this signal is valid over the mesh net
-    // we're not going to set a value, rather you need to check from neighbors
-    //bool val;
     
     // whether this port is used and should assert val when packet 
     // available
@@ -108,7 +101,6 @@ class FromMeshPort : public SlavePort {
     PacketPtr getPacket();
     static uint64_t getPacketData(PacketPtr pkt);
 
-    //void setRdy(bool val);
     bool getRdy();
     
     bool getPairVal();
@@ -116,11 +108,6 @@ class FromMeshPort : public SlavePort {
     void setActive (SensitiveStage active) { this->active = active; }
     SensitiveStage getActive() const { return active; }
     bool isActive() const { return (active != NONE); }
-    
-    //void setRdyIfActive(bool rdy, SensitiveStage stage);
-    
-    // check val rdy interface
-    //bool checkHandshake();
     
     // call tryUnblock in the cpu
     void tryUnblockCPU();
@@ -153,9 +140,6 @@ class FromMeshPort : public SlavePort {
     // we should drop and inform of the lost packet
     void setPacket(PacketPtr pkt);
     
-    // whether this port is rdy to recv from the mesh net
-    //bool rdy;
-    
     // this should go high when the core is rdy
     SensitiveStage active;
     
@@ -170,8 +154,6 @@ class FromMeshPort : public SlavePort {
     // doesn't change performance just reduces the number of queue registers
     // while not blowing up cycle time
     Minor::Queue<MeshPacketData> _meshQueue;
-    
-    //std::queue<PacketPtr> _pktQueue;
     
     Vector *vec;
 };

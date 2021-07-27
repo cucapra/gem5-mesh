@@ -2,6 +2,7 @@
 
   Extract a collection of stats files from completed simulations and write a csv
 
+  Authors: Philip Bedoukian
 '''
 
 import os, subprocess, time, argparse, re, pickle
@@ -19,6 +20,8 @@ parser.add_argument('--cpu-sims', default='../../results', help='Path with manyc
 parser.add_argument('--gpu-sims', default='../../../gem5-gcn3/results/', help='Path with gpu results you want to analyze')
 parser.add_argument('--outfile', default='./extract.csv', help='CSV Path where extracted data should go')
 parser.add_argument('--prefix', default='', help='prefix of directory name to parse, could be program for example')
+parser.add_argument('--skip-graph', action="store_true", help='Whether to skip graphing after extract')
+parser.add_argument('--print-preview', action="store_true", help='Whether to print some extracted data to stdout')
 get_energy.define_options(parser)
 args = parser.parse_args()
 
@@ -68,6 +71,9 @@ def parse_dir_name(dirName):
 def is_hist_stat(v):
   return ('hist' in v) and v['hist']
 
+def is_split_hist_stat(v):
+  return is_hist_stat(v) and (('split' in v) and v['split'])
+
 def is_formula_stat(v):
   return ('formula' in v)
 
@@ -100,6 +106,7 @@ def parse_file(fileName, stat_info):
     #   pass
     if (is_hist_stat(v)):
       stat_data[k]['buckets'] = {}
+      stat_data[k]['counts'] = {}
       stat_data[k]['avg'] = 0
     elif (is_seperated(v)):
       # relying on order to be 0-64
@@ -147,14 +154,31 @@ def parse_file(fileName, stat_info):
             arith_val = float(val)
           
           if ((not (ignore_zero and (arith_val == 0))) and (not has_upper_bound or arith_val < upper_bound)):
+            # handle hist stat parsing
             if (is_hist_stat(v)):
+              # print('check hist stat ' + k + ' ' + bucket_range + ' ' + str(arith_val))
               if (not bucket_range in stat_data[k]['buckets']):
-                stat_data[k]['buckets'][bucket_range] = 0
-              stat_data[k]['buckets'][bucket_range] += arith_val
+                # if bucket doesnt exist, then add it
+                if (is_seperated(v)):
+                  stat_data[k]['buckets'][bucket_range] = []
+                  stat_data[k]['counts'][bucket_range] = []
+                else:
+                  stat_data[k]['buckets'][bucket_range] = 0
+                  stat_data[k]['counts'][bucket_range] = 0
+              
+              # add val, if seperated append to list or doing avg then sum
+              # appending is fine b/c gaurenteed cores in order
+              if (is_seperated(v)):
+                stat_data[k]['buckets'][bucket_range].append(arith_val)
+              else:
+                stat_data[k]['buckets'][bucket_range] += arith_val
+                stat_data[k]['counts'][bucket_range] += 1
+            # handle where scalar stat is saved per core and not averaged
             elif (is_seperated(v)):
               if (len(stat_data[k]['avg']) <= module_id):
                 stat_data[k]['avg'].append(arith_val)
               else:
+                # dont think this case is needed b/c stat file has cores in order?
                 stat_data[k]['avg'][module_id] += arith_val
             else:
               if ('max' in v and v['max']):
@@ -176,9 +200,15 @@ def parse_file(fileName, stat_info):
       average = v['average']
 
     if (average):
+      # create avg by dividing by count
       if (not is_hist_stat(v)):
         if (stat_data[k]['count'] > 0):
           stat_data[k]['avg'] /= stat_data[k]['count']
+      # for split hist keep each series average seperate
+      if (is_split_hist_stat(v)):
+        for bk, bv in stat_data[k]['buckets'].items():
+          if (stat_data[k]['counts'][bk] > 0):
+            stat_data[k]['buckets'][bk] /= stat_data[k]['counts'][bk]
 
     # check if should do energy analysis
     if ('energy' in v):
@@ -270,7 +300,12 @@ def parse_results_dir(results_dir_name, stats_info):
     for k,v in annos.items():
       stat_dict[k] = v
     for k,v in rawStats.items():
-      stat_dict[k] = v['avg']
+      # if split hist then need to take buckets
+      if (is_split_hist_stat(stats_info[k])):
+        stat_dict[k] = v['buckets']
+      # otherwise just take the average
+      else:
+        stat_dict[k] = v['avg']
 
     stat_dict['_path_'] = dirPath
 
@@ -328,25 +363,26 @@ for k in keys:
 for data in all_data:
   dirPath = data['_path_']
 
-  print(dirPath)
+  if (args.print_preview):
+    print(dirPath)
 
-  for k in keys:
-    if (k == '_path_'):
-      continue
+    for k in keys:
+      if (k == '_path_'):
+        continue
 
-    # if (not can_normal_write(v)):
-    #   for b,d in d[k]['buckets'].items():
-    #     print('\t{0}::{1}: {2}'.format(k, b, str(d)))
-    # else:
-    if (k in data):
-      dat = ''
-      if (isinstance(data[k], list)):
-        # for d in data[k]:
-        #   dat += '{} '.format(d)
-        dat = 'not shown due to space'
-      else:
-        dat = data[k]
-      print('\t{0}: {1}'.format(k, dat))
+      # if (not can_normal_write(v)):
+      #   for b,d in d[k]['buckets'].items():
+      #     print('\t{0}::{1}: {2}'.format(k, b, str(d)))
+      # else:
+      if (k in data):
+        dat = ''
+        if (isinstance(data[k], list) or isinstance(data[k], dict)):
+          # for d in data[k]:
+          #   dat += '{} '.format(d)
+          dat = 'not shown due to space'
+        else:
+          dat = data[k]
+        print('\t{0}: {1}'.format(k, dat))
     
   # 
   # serialize parameters and data into string row by row
@@ -362,8 +398,8 @@ for data in all_data:
 
     dat = 0
     if (k in data):
-      # dont handle lists
-      if (isinstance(data[k], list)):
+      # dont handle lists or dicts
+      if (isinstance(data[k], list) or isinstance(data[k], dict)):
         dat = 0
       else:
         dat = data[k]
@@ -371,49 +407,19 @@ for data in all_data:
       dat = 0
 
     dataCSV += '{}, '.format(str(dat))
-  
-#dataCSV += '\n'
-
-# hist data. from right to left base on run
-# TODO don't put into extract stats currently
-# for k, v in stats.items():
-#   if (is_hist_stat(v)):
-#     buckets = v['buckets']
-#     buck_len = len(buckets)
-#     for i in range(0, find_max_buckets()):
-#       if (i < buck_len):
-#         (b, d) = buckets[i]
-#         if (not 'meta' in annos):
-#           annos['meta'] = ''
-#         histCSV[i] += '{0}:{1},{2},{3},,'.format(annos['meta'], v['name'], str(b), str(d))
-#       else:
-#         histCSV[i] += ',,,,'
 
 #
 # write output to a csv
 
 with open(args.outfile, 'w+') as fout:
-  # header line
-  # fout.write('run' + ', ')
-  # for k, v in stats.items():
-  #   if (can_normal_write(v)):
-  #     fout.write('{0}, '.format(v['name']))
-      
-  #fout.write('\n')
-
   # add all of the data
   fout.write(dataCSV)
 
-  # # write hist
-  # fout.write('\n\n')
-  # for i in range(len(histCSV)):
-  #   fout.write(histCSV[i])
-  #   fout.write('\n')
-  
 # write the data to pickle so can reuse. takes to long to rerun
 with open(args.outfile + '.pickle', 'wb') as fout:
   pickle.dump(all_data, fout)
 
-# plot data to graphs and tables
-organizer.make_plots_and_tables(all_data)
+if (not args.skip_graph):
+  # plot data to graphs and tables
+  organizer.make_plots_and_tables(all_data)
 

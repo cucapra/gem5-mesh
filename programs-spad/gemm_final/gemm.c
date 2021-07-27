@@ -28,86 +28,6 @@ static inline int _idx_(int y, int x, int width)
   return (y * width) + x;
 }
 
-void __attribute__((optimize("-fno-inline")))
-gemm_unused_cores(DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
-     int m_start, int m_end, int n_start, int n_end, int ptid, int ptid_new)
-{
-  DTYPE *spAddr = (DTYPE *)getSpAddr(ptid, 0);
-  DTYPE *sp_c = spAddr + NUM_REGIONS * REGION_SIZE;
-  int spadRegion = 0;
-
-  int offset_x, offset_y;
-
-  offset_x = BLK_DIM;
-  offset_y = BLK_DIM;
-
-  int sp_a_offset,sp_b_offset;
-  int sp_c_offset[2];
-
-  //assuming m_start-m_end is divisble by BLK_DIM
-  for (int i0 = m_start; i0 < m_end; i0 += offset_x)
-  {
-    for (int j0 = n_start; j0 < n_end; j0 += offset_y)
-    {
-      for (int k = 0; k < t; k++)
-      {
-        #ifdef MANYCORE_PREFETCH
-        sp_a_offset = spadRegion * REGION_SIZE;
-        sp_b_offset = sp_a_offset + BLK_DIM;
-
-        // fetch a in scratchpad
-        VPREFETCH_L(sp_a_offset, aT + _idx_(k, i0, m), 0, BLK_DIM,1);
-        // fetch b in scratchpad
-        VPREFETCH_L(sp_b_offset, b + _idx_(k, j0, n), 0, BLK_DIM,1);
-        FRAME_START(REGION_SIZE);
-        #endif
-
-        #pragma GCC unroll(16)
-        for (int i = 0; i < BLK_DIM; i++)
-        {
-          #pragma GCC unroll(16)
-          for (int j = 0; j < BLK_DIM; j++)
-          {
-            DTYPE a_, b_;
-            #ifdef MANYCORE_PREFETCH
-            a_ = spAddr[sp_a_offset+i];
-            b_ = spAddr[sp_b_offset+j];
-            #else
-            a_ = aT[_idx_(k,i + i0, m)];
-            b_ = b[_idx_(k, j + j0, n)];
-            #endif
-            sp_c[_idx_(i, j, BLK_DIM)] += ALPHA* a_ * b_;
-            // c[_idx_(i + i0, j + j0, n)] += a_ * b_;
-          }
-        }
-        #ifdef MANYCORE_PREFETCH
-        spadRegion = (spadRegion + 1) % NUM_REGIONS;
-        REMEM(REGION_SIZE);
-        #endif
-      }
-
-      #pragma GCC unroll(16)
-      for (int ii = 0; ii < BLK_DIM; ii+=2)
-      {
-        #pragma GCC unroll(16)
-        for (int i=ii; i<ii+2; i++){
-          #pragma GCC unroll(16)
-          for (int j = 0; j < BLK_DIM; j++)
-          {
-            DTYPE temp;
-            temp = c[_idx_(i + i0, j + j0, n)]*BETA;
-            temp += sp_c[_idx_(i, j, BLK_DIM)];
-            // c[_idx_(i + i0, j + j0, n)] = temp;
-            STORE_NOACK(temp, c + _idx_(i + i0, j + j0, n), 0);
-            sp_c[_idx_(i, j, BLK_DIM)] = 0;
-          }
-        }
-      }
-
-    }
-  }
-}
-
 // actual kernel
 void kernel(
     DTYPE *a, DTYPE *aT, DTYPE *b, DTYPE *c, int m, int n, int t,
@@ -164,6 +84,9 @@ void kernel(
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
 #elif defined MANYCORE_PREFETCH
   SET_PREFETCH_MASK(NUM_REGIONS,REGION_SIZE,&start_barrier);
+#else
+  // need to wait after transpose!
+  pthread_barrier_wait(&start_barrier);
 #endif
 
   // if (cinfo.used == 0) return;
@@ -222,7 +145,7 @@ void *pthread_kernel(void *args)
   // reset scratchpad config
   SET_PREFETCH_MASK(0, 0, &start_barrier);
 
-  if (a->tid_x == 1 && a->tid_y == 1)
+  if (a->tid_x == 0 && a->tid_y == 0)
   {
     stats_off();
   }

@@ -3,6 +3,7 @@
 //-----------------------------------------------------------------------------
 // Layout of pipeline in io model
 //
+// Authors: Philip Bedoukian
 
 #ifndef __CPU_IO_PIPELINE_HH__
 #define __CPU_IO_PIPELINE_HH__

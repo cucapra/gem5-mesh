@@ -38,6 +38,7 @@ Source('mesh_helper.cc')
 Source('mesh_ports.cc')
 Source('vec_inst_sel.cc')
 Source('vector.cc')
+Source('cpi_stack.cc')
 
 # define debug domain that can be used in DPRINTF
 DebugFlag('Harness', "Custom test harness")

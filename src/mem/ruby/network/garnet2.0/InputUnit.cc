@@ -128,15 +128,6 @@ InputUnit::wakeup()
         Cycles pipe_stages = m_router->get_pipe_stages();
         if (pipe_stages == 1) {
 
-            // auto mem_msg = std::dynamic_pointer_cast<MemMessage>(t_flit->get_msg_ptr());
-            // if (mem_msg != nullptr && mem_msg->getPacket()->getAddr() >= 0x20000000) 
-            //     DPRINTF(Mesh, "InputUnit %d Router %d single-cycle buffer %#x\n", m_id, m_router->get_id(), mem_msg->getPacket()->getAddr());
-
-            // auto mem_msg = std::dynamic_pointer_cast<LLCResponseMsg>(t_flit->get_msg_ptr());
-            // if (mem_msg != nullptr && mem_msg->getLineAddress() == 0x2000934c) 
-            //     DPRINTF(Frame, "InputUnit %d Router %d single-cycle buffer %#x\n", m_id, m_router->get_id(), mem_msg->getLineAddress());
-
-
              DPRINTF(RubyNetwork, "InputUnit %d Router %d buffer %p\n", m_id, m_router->get_id(), t_flit);
 
             // 1-cycle router

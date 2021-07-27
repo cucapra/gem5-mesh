@@ -134,7 +134,7 @@ class IOCPU : public BaseCPU
     TheISA::Decoder* getDecoderPtr(ThreadID tid);
 
     /** Get top-level system pointer */
-    System* getSystemPtr();
+    System* getSystemPtr() override;
 
     /** Get ISA for the given thread */
     TheISA::ISA* getISAPtr(ThreadID tid);
@@ -266,10 +266,13 @@ class IOCPU : public BaseCPU
     /**
      * Spad prefetch region related functions
      */
-    int getSpadNumRegions();
-    int getSpadRegionSize();
+    int getSpadNumRegions() override;
+    int getSpadRegionSize() override;
 
     Scratchpad *getLocalScratchpad();
+    
+    bool getVectorConfigured() override { return getEarlyVector()->getConfigured(); }
+    bool isVectorCore() override { return getEarlyVector()->isSlave(); }
 
     /**
      * Stats-related functions

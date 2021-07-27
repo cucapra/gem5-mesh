@@ -1,3 +1,5 @@
+// Authors: Philip Bedoukian
+
 #include "custom/mesh_ports.hh"
 #include "cpu/io/cpu.hh"
 #include "custom/vector.hh"
@@ -34,18 +36,6 @@ ToMeshPort::recvReqRetry()
 {
 }
 
-/*void
-ToMeshPort::setVal(bool val) {
-  this->val = val;
-}*/
-
-// if active we want val/rdy, otherwise we don't care
-/*bool
-ToMeshPort::checkHandshake(){
-  bool rdy = getPairRdy();
-  return (PROTOCOL(active, val, rdy));
-}*/
-
 bool
 ToMeshPort::getPairRdy() {
   BaseSlavePort *slavePort = &(getSlavePort());
@@ -67,17 +57,6 @@ ToMeshPort::tryUnblockNeighbor() {
   }
 }
 
-/*void
-ToMeshPort::setValIfActive(bool val, SensitiveStage stage) {
-  if (active == stage) { 
-    setVal(val);
-  }
-  // if not active then allow to go to false, this occurs when deconfigure
-  else if (active == NONE && !val) {
-    setVal(false);
-  }
-}*/
-
 /*----------------------------------------------------------------------
  * Define mesh slave port behavior
  *--------------------------------------------------------------------*/ 
@@ -90,36 +69,18 @@ FromMeshPort::FromMeshPort(IOCPU *_cpu, int idx)
           wakeupCPUEvent([this] { tryUnblockCPU(); }, name()), 
           active(NONE), _meshQueue(name(), "pkt", MESH_QUEUE_SLOTS), 
           vec(nullptr)
-    { 
-      //DPRINTF(Mesh, "init %d %d %ld %ld\n", rdy, active, (uint64_t)recvPkt, (uint64_t)this);
-      //DPRINTF(Mesh, "init idx %d\n", idx);
-      }
+    {}
 
 // This isn't working when multiple FromMesh ports schedule this event!!!!
 // how to handle a request after waiting for some delay
 void
 FromMeshPort::process(){
-  
-  /*assert(cpu != nullptr);
-  // crashes the session :(
-  if (idx < 4){
-    DPRINTF(Mesh, "process idx %d\n", idx);
-  }
-  else {
-    assert(0);
-  }*/
   // save the received packet
   setPacket(recvPkt_d);
 }
 
 bool 
 FromMeshPort::recvTimingReq(PacketPtr pkt) {
-    // assert(!recvEvent.scheduled());
-    // recvPkt_d = pkt;
-    // cpu->schedule(recvEvent, cpu->clockEdge(Cycles(1)));
-
-    // if (vec)
-    //   vec->signalActivity();
     if (vec->enqueueMeshPkt(pkt)) {
       return true;
     }
@@ -158,22 +119,6 @@ FromMeshPort::getAddrRanges() const {
 // get recv pkts
 PacketPtr
 FromMeshPort::getPacket() {
-  /*if (recvPkt == nullptr) {
-    DPRINTF(Mesh, "[[WARNING]] Did not recv packet\n");
-    return nullptr;
-  }
-  
-  if (cyclePktRecv >= cpu->clockEdge()) {
-    DPRINTF(Mesh, "[[WARNING]] Packet not ready for use\n");
-    return nullptr;
-  }
-  
-  PacketPtr curPacket = recvPkt;
-  
-  // destructive read on packet
-  recvPkt = nullptr;
-  
-  return curPacket;*/
   
   PacketPtr pkt = nullptr;
   if (pktExists()) {
@@ -194,30 +139,8 @@ FromMeshPort::getPacketData(PacketPtr pkt) {
   return pkt->getUintX(LittleEndianByteOrder);
 }
 
-/*uint64_t
-FromMeshPort::getPacketData() {
-  PacketPtr curPacket = getPacket();
-  if (curPacket == nullptr) return 0;
-  
-  // get data from packet
-  uint64_t data = curPacket->getUintX(LittleEndianByteOrder);
-  
-  // destructive read on packet
-  recvPkt = nullptr;
-  
-  // this might update val/rdy interface
-  cpu->informNeighbors();
-  
-  return data;
-}*/
-
 void
 FromMeshPort::setPacket(PacketPtr pkt) {
-  /*if (recvPkt != nullptr) {
-    DPRINTF(Mesh, "[[WARNING]] Overwrite packet %#x in port %d\n", recvPkt->getAddr(), idx);
-  }
-  
-  recvPkt = pkt;*/
   
   // push packet onto a 2 element queue to be stall-proof
   if (_meshQueue.canReserve()) {
@@ -233,33 +156,12 @@ FromMeshPort::setPacket(PacketPtr pkt) {
 
 bool
 FromMeshPort::pktExists() { 
-  //return ((recvPkt != nullptr) && (cyclePktRecv < cpu->clockEdge()));
-  //return recvPkt != nullptr;
   return !_meshQueue.empty();
 }
-
-/*void
-FromMeshPort::setRdy(bool rdy) {
-  this->rdy = rdy;
-}*/
-
-// if active we want val/rdy, otherwise we don't care
-/*bool
-FromMeshPort::checkHandshake(){
-  bool val = getPairVal();
-  return (PROTOCOL(active, val, rdy));
-}*/
 
 bool
 FromMeshPort::getPairVal() {
   return pktExists();
-  /*BaseMasterPort *masterPort = &(getMasterPort());
-  if (ToMeshPort *masterMeshPort = dynamic_cast<ToMeshPort*>(masterPort)) {
-    return masterMeshPort->getVal();
-  }
-  else {
-    return false;
-  }*/
 }
 
 void
@@ -274,33 +176,4 @@ FromMeshPort::getRdy() {
   
   return vec->canRecvMeshPkt();
 
-  // // TODO re-examine this rdy signal!
-  // if (_meshQueue.canReserve() && vec->getConfigured()) {
-  //   // if we have a packet but don't have a packet in other ports or
-  //   // we have packets but can't send them anywhere b/c output not rdy
-  //   // then we can't accept anymore packets on this port b/c we can't tick
-    
-  //   // should look at next_val?
-  //   // if (next_pairval && !next_pairval, then not rdy?)
-    
-  //   if (getPairVal() && 
-  //     vec->getInVal() && vec->getOutRdy()) return true;
-  //   else if (getPairVal() && 
-  //     (!vec->getInVal() || !vec->getOutRdy())) return false;
-  //   else return true;
-  // }
-  // else {
-  //   return false;
-  // }
 }
-
-/*void
-FromMeshPort::setRdyIfActive(bool rdy, SensitiveStage stage) {
-  if (active == stage) {
-    setRdy(rdy);
-  }
-  // if not active then allow to go to false, this occurs when deconfigure
-  else if (active == NONE && !rdy) {
-    setRdy(false);
-  }
-}*/

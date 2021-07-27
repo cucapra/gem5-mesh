@@ -54,6 +54,11 @@ class TBETable
 
     ENTRY *lookup(Addr address);
 
+    ENTRY *getNULL() const 
+    {
+      return NULL;
+    }
+
     // Print cache contents
     void print(std::ostream& out) const;
 

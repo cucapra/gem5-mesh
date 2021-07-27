@@ -8,6 +8,8 @@
   
   Might consider dropping a json in the results dir with run info rather than in dir name?
   Also need to be able to recompile the program when want to add more cores or disable/enable vector
+
+  Authors: Philip Bedoukian
 '''
 
 import os, subprocess, time, argparse, re, random
@@ -16,6 +18,7 @@ import multiprocessing, time
 
 # include configs we want to run
 import sim_list
+from timer import Timer
 
 # cmd line arguments
 parser = argparse.ArgumentParser(description='Run gem5 simulation and output informative stats files')
@@ -23,6 +26,7 @@ parser.add_argument('--build', default='../../build/RVSP/gem5.opt', help='Path t
 parser.add_argument('--config', default='../../configs/phil/brg_hammerblade.py', help='Path to gem5 build')
 parser.add_argument('--results', default='../../results', help='Path to place to store results')
 parser.add_argument('--num-cpus', default=64, help='Number of cpus to use in simulation')
+parser.add_argument('--sim-list', default='./experiments/test.json', help='Json file describing sim configs')
 args = parser.parse_args()
 
 # create a template for the gem5 command line
@@ -102,50 +106,54 @@ def run_prog(numCpus, prog_key, argv, vec_config, hw_opts):
 # this must be done serially due to recompiling benchmark
 # (but can parallize across benchmarks)
 def run_config(vec_config, num_cpus, prog_key, argv, hw_opts):
-  all_pass = True
 
-  ret = run_prog(num_cpus, prog_key, argv, vec_config, hw_opts)
+  timer = Timer()
+  with timer.time('[[FINISH]] {} | sw [{}] hw [{}]'.format(prog_key, vec_config, hw_opts)):
+    ret = run_prog(num_cpus, prog_key, argv, vec_config, hw_opts)
+  
   if (not ret):
     print('-------------------------------------------------------------')
-    print('{} failed w/ config {} hw {}'.format(prog_key, vec_config, hw_opts))
+    print('[[FAILED]] {} | sw [{}] hw [{}]'.format(prog_key, vec_config, hw_opts))
     print('-------------------------------------------------------------')
-    all_pass = False
 
+  return ret
 
 # MAIN
 # 
 
-num_cpus = args.num_cpus
-
-# limit to 16 threads, each benchmark in parallel, but configs are serial
+# limit parallel threads, each benchmark in parallel, but configs are serial
 pool = multiprocessing.Pool(processes=70)
 jobs = []
+compiled_binaries = []
 
-for k,v in sim_list.sim_configs.items():
-  prog_key = k
-  sim_config = v
-  # prog_def  = sim_list.programs[prog_name] # TODO can't pass dicts?
-  argv      = sim_config['argv']
-  vec_configs = sim_config['vec']
-  if ('hw_opts' in sim_config):
-    hw_opts = sim_config['hw_opts']
-  else:
-    hw_opts = ['']
-  for vec_config in vec_configs:
+sim_configs = sim_list.generate_sim_config_from_file(args.sim_list)
+for config in sim_configs:
+  prog_key   = config['program']
+  argv       = config['argv']
+  sw_configs = config['software']
+  hw_configs = config['hardware']
 
-    # compile serially so can launch job with overwritting binary
-    # if fails, kill all jobs and exit
-    if (not compile_prog(num_cpus, prog_key, vec_config)):
-      pool.terminate()
-      quit()
+  for sw in sw_configs:
+    num_cpus = sim_list.get_num_cpus(sw, args.num_cpus)
 
-    for hw_opt in hw_opts:
+    # compile if havent compiled in this run
+    binary_name = sim_list.get_binary_name(prog_key, sw)
+    if not binary_name in compiled_binaries:
+      # compile serially so can launch job with overwritting binary
+      # if fails, kill all jobs and exit
+      if (not compile_prog(num_cpus, prog_key, sw)):
+        pool.terminate()
+        quit()
+    else:
+      print('[[INFO]] Skip recompilation of ' + binary_name + ' for ' + str(sw) + ' ' + str(hw_configs))
+
+    # remember that we compiled the program so dont do it again
+    compiled_binaries.append(binary_name)
+
+    for hw in hw_configs:
       # the new file will have the same name as the old file, but also specify the new dir
-      proc = pool.apply_async(run_config, args=(vec_config, num_cpus, prog_key, argv, hw_opt, ))
+      proc = pool.apply_async(run_config, args=(sw, num_cpus, prog_key, argv, hw, ))
       jobs.append(proc)
-
-      # sleep for some time to give time for gem5 to load the binary
-      # time.sleep(11)
     
 
 # Wait for jobs to complete before exiting

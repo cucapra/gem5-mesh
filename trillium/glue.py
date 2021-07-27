@@ -16,6 +16,8 @@ from enum import Enum, auto
 # `return`: this delimiter MUST ALWAYS be placed before the `return` statements of both scalar and vector code.
 #           they mark the boundary of a special vissue block whose boundary extends until the next "jump to return address"-ish instruction (e.g., `ret`, `jl ra`, etc)
 
+# Authors: Edwin Peguero
+#          Adrian Sampson
 
 class VectorParseState(Enum):
     START = auto()

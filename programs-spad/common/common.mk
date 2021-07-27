@@ -28,27 +28,7 @@ COMMON_DIR := $(dir $(lastword $(MAKEFILE_LIST)))
 BASE_DIR := $(COMMON_DIR)/../..
 
 # installed cross compiler gcc for riscv
-# when doing trillium vector need gcc8
-# when doing rvv need gcc10, use also for baseline
-
-RV_CC8=/scratch/pbb59/rv64g/bin/riscv64-unknown-linux-gnu-gcc
-RV_CC10=/scratch/pbb59/riscv-rv64gv/bin/riscv64-unknown-linux-gnu-gcc
-# RV_CC=
-# ifeq ($(ENV_GCC_VER),)
-# 	ifneq (,$(findstring VEC_,$(EXTRA_FLAGS)))
-# 		RV_CC=$(RV_CC8)
-# 	else ifneq (,$(findstring PREFETCH,$(EXTRA_FLAGS)))	
-# 		RV_CC=$(RV_CC8)
-# 	else	
-# 		RV_CC=$(RV_CC10)
-# 	endif
-# else 
-# 	ifeq $(ENV_GCC_VER),10)
-# 		RV_CC=$(RV_CC10)
-# 	else
-# 		RV_CC=$(RV_CC8)
-# 	endif
-# endif
+RV_CC10 ?=/scratch/pbb59/riscv-rv64gv/bin/riscv64-unknown-linux-gnu-gcc
 RV_CC=$(RV_CC10)
 
 CFLAGS=-D_N_SPS=$(N_SPS) $(EXTRA_FLAGS) -O3 --std=gnu11 -static -I../common/ -T../common/spm.ld -lpthread -lm
