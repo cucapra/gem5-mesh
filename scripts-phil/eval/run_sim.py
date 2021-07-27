@@ -108,13 +108,15 @@ def run_prog(numCpus, prog_key, argv, vec_config, hw_opts):
 def run_config(vec_config, num_cpus, prog_key, argv, hw_opts):
 
   timer = Timer()
-  with timer.time('{} sw {} hw {}'.format(prog_key, vec_config, hw_opts)):
+  with timer.time('[[FINISH]] {} | sw [{}] hw [{}]'.format(prog_key, vec_config, hw_opts)):
     ret = run_prog(num_cpus, prog_key, argv, vec_config, hw_opts)
-    if (not ret):
-      print('-------------------------------------------------------------')
-      print('{} failed w/ config {} hw {}'.format(prog_key, vec_config, hw_opts))
-      print('-------------------------------------------------------------')
+  
+  if (not ret):
+    print('-------------------------------------------------------------')
+    print('[[FAILED]] {} | sw [{}] hw [{}]'.format(prog_key, vec_config, hw_opts))
+    print('-------------------------------------------------------------')
 
+  return ret
 
 # MAIN
 # 
