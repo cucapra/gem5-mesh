@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:18.04
 
 #
 ### Get need packages
@@ -29,27 +29,16 @@ RUN apt-get install -y \
 #
 ### build riscv compiler
 
-RUN cd /
-
+WORKDIR /
 RUN git clone -b rvv-intrinsic https://github.com/riscv/riscv-gnu-toolchain
 WORKDIR riscv-gnu-toolchain
 RUN ./configure --prefix=/riscv-rv64gv --with-arch=rv64gv_zfh
 RUN make -j16 linux
 
-# # set environment variable RV_CC10
-# ENV RV_CC10 /riscv-rv64gv
+# set environment variable RV_CC10
+ENV RV_CC10 /riscv-rv64gv
 
-# #
-# ### Build gem5
-
-# RUN cd /
-
-# # RUN git clone git@github.com:cucapra/gem5-mesh.git
-
-# # compile
-# # RUN cd gem5-mesh
-# # RUN scons -j16 ./build/RVSP/gem5.opt
-
-# #
-# ### Cleanup
-# RUN cd /gem5-mesh
+# prepare workspace
+WORKDIR /
+RUN mkdir workspace
+WORKDIR /workspace
