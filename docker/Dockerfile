@@ -36,7 +36,12 @@ RUN ./configure --prefix=/riscv-rv64gv --with-arch=rv64gv_zfh
 RUN make -j16 linux
 
 # set environment variable RV_CC10
-ENV RV_CC10 /riscv-rv64gv
+ENV RV_CC10 /riscv-rv64gv/bin/riscv64-unknown-linux-gnu-gcc
+
+# install python libaries 
+RUN apt-get install -y python-pip python3-pip
+RUN pip3 install regex colorlog
+RUN pip install numpy matplotlib scipy
 
 # prepare workspace
 WORKDIR /
