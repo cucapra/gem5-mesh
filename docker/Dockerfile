@@ -1,0 +1,55 @@
+FROM ubuntu:20.04
+
+#
+### Get need packages
+
+# make non interactive so packages dont ask for config info
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update
+
+# gem5 stuff
+RUN apt-get install -y \
+    build-essential \
+    gcc \
+    g++ \
+    git \
+    m4 \
+    scons \
+    zlib1g \
+    zlib1g-dev \
+    libprotobuf-dev \
+    python-dev \
+    python
+
+# riscv stuff
+RUN apt-get install -y \
+	autoconf automake autotools-dev curl python3 libmpc-dev libmpfr-dev libgmp-dev gawk build-essential bison flex texinfo gperf libtool patchutils bc zlib1g-dev libexpat-dev
+
+#
+### build riscv compiler
+
+RUN cd /
+
+RUN git clone -b rvv-intrinsic https://github.com/riscv/riscv-gnu-toolchain
+WORKDIR riscv-gnu-toolchain
+RUN ./configure --prefix=/riscv-rv64gv --with-arch=rv64gv_zfh
+RUN make -j16 linux
+
+# # set environment variable RV_CC10
+# ENV RV_CC10 /riscv-rv64gv
+
+# #
+# ### Build gem5
+
+# RUN cd /
+
+# # RUN git clone git@github.com:cucapra/gem5-mesh.git
+
+# # compile
+# # RUN cd gem5-mesh
+# # RUN scons -j16 ./build/RVSP/gem5.opt
+
+# #
+# ### Cleanup
+# RUN cd /gem5-mesh
