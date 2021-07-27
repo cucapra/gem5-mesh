@@ -3,7 +3,8 @@
 #==============================================================================
 # Python configuration file for BRG scratchpad system
 #
-# Author: Tuan Ta
+# Authors: Tuan Ta
+#          Philip Bedoukian
 # Date  : 19/07/09
 
 import optparse
@@ -99,9 +100,6 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_l2
   link_latency = 1
   router_latency = 1
 
-  #n_cpus = len(system.cpu)
-  #n_xcels = len(system.xcel)
-
   # all controllers
   icaches   = system.icaches
   cpu_sps   = system.scratchpads[:n_cpus]
@@ -119,7 +117,6 @@ def makeMeshTopology(n_rows, n_cols, n_cpus, n_xcels, system, network, double_l2
     assert(len(l2s) <= n_cols*2)
   else:
     assert(len(l2s) <= n_cols)
-  #assert(len(l2s) + n_cpus + n_xcels == num_routers)
 
   # create all routers
   routers = [ Router(router_id = i,
@@ -273,8 +270,6 @@ def makeSystolicTopology(system, tiles_x, tiles_y):
   # get reference to the cpus already in the system
   cpus = system.cpu
 
-  #print ('harnesses: {0}'.format(len(system.harness)))
-
   for y in range(tiles_y):
     for x in range(tiles_x):
       # do all mesh connections
@@ -286,8 +281,6 @@ def makeSystolicTopology(system, tiles_x, tiles_y):
       idx_l = x - 1 + y         * tiles_x
       idx_u = x     + ( y - 1 ) * tiles_x
       idx_d = x     + ( y + 1 ) * tiles_x
-    
-      #print('Connecting ({0}, {1}) = {2}'.format(x, y, idx))
     
       to_right = 0
       from_left = 2
@@ -342,7 +335,6 @@ def makeSystolicTopology(system, tiles_x, tiles_y):
 parser = optparse.OptionParser()
 Options.addCommonOptions(parser)
 Options.addSEOptions(parser)
-#Options.addBRGOptions(parser)
 Ruby.define_options(parser)
 
 # Scratchpad size
