@@ -27,17 +27,26 @@ In case you don't want to use docker. The following packages and repos are requi
 1. `cd path/to/git/top`
 2. `scons -j16 ./build/RVSP/gem5.opt`
 
-### Running:
+### Running Quickstart:
 
-Benchmarks can be run individually by navigating to a sub-directory in `./program-spad` and doing `make run`.
+Benchmarks can be run individually by navigating to a sub-directory in `./programs-spad` and doing `make run`.
 
-Scripts are provided to run experiments (in ./scripts-phil/eval)
-    `python artifact.py --experiment=[small,medium,large]` does simulation and plotting.
+Scripts are provided to run experiments in `./scripts-phil/eval`. We provide a top-level script to automate simulation, data collection, and plotting:
+
+`python artifact.py --experiment=[small,medium,large]`
 
 It invokes the following scripts
-1. run_sim.py : runs an experiment
-2. extract_stats.py : extracts gem5 simulation data
-3. organizer.py : plots graph of data
+1. `run_sim.py` : runs an experiment
+2. `extract_stats.py` : extracts gem5 simulation data
+3. `organizer.py` : plots graph of data
+
+Each experiment size produces a part or all of the key data presented in the original paper. The time will vary depending on the number of cores available to parallelize the simulations. Each simulation takes 2-30 hours depending on the benchmark and configuration.
+
+The experiment information is enumerated below:
+
+1. `small`: 10 simulations (5 benchmarks, 2 configs) -- recommended on 4-core systems.
+2. `medium`: 30 simulations (15 benchmarks, 2 configs) -- recommended on 16-core systems.
+3. `large`: 65 simulations (15 benchmarks, 4-5 configs) -- recommended on 32-core or more systems.
 
 ### Experimenting:
 
@@ -46,14 +55,23 @@ Custom experiments can be run by giving run_sim.py a different json file.
 
 `./experiments/full.json` gives an example of every experiment that can be run.
 
-### Key source files:
+The data can be extracted and plotted using:
+
+`python extract_stats.py --cpu-sims=./example`
+
+If you just wish to plot previously extracted data (a pickle file is produced from the previous step):
+
+`python organizer.py`
+
+### Key Source:
 
 Important source directories:
-`./src/custom` - contains source for vector groups
+`./src/custom/` contains source for vector groups
+`./src/mem/ruby/scratchpad/Scratchpad.cc` contains source for frames 
 
-### Custom compiler pass:
+### Compiler Pass:
 
-A custom compiler pass found in ./trillium post processes assembly to produce runnable code for our architecture.
+A custom compiler pass found in `./trillium` post processes assembly to produce runnable code for our architecture.
 
 
 [gem5]: https://gem5.googlesource.com
