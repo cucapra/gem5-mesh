@@ -2,7 +2,7 @@
     "ConfigInfo" : {
         "Config0" : {
             "Software" : [
-                [ "NO_VEC", "MANYCORE_PREFETCH" ],
+                [ "NO_VEC" ],
                 [ "VECTOR_LEN=4" ]
             ],
             "Hardware" : [
