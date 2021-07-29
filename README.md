@@ -5,11 +5,13 @@ Trillium
 
 This is a fork of the [gem5][] simulator repository with a bunch of other stuff for the Trillium architecture.
 
+The following instructions use `top/` as an alias for the top level of this repository.
+
 ### Environment Setup (docker):
 
 1. Install `docker`
-2. `cd ./docker && docker build -t gem5-mesh .`
-3. `./enter_docker.sh` (from inside docker directory)
+2. `cd top/docker && docker build -t gem5-mesh .`
+3. `./enter_docker.sh` (from inside `top/docker`)
 
 ### Environment Setup (native):
 
@@ -21,20 +23,20 @@ In case you don't want to use docker. The following packages and repos are requi
 4. `git clone -b rvv-intrinsic https://github.com/riscv/riscv-gnu-toolchain`
 5. `cd riscv-gnu-toolchain && ./configure --prefix=<local_install_path> --with-arch=rv64gv_zfh`
 6. `make -j16 linux`
-7. `export RV_CC10=<local_install_path>/bin/riscv64-unknown-linux-gnu-gcc` or edit path directly in `./programs-spad/common/common.mk`
+7. `export RV_CC10=<local_install_path>/bin/riscv64-unknown-linux-gnu-gcc` or edit path directly in `top/programs-spad/common/common.mk`
 
 ### Building:
 
-1. `cd path/to/git/top`
+1. `cd top/`
 2. `scons -j16 ./build/RVSP/gem5.opt`
 
 ### Running Quickstart:
 
-Benchmarks can be run individually by navigating to a sub-directory in `./programs-spad` and doing `make run`.
+Benchmarks can be run individually by navigating to a sub-directory in `top/programs-spad` and doing `make run`.
 
-Scripts are provided to run experiments in `./scripts-phil/eval`. We provide a top-level script to automate simulation, data collection, and plotting:
+Scripts are provided to run experiments in `top/scripts-phil/eval`. We provide a top-level script to automate simulation, data collection, and plotting:
 
-1. `cd ./scripts-phil/eval`
+1. `cd top/scripts-phil/eval`
 2. `python artifact.py --experiment=[small,medium,large]`
 
 It invokes the following scripts
@@ -50,7 +52,7 @@ The experiment information is enumerated below:
 2. `medium`: 30 simulations (15 benchmarks, 2 configs) -- recommended on 16-core systems.
 3. `large`: 65 simulations (15 benchmarks, 4-5 configs) -- recommended on 32-core or more systems.
 
-Plots will be generated in the same directory (`./scripts-phil/eval`).
+Plots will be generated in the same directory (`top/scripts-phil/eval`).
 
 1. `artifact_speedup.png` -- compares the execution time between configs.
 2. `artifact_icache.png` -- compares the icache accesses between configs.
@@ -58,7 +60,8 @@ Plots will be generated in the same directory (`./scripts-phil/eval`).
 
 ### Experimenting:
 
-Custom experiments can be run by giving run_sim.py a different json file.
+Custom experiments can be run by giving `run_sim.py` a different json file.
+
 `python run_sim.py --sim-list=./experiments/test.json --results=./example`
 
 `./experiments/full.json` gives an example of every experiment that can be run.
@@ -74,12 +77,12 @@ If you just wish to plot previously extracted data (a pickle file is produced fr
 ### Key Source:
 
 Important source directories:
-`./src/custom/` contains source for vector groups
-`./src/mem/ruby/scratchpad/Scratchpad.cc` contains source for frames 
+`top/src/custom/` contains source for vector groups
+`top/src/mem/ruby/scratchpad/Scratchpad.cc` contains source for frames 
 
 ### Compiler Pass:
 
-A custom compiler pass found in `./trillium` post processes assembly to produce runnable code for our architecture.
+A custom compiler pass found in `top/trillium` post processes assembly to produce runnable code for our architecture.
 
 
 [gem5]: https://gem5.googlesource.com
