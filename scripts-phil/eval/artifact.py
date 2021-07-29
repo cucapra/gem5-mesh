@@ -12,8 +12,8 @@
     Should be run from ./gem5-mesh/scripts-phil/eval
 '''
 
-import argparse, pickle, subprocess
-from organizer import rename_prog, plot_best_speedup, plot_best_icache_access, plot_best_energy
+import argparse, subprocess
+
 
 # helper function to run scripts
 def run_cmd(cmd):
@@ -27,7 +27,7 @@ def run_cmd(cmd):
         return False
 
 # cmd line arguments
-parser = argparse.ArgumentParser(description='Run gem5 simulation and output informative stats files')
+parser = argparse.ArgumentParser(description='Run simulations, extract data, and plot graphs')
 parser.add_argument('--experiment', default='small', help='Experiment: either small (~24 CPU hours), medium (~100 CPU hours), or large (~300 CPU hours)')
 args = parser.parse_args()
 
@@ -42,49 +42,29 @@ else:
     print('[[FAILED]] Invalid experiment type')
     assert(False)
 
+# sim commands
+run_sim_cmd = 'python {}/run_sim.py --sim-list={} --results=./artifact-{}'.format('.', exp_file, args.experiment)
+ext_sim_cmd = 'python {}/extract_stats.py --cpu-sims=./artifact-{} --skip-graph'.format('.', args.experiment)
+plot_sim_cmd = 'python {}/artifact_plots.py --experiment={}'.format('.', args.experiment)
+
+# print commands that will be run in case
+print('Start Artifact Evaluation.\n\nThe following commands will be run. If a later command files, you can restart from an intermediate point by manually entering them:')
+print('1. ' + run_sim_cmd)
+print('2. ' + ext_sim_cmd)
+print('3. ' + plot_sim_cmd)
+print('\n')
+
 # run the simulations (will take a while, but will be faster the more CPUs available)
 print('Start simulations.')
-run_sim_cmd = 'python {}/run_sim.py --sim-list={} --results=./artifact-{}'.format('.', exp_file, args.experiment)
 run_cmd(run_sim_cmd)
 
 # run data extractor on the simulations
 print('Start extract stats.')
-ext_sim_cmd = 'python {}/extract_stats.py --cpu-sims=./artifact-{} --skip-graph'.format('.', args.experiment)
 run_cmd(ext_sim_cmd)
 
 # do graphing stuff
 print('Start graphing.')
-with open('./extract.csv.pickle', 'rb') as f:
-    all_data = pickle.load(f)
+run_cmd(plot_sim_cmd)
 
-# rename programs to fancier name
-rename_prog(all_data, 'conv2d', '2dconv')
-rename_prog(all_data, 'conv3d', '3dconv')
-rename_prog(all_data, 'fdtd', 'fdtd-2d')
-rename_prog(all_data, 'gram_schmidt', 'gramschm')
-
-# do plots depending on experiment
-if (args.experiment == 'small' or args.experiment == 'medium'):
-    plotted_names = ['NV_PF', 'V4']
-    plotted_series = [['NV_PF'], ['V4']]
-else:
-    plotted_names = ['NV', 'NV_PF', 'BEST_V']
-    plotted_series = [['NV'], ['NV_PF'], ['V4', 'V16']]
-
-plot_best_speedup(all_data,
-    category_renames = plotted_names,
-    category_configs = plotted_series,
-    yaxis_name = 'Speedup Relative to Baseline ({})'.format(plotted_names[0]),
-    graph_name = 'artifact_speedup')
-plot_best_energy(all_data,
-    category_renames=plotted_names,
-    category_configs=plotted_series,
-    yaxis_name = 'Total On-Chip Energy Relative to Baseline ({})'.format(plotted_names[0]),
-    graph_name = 'artifact_energy')
-plot_best_icache_access(all_data,
-    category_renames=plotted_names,
-    category_configs=plotted_series,
-    yaxis_name = 'I-Cache Accesses Relative to Baseline ({})'.format(plotted_names[0]),
-    graph_name = 'artifact_icache')
-
+# finish
 print('Done.')
