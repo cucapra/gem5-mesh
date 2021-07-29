@@ -33,7 +33,8 @@ Benchmarks can be run individually by navigating to a sub-directory in `./progra
 
 Scripts are provided to run experiments in `./scripts-phil/eval`. We provide a top-level script to automate simulation, data collection, and plotting:
 
-`python artifact.py --experiment=[small,medium,large]`
+1. `cd ./scripts-phil/eval`
+2. `python artifact.py --experiment=[small,medium,large]`
 
 It invokes the following scripts
 1. `run_sim.py` : runs an experiment
@@ -47,6 +48,12 @@ The experiment information is enumerated below:
 1. `small`: 10 simulations (5 benchmarks, 2 configs) -- recommended on 4-core systems.
 2. `medium`: 30 simulations (15 benchmarks, 2 configs) -- recommended on 16-core systems.
 3. `large`: 65 simulations (15 benchmarks, 4-5 configs) -- recommended on 32-core or more systems.
+
+Plots will be generated in the same directory (`./scripts-phil/eval`).
+
+1. `artifact_speedup.png` -- compares the execution time between configs.
+2. `artifact_icache.png` -- compares the icache accesses between configs.
+3. `artifact_energy.png` -- compares the energy consumption between configs.
 
 ### Experimenting:
 
