@@ -7,8 +7,9 @@ This is a fork of the [gem5][] simulator repository with a bunch of other stuff 
 
 ### Environment Setup (docker):
 
-1. `cd ./docker && docker build -t gem5-mesh .`
-2. `./enter_docker.sh`
+1. Install `docker`
+2. `cd ./docker && docker build -t gem5-mesh .`
+3. `./enter_docker.sh` (from inside docker directory)
 
 ### Environment Setup (native):
 
