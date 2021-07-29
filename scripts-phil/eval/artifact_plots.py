@@ -2,7 +2,7 @@
     Generates plots for the artifact
 '''
 
-from organizer import rename_prog, plot_best_speedup, plot_best_icache_access, plot_best_energy
+from organizer import rename_prog, substitute_field_for_all_progs, plot_best_speedup, plot_best_icache_access, plot_best_energy
 import pickle, argparse
 
 parser = argparse.ArgumentParser(description='Plot graphs for the artifact evaluation')
