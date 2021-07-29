@@ -48,7 +48,7 @@ ext_sim_cmd = 'python {}/extract_stats.py --cpu-sims=./artifact-{} --skip-graph'
 plot_sim_cmd = 'python {}/artifact_plots.py --experiment={}'.format('.', args.experiment)
 
 # print commands that will be run in case
-print('Start Artifact Evaluation.\n\nThe following commands will be run. If a later command files, you can restart from an intermediate point by manually entering them:')
+print('Start Artifact Evaluation.\n\nThe following commands will be run. If a later command fails, you can restart from an intermediate point by manually entering them:')
 print('1. ' + run_sim_cmd)
 print('2. ' + ext_sim_cmd)
 print('3. ' + plot_sim_cmd)
