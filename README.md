@@ -17,7 +17,7 @@ The following instructions use `top/` as an alias for the top level of this repo
 
 In case you don't want to use docker. The following packages and repos are required.
 
-1. `build-essential gcc g++ m4 scons zlib1g zlib1g-dev libprotobuf-dev python-dev python autoconf automake autotools-dev curl python3 libmpc-dev libmpfr-dev libgmp-dev gawk bison flex texinfo gperf libtool patchutils bc libexpat-dev python-pip python3-pip`
+1. Install `build-essential gcc g++ m4 scons zlib1g zlib1g-dev libprotobuf-dev python-dev python autoconf automake autotools-dev curl python3 libmpc-dev libmpfr-dev libgmp-dev gawk bison flex texinfo gperf libtool patchutils bc libexpat-dev python-pip python3-pip`
 2. `pip3 install regex colorlog`
 3. `pip install numpy matplotlib scipy`
 4. `git clone -b rvv-intrinsic https://github.com/riscv/riscv-gnu-toolchain`
@@ -74,6 +74,10 @@ If you just wish to plot previously extracted data (a pickle file is produced fr
 
 `python organizer.py`
 
+### Benchmarks:
+
+We modify the programs in [Polybench/GPU][] to evaluate our architecture.
+
 ### Key Source:
 
 Important source directories:
@@ -86,3 +90,4 @@ A custom compiler pass found in `top/trillium` post processes assembly to produc
 
 
 [gem5]: https://gem5.googlesource.com
+[PolyBench/GPU]: https://web.cse.ohio-state.edu/~pouchet.2/software/polybench/GPU/index.html
