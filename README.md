@@ -12,8 +12,11 @@ The following instructions use `top/` as an alias for the top level of this repo
 ### Environment Setup with Docker:
 
 1. Install [Docker][].
-2. `cd top/docker && docker build -t gem5-mesh .`
-3. `./enter_docker.sh` (from inside `top/docker`)
+2. `cd top/docker && ./enter_docker.sh` (This step will automatically fetch the Docker image from [GitHub packages][ghcr].)
+
+That's all you need to get started. In the unlikely event you want to rebuild the Docker container from scratch, type this in the `top/docker` directory:
+
+    docker build -t ghcr.io/cucapra/gem5-mesh:latest .
 
 ### Environment Setup, Natively (Docker-Free):
 
@@ -103,3 +106,4 @@ Code for the architecture relies on a custom compiler pass found in `top/trilliu
 [gem5]: https://gem5.googlesource.com
 [PolyBench/GPU]: https://web.cse.ohio-state.edu/~pouchet.2/software/polybench/GPU/index.html
 [docker]: https://www.docker.com
+[ghcr]: https://github.com/features/packages
