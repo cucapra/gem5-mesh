@@ -22,8 +22,8 @@ substitute_field_for_all_progs(all_data, 'V16_LL_CL1024', 'V16_LL')
 
 # do plots depending on experiment
 if (args.experiment == 'small' or args.experiment == 'medium'):
-    plotted_names = ['NV_PF', 'V4']
-    plotted_series = [['NV_PF'], ['V4']]
+    plotted_names = ['NV', 'V4']
+    plotted_series = [['NV'], ['V4']]
 else:
     plotted_names = ['NV', 'NV_PF', 'BEST_V']
     plotted_series = [['NV'], ['NV_PF'], ['V4', 'V16', 'V16_LL']]
