@@ -5,17 +5,19 @@ Trillium
 
 This is a fork of the [gem5][] simulator repository with a bunch of other stuff for the Trillium architecture.
 
+There are two ways to set up the infrastructure: an automated way inside a [Docker][] container, or a manual way on your host machine.
+
 The following instructions use `top/` as an alias for the top level of this repository.
 
-### Environment Setup (docker):
+### Environment Setup with Docker:
 
-1. Install `docker`
+1. Install [Docker][].
 2. `cd top/docker && docker build -t gem5-mesh .`
 3. `./enter_docker.sh` (from inside `top/docker`)
 
-### Environment Setup (native):
+### Environment Setup, Natively (Docker-Free):
 
-In case you don't want to use docker. The following packages and repos are required.
+If you don't want to use Docker, you can install things manually. You'll need to install some packages and fetch some repositories.
 
 1. Install `build-essential gcc g++ m4 scons zlib1g zlib1g-dev libprotobuf-dev python-dev python autoconf automake autotools-dev curl python3 libmpc-dev libmpfr-dev libgmp-dev gawk bison flex texinfo gperf libtool patchutils bc libexpat-dev python-pip python3-pip`
 2. `pip3 install regex colorlog`
@@ -91,3 +93,4 @@ A custom compiler pass found in `top/trillium` post processes assembly to produc
 
 [gem5]: https://gem5.googlesource.com
 [PolyBench/GPU]: https://web.cse.ohio-state.edu/~pouchet.2/software/polybench/GPU/index.html
+[docker]: https://www.docker.com
