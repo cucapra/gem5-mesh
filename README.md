@@ -29,6 +29,8 @@ If you don't want to use Docker, you can install things manually. You'll need to
 
 ### Building:
 
+Regardless of the route you choose, the first thing you'll need to do is build the simulator:
+
 1. `cd top/`
 2. `scons -j16 ./build/RVSP/gem5.opt`
 
