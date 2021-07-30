@@ -34,62 +34,63 @@ If you don't want to use Docker, you can install things manually. You'll need to
 
 ### Running Quickstart:
 
-Benchmarks can be run individually by navigating to a sub-directory in `top/programs-spad` and doing `make run`.
+The benchmarks used in our system's evaluation are in the `top/programs-spad` directory. In each subdirectory there, you can type `make run` to execute an individual benchmark.
 
-Scripts are provided to run experiments in `top/scripts-phil/eval`. We provide a top-level script to automate simulation, data collection, and plotting:
+To collect the data for an entire batch of experiments, there is a collection of scripts available in `top/scripts-phil/eval`. We provide a top-level script to automate simulation, data collection, and plotting:
 
 1. `cd top/scripts-phil/eval`
 2. `python artifact.py --experiment=[small,medium,large]`
 
-It invokes the following scripts
-1. `run_sim.py` : runs an experiment
-2. `extract_stats.py` : extracts gem5 simulation data
-3. `organizer.py` : plots graph of data
+The `artifact.py` script invokes these other scripts:
+
+1. `run_sim.py`: runs an experiment
+2. `extract_stats.py`: extracts gem5 simulation data
+3. `organizer.py`: plots graph of data
 
 Each experiment size produces a part or all of the key data presented in the original paper. The time will vary depending on the number of cores available to parallelize the simulations. Each simulation takes 2-30 hours depending on the benchmark and configuration.
 
-The experiment information is enumerated below:
+These are the available experiment sizes:
 
 1. `small`: 10 simulations (5 benchmarks, 2 configs) -- recommended on 4-core systems.
 2. `medium`: 30 simulations (15 benchmarks, 2 configs) -- recommended on 16-core systems.
 3. `large`: 65 simulations (15 benchmarks, 4-5 configs) -- recommended on 32-core or more systems.
 
-Plots will be generated in the same directory (`top/scripts-phil/eval`).
+Plots will be generated in the same directory (`top/scripts-phil/eval`):
 
-1. `artifact_speedup.png` -- compares the execution time between configs.
-2. `artifact_icache.png` -- compares the icache accesses between configs.
-3. `artifact_energy.png` -- compares the energy consumption between configs.
+1. `artifact_speedup.png`: compares the execution time between configs.
+2. `artifact_icache.png`: compares the icache accesses between configs.
+3. `artifact_energy.png`: compares the energy consumption between configs.
 
 ### Experimenting:
 
-Custom experiments can be run by giving `run_sim.py` a different json file.
+Aside from this recommended batch of experiments, you can also design and run your own custom experiments. Use the `run_sim.py` script and supply it with a different JSON file describing the data you want to collect:
 
-`python run_sim.py --sim-list=./experiments/test.json --results=./example`
+    python run_sim.py --sim-list=./experiments/test.json --results=./example
 
-`./experiments/full.json` gives an example of every experiment that can be run.
+The `./experiments/full.json` file gives an example of every experiment that can be run.
 
-The data can be extracted and plotted using:
+Then, you can extract and plot the data from these experiments using:
 
-`python extract_stats.py --cpu-sims=./example`
+    python extract_stats.py --cpu-sims=./example
 
-If you just wish to plot previously extracted data (a pickle file is produced from the previous step):
+If you just wish to plot previously extracted data (a pickle file is produced from the previous step), use:
 
-`python organizer.py`
+    python organizer.py
 
 ### Benchmarks:
 
-We modify the programs in [Polybench/GPU][] to evaluate our architecture.
+The benchmark suite for this evaluation is [Polybench/GPU][]. The code in this repository consists of ports from the original C source code to use our architecture.
 
 ### Key Source:
 
-Important source directories:
-`top/src/custom/` contains source for vector groups
-`top/src/mem/ruby/scratchpad/Scratchpad.cc` contains source for frames 
+Some important source code directories to check out include:
+
+- `top/src/custom/` contains source for simulating vector groups
+- `top/src/mem/ruby/scratchpad/Scratchpad.cc` contains source for "frames," which are the architecture's mechanism for decoupled access/execute (DAE) within vector groups
 
 ### Compiler Pass:
 
-A custom compiler pass found in `top/trillium` post processes assembly to produce runnable code for our architecture.
-
+Code for the architecture relies on a custom compiler pass found in `top/trillium`, which post-processes the assembly produced by GCC to produce runnable code.
 
 [gem5]: https://gem5.googlesource.com
 [PolyBench/GPU]: https://web.cse.ohio-state.edu/~pouchet.2/software/polybench/GPU/index.html
