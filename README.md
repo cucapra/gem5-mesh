@@ -29,10 +29,16 @@ If you don't want to use Docker, you can install things manually. You'll need to
 
 ### Building:
 
-Regardless of the route you choose, the first thing you'll need to do is build the simulator:
+Regardless of the route you choose, the first thing you'll need to do is build the simulator with this command:
 
-1. `cd top/`
-2. `scons -j16 ./build/RVSP/gem5.opt`
+    scons -j16 ./build/RVSP/gem5.opt
+
+Run this command from `top`, i.e., the repository root.
+(The Docker container should put you in this directory automatically.)
+
+The build script may warn you about "missing the gem5 style or commit message hook." Just press enter to ignore this.
+
+Building the simulator takes around 10 minutes.
 
 ### Running Quickstart:
 
