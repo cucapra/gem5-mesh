@@ -9,18 +9,18 @@ There are two ways to set up the infrastructure: an automated way inside a [Dock
 
 The following instructions use `top/` as an alias for the top level of this repository.
 
-### Environment Setup with Docker:
+### Use the Docker Image:
 
 1. Install [Docker][].
-2. `cd top/docker && ./enter_docker.sh` (This step will automatically fetch the Docker image from [GitHub packages][ghcr].)
+2. Type `docker run -it ghcr.io/cucapra/gem5-mesh:latest`. (This step will automatically fetch the Docker image from [GitHub packages][ghcr].)
 
 That's all you need to get started. In the unlikely event you want to rebuild the Docker container from scratch, type this in the `top/docker` directory:
 
     docker build -t ghcr.io/cucapra/gem5-mesh:latest .
 
-### Environment Setup, Natively (Docker-Free):
+### Set Up Yourself (Docker-Free):
 
-If you don't want to use Docker, you can install things manually. You'll need to install some packages and fetch some repositories.
+If you don't want to use Docker, you can install things manually. You'll need to install some packages and fetch some repositories:
 
 1. Install `build-essential gcc g++ m4 scons zlib1g zlib1g-dev libprotobuf-dev python-dev python autoconf automake autotools-dev curl python3 libmpc-dev libmpfr-dev libgmp-dev gawk bison flex texinfo gperf libtool patchutils bc libexpat-dev python-pip python3-pip`
 2. `pip3 install regex colorlog`
@@ -30,14 +30,11 @@ If you don't want to use Docker, you can install things manually. You'll need to
 6. `make -j16 linux`
 7. `export RV_CC10=<local_install_path>/bin/riscv64-unknown-linux-gnu-gcc` or edit path directly in `top/programs-spad/common/common.mk`
 
-### Building:
-
-Regardless of the route you choose, the first thing you'll need to do is build the simulator with this command:
+Then, you'll need to build the simulator with this command:
 
     scons -j16 ./build/RVSP/gem5.opt
 
 Run this command from `top`, i.e., the repository root.
-(The Docker container should put you in this directory automatically.)
 
 The build script may warn you about "missing the gem5 style or commit message hook." Just press enter to ignore this.
 
