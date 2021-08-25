@@ -632,7 +632,7 @@ def plot_scalability_avg(data, stat_name='cycles', normalize_result=True, invers
     sub_plots_x=1, bbox=(0.925, 0.5), legend_loc='lower right', width_ratio=[1, 2.3333333],
     slope=slope)
 
-def plot_cpi_stack(data, config_names=['NV_PF_NCPUS_64__dram_bw_32'], graph_name='cpi_stack_nvpf', yaxis_name='CPI Stack', benchmarks=[], cluster_labels=[]):
+def plot_cpi_stack(data, config_names=['NV_PF_NCPUS_64__dram_bw_32'], graph_name='cpi_stack_nvpf', yaxis_name='CPI Stack', benchmarks=[], cluster_labels=[], annotations = ['B', '1', '2', '3']):
 
   # filter programs want to keep
   if (len(benchmarks) > 0):
@@ -712,8 +712,19 @@ def plot_cpi_stack(data, config_names=['NV_PF_NCPUS_64__dram_bw_32'], graph_name
     for slabel in sub_labels:
       merged_sub_labels.append(slabel)
   
+  # renames of stacks
+  stack_renames = {
+    'Issued' : 'Issued',
+    'Stallon_Frame' : 'Frame Stall',
+    'Stallon_INET_Pull' : 'INET Stall',
+    'Other' : 'Other Stall'
+  }
+  for i in range(len(merged_sub_labels)):
+    if (merged_sub_labels[i] in stack_renames):
+      merged_sub_labels[i] = stack_renames[merged_sub_labels[i]]
+
   try:
-    bar_plot(labels, merged_sub_labels, merged_values, yaxis_name, graph_name, stacked=True, stacknum=len(plotted_series), sub_sub_labels=cluster_labels)
+    bar_plot(labels, merged_sub_labels, merged_values, yaxis_name, graph_name, stacked=True, stacknum=len(plotted_series), sub_sub_labels=cluster_labels, annotations=annotations)
   except ValueError:
     print('Missing CPI series. Skip plot ' + graph_name)
 
@@ -1078,8 +1089,9 @@ def make_plots_and_tables(all_data):
     disp_stat='dram_bw_used',
     line_height=16000000000)
   plot_best_speedup(all_data,
-    category_renames=ncpu_nvpf_cat_names,
-    yaxis_name = 'Speedup Relative to NV_PF_NCPUS_1',
+    category_renames= [ 'NV_PF_1', 'NV_PF_4', 'NV_PF_16', 'NV_PF_64' ],
+    category_configs =  [ [ 'NV_PF_NCPUS_1' ], [ 'NV_PF_NCPUS_4' ], [ 'NV_PF_NCPUS_16' ], [ 'NV_PF_NCPUS_64' ] ],
+    yaxis_name = 'Speedup Relative to NV_PF_1',
     graph_name = 'iopf_speedup',
     ylim = [0, 40],
     do_norm_to_cores=False,
@@ -1088,9 +1100,9 @@ def make_plots_and_tables(all_data):
     disp_stat='cycles')
 
   # cpi stack for scalability
-  plot_cpi_stack(all_data, config_names=['NV_PF_NCPUS_1', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64'], graph_name='nvpf_scale_cpi', cluster_labels=['NV_PF_1', 'NV_PF_16', 'NV_PF_64'])
-  plot_cpi_stack(all_data, config_names=['NV_PF_NCPUS_1', 'NV_PF_NCPUS_64', 'NV_PF_NCPUS_64__dram_bw_32'], graph_name='nvpf_cpi', cluster_labels=['NV_PF_1', 'NV_PF_64', 'NV_PF_64_2xBW'])
-  plot_cpi_stack(all_data, config_names=['NV_PF_NCPUS_64', 'NV_PF_NCPUS_64__dram_bw_32', 'V4'], graph_name='v4_cpi', cluster_labels=['NV_PF', 'NV_PF_2xBW', 'V4']) # TODO should be bestV
+  plot_cpi_stack(all_data, config_names=['NV_PF_NCPUS_1', 'NV_PF_NCPUS_16', 'NV_PF_NCPUS_64'], graph_name='nvpf_scale_cpi', cluster_labels=['NV_PF_1', 'NV_PF_16', 'NV_PF_64'], annotations=['1', '16', '64'])
+  plot_cpi_stack(all_data, config_names=['NV_PF_NCPUS_1', 'NV_PF_NCPUS_64', 'NV_PF_NCPUS_64__dram_bw_32'], graph_name='nvpf_cpi', cluster_labels=['NV_PF_1', 'NV_PF_64', 'NV_PF_64_2xBW'], annotations=['1', '64', '2X'])
+  plot_cpi_stack(all_data, config_names=['NV_PF_NCPUS_64', 'NV_PF_NCPUS_64__dram_bw_32', 'V4'], graph_name='v4_cpi', cluster_labels=['NV_PF', 'NV_PF_2xBW', 'V4'], annotations=['B', '2X', 'V4']) # TODO should be bestV
   plot_cpi_stack(all_data, config_names=['V4', 'V16'], graph_name='vec_cmp_cpi', cluster_labels=['V4', 'V16'])
   plot_cpi_stack(all_data, config_names=['NV_PF_NCPUS_64', 'PCV_PF_NCPUS_64'], graph_name='nvpcv_pcv_cpi', cluster_labels=['NV_PF', 'PCV_PF'])
   plot_cpi_stack(all_data, config_names=['PCV_PF_NCPUS_1', 'PCV_PF_NCPUS_64'], graph_name='pcv_cpi', cluster_labels=['PCV_PF_1', 'PCV_PF_64'])

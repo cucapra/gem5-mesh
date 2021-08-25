@@ -24,6 +24,22 @@ default_prop_cycle = mpl.rcParams['axes.prop_cycle']
 def is_number(obj):
   return (isinstance(obj, (int, float)) and not isinstance(obj, bool))
 
+# normalize string lens
+def equalize_str_len(annotations):
+  # figure out max handle length
+  max_handle_len = 0
+  for anno_str in annotations:
+    if (len(anno_str) > max_handle_len):
+      max_handle_len = len(anno_str)
+
+  adjusted = []
+  for anno_str in annotations:
+    while (len(anno_str) < max_handle_len):
+      anno_str = '\hspace{0.7}' + anno_str
+    adjusted.append(anno_str)
+
+  return adjusted
+
 # create specified barplot and write to file
 # Labels are the x axis names
 # Sub labels are clustered/stacked field names
@@ -36,7 +52,7 @@ def is_number(obj):
 # Stack is whether to sub label bars instead of cluster
 # Stacknum is how many to stack before creating another sub field in cluster. -1 means all stack
 # TODO for stacked clustered might want have config labels. Could do with second axis place below or do annotations below each bar (like what do with clipping)
-def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[], horiz_line='', stacked=False, stacknum=-1, sub_sub_labels=[]):
+def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[], horiz_line='', stacked=False, stacknum=-1, sub_sub_labels=[], annotations = ['B', '1', '2', '3']):
   mpl.rcParams['axes.prop_cycle'] = default_prop_cycle
 
   x = np.arange(len(labels))  # the label locations
@@ -54,6 +70,7 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
   else:
     num_cluster_bars = num_sub_bars
 
+  is_stacked_clusted = stacked and num_cluster_bars > 1
   width = (1 - slack) / num_cluster_bars # the width of a single bar
   first_bar_offset = (width / -2) * (num_cluster_bars-1)
   stack_count = ( num_sub_bars / num_cluster_bars)
@@ -63,7 +80,7 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
       all_colors = json.load(f)
 
     # need to be able to force to the same color when stacked and clustered
-    if (stacked and num_cluster_bars > 1):
+    if (is_stacked_clusted):
       assert(str(stack_count) in all_colors.keys())
 
     config_color = True
@@ -76,7 +93,7 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
     config_color = False
 
   # if both stacked and clustered then increase figsize over default of figsize=(6.4,4.8)
-  if (stacked and num_cluster_bars > 1):
+  if (is_stacked_clusted):
     fig, ax = plt.subplots(figsize=(12.8,4.8))
     edgecolor='black'
   else:
@@ -158,8 +175,7 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
     ax.axhline(y=horiz_line, linewidth=1, color='black', linestyle='dashed')
 
   # for grouped and stacked add cluster bar labels as annoation?
-  if (stacked and num_cluster_bars > 1):
-    annotations = ['B', '1', '2', '3']
+  if (is_stacked_clusted):
     for r_idx in range(len(rects)):
       if (r_idx % stack_count != 0):
         continue
@@ -176,6 +192,8 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
     # need to manually add first legend otherwise will be deleted
     fig.gca().add_artist(orig_legend)
 
+    annotations = equalize_str_len(annotations)
+
     dummy_handle = Rectangle((0, 0), 1, 1, fc='w', fill=False, edgecolor='none', linewidth=0)
     handles = []
     handle_names = []
@@ -188,6 +206,9 @@ def bar_plot(labels, sub_labels, values, ylabel, title, annotate=False, ylim=[],
 
   fig.tight_layout()
   # plt.show()
+
+  if (is_stacked_clusted):
+    ax.xaxis.set_tick_params(color='w', length=6)
 
   plt.savefig(str(title) + '.png')
   plt.savefig(str(title) + '.pdf')
