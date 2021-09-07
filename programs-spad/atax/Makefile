@@ -5,7 +5,7 @@ SIZE ?= 64
 
 N_SPS ?= 1
 CL_LEN := 64
-EXTRA_FLAGS ?= -DNO_VEC -DCACHE_LINE_SIZE=$(CL_LEN)
+EXTRA_FLAGS ?= -DMANYCORE_PREFETCH -DCACHE_LINE_SIZE=$(CL_LEN)
 # GEM5_ARGS := --debug-flags=Frame
 HB_ARGS := --options="$(SIZE) $(SIZE)" --cacheline_size=$(CL_LEN)
 

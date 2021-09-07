@@ -4,7 +4,7 @@ default: $(BENCHNAME)
 # run small sim for test
 PROB_SIZE := 16
 N_SPS ?= 16
-EXTRA_FLAGS ?= -DMANYCORE_PREFETCH -DPER_CORE_SIMD
+EXTRA_FLAGS ?= -DMANYCORE_PREFETCH
 HB_ARGS := --options="$(PROB_SIZE) $(PROB_SIZE)"
 # GEM5_ARGS ?= --remote-gdb-port=0 --debug-flags=RiscvVector
 
