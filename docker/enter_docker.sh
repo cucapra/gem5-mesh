@@ -4,4 +4,5 @@
 docker run \
     -v $PWD/../:/workspace/gem5-mesh \
     -w /workspace/gem5-mesh \
+    --user "$(id -u):$(id -g)" \
     -it ghcr.io/cucapra/gem5-mesh:latest
