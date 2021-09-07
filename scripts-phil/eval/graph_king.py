@@ -287,7 +287,10 @@ def line_plot(x_axes, y_axes, labels, xlabel, ylabel, title, infer_ticks=True, d
 
   # ax.set_title(title)
   # if bbox(x,y) included then loc specifies which corner your moving
-  fig.legend(labels, loc=legend_loc, ncol = 2, bbox_to_anchor=bbox)
+  if (legend_loc == '' or bbox == ''):
+    fig.legend(labels)
+  else:
+    fig.legend(labels, loc=legend_loc, ncol = 2, bbox_to_anchor=bbox)
 
   fig.tight_layout()
 
