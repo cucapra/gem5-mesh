@@ -1,3 +1,0 @@
-Get instructions for synth
-
-/data/phil/riscv-build/bin/riscv64-unknown-linux-gnu-objdump -dC synth > synth.dump
