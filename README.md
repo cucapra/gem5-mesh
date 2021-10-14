@@ -1,9 +1,9 @@
-Trillium
+Rockcress
 ========
 
 [![build status](https://github.com/cucapra/gem5-mesh/workflows/trillium/badge.svg)](https://github.com/cucapra/gem5-mesh/actions)
 
-This is a fork of the [gem5][] simulator repository with a bunch of other stuff for the Trillium architecture.
+This is a fork of the [gem5][] simulator repository with a bunch of other stuff for the Rockcress architecture.
 
 There are two ways to set up the infrastructure: an automated way inside a [Docker][] container, or a manual way on your host machine.
 
@@ -102,6 +102,23 @@ Some important source code directories to check out include:
 ### Compiler Pass:
 
 Code for the architecture relies on a custom compiler pass found in `top/trillium`, which post-processes the assembly produced by GCC to produce runnable code.
+
+### Publication:
+
+You can find more information about Rockcress in our MICRO 2021 paper.
+
+```
+Philip Bedoukian, Neil Adit, Edwin Peguero, and Adrian Sampson. 2021.
+Software-Defined Vector Processing on Manycore Fabrics. In MICRO-54: 54th
+Annual IEEE/ACM International Symposium on Microarchitecture (MICRO
+’21), October 18–22, 2021, Virtual Event, Greece. ACM, New York, NY, USA,
+15 pages. https://doi.org/10.1145/3466752.3480099
+```
+
+### Acknowledgements
+
+Thank you to Khalid Al-Hawaj and Tuan Ta for their contributions to the baseline models.
+
 
 [gem5]: https://gem5.googlesource.com
 [PolyBench/GPU]: https://web.cse.ohio-state.edu/~pouchet.2/software/polybench/GPU/index.html
