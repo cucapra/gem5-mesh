@@ -38,12 +38,15 @@ RUN make -j16 linux
 # set environment variable RV_CC10
 ENV RV_CC10 /riscv-rv64gv/bin/riscv64-unknown-linux-gnu-gcc
 
-# install python libaries 
+# install python libaries
 RUN apt-get install -y python-pip python3-pip
 RUN pip3 install regex colorlog
 RUN pip install numpy matplotlib scipy
 
-# prepare workspace
-WORKDIR /
-RUN mkdir workspace
-WORKDIR /workspace
+# copy simulator source to workspace
+RUN mkdir /workspace
+COPY . /workspace/gem5-mesh
+WORKDIR /workspace/gem5-mesh
+
+# build simulator
+RUN scons -j16 ./build/RVSP/gem5.opt
